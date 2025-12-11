@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
 import { useRouter } from 'next/navigation'
 import QRCode from 'qrcode'
 
@@ -10,7 +10,10 @@ export default function Setup2FAPage() {
   const [factorId, setFactorId] = useState('')
   const [error, setError] = useState('')
 
-  const supabase = createClientComponentClient()
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
   const router = useRouter()
 
   useEffect(() => {
