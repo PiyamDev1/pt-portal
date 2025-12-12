@@ -16,14 +16,21 @@ export default function LoginPage() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
 
-  // --- LOGIC: Validate Branch & Redirect ---
+  // --- LOGIC: Validate Branch, Password Status & Redirect ---
   const postLoginChecks = async (userId: string) => {
-    // 1. Check database for Branch Code match
+    // 1. Check database for Branch Code match AND Temporary Password Flag
     const { data: employee } = await supabase
       .from('employees')
-      .select('locations(branch_code)')
+      .select('is_temporary_password, locations(branch_code)')
       .eq('id', userId)
       .single()
+
+    // --- NEW: FORCE PASSWORD CHANGE CHECK ---
+    if (employee?.is_temporary_password) {
+      router.push('/auth/new-password')
+      return
+    }
+    // ----------------------------------------
 
     // @ts-ignore
     const assignedCode = employee?.locations?.branch_code
