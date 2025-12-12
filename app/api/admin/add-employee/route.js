@@ -17,6 +17,18 @@ const mg = mailgun.client({
 
 export async function POST(request) {
   try {
+    // Validate critical environment configuration early to avoid obscure errors
+    const missingEnv = [];
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL) missingEnv.push('NEXT_PUBLIC_SUPABASE_URL');
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) missingEnv.push('SUPABASE_SERVICE_ROLE_KEY');
+    if (!process.env.MAILGUN_API_KEY) missingEnv.push('MAILGUN_API_KEY');
+    if (!process.env.MAILGUN_DOMAIN) missingEnv.push('MAILGUN_DOMAIN');
+    if (!process.env.MAILGUN_SENDER_EMAIL) missingEnv.push('MAILGUN_SENDER_EMAIL');
+    if (missingEnv.length > 0) {
+      const msg = `Missing required environment variables: ${missingEnv.join(', ')}`;
+      console.error(msg);
+      return NextResponse.json({ error: msg }, { status: 500 });
+    }
     const body = await request.json();
     // NOW ACCEPTING 'department_ids' ARRAY INSTEAD OF SINGLE ID
     const { email, firstName, lastName, role_id, department_ids, location_id } = body;
@@ -73,22 +85,18 @@ export async function POST(request) {
       }
     }
 
-    // 4. Send Email
-    await mg.messages.create(process.env.MAILGUN_DOMAIN, {
-      from: `${process.env.MAILGUN_SENDER_EMAIL}`,
-      to: email,
-      subject: 'Welcome to IMS - Your Login Details',
-      text: `Hello ${firstName},
-
-Your account has been created.
-
-Username: ${email}
-Temporary Password: ${tempPassword}
-
-Please log in immediately to change your password.
-
-Login here: https://ims.piyamtravel.com`
-    });
+    // 4. Send Email (wrap to capture Mailgun/client URL issues)
+    try {
+      await mg.messages.create(process.env.MAILGUN_DOMAIN, {
+        from: `${process.env.MAILGUN_SENDER_EMAIL}`,
+        to: email,
+        subject: 'Welcome to IMS - Your Login Details',
+        text: `Hello ${firstName},\n\nYour account has been created.\n\nUsername: ${email}\nTemporary Password: ${tempPassword}\n\nPlease log in immediately to change your password.\n\nLogin here: https://ims.piyamtravel.com`
+      });
+    } catch (mailError) {
+      console.error('Mailgun send error:', mailError);
+      return NextResponse.json({ error: `Failed to send onboarding email: ${mailError.message || mailError}` }, { status: 502 });
+    }
 
     return NextResponse.json({ success: true, message: 'User created' }, { status: 200 });
 
