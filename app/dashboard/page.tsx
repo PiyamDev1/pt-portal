@@ -92,27 +92,15 @@ export default async function Dashboard() {
 
           {/* ADMIN ONLY: Settings Module */}
           {isMasterAdmin && (
-            <>
-              <Link href="/dashboard/settings" className="block">
-                <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 hover:bg-slate-700 hover:shadow-md transition cursor-pointer group h-full">
-                  <div className="h-12 w-12 bg-slate-700 rounded-lg flex items-center justify-center mb-4 group-hover:bg-slate-600">
-                    <span className="text-2xl">⚙️</span>
-                  </div>
-                  <h3 className="font-bold text-white">Admin Settings</h3>
-                  <p className="text-sm text-slate-400 mt-1">Manage branches, staff, and roles.</p>
+            <Link href="/dashboard/settings" className="block">
+              <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 hover:bg-slate-700 hover:shadow-md transition cursor-pointer group h-full">
+                <div className="h-12 w-12 bg-slate-700 rounded-lg flex items-center justify-center mb-4 group-hover:bg-slate-600">
+                  <span className="text-2xl">⚙️</span>
                 </div>
-              </Link>
-
-              <Link href="/admin/add-user" className="block">
-                <div className="bg-blue-900 p-6 rounded-xl border border-blue-800 hover:bg-blue-800 shadow-md transition cursor-pointer group h-full">
-                  <div className="h-12 w-12 bg-blue-800 rounded-lg flex items-center justify-center mb-4 text-white">
-                    <span className="text-2xl">👤</span>
-                  </div>
-                  <h3 className="font-bold text-white">Add Employee</h3>
-                  <p className="text-sm text-blue-200 mt-1">Create account & send invite.</p>
-                </div>
-              </Link>
-            </>
+                <h3 className="font-bold text-white">Admin Settings</h3>
+                <p className="text-sm text-slate-400 mt-1">Manage branches, staff, and roles.</p>
+              </div>
+            </Link>
           )}
 
         </div>
