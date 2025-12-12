@@ -2,6 +2,7 @@ import { createServerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import SettingsClient from './client'
+import PageHeader from '@/app/components/PageHeader.client'
 
 export default async function SettingsPage() {
   const cookieStore = await cookies()
@@ -29,18 +30,28 @@ export default async function SettingsPage() {
   if (!session) redirect('/login')
 
   // 2. Fetch Hierarchy Data in Parallel (Fast)
-  const [locations, departments, roles, employees] = await Promise.all([
+  const [locations, departments, roles, employees, employeeData] = await Promise.all([
     supabase.from('locations').select('*').order('name'),
     supabase.from('departments').select('*').order('name'),
     supabase.from('roles').select('*').order('level'), // Level 1 = Boss
-    supabase.from('employees').select('id, full_name, email, role_id, department_id, location_id, manager_id')
+    supabase.from('employees').select('id, full_name, email, role_id, department_id, location_id, manager_id'),
+    supabase.from('employees')
+      .select('full_name, roles(name), locations(name, branch_code)')
+      .eq('id', session.user.id)
+      .single()
   ])
+
+  const location = Array.isArray(employeeData?.data?.locations) ? employeeData.data.locations[0] : employeeData?.data?.locations
+  const role = Array.isArray(employeeData?.data?.roles) ? employeeData.data.roles[0] : employeeData?.data?.roles
 
   // 3. Pass data to the Client Component (The Dashboard UI)
   return (
-    <div className="max-w-7xl mx-auto p-6">
-      <h1 className="text-3xl font-bold text-slate-800 mb-2">Organization Settings</h1>
-      <p className="text-slate-500 mb-8">Manage branches, structure, and staff access levels.</p>
+    <div className="min-h-screen bg-slate-50">
+      <PageHeader employeeName={employeeData?.data?.full_name} role={role?.name} location={location} showBack={true} />
+      
+      <main className="max-w-7xl mx-auto p-6">
+        <h1 className="text-3xl font-bold text-slate-800 mb-2">Organization Settings</h1>
+        <p className="text-slate-500 mb-8">Manage branches, structure, and staff access levels.</p>
       
       <SettingsClient 
         initialLocations={locations.data || []}
@@ -48,6 +59,9 @@ export default async function SettingsPage() {
         initialRoles={roles.data || []}
         initialEmployees={employees.data || []}
       />
+      </main>
+    </div>
+  )
     </div>
   )
 }

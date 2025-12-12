@@ -2,7 +2,7 @@ import { createServerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import Link from 'next/link' // For the Settings link
-import LogoutButton from './logout-button.client'
+import PageHeader from '@/app/components/PageHeader.client'
 
 export default async function Dashboard() {
   const cookieStore = await cookies()
@@ -41,24 +41,7 @@ export default async function Dashboard() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* Top Navigation Bar */}
-      <nav className="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center shadow-sm">
-        <div className="flex items-center gap-4">
-          <div className="h-10 w-10 bg-blue-900 rounded-full flex items-center justify-center text-white font-bold">PT</div>
-          <div>
-            <h1 className="text-lg font-bold text-slate-800">Piyam Travels Portal</h1>
-            <p className="text-xs text-slate-500">{location?.name} ({location?.branch_code})</p>
-          </div>
-        </div>
-        
-        <div className="flex items-center gap-6">
-          <div className="text-right hidden sm:block">
-            <p className="text-sm font-medium text-slate-900">{employee?.full_name}</p>
-            <p className="text-xs text-blue-600 font-semibold">{role?.name}</p>
-          </div>
-          <LogoutButton />
-        </div>
-      </nav>
+      <PageHeader employeeName={employee?.full_name} role={role?.name} location={location} />
 
       {/* Main Content */}
       <main className="p-8 max-w-7xl mx-auto space-y-8">

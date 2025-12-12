@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import QRCode from 'qrcode'
 
 export default function Setup2FAPage() {
@@ -42,6 +43,11 @@ export default function Setup2FAPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-50">
+      <div className="absolute top-4 left-4">
+        <Link href="/login" className="flex items-center gap-2 text-blue-600 hover:text-blue-800 text-sm font-medium">
+          ← Back to Login
+        </Link>
+      </div>
       <div className="w-full max-w-md p-8 bg-white rounded-xl shadow-lg text-center">
         <h2 className="text-2xl font-bold text-blue-900 mb-2">Secure Your Account</h2>
         <p className="text-sm text-slate-500 mb-6">Scan with Google Authenticator to setup 2FA.</p>
