@@ -9,10 +9,12 @@ const supabaseAdmin = createClient(
 );
 
 const mailgun = new Mailgun(formData);
+const rawMailgunEndpoint = process.env.MAILGUN_ENDPOINT || 'https://api.mailgun.net';
+const mailgunEndpoint = /^https?:\/\//i.test(rawMailgunEndpoint) ? rawMailgunEndpoint : `https://${rawMailgunEndpoint}`;
 const mg = mailgun.client({
   username: 'api',
   key: process.env.MAILGUN_API_KEY,
-  url: process.env.MAILGUN_ENDPOINT
+  url: mailgunEndpoint
 });
 
 export async function POST(request) {
@@ -105,8 +107,10 @@ export async function POST(request) {
 
     // Send email
     try {
-        await mg.messages.create(process.env.MAILGUN_DOMAIN, {
-          from: `${senderEmail}`,
+      const senderDomain = (process.env.MAILGUN_DOMAIN || '').replace(/^https?:\/\//, '').replace(/\/$/, '');
+      if (!senderDomain) throw new Error('Missing or invalid MAILGUN_DOMAIN');
+      await mg.messages.create(senderDomain, {
+        from: `${senderEmail}`,
         to: notifyEmail,
         subject: 'IMS - Password Reset by Admin',
         text: `Hello,\n\nYour password has been reset by an administrator.\n\nUsername: ${notifyEmail}\nTemporary Password: ${tempPassword}\n\nPlease log in and change your password immediately.\n\nLogin here: https://ims.piyamtravel.com`

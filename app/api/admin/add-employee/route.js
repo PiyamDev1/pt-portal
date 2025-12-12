@@ -9,10 +9,12 @@ const supabaseAdmin = createClient(
 );
 
 const mailgun = new Mailgun(formData);
+const rawMailgunEndpoint = process.env.MAILGUN_ENDPOINT || 'https://api.mailgun.net';
+const mailgunEndpoint = /^https?:\/\//i.test(rawMailgunEndpoint) ? rawMailgunEndpoint : `https://${rawMailgunEndpoint}`;
 const mg = mailgun.client({
   username: 'api',
   key: process.env.MAILGUN_API_KEY,
-  url: process.env.MAILGUN_ENDPOINT
+  url: mailgunEndpoint
 });
 
 export async function POST(request) {
@@ -89,8 +91,12 @@ export async function POST(request) {
 
     // 4. Send Email (wrap to capture Mailgun/client URL issues)
     try {
-        await mg.messages.create(process.env.MAILGUN_DOMAIN, {
-          from: `${senderEmail}`,
+      const senderDomain = (process.env.MAILGUN_DOMAIN || '').replace(/^https?:\/\//, '').replace(/\/$/, '');
+      if (!senderDomain) {
+        throw new Error('Missing or invalid MAILGUN_DOMAIN');
+      }
+      await mg.messages.create(senderDomain, {
+        from: `${senderEmail}`,
         to: email,
         subject: 'Welcome to IMS - Your Login Details',
         text: `Hello ${firstName},\n\nYour account has been created.\n\nUsername: ${email}\nTemporary Password: ${tempPassword}\n\nPlease log in immediately to change your password.\n\nLogin here: https://ims.piyamtravel.com`
