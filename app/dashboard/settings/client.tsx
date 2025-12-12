@@ -152,7 +152,12 @@ export default function SettingsClient({ initialLocations, initialDepts, initial
           <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
             <div className="p-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
               <h3 className="font-bold text-slate-700">Staff Directory</h3>
-              <button className="text-xs text-blue-600 hover:underline">Invite New User (Use Supabase Auth)</button>
+              <button 
+                onClick={() => router.push('/admin/add-user')} 
+                className="text-xs text-blue-600 hover:underline font-bold"
+              >
+                + Invite New User
+              </button>
             </div>
             
             <table className="w-full text-sm text-left">
