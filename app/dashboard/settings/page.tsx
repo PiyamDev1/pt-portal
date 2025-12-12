@@ -65,6 +65,3 @@ export default async function SettingsPage() {
       </div>
     </DashboardClientWrapper>
   )
-    </div>
-  )
-}
