@@ -16,6 +16,7 @@ export default function SettingsClient({ initialLocations, initialDepts, initial
   // --- STATES FOR STAFF EDITING ---
   const [showAddForm, setShowAddForm] = useState(false)
   const [editingEmployee, setEditingEmployee] = useState<any>(null)
+  const [resettingId, setResettingId] = useState<string | null>(null)
   const [newEmployee, setNewEmployee] = useState({
     firstName: '',
     lastName: '',
@@ -107,6 +108,18 @@ export default function SettingsClient({ initialLocations, initialDepts, initial
       }
     } catch (err) { alert('Network Error'); }
     setLoading(false)
+  }
+
+  // Admin helper to trigger reset-password endpoint
+  const adminResetPassword = async ({ employee_id, email }: { employee_id?: string; email?: string }) => {
+    const res = await fetch('/api/admin/reset-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(employee_id ? { employee_id } : { email })
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error || 'Failed to reset password')
+    return data
   }
 
   const handleUpdateEmployee = async () => {
@@ -479,6 +492,24 @@ export default function SettingsClient({ initialLocations, initialDepts, initial
                             >
                               Edit
                             </button>
+                              <button
+                                onClick={async () => {
+                                  if (!confirm(`Send a temporary password to ${emp.email}?`)) return
+                                  try {
+                                    setResettingId(emp.id)
+                                    const resp = await adminResetPassword({ employee_id: emp.id })
+                                    alert(resp.message || 'Temporary password emailed')
+                                  } catch (err: any) {
+                                    alert('Error: ' + (err.message || err))
+                                  } finally {
+                                    setResettingId(null)
+                                  }
+                                }}
+                                disabled={loading || resettingId === emp.id}
+                                className="ml-3 text-red-600 hover:underline"
+                              >
+                                {resettingId === emp.id ? 'Sending...' : 'Reset Password'}
+                              </button>
                           </td>
                         </>
                       )}
