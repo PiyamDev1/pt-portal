@@ -2,7 +2,6 @@
 import { useState } from 'react'
 import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -74,16 +73,8 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-50">
-      <div className="absolute top-4 left-4">
-        <Link href="/" className="flex items-center gap-2 text-blue-600 hover:text-blue-800 text-sm font-medium">
-          ← Back to Home
-        </Link>
-      </div>
       <div className="w-full max-w-md p-8 bg-white rounded-xl shadow-lg border border-slate-200">
         <div className="text-center mb-8">
-          <Link href="/" className="inline-block">
-            <div className="h-12 w-12 bg-blue-900 rounded-full flex items-center justify-center text-white font-bold mx-auto mb-4 cursor-pointer hover:opacity-80">PT</div>
-          </Link>
           <h1 className="text-3xl font-bold text-slate-900">PT-IMS</h1>
           <p className="text-slate-500">Secure Employee Access</p>
         </div>

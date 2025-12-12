@@ -3,6 +3,7 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import SettingsClient from './client'
 import PageHeader from '@/app/components/PageHeader.client'
+import DashboardClientWrapper from '@/app/dashboard/client-wrapper'
 
 export default async function SettingsPage() {
   const cookieStore = await cookies()
@@ -46,8 +47,9 @@ export default async function SettingsPage() {
 
   // 3. Pass data to the Client Component (The Dashboard UI)
   return (
-    <div className="min-h-screen bg-slate-50">
-      <PageHeader employeeName={employeeData?.data?.full_name} role={role?.name} location={location} showBack={true} />
+    <DashboardClientWrapper>
+      <div className="min-h-screen bg-slate-50">
+        <PageHeader employeeName={employeeData?.data?.full_name} role={role?.name} location={location} showBack={true} />
       
       <main className="max-w-7xl mx-auto p-6">
         <h1 className="text-3xl font-bold text-slate-800 mb-2">Organization Settings</h1>
@@ -60,7 +62,8 @@ export default async function SettingsPage() {
         initialEmployees={employees.data || []}
       />
       </main>
-    </div>
+      </div>
+    </DashboardClientWrapper>
   )
     </div>
   )

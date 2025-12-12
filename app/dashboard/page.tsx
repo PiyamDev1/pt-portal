@@ -3,6 +3,7 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import Link from 'next/link' // For the Settings link
 import PageHeader from '@/app/components/PageHeader.client'
+import DashboardClientWrapper from './client-wrapper'
 
 export default async function Dashboard() {
   const cookieStore = await cookies()
@@ -40,8 +41,9 @@ export default async function Dashboard() {
   const isMasterAdmin = role?.name === 'Master Admin'
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <PageHeader employeeName={employee?.full_name} role={role?.name} location={location} />
+    <DashboardClientWrapper>
+      <div className="min-h-screen bg-slate-50">
+        <PageHeader employeeName={employee?.full_name} role={role?.name} location={location} />
 
       {/* Main Content */}
       <main className="p-8 max-w-7xl mx-auto space-y-8">
@@ -88,6 +90,7 @@ export default async function Dashboard() {
 
         </div>
       </main>
-    </div>
+      </div>
+    </DashboardClientWrapper>
   )
 }
