@@ -23,7 +23,9 @@ export async function POST(request) {
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY) missingEnv.push('SUPABASE_SERVICE_ROLE_KEY');
     if (!process.env.MAILGUN_API_KEY) missingEnv.push('MAILGUN_API_KEY');
     if (!process.env.MAILGUN_DOMAIN) missingEnv.push('MAILGUN_DOMAIN');
-    if (!process.env.MAILGUN_SENDER_EMAIL) missingEnv.push('MAILGUN_SENDER_EMAIL');
+      // Support either MAILGUN_SENDER_EMAIL or MAIL_FROM_ADDRESS (Vercel name)
+      const senderEmail = process.env.MAILGUN_SENDER_EMAIL || process.env.MAIL_FROM_ADDRESS;
+      if (!senderEmail) missingEnv.push('MAILGUN_SENDER_EMAIL or MAIL_FROM_ADDRESS');
     if (missingEnv.length > 0) {
       const msg = `Missing required environment variables: ${missingEnv.join(', ')}`;
       console.error(msg);
@@ -87,8 +89,8 @@ export async function POST(request) {
 
     // 4. Send Email (wrap to capture Mailgun/client URL issues)
     try {
-      await mg.messages.create(process.env.MAILGUN_DOMAIN, {
-        from: `${process.env.MAILGUN_SENDER_EMAIL}`,
+        await mg.messages.create(process.env.MAILGUN_DOMAIN, {
+          from: `${senderEmail}`,
         to: email,
         subject: 'Welcome to IMS - Your Login Details',
         text: `Hello ${firstName},\n\nYour account has been created.\n\nUsername: ${email}\nTemporary Password: ${tempPassword}\n\nPlease log in immediately to change your password.\n\nLogin here: https://ims.piyamtravel.com`

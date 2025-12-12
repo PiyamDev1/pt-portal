@@ -62,21 +62,13 @@ export async function POST(request) {
       return NextResponse.json({ error: profileError.message }, { status: 500 });
     }
 
-    // 4. Send Email
+    // 4. Send Email (support MAIL_FROM_ADDRESS fallback)
+    const senderEmail = process.env.MAILGUN_SENDER_EMAIL || process.env.MAIL_FROM_ADDRESS;
     await mg.messages.create(process.env.MAILGUN_DOMAIN, {
-      from: `${process.env.MAILGUN_SENDER_EMAIL}`,
+      from: `${senderEmail}`,
       to: email,
       subject: 'Welcome to IMS - Your Login Details',
-      text: `Hello ${firstName},
-
-Your account has been created.
-
-Username: ${email}
-Temporary Password: ${tempPassword}
-
-Please log in immediately to change your password.
-
-Login here: https://ims.piyamtravel.com`
+      text: `Hello ${firstName},\n\nYour account has been created.\n\nUsername: ${email}\nTemporary Password: ${tempPassword}\n\nPlease log in immediately to change your password.\n\nLogin here: https://ims.piyamtravel.com`
     });
 
     return NextResponse.json({ success: true, message: 'User created' }, { status: 200 });

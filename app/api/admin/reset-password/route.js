@@ -23,7 +23,8 @@ export async function POST(request) {
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY) missingEnv.push('SUPABASE_SERVICE_ROLE_KEY');
     if (!process.env.MAILGUN_API_KEY) missingEnv.push('MAILGUN_API_KEY');
     if (!process.env.MAILGUN_DOMAIN) missingEnv.push('MAILGUN_DOMAIN');
-    if (!process.env.MAILGUN_SENDER_EMAIL) missingEnv.push('MAILGUN_SENDER_EMAIL');
+      const senderEmail = process.env.MAILGUN_SENDER_EMAIL || process.env.MAIL_FROM_ADDRESS;
+      if (!senderEmail) missingEnv.push('MAILGUN_SENDER_EMAIL or MAIL_FROM_ADDRESS');
     if (missingEnv.length > 0) {
       const msg = `Missing required environment variables: ${missingEnv.join(', ')}`;
       console.error(msg);
@@ -104,8 +105,8 @@ export async function POST(request) {
 
     // Send email
     try {
-      await mg.messages.create(process.env.MAILGUN_DOMAIN, {
-        from: `${process.env.MAILGUN_SENDER_EMAIL}`,
+        await mg.messages.create(process.env.MAILGUN_DOMAIN, {
+          from: `${senderEmail}`,
         to: notifyEmail,
         subject: 'IMS - Password Reset by Admin',
         text: `Hello,\n\nYour password has been reset by an administrator.\n\nUsername: ${notifyEmail}\nTemporary Password: ${tempPassword}\n\nPlease log in and change your password immediately.\n\nLogin here: https://ims.piyamtravel.com`
