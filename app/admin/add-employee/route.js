@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import formData from 'form-data';
 import Mailgun from 'mailgun.js';
+import bcrypt from 'bcrypt';
 import { NextResponse } from 'next/server';
 
 // Initialize Supabase Admin
@@ -62,6 +63,14 @@ export async function POST(request) {
       // Rollback: Delete auth user if profile fails
       await supabaseAdmin.auth.admin.deleteUser(authUser.user.id);
       return NextResponse.json({ error: profileError.message }, { status: 500 });
+    }
+
+    // Record initial password hash in password_history
+    try {
+      const hash = await bcrypt.hash(tempPassword, 12)
+      await supabaseAdmin.from('password_history').insert({ employee_id: authUser.user.id, password_hash: hash })
+    } catch (e) {
+      console.error('Failed to write initial password history:', e)
     }
 
     // 4. Send Email (support MAIL_FROM_ADDRESS fallback)

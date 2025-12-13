@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import formData from 'form-data';
 import Mailgun from 'mailgun.js';
+import bcrypt from 'bcrypt';
 import { NextResponse } from 'next/server';
 
 const supabaseAdmin = createClient(
@@ -70,6 +71,14 @@ export async function POST(request) {
     if (profileError) {
       await supabaseAdmin.auth.admin.deleteUser(authUser.user.id);
       return NextResponse.json({ error: profileError.message }, { status: 500 });
+    }
+
+    // Record initial password in history
+    try {
+      const hash = await bcrypt.hash(tempPassword, 12)
+      await supabaseAdmin.from('password_history').insert({ employee_id: authUser.user.id, password_hash: hash })
+    } catch (e) {
+      console.error('Failed to write initial password history:', e)
     }
 
     // 3. LINK DEPARTMENTS (The New Logic)

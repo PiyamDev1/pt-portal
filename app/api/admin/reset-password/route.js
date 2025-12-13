@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import formData from 'form-data';
 import Mailgun from 'mailgun.js';
 import { NextResponse } from 'next/server';
+import bcrypt from 'bcrypt';
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -64,6 +65,27 @@ export async function POST(request) {
     // Generate temp password
     const tempPassword = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-4) + '!';
 
+    // Check password history to prevent reuse
+    try {
+      const { data: prev } = await supabaseAdmin
+        .from('password_history')
+        .select('password_hash')
+        .eq('employee_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(5)
+
+      if (prev && prev.length > 0) {
+        for (const row of prev) {
+          const match = await bcrypt.compare(tempPassword, row.password_hash)
+          if (match) {
+            return NextResponse.json({ error: 'Temporary password conflicts with recent password history' }, { status: 400 })
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Password history check failed:', e)
+    }
+
     // Update Supabase auth user password (admin)
     try {
       // Using admin.updateUserById (supabase-js v2)
@@ -88,6 +110,29 @@ export async function POST(request) {
         .eq('id', userId);
     } catch (e) {
       console.error('Failed to mark employee temp password:', e);
+    }
+
+    // Record password history for this temp password
+    try {
+      const hash = await bcrypt.hash(tempPassword, 12)
+      await supabaseAdmin.from('password_history').insert({ employee_id: userId, password_hash: hash })
+      // Trim to last 5
+      const { data: rows } = await supabaseAdmin
+        .from('password_history')
+        .select('id')
+        .eq('employee_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(5)
+      const keepIds = (rows || []).map(r => r.id).filter(Boolean)
+      if (keepIds.length > 0) {
+        await supabaseAdmin
+          .from('password_history')
+          .delete()
+          .eq('employee_id', userId)
+          .not('id', 'in', `(${keepIds.join(',')})`)
+      }
+    } catch (e) {
+      console.error('Failed to write password history:', e)
     }
 
     // Fetch email to notify

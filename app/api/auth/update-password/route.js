@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
+import bcrypt from 'bcrypt';
 
 // We need the SERVICE KEY to update the user's password without requiring the old one again
 const supabaseAdmin = createClient(
@@ -46,6 +47,31 @@ export async function POST(request) {
 
     if (dbError) {
       return NextResponse.json({ error: 'Password set, but DB flag failed.' }, { status: 500 });
+    }
+
+    // 3. Record password hash in password_history (keep latest 5)
+    try {
+      const hash = await bcrypt.hash(password, 12)
+      await supabaseAdmin.from('password_history').insert({ employee_id: userId, password_hash: hash })
+
+      // Keep only last 5 entries
+      const { data: rows } = await supabaseAdmin
+        .from('password_history')
+        .select('id')
+        .eq('employee_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(5)
+
+      const keepIds = (rows || []).map(r => r.id).filter(Boolean)
+      if (keepIds.length > 0) {
+        await supabaseAdmin
+          .from('password_history')
+          .delete()
+          .eq('employee_id', userId)
+          .not('id', 'in', `(${keepIds.join(',')})`)
+      }
+    } catch (e) {
+      console.error('Failed to write password history:', e)
     }
 
     return NextResponse.json({ success: true, message: 'Password updated successfully' }, { status: 200 });
