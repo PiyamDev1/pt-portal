@@ -49,13 +49,14 @@ export default async function SettingsPage() {
   return (
     <DashboardClientWrapper>
       <div className="min-h-screen bg-slate-50">
-        <PageHeader employeeName={employeeData?.data?.full_name} role={role?.name} location={location} showBack={true} />
+        <PageHeader employeeName={employeeData?.data?.full_name} role={role?.name} location={location} userId={session.user.id} showBack={true} />
       
       <main className="max-w-7xl mx-auto p-6">
         <h1 className="text-3xl font-bold text-slate-800 mb-2">Organization Settings</h1>
         <p className="text-slate-500 mb-8">Manage branches, structure, and staff access levels.</p>
       
       <SettingsClient 
+        currentUser={session.user}
         initialLocations={locations.data || []}
         initialDepts={departments.data || []}
         initialRoles={roles.data || []}

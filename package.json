@@ -17,7 +17,8 @@
     "next": "^14.2.0",
     "qrcode": "^1.5.4",
     "react": "^18.3.0",
-    "react-dom": "^18.3.0"
+    "react-dom": "^18.3.0",
+    "sonner": "^2.0.7"
   },
   "devDependencies": {
     "@types/bcryptjs": "^3.0.0",

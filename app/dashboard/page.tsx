@@ -43,7 +43,7 @@ export default async function Dashboard() {
   return (
     <DashboardClientWrapper>
       <div className="min-h-screen bg-slate-50">
-        <PageHeader employeeName={employee?.full_name} role={role?.name} location={location} />
+        <PageHeader employeeName={employee?.full_name} role={role?.name} location={location} userId={session.user.id} />
 
       {/* Main Content */}
       <main className="p-8 max-w-7xl mx-auto space-y-8">

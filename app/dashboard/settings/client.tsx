@@ -1,10 +1,11 @@
 'use client'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 
-export default function SettingsClient({ initialLocations, initialDepts, initialRoles, initialEmployees }: any) {
-  const [activeTab, setActiveTab] = useState('branches')
+export default function SettingsClient({ currentUser, initialLocations, initialDepts, initialRoles, initialEmployees }: any) {
+  const [activeTab, setActiveTab] = useState('security')
   const [locations, setLocations] = useState(initialLocations)
   const [employees, setEmployees] = useState(initialEmployees)
   
@@ -26,6 +27,13 @@ export default function SettingsClient({ initialLocations, initialDepts, initial
     location_id: ''
   })
 
+  // --- STATES FOR MY ACCOUNT (SECURITY) ---
+  const [currentPass, setCurrentPass] = useState('')
+  const [newPass, setNewPass] = useState('')
+  const [confirmPass, setConfirmPass] = useState('')
+  const [showCodes, setShowCodes] = useState<string[] | null>(null)
+  const [backupCodeCount, setBackupCodeCount] = useState(0)
+
   // --- COMMON STATES ---
   const [loading, setLoading] = useState(false)
   const supabase = createBrowserClient(
@@ -33,6 +41,150 @@ export default function SettingsClient({ initialLocations, initialDepts, initial
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
   const router = useRouter()
+
+  // --- HELPER: PASSWORD STRENGTH ---
+  const getPasswordStrengthIndicator = (pwd: string) => {
+    const errors = [] as string[]
+    if (pwd.length < 8) errors.push('at least 8 characters')
+    if (!/[a-z]/.test(pwd)) errors.push('a lowercase letter')
+    if (!/[A-Z]/.test(pwd)) errors.push('an uppercase letter')
+    if (!/[0-9]/.test(pwd)) errors.push('a number')
+    if (!/[!@#$%^&*(),.?":{}|<>\-_=+\\/\[\];']/.test(pwd)) errors.push('a special character')
+    const strength = 5 - errors.length
+    return { strength, errors }
+  }
+
+  // ------------------------------------------------------------------
+  // ACTION: MY ACCOUNT (Logic ported from account page)
+  // ------------------------------------------------------------------
+  
+  // Fetch backup code count when tab is active
+  useEffect(() => {
+    if (activeTab === 'security' && currentUser) {
+      fetch(`/api/auth/backup-codes/count?userId=${currentUser.id}`)
+        .then(res => res.json())
+        .then(data => setBackupCodeCount(data.count || 0))
+        .catch(() => {})
+    }
+  }, [activeTab, currentUser])
+
+  const handlePasswordChange = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (newPass !== confirmPass) return toast.error("New passwords do not match")
+
+    const { strength, errors } = getPasswordStrengthIndicator(newPass)
+    if (errors.length > 0) return toast.error('Password too weak', { description: errors[0] })
+    
+    setLoading(true)
+
+    // 1. Verify Current Password first
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email: currentUser.email,
+      password: currentPass
+    })
+
+    if (signInError) {
+      setLoading(false)
+      return toast.error("Incorrect current password.")
+    }
+
+    // 2. Update to New Password
+    const { error: updateError } = await supabase.auth.updateUser({
+      password: newPass
+    })
+
+    if (updateError) {
+      toast.error("Failed to update password: " + updateError.message)
+    } else {
+      toast.success("Password updated successfully!")
+      setCurrentPass('')
+      setNewPass('')
+      setConfirmPass('')
+    }
+    setLoading(false)
+  }
+
+  const handleReset2FA = async () => {
+    if (!confirm("Are you sure? This will disable your current Authenticator codes and require you to setup 2FA again.")) return;
+    setLoading(true)
+    const res = await fetch('/api/auth/reset-2fa', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: currentUser.id }),
+    })
+    if (res.ok) {
+      toast.success("2FA reset successfully")
+      router.push('/login/setup-2fa')
+    } else {
+      const data = await res.json()
+      toast.error("Failed to reset 2FA", { description: data?.error })
+    }
+    setLoading(false)
+  }
+
+  const handleGenerateBackupCodes = async () => {
+    if (!confirm('Generate new backup codes? Previous codes will be invalidated.')) return
+    setLoading(true)
+    const res = await fetch('/api/auth/generate-backup-codes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: currentUser.id, count: 10 }),
+    })
+    const data = await res.json()
+    if (res.ok) {
+      setShowCodes(data.codes || [])
+      setBackupCodeCount(10)
+      toast.success("New backup codes generated")
+    } else {
+      toast.error('Generation failed', { description: data?.error })
+    }
+    setLoading(false)
+  }
+
+  const handleCopyBackupCodes = async () => {
+    if (!showCodes) return
+    await navigator.clipboard.writeText(showCodes.join('\n'))
+    toast.success('Copied to clipboard')
+  }
+
+  const handleDownloadBackupCodes = () => {
+    if (!showCodes) return
+    const text = 'Piyam Travels - Backup Codes\n' + showCodes.join('\n')
+    const blob = new Blob([text], { type: 'text/plain' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'backup-codes.txt'
+    a.click()
+  }
+
+  // --- ACTION: AVATAR UPLOAD ---
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return
+    
+    const file = e.target.files[0]
+    const fileExt = file.name.split('.').pop()
+    const filePath = `${currentUser.id}/avatar.${fileExt}`
+
+    setLoading(true)
+    const { error: uploadError } = await supabase.storage
+      .from('avatars')
+      .upload(filePath, file, { upsert: true })
+
+    if (uploadError) {
+      toast.error("Upload failed", { description: uploadError.message })
+    } else {
+      const { error: updateError } = await supabase.auth.updateUser({
+        data: { avatar_updated: new Date().toISOString() }
+      })
+      
+      if (!updateError) {
+        toast.success("Profile picture updated!", { description: "Refresh the page to see changes." })
+        router.refresh()
+      }
+    }
+    setLoading(false)
+  }
 
   // ------------------------------------------------------------------
   // ACTION: BRANCHES
@@ -50,7 +202,7 @@ export default function SettingsClient({ initialLocations, initialDepts, initial
       setNewBranchName('')
       setNewBranchCode('')
     } else {
-      alert('Error: ' + error?.message)
+      toast.error('Error adding branch', { description: error?.message })
     }
     setLoading(false)
   }
@@ -68,7 +220,7 @@ export default function SettingsClient({ initialLocations, initialDepts, initial
       setEditingBranch(null)
       router.refresh()
     } else {
-      alert('Error updating branch: ' + error.message)
+      toast.error('Error updating branch', { description: error.message })
     }
     setLoading(false)
   }
@@ -99,14 +251,14 @@ export default function SettingsClient({ initialLocations, initialDepts, initial
       });
       const data = await res.json();
       if (res.ok) {
-        alert('Success! User created.');
+        toast.success('User created');
         setShowAddForm(false);
         setNewEmployee({ firstName: '', lastName: '', email: '', role_id: '', department_ids: [], location_id: '' });
         router.refresh(); 
       } else {
-        alert('Error: ' + (data.error || 'Unknown error'));
+        toast.error('Failed to create user', { description: data.error || 'Unknown error' });
       }
-    } catch (err) { alert('Network Error'); }
+    } catch (err) { toast.error('Network Error'); }
     setLoading(false)
   }
 
@@ -140,7 +292,7 @@ export default function SettingsClient({ initialLocations, initialDepts, initial
       setEditingEmployee(null)
       router.refresh()
     } else {
-      alert('Failed to update: ' + error.message)
+      toast.error('Failed to update employee', { description: error.message })
     }
     setLoading(false)
   }
@@ -161,7 +313,7 @@ export default function SettingsClient({ initialLocations, initialDepts, initial
       ))
       router.refresh()
     } else {
-      alert('Error moving employee: ' + error.message)
+      toast.error('Error moving employee', { description: error.message })
     }
   }
 
@@ -225,6 +377,20 @@ export default function SettingsClient({ initialLocations, initialDepts, initial
       {/* Sidebar Navigation */}
       <div className="w-full md:w-64 flex-shrink-0">
         <div className="bg-white rounded-lg shadow border border-slate-200 overflow-hidden sticky top-24">
+          
+          <div className="px-4 py-3 bg-slate-100 border-b border-slate-200 text-xs font-bold text-slate-500 uppercase tracking-wider">
+            My Account
+          </div>
+          <button 
+            onClick={() => setActiveTab('security')}
+            className={`w-full text-left px-4 py-3 border-l-4 transition-colors ${activeTab === 'security' ? 'border-blue-900 bg-blue-50 font-medium text-blue-900' : 'border-transparent hover:bg-slate-50 text-slate-600'}`}
+          >
+            Security & Password
+          </button>
+
+          <div className="px-4 py-3 bg-slate-100 border-b border-slate-200 text-xs font-bold text-slate-500 uppercase tracking-wider border-t">
+            Organization
+          </div>
           <button 
             onClick={() => setActiveTab('branches')}
             className={`w-full text-left px-4 py-3 border-l-4 transition-colors ${activeTab === 'branches' ? 'border-blue-900 bg-blue-50 font-medium text-blue-900' : 'border-transparent hover:bg-slate-50 text-slate-600'}`}
@@ -249,6 +415,176 @@ export default function SettingsClient({ initialLocations, initialDepts, initial
       {/* Main Content Area */}
       <div className="flex-1 space-y-6">
         
+        {/* --- TAB: SECURITY (MY ACCOUNT) --- */}
+        {activeTab === 'security' && (
+          <div className="space-y-6 animate-fade-in">
+            <div className="flex justify-between items-center">
+              <h2 className="text-xl font-bold text-slate-800">Profile & Security</h2>
+              <button className="text-red-600 text-sm hover:underline" onClick={() => toast.info('This feature requires backend session management implementation.')}>Sign out of all other devices</button>
+            </div>
+
+            {/* 0. AVATAR UPLOAD (Placeholder) */}
+            <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-200 flex items-center gap-6">
+              <div className="h-20 w-20 bg-slate-100 rounded-full flex items-center justify-center text-2xl font-bold text-slate-400 border-2 border-dashed border-slate-300">
+                {currentUser.email?.charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-800">Profile Picture</h3>
+                <p className="text-sm text-slate-500 mb-3">Upload a new avatar. JPG, GIF or PNG.</p>
+                <button 
+                  onClick={() => toast.info('Avatar upload requires Supabase Storage setup.')}
+                  className="px-4 py-2 bg-white border border-slate-300 rounded text-sm font-medium hover:bg-slate-50 transition"
+                >
+                  Upload New Picture
+                </button>
+              </div>
+            </div>
+              {/* 0. AVATAR UPLOAD */}
+              <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-200 flex items-center gap-6">
+                  <div className="h-20 w-20 bg-slate-100 rounded-full flex items-center justify-center text-2xl font-bold text-slate-400 border-2 border-dashed border-slate-300 overflow-hidden relative">
+                      {/* Display current avatar if available, else initials */}
+                      <img 
+                        src={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/avatars/${currentUser.id}/avatar.png?t=${new Date().getTime()}`}
+                        onError={(e) => e.currentTarget.style.display = 'none'}
+                        className="absolute inset-0 w-full h-full object-cover"
+                        alt="Avatar"
+                      />
+                      <span>{currentUser.email?.charAt(0).toUpperCase()}</span>
+                  </div>
+                  <div>
+                      <h3 className="font-bold text-slate-800">Profile Picture</h3>
+                      <p className="text-sm text-slate-500 mb-3">Upload a new avatar. JPG or PNG.</p>
+                    
+                      <label className="cursor-pointer px-4 py-2 bg-white border border-slate-300 rounded text-sm font-medium hover:bg-slate-50 transition">
+                          Upload New Picture
+                          <input 
+                            type="file" 
+                            accept="image/*" 
+                            className="hidden" 
+                            onChange={handleAvatarUpload}
+                            disabled={loading}
+                          />
+                      </label>
+                  </div>
+              </div>
+            
+            {/* 1. PASSWORD CHANGE */}
+            <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-200">
+              <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                <span>🔒</span> Change Password
+              </h3>
+              <form onSubmit={handlePasswordChange} className="max-w-md space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Current Password</label>
+                  <input 
+                    type="password" required 
+                    className="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none"
+                    value={currentPass} onChange={e => setCurrentPass(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">New Password</label>
+                  <input 
+                    type="password" required 
+                    className="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none"
+                    value={newPass} onChange={e => setNewPass(e.target.value)}
+                  />
+
+                  {/* PASSWORD METER UI */}
+                  {newPass && (
+                    <div className="mt-2">
+                      <div className="flex gap-1 h-1.5 mb-1">
+                        {[1,2,3,4,5].map(step => (
+                          <div key={step} className={`flex-1 rounded-full transition-all duration-300 ${
+                            getPasswordStrengthIndicator(newPass).strength >= step 
+                              ? (getPasswordStrengthIndicator(newPass).strength < 3 ? 'bg-red-500' : 'bg-green-500') 
+                              : 'bg-slate-200'
+                          }`}></div>
+                        ))}
+                      </div>
+                      <p className="text-xs text-slate-500 text-right">
+                        {getPasswordStrengthIndicator(newPass).strength < 3 ? 'Weak Password' : 'Strong Password'}
+                      </p>
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Confirm New Password</label>
+                  <input 
+                    type="password" required minLength={6}
+                    className="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none"
+                    value={confirmPass} onChange={e => setConfirmPass(e.target.value)}
+                  />
+                </div>
+                <button 
+                  type="submit" disabled={loading}
+                  className="bg-blue-900 text-white px-6 py-2 rounded hover:bg-blue-800 font-medium transition"
+                >
+                  {loading ? 'Updating...' : 'Update Password'}
+                </button>
+              </form>
+            </div>
+
+            {/* 2. 2FA SECTION */}
+            <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-200">
+              <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                <svg className="w-5 h-5 text-blue-600" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" /></svg>
+                Two-Factor Authentication
+              </h3>
+              
+              <div className="flex items-start gap-4">
+                <div className="bg-green-50 text-green-700 p-4 rounded-lg border border-green-100 flex-1">
+                  <p className="font-bold">Status: Active</p>
+                  <p className="text-sm mt-1">Your account is secured with Google Authenticator.</p>
+                </div>
+              </div>
+
+              <div className="mt-6">
+                <p className="text-sm text-slate-600 mb-3">Lost your phone or need to re-configure?</p>
+                <div className="flex gap-3 items-center flex-wrap">
+                  <button 
+                    onClick={handleReset2FA}
+                    disabled={loading}
+                    className="border border-red-200 text-red-600 bg-red-50 px-4 py-2 rounded hover:bg-red-100 font-medium transition text-sm"
+                  >
+                    Re-install 2FA Keys
+                  </button>
+                  <button
+                    onClick={handleGenerateBackupCodes}
+                    disabled={loading}
+                    className="border border-slate-200 text-slate-700 bg-white px-4 py-2 rounded hover:bg-slate-50 font-medium transition text-sm"
+                  >
+                    Generate Backup Codes
+                  </button>
+                </div>
+                
+                {!showCodes && backupCodeCount > 0 && (
+                  <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded text-sm text-blue-700">
+                    <p><strong>Remaining backup codes:</strong> {backupCodeCount} unused</p>
+                  </div>
+                )}
+                
+                {showCodes && (
+                  <div className="mt-4 p-4 bg-yellow-50 border border-yellow-100 rounded">
+                    <div className="flex items-center justify-between mb-3">
+                      <p className="font-bold">Backup codes (save these now — shown only once):</p>
+                      <div className="flex gap-2">
+                        <button onClick={handleCopyBackupCodes} className="text-xs bg-white border border-yellow-200 px-2 py-1 rounded hover:bg-yellow-100 transition">📋 Copy</button>
+                        <button onClick={handleDownloadBackupCodes} className="text-xs bg-white border border-yellow-200 px-3 py-1.5 rounded hover:bg-yellow-100 transition">⬇️ Download</button>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {showCodes.map((c, idx) => (
+                        <div key={idx} className="font-mono text-sm bg-white p-2 rounded border select-all">{c}</div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* --- TAB: BRANCHES --- */}
         {activeTab === 'branches' && (
           <div className="space-y-6">
