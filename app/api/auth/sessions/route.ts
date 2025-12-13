@@ -3,29 +3,33 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 
 // Create a Supabase Admin client to access the 'auth' schema directly
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
-    }
-  }
-);
+// Only initialize if keys are available
+const supabaseAdmin = process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY
+  ? createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY,
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false
+        }
+      }
+    )
+  : null;
 
 export async function GET(request: Request) {
   try {
     // 1. Verify the User (Security Check)
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       {
-        cookies: {
-          getAll() { return cookieStore.getAll() },
-          setAll() {}
-        },
+        global: {
+          headers: {
+            cookie: cookieStore.getAll().map(c => `${c.name}=${c.value}`).join('; ')
+          }
+        }
       }
     );
     
@@ -36,6 +40,10 @@ export async function GET(request: Request) {
 
     // 2. Query the 'auth.sessions' table directly using Admin client
     // Note: We access the 'auth' schema which is normally hidden
+    if (!supabaseAdmin) {
+      return NextResponse.json({ error: 'Admin client not configured' }, { status: 500 });
+    }
+
     const { data: sessions, error: dbError } = await supabaseAdmin
       .schema('auth')
       .from('sessions')
@@ -73,12 +81,16 @@ export async function GET(request: Request) {
 export async function DELETE(request: Request) {
   try {
     // 1. Verify User
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       {
-        cookies: { getAll() { return cookieStore.getAll() }, setAll() {} },
+        global: {
+          headers: {
+            cookie: cookieStore.getAll().map(c => `${c.name}=${c.value}`).join('; ')
+          }
+        }
       }
     );
     
@@ -89,12 +101,20 @@ export async function DELETE(request: Request) {
 
     if (type === 'all') {
       // Sign out everywhere (invalidates all refresh tokens)
+      if (!supabaseAdmin) {
+        return NextResponse.json({ error: 'Admin client not configured' }, { status: 500 });
+      }
+
       const { error } = await supabaseAdmin.auth.admin.signOut(user.id);
       if (error) throw error;
       return NextResponse.json({ message: 'All devices signed out' });
     } 
     else if (type === 'single' && id) {
       // Delete specific session row from auth.sessions
+      if (!supabaseAdmin) {
+        return NextResponse.json({ error: 'Admin client not configured' }, { status: 500 });
+      }
+
       const { error } = await supabaseAdmin
         .schema('auth')
         .from('sessions')

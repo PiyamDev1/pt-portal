@@ -43,7 +43,8 @@ export default async function SettingsPage() {
   ])
 
   const location = Array.isArray(employeeData?.data?.locations) ? employeeData.data.locations[0] : employeeData?.data?.locations
-  const userRole = employeeData.data?.roles?.name || 'Employee'
+  const role = Array.isArray(employeeData?.data?.roles) ? employeeData.data.roles[0] : employeeData?.data?.roles
+  const userRole = role?.name || 'Employee'
 
   // 3. Pass data to the Client Component (The Dashboard UI)
   return (
