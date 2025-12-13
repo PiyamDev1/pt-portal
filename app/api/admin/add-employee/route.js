@@ -4,13 +4,24 @@ import Mailgun from 'mailgun.js';
 import bcrypt from 'bcrypt';
 import { NextResponse } from 'next/server';
 
-// Explicitly handle CORS/preflight to avoid 405 from OPTIONS requests
-export async function OPTIONS() {
-  return NextResponse.json({}, { status: 200, headers: { 'Access-Control-Allow-Methods': 'POST, OPTIONS' } })
+// Explicitly handle CORS/preflight to avoid 405 from OPTIONS requests and echo diagnostics
+export async function OPTIONS(request) {
+  const origin = request.headers.get('origin') || '*'
+  return NextResponse.json({ ok: true }, {
+    status: 200,
+    headers: {
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Access-Control-Allow-Origin': origin,
+      Vary: 'Origin'
+    }
+  })
 }
 
 export async function POST(request) {
   try {
+    const origin = request.headers.get('origin') || 'unknown'
+    console.log('[add-employee] request received from', origin)
     // Validate critical environment configuration early
     const missingEnv = [];
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL) missingEnv.push('NEXT_PUBLIC_SUPABASE_URL');
@@ -22,7 +33,7 @@ export async function POST(request) {
     if (missingEnv.length > 0) {
       const msg = `Missing required environment variables: ${missingEnv.join(', ')}`;
       console.error(msg);
-      return NextResponse.json({ error: msg }, { status: 500 });
+      return NextResponse.json({ error: msg }, { status: 500, headers: { 'Access-Control-Allow-Origin': origin, Vary: 'Origin' } });
     }
 
     // Initialize clients inside the function
@@ -58,7 +69,7 @@ export async function POST(request) {
       user_metadata: { first_name: firstName, last_name: lastName }
     });
 
-    if (authError) return NextResponse.json({ error: authError.message }, { status: 400 });
+    if (authError) return NextResponse.json({ error: authError.message }, { status: 400, headers: { 'Access-Control-Allow-Origin': origin, Vary: 'Origin' } });
 
     // 2. Create Employee Profile
     // Note: We DO NOT save department_id here anymore
@@ -76,7 +87,7 @@ export async function POST(request) {
 
     if (profileError) {
       await supabaseAdmin.auth.admin.deleteUser(authUser.user.id);
-      return NextResponse.json({ error: profileError.message }, { status: 500 });
+      return NextResponse.json({ error: profileError.message }, { status: 500, headers: { 'Access-Control-Allow-Origin': origin, Vary: 'Origin' } });
     }
 
     // Record initial password in history
@@ -118,13 +129,14 @@ export async function POST(request) {
       });
     } catch (mailError) {
       console.error('Mailgun send error:', mailError);
-      return NextResponse.json({ error: `Failed to send onboarding email: ${mailError.message || mailError}` }, { status: 502 });
+      return NextResponse.json({ error: `Failed to send onboarding email: ${mailError.message || mailError}` }, { status: 502, headers: { 'Access-Control-Allow-Origin': origin, Vary: 'Origin' } });
     }
 
-    return NextResponse.json({ success: true, message: 'User created' }, { status: 200 });
+    return NextResponse.json({ success: true, message: 'User created' }, { status: 200, headers: { 'Access-Control-Allow-Origin': origin, Vary: 'Origin' } });
 
   } catch (error) {
     console.error('API Error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    const origin = request.headers.get('origin') || '*'
+    return NextResponse.json({ error: error.message, note: 'add-employee handler catch' }, { status: 500, headers: { 'Access-Control-Allow-Origin': origin, Vary: 'Origin' } });
   }
 }
