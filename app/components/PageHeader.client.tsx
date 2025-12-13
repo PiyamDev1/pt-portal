@@ -27,9 +27,21 @@ export default function PageHeader({ employeeName, role, location, showBack = fa
       </div>
       
       <div className="flex items-center gap-6">
-        <div className="text-right hidden sm:block">
-          <p className="text-sm font-medium text-slate-900">{employeeName}</p>
-          <p className="text-xs text-blue-600 font-semibold">{role}</p>
+        <div className="relative hidden sm:block group">
+          <div className="text-right cursor-pointer select-none">
+            <p className="text-sm font-medium text-slate-900">{employeeName}</p>
+            <p className="text-xs text-blue-600 font-semibold">{role}</p>
+          </div>
+          <div className="absolute right-0 mt-2 w-48 bg-white border border-slate-200 rounded-lg shadow-md opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition">
+            <ul className="py-2 text-sm">
+              <li>
+                <Link href="/dashboard/account" className="block px-3 py-2 hover:bg-slate-50 text-slate-700">My Account Settings</Link>
+              </li>
+              <li>
+                <Link href="/dashboard/settings" className="block px-3 py-2 hover:bg-slate-50 text-slate-700">Organization Settings</Link>
+              </li>
+            </ul>
+          </div>
         </div>
         <LogoutButton />
       </div>

@@ -65,6 +65,7 @@ export default function MyAccountPage() {
       setConfirmPass('')
     }
     setLoading(false)
+    const [activeTab, setActiveTab] = useState<'email'|'contact'|'2fa'|'password'>('email')
   }
 
   // --- ACTION: RESET 2FA ---
