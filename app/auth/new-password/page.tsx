@@ -41,8 +41,8 @@ export default function NewPasswordPage() {
     const data = await res.json()
     
     if (res.ok) {
-      alert("Password updated! Access granted.")
-      router.push('/dashboard')
+      alert("Password updated! Now let's secure your account.")
+      router.push('/login/setup-2fa')
     } else {
       alert("Error: " + data.error)
     }
