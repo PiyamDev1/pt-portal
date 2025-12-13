@@ -1,8 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  // Explicitly disable static export to ensure API routes work as serverless functions
-  output: undefined,
+  // DO NOT set output to 'export' - that breaks API routes
+  // Leave undefined or use 'standalone' for serverless functions
 }
 
 module.exports = nextConfig

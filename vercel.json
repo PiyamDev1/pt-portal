@@ -1,18 +1,7 @@
 {
-  "version": 2,
-  "buildCommand": "npm run build",
-  "framework": "nextjs",
-  "regions": ["lhr1"],
   "functions": {
     "app/api/**/*.js": {
-      "maxDuration": 10,
-      "runtime": "nodejs20.x"
+      "maxDuration": 10
     }
-  },
-  "rewrites": [
-    {
-      "source": "/api/:path*",
-      "destination": "/api/:path*"
-    }
-  ]
+  }
 }
