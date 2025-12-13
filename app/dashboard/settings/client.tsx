@@ -158,32 +158,86 @@ export default function SettingsClient({ currentUser, initialLocations, initialD
     a.click()
   }
 
+  // --- HELPER: RESIZE & CROP TO SQUARE ---
+  const resizeImage = (file: File, size: number): Promise<Blob> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image()
+      img.src = URL.createObjectURL(file)
+      img.onload = () => {
+        const canvas = document.createElement('canvas')
+        const ctx = canvas.getContext('2d')
+        if (!ctx) return reject(new Error('Canvas context failed'))
+
+        canvas.width = size
+        canvas.height = size
+
+        const minDim = Math.min(img.width, img.height)
+        const startX = (img.width - minDim) / 2
+        const startY = (img.height - minDim) / 2
+
+        ctx.drawImage(img, startX, startY, minDim, minDim, 0, 0, size, size)
+
+        canvas.toBlob((blob) => {
+          if (blob) resolve(blob)
+          else reject(new Error('Canvas conversion failed'))
+        }, 'image/png')
+      }
+      img.onerror = (err) => reject(err as any)
+    })
+  }
+
   // --- ACTION: AVATAR UPLOAD ---
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return
     
-    const file = e.target.files[0]
-    const fileExt = file.name.split('.').pop()
-    const filePath = `${currentUser.id}/avatar.${fileExt}`
+    const originalFile = e.target.files[0]
+
+    if (!originalFile.type.startsWith('image/')) {
+      return toast.error("Invalid file type", { description: "Please upload an image file." })
+    }
 
     setLoading(true)
-    const { error: uploadError } = await supabase.storage
-      .from('avatars')
-      .upload(filePath, file, { upsert: true })
+    const toastId = toast.loading("Processing image...")
 
-    if (uploadError) {
-      toast.error("Upload failed", { description: uploadError.message })
-    } else {
+    try {
+      const maxSizeBytes = 2 * 1024 * 1024 // 2MB
+      const sizesToTry = [512, 384, 256]
+      let finalBlob: Blob | null = null
+
+      for (const s of sizesToTry) {
+        const candidate = await resizeImage(originalFile, s)
+        if (candidate.size <= maxSizeBytes) { finalBlob = candidate; break }
+      }
+
+      if (!finalBlob) {
+        throw new Error('Image is too large even after resizing. Try a smaller image.')
+      }
+
+      const fileExt = 'png'
+      const filePath = `${currentUser.id}/avatar.${fileExt}`
+      const fileToUpload = new File([finalBlob], `avatar.${fileExt}`, { type: 'image/png' })
+
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, fileToUpload, { upsert: true, contentType: 'image/png' })
+
+      if (uploadError) throw uploadError
+
       const { error: updateError } = await supabase.auth.updateUser({
         data: { avatar_updated: new Date().toISOString() }
       })
       
-      if (!updateError) {
-        toast.success("Profile picture updated!", { description: "Refresh the page to see changes." })
-        router.refresh()
-      }
+      if (updateError) throw updateError
+
+      toast.success("Profile picture updated!", { id: toastId, description: "Looking good!" })
+      router.refresh()
+
+    } catch (error: any) {
+      console.error(error)
+      toast.error("Upload failed", { id: toastId, description: error?.message || "Could not upload image." })
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   // ------------------------------------------------------------------
@@ -423,22 +477,6 @@ export default function SettingsClient({ currentUser, initialLocations, initialD
               <button className="text-red-600 text-sm hover:underline" onClick={() => toast.info('This feature requires backend session management implementation.')}>Sign out of all other devices</button>
             </div>
 
-            {/* 0. AVATAR UPLOAD (Placeholder) */}
-            <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-200 flex items-center gap-6">
-              <div className="h-20 w-20 bg-slate-100 rounded-full flex items-center justify-center text-2xl font-bold text-slate-400 border-2 border-dashed border-slate-300">
-                {currentUser.email?.charAt(0).toUpperCase()}
-              </div>
-              <div>
-                <h3 className="font-bold text-slate-800">Profile Picture</h3>
-                <p className="text-sm text-slate-500 mb-3">Upload a new avatar. JPG, GIF or PNG.</p>
-                <button 
-                  onClick={() => toast.info('Avatar upload requires Supabase Storage setup.')}
-                  className="px-4 py-2 bg-white border border-slate-300 rounded text-sm font-medium hover:bg-slate-50 transition"
-                >
-                  Upload New Picture
-                </button>
-              </div>
-            </div>
               {/* 0. AVATAR UPLOAD */}
               <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-200 flex items-center gap-6">
                   <div className="h-20 w-20 bg-slate-100 rounded-full flex items-center justify-center text-2xl font-bold text-slate-400 border-2 border-dashed border-slate-300 overflow-hidden relative">
