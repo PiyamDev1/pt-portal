@@ -4,6 +4,21 @@ import Mailgun from 'mailgun.js';
 import bcrypt from 'bcrypt';
 import { NextResponse } from 'next/server';
 
+// Force dynamic rendering so the API is always evaluated and not statically optimized
+export const dynamic = 'force-dynamic'
+
+// Health/diagnostic GET to confirm route is reachable in production
+export async function GET(request) {
+  const origin = request.headers.get('origin') || '*'
+  return NextResponse.json({ ok: true, route: 'add-employee', method: 'GET', note: 'route is reachable' }, {
+    status: 200,
+    headers: {
+      'Access-Control-Allow-Origin': origin,
+      Vary: 'Origin'
+    }
+  })
+}
+
 // Explicitly handle CORS/preflight to avoid 405 from OPTIONS requests and echo diagnostics
 export async function OPTIONS(request) {
   const origin = request.headers.get('origin') || '*'
