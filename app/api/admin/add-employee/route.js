@@ -4,6 +4,11 @@ import Mailgun from 'mailgun.js';
 import bcrypt from 'bcrypt';
 import { NextResponse } from 'next/server';
 
+// Explicitly handle CORS/preflight to avoid 405 from OPTIONS requests
+export async function OPTIONS() {
+  return NextResponse.json({}, { status: 200, headers: { 'Access-Control-Allow-Methods': 'POST, OPTIONS' } })
+}
+
 export async function POST(request) {
   try {
     // Validate critical environment configuration early
