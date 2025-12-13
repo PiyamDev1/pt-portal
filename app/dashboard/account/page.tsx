@@ -89,6 +89,25 @@ export default function MyAccountPage() {
     setLoading(false)
   }
 
+  // --- ACTION: GENERATE BACKUP CODES ---
+  const [showCodes, setShowCodes] = useState<string[] | null>(null)
+  const handleGenerateBackupCodes = async () => {
+    if (!confirm('Generate new backup codes? Previous codes will be invalidated.')) return
+    setLoading(true)
+    const res = await fetch('/api/auth/generate-backup-codes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: user.id, count: 10 }),
+    })
+    const data = await res.json()
+    if (res.ok) {
+      setShowCodes(data.codes || [])
+    } else {
+      alert('Failed to generate backup codes: ' + (data?.error || 'Unknown'))
+    }
+    setLoading(false)
+  }
+
   if (!user) return <div className="p-8">Loading...</div>
 
   return (
@@ -152,13 +171,32 @@ export default function MyAccountPage() {
 
         <div className="mt-6">
           <p className="text-sm text-slate-600 mb-3">Lost your phone or need to re-configure?</p>
-          <button 
-            onClick={handleReset2FA}
-            disabled={loading}
-            className="border border-red-200 text-red-600 bg-red-50 px-4 py-2 rounded hover:bg-red-100 font-medium transition text-sm"
-          >
-            Re-install 2FA Keys
-          </button>
+          <div className="flex gap-3 items-center">
+            <button 
+              onClick={handleReset2FA}
+              disabled={loading}
+              className="border border-red-200 text-red-600 bg-red-50 px-4 py-2 rounded hover:bg-red-100 font-medium transition text-sm"
+            >
+              Re-install 2FA Keys
+            </button>
+            <button
+              onClick={handleGenerateBackupCodes}
+              disabled={loading}
+              className="border border-slate-200 text-slate-700 bg-white px-4 py-2 rounded hover:bg-slate-50 font-medium transition text-sm"
+            >
+              Generate Backup Codes
+            </button>
+          </div>
+          {showCodes && (
+            <div className="mt-4 p-4 bg-yellow-50 border border-yellow-100 rounded">
+              <p className="font-bold mb-2">Backup codes (save these now — shown only once):</p>
+              <div className="grid grid-cols-2 gap-2">
+                {showCodes.map((c, idx) => (
+                  <div key={idx} className="font-mono text-sm bg-white p-2 rounded border">{c}</div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
