@@ -15,6 +15,55 @@ export async function POST(request) {
       process.env.SUPABASE_SERVICE_ROLE_KEY
     );
 
+    // Check if caller is authenticated and has admin role
+    const cookieHeader = request.headers.get('cookie') || '';
+    const supabaseUser = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY,
+      {
+        global: {
+          headers: { cookie: cookieHeader }
+        }
+      }
+    );
+
+    const { data: { user }, error: userError } = await supabaseUser.auth.getUser();
+    if (userError || !user) {
+      console.log('[reset-password] unauthorized: user not authenticated');
+      return NextResponse.json({ error: 'Unauthorized: not authenticated' }, { status: 401 });
+    }
+
+    // Verify user has admin role
+    const { data: employee, error: empError } = await supabaseAdmin
+      .from('employees')
+      .select('id, role_id')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    if (empError || !employee) {
+      console.log('[reset-password] unauthorized: employee not found');
+      return NextResponse.json({ error: 'Unauthorized: employee profile not found' }, { status: 403 });
+    }
+
+    // Get the role name for the employee
+    const { data: roleData, error: roleError } = await supabaseAdmin
+      .from('roles')
+      .select('name')
+      .eq('id', employee.role_id)
+      .maybeSingle();
+
+    if (roleError || !roleData) {
+      console.log('[reset-password] unauthorized: role not found');
+      return NextResponse.json({ error: 'Unauthorized: role not found' }, { status: 403 });
+    }
+
+    // Only Master Admin and Admin can reset passwords
+    const isAdmin = ['Admin', 'Master Admin'].includes(roleData.name);
+    if (!isAdmin) {
+      console.log(`[reset-password] unauthorized: user role "${roleData.name}" is not admin`);
+      return NextResponse.json({ error: 'Unauthorized: only admins can reset passwords' }, { status: 403 });
+    }
+
     const mailgun = new Mailgun(formData);
     const rawMailgunEndpoint = process.env.MAILGUN_ENDPOINT || 'https://api.mailgun.net';
     const mailgunEndpoint = /^https?:\/\//i.test(rawMailgunEndpoint) ? rawMailgunEndpoint : `https://${rawMailgunEndpoint}`;

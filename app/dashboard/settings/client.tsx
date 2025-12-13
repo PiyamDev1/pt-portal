@@ -30,8 +30,12 @@ export default function SettingsClient({ currentUser, userRole, initialLocations
   const [employees, setEmployees] = useState(initialEmployees)
   const [sessions, setSessions] = useState<any[]>([])
 
-  // Define which roles can edit the organization
-  const isAdmin = ['Admin', 'Super Admin', 'Director'].includes(userRole)
+  // DEBUGGING: Uncomment this if it still fails to see exactly what role string is coming through
+  // console.log("Current User Role:", userRole)
+
+  // Only Master Admin and Admin roles can edit organization settings
+  // Manager is NOT an admin - they have limited permissions
+  const isAdmin = ['Admin', 'Master Admin'].includes(userRole)
   
   // --- STATES FOR BRANCH EDITING ---
   const [newBranchName, setNewBranchName] = useState('')

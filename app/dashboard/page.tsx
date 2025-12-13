@@ -38,7 +38,9 @@ export default async function Dashboard() {
   const location = Array.isArray(employee?.locations) ? employee.locations[0] : employee?.locations
   const role = Array.isArray(employee?.roles) ? employee.roles[0] : employee?.roles
 
-  const isMasterAdmin = role?.name === 'Master Admin'
+  // Only Master Admin and Admin roles can access organization settings
+  // Manager and other roles do NOT have admin access
+  const isMasterAdmin = ['Master Admin', 'Admin'].includes(role?.name)
 
   return (
     <DashboardClientWrapper>
