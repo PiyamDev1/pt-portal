@@ -29,7 +29,14 @@ export default function MyAccountPage() {
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault()
     if (newPass !== confirmPass) return alert("New passwords do not match")
-    if (newPass.length < 6) return alert("Password must be 6+ characters")
+    // Client-side strong validation to match server rules
+    const errs: string[] = []
+    if (newPass.length < 8) errs.push('at least 8 characters')
+    if (!/[a-z]/.test(newPass)) errs.push('a lowercase letter')
+    if (!/[A-Z]/.test(newPass)) errs.push('an uppercase letter')
+    if (!/[0-9]/.test(newPass)) errs.push('a number')
+    if (!/[!@#$%^&*(),.?":{}|<>\-_=+\\/\[\];']/.test(newPass)) errs.push('a special character')
+    if (errs.length) return alert('Password must contain: ' + errs.join(', '))
     
     setLoading(true)
 

@@ -30,10 +30,21 @@ export default function NewPasswordPage() {
     getUser()
   }, [])
 
+  const validatePassword = (pwd: string) => {
+    const errors = []
+    if (pwd.length < 8) errors.push('at least 8 characters')
+    if (!/[a-z]/.test(pwd)) errors.push('a lowercase letter')
+    if (!/[A-Z]/.test(pwd)) errors.push('an uppercase letter')
+    if (!/[0-9]/.test(pwd)) errors.push('a number')
+    if (!/[!@#$%^&*(),.?":{}|<>\-_=+\\/\[\];']/.test(pwd)) errors.push('a special character')
+    return errors
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (password !== confirm) return alert("Passwords do not match")
-    if (password.length < 6) return alert("Password must be at least 6 characters")
+    const pwdErrors = validatePassword(password)
+    if (pwdErrors.length > 0) return alert('Password must contain: ' + pwdErrors.join(', '))
     
     setLoading(true)
 

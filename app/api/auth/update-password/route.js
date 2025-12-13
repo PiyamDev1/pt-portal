@@ -15,6 +15,19 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Missing requirements' }, { status: 400 });
     }
 
+    // Server-side password strength validation
+    const password = newPassword;
+    const passErrors = [];
+    if (password.length < 8) passErrors.push('at least 8 characters');
+    if (!/[a-z]/.test(password)) passErrors.push('a lowercase letter');
+    if (!/[A-Z]/.test(password)) passErrors.push('an uppercase letter');
+    if (!/[0-9]/.test(password)) passErrors.push('a number');
+    if (!/[!@#$%^&*(),.?":{}|<>\-_=+\\/\[\];']/.test(password)) passErrors.push('a special character');
+
+    if (passErrors.length > 0) {
+      return NextResponse.json({ error: `Password must contain ${passErrors.join(', ')}` }, { status: 400 });
+    }
+
     // 1. Update Password in Supabase Auth (The real login system)
     const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(
       userId,
