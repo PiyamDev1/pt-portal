@@ -94,7 +94,7 @@ export default function MyAccountPage() {
   const [backupCodeCount, setBackupCodeCount] = useState(0)
   
   const fetchBackupCodeCount = async () => {
-    const res = await fetch('/api/auth/backup-codes/count')
+    const res = await fetch(`/api/auth/backup-codes/count?userId=${user.id}`)
     if (res.ok) {
       const data = await res.json()
       setBackupCodeCount(data.count || 0)

@@ -4,36 +4,37 @@ import Mailgun from 'mailgun.js';
 import bcrypt from 'bcrypt';
 import { NextResponse } from 'next/server';
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
-
-const mailgun = new Mailgun(formData);
-const rawMailgunEndpoint = process.env.MAILGUN_ENDPOINT || 'https://api.mailgun.net';
-const mailgunEndpoint = /^https?:\/\//i.test(rawMailgunEndpoint) ? rawMailgunEndpoint : `https://${rawMailgunEndpoint}`;
-const mg = mailgun.client({
-  username: 'api',
-  key: process.env.MAILGUN_API_KEY,
-  url: mailgunEndpoint
-});
-
 export async function POST(request) {
   try {
-    // Validate critical environment configuration early to avoid obscure errors
+    // Validate critical environment configuration early
     const missingEnv = [];
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL) missingEnv.push('NEXT_PUBLIC_SUPABASE_URL');
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY) missingEnv.push('SUPABASE_SERVICE_ROLE_KEY');
     if (!process.env.MAILGUN_API_KEY) missingEnv.push('MAILGUN_API_KEY');
     if (!process.env.MAILGUN_DOMAIN) missingEnv.push('MAILGUN_DOMAIN');
-      // Support either MAILGUN_SENDER_EMAIL or MAIL_FROM_ADDRESS (Vercel name)
-      const senderEmail = process.env.MAILGUN_SENDER_EMAIL || process.env.MAIL_FROM_ADDRESS;
-      if (!senderEmail) missingEnv.push('MAILGUN_SENDER_EMAIL or MAIL_FROM_ADDRESS');
+    const senderEmail = process.env.MAILGUN_SENDER_EMAIL || process.env.MAIL_FROM_ADDRESS;
+    if (!senderEmail) missingEnv.push('MAILGUN_SENDER_EMAIL or MAIL_FROM_ADDRESS');
     if (missingEnv.length > 0) {
       const msg = `Missing required environment variables: ${missingEnv.join(', ')}`;
       console.error(msg);
       return NextResponse.json({ error: msg }, { status: 500 });
     }
+
+    // Initialize clients inside the function
+    const supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    );
+
+    const mailgun = new Mailgun(formData);
+    const rawMailgunEndpoint = process.env.MAILGUN_ENDPOINT || 'https://api.mailgun.net';
+    const mailgunEndpoint = /^https?:\/\//i.test(rawMailgunEndpoint) ? rawMailgunEndpoint : `https://${rawMailgunEndpoint}`;
+    const mg = mailgun.client({
+      username: 'api',
+      key: process.env.MAILGUN_API_KEY,
+      url: mailgunEndpoint
+    });
+
     const body = await request.json();
     // NOW ACCEPTING 'department_ids' ARRAY INSTEAD OF SINGLE ID
     const { email, firstName, lastName, role_id, department_ids, location_id } = body;

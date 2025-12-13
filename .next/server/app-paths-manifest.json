@@ -1,20 +1,18 @@
 {
   "/_not-found/page": "app/_not-found/page.js",
-  "/admin/add-employee/route": "app/admin/add-employee/route.js",
-  "/admin/add-user/page": "app/admin/add-user/page.js",
-  "/api/admin/add-employee/route": "app/api/admin/add-employee/route.js",
   "/api/admin/reset-password/route": "app/api/admin/reset-password/route.js",
+  "/api/admin/add-employee/route": "app/api/admin/add-employee/route.js",
   "/api/auth/backup-codes/count/route": "app/api/auth/backup-codes/count/route.js",
   "/api/auth/consume-backup-code/route": "app/api/auth/consume-backup-code/route.js",
-  "/auth/new-password/page": "app/auth/new-password/page.js",
-  "/dashboard/account/page": "app/dashboard/account/page.js",
   "/api/auth/generate-backup-codes/route": "app/api/auth/generate-backup-codes/route.js",
   "/api/auth/reset-2fa/route": "app/api/auth/reset-2fa/route.js",
+  "/auth/new-password/page": "app/auth/new-password/page.js",
   "/api/auth/update-password/route": "app/api/auth/update-password/route.js",
-  "/login/verify-2fa/page": "app/login/verify-2fa/page.js",
+  "/dashboard/account/page": "app/dashboard/account/page.js",
   "/dashboard/page": "app/dashboard/page.js",
-  "/page": "app/page.js",
   "/dashboard/settings/page": "app/dashboard/settings/page.js",
   "/login/page": "app/login/page.js",
-  "/login/setup-2fa/page": "app/login/setup-2fa/page.js"
+  "/login/setup-2fa/page": "app/login/setup-2fa/page.js",
+  "/login/verify-2fa/page": "app/login/verify-2fa/page.js",
+  "/page": "app/page.js"
 }
