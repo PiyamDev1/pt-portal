@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import formData from 'form-data';
 import Mailgun from 'mailgun.js';
 import { NextResponse } from 'next/server';
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'

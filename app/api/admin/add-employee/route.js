@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import formData from 'form-data';
 import Mailgun from 'mailgun.js';
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 import { NextResponse } from 'next/server';
 
 // Force dynamic rendering so the API is always evaluated and not statically optimized
