@@ -7,6 +7,8 @@ export default function NewPasswordPage() {
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [loading, setLoading] = useState(false)
+  // New: We need email to re-login
+  const [userEmail, setUserEmail] = useState('')
   const [userId, setUserId] = useState('')
   const router = useRouter()
   
@@ -20,7 +22,10 @@ export default function NewPasswordPage() {
     async function getUser() {
       const { data: { user } } = await supabase.auth.getUser()
       if (user) setUserId(user.id)
-      else router.push('/login')
+      if (user) {
+        setUserId(user.id)
+        setUserEmail(user.email || '') // Store email for re-login
+      } else router.push('/login')
     }
     getUser()
   }, [])
@@ -41,8 +46,19 @@ export default function NewPasswordPage() {
     const data = await res.json()
     
     if (res.ok) {
-      alert("Password updated! Now let's secure your account.")
-      router.push('/login/setup-2fa')
+      // 2. CRITICAL FIX: Re-Login automatically to get a new Session
+      const { error: loginError } = await supabase.auth.signInWithPassword({
+        email: userEmail,
+        password: password
+      })
+
+      if (loginError) {
+        alert("Password updated, but auto-login failed. Please sign in manually.")
+        router.push('/login')
+      } else {
+        // 3. Now we have a valid session -> Go to 2FA
+        router.push('/login/setup-2fa')
+      }
     } else {
       alert("Error: " + data.error)
     }
