@@ -17,22 +17,37 @@ export function SessionWarningHeader({ showWarning, secondsRemaining }: SessionW
     return null
   }
 
+  const percentage = (secondsRemaining / 30) * 100
+
   return (
-    <div className="fixed top-0 left-0 right-0 z-50 bg-red-600 text-white px-4 py-3 shadow-lg animate-pulse">
-      <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
-        <div className="flex items-center gap-2">
-          <svg className="w-5 h-5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-          </svg>
-          <span className="font-semibold text-sm sm:text-base">Session Timeout Warning</span>
+    <div className="fixed top-16 left-0 right-0 z-40 pointer-events-none flex justify-center px-4 py-4">
+      <div className="relative bg-white border-2 border-red-300 rounded-lg shadow-lg max-w-md w-full pointer-events-auto">
+        {/* Progress bar background */}
+        <div className="absolute top-0 left-0 right-0 h-1 bg-gray-200 rounded-t-md overflow-hidden">
+          <div 
+            className="h-full bg-red-500 transition-all duration-1000 ease-linear"
+            style={{ width: `${percentage}%` }}
+          />
         </div>
-        <div className="text-xs sm:text-sm font-medium whitespace-nowrap">
-          You will be logged out in{' '}
-          <span className="font-bold text-lg tabular-nums bg-red-700 px-2 py-1 rounded">
-            {secondsRemaining}s
-          </span>
+        
+        <div className="p-4 pt-5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex-shrink-0">
+                <svg className="w-6 h-6 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 102 0V6z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-slate-900">Session ending soon</p>
+                <p className="text-xs text-slate-600">Move your mouse or press a key to stay logged in</p>
+              </div>
+            </div>
+            <div className="text-3xl font-bold text-red-600 tabular-nums min-w-12 text-right">
+              {secondsRemaining}s
+            </div>
+          </div>
         </div>
-        <p className="hidden sm:block text-xs flex-grow">Stay active to continue your session</p>
       </div>
     </div>
   )
