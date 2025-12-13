@@ -4,10 +4,34 @@ import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 
-export default function SettingsClient({ currentUser, initialLocations, initialDepts, initialRoles, initialEmployees }: any) {
+// --- HELPER: PARSE USER AGENT ---
+const getDeviceName = (ua: string) => {
+  if (!ua) return 'Unknown Device'
+  
+  let browser = 'Unknown Browser'
+  if (ua.includes('Firefox')) browser = 'Firefox'
+  else if (ua.includes('Chrome')) browser = 'Chrome'
+  else if (ua.includes('Safari')) browser = 'Safari'
+  else if (ua.includes('Edge')) browser = 'Edge'
+
+  let os = 'Unknown OS'
+  if (ua.includes('Win')) os = 'Windows'
+  else if (ua.includes('Mac')) os = 'macOS'
+  else if (ua.includes('Linux')) os = 'Linux'
+  else if (ua.includes('Android')) os = 'Android'
+  else if (ua.includes('iPhone') || ua.includes('iPad')) os = 'iOS'
+
+  return `${browser} on ${os}`
+}
+
+export default function SettingsClient({ currentUser, userRole, initialLocations, initialDepts, initialRoles, initialEmployees }: any) {
   const [activeTab, setActiveTab] = useState('security')
   const [locations, setLocations] = useState(initialLocations)
   const [employees, setEmployees] = useState(initialEmployees)
+  const [sessions, setSessions] = useState<any[]>([])
+
+  // Define which roles can edit the organization
+  const isAdmin = ['Admin', 'Super Admin', 'Director'].includes(userRole)
   
   // --- STATES FOR BRANCH EDITING ---
   const [newBranchName, setNewBranchName] = useState('')
@@ -58,13 +82,20 @@ export default function SettingsClient({ currentUser, initialLocations, initialD
   // ACTION: MY ACCOUNT (Logic ported from account page)
   // ------------------------------------------------------------------
   
-  // Fetch backup code count when tab is active
+  // Fetch backup code count and active sessions when security tab is active
   useEffect(() => {
     if (activeTab === 'security' && currentUser) {
       fetch(`/api/auth/backup-codes/count?userId=${currentUser.id}`)
         .then(res => res.json())
         .then(data => setBackupCodeCount(data.count || 0))
         .catch(() => {})
+
+      fetch('/api/auth/sessions')
+        .then(res => res.json())
+        .then(data => {
+          if (data.sessions) setSessions(data.sessions)
+        })
+        .catch(console.error)
     }
   }, [activeTab, currentUser])
 
@@ -156,6 +187,45 @@ export default function SettingsClient({ currentUser, initialLocations, initialD
     a.href = url
     a.download = 'backup-codes.txt'
     a.click()
+  }
+
+  // --- ACTION: SESSION MANAGEMENT ---
+  const handleRevokeSession = async (sessionId: string) => {
+    if (!confirm("Are you sure you want to log out this device?")) return
+    setLoading(true)
+    try {
+      const res = await fetch('/api/auth/sessions', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'single', id: sessionId })
+      })
+      if (res.ok) {
+        setSessions(prev => prev.filter(s => s.id !== sessionId))
+        toast.success("Device logged out")
+      } else {
+        toast.error("Failed to revoke session")
+      }
+    } catch (err) { toast.error("Network error") }
+    setLoading(false)
+  }
+
+  const handleSignOutAll = async () => {
+    if (!confirm("This will log you out of ALL devices (including this one). Continue?")) return
+    setLoading(true)
+    try {
+      const res = await fetch('/api/auth/sessions', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'all' })
+      })
+      if (res.ok) {
+        toast.success("All devices signed out. Redirecting...")
+        router.push('/login')
+      } else {
+        toast.error("Failed to sign out all devices")
+      }
+    } catch (err) { toast.error("Network error") }
+    setLoading(false)
   }
 
   // --- HELPER: RESIZE & CROP TO SQUARE ---
@@ -442,27 +512,32 @@ export default function SettingsClient({ currentUser, initialLocations, initialD
             Security & Password
           </button>
 
-          <div className="px-4 py-3 bg-slate-100 border-b border-slate-200 text-xs font-bold text-slate-500 uppercase tracking-wider border-t">
-            Organization
-          </div>
-          <button 
-            onClick={() => setActiveTab('branches')}
-            className={`w-full text-left px-4 py-3 border-l-4 transition-colors ${activeTab === 'branches' ? 'border-blue-900 bg-blue-50 font-medium text-blue-900' : 'border-transparent hover:bg-slate-50 text-slate-600'}`}
-          >
-            Branches & Locations
-          </button>
-          <button 
-            onClick={() => setActiveTab('staff')}
-            className={`w-full text-left px-4 py-3 border-l-4 transition-colors ${activeTab === 'staff' ? 'border-blue-900 bg-blue-50 font-medium text-blue-900' : 'border-transparent hover:bg-slate-50 text-slate-600'}`}
-          >
-            Staff Management
-          </button>
-          <button 
-            onClick={() => setActiveTab('hierarchy')}
-            className={`w-full text-left px-4 py-3 border-l-4 transition-colors ${activeTab === 'hierarchy' ? 'border-blue-900 bg-blue-50 font-medium text-blue-900' : 'border-transparent hover:bg-slate-50 text-slate-600'}`}
-          >
-            Hierarchy Tree
-          </button>
+          {/* Only show Organization settings to Admins */}
+          {isAdmin && (
+            <>
+              <div className="px-4 py-3 bg-slate-100 border-b border-slate-200 text-xs font-bold text-slate-500 uppercase tracking-wider border-t">
+                Organization
+              </div>
+              <button 
+                onClick={() => setActiveTab('branches')}
+                className={`w-full text-left px-4 py-3 border-l-4 transition-colors ${activeTab === 'branches' ? 'border-blue-900 bg-blue-50 font-medium text-blue-900' : 'border-transparent hover:bg-slate-50 text-slate-600'}`}
+              >
+                Branches & Locations
+              </button>
+              <button 
+                onClick={() => setActiveTab('staff')}
+                className={`w-full text-left px-4 py-3 border-l-4 transition-colors ${activeTab === 'staff' ? 'border-blue-900 bg-blue-50 font-medium text-blue-900' : 'border-transparent hover:bg-slate-50 text-slate-600'}`}
+              >
+                Staff Management
+              </button>
+              <button 
+                onClick={() => setActiveTab('hierarchy')}
+                className={`w-full text-left px-4 py-3 border-l-4 transition-colors ${activeTab === 'hierarchy' ? 'border-blue-900 bg-blue-50 font-medium text-blue-900' : 'border-transparent hover:bg-slate-50 text-slate-600'}`}
+              >
+                Hierarchy Tree
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -623,8 +698,61 @@ export default function SettingsClient({ currentUser, initialLocations, initialD
           </div>
         )}
 
+        {/* 3. DEVICE MANAGEMENT SECTION */}
+            <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-200">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                  <span>📱</span> Active Devices
+                </h3>
+                {sessions.length > 1 && (
+                  <button 
+                    onClick={handleSignOutAll}
+                    disabled={loading}
+                    className="text-xs font-bold text-red-600 border border-red-200 bg-red-50 px-3 py-1.5 rounded hover:bg-red-100 transition"
+                  >
+                    Sign Out All Devices
+                  </button>
+                )}
+              </div>
+
+              <div className="space-y-3">
+                {sessions.length === 0 && <p className="text-sm text-slate-500">Loading active sessions...</p>}
+                
+                {sessions.map((session) => (
+                  <div key={session.id} className={`flex items-center justify-between p-3 rounded border ${session.is_current ? 'border-green-200 bg-green-50' : 'border-slate-100 bg-slate-50'}`}>
+                    <div className="flex items-center gap-3">
+                      <div className={`h-8 w-8 rounded flex items-center justify-center text-lg ${session.is_current ? 'bg-green-100 text-green-600' : 'bg-white border border-slate-200 text-slate-400'}`}>
+                        {session.user_agent?.includes('Mobile') ? '📱' : '💻'}
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-slate-800">
+                          {getDeviceName(session.user_agent)}
+                          {session.is_current && <span className="ml-2 text-xs bg-green-200 text-green-800 px-1.5 py-0.5 rounded-full">Current</span>}
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          Last active: {new Date(session.last_active).toLocaleDateString()} at {new Date(session.last_active).toLocaleTimeString()}
+                        </p>
+                      </div>
+                    </div>
+
+                    {!session.is_current && (
+                      <button 
+                        onClick={() => handleRevokeSession(session.id)}
+                        disabled={loading}
+                        className="text-xs text-slate-500 hover:text-red-600 underline px-2"
+                      >
+                        Revoke
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* --- TAB: BRANCHES --- */}
-        {activeTab === 'branches' && (
+        {activeTab === 'branches' && isAdmin && (
           <div className="space-y-6">
             {/* Add Branch */}
             <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-200">
@@ -718,7 +846,7 @@ export default function SettingsClient({ currentUser, initialLocations, initialD
         )}
 
         {/* --- TAB: STAFF --- */}
-        {activeTab === 'staff' && (
+        {activeTab === 'staff' && isAdmin && (
           <div className="space-y-6">
             <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
               <div className="p-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
@@ -896,7 +1024,7 @@ export default function SettingsClient({ currentUser, initialLocations, initialD
         )}
 
         {/* --- TAB: HIERARCHY (Tree View) --- */}
-        {activeTab === 'hierarchy' && (
+        {activeTab === 'hierarchy' && isAdmin && (
           <div className="space-y-6">
             <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-200">
               <h3 className="font-bold text-lg mb-2 text-slate-800">Organization Hierarchy</h3>

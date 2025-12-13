@@ -1,33 +1,36 @@
 'use client'
 import Link from 'next/link'
+import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import LogoutButton from '@/app/dashboard/logout-button.client'
 
 export default function PageHeader({ employeeName, role, location, userId, showBack = false }: { employeeName?: string; role?: string; location?: any; userId?: string; showBack?: boolean }) {
   const router = useRouter()
 
-  // Get initials for avatar fallback
   const initials = employeeName
     ? employeeName.split(' ').map((n: string) => n[0]).join('').toUpperCase().substring(0, 2)
     : 'U'
 
+  const avatarUrl = userId 
+    ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/avatars/${userId}/avatar.png`
+    : null
+
   return (
     <nav className="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center shadow-sm">
       <div className="flex items-center gap-4">
-        <Link href="/dashboard" className="cursor-pointer hover:opacity-80 transition">
-          {/* --- LOGO CHANGE --- */}
-          {/* Replace src="/logo.png" with your actual logo file path */}
-          <img 
-            src="/logo.png" 
-            alt="Piyam Travels" 
-            className="h-10 w-auto object-contain"
-            onError={(e) => {
-              // Fallback if image fails to load
-              e.currentTarget.style.display = 'none';
-              e.currentTarget.nextElementSibling?.classList.remove('hidden');
-            }}
-          />
-          <div className="hidden h-10 w-10 bg-blue-900 rounded-full flex items-center justify-center text-white font-bold">PT</div>
+        <Link href="/dashboard" className="cursor-pointer hover:opacity-80 transition flex items-center gap-2">
+          
+          {/* --- COMPANY LOGO (Optimized) --- */}
+          <div className="relative h-10 w-auto aspect-[797/313]">
+            <Image 
+              src="/logo.png" 
+              alt="Piyam Travels" 
+              width={797} 
+              height={313}
+              className="h-full w-auto object-contain"
+              priority
+            />
+          </div>
         </Link>
         
         <div>
@@ -52,15 +55,14 @@ export default function PageHeader({ employeeName, role, location, userId, showB
             <p className="text-xs text-blue-600 font-semibold">{role}</p>
           </div>
 
-          {/* --- AVATAR PROFILE --- */}
+          {/* AVATAR PROFILE */}
           <div className="h-10 w-10 rounded-full bg-slate-200 border-2 border-white shadow-sm flex items-center justify-center overflow-hidden cursor-pointer relative">
-            {/* Try to load avatar based on a predictable URL pattern */}
-            {userId && (
+            {avatarUrl && (
               <img 
-                src={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/avatars/${userId}/avatar.png`}
-                onError={(e) => (e.currentTarget.style.display = 'none')}
+                src={avatarUrl}
                 className="absolute inset-0 w-full h-full object-cover"
-                alt="Avatar"
+                onError={(e) => e.currentTarget.style.display = 'none'} 
+                alt="Profile"
               />
             )}
             <span className="text-sm font-bold text-slate-600">{initials}</span>
