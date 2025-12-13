@@ -4,6 +4,9 @@ import Mailgun from 'mailgun.js';
 import { NextResponse } from 'next/server';
 import bcrypt from 'bcrypt';
 
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
+
 export async function POST(request) {
   try {
     // Initialize clients inside the function

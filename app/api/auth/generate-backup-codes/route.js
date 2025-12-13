@@ -2,6 +2,9 @@ import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import bcrypt from 'bcrypt'
 
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
+
 function makeCode() {
   // 8 char groups like: AB12-CD34
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ23456789'

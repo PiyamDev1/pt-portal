@@ -6,6 +6,7 @@ import { NextResponse } from 'next/server';
 
 // Force dynamic rendering so the API is always evaluated and not statically optimized
 export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
 
 // Health/diagnostic GET to confirm route is reachable in production
 export async function GET(request) {
