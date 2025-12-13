@@ -16,30 +16,51 @@ export default function Verify2FAPage() {
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+    // Try MFA first, then fallback to backup codes if MFA isn't available or fails
+    try {
+      const userResp = await supabase.auth.getUser()
+      const user = userResp?.data?.user
+      if (!user) {
+        setError('No active session. Please sign in again.')
+        return
+      }
 
-    // 1. Get the user's available factors
-    const { data: factors, error: listError } = await supabase.auth.mfa.listFactors()
-    
-    if (listError || !factors?.all?.length) {
-      setError('No 2FA device found. Please contact support.')
-      return
-    }
+      // 1. Try to list factors and verify via enrolled factor
+      let triedMfa = false
+      try {
+        const { data: factors, error: listError } = await supabase.auth.mfa.listFactors()
+        if (!listError && factors?.all?.length) {
+          triedMfa = true
+          const factorId = factors.all[0].id
+          const { error: verifyError } = await supabase.auth.mfa.challengeAndVerify({ factorId, code })
+          if (!verifyError) {
+            window.history.replaceState(null, '', '/dashboard')
+            router.push('/dashboard')
+            return
+          }
+        }
+      } catch (mfaErr) {
+        // ignore and fall back to backup codes
+      }
 
-    // 2. Verify the code against the first enrolled factor
-    // (In the future if you allow multiple devices, you'd let them pick one)
-    const factorId = factors.all[0].id
+      // 2. Fallback: try consuming a backup code
+      const resp = await fetch('/api/auth/consume-backup-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.id, code }),
+      })
 
-    const { data, error } = await supabase.auth.mfa.challengeAndVerify({
-      factorId,
-      code,
-    })
+      if (resp.ok) {
+        window.history.replaceState(null, '', '/dashboard')
+        router.push('/dashboard')
+        return
+      }
 
-    if (error) {
-      setError('Incorrect code. Please try again.')
-    } else {
-      // Replace the history so back button doesn't go to 2FA
-      window.history.replaceState(null, '', '/dashboard')
-      router.push('/dashboard')
+      // If we reached here, show an appropriate error message
+      if (triedMfa) setError('Incorrect 2FA code. You can also try a backup code.')
+      else setError('No 2FA device found. Try using a backup code or contact support.')
+    } catch (e) {
+      setError('Verification failed. Please try again.')
     }
   }
 
