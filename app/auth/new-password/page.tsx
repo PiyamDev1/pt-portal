@@ -40,6 +40,12 @@ export default function NewPasswordPage() {
     return errors
   }
 
+  const getPasswordStrengthIndicator = (pwd: string) => {
+    const errors = validatePassword(pwd)
+    const strength = 5 - errors.length
+    return { strength, errors }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (password !== confirm) return alert("Passwords do not match")
@@ -95,6 +101,35 @@ export default function NewPasswordPage() {
               className="w-full p-3 border rounded focus:ring-2 focus:ring-blue-900 outline-none"
               value={password} onChange={e => setPassword(e.target.value)}
             />
+            {password && (
+              <div className="mt-3 p-3 bg-slate-50 rounded border border-slate-200">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="flex-1 h-1.5 bg-slate-200 rounded overflow-hidden">
+                    <div 
+                      className={`h-full transition-all ${
+                        getPasswordStrengthIndicator(password).strength === 5 ? 'bg-green-500 w-full' :
+                        getPasswordStrengthIndicator(password).strength >= 3 ? 'bg-yellow-500 w-3/4' :
+                        'bg-red-500 w-1/2'
+                      }`}
+                    />
+                  </div>
+                  <span className="text-xs font-bold">
+                    {getPasswordStrengthIndicator(password).strength === 5 ? '✓ Strong' :
+                     getPasswordStrengthIndicator(password).strength >= 3 ? 'Fair' : 'Weak'}
+                  </span>
+                </div>
+                {getPasswordStrengthIndicator(password).errors.length > 0 && (
+                  <div className="text-xs text-slate-600">
+                    <p className="font-bold mb-1">Password must contain:</p>
+                    <ul className="space-y-0.5">
+                      {getPasswordStrengthIndicator(password).errors.map((err, idx) => (
+                        <li key={idx}>• {err}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Confirm Password</label>

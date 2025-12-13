@@ -91,6 +91,20 @@ export default function MyAccountPage() {
 
   // --- ACTION: GENERATE BACKUP CODES ---
   const [showCodes, setShowCodes] = useState<string[] | null>(null)
+  const [backupCodeCount, setBackupCodeCount] = useState(0)
+  
+  const fetchBackupCodeCount = async () => {
+    const res = await fetch('/api/auth/backup-codes/count')
+    if (res.ok) {
+      const data = await res.json()
+      setBackupCodeCount(data.count || 0)
+    }
+  }
+
+  useEffect(() => {
+    if (user) fetchBackupCodeCount()
+  }, [user])
+  
   const handleGenerateBackupCodes = async () => {
     if (!confirm('Generate new backup codes? Previous codes will be invalidated.')) return
     setLoading(true)
@@ -102,10 +116,36 @@ export default function MyAccountPage() {
     const data = await res.json()
     if (res.ok) {
       setShowCodes(data.codes || [])
+      setBackupCodeCount(10)
     } else {
       alert('Failed to generate backup codes: ' + (data?.error || 'Unknown'))
     }
     setLoading(false)
+  }
+
+  const handleDownloadBackupCodes = () => {
+    if (!showCodes) return
+    const text = 'Piyam Travels - Backup Codes\n' +
+                 'Save these codes in a secure location.\n' +
+                 'Each code can be used once for 2FA.\n\n' +
+                 showCodes.join('\n')
+    const blob = new Blob([text], { type: 'text/plain' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'backup-codes.txt'
+    a.click()
+  }
+
+  const handleCopyBackupCodes = async () => {
+    if (!showCodes) return
+    const text = showCodes.join('\n')
+    try {
+      await navigator.clipboard.writeText(text)
+      alert('Backup codes copied to clipboard!')
+    } catch (err) {
+      alert('Failed to copy codes')
+    }
   }
 
   if (!user) return <div className="p-8">Loading...</div>
@@ -159,7 +199,8 @@ export default function MyAccountPage() {
       {/* 2. SECURITY & 2FA SECTION */}
       <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
         <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-          <span>Shield Icon</span> Two-Factor Authentication
+          <svg className="w-5 h-5 text-blue-600" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" /></svg>
+          Two-Factor Authentication
         </h2>
         
         <div className="flex items-start gap-4">
@@ -171,7 +212,7 @@ export default function MyAccountPage() {
 
         <div className="mt-6">
           <p className="text-sm text-slate-600 mb-3">Lost your phone or need to re-configure?</p>
-          <div className="flex gap-3 items-center">
+          <div className="flex gap-3 items-center flex-wrap">
             <button 
               onClick={handleReset2FA}
               disabled={loading}
@@ -187,14 +228,35 @@ export default function MyAccountPage() {
               Generate Backup Codes
             </button>
           </div>
+          
+          {!showCodes && backupCodeCount > 0 && (
+            <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded text-sm text-blue-700">
+              <p><strong>Remaining backup codes:</strong> {backupCodeCount} unused</p>
+            </div>
+          )}
+          
           {showCodes && (
             <div className="mt-4 p-4 bg-yellow-50 border border-yellow-100 rounded">
-              <p className="font-bold mb-2">Backup codes (save these now — shown only once):</p>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="flex items-center justify-between mb-3">
+                <p className="font-bold">Backup codes (save these now — shown only once):</p>
+                <button
+                  onClick={handleCopyBackupCodes}
+                  className="text-xs bg-white border border-yellow-200 px-2 py-1 rounded hover:bg-yellow-100 transition"
+                >
+                  📋 Copy
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-2 mb-3">
                 {showCodes.map((c, idx) => (
-                  <div key={idx} className="font-mono text-sm bg-white p-2 rounded border">{c}</div>
+                  <div key={idx} className="font-mono text-sm bg-white p-2 rounded border select-all">{c}</div>
                 ))}
               </div>
+              <button
+                onClick={handleDownloadBackupCodes}
+                className="text-xs bg-white border border-yellow-200 px-3 py-1.5 rounded hover:bg-yellow-100 transition"
+              >
+                ⬇️ Download as Text File
+              </button>
             </div>
           )}
         </div>
