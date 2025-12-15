@@ -2,12 +2,17 @@ import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 
-// Admin client to access auth schema
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  { auth: { autoRefreshToken: false, persistSession: false } }
-);
+// Helper to get admin client (created on demand to avoid build-time issues)
+const getSupabaseAdmin = () => {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    throw new Error('Missing Supabase credentials')
+  }
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_ROLE_KEY,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  )
+}
 
 export async function GET(request: Request) {
   try {
@@ -27,6 +32,9 @@ export async function GET(request: Request) {
     // Check Auth
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    // Get admin client
+    const supabaseAdmin = getSupabaseAdmin();
 
     // Fetch Sessions directly from auth tables
     const { data: sessions, error: dbError } = await supabaseAdmin
@@ -78,6 +86,9 @@ export async function DELETE(request: Request) {
     
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    // Get admin client
+    const supabaseAdmin = getSupabaseAdmin();
 
     const { id, type } = await request.json();
 
