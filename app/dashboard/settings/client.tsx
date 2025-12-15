@@ -4,24 +4,53 @@ import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 
-// --- HELPER: PARSE USER AGENT ---
-const getDeviceName = (ua: string) => {
-  if (!ua) return 'Unknown Device'
+// --- HELPER: PARSE USER AGENT WITH ICONS ---
+const getDeviceInfo = (ua: string) => {
+  if (!ua) return { name: 'Unknown Device', icon: '💻' }
   
-  let browser = 'Unknown Browser'
-  if (ua.includes('Firefox')) browser = 'Firefox'
+  let icon = '💻'
+  let name = 'Unknown Device'
+  let browser = ''
+  
+  // Detect Device Type & Icon
+  if (ua.includes('iPhone')) {
+    icon = '📱'
+    name = 'iPhone'
+  } else if (ua.includes('iPad')) {
+    icon = '📱'
+    name = 'iPad'
+  } else if (ua.includes('Android')) {
+    if (ua.includes('Mobile')) {
+      icon = '📱'
+      name = 'Android Phone'
+    } else {
+      icon = '📱'
+      name = 'Android Tablet'
+    }
+  } else if (ua.includes('Windows')) {
+    icon = '🖥️'
+    name = 'Windows PC'
+  } else if (ua.includes('Macintosh') || ua.includes('Mac OS')) {
+    icon = '🖥️'
+    name = 'Mac'
+  } else if (ua.includes('Linux')) {
+    icon = '🖥️'
+    name = 'Linux PC'
+  } else if (ua.includes('CrOS')) {
+    icon = '💻'
+    name = 'Chromebook'
+  }
+  
+  // Detect Browser
+  if (ua.includes('Edg/')) browser = 'Edge'
   else if (ua.includes('Chrome')) browser = 'Chrome'
-  else if (ua.includes('Safari')) browser = 'Safari'
-  else if (ua.includes('Edge')) browser = 'Edge'
+  else if (ua.includes('Firefox')) browser = 'Firefox'
+  else if (ua.includes('Safari') && !ua.includes('Chrome')) browser = 'Safari'
+  else if (ua.includes('Opera') || ua.includes('OPR')) browser = 'Opera'
+  
+  if (browser) name += ` (${browser})`
 
-  let os = 'Unknown OS'
-  if (ua.includes('Win')) os = 'Windows'
-  else if (ua.includes('Mac')) os = 'macOS'
-  else if (ua.includes('Linux')) os = 'Linux'
-  else if (ua.includes('Android')) os = 'Android'
-  else if (ua.includes('iPhone') || ua.includes('iPad')) os = 'iOS'
-
-  return `${browser} on ${os}`
+  return { name, icon }
 }
 
 export default function SettingsClient({ currentUser, userRole, initialLocations, initialDepts, initialRoles, initialEmployees }: any) {
@@ -718,36 +747,41 @@ export default function SettingsClient({ currentUser, userRole, initialLocations
               </div>
 
               <div className="space-y-3">
-                {sessions.length === 0 && <p className="text-sm text-slate-500">Loading active sessions...</p>}
+                {sessions.length === 0 && <p className="text-sm text-slate-500 italic">Fetching device list...</p>}
                 
-                {sessions.map((session) => (
-                  <div key={session.id} className={`flex items-center justify-between p-3 rounded border ${session.is_current ? 'border-green-200 bg-green-50' : 'border-slate-100 bg-slate-50'}`}>
-                    <div className="flex items-center gap-3">
-                      <div className={`h-8 w-8 rounded flex items-center justify-center text-lg ${session.is_current ? 'bg-green-100 text-green-600' : 'bg-white border border-slate-200 text-slate-400'}`}>
-                        {session.user_agent?.includes('Mobile') ? '📱' : '💻'}
+                {sessions.map((session) => {
+                  const { name, icon } = getDeviceInfo(session.user_agent)
+                  return (
+                    <div key={session.id} className={`flex items-center justify-between p-3 rounded border ${session.is_current ? 'border-green-200 bg-green-50' : 'border-slate-100 bg-slate-50'}`}>
+                      <div className="flex items-center gap-3">
+                        <div className={`h-10 w-10 rounded flex items-center justify-center text-xl ${session.is_current ? 'bg-green-100 text-green-600' : 'bg-white border border-slate-200 text-slate-400'}`}>
+                          {icon}
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-slate-800">
+                            {name}
+                            {session.is_current && <span className="ml-2 text-xs bg-green-200 text-green-800 px-1.5 py-0.5 rounded-full">Current Device</span>}
+                          </p>
+                          <div className="flex items-center gap-2 text-xs text-slate-500 mt-0.5">
+                            <span>📍 {session.ip}</span>
+                            <span>•</span>
+                            <span>🕒 Last used: {new Date(session.last_active).toLocaleDateString()} {new Date(session.last_active).toLocaleTimeString()}</span>
+                          </div>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-sm font-bold text-slate-800">
-                          {getDeviceName(session.user_agent)}
-                          {session.is_current && <span className="ml-2 text-xs bg-green-200 text-green-800 px-1.5 py-0.5 rounded-full">Current</span>}
-                        </p>
-                        <p className="text-xs text-slate-500">
-                          Last active: {new Date(session.last_active).toLocaleDateString()} at {new Date(session.last_active).toLocaleTimeString()}
-                        </p>
-                      </div>
-                    </div>
 
-                    {!session.is_current && (
-                      <button 
-                        onClick={() => handleRevokeSession(session.id)}
-                        disabled={loading}
-                        className="text-xs text-slate-500 hover:text-red-600 underline px-2"
-                      >
-                        Revoke
-                      </button>
-                    )}
-                  </div>
-                ))}
+                      {!session.is_current && (
+                        <button 
+                          onClick={() => handleRevokeSession(session.id)}
+                          disabled={loading}
+                          className="text-xs text-slate-500 hover:text-red-600 underline px-2"
+                        >
+                          Revoke
+                        </button>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             </div>
           </div>
