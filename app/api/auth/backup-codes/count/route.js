@@ -30,10 +30,10 @@ export async function GET(request) {
       .eq('employee_id', userId)
       .eq('used', false)
 
-    // Handle case where table doesn't exist yet gracefully
     if (error) {
-      console.error('Database Error:', error)
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      // If table doesn't exist yet, return 0 instead of crashing
+      if (error.code === '42P01') return NextResponse.json({ count: 0 })
+      throw error
     }
 
     return NextResponse.json({ success: true, count: (data || []).length }, { status: 200 })
