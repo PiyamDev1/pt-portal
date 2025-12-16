@@ -1,5 +1,4 @@
 import { createClient } from '@supabase/supabase-js';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 
@@ -32,7 +31,18 @@ const decodeSessionId = (accessToken?: string | null) => {
 
 export async function GET(request: Request) {
   try {
-    const supabase = createRouteHandlerClient({ cookies });
+    const cookieStore = cookies();
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        global: {
+          headers: {
+            cookie: cookieStore.getAll().map(c => `${c.name}=${c.value}`).join('; ')
+          }
+        }
+      }
+    );
     
     // Check Auth
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -72,7 +82,18 @@ export async function GET(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
-    const supabase = createRouteHandlerClient({ cookies });
+    const cookieStore = cookies();
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        global: {
+          headers: {
+            cookie: cookieStore.getAll().map(c => `${c.name}=${c.value}`).join('; ')
+          }
+        }
+      }
+    );
     
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
