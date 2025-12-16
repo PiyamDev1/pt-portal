@@ -1,6 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
+
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 // Helper to get admin client (created on demand to avoid build-time issues)
 const getSupabaseAdmin = () => {
@@ -28,18 +32,7 @@ const decodeSessionId = (accessToken?: string | null) => {
 
 export async function GET(request: Request) {
   try {
-    const cookieStore = await cookies();
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { 
-        global: {
-          headers: {
-            cookie: cookieStore.getAll().map(c => `${c.name}=${c.value}`).join('; ')
-          }
-        }
-      }
-    );
+    const supabase = createRouteHandlerClient({ cookies });
     
     // Check Auth
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -79,18 +72,7 @@ export async function GET(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
-    const cookieStore = await cookies();
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { 
-        global: {
-          headers: {
-            cookie: cookieStore.getAll().map(c => `${c.name}=${c.value}`).join('; ')
-          }
-        }
-      }
-    );
+    const supabase = createRouteHandlerClient({ cookies });
     
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
