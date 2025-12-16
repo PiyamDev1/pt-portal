@@ -12,14 +12,16 @@ const getSupabaseAdmin = () => {
   })
 }
 
-// Force dynamic so Vercel does not attempt static optimization
 export const dynamic = 'force-dynamic'
 
 export async function GET(request) {
   try {
     const supabaseAdmin = getSupabaseAdmin()
 
-    const userId = request.nextUrl?.searchParams.get('userId')
+    // FIX: Parse URL safely
+    const { searchParams } = new URL(request.url)
+    const userId = searchParams.get('userId')
+
     if (!userId) return NextResponse.json({ error: 'userId required' }, { status: 400 })
 
     const { data, error } = await supabaseAdmin
@@ -28,11 +30,15 @@ export async function GET(request) {
       .eq('employee_id', userId)
       .eq('used', false)
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    // Handle case where table doesn't exist yet gracefully
+    if (error) {
+      console.error('Database Error:', error)
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
 
     return NextResponse.json({ success: true, count: (data || []).length }, { status: 200 })
   } catch (e) {
-    console.error('backup-codes count error', e)
+    console.error('backup-codes count error:', e)
     return NextResponse.json({ error: e.message || String(e) }, { status: 500 })
   }
 }
