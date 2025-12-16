@@ -23,7 +23,7 @@ export async function GET(request: Request) {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    // 2. Call the RPC function we created (Securely fetches own sessions)
+    // 2. Call the RPC function (Securely fetches own sessions)
     const { data: sessions, error: dbError } = await supabase.rpc('get_my_sessions');
 
     if (dbError) throw dbError;
@@ -33,7 +33,6 @@ export async function GET(request: Request) {
     let currentSessionId = null;
     if (currentSession?.access_token) {
         try {
-            // Decode JWT payload to get session_id
             const payload = JSON.parse(Buffer.from(currentSession.access_token.split('.')[1], 'base64').toString());
             currentSessionId = payload.session_id;
         } catch {}
@@ -71,7 +70,7 @@ export async function DELETE(request: Request) {
     const { id, type } = await request.json();
 
     if (type === 'all') {
-      // For "Sign out all", we need the Admin client
+      // Admin client required for global sign out
       const supabaseAdmin = createClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.SUPABASE_SERVICE_ROLE_KEY!,

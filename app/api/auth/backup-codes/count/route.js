@@ -12,13 +12,14 @@ const getSupabaseAdmin = () => {
   })
 }
 
+// Force dynamic to prevent caching issues
 export const dynamic = 'force-dynamic'
 
 export async function GET(request) {
   try {
     const supabaseAdmin = getSupabaseAdmin()
 
-    // FIX: Parse URL safely
+    // FIX: Use standard URL parsing. request.nextUrl causes the 500 crash.
     const { searchParams } = new URL(request.url)
     const userId = searchParams.get('userId')
 
@@ -31,9 +32,9 @@ export async function GET(request) {
       .eq('used', false)
 
     if (error) {
-      // If table doesn't exist yet, return 0 instead of crashing
-      if (error.code === '42P01') return NextResponse.json({ count: 0 })
-      throw error
+      // Gracefully handle if table doesn't exist yet
+      if (error.code === '42P01') return NextResponse.json({ count: 0 }, { status: 200 })
+      return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
     return NextResponse.json({ success: true, count: (data || []).length }, { status: 200 })
