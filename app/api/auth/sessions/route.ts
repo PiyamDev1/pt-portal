@@ -4,14 +4,26 @@ import { cookies } from 'next/headers';
 
 // Helper to get admin client (created on demand to avoid build-time issues)
 const getSupabaseAdmin = () => {
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!supabaseUrl || !serviceKey) {
     throw new Error('Missing Supabase credentials')
   }
   return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY,
+    supabaseUrl,
+    serviceKey,
     { auth: { autoRefreshToken: false, persistSession: false } }
   )
+}
+
+const decodeSessionId = (accessToken?: string | null) => {
+  if (!accessToken) return null
+  try {
+    const payload = JSON.parse(Buffer.from(accessToken.split('.')[1] || '', 'base64').toString())
+    return payload.session_id || null
+  } catch {
+    return null
+  }
 }
 
 export async function GET(request: Request) {
@@ -48,11 +60,7 @@ export async function GET(request: Request) {
 
     // Identify current session
     const { data: { session: currentSession } } = await supabase.auth.getSession();
-    
-    // Helper to decode JWT to find session_id
-    const currentSessionId = currentSession?.access_token 
-        ? JSON.parse(atob(currentSession.access_token.split('.')[1])).session_id 
-        : null;
+    const currentSessionId = decodeSessionId(currentSession?.access_token)
 
     const formattedSessions = sessions.map((s: any) => ({
       id: s.id,

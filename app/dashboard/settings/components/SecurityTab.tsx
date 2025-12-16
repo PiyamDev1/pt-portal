@@ -20,6 +20,8 @@ export default function SecurityTab({ currentUser, supabase, loading, setLoading
   const [showCodes, setShowCodes] = useState<string[] | null>(null)
   const [backupCodeCount, setBackupCodeCount] = useState(0)
   const [sessions, setSessions] = useState<any[]>([])
+  const [sessionsError, setSessionsError] = useState<string | null>(null)
+  const [sessionsLoading, setSessionsLoading] = useState(true)
 
   useEffect(() => {
     // Fetch backup code count
@@ -29,12 +31,22 @@ export default function SecurityTab({ currentUser, supabase, loading, setLoading
       .catch(() => {})
 
     // Fetch sessions
-    fetch('/api/auth/sessions')
-      .then(res => res.json())
-      .then(data => {
+    setSessionsLoading(true)
+    setSessionsError(null)
+    fetch('/api/auth/sessions', { credentials: 'include' })
+      .then(async res => {
+        const data = await res.json()
+        if (!res.ok) {
+          throw new Error(data?.error || 'Failed to fetch sessions')
+        }
         if (data.sessions) setSessions(data.sessions)
+        else setSessions([])
       })
-      .catch(console.error)
+      .catch((err) => {
+        console.error('Session fetch failed:', err)
+        setSessionsError(err.message || 'Unable to load devices')
+      })
+      .finally(() => setSessionsLoading(false))
   }, [currentUser.id])
 
   const handlePasswordChange = async (e: React.FormEvent) => {
@@ -363,7 +375,7 @@ export default function SecurityTab({ currentUser, supabase, loading, setLoading
           <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
             <span>📱</span> Active Devices
           </h3>
-          {sessions.length > 1 && (
+          {sessions.length > 1 && !sessionsLoading && !sessionsError && (
             <button 
               onClick={handleSignOutAll}
               disabled={loading}
@@ -375,7 +387,15 @@ export default function SecurityTab({ currentUser, supabase, loading, setLoading
         </div>
 
         <div className="space-y-3">
-          {sessions.length === 0 && <p className="text-sm text-slate-500 italic">Fetching device list...</p>}
+          {sessionsLoading && (
+            <p className="text-sm text-slate-500 italic">Fetching device list...</p>
+          )}
+          {sessionsError && !sessionsLoading && (
+            <p className="text-sm text-red-600">{sessionsError}</p>
+          )}
+          {!sessionsLoading && !sessionsError && sessions.length === 0 && (
+            <p className="text-sm text-slate-500 italic">No active devices found.</p>
+          )}
           
           {sessions.map((session) => {
             const { name, icon } = getDeviceInfo(session.user_agent)
