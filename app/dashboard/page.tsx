@@ -112,19 +112,26 @@ export default async function Dashboard() {
   const location = Array.isArray(employee?.locations) ? employee.locations[0] : employee?.locations
   const role = Array.isArray(employee?.roles) ? employee.roles[0] : employee?.roles
 
-  // Sort lists
   const pinnedModules = ALL_MODULES.filter(m => PINNED_IDS.includes(m.id))
   const recentModules = ALL_MODULES.filter(m => RECENT_IDS.includes(m.id))
   const sortedModules = [...ALL_MODULES].sort((a, b) => a.title.localeCompare(b.title))
 
-  // Mock Target Data
+  // Date Formatting
+  const today = new Date();
+  const dateStr = today.toLocaleDateString('en-GB', { 
+    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' 
+  });
+  const timeStr = today.toLocaleTimeString('en-GB', { 
+    hour: '2-digit', minute: '2-digit' 
+  });
+
   const targetAmount = 5000;
   const currentSales = 3250;
   const progressPercent = Math.min((currentSales / targetAmount) * 100, 100);
 
   return (
     <DashboardClientWrapper>
-      <div className="min-h-screen bg-slate-50">
+      <div className="min-h-screen bg-slate-50 flex flex-col">
         <PageHeader 
           employeeName={employee?.full_name} 
           role={role?.name} 
@@ -132,17 +139,18 @@ export default async function Dashboard() {
           userId={session.user.id} 
         />
 
-        <main className="p-6 max-w-7xl mx-auto space-y-8">
+        <main className="p-6 max-w-7xl mx-auto space-y-8 flex-grow w-full">
           
-          {/* 1. WELCOME & PERSONAL PERFORMANCE */}
+          {/* 1. WELCOME & STATS */}
           <div className="space-y-6">
             <div className="flex justify-between items-end">
               <div>
                 <h2 className="text-2xl font-bold text-slate-800">Dashboard</h2>
                 <p className="text-slate-500">Welcome back, {employee?.full_name}</p>
               </div>
-              <div className="text-right text-sm text-slate-400">
-                {new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+              <div className="text-right">
+                <p className="text-sm font-bold text-slate-700">{dateStr}</p>
+                <p className="text-xs font-medium text-slate-500">{timeStr}</p>
               </div>
             </div>
 
@@ -207,29 +215,30 @@ export default async function Dashboard() {
 
           <hr className="border-slate-200" />
 
-          {/* 2. PINNED & RECENT (Split View) */}
+          {/* 2. PINNED & RECENT */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             
-            {/* Pinned Section */}
+            {/* Pinned Section (SMALLER ICONS) */}
             <section>
                 <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-2">
                     <span className="text-yellow-500 text-lg">★</span> Pinned Modules
                 </h3>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {/* Updated Grid: 4 cols on mobile, 6 on desktop -> Smaller items */}
+                <div className="grid grid-cols-4 sm:grid-cols-6 gap-3">
                     {pinnedModules.map((mod) => (
-                        <Link key={mod.id} href={mod.href} className="group">
-                        <div className={`h-24 p-3 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col items-center justify-center text-center gap-2 ${mod.color}`}>
-                            <div className="text-2xl drop-shadow-sm">
+                        <Link key={mod.id} href={mod.href} className="group aspect-square">
+                        <div className={`w-full h-full p-2 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col items-center justify-center text-center gap-1 ${mod.color}`}>
+                            <div className="text-xl drop-shadow-sm">
                             {mod.icon}
                             </div>
-                            <h4 className="font-bold text-xs leading-tight">{mod.title}</h4>
+                            {/* Truncate text if needed for small squares */}
+                            <h4 className="font-bold text-[10px] leading-tight line-clamp-2">{mod.title}</h4>
                         </div>
                         </Link>
                     ))}
-                    {/* Add Pin Button Placeholder */}
-                    <button className="h-24 p-3 rounded-xl border-2 border-dashed border-slate-200 text-slate-400 hover:border-slate-300 hover:text-slate-500 transition flex flex-col items-center justify-center gap-1">
-                        <span className="text-xl">+</span>
-                        <span className="text-xs font-medium">Pin App</span>
+                    
+                    <button className="aspect-square p-2 rounded-xl border-2 border-dashed border-slate-200 text-slate-400 hover:border-slate-300 hover:text-slate-500 transition flex flex-col items-center justify-center gap-1">
+                        <span className="text-lg">+</span>
                     </button>
                 </div>
             </section>
@@ -260,9 +269,9 @@ export default async function Dashboard() {
 
           <div className="h-px bg-slate-100 my-4"></div>
 
-          {/* 3. ALL APPS (A-Z) */}
+          {/* 3. ALL MODULES */}
           <section>
-            <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-4">All Apps (A-Z)</h3>
+            <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-4">All Modules</h3>
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
               {sortedModules.map((mod) => (
                 <Link key={mod.id} href={mod.href} className="group">
