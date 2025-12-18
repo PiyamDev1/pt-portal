@@ -8,6 +8,14 @@ import DashboardClientWrapper from './client-wrapper'
 // --- MODULE CONFIGURATION ---
 const ALL_MODULES = [
   { 
+    id: 'applications', 
+    title: "Applications Hub", 
+    desc: "Track all your applications",
+    icon: "📋", 
+    color: "bg-orange-600 text-white", 
+    href: "/dashboard/applications" 
+  },
+  { 
     id: 'ticketing', 
     title: "Ticketing", 
     desc: "Issue tickets & manage PNRs",
