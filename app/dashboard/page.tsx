@@ -53,7 +53,7 @@ const ALL_MODULES = [
     desc: "NICOP & ID Cards",
     icon: "🆔", 
     color: "bg-green-500 text-white", // Light Green
-    href: "/dashboard/nadra" 
+    href: "/dashboard/applications/nadra" 
   },
   { 
     id: 'commissions', 
