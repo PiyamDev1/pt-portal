@@ -24,12 +24,12 @@ export default async function NadraPage() {
     .eq('id', session.user.id)
     .single()
 
-  // Fetching existing applications for the record ledger
+  // Fetching records from your nadra_services table
   const { data: applications } = await supabase
     .from('nadra_services')
     .select(`
       *,
-      applicants ( first_name, last_name, citizen_number )
+      applicants ( first_name, last_name, citizen_number, email )
     `)
     .order('created_at', { ascending: false })
 
@@ -50,7 +50,7 @@ export default async function NadraPage() {
         <main className="max-w-7xl mx-auto p-6">
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-slate-800">Nadra Services</h1>
-            <p className="text-slate-500">Manage Family Head records and track application credentials (PIN/Tracking).</p>
+            <p className="text-slate-500">Record-keeping ledger for tracking numbers and security PINs.</p>
           </div>
 
           <NadraClient initialApplications={applications || []} currentUserId={session.user.id} />
