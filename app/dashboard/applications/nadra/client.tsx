@@ -1,10 +1,71 @@
 'use client'
 import { useState } from 'react'
 import { toast } from 'sonner'
+import { useRouter } from 'next/navigation'
 
 export default function NadraClient({ initialApplications, currentUserId }: any) {
+  const router = useRouter()
   const [showForm, setShowForm] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  
+  // Form state
+  const [formData, setFormData] = useState({
+    familyHeadName: '',
+    familyHeadCnic: '',
+    applicantName: '',
+    applicantCnic: '',
+    serviceType: 'NICOP',
+    urgencyLevel: 'Normal',
+    trackingNumber: '',
+    pin: ''
+  })
+
+  const handleInputChange = (e: any) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value })
+  }
+
+  const handleSubmit = async () => {
+    // Validate required fields
+    if (!formData.applicantCnic || !formData.serviceType || !formData.trackingNumber) {
+      toast.error('Please fill in Applicant CNIC, Service Type, and Tracking Number')
+      return
+    }
+
+    setIsSubmitting(true)
+    try {
+      const response = await fetch('/api/nadra/add-application', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData)
+      })
+
+      const result = await response.json()
+
+      if (response.ok) {
+        toast.success('Application saved to ledger successfully!')
+        setFormData({
+          familyHeadName: '',
+          familyHeadCnic: '',
+          applicantName: '',
+          applicantCnic: '',
+          serviceType: 'NICOP',
+          urgencyLevel: 'Normal',
+          trackingNumber: '',
+          pin: ''
+        })
+        setShowForm(false)
+        router.refresh() // Refresh the page to show new data
+      } else {
+        toast.error(result.error || 'Failed to save application')
+      }
+    } catch (error) {
+      toast.error('An error occurred while saving')
+      console.error(error)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -34,20 +95,45 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
 
       {/* DATA ENTRY FORM */}
       {showForm && (
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-md animate-fade-in-down space-y-6">
+        <div className="bg-white p-6 rounded-xl border-t-4 border-green-600 shadow-md animate-fade-in-down space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             
             {/* Left Column: People Details */}
             <div className="space-y-4">
               <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest">1. Hierarchy</h4>
               <div className="space-y-2">
-                <input placeholder="Family Head Name" className="w-full p-2 border rounded text-sm" />
-                <input placeholder="Family Head CNIC" className="w-full p-2 border rounded text-sm font-mono" />
+                <input 
+                  name="familyHeadName"
+                  value={formData.familyHeadName}
+                  onChange={handleInputChange}
+                  placeholder="Family Head Name" 
+                  className="w-full p-2 border rounded text-sm" 
+                />
+                <input 
+                  name="familyHeadCnic"
+                  value={formData.familyHeadCnic}
+                  onChange={handleInputChange}
+                  placeholder="Family Head CNIC" 
+                  className="w-full p-2 border rounded text-sm font-mono" 
+                />
               </div>
               <div className="pt-2 space-y-2">
                 <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest">2. Applicant</h4>
-                <input placeholder="Applicant Name" className="w-full p-2 border rounded text-sm" />
-                <input placeholder="Applicant CNIC" className="w-full p-2 border rounded text-sm font-mono" />
+                <input 
+                  name="applicantName"
+                  value={formData.applicantName}
+                  onChange={handleInputChange}
+                  placeholder="Applicant Name" 
+                  className="w-full p-2 border rounded text-sm" 
+                />
+                <input 
+                  name="applicantCnic"
+                  value={formData.applicantCnic}
+                  onChange={handleInputChange}
+                  placeholder="Applicant CNIC" 
+                  className="w-full p-2 border rounded text-sm font-mono" 
+                  required
+                />
               </div>
             </div>
             
@@ -59,7 +145,12 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-[10px] text-slate-400 font-bold uppercase mb-1 block">Service Type</label>
-                  <select className="w-full p-2 border rounded text-sm bg-white">
+                  <select 
+                    name="serviceType"
+                    value={formData.serviceType}
+                    onChange={handleInputChange}
+                    className="w-full p-2 border rounded text-sm bg-white"
+                  >
                     <option>NICOP</option>
                     <option>FRC</option>
                     <option>POC</option>
@@ -68,7 +159,12 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
                 </div>
                 <div>
                   <label className="text-[10px] text-slate-400 font-bold uppercase mb-1 block">Urgency Level</label>
-                  <select className="w-full p-2 border rounded text-sm bg-white font-medium">
+                  <select 
+                    name="urgencyLevel"
+                    value={formData.urgencyLevel}
+                    onChange={handleInputChange}
+                    className="w-full p-2 border rounded text-sm bg-white font-medium"
+                  >
                     <option>Normal</option>
                     <option>Executive</option>
                   </select>
@@ -78,8 +174,21 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
               <div className="pt-2 space-y-4">
                 <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest">4. Access Credentials</h4>
                 <div className="flex gap-2">
-                  <input placeholder="Tracking ID" className="w-2/3 p-2 border rounded text-sm font-mono" />
-                  <input placeholder="PIN" className="w-1/3 p-2 border rounded text-sm font-bold text-center" />
+                  <input 
+                    name="trackingNumber"
+                    value={formData.trackingNumber}
+                    onChange={handleInputChange}
+                    placeholder="Tracking ID" 
+                    className="w-2/3 p-2 border rounded text-sm font-mono" 
+                    required
+                  />
+                  <input 
+                    name="pin"
+                    value={formData.pin}
+                    onChange={handleInputChange}
+                    placeholder="PIN" 
+                    className="w-1/3 p-2 border rounded text-sm font-bold text-center" 
+                  />
                 </div>
                 <p className="text-[10px] text-slate-400 italic">
                   * Applicant email will be retrieved from existing profile.
@@ -88,8 +197,12 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
             </div>
           </div>
           
-          <button className="w-full bg-slate-800 text-white py-3 rounded-lg font-bold hover:bg-black transition">
-            Save Application to Ledger
+          <button 
+            onClick={handleSubmit}
+            disabled={isSubmitting}
+            className="w-full bg-slate-800 text-white py-3 rounded-lg font-bold hover:bg-black transition disabled:bg-slate-400 disabled:cursor-not-allowed"
+          >
+            {isSubmitting ? 'Saving...' : 'Save Application to Ledger'}
           </button>
         </div>
       )}
@@ -120,7 +233,9 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
                    </td>
                    <td className="p-4">
                       <div className="font-bold text-slate-700">{app.service_type}</div>
-                      <div className="text-[10px] text-slate-400 font-bold uppercase">Processing Mode: TBD</div>
+                      <div className="text-[10px] text-slate-400 font-bold uppercase">
+                        {app.urgency_level ? `${app.urgency_level} Processing` : 'Processing Mode: TBD'}
+                      </div>
                    </td>
                    <td className="p-4">
                       <div className="font-mono text-blue-600 font-bold">{app.tracking_number}</div>
