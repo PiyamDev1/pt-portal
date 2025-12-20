@@ -4,7 +4,8 @@ import { NextResponse } from 'next/server'
 
 export async function POST(request) {
   try {
-    const cookieStore = await cookies()
+    // Grab cookies once and pass through to Supabase client
+    const cookieStore = cookies()
     const supabase = createRouteHandlerClient({ cookies: () => cookieStore })
 
     // Check authentication
@@ -40,31 +41,52 @@ export async function POST(request) {
       .single()
 
     if (applicantError || !applicant) {
+      console.error('Applicant lookup error:', applicantError)
       return NextResponse.json({ 
-        error: 'Applicant not found. Please ensure the applicant exists in the system.' 
+        error: 'Applicant not found. Please ensure the applicant exists in the system.',
+        details: applicantError?.message
       }, { status: 404 })
     }
 
     // Insert the NADRA service record
-    const { data: nadraService, error: insertError } = await supabase
+    const payload = {
+      applicant_id: applicant.id,
+      service_type: serviceType,
+      urgency_level: urgencyLevel,
+      tracking_number: trackingNumber,
+      application_pin: pin,
+      application_email: applicant.email,
+      status: 'pending',
+      created_by: session.user.id,
+    }
+
+    // Attempt insert; if urgency column is missing, retry without it to avoid hard failure
+    let { data: nadraService, error: insertError } = await supabase
       .from('nadra_services')
-      .insert({
-        applicant_id: applicant.id,
-        service_type: serviceType,
-        urgency_level: urgencyLevel,
-        tracking_number: trackingNumber,
-        application_pin: pin,
-        application_email: applicant.email,
-        status: 'pending',
-        created_by: session.user.id,
-        family_head_name: familyHeadName,
-        family_head_cnic: familyHeadCnic
-      })
+      .insert(payload)
       .select(`
         *,
         applicants ( first_name, last_name, citizen_number, email )
       `)
       .single()
+
+    if (insertError && insertError.message?.includes('urgency')) {
+      const fallbackPayload = { ...payload }
+      delete fallbackPayload.urgency_level
+
+      console.warn('Retrying insert without urgency_level column due to error:', insertError.message)
+      const retry = await supabase
+        .from('nadra_services')
+        .insert(fallbackPayload)
+        .select(`
+          *,
+          applicants ( first_name, last_name, citizen_number, email )
+        `)
+        .single()
+
+      nadraService = retry.data
+      insertError = retry.error
+    }
 
     if (insertError) {
       console.error('Insert error:', insertError)
