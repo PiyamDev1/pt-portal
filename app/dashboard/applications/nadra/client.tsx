@@ -8,6 +8,8 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
   const [showForm, setShowForm] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [selectedHistory, setSelectedHistory] = useState<any>(null)
+  const [isUpdating, setIsUpdating] = useState(false)
   
   // Form state
   const [formData, setFormData] = useState({
@@ -68,6 +70,43 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
       console.error(error)
     } finally {
       setIsSubmitting(false)
+    }
+  }
+
+  // 1. Logic to Group by Family Head
+  const groupedData = initialApplications.reduce((acc: any, item: any) => {
+    const headCnic = item.family_heads?.citizen_number || 'Independent'
+    if (!acc[headCnic]) {
+      acc[headCnic] = {
+        head: item.family_heads,
+        members: []
+      }
+    }
+    acc[headCnic].members.push(item)
+    return acc
+  }, {})
+
+  // 2. Status Update Function
+  const handleStatusChange = async (nadraId: string, newStatus: string) => {
+    setIsUpdating(true)
+    try {
+      const res = await fetch('/api/nadra/update-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ nadraId, status: newStatus, userId: currentUserId })
+      })
+      if (res.ok) {
+        toast.success('Status updated')
+        router.refresh()
+      } else {
+        toast.error('Failed to update status')
+      }
+    } catch (error) {
+      toast.error('Error updating status')
+      console.error(error)
+    } finally {
+      setIsUpdating(false)
     }
   }
 
@@ -216,51 +255,107 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
         </div>
       )}
 
-      {/* LEDGER TABLE */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <table className="w-full text-left text-sm">
-          <thead className="bg-slate-50 text-slate-500 border-b border-slate-200">
-            <tr>
-              <th className="p-4 font-bold">Applicant Details</th>
-              <th className="p-4 font-bold">Service Info</th>
-              <th className="p-4 font-bold">Access PIN</th>
-              <th className="p-4 font-bold">Status</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {initialApplications.length === 0 ? (
-              <tr>
-                <td colSpan={4} className="p-12 text-center text-slate-400 italic">No records in the ledger.</td>
-              </tr>
-            ) : (
-              initialApplications.map((app: any) => (
-                <tr key={app.id} className="hover:bg-slate-50 transition-colors">
-                   <td className="p-4">
-                      <div className="font-bold text-slate-800">{app.applicants?.first_name} {app.applicants?.last_name}</div>
-                      <div className="text-[10px] text-slate-400 font-mono uppercase">{app.applicants?.citizen_number}</div>
-                      <div className="text-[10px] text-blue-500 lowercase">{app.applicants?.email}</div>
-                   </td>
-                   <td className="p-4">
-                      <div className="font-bold text-slate-700">{app.service_type}</div>
-                      <div className="text-[10px] text-slate-400 font-bold uppercase">
-                        {app.nicop_cnic_details?.service_option || 'Normal'} Processing
-                      </div>
-                   </td>
-                   <td className="p-4">
-                      <div className="font-mono text-blue-600 font-bold">{app.tracking_number}</div>
-                      <div className="text-[10px] font-bold text-slate-500">PIN: {app.application_pin || 'N/A'}</div>
-                   </td>
-                   <td className="p-4">
-                      <span className="text-[10px] font-black bg-orange-100 text-orange-700 px-2 py-1 rounded-full uppercase">
-                        {app.status}
-                      </span>
-                   </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+      {/* GROUPED LEDGER BY FAMILY HEAD */}
+      <div className="space-y-4">
+        {Object.entries(groupedData).length === 0 ? (
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-12 text-center text-slate-400 italic">
+            No records in the ledger.
+          </div>
+        ) : (
+          Object.entries(groupedData).map(([headCnic, group]: any) => (
+            <div key={headCnic} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+              {/* FAMILY HEAD HEADER */}
+              <div className="bg-slate-50 px-6 py-3 border-b border-slate-200 flex justify-between items-center">
+                <div className="flex items-center gap-3">
+                  <span className="text-xl">🏠</span>
+                  <div>
+                    <h4 className="font-bold text-slate-800 text-sm">
+                      {group.head ? `${group.head.first_name} ${group.head.last_name}` : 'No Family Head'}
+                    </h4>
+                    <p className="text-[10px] text-slate-500 font-mono uppercase">{headCnic}</p>
+                  </div>
+                </div>
+                <span className="text-[10px] bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full font-bold">
+                  {group.members.length} Applications
+                </span>
+              </div>
+
+              {/* MEMBER APPLICATIONS TABLE */}
+              <table className="w-full text-left text-sm">
+                <tbody className="divide-y divide-slate-100">
+                  {group.members.map((app: any) => (
+                    <tr key={app.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="p-4 pl-12 w-1/3">
+                        <div className="flex items-center gap-2">
+                          <span className="text-slate-300">¬</span>
+                          <div>
+                            <div className="font-bold text-slate-700">{app.applicants?.first_name} {app.applicants?.last_name}</div>
+                            <div className="text-[10px] text-slate-400 font-mono uppercase">{app.applicants?.citizen_number}</div>
+                            <div className="text-[10px] text-blue-500 lowercase">{app.applicants?.email}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="p-4">
+                        <div className="font-bold text-slate-700">{app.nadra_services[0]?.service_type}</div>
+                        <div className="text-[10px] text-slate-400 font-bold uppercase">
+                          {app.nadra_services[0]?.nicop_cnic_details?.service_option || 'Standard'}
+                        </div>
+                      </td>
+                      <td className="p-4">
+                        <button 
+                          onClick={() => setSelectedHistory(app)}
+                          className="font-mono text-blue-600 font-bold hover:underline"
+                        >
+                          {app.tracking_number}
+                        </button>
+                        <div className="text-[10px] font-bold text-slate-500">PIN: {app.nadra_services[0]?.application_pin || 'N/A'}</div>
+                      </td>
+                      <td className="p-4">
+                        <select 
+                          disabled={isUpdating}
+                          value={app.nadra_services[0]?.status || 'Pending Submission'}
+                          onChange={(e) => handleStatusChange(app.nadra_services[0]?.id, e.target.value)}
+                          className="text-[10px] font-black bg-orange-100 text-orange-700 px-2 py-1 rounded-full uppercase border-none focus:ring-0 cursor-pointer"
+                        >
+                          <option value="Pending Submission">Pending Submission</option>
+                          <option value="Submitted">Submitted</option>
+                          <option value="In Progress">In Progress</option>
+                          <option value="Completed">Completed</option>
+                          <option value="Cancelled">Cancelled</option>
+                        </select>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ))
+        )}
       </div>
+
+      {/* STATUS HISTORY POPUP (Simple Modal) */}
+      {selectedHistory && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl">
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+              <h3 className="font-bold text-slate-800">Status History</h3>
+              <button onClick={() => setSelectedHistory(null)} className="text-slate-400 hover:text-slate-600">✕</button>
+            </div>
+            <div className="p-6 max-h-[400px] overflow-y-auto space-y-4">
+              <div className="flex gap-4 items-start">
+                <div className="w-2 h-2 rounded-full bg-green-500 mt-1.5 shrink-0" />
+                <div>
+                  <p className="text-sm font-bold text-slate-800">{selectedHistory.nadra_services[0]?.status}</p>
+                  <p className="text-xs text-slate-500">
+                    {new Date(selectedHistory.nadra_services[0]?.created_at).toLocaleString()}
+                  </p>
+                </div>
+              </div>
+              {/* Future: Map through a real history table here */}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

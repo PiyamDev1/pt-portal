@@ -24,13 +24,22 @@ export default async function NadraPage() {
     .eq('id', session.user.id)
     .single()
 
-  // Fetching records from your nadra_services table
+  // Fetching hierarchical data
   const { data: applications } = await supabase
-    .from('nadra_services')
+    .from('applications')
     .select(`
-      *,
-      applicants ( first_name, last_name, citizen_number, email ),
-      nicop_cnic_details ( service_option )
+      id,
+      tracking_number,
+      family_heads:applicants!applications_family_head_id_fkey ( first_name, last_name, citizen_number ),
+      applicants!applications_applicant_id_fkey ( first_name, last_name, citizen_number, email ),
+      nadra_services!inner (
+        id,
+        service_type,
+        status,
+        application_pin,
+        created_at,
+        nicop_cnic_details ( service_option )
+      )
     `)
     .order('created_at', { ascending: false })
 
