@@ -183,19 +183,47 @@ export async function POST(request) {
     console.log('[NADRA API] Attempting insert with payload:', JSON.stringify(payload, null, 2))
 
     // Insert the record
-    const { data: nadraService, error: insertError } = await supabase
+    let { data: nadraService, error: insertError } = await supabase
       .from('nadra_services')
       .insert(payload)
       .select()
       .single()
 
+    // If insert fails, log full error details and try simpler payload
     if (insertError) {
-      console.error('[NADRA API] Insert error:', JSON.stringify(insertError, null, 2))
-      return NextResponse.json({ 
-        error: 'Failed to save application',
-        details: insertError.message,
-        code: insertError.code
-      }, { status: 500, headers: { 'Access-Control-Allow-Origin': origin, 'Vary': 'Origin' } })
+      console.error('[NADRA API] Insert error details:', {
+        message: insertError.message,
+        code: insertError.code,
+        details: insertError.details,
+        hint: insertError.hint
+      })
+      
+      // Try with even simpler payload if status field is problematic
+      console.log('[NADRA API] Retrying with minimal payload (no status)...')
+      const minimalPayload = {
+        applicant_id: applicant.id,
+        service_type: serviceType,
+        tracking_number: trackingNumber,
+        application_pin: pin || null,
+      }
+      
+      const retry = await supabase
+        .from('nadra_services')
+        .insert(minimalPayload)
+        .select()
+        .single()
+      
+      if (retry.error) {
+        console.error('[NADRA API] Retry also failed:', retry.error)
+        return NextResponse.json({ 
+          error: 'Failed to save application',
+          details: insertError.message,
+          code: insertError.code,
+          hint: insertError.hint
+        }, { status: 500, headers: { 'Access-Control-Allow-Origin': origin, 'Vary': 'Origin' } })
+      }
+      
+      nadraService = retry.data
     }
 
     console.log('[NADRA API] Successfully inserted:', nadraService?.id)
