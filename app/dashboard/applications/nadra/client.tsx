@@ -37,6 +37,7 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
       const response = await fetch('/api/nadra/add-application', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify(formData)
       })
 

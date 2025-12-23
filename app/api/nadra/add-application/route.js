@@ -27,6 +27,9 @@ export async function POST(request) {
 
     // Check authentication via cookies
     const cookieHeader = request.headers.get('cookie') || ''
+    console.log('[NADRA API] Cookie header length:', cookieHeader.length)
+    console.log('[NADRA API] Cookie header preview:', cookieHeader.substring(0, 100))
+    
     const supabaseAuth = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
       process.env.SUPABASE_SERVICE_ROLE_KEY,
@@ -37,16 +40,28 @@ export async function POST(request) {
       }
     )
 
-    let session
+    let user
     try {
-      const { data: { user }, error: userError } = await supabaseAuth.auth.getUser()
-      if (userError || !user) {
-        console.warn('[NADRA API] No authenticated user')
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      const { data: { user: authUser }, error: userError } = await supabaseAuth.auth.getUser()
+      
+      if (userError) {
+        console.error('[NADRA API] Auth getUser error:', userError.message)
       }
+      
+      user = authUser
+      
+      if (!user) {
+        console.warn('[NADRA API] No authenticated user found after auth.getUser()')
+        console.warn('[NADRA API] Cookies might not be sent with credentials')
+        return NextResponse.json({ 
+          error: 'Unauthorized: no user session',
+          hint: 'Make sure request includes credentials'
+        }, { status: 401 })
+      }
+      
       console.log('[NADRA API] Auth check complete. User:', user.id)
     } catch (authError) {
-      console.error('[NADRA API] Auth error:', authError)
+      console.error('[NADRA API] Auth error:', authError?.message)
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
