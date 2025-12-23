@@ -2,28 +2,71 @@ import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 
+// Force dynamic rendering
+export const dynamic = 'force-dynamic'
+
 export async function POST(request) {
   try {
-    // Grab cookies and create Supabase client
-    const cookieStore = cookies()
-    const supabase = createRouteHandlerClient({ cookies: () => cookieStore })
+    console.log('[NADRA API] Request received')
+    
+    // Grab cookies (must be awaited in newer Next.js versions)
+    let cookieStore
+    try {
+      cookieStore = await cookies()
+      console.log('[NADRA API] Cookies retrieved')
+    } catch (cookieError) {
+      console.error('[NADRA API] Cookie error:', cookieError)
+      return NextResponse.json({ 
+        error: 'Failed to initialize session',
+        details: cookieError.message
+      }, { status: 500 })
+    }
+
+    // Create Supabase client
+    let supabase
+    try {
+      supabase = createRouteHandlerClient({ cookies: () => cookieStore })
+      console.log('[NADRA API] Supabase client created')
+    } catch (clientError) {
+      console.error('[NADRA API] Supabase client error:', clientError)
+      return NextResponse.json({ 
+        error: 'Failed to initialize database client',
+        details: clientError.message
+      }, { status: 500 })
+    }
 
     // Check authentication
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) {
+    let session
+    try {
+      const { data: { session: authSession } } = await supabase.auth.getSession()
+      session = authSession
+      console.log('[NADRA API] Auth check complete. User:', session?.user?.id)
+    } catch (authError) {
+      console.error('[NADRA API] Auth error:', authError)
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await request.json()
-    console.log('[NADRA API] Received request body:', JSON.stringify(body, null, 2))
+    if (!session) {
+      console.warn('[NADRA API] No session found')
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    // Parse request body
+    let body
+    try {
+      body = await request.json()
+      console.log('[NADRA API] Request body parsed:', JSON.stringify(body, null, 2))
+    } catch (parseError) {
+      console.error('[NADRA API] Body parse error:', parseError)
+      return NextResponse.json({ 
+        error: 'Invalid request body',
+        details: parseError.message
+      }, { status: 400 })
+    }
 
     const { 
-      familyHeadName,
-      familyHeadCnic,
-      applicantName,
       applicantCnic,
       serviceType,
-      urgencyLevel,
       trackingNumber,
       pin
     } = body
@@ -35,7 +78,7 @@ export async function POST(request) {
       }, { status: 400 })
     }
 
-    // First, find the applicant by CNIC
+    // Look up applicant by CNIC
     console.log('[NADRA API] Looking up applicant with CNIC:', applicantCnic)
     const { data: applicant, error: applicantError } = await supabase
       .from('applicants')
@@ -44,9 +87,9 @@ export async function POST(request) {
       .single()
 
     if (applicantError) {
-      console.error('[NADRA API] Applicant lookup error:', applicantError)
+      console.error('[NADRA API] Applicant lookup error:', JSON.stringify(applicantError, null, 2))
       return NextResponse.json({ 
-        error: 'Applicant not found. Please ensure the applicant exists in the system.',
+        error: 'Applicant not found',
         details: applicantError.message
       }, { status: 404 })
     }
@@ -54,11 +97,13 @@ export async function POST(request) {
     if (!applicant) {
       console.error('[NADRA API] No applicant found for CNIC:', applicantCnic)
       return NextResponse.json({ 
-        error: 'Applicant not found. Please ensure the applicant exists in the system.'
+        error: 'Applicant not found'
       }, { status: 404 })
     }
 
-    // Build minimal payload - only include fields that definitely exist
+    console.log('[NADRA API] Applicant found:', applicant.id)
+
+    // Build payload for insert
     const payload = {
       applicant_id: applicant.id,
       service_type: serviceType,
@@ -69,6 +114,7 @@ export async function POST(request) {
 
     console.log('[NADRA API] Attempting insert with payload:', JSON.stringify(payload, null, 2))
 
+    // Insert the record
     const { data: nadraService, error: insertError } = await supabase
       .from('nadra_services')
       .insert(payload)
@@ -76,7 +122,7 @@ export async function POST(request) {
       .single()
 
     if (insertError) {
-      console.error('[NADRA API] Insert error:', insertError)
+      console.error('[NADRA API] Insert error:', JSON.stringify(insertError, null, 2))
       return NextResponse.json({ 
         error: 'Failed to save application',
         details: insertError.message,
@@ -84,10 +130,10 @@ export async function POST(request) {
       }, { status: 500 })
     }
 
-    console.log('[NADRA API] Successfully inserted record:', nadraService.id)
+    console.log('[NADRA API] Successfully inserted:', nadraService?.id)
 
-    // Now fetch with relations for the response
-    const { data: fullRecord } = await supabase
+    // Fetch full record with relations
+    const { data: fullRecord, error: selectError } = await supabase
       .from('nadra_services')
       .select(`
         *,
@@ -96,16 +142,22 @@ export async function POST(request) {
       .eq('id', nadraService.id)
       .single()
 
+    if (selectError) {
+      console.error('[NADRA API] Fetch error:', selectError)
+    }
+
     return NextResponse.json({ 
       success: true, 
-      data: fullRecord 
+      data: fullRecord || nadraService
     })
 
   } catch (error) {
     console.error('[NADRA API] Unexpected error:', error)
+    console.error('[NADRA API] Error stack:', error.stack)
     return NextResponse.json({ 
       error: 'Internal server error',
-      details: error.message 
+      details: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     }, { status: 500 })
   }
 }
