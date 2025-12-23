@@ -24,21 +24,24 @@ export default async function NadraPage() {
     .eq('id', session.user.id)
     .single()
 
-  // Fetching records from nadra_services
-  const { data: applications, error } = await supabase
-    .from('nadra_services')
+  // UPDATED QUERY: Using the new relationship
+  const { data: applications } = await supabase
+    .from('applications')
     .select(`
-      *,
-      applicants (
-        first_name,
-        last_name,
-        citizen_number,
-        email
+      id,
+      tracking_number,
+      family_heads:applicants!applications_family_head_id_fkey ( first_name, last_name, citizen_number ),
+      applicants!applications_applicant_id_fkey ( id, first_name, last_name, citizen_number, email ),
+      nadra_services (
+        id,
+        service_type,
+        status,
+        application_pin,
+        created_at,
+        nicop_cnic_details ( service_option )
       )
     `)
     .order('created_at', { ascending: false })
-
-  if (error) console.error('Fetch Error:', error?.message)
 
   const location = Array.isArray(employee?.locations) ? employee.locations[0] : employee?.locations
   const role = Array.isArray(employee?.roles) ? employee.roles[0] : employee?.roles
@@ -57,7 +60,7 @@ export default async function NadraPage() {
         <main className="max-w-7xl mx-auto p-6">
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-slate-800">Nadra Services</h1>
-            <p className="text-slate-500">Record-keeping ledger for tracking numbers and security PINs.</p>
+            <p className="text-slate-500">Manage Family Head records and track application credentials.</p>
           </div>
 
           <NadraClient initialApplications={applications || []} currentUserId={session.user.id} />

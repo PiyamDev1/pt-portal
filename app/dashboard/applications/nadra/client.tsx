@@ -302,49 +302,59 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
               {/* MEMBER APPLICATIONS TABLE */}
               <table className="w-full text-left text-sm">
                 <tbody className="divide-y divide-slate-100">
-                  {group.members.map((app: any) => (
-                    <tr key={app.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="p-4 pl-12 w-1/3">
-                        <div className="flex items-center gap-2">
-                          <span className="text-slate-300">¬</span>
-                          <div>
-                            <div className="font-bold text-slate-700">{app.applicants?.first_name} {app.applicants?.last_name}</div>
-                            <div className="text-[10px] text-slate-400 font-mono uppercase">{app.applicants?.citizen_number}</div>
-                            <div className="text-[10px] text-blue-500 lowercase">{app.applicants?.email}</div>
+                  {group.members.map((item: any) => {
+                    // Safe access to the nadra service record (it might be an array or object depending on join)
+                    const nadraRecord = Array.isArray(item.nadra_services) ? item.nadra_services[0] : item.nadra_services
+                    const details = Array.isArray(nadraRecord?.nicop_cnic_details) 
+                      ? nadraRecord?.nicop_cnic_details[0] 
+                      : nadraRecord?.nicop_cnic_details
+
+                    return (
+                      <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="p-4 pl-12">
+                          <div className="flex items-center gap-3">
+                            <span className="text-slate-300 font-light">¬</span>
+                            <div>
+                              <div className="font-bold text-slate-700">{item.applicants?.first_name} {item.applicants?.last_name}</div>
+                              <div className="text-[10px] text-slate-400 font-mono">{item.applicants?.citizen_number}</div>
+                            </div>
                           </div>
-                        </div>
-                      </td>
-                      <td className="p-4">
-                        <div className="font-bold text-slate-700">{app.nadra_services?.service_type}</div>
-                        <div className="text-[10px] text-slate-400 font-bold uppercase">
-                          {app.nadra_services?.nicop_cnic_details?.service_option || 'Standard'}
-                        </div>
-                      </td>
-                      <td className="p-4">
-                        <button 
-                          onClick={() => { setSelectedHistory(app); if (app?.nadra_services?.id) loadHistory(app.nadra_services.id) }}
-                          className="font-mono text-blue-600 font-bold hover:underline"
-                        >
-                          {app.tracking_number}
-                        </button>
-                        <div className="text-[10px] font-bold text-slate-500">PIN: {app.nadra_services?.application_pin || 'N/A'}</div>
-                      </td>
-                      <td className="p-4">
-                        <select 
-                          disabled={isUpdating}
-                          value={app.nadra_services?.status || 'Pending Submission'}
-                          onChange={(e) => handleStatusChange(app.nadra_services?.id, e.target.value)}
-                          className="text-[10px] font-black bg-orange-100 text-orange-700 px-2 py-1 rounded-full uppercase border-none focus:ring-0 cursor-pointer"
-                        >
-                          <option value="Pending Submission">Pending Submission</option>
-                          <option value="Submitted">Submitted</option>
-                          <option value="In Progress">In Progress</option>
-                          <option value="Completed">Completed</option>
-                          <option value="Cancelled">Cancelled</option>
-                        </select>
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                        <td className="p-4">
+                          <div className="font-bold text-slate-700">{nadraRecord?.service_type}</div>
+                          <div className="text-[10px] text-slate-400 font-bold uppercase">
+                            {details?.service_option || 'Standard'}
+                          </div>
+                        </td>
+                        <td className="p-4">
+                          <button 
+                            onClick={() => { setSelectedHistory(item); if (nadraRecord?.id) loadHistory(nadraRecord.id) }}
+                            className="font-mono text-blue-600 font-bold hover:underline block"
+                          >
+                            {item.tracking_number}
+                          </button>
+                          {/* PIN DISPLAY FIX */}
+                          <div className="text-[10px] font-bold text-slate-500">
+                            PIN: {nadraRecord?.application_pin || 'N/A'}
+                          </div>
+                        </td>
+                        <td className="p-4">
+                          <select 
+                            disabled={isUpdating}
+                            value={nadraRecord?.status || 'Pending Submission'}
+                            onChange={(e) => handleStatusChange(nadraRecord?.id, e.target.value)}
+                            className="text-[10px] font-black bg-orange-50 text-orange-700 px-3 py-1.5 rounded-full uppercase border border-orange-100 cursor-pointer focus:ring-0"
+                          >
+                            <option value="Pending Submission">Pending Submission</option>
+                            <option value="Submitted">Submitted</option>
+                            <option value="In Progress">In Progress</option>
+                            <option value="Completed">Completed</option>
+                            <option value="Cancelled">Cancelled</option>
+                          </select>
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>

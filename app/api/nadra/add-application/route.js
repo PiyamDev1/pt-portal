@@ -69,10 +69,26 @@ export async function POST(request) {
       }
     }
 
-    // 3. Insert into nadra_services
+    // 3. INSERT APPLICATION FIRST (The Master Record)
+    const { data: appRecord, error: appError } = await supabase
+      .from('applications')
+      .insert({
+        tracking_number: trackingNumber,
+        family_head_id: headId || applicant.id,
+        applicant_id: applicant.id,
+        submitted_by_employee_id: currentUserId,
+        status: 'Pending Submission'
+      })
+      .select('id')
+      .single()
+
+    if (appError) throw appError
+
+    // 4. INSERT NADRA SERVICE (Linked to Application)
     const { data: nadraRecord, error: nadraError } = await supabase
       .from('nadra_services')
       .insert({
+        application_id: appRecord.id,
         applicant_id: applicant.id,
         employee_id: currentUserId,
         service_type: serviceType,
@@ -85,19 +101,6 @@ export async function POST(request) {
 
     if (nadraError) throw nadraError
 
-    // 4. Insert into applications table (ledger grouping)
-    const { error: appLinkError } = await supabase
-      .from('applications')
-      .insert({
-        tracking_number: trackingNumber,
-        family_head_id: headId || applicant.id,
-        applicant_id: applicant.id,
-        submitted_by_employee_id: currentUserId,
-        status: 'Pending Submission'
-      })
-
-    if (appLinkError) throw appLinkError
-
     // 5. Dual Table Logic: nicop_cnic_details
     if (serviceOption) {
       const { error: detailsError } = await supabase
@@ -109,7 +112,7 @@ export async function POST(request) {
       if (detailsError) console.error('[NADRA API] Details Insert Error:', detailsError)
     }
 
-    return NextResponse.json({ success: true, data: nadraRecord }, { 
+    return NextResponse.json({ success: true }, { 
       status: 200, 
       headers: { 'Access-Control-Allow-Origin': origin } 
     })
