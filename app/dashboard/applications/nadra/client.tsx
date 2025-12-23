@@ -3,6 +3,16 @@ import { useState } from 'react'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
 
+const getStatusColor = (status: string) => {
+  switch (status) {
+    case 'Completed': return 'bg-emerald-100 text-emerald-700 border-emerald-200'
+    case 'In Progress': return 'bg-blue-100 text-blue-700 border-blue-200'
+    case 'Submitted': return 'bg-purple-100 text-purple-700 border-purple-200'
+    case 'Cancelled': return 'bg-red-100 text-red-700 border-red-200'
+    default: return 'bg-amber-50 text-amber-700 border-amber-200'
+  }
+}
+
 export default function NadraClient({ initialApplications, currentUserId }: any) {
   const router = useRouter()
   const [showForm, setShowForm] = useState(false)
@@ -303,47 +313,51 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
               <table className="w-full text-left text-sm">
                 <tbody className="divide-y divide-slate-100">
                   {group.members.map((item: any) => {
-                    // Safe access to the nadra service record (it might be an array or object depending on join)
                     const nadraRecord = Array.isArray(item.nadra_services) ? item.nadra_services[0] : item.nadra_services
-                    const details = Array.isArray(nadraRecord?.nicop_cnic_details) 
-                      ? nadraRecord?.nicop_cnic_details[0] 
+                    const details = Array.isArray(nadraRecord?.nicop_cnic_details)
+                      ? nadraRecord?.nicop_cnic_details[0]
                       : nadraRecord?.nicop_cnic_details
+
+                    const statusClass = getStatusColor(nadraRecord?.status || 'Pending Submission')
 
                     return (
                       <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
-                        <td className="p-4 pl-12">
-                          <div className="flex items-center gap-3">
+                        <td className="p-4 pl-12 align-top">
+                          <div className="flex items-start gap-3">
                             <span className="text-slate-300 font-light">¬</span>
                             <div>
-                              <div className="font-bold text-slate-700">{item.applicants?.first_name} {item.applicants?.last_name}</div>
-                              <div className="text-[10px] text-slate-400 font-mono">{item.applicants?.citizen_number}</div>
+                              <div className="font-bold text-slate-800 text-base">{item.applicants?.first_name} {item.applicants?.last_name}</div>
+                              <div className="text-sm text-slate-600 font-mono mt-0.5 tracking-wide">{item.applicants?.citizen_number}</div>
+                              <div className="text-xs text-blue-500 mt-1">{item.applicants?.email}</div>
                             </div>
                           </div>
                         </td>
-                        <td className="p-4">
+                        <td className="p-4 align-top">
                           <div className="font-bold text-slate-700">{nadraRecord?.service_type}</div>
-                          <div className="text-[10px] text-slate-400 font-bold uppercase">
-                            {details?.service_option || 'Standard'}
+                          <div className="text-xs text-slate-500 font-medium mt-1">
+                            {details?.service_option || 'Standard Processing'}
                           </div>
                         </td>
-                        <td className="p-4">
-                          <button 
+                        <td className="p-4 align-top">
+                          <button
                             onClick={() => { setSelectedHistory(item); if (nadraRecord?.id) loadHistory(nadraRecord.id) }}
-                            className="font-mono text-blue-600 font-bold hover:underline block"
+                            className="font-mono text-slate-800 font-bold tracking-wide text-sm hover:underline block"
                           >
                             {item.tracking_number}
                           </button>
-                          {/* PIN DISPLAY FIX */}
-                          <div className="text-[10px] font-bold text-slate-500">
-                            PIN: {nadraRecord?.application_pin || 'N/A'}
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-xs text-slate-400 font-bold uppercase">PIN:</span>
+                            <span className="bg-slate-100 px-2 py-0.5 rounded text-sm font-mono font-bold text-slate-700 border border-slate-200">
+                              {nadraRecord?.application_pin || 'N/A'}
+                            </span>
                           </div>
                         </td>
-                        <td className="p-4">
-                          <select 
+                        <td className="p-4 align-top">
+                          <select
                             disabled={isUpdating}
                             value={nadraRecord?.status || 'Pending Submission'}
                             onChange={(e) => handleStatusChange(nadraRecord?.id, e.target.value)}
-                            className="text-[10px] font-black bg-orange-50 text-orange-700 px-3 py-1.5 rounded-full uppercase border border-orange-100 cursor-pointer focus:ring-0"
+                            className={`text-xs font-bold px-3 py-1.5 rounded-full border cursor-pointer focus:ring-0 ${statusClass}`}
                           >
                             <option value="Pending Submission">Pending Submission</option>
                             <option value="Submitted">Submitted</option>
