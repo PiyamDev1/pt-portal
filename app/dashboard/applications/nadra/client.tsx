@@ -38,7 +38,10 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify(formData)
+        body: JSON.stringify({
+          ...formData,
+          currentUserId
+        })
       })
 
       const result = await response.json()
@@ -235,7 +238,7 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
                    <td className="p-4">
                       <div className="font-bold text-slate-700">{app.service_type}</div>
                       <div className="text-[10px] text-slate-400 font-bold uppercase">
-                        {app.urgency_level ? `${app.urgency_level} Processing` : 'Processing Mode: TBD'}
+                        {app.urgency || 'Normal'} Processing
                       </div>
                    </td>
                    <td className="p-4">
