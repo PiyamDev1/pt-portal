@@ -84,22 +84,37 @@ export async function POST(request) {
 
     if (appError) throw appError
 
-    // 4. INSERT NADRA SERVICE (Linked to Application)
+    // 4. INSERT NADRA SERVICE (Linked to Application) with duplicate handling
+    const payload = {
+      application_id: appRecord.id,
+      applicant_id: applicant.id,
+      employee_id: currentUserId,
+      service_type: serviceType,
+      tracking_number: trackingNumber,
+      application_pin: pin || null,
+      status: 'Pending Submission'
+    }
+
     const { data: nadraRecord, error: nadraError } = await supabase
       .from('nadra_services')
-      .insert({
-        application_id: appRecord.id,
-        applicant_id: applicant.id,
-        employee_id: currentUserId,
-        service_type: serviceType,
-        tracking_number: trackingNumber,
-        application_pin: pin || null,
-        status: 'Pending Submission'
-      })
+      .insert(payload)
       .select()
       .single()
 
-    if (nadraError) throw nadraError
+    if (nadraError) {
+      if (nadraError.code === '23505') {
+        return NextResponse.json({
+          error: 'Duplicate in system not allowed',
+          details: 'This tracking number is already registered.'
+        }, { status: 409, headers: { 'Access-Control-Allow-Origin': origin } })
+      }
+
+      console.error('[NADRA API] Insert error:', nadraError)
+      return NextResponse.json({
+        error: 'Database error',
+        details: nadraError.message
+      }, { status: 500, headers: { 'Access-Control-Allow-Origin': origin } })
+    }
 
     // 5. Dual Table Logic: nicop_cnic_details
     if (serviceOption) {
@@ -112,13 +127,16 @@ export async function POST(request) {
       if (detailsError) console.error('[NADRA API] Details Insert Error:', detailsError)
     }
 
-    return NextResponse.json({ success: true }, { 
+    return NextResponse.json({ success: true, data: nadraRecord }, { 
       status: 200, 
       headers: { 'Access-Control-Allow-Origin': origin } 
     })
 
   } catch (error) {
-    console.error('[NADRA API] Error:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    console.error('[NADRA API] Unexpected error:', error)
+    return NextResponse.json({ 
+      error: 'Internal server error',
+      details: error.message 
+    }, { status: 500, headers: { 'Access-Control-Allow-Origin': origin } })
   }
 }

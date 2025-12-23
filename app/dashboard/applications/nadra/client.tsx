@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
 
@@ -20,7 +20,7 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [selectedHistory, setSelectedHistory] = useState<any>(null)
   const [isUpdating, setIsUpdating] = useState(false)
-  const [historyItems, setHistoryItems] = useState<any[]>([])
+  const [historyLogs, setHistoryLogs] = useState<any[]>([])
   const [loadingHistory, setLoadingHistory] = useState(false)
   
   // Form state
@@ -122,22 +122,23 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
     }
   }
 
-  const loadHistory = async (nadraId: string) => {
-    try {
+  // Fetch history when popup opens
+  useEffect(() => {
+    if (selectedHistory?.nadra_services?.id) {
       setLoadingHistory(true)
-      const res = await fetch(`/api/nadra/status-history?nadraId=${encodeURIComponent(nadraId)}`)
-      const json = await res.json()
-      if (res.ok) {
-        setHistoryItems(json.items || [])
-      } else {
-        toast.error(json.error || 'Failed to load history')
-      }
-    } catch (e) {
-      toast.error('Network error loading history')
-    } finally {
-      setLoadingHistory(false)
+      fetch(`/api/nadra/status-history?nadraId=${selectedHistory.nadra_services.id}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.history) {
+            setHistoryLogs(data.history)
+          }
+        })
+        .catch(err => console.error(err))
+        .finally(() => setLoadingHistory(false))
+    } else {
+      setHistoryLogs([])
     }
-  }
+  }, [selectedHistory])
 
   return (
     <div className="space-y-6">
@@ -340,7 +341,7 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
                         </td>
                         <td className="p-4 align-top">
                           <button
-                            onClick={() => { setSelectedHistory(item); if (nadraRecord?.id) loadHistory(nadraRecord.id) }}
+                            onClick={() => setSelectedHistory(item)}
                             className="font-mono text-slate-800 font-bold tracking-wide text-sm hover:underline block"
                           >
                             {item.tracking_number}
@@ -376,30 +377,79 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
         )}
       </div>
 
-      {/* STATUS HISTORY POPUP (Simple Modal) */}
+      {/* STATUS HISTORY POPUP */}
       {selectedHistory && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[80vh]">
+            
+            {/* Header */}
             <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-              <h3 className="font-bold text-slate-800">Status History</h3>
-              <button onClick={() => setSelectedHistory(null)} className="text-slate-400 hover:text-slate-600">✕</button>
+              <div>
+                <h3 className="font-bold text-slate-800">Status History</h3>
+                <p className="text-xs text-slate-500 font-mono mt-1">
+                  Tracking: {selectedHistory.tracking_number}
+                </p>
+              </div>
+              <button 
+                onClick={() => setSelectedHistory(null)} 
+                className="h-8 w-8 flex items-center justify-center rounded-full hover:bg-slate-200 transition text-slate-400"
+              >
+                ✕
+              </button>
             </div>
-            <div className="p-6 max-h-[400px] overflow-y-auto space-y-4">
+
+            {/* Timeline Body */}
+            <div className="p-6 overflow-y-auto">
               {loadingHistory ? (
-                <div className="text-sm text-slate-500">Loading...</div>
-              ) : historyItems.length === 0 ? (
-                <div className="text-sm text-slate-500">No history yet.</div>
+                <div className="text-center py-8 text-slate-400 text-sm">Loading history...</div>
+              ) : historyLogs.length === 0 ? (
+                <div className="text-center py-8 text-slate-400 text-sm italic">
+                  No history recorded yet.
+                </div>
               ) : (
-                historyItems.map((h) => (
-                  <div key={h.id} className="flex gap-4 items-start">
-                    <div className="w-2 h-2 rounded-full bg-green-500 mt-1.5 shrink-0" />
-                    <div>
-                      <p className="text-sm font-bold text-slate-800">{h.status}</p>
-                      <p className="text-xs text-slate-500">{new Date(h.changed_at).toLocaleString()}</p>
+                <div className="relative pl-4 border-l-2 border-slate-100 space-y-8 ml-2">
+                  {historyLogs.map((log, index) => (
+                    <div key={log.id} className="relative">
+                      {/* Timeline Dot */}
+                      <div className={`absolute -left-[23px] top-1 h-3 w-3 rounded-full border-2 border-white shadow-sm ${
+                        index === 0 ? 'bg-green-500 ring-4 ring-green-50' : 'bg-slate-300'
+                      }`} />
+                      
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className={`text-sm font-bold ${
+                            index === 0 ? 'text-slate-800' : 'text-slate-500'
+                          }`}>
+                            {log.status}
+                          </p>
+                          <p className="text-[10px] text-slate-400 mt-0.5">
+                            by {log.changed_by}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[10px] text-slate-400 font-mono">
+                            {new Date(log.date).toLocaleDateString()}
+                          </p>
+                          <p className="text-[10px] text-slate-300">
+                            {new Date(log.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                          </p>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                ))
+                  ))}
+                </div>
               )}
+            </div>
+            
+            {/* Footer */}
+            <div className="p-4 bg-slate-50 border-t border-slate-100 text-center">
+               <span className="text-[10px] text-slate-400">
+                 Current Status: <span className="font-bold text-slate-600">
+                   {Array.isArray(selectedHistory.nadra_services) 
+                     ? selectedHistory.nadra_services[0]?.status 
+                     : selectedHistory.nadra_services?.status}
+                 </span>
+               </span>
             </div>
           </div>
         </div>
