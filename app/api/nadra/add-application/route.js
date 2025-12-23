@@ -70,7 +70,7 @@ export async function POST(request) {
     }
 
     // 3. Link into applications table (Family Head -> Applicant)
-    const { data: appRecord, error: appLinkError } = await supabase
+    const { error: appLinkError } = await supabase
       .from('applications')
       .insert({
         tracking_number: trackingNumber,
@@ -79,23 +79,22 @@ export async function POST(request) {
         submitted_by_employee_id: currentUserId,
         status: 'Pending Submission'
       })
-      .select('id')
-      .single()
 
     if (appLinkError) throw appLinkError
 
-    // 4. Insert into nadra_services, linking to application
+    // 4. Insert into nadra_services with required columns only
+    const payload = {
+      applicant_id: applicant.id,
+      employee_id: currentUserId,
+      service_type: serviceType,
+      tracking_number: trackingNumber,
+      application_pin: pin || null,
+      status: 'Pending Submission'
+    }
+
     const { data: nadraRecord, error: nadraError } = await supabase
       .from('nadra_services')
-      .insert({
-        applicant_id: applicant.id,
-        employee_id: currentUserId,
-        application_id: appRecord.id,
-        service_type: serviceType,
-        tracking_number: trackingNumber,
-        application_pin: pin || null,
-        status: 'Pending Submission'
-      })
+      .insert(payload)
       .select()
       .single()
 
