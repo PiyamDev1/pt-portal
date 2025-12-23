@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server'
 
 export async function POST(request) {
   try {
-    // Grab cookies once and pass through to Supabase client
+    // Grab cookies and create Supabase client
     const cookieStore = cookies()
     const supabase = createRouteHandlerClient({ cookies: () => cookieStore })
 
@@ -15,6 +15,8 @@ export async function POST(request) {
     }
 
     const body = await request.json()
+    console.log('[NADRA API] Received request body:', JSON.stringify(body, null, 2))
+
     const { 
       familyHeadName,
       familyHeadCnic,
@@ -33,76 +35,74 @@ export async function POST(request) {
       }, { status: 400 })
     }
 
-    // First, find or get the applicant by CNIC
+    // First, find the applicant by CNIC
+    console.log('[NADRA API] Looking up applicant with CNIC:', applicantCnic)
     const { data: applicant, error: applicantError } = await supabase
       .from('applicants')
       .select('id, email')
       .eq('citizen_number', applicantCnic)
       .single()
 
-    if (applicantError || !applicant) {
-      console.error('Applicant lookup error:', applicantError)
+    if (applicantError) {
+      console.error('[NADRA API] Applicant lookup error:', applicantError)
       return NextResponse.json({ 
         error: 'Applicant not found. Please ensure the applicant exists in the system.',
-        details: applicantError?.message
+        details: applicantError.message
       }, { status: 404 })
     }
 
-    // Insert the NADRA service record
+    if (!applicant) {
+      console.error('[NADRA API] No applicant found for CNIC:', applicantCnic)
+      return NextResponse.json({ 
+        error: 'Applicant not found. Please ensure the applicant exists in the system.'
+      }, { status: 404 })
+    }
+
+    // Build minimal payload - only include fields that definitely exist
     const payload = {
       applicant_id: applicant.id,
       service_type: serviceType,
-      urgency_level: urgencyLevel,
       tracking_number: trackingNumber,
-      application_pin: pin,
-      application_email: applicant.email,
+      application_pin: pin || null,
       status: 'pending',
-      created_by: session.user.id,
     }
 
-    // Attempt insert; if urgency column is missing, retry without it to avoid hard failure
-    let { data: nadraService, error: insertError } = await supabase
+    console.log('[NADRA API] Attempting insert with payload:', JSON.stringify(payload, null, 2))
+
+    const { data: nadraService, error: insertError } = await supabase
       .from('nadra_services')
       .insert(payload)
+      .select()
+      .single()
+
+    if (insertError) {
+      console.error('[NADRA API] Insert error:', insertError)
+      return NextResponse.json({ 
+        error: 'Failed to save application',
+        details: insertError.message,
+        code: insertError.code
+      }, { status: 500 })
+    }
+
+    console.log('[NADRA API] Successfully inserted record:', nadraService.id)
+
+    // Now fetch with relations for the response
+    const { data: fullRecord } = await supabase
+      .from('nadra_services')
       .select(`
         *,
         applicants ( first_name, last_name, citizen_number, email )
       `)
+      .eq('id', nadraService.id)
       .single()
-
-    if (insertError && insertError.message?.includes('urgency')) {
-      const fallbackPayload = { ...payload }
-      delete fallbackPayload.urgency_level
-
-      console.warn('Retrying insert without urgency_level column due to error:', insertError.message)
-      const retry = await supabase
-        .from('nadra_services')
-        .insert(fallbackPayload)
-        .select(`
-          *,
-          applicants ( first_name, last_name, citizen_number, email )
-        `)
-        .single()
-
-      nadraService = retry.data
-      insertError = retry.error
-    }
-
-    if (insertError) {
-      console.error('Insert error:', insertError)
-      return NextResponse.json({ 
-        error: 'Failed to save application',
-        details: insertError.message 
-      }, { status: 500 })
-    }
 
     return NextResponse.json({ 
       success: true, 
-      data: nadraService 
+      data: fullRecord 
     })
 
   } catch (error) {
-    console.error('API Error:', error)
+    console.error('[NADRA API] Unexpected error:', error)
     return NextResponse.json({ 
       error: 'Internal server error',
       details: error.message 
