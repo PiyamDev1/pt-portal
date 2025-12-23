@@ -69,12 +69,28 @@ export async function POST(request) {
       }
     }
 
-    // 3. Insert into nadra_services
+    // 3. Link into applications table (Family Head -> Applicant)
+    const { data: appRecord, error: appLinkError } = await supabase
+      .from('applications')
+      .insert({
+        tracking_number: trackingNumber,
+        family_head_id: headId || applicant.id,
+        applicant_id: applicant.id,
+        submitted_by_employee_id: currentUserId,
+        status: 'Pending Submission'
+      })
+      .select('id')
+      .single()
+
+    if (appLinkError) throw appLinkError
+
+    // 4. Insert into nadra_services, linking to application
     const { data: nadraRecord, error: nadraError } = await supabase
       .from('nadra_services')
       .insert({
         applicant_id: applicant.id,
         employee_id: currentUserId,
+        application_id: appRecord.id,
         service_type: serviceType,
         tracking_number: trackingNumber,
         application_pin: pin || null,
@@ -84,19 +100,6 @@ export async function POST(request) {
       .single()
 
     if (nadraError) throw nadraError
-
-    // 4. Link into applications table (Family Head -> Applicant -> Nadra Service)
-    const { error: appLinkError } = await supabase
-      .from('applications')
-      .insert({
-        tracking_number: trackingNumber,
-        family_head_id: headId || applicant.id,
-        applicant_id: applicant.id,
-        submitted_by_employee_id: currentUserId,
-        status: 'Pending Submission'
-      })
-
-    if (appLinkError) throw appLinkError
 
     // 5. Dual Table Logic: nicop_cnic_details
     if (serviceOption) {
