@@ -1,53 +1,52 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
+import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 
 // Force dynamic rendering
 export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
 
 export async function POST(request) {
   try {
     console.log('[NADRA API] Request received')
     
-    // Grab cookies (must be awaited in newer Next.js versions)
-    let cookieStore
-    try {
-      cookieStore = await cookies()
-      console.log('[NADRA API] Cookies retrieved')
-    } catch (cookieError) {
-      console.error('[NADRA API] Cookie error:', cookieError)
+    // Validate environment variables
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      console.error('[NADRA API] Missing SUPABASE credentials')
       return NextResponse.json({ 
-        error: 'Failed to initialize session',
-        details: cookieError.message
+        error: 'Server configuration error',
+        details: 'Missing Supabase credentials'
       }, { status: 500 })
     }
 
-    // Create Supabase client
-    let supabase
-    try {
-      supabase = createRouteHandlerClient({ cookies: () => cookieStore })
-      console.log('[NADRA API] Supabase client created')
-    } catch (clientError) {
-      console.error('[NADRA API] Supabase client error:', clientError)
-      return NextResponse.json({ 
-        error: 'Failed to initialize database client',
-        details: clientError.message
-      }, { status: 500 })
-    }
+    // Create Supabase client with service role
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    )
+    console.log('[NADRA API] Supabase client created')
 
-    // Check authentication
+    // Check authentication via cookies
+    const cookieHeader = request.headers.get('cookie') || ''
+    const supabaseAuth = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY,
+      {
+        global: {
+          headers: { cookie: cookieHeader }
+        }
+      }
+    )
+
     let session
     try {
-      const { data: { session: authSession } } = await supabase.auth.getSession()
-      session = authSession
-      console.log('[NADRA API] Auth check complete. User:', session?.user?.id)
+      const { data: { user }, error: userError } = await supabaseAuth.auth.getUser()
+      if (userError || !user) {
+        console.warn('[NADRA API] No authenticated user')
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
+      console.log('[NADRA API] Auth check complete. User:', user.id)
     } catch (authError) {
       console.error('[NADRA API] Auth error:', authError)
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    if (!session) {
-      console.warn('[NADRA API] No session found')
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
