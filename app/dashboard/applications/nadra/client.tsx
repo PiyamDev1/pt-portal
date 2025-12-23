@@ -10,6 +10,8 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [selectedHistory, setSelectedHistory] = useState<any>(null)
   const [isUpdating, setIsUpdating] = useState(false)
+  const [historyItems, setHistoryItems] = useState<any[]>([])
+  const [loadingHistory, setLoadingHistory] = useState(false)
   
   // Form state
   const [formData, setFormData] = useState({
@@ -107,6 +109,23 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
       console.error(error)
     } finally {
       setIsUpdating(false)
+    }
+  }
+
+  const loadHistory = async (nadraId: string) => {
+    try {
+      setLoadingHistory(true)
+      const res = await fetch(`/api/nadra/status-history?nadraId=${encodeURIComponent(nadraId)}`)
+      const json = await res.json()
+      if (res.ok) {
+        setHistoryItems(json.items || [])
+      } else {
+        toast.error(json.error || 'Failed to load history')
+      }
+    } catch (e) {
+      toast.error('Network error loading history')
+    } finally {
+      setLoadingHistory(false)
     }
   }
 
@@ -303,7 +322,7 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
                       </td>
                       <td className="p-4">
                         <button 
-                          onClick={() => setSelectedHistory(app)}
+                          onClick={() => { setSelectedHistory(app); if (app?.nadra_services?.id) loadHistory(app.nadra_services.id) }}
                           className="font-mono text-blue-600 font-bold hover:underline"
                         >
                           {app.tracking_number}
@@ -342,16 +361,21 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
               <button onClick={() => setSelectedHistory(null)} className="text-slate-400 hover:text-slate-600">✕</button>
             </div>
             <div className="p-6 max-h-[400px] overflow-y-auto space-y-4">
-              <div className="flex gap-4 items-start">
-                <div className="w-2 h-2 rounded-full bg-green-500 mt-1.5 shrink-0" />
-                <div>
-                  <p className="text-sm font-bold text-slate-800">{selectedHistory.nadra_services?.status}</p>
-                  <p className="text-xs text-slate-500">
-                    {new Date(selectedHistory.nadra_services?.created_at).toLocaleString()}
-                  </p>
-                </div>
-              </div>
-              {/* Future: Map through a real history table here */}
+              {loadingHistory ? (
+                <div className="text-sm text-slate-500">Loading...</div>
+              ) : historyItems.length === 0 ? (
+                <div className="text-sm text-slate-500">No history yet.</div>
+              ) : (
+                historyItems.map((h) => (
+                  <div key={h.id} className="flex gap-4 items-start">
+                    <div className="w-2 h-2 rounded-full bg-green-500 mt-1.5 shrink-0" />
+                    <div>
+                      <p className="text-sm font-bold text-slate-800">{h.status}</p>
+                      <p className="text-xs text-slate-500">{new Date(h.changed_at).toLocaleString()}</p>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>

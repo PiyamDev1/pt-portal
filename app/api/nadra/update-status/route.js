@@ -17,7 +17,16 @@ export async function POST(request) {
 
     if (error) throw error
 
-    // Optional: Log this change in an audit/history table here
+    // Log status change in history table
+    const { error: historyError } = await supabase
+      .from('nadra_status_history')
+      .insert({
+        nadra_service_id: nadraId,
+        status,
+        changed_by: userId
+      })
+
+    if (historyError) throw historyError
 
     return NextResponse.json({ success: true })
   } catch (error) {
