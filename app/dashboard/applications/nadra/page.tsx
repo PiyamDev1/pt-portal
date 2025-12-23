@@ -29,7 +29,8 @@ export default async function NadraPage() {
     .from('nadra_services')
     .select(`
       *,
-      applicants ( first_name, last_name, citizen_number, email )
+      applicants ( first_name, last_name, citizen_number, email ),
+      nicop_cnic_details ( service_option )
     `)
     .order('created_at', { ascending: false })
 

@@ -17,19 +17,14 @@ export async function POST(request) {
     const { 
       applicantCnic,
       applicantName,
-      familyHeadCnic,
-      familyHeadName,
       serviceType,
+      serviceOption,
       trackingNumber,
       pin,
       currentUserId
     } = body
 
-    if (!applicantCnic || !serviceType || !trackingNumber) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
-    }
-
-    // 1. Handle Applicant
+    // 1. Find or Create Applicant
     let { data: applicant } = await supabase
       .from('applicants')
       .select('id')
@@ -46,50 +41,33 @@ export async function POST(request) {
       applicant = newApp
     }
 
-    // 2. Handle Family Head
-    let { data: familyHead } = await supabase
-      .from('applicants')
-      .select('id')
-      .eq('citizen_number', familyHeadCnic)
-      .single()
-
-    if (!familyHead && familyHeadName) {
-      const parts = familyHeadName.split(' ')
-      const { data: newHead } = await supabase.from('applicants').insert({
-        first_name: parts[0],
-        last_name: parts.slice(1).join(' ') || 'N/A',
-        citizen_number: familyHeadCnic
-      }).select('id').single()
-      familyHead = newHead
-    }
-
-    // 3. Insert into nadra_services (Credentials Ledger)
-    const payload = {
-      applicant_id: applicant.id,
-      employee_id: currentUserId,
-      service_type: serviceType,
-      tracking_number: trackingNumber,
-      application_pin: pin || null,
-      status: 'Pending Submission'
-    }
-
+    // 2. Insert into nadra_services
     const { data: nadraRecord, error: nadraError } = await supabase
       .from('nadra_services')
-      .insert(payload)
+      .insert({
+        applicant_id: applicant.id,
+        employee_id: currentUserId,
+        service_type: serviceType,
+        tracking_number: trackingNumber,
+        application_pin: pin || null,
+        status: 'Pending Submission'
+      })
       .select()
       .single()
 
     if (nadraError) throw nadraError
 
-    // 4. Create Application Link (Hierarchy Record)
-    if (familyHead) {
-      await supabase.from('applications').insert({
-        tracking_number: trackingNumber,
-        family_head_id: familyHead.id,
-        applicant_id: applicant.id,
-        submitted_by_employee_id: body.currentUserId || (await supabase.auth.getUser()).data.user?.id,
-        status: 'Pending Submission'
-      })
+    // 3. Handle Dual Table: Insert into nicop_cnic_details
+    // Only if the service is NICOP/CNIC and we have an option selected
+    if (serviceType === 'NICOP/CNIC' && serviceOption) {
+      const { error: detailsError } = await supabase
+        .from('nicop_cnic_details')
+        .insert({
+          id: nadraRecord.id,
+          service_option: serviceOption
+        })
+      
+      if (detailsError) console.error('[NADRA API] Details Insert Error:', detailsError)
     }
 
     return NextResponse.json({ success: true, data: nadraRecord }, { 

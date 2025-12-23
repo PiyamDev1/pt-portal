@@ -15,8 +15,8 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
     familyHeadCnic: '',
     applicantName: '',
     applicantCnic: '',
-    serviceType: 'NICOP',
-    urgencyLevel: 'Normal',
+    serviceType: 'NICOP/CNIC',
+    serviceOption: 'Normal',
     trackingNumber: '',
     pin: ''
   })
@@ -53,8 +53,8 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
           familyHeadCnic: '',
           applicantName: '',
           applicantCnic: '',
-          serviceType: 'NICOP',
-          urgencyLevel: 'Normal',
+          serviceType: 'NICOP/CNIC',
+          serviceOption: 'Normal',
           trackingNumber: '',
           pin: ''
         })
@@ -155,22 +155,27 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
                     onChange={handleInputChange}
                     className="w-full p-2 border rounded text-sm bg-white"
                   >
-                    <option>NICOP</option>
-                    <option>FRC</option>
-                    <option>POC</option>
-                    <option>CNIC</option>
+                    <option value="NICOP/CNIC">NICOP / CNIC</option>
+                    <option value="POC">POC</option>
+                    <option value="FRC">FRC</option>
+                    <option value="CRC">CRC</option>
+                    <option value="POA">POA</option>
                   </select>
                 </div>
                 <div>
-                  <label className="text-[10px] text-slate-400 font-bold uppercase mb-1 block">Urgency Level</label>
+                  <label className="text-[10px] text-slate-400 font-bold uppercase mb-1 block">Service Option</label>
                   <select 
-                    name="urgencyLevel"
-                    value={formData.urgencyLevel}
+                    name="serviceOption"
+                    value={formData.serviceOption}
                     onChange={handleInputChange}
                     className="w-full p-2 border rounded text-sm bg-white font-medium"
                   >
-                    <option>Normal</option>
-                    <option>Executive</option>
+                    <option value="Normal">Normal</option>
+                    <option value="Executive">Executive</option>
+                    <option value="Upgrade to Fast">Upgrade to Fast</option>
+                    <option value="Modification">Modification</option>
+                    <option value="Reprint">Reprint</option>
+                    <option value="Cancellation">Cancellation</option>
                   </select>
                 </div>
               </div>
@@ -238,7 +243,7 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
                    <td className="p-4">
                       <div className="font-bold text-slate-700">{app.service_type}</div>
                       <div className="text-[10px] text-slate-400 font-bold uppercase">
-                        {app.urgency || 'Normal'} Processing
+                        {app.nicop_cnic_details?.service_option || 'Normal'} Processing
                       </div>
                    </td>
                    <td className="p-4">
