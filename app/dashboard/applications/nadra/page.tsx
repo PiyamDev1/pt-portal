@@ -24,14 +24,14 @@ export default async function NadraPage() {
     .eq('id', session.user.id)
     .single()
 
-  // Fetching hierarchical data
-  const { data: applications } = await supabase
+  // Fetching hierarchical data: Family Head -> Applicant -> Nadra Service
+  const { data: applications, error } = await supabase
     .from('applications')
     .select(`
       id,
       tracking_number,
       family_heads:applicants!applications_family_head_id_fkey ( first_name, last_name, citizen_number ),
-      applicants!applications_applicant_id_fkey ( first_name, last_name, citizen_number, email ),
+      applicants!applications_applicant_id_fkey ( id, first_name, last_name, citizen_number, email ),
       nadra_services!inner (
         id,
         service_type,
@@ -42,6 +42,8 @@ export default async function NadraPage() {
       )
     `)
     .order('created_at', { ascending: false })
+
+  if (error) console.error('Data Fetch Error:', error)
 
   const location = Array.isArray(employee?.locations) ? employee.locations[0] : employee?.locations
   const role = Array.isArray(employee?.roles) ? employee.roles[0] : employee?.roles

@@ -296,9 +296,9 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
                         </div>
                       </td>
                       <td className="p-4">
-                        <div className="font-bold text-slate-700">{app.nadra_services[0]?.service_type}</div>
+                        <div className="font-bold text-slate-700">{app.nadra_services?.service_type}</div>
                         <div className="text-[10px] text-slate-400 font-bold uppercase">
-                          {app.nadra_services[0]?.nicop_cnic_details?.service_option || 'Standard'}
+                          {app.nadra_services?.nicop_cnic_details?.service_option || 'Standard'}
                         </div>
                       </td>
                       <td className="p-4">
@@ -308,13 +308,13 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
                         >
                           {app.tracking_number}
                         </button>
-                        <div className="text-[10px] font-bold text-slate-500">PIN: {app.nadra_services[0]?.application_pin || 'N/A'}</div>
+                        <div className="text-[10px] font-bold text-slate-500">PIN: {app.nadra_services?.application_pin || 'N/A'}</div>
                       </td>
                       <td className="p-4">
                         <select 
                           disabled={isUpdating}
-                          value={app.nadra_services[0]?.status || 'Pending Submission'}
-                          onChange={(e) => handleStatusChange(app.nadra_services[0]?.id, e.target.value)}
+                          value={app.nadra_services?.status || 'Pending Submission'}
+                          onChange={(e) => handleStatusChange(app.nadra_services?.id, e.target.value)}
                           className="text-[10px] font-black bg-orange-100 text-orange-700 px-2 py-1 rounded-full uppercase border-none focus:ring-0 cursor-pointer"
                         >
                           <option value="Pending Submission">Pending Submission</option>
@@ -345,9 +345,9 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
               <div className="flex gap-4 items-start">
                 <div className="w-2 h-2 rounded-full bg-green-500 mt-1.5 shrink-0" />
                 <div>
-                  <p className="text-sm font-bold text-slate-800">{selectedHistory.nadra_services[0]?.status}</p>
+                  <p className="text-sm font-bold text-slate-800">{selectedHistory.nadra_services?.status}</p>
                   <p className="text-xs text-slate-500">
-                    {new Date(selectedHistory.nadra_services[0]?.created_at).toLocaleString()}
+                    {new Date(selectedHistory.nadra_services?.created_at).toLocaleString()}
                   </p>
                 </div>
               </div>
