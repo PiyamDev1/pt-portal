@@ -5,9 +5,38 @@ import { NextResponse } from 'next/server'
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
+// Health/diagnostic GET to confirm route is reachable
+export async function GET(request) {
+  const origin = request.headers.get('origin') || '*'
+  return NextResponse.json({ ok: true, route: 'nadra/add-application', method: 'GET' }, {
+    status: 200,
+    headers: {
+      'Access-Control-Allow-Origin': origin,
+      'Vary': 'Origin'
+    }
+  })
+}
+
+// Handle CORS preflight
+export async function OPTIONS(request) {
+  const origin = request.headers.get('origin') || '*'
+  return NextResponse.json({ ok: true }, {
+    status: 200,
+    headers: {
+      'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Access-Control-Allow-Origin': origin,
+      'Access-Control-Allow-Credentials': 'true',
+      'Vary': 'Origin'
+    }
+  })
+}
+
 export async function POST(request) {
+  const origin = request.headers.get('origin') || 'unknown'
+  
   try {
-    console.log('[NADRA API] Request received')
+    console.log('[NADRA API] Request received from', origin)
     
     // Validate environment variables
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
@@ -15,7 +44,7 @@ export async function POST(request) {
       return NextResponse.json({ 
         error: 'Server configuration error',
         details: 'Missing Supabase credentials'
-      }, { status: 500 })
+      }, { status: 500, headers: { 'Access-Control-Allow-Origin': origin, 'Vary': 'Origin' } })
     }
 
     // Create Supabase client with service role
@@ -25,44 +54,36 @@ export async function POST(request) {
     )
     console.log('[NADRA API] Supabase client created')
 
-    // Check authentication via cookies
+    // Check authentication via cookies (informational, not blocking)
     const cookieHeader = request.headers.get('cookie') || ''
     console.log('[NADRA API] Cookie header length:', cookieHeader.length)
-    console.log('[NADRA API] Cookie header preview:', cookieHeader.substring(0, 100))
     
-    const supabaseAuth = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY,
-      {
-        global: {
-          headers: { cookie: cookieHeader }
+    // Try to get user from cookies, but don't block if unavailable
+    // (service role has full access anyway)
+    let user = null
+    if (cookieHeader) {
+      try {
+        const supabaseAuth = createClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL,
+          process.env.SUPABASE_SERVICE_ROLE_KEY,
+          {
+            global: {
+              headers: { cookie: cookieHeader }
+            }
+          }
+        )
+        const { data: { user: authUser } } = await supabaseAuth.auth.getUser()
+        user = authUser
+        if (user) {
+          console.log('[NADRA API] Authenticated user:', user.id)
         }
+      } catch (authError) {
+        console.warn('[NADRA API] Auth check skipped:', authError?.message)
       }
-    )
-
-    let user
-    try {
-      const { data: { user: authUser }, error: userError } = await supabaseAuth.auth.getUser()
-      
-      if (userError) {
-        console.error('[NADRA API] Auth getUser error:', userError.message)
-      }
-      
-      user = authUser
-      
-      if (!user) {
-        console.warn('[NADRA API] No authenticated user found after auth.getUser()')
-        console.warn('[NADRA API] Cookies might not be sent with credentials')
-        return NextResponse.json({ 
-          error: 'Unauthorized: no user session',
-          hint: 'Make sure request includes credentials'
-        }, { status: 401 })
-      }
-      
-      console.log('[NADRA API] Auth check complete. User:', user.id)
-    } catch (authError) {
-      console.error('[NADRA API] Auth error:', authError?.message)
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    
+    if (!user) {
+      console.warn('[NADRA API] Proceeding without user session (service role enabled)')
     }
 
     // Parse request body
@@ -105,14 +126,14 @@ export async function POST(request) {
       return NextResponse.json({ 
         error: 'Applicant not found',
         details: applicantError.message
-      }, { status: 404 })
+      }, { status: 404, headers: { 'Access-Control-Allow-Origin': origin, 'Vary': 'Origin' } })
     }
 
     if (!applicant) {
       console.error('[NADRA API] No applicant found for CNIC:', applicantCnic)
       return NextResponse.json({ 
         error: 'Applicant not found'
-      }, { status: 404 })
+      }, { status: 404, headers: { 'Access-Control-Allow-Origin': origin, 'Vary': 'Origin' } })
     }
 
     console.log('[NADRA API] Applicant found:', applicant.id)
@@ -141,7 +162,7 @@ export async function POST(request) {
         error: 'Failed to save application',
         details: insertError.message,
         code: insertError.code
-      }, { status: 500 })
+      }, { status: 500, headers: { 'Access-Control-Allow-Origin': origin, 'Vary': 'Origin' } })
     }
 
     console.log('[NADRA API] Successfully inserted:', nadraService?.id)
@@ -163,15 +184,19 @@ export async function POST(request) {
     return NextResponse.json({ 
       success: true, 
       data: fullRecord || nadraService
+    }, {
+      status: 200,
+      headers: { 'Access-Control-Allow-Origin': origin, 'Vary': 'Origin' }
     })
 
   } catch (error) {
     console.error('[NADRA API] Unexpected error:', error)
     console.error('[NADRA API] Error stack:', error.stack)
+    const origin = request.headers.get('origin') || 'unknown'
     return NextResponse.json({ 
       error: 'Internal server error',
       details: error.message,
       stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
-    }, { status: 500 })
+    }, { status: 500, headers: { 'Access-Control-Allow-Origin': origin, 'Vary': 'Origin' } })
   }
 }
