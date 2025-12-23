@@ -101,6 +101,7 @@ export async function POST(request) {
 
     const { 
       applicantCnic,
+      applicantName,
       serviceType,
       trackingNumber,
       pin
@@ -110,23 +111,55 @@ export async function POST(request) {
     if (!applicantCnic || !serviceType || !trackingNumber) {
       return NextResponse.json({ 
         error: 'Missing required fields: applicantCnic, serviceType, trackingNumber' 
-      }, { status: 400 })
+      }, { status: 400, headers: { 'Access-Control-Allow-Origin': origin, 'Vary': 'Origin' } })
     }
 
     // Look up applicant by CNIC
     console.log('[NADRA API] Looking up applicant with CNIC:', applicantCnic)
-    const { data: applicant, error: applicantError } = await supabase
+    let { data: applicant, error: applicantError } = await supabase
       .from('applicants')
-      .select('id, email')
+      .select('id, email, first_name, last_name')
       .eq('citizen_number', applicantCnic)
       .single()
 
     if (applicantError) {
-      console.error('[NADRA API] Applicant lookup error:', JSON.stringify(applicantError, null, 2))
-      return NextResponse.json({ 
-        error: 'Applicant not found',
-        details: applicantError.message
-      }, { status: 404, headers: { 'Access-Control-Allow-Origin': origin, 'Vary': 'Origin' } })
+      console.error('[NADRA API] Applicant lookup error:', applicantError.code, applicantError.message)
+      
+      // If applicant not found and we have applicant name, try to create them
+      if (applicantError.code === 'PGRST116' && applicantName) {
+        console.log('[NADRA API] Creating new applicant:', applicantName, applicantCnic)
+        
+        const [firstName, ...lastNameParts] = applicantName.split(' ')
+        const lastName = lastNameParts.join(' ') || 'N/A'
+        
+        const { data: newApplicant, error: createError } = await supabase
+          .from('applicants')
+          .insert({
+            first_name: firstName || 'Unknown',
+            last_name: lastName,
+            citizen_number: applicantCnic,
+            email: null
+          })
+          .select('id, email, first_name, last_name')
+          .single()
+        
+        if (createError) {
+          console.error('[NADRA API] Failed to create applicant:', createError.message)
+          return NextResponse.json({ 
+            error: 'Applicant not found and could not be created',
+            details: createError.message
+          }, { status: 404, headers: { 'Access-Control-Allow-Origin': origin, 'Vary': 'Origin' } })
+        }
+        
+        applicant = newApplicant
+        console.log('[NADRA API] Applicant created successfully:', applicant.id)
+      } else {
+        return NextResponse.json({ 
+          error: 'Applicant not found',
+          details: applicantError.message,
+          hint: 'CNIC does not exist in system'
+        }, { status: 404, headers: { 'Access-Control-Allow-Origin': origin, 'Vary': 'Origin' } })
+      }
     }
 
     if (!applicant) {
@@ -136,7 +169,7 @@ export async function POST(request) {
       }, { status: 404, headers: { 'Access-Control-Allow-Origin': origin, 'Vary': 'Origin' } })
     }
 
-    console.log('[NADRA API] Applicant found:', applicant.id)
+    console.log('[NADRA API] Applicant found/created:', applicant.id)
 
     // Build payload for insert
     const payload = {
