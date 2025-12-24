@@ -29,11 +29,27 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
     familyHeadCnic: '',
     applicantName: '',
     applicantCnic: '',
+    applicantEmail: '',
     serviceType: 'NICOP/CNIC',
     serviceOption: 'Normal',
     trackingNumber: '',
     pin: ''
   })
+
+  const handleAddMember = (familyHead: any) => {
+    setFormData({
+      ...formData,
+      familyHeadName: `${familyHead.first_name} ${familyHead.last_name}`,
+      familyHeadCnic: familyHead.citizen_number,
+      applicantName: '',
+      applicantCnic: '',
+      applicantEmail: '',
+      trackingNumber: '',
+      pin: ''
+    })
+    setShowForm(true)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
 
   const handleInputChange = (e: any) => {
     setFormData({ ...formData, [e.target.name]: e.target.value })
@@ -41,8 +57,8 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
 
   const handleSubmit = async () => {
     // Validate required fields
-    if (!formData.applicantCnic || !formData.serviceType || !formData.trackingNumber) {
-      toast.error('Please fill in Applicant CNIC, Service Type, and Tracking Number')
+    if (!formData.applicantCnic || !formData.trackingNumber) {
+      toast.error('Applicant CNIC and Tracking Number are required')
       return
     }
 
@@ -67,6 +83,7 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
           familyHeadCnic: '',
           applicantName: '',
           applicantCnic: '',
+          applicantEmail: '',
           serviceType: 'NICOP/CNIC',
           serviceOption: 'Normal',
           trackingNumber: '',
@@ -207,6 +224,14 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
                   className="w-full p-2 border rounded text-sm font-mono" 
                   required
                 />
+                <input 
+                  name="applicantEmail"
+                  value={formData.applicantEmail}
+                  onChange={handleInputChange}
+                  placeholder="Applicant Email" 
+                  type="email"
+                  className="w-full p-2 border rounded text-sm" 
+                />
               </div>
             </div>
             
@@ -269,7 +294,7 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
                   />
                 </div>
                 <p className="text-[10px] text-slate-400 italic">
-                  * Applicant email will be retrieved from existing profile.
+                  * Fill in all required fields above to save.
                 </p>
               </div>
             </div>
@@ -305,9 +330,19 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
                     <p className="text-[10px] text-slate-500 font-mono uppercase">{headCnic}</p>
                   </div>
                 </div>
-                <span className="text-[10px] bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full font-bold">
-                  {group.members.length} Applications
-                </span>
+                <div className="flex items-center gap-3">
+                  <span className="text-[10px] bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full font-bold">
+                    {group.members.length} Applications
+                  </span>
+                  {group.head && (
+                    <button
+                      onClick={() => handleAddMember(group.head)}
+                      className="text-xs bg-white border border-slate-300 text-slate-700 px-3 py-1.5 rounded-md hover:bg-slate-50 font-bold transition flex items-center gap-1"
+                    >
+                      <span>+</span> Add Member
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* MEMBER APPLICATIONS TABLE */}
