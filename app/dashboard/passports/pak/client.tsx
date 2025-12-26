@@ -76,10 +76,10 @@ export default function PakPassportClient({ initialApplications, currentUserId }
         })
         router.refresh()
       } else {
-        const d = await res.json()
-        toast.error(d.error || 'Failed to save')
+        const d = await res.json().catch(() => null)
+        toast.error(d?.error || d?.details || 'Failed to save')
       }
-    } catch (e) { toast.error('Network error') } 
+    } catch (e: any) { toast.error(e?.message || 'Network error') } 
     finally { setIsSubmitting(false) }
   }
 
@@ -102,9 +102,10 @@ export default function PakPassportClient({ initialApplications, currentUserId }
         toast.success('Custody updated: Returned to Customer', { id: toastId })
         router.refresh()
       } else {
-        toast.error('Failed to update custody', { id: toastId })
+        const d = await res.json().catch(() => null)
+        toast.error(d?.error || 'Failed to update custody', { id: toastId })
       }
-    } catch (e) { toast.error('Error', { id: toastId }) }
+    } catch (e: any) { toast.error(e?.message || 'Error', { id: toastId }) }
   }
   
   const handleSaveNewPassport = async () => {
@@ -122,9 +123,10 @@ export default function PakPassportClient({ initialApplications, currentUserId }
         setNewPassportNum('')
         router.refresh()
       } else {
-        toast.error('Failed to save')
+        const d = await res.json().catch(() => null)
+        toast.error(d?.error || 'Failed to save')
       }
-    } catch(e) { toast.error('Error saving') }
+    } catch(e: any) { toast.error(e?.message || 'Error saving') }
   }
 
   return (
