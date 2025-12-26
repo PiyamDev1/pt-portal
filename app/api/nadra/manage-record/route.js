@@ -79,6 +79,21 @@ export async function POST(request) {
           }, { status: 409 })
         }
 
+        // Check if this person is themselves an applicant in any application
+        const { data: applicantApps, error: applicantCheckError } = await supabase
+          .from('applications')
+          .select('id')
+          .eq('applicant_id', id)
+        
+        if (applicantCheckError) throw applicantCheckError
+        
+        if (applicantApps && applicantApps.length > 0) {
+          return NextResponse.json({ 
+            error: 'Cannot delete: Person has active applications',
+            details: `This person has ${applicantApps.length} application(s) as an applicant. Delete those first.`
+          }, { status: 409 })
+        }
+
         const { error: deleteHeadError } = await supabase
           .from('applicants')
           .delete()
