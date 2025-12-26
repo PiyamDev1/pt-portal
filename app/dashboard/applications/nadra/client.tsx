@@ -165,7 +165,7 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
           })
           .catch(err => console.error(err))
           .finally(() => setLoadingHistory(false))
-      }, 500)
+      }, 100)
 
       return () => clearTimeout(timer)
     }

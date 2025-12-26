@@ -9,7 +9,7 @@ export async function POST(request) {
       process.env.SUPABASE_SERVICE_ROLE_KEY
     )
 
-    const { nadraId, status } = await request.json()
+    const { nadraId, status, userId } = await request.json()
 
     if (!nadraId) {
       return NextResponse.json({ error: 'Missing Nadra ID' }, { status: 400 })
@@ -21,6 +21,19 @@ export async function POST(request) {
       .eq('id', nadraId)
 
     if (error) throw error
+
+    // Insert status history record
+    const { error: historyError } = await supabase
+      .from('nadra_status_history')
+      .insert({
+        nadra_service_id: nadraId,
+        new_status: status,
+        changed_by: userId
+      })
+
+    if (historyError) {
+      console.error('Status History Insert Error:', historyError)
+    }
 
     return NextResponse.json({ success: true })
   } catch (error) {

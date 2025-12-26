@@ -135,6 +135,16 @@ export async function POST(request) {
       if (detailsError) console.error('[NADRA API] Details Insert Error:', detailsError)
     }
 
+    // 6. Insert initial status history record
+    const { error: historyError } = await supabase
+      .from('nadra_status_history')
+      .insert({
+        nadra_service_id: nadraRecord.id,
+        new_status: 'Pending Submission',
+        changed_by: currentUserId
+      })
+    if (historyError) console.error('[NADRA API] History Insert Error:', historyError)
+
     return NextResponse.json({ success: true, data: nadraRecord }, { 
       status: 200, 
       headers: { 'Access-Control-Allow-Origin': origin } 
