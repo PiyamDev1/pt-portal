@@ -54,6 +54,30 @@ export async function POST(request) {
       return NextResponse.json({ success: true }, { status: 200, headers: { 'Access-Control-Allow-Origin': origin } })
     }
 
+    if (action === 'toggle_fingerprints') {
+      // Get current status
+      const { data: current } = await supabase
+        .from('pakistani_passport_applications')
+        .select('fingerprints_completed')
+        .eq('id', passportId)
+        .single()
+
+      if (!current) {
+        return NextResponse.json({ error: 'Passport record not found' }, { status: 404, headers: { 'Access-Control-Allow-Origin': origin } })
+      }
+
+      const { error: updError } = await supabase
+        .from('pakistani_passport_applications')
+        .update({
+          fingerprints_completed: !current.fingerprints_completed
+        })
+        .eq('id', passportId)
+
+      if (updError) throw updError
+
+      return NextResponse.json({ success: true, fingerprints_completed: !current.fingerprints_completed }, { status: 200, headers: { 'Access-Control-Allow-Origin': origin } })
+    }
+
     return NextResponse.json({ error: 'Unknown action' }, { status: 400, headers: { 'Access-Control-Allow-Origin': origin } })
 
   } catch (error) {

@@ -88,7 +88,10 @@ export default function PakPassportClient({ initialApplications, currentUserId }
     JSON.stringify(item).toLowerCase().includes(searchQuery.toLowerCase())
   )
 
-  // Custody and Arrival
+  // Status history and fingerprints
+  const [historyModal, setHistoryModal] = useState<any>(null)
+  const [statusHistory, setStatusHistory] = useState<any[]>([])
+
   const handleReturnCustody = async (passportId: string) => {
     if (!confirm('Confirm you are handing over the Old Passport to the customer? This action is logged.')) return
     const toastId = toast.loading('Updating custody record...')
@@ -106,6 +109,39 @@ export default function PakPassportClient({ initialApplications, currentUserId }
         toast.error(d?.error || 'Failed to update custody', { id: toastId })
       }
     } catch (e: any) { toast.error(e?.message || 'Error', { id: toastId }) }
+  }
+
+  const handleToggleFingerprints = async (passportId: string, currentStatus: boolean) => {
+    const toastId = toast.loading('Updating biometrics...')
+    try {
+      const res = await fetch('/api/passports/pak/update-custody', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ passportId, action: 'toggle_fingerprints', userId: currentUserId })
+      })
+      if (res.ok) {
+        toast.success(currentStatus ? 'Biometrics marked incomplete' : 'Biometrics marked complete', { id: toastId })
+        router.refresh()
+      } else {
+        const d = await res.json().catch(() => null)
+        toast.error(d?.error || 'Failed to update biometrics', { id: toastId })
+      }
+    } catch (e: any) { toast.error(e?.message || 'Error', { id: toastId }) }
+  }
+
+  const handleViewHistory = async (applicationId: string, trackingNumber: string) => {
+    try {
+      const res = await fetch(`/api/passports/pak/status-history?applicationId=${applicationId}`)
+      if (res.ok) {
+        const data = await res.json()
+        setStatusHistory(data.history || [])
+        setHistoryModal({ applicationId, trackingNumber })
+      } else {
+        toast.error('Failed to load status history')
+      }
+    } catch (e: any) {
+      toast.error('Error loading history')
+    }
   }
   
   const handleSaveNewPassport = async () => {
@@ -214,8 +250,8 @@ export default function PakPassportClient({ initialApplications, currentUserId }
 
       {/* FLAT LEDGER TABLE */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-         <table className="w-full text-left text-sm">
-           <thead className="bg-slate-50 text-slate-500 text-[10px] uppercase tracking-wider border-b border-slate-200">
+         <table className="w-full text-left">
+           <thead className="bg-slate-50 text-slate-600 text-xs uppercase tracking-wider border-b border-slate-200 font-semibold">
              <tr>
                <th className="p-4">Applicant</th>
                <th className="p-4">Passport Details</th>
@@ -235,39 +271,41 @@ export default function PakPassportClient({ initialApplications, currentUserId }
                    return (
                      <tr key={item.id} className="hover:bg-slate-50/50">
                        <td className="p-4">
-                         <div className="font-bold text-slate-800">{item.applicants?.first_name} {item.applicants?.last_name}</div>
-                         <div className="text-[10px] text-slate-500 font-mono">{item.applicants?.citizen_number}</div>
+                         <div className="font-bold text-base text-slate-800">{item.applicants?.first_name} {item.applicants?.last_name}</div>
+                         <div className="text-sm text-slate-500 font-mono">{item.applicants?.citizen_number}</div>
                        </td>
                        <td className="p-4">
-                         <div className="font-bold text-slate-700">{pp.application_type}</div>
-                         <div className="text-[10px] text-slate-500">{pp.category} • {pp.page_count}</div>
-                         <div className={`text-[10px] font-bold uppercase ${pp.speed === 'Executive' ? 'text-amber-600' : 'text-slate-400'}`}>{pp.speed}</div>
+                         <div className="font-bold text-base text-slate-700">{pp.application_type}</div>
+                         <div className="text-sm text-slate-500">{pp.category} • {pp.page_count}</div>
+                         <div className={`text-sm font-bold uppercase ${pp.speed === 'Executive' ? 'text-amber-600' : 'text-slate-400'}`}>{pp.speed}</div>
                        </td>
                        
-                       {/* FINGERPRINTS STATUS */}
+                       {/* FINGERPRINTS STATUS - CLICKABLE */}
                        <td className="p-4 text-center">
-                         {pp.fingerprints_completed ? (
-                           <span className="inline-block px-2 py-1 bg-green-100 text-green-700 text-[10px] font-bold rounded-full">
-                             YES
-                           </span>
-                         ) : (
-                           <span className="inline-block px-2 py-1 bg-slate-100 text-slate-400 text-[10px] font-bold rounded-full">
-                             NO
-                           </span>
-                         )}
+                         <button
+                           onClick={() => handleToggleFingerprints(pp.id, pp.fingerprints_completed)}
+                           className={`inline-block px-3 py-1.5 text-sm font-bold rounded-full cursor-pointer transition ${
+                             pp.fingerprints_completed
+                               ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                               : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                           }`}
+                           title="Click to toggle biometrics status"
+                         >
+                           {pp.fingerprints_completed ? 'YES' : 'NO'}
+                         </button>
                        </td>
 
                        {/* CUSTODY */}
                        <td className="p-4">
                          {pp.old_passport_number ? (
                            <div>
-                             <div className="font-mono text-slate-600 font-bold">{pp.old_passport_number}</div>
+                             <div className="font-mono text-slate-700 font-bold text-base">{pp.old_passport_number}</div>
                              {pp.is_old_passport_returned ? (
-                               <span className="text-[10px] font-bold text-green-600">✓ Returned</span>
+                               <span className="text-sm font-bold text-green-600">✓ Returned</span>
                              ) : (
                                <button 
                                  onClick={() => handleReturnCustody(pp?.id)}
-                                 className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-bold hover:bg-amber-200"
+                                 className="text-sm bg-amber-100 text-amber-700 px-3 py-1 rounded-full font-bold hover:bg-amber-200 mt-1"
                                >
                                  ⚠ In Custody
                                </button>
@@ -276,19 +314,25 @@ export default function PakPassportClient({ initialApplications, currentUserId }
                          ) : <span className="text-slate-300">-</span>}
                        </td>
 
-                       {/* TRACKING */}
+                       {/* TRACKING - CLICKABLE FOR HISTORY */}
                        <td className="p-4">
-                         <div className="font-mono text-slate-500 text-xs mb-1">{item.tracking_number}</div>
+                         <button
+                           onClick={() => handleViewHistory(item.id, item.tracking_number)}
+                           className="font-mono font-bold text-blue-600 hover:text-blue-800 text-base underline cursor-pointer"
+                           title="Click to view status history"
+                         >
+                           {item.tracking_number}
+                         </button>
                          {pp.new_passport_number ? (
-                           <div className="font-mono font-bold text-blue-600">{pp.new_passport_number}</div>
+                           <div className="font-mono font-bold text-green-600 text-base mt-1">{pp.new_passport_number}</div>
                          ) : (
-                           <button onClick={() => setArrivalModal(item)} className="text-[10px] text-slate-400 hover:text-blue-500 border border-dashed px-2 py-0.5 rounded">
+                           <button onClick={() => setArrivalModal(item)} className="text-sm text-slate-400 hover:text-blue-500 border border-dashed px-2 py-1 rounded mt-1">
                              + Arrival
                            </button>
                          )}
                        </td>
                        <td className="p-4 text-right">
-                         <span className="text-[10px] font-bold bg-slate-100 px-2 py-1 rounded text-slate-600">{pp.status}</span>
+                         <span className="text-sm font-bold bg-slate-100 px-3 py-1.5 rounded text-slate-700">{pp.status}</span>
                        </td>
                      </tr>
                    )
@@ -302,7 +346,7 @@ export default function PakPassportClient({ initialApplications, currentUserId }
       {arrivalModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
            <div className="bg-white p-6 rounded-xl shadow-2xl w-full max-w-sm">
-              <h3 className="font-bold text-slate-800 mb-2">New Passport Arrived</h3>
+              <h3 className="font-bold text-lg text-slate-800 mb-2">New Passport Arrived</h3>
               <input 
                 className="w-full p-3 border rounded-lg font-mono text-lg mb-4 uppercase"
                 placeholder="New Passport #"
@@ -314,6 +358,36 @@ export default function PakPassportClient({ initialApplications, currentUserId }
                 <button onClick={() => setArrivalModal(null)} className="flex-1 py-2 text-slate-500 font-bold">Cancel</button>
                 <button onClick={handleSaveNewPassport} className="flex-1 py-2 bg-blue-600 text-white font-bold rounded">Save</button>
               </div>
+           </div>
+        </div>
+      )}
+
+      {/* STATUS HISTORY MODAL */}
+      {historyModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+           <div className="bg-white p-6 rounded-xl shadow-2xl w-full max-w-lg max-h-96 overflow-y-auto">
+              <h3 className="font-bold text-lg text-slate-800 mb-1">Status History</h3>
+              <p className="text-sm text-slate-500 mb-4">Tracking: <span className="font-mono font-bold text-slate-700">{historyModal.trackingNumber}</span></p>
+              
+              {statusHistory.length === 0 ? (
+                <p className="text-center text-slate-400 py-8">No status updates recorded yet.</p>
+              ) : (
+                <div className="space-y-3">
+                  {statusHistory.map((entry: any, idx: number) => (
+                    <div key={idx} className="border-l-4 border-blue-400 bg-slate-50 p-3 rounded">
+                      <div className="font-bold text-slate-800">{entry.status || entry.action || 'Update'}</div>
+                      <div className="text-sm text-slate-600">{entry.description || ''}</div>
+                      <div className="text-xs text-slate-500 mt-1">
+                        {entry.updated_at ? new Date(entry.updated_at).toLocaleString() : entry.timestamp ? new Date(entry.timestamp).toLocaleString() : 'Unknown time'}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              
+              <button onClick={() => setHistoryModal(null)} className="w-full mt-4 py-2 bg-slate-200 text-slate-700 font-bold rounded hover:bg-slate-300">
+                Close
+              </button>
            </div>
         </div>
       )}
