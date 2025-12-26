@@ -67,7 +67,7 @@ export async function POST(request) {
 
     // 4. Insert Passport Specifics
     const { error: ppError } = await supabase.from('pakistani_passport_applications').insert({
-      id: appRecord.id,
+      application_id: appRecord.id,
       applicant_id: applicant.id,
       employee_id: currentUserId,
       application_type: applicationType,

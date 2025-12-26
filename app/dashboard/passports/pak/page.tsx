@@ -33,6 +33,7 @@ export default async function PakPassportPage() {
         ),
         pakistani_passport_applications!inner (
           id,
+          application_id,
           application_type,
           category,
           page_count,
