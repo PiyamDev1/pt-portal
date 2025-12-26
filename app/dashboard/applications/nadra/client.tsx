@@ -22,6 +22,10 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
   const [isUpdating, setIsUpdating] = useState(false)
   const [historyLogs, setHistoryLogs] = useState<any[]>([])
   const [loadingHistory, setLoadingHistory] = useState(false)
+  const [editingRecord, setEditingRecord] = useState<any>(null)
+  const [editType, setEditType] = useState<'application' | 'family_head' | null>(null)
+  const [editFormData, setEditFormData] = useState<any>({})
+  const [deleteAuthCode, setDeleteAuthCode] = useState('')
   
   // Form state
   const [formData, setFormData] = useState({
@@ -141,21 +145,149 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
 
   // Fetch history when popup opens
   useEffect(() => {
-    if (selectedHistory?.nadra_services?.id) {
+    const nadraArr = Array.isArray(selectedHistory?.nadra_services)
+      ? selectedHistory?.nadra_services
+      : selectedHistory?.nadra_services
+        ? [selectedHistory?.nadra_services]
+        : []
+
+    const nadraId = nadraArr[0]?.id
+
+    if (nadraId) {
       setLoadingHistory(true)
-      fetch(`/api/nadra/status-history?nadraId=${selectedHistory.nadra_services.id}`)
-        .then(res => res.json())
-        .then(data => {
-          if (data.history) {
-            setHistoryLogs(data.history)
-          }
-        })
-        .catch(err => console.error(err))
-        .finally(() => setLoadingHistory(false))
-    } else {
-      setHistoryLogs([])
+      const timer = setTimeout(() => {
+        fetch(`/api/nadra/status-history?nadraId=${nadraId}`)
+          .then(res => res.json())
+          .then(data => {
+            if (data.history) {
+              setHistoryLogs(data.history)
+            }
+          })
+          .catch(err => console.error(err))
+          .finally(() => setLoadingHistory(false))
+      }, 500)
+
+      return () => clearTimeout(timer)
     }
+
+    setHistoryLogs([])
   }, [selectedHistory])
+
+  const openEditModal = (record: any, type: 'application' | 'family_head') => {
+    setEditType(type)
+    setEditingRecord(record)
+    setDeleteAuthCode('')
+
+    if (type === 'family_head') {
+      setEditFormData({
+        id: record.id,
+        firstName: record.first_name,
+        lastName: record.last_name,
+        cnic: record.citizen_number
+      })
+      return
+    }
+
+    const nadra = Array.isArray(record.nadra_services) ? record.nadra_services[0] : record.nadra_services
+    const details = Array.isArray(nadra?.nicop_cnic_details) ? nadra?.nicop_cnic_details[0] : nadra?.nicop_cnic_details
+
+    setEditFormData({
+      id: nadra?.id,
+        applicationId: record.id,
+      applicantId: record.applicants?.id,
+      firstName: record.applicants?.first_name,
+      lastName: record.applicants?.last_name,
+      cnic: record.applicants?.citizen_number,
+      email: record.applicants?.email || '',
+      serviceType: nadra?.service_type,
+      serviceOption: details?.service_option || 'Normal',
+      trackingNumber: record.tracking_number,
+      pin: nadra?.application_pin
+    })
+  }
+
+  const handleEditSubmit = async () => {
+    if (!editType || !editFormData?.id) {
+      toast.error('Select a record to modify')
+      return
+    }
+
+    try {
+      const res = await fetch('/api/nadra/manage-record', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'update',
+          type: editType,
+          id: editFormData.id,
+          data: editFormData,
+          userId: currentUserId
+        })
+      })
+
+      if (res.ok) {
+        toast.success('Record updated')
+        setEditingRecord(null)
+        setEditType(null)
+        setEditFormData({})
+        router.refresh()
+      } else {
+        const payload = await res.json()
+        toast.error(payload?.error || 'Update failed')
+      }
+    } catch (e) {
+      toast.error('Error updating')
+      console.error(e)
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!editType || !editFormData?.id) {
+      toast.error('Select a record to delete')
+      return
+    }
+
+    if (!deleteAuthCode) {
+      toast.error('Auth code required for deletion')
+      return
+    }
+
+    try {
+      const res = await fetch('/api/nadra/manage-record', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'delete',
+          type: editType,
+          id: editFormData.id,
+          authCode: deleteAuthCode,
+          userId: currentUserId
+        })
+      })
+
+      if (res.ok) {
+        toast.success('Record deleted permanently')
+        setEditingRecord(null)
+        setEditType(null)
+        setEditFormData({})
+        router.refresh()
+        return
+      }
+
+      const payload = await res.json()
+      toast.error(payload?.error || 'Delete failed')
+    } catch (e) {
+      toast.error('Error deleting')
+      console.error(e)
+    }
+  }
+
+  const closeEditModal = () => {
+    setEditingRecord(null)
+    setEditType(null)
+    setEditFormData({})
+    setDeleteAuthCode('')
+  }
 
   return (
     <div className="space-y-6">
@@ -336,6 +468,14 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
                   </span>
                   {group.head && (
                     <button
+                      onClick={() => openEditModal(group.head, 'family_head')}
+                      className="text-xs text-slate-600 underline hover:text-blue-600"
+                    >
+                      Modify Head
+                    </button>
+                  )}
+                  {group.head && (
+                    <button
                       onClick={() => handleAddMember(group.head)}
                       className="text-xs bg-white border border-slate-300 text-slate-700 px-3 py-1.5 rounded-md hover:bg-slate-50 font-bold transition flex items-center gap-1"
                     >
@@ -349,7 +489,7 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
               <table className="w-full text-left text-sm">
                 <tbody className="divide-y divide-slate-100">
                   {group.members.map((item: any) => {
-                    const nadraRecord = Array.isArray(item.nadra_services) ? item.nadra_services[0] : item.nadra_services
+                      const nadraRecord = Array.isArray(item.nadra_services) ? item.nadra_services[0] : item.nadra_services
                     const details = Array.isArray(nadraRecord?.nicop_cnic_details)
                       ? nadraRecord?.nicop_cnic_details[0]
                       : nadraRecord?.nicop_cnic_details
@@ -379,7 +519,7 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
                             onClick={() => setSelectedHistory(item)}
                             className="font-mono text-slate-800 font-bold tracking-wide text-sm hover:underline block"
                           >
-                            {item.tracking_number}
+                            {nadraRecord?.tracking_number || item.tracking_number}
                           </button>
                           <div className="flex items-center gap-2 mt-1">
                             <span className="text-xs text-slate-400 font-bold uppercase">PIN:</span>
@@ -402,6 +542,15 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
                             <option value="Cancelled">Cancelled</option>
                           </select>
                         </td>
+                        <td className="p-4 align-top w-12 text-right">
+                          <button
+                            onClick={() => openEditModal(item, 'application')}
+                            className="h-8 w-8 flex items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 transition"
+                            title="Modify Record"
+                          >
+                            ✎
+                          </button>
+                        </td>
                       </tr>
                     )
                   })}
@@ -411,6 +560,122 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
           ))
         )}
       </div>
+
+      {editingRecord && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+              <h3 className="font-bold text-slate-800">
+                {editType === 'family_head' ? 'Modify Family Head' : 'Modify Application'}
+              </h3>
+              <button onClick={closeEditModal} className="text-slate-400 hover:text-slate-600">✕</button>
+            </div>
+
+            <div className="p-6 overflow-y-auto space-y-6">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-1">
+                  <label className="text-[10px] font-bold uppercase text-slate-400">First Name</label>
+                  <input
+                    className="w-full border rounded p-2 text-sm"
+                    value={editFormData.firstName || ''}
+                    onChange={e => setEditFormData({ ...editFormData, firstName: e.target.value })}
+                  />
+                </div>
+                <div className="col-span-1">
+                  <label className="text-[10px] font-bold uppercase text-slate-400">Last Name</label>
+                  <input
+                    className="w-full border rounded p-2 text-sm"
+                    value={editFormData.lastName || ''}
+                    onChange={e => setEditFormData({ ...editFormData, lastName: e.target.value })}
+                  />
+                </div>
+                <div className="col-span-2">
+                  <label className="text-[10px] font-bold uppercase text-slate-400">CNIC</label>
+                  <input
+                    className="w-full border rounded p-2 text-sm font-mono"
+                    value={editFormData.cnic || ''}
+                    onChange={e => setEditFormData({ ...editFormData, cnic: e.target.value })}
+                  />
+                </div>
+                {editType === 'application' && (
+                  <>
+                    <div className="col-span-2">
+                      <label className="text-[10px] font-bold uppercase text-slate-400">Email Address</label>
+                      <input
+                        className="w-full border rounded p-2 text-sm"
+                        value={editFormData.email || ''}
+                        onChange={e => setEditFormData({ ...editFormData, email: e.target.value })}
+                      />
+                    </div>
+                    <div className="col-span-2">
+                      <label className="text-[10px] font-bold uppercase text-slate-400">Service Option</label>
+                      <select
+                        className="w-full border rounded p-2 text-sm bg-white"
+                        value={editFormData.serviceOption || 'Normal'}
+                        onChange={e => setEditFormData({ ...editFormData, serviceOption: e.target.value })}
+                      >
+                        <option value="Normal">Normal</option>
+                        <option value="Executive">Executive</option>
+                        <option value="Upgrade to Fast">Upgrade to Fast</option>
+                        <option value="Modification">Modification</option>
+                        <option value="Reprint">Reprint</option>
+                        <option value="Cancellation">Cancellation</option>
+                      </select>
+                    </div>
+                    <div className="col-span-1">
+                      <label className="text-[10px] font-bold uppercase text-slate-400">Tracking ID</label>
+                      <input
+                        className="w-full border rounded p-2 text-sm font-mono"
+                        value={editFormData.trackingNumber || ''}
+                        onChange={e => setEditFormData({ ...editFormData, trackingNumber: e.target.value })}
+                      />
+                    </div>
+                    <div className="col-span-1">
+                      <label className="text-[10px] font-bold uppercase text-slate-400">PIN</label>
+                      <input
+                        className="w-full border rounded p-2 text-sm font-mono"
+                        value={editFormData.pin || ''}
+                        onChange={e => setEditFormData({ ...editFormData, pin: e.target.value })}
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <div className="pt-4 border-t border-slate-100">
+                <button
+                  onClick={handleEditSubmit}
+                  className="w-full bg-blue-600 text-white font-bold py-2 rounded hover:bg-blue-700 transition"
+                >
+                  Save Changes
+                </button>
+              </div>
+
+              <div className="pt-6 mt-4 border-t-2 border-red-50">
+                <h4 className="text-xs font-bold text-red-600 uppercase mb-2">Danger Zone: Deletion</h4>
+                <div className="bg-red-50 p-4 rounded-lg space-y-3">
+                  <p className="text-xs text-red-800">
+                    To delete this record permanently, enter your Auth Code below. This action is logged.
+                  </p>
+                  <input
+                    type="password"
+                    placeholder="Enter Auth Code"
+                    className="w-full border border-red-200 rounded p-2 text-sm focus:ring-red-500"
+                    value={deleteAuthCode}
+                    onChange={e => setDeleteAuthCode(e.target.value)}
+                  />
+                  <button
+                    onClick={handleDelete}
+                    className="w-full bg-white border border-red-200 text-red-600 font-bold py-2 rounded hover:bg-red-600 hover:text-white transition"
+                  >
+                    Delete Record
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* STATUS HISTORY POPUP */}
       {selectedHistory && (

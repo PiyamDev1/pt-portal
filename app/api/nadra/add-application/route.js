@@ -17,6 +17,7 @@ export async function POST(request) {
     const { 
       applicantCnic,
       applicantName,
+      applicantEmail,
       familyHeadCnic,
       familyHeadName,
       serviceType,
@@ -29,7 +30,7 @@ export async function POST(request) {
     // 1. Find or Create Applicant
     let { data: applicant } = await supabase
       .from('applicants')
-      .select('id')
+      .select('id, email')
       .eq('citizen_number', applicantCnic)
       .single()
 
@@ -38,9 +39,16 @@ export async function POST(request) {
       const { data: newApp } = await supabase.from('applicants').insert({
         first_name: parts[0],
         last_name: parts.slice(1).join(' ') || 'N/A',
-        citizen_number: applicantCnic
-      }).select('id').single()
+        citizen_number: applicantCnic,
+        email: applicantEmail || null
+      }).select('id, email').single()
       applicant = newApp
+    } else if (applicant && applicantEmail && !applicant.email) {
+      // Update email if it was missing previously
+      await supabase.from('applicants')
+        .update({ email: applicantEmail })
+        .eq('id', applicant.id)
+      applicant = { ...applicant, email: applicantEmail }
     }
 
     if (!applicant?.id) {
