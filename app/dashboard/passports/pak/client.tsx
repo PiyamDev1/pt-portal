@@ -72,6 +72,7 @@ export default function PakPassportClient({ initialApplications, currentUserId }
     try {
       const res = await fetch('/api/passports/pak/update-custody', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ passportId, action: 'return_old', userId: currentUserId })
       })
       if (res.ok) {
@@ -89,8 +90,9 @@ export default function PakPassportClient({ initialApplications, currentUserId }
     try {
       const res = await fetch('/api/passports/pak/update-custody', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          passportId: arrivalModal.pakistani_passport_applications.id, 
+          passportId: (Array.isArray(arrivalModal?.pakistani_passport_applications) ? arrivalModal.pakistani_passport_applications[0]?.id : arrivalModal?.pakistani_passport_applications?.id), 
           action: 'record_new', 
           newNumber: newPassportNum,
           userId: currentUserId 

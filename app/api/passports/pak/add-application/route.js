@@ -92,7 +92,7 @@ export async function POST(request) {
       .from('applications')
       .select('id')
       .eq('tracking_number', trackingNumber)
-      .maybeSingle?.() ?? { data: null }
+      .maybeSingle()
     if (existingApp) {
       return NextResponse.json({
         error: 'Duplicate in system not allowed',
