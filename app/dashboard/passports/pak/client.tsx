@@ -231,6 +231,7 @@ export default function PakPassportClient({ initialApplications, currentUserId }
              ) : (
                 filteredApps.map((item: any) => {
                    const pp = getPassportRecord(item)
+                   if (!pp) return null
                    return (
                      <tr key={item.id} className="hover:bg-slate-50/50">
                        <td className="p-4">
