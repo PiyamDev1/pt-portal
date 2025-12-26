@@ -27,6 +27,7 @@ export default function PakPassportClient({ initialApplications, currentUserId }
   // New Passport Arrival State
   const [arrivalModal, setArrivalModal] = useState<any>(null)
   const [newPassportNum, setNewPassportNum] = useState('')
+  const [isUpdating, setIsUpdating] = useState(false)
 
   const [formData, setFormData] = useState({
     applicantName: '', applicantCnic: '', applicantEmail: '',
@@ -145,6 +146,7 @@ export default function PakPassportClient({ initialApplications, currentUserId }
   }
 
   const handleStatusChange = async (passportId: string, newStatus: string) => {
+    setIsUpdating(true)
     const toastId = toast.loading('Updating status...')
     try {
       const res = await fetch('/api/passports/pak/update-status', {
@@ -161,6 +163,8 @@ export default function PakPassportClient({ initialApplications, currentUserId }
       }
     } catch (e: any) {
       toast.error(e?.message || 'Error updating status', { id: toastId })
+    } finally {
+      setIsUpdating(false)
     }
   }
   
@@ -353,9 +357,10 @@ export default function PakPassportClient({ initialApplications, currentUserId }
                        </td>
                        <td className="p-4 text-right">
                          <select
+                           disabled={isUpdating}
                            value={pp.status || 'Pending Submission'}
                            onChange={(e) => handleStatusChange(pp.id, e.target.value)}
-                           className="text-sm font-bold rounded px-2 py-1.5 cursor-pointer bg-white border border-slate-300 hover:border-slate-400"
+                           className="text-sm font-bold rounded px-2 py-1.5 cursor-pointer bg-white border border-slate-300 hover:border-slate-400 disabled:opacity-60"
                          >
                            <option value="Pending Submission">Pending Submission</option>
                            <option value="Submitted">Submitted</option>
