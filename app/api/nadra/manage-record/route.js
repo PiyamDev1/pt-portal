@@ -87,6 +87,7 @@ export async function POST(request) {
         if (deleteHeadError) throw deleteHeadError
       } else {
         const appId = recordToDelete.application_id
+        const applicantId = recordToDelete.applicant_id
 
         const { error: deleteServiceError } = await supabase
           .from('nadra_services')
@@ -102,6 +103,15 @@ export async function POST(request) {
             .eq('id', appId)
 
           if (deleteAppError) throw deleteAppError
+        }
+
+        if (applicantId) {
+          const { error: deleteApplicantError } = await supabase
+            .from('applicants')
+            .delete()
+            .eq('id', applicantId)
+
+          if (deleteApplicantError) throw deleteApplicantError
         }
       }
 

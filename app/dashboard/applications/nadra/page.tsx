@@ -24,12 +24,19 @@ export default async function NadraPage() {
     .eq('id', session.user.id)
     .single()
 
-  // UPDATED QUERY: Using the new relationship
+  // Query all family heads (applicants marked as family heads)
+  const { data: familyHeads } = await supabase
+    .from('applicants')
+    .select('id, first_name, last_name, citizen_number')
+    .not('id', 'is', null)
+
+  // Query applications with their details
   const { data: applications } = await supabase
     .from('applications')
     .select(`
       id,
       tracking_number,
+      family_head_id,
       family_heads:applicants!applications_family_head_id_fkey ( first_name, last_name, citizen_number ),
       applicants!applications_applicant_id_fkey ( id, first_name, last_name, citizen_number, email ),
       nadra_services (
@@ -37,11 +44,28 @@ export default async function NadraPage() {
         service_type,
         status,
         application_pin,
+        tracking_number,
         created_at,
         nicop_cnic_details ( service_option )
       )
     `)
     .order('created_at', { ascending: false })
+
+  // Merge: create entries for family heads with no applications
+  const familyHeadIds = new Set(applications?.map(app => app.family_head_id) || [])
+  const headsWithNoMembers = familyHeads?.filter(head => !familyHeadIds.has(head.id)) || []
+  
+  const allRecords = [
+    ...(applications || []),
+    ...headsWithNoMembers.map(head => ({
+      id: null,
+      tracking_number: null,
+      family_head_id: head.id,
+      family_heads: head,
+      applicants: null,
+      nadra_services: null
+    }))
+  ]
 
   const location = Array.isArray(employee?.locations) ? employee.locations[0] : employee?.locations
   const role = Array.isArray(employee?.roles) ? employee.roles[0] : employee?.roles
@@ -63,7 +87,7 @@ export default async function NadraPage() {
             <p className="text-slate-500">Manage Family Head records and track application credentials.</p>
           </div>
 
-          <NadraClient initialApplications={applications || []} currentUserId={session.user.id} />
+          <NadraClient initialApplications={allRecords} currentUserId={session.user.id} />
         </main>
       </div>
     </DashboardClientWrapper>
