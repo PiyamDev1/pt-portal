@@ -106,8 +106,29 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
     }
   }
 
-  // 1. Logic to Group by Family Head
-  const groupedData = initialApplications.reduce((acc: any, item: any) => {
+  // 1. Filter applications based on search query
+  const filteredApplications = initialApplications.filter((item: any) => {
+    if (!searchQuery.trim()) return true
+    
+    const query = searchQuery.toLowerCase()
+    const nadraRecord = Array.isArray(item.nadra_services) ? item.nadra_services[0] : item.nadra_services
+    
+    return (
+      item.applicants?.first_name?.toLowerCase().includes(query) ||
+      item.applicants?.last_name?.toLowerCase().includes(query) ||
+      item.applicants?.citizen_number?.includes(query) ||
+      item.applicants?.email?.toLowerCase().includes(query) ||
+      item.family_heads?.first_name?.toLowerCase().includes(query) ||
+      item.family_heads?.last_name?.toLowerCase().includes(query) ||
+      item.family_heads?.citizen_number?.includes(query) ||
+      item.tracking_number?.includes(query) ||
+      nadraRecord?.tracking_number?.includes(query) ||
+      nadraRecord?.application_pin?.includes(query)
+    )
+  })
+
+  // 2. Logic to Group by Family Head
+  const groupedData = filteredApplications.reduce((acc: any, item: any) => {
     const headCnic = item.family_heads?.citizen_number || 'Independent'
     if (!acc[headCnic]) {
       acc[headCnic] = {
