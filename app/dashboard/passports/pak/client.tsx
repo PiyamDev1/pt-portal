@@ -1,5 +1,5 @@
 'use client'
-'use client'
+
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
@@ -141,6 +141,26 @@ export default function PakPassportClient({ initialApplications, currentUserId }
       }
     } catch (e: any) {
       toast.error('Error loading history')
+    }
+  }
+
+  const handleStatusChange = async (passportId: string, newStatus: string) => {
+    const toastId = toast.loading('Updating status...')
+    try {
+      const res = await fetch('/api/passports/pak/update-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ passportId, status: newStatus })
+      })
+      if (res.ok) {
+        toast.success('Status updated', { id: toastId })
+        router.refresh()
+      } else {
+        const d = await res.json().catch(() => null)
+        toast.error(d?.error || 'Failed to update status', { id: toastId })
+      }
+    } catch (e: any) {
+      toast.error(e?.message || 'Error updating status', { id: toastId })
     }
   }
   
@@ -332,7 +352,17 @@ export default function PakPassportClient({ initialApplications, currentUserId }
                          )}
                        </td>
                        <td className="p-4 text-right">
-                         <span className="text-sm font-bold bg-slate-100 px-3 py-1.5 rounded text-slate-700">{pp.status}</span>
+                         <select
+                           value={pp.status || 'Pending Submission'}
+                           onChange={(e) => handleStatusChange(pp.id, e.target.value)}
+                           className="text-sm font-bold rounded px-2 py-1.5 cursor-pointer bg-white border border-slate-300 hover:border-slate-400"
+                         >
+                           <option value="Pending Submission">Pending Submission</option>
+                           <option value="Submitted">Submitted</option>
+                           <option value="In Progress">In Progress</option>
+                           <option value="Completed">Completed</option>
+                           <option value="Cancelled">Cancelled</option>
+                         </select>
                        </td>
                      </tr>
                    )
@@ -394,3 +424,4 @@ export default function PakPassportClient({ initialApplications, currentUserId }
     </div>
   )
 }
+
