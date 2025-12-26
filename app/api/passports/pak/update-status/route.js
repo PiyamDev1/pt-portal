@@ -12,7 +12,7 @@ const VALID_STATUSES = [
 
 export async function POST(req) {
   try {
-    const { passportId, status } = await req.json()
+    const { passportId, status, userId } = await req.json()
 
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -42,7 +42,7 @@ export async function POST(req) {
 
     const { error } = await supabase
       .from('pakistani_passport_applications')
-      .update({ status })
+      .update({ status, updated_at: new Date().toISOString() })
       .eq('id', passportId)
 
     if (error) {
@@ -51,6 +51,19 @@ export async function POST(req) {
         { error: error.message || 'Failed to update status' },
         { status: 500 }
       )
+    }
+
+    // Best-effort insert into status history table (if exists)
+    const { error: historyError } = await supabase
+      .from('pakistani_passport_status_history')
+      .insert({
+        passport_application_id: passportId,
+        new_status: status,
+        changed_by: userId || null
+      })
+
+    if (historyError) {
+      console.error('[PAK Status Update] History insert error:', historyError)
     }
 
     return NextResponse.json({ success: true, newStatus: status })

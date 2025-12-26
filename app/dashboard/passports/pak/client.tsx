@@ -150,7 +150,7 @@ export default function PakPassportClient({ initialApplications, currentUserId }
       const res = await fetch('/api/passports/pak/update-status', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ passportId, status: newStatus })
+        body: JSON.stringify({ passportId, status: newStatus, userId: currentUserId })
       })
       if (res.ok) {
         toast.success('Status updated', { id: toastId })
