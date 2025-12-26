@@ -37,20 +37,30 @@ export async function POST(request) {
     }
 
     // 1. Find or Create Applicant
-    let { data: applicant } = await supabase
+    let { data: applicant, error: applicantErr } = await supabase
       .from('applicants')
       .select('id, email')
       .eq('citizen_number', applicantCnic)
       .single()
 
-    if (!applicant && applicantName) {
+    if (!applicant) {
+      if (!applicantName) {
+        return NextResponse.json({
+          error: 'Applicant Name is required for new customers'
+        }, { status: 400, headers: { 'Access-Control-Allow-Origin': origin } })
+      }
+
       const parts = applicantName.split(' ')
-      const { data: newApp, error: newAppErr } = await supabase.from('applicants').insert({
-        first_name: parts[0],
-        last_name: parts.slice(1).join(' ') || 'N/A',
-        citizen_number: applicantCnic,
-        email: applicantEmail || null
-      }).select('id, email').single()
+      const { data: newApp, error: newAppErr } = await supabase
+        .from('applicants')
+        .insert({
+          first_name: parts[0],
+          last_name: parts.slice(1).join(' ') || 'N/A',
+          citizen_number: applicantCnic,
+          email: applicantEmail || null
+        })
+        .select('id, email')
+        .single()
       if (newAppErr) throw newAppErr
       applicant = newApp
     } else if (applicant && applicantEmail && !applicant.email) {
@@ -58,10 +68,6 @@ export async function POST(request) {
         .update({ email: applicantEmail })
         .eq('id', applicant.id)
       applicant = { ...applicant, email: applicantEmail }
-    }
-
-    if (!applicant?.id) {
-      throw new Error('Applicant not found or created')
     }
 
     // 2. Family Head removed: use applicant as self-head (Independent)

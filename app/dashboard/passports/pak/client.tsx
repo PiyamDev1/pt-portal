@@ -55,8 +55,8 @@ export default function PakPassportClient({ initialApplications, currentUserId }
   }
 
   const handleSubmit = async () => {
-    if (!formData.applicantCnic || !formData.trackingNumber) {
-      toast.error('Required fields missing')
+    if (!formData.applicantName || !formData.applicantCnic || !formData.trackingNumber) {
+      toast.error('Name, CNIC, and Tracking Number are required')
       return
     }
     setIsSubmitting(true)
