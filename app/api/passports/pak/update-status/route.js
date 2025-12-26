@@ -24,6 +24,20 @@ export async function POST(request) {
 
     if (error) throw error
 
+    // Log to history table (works whether trigger exists or not)
+    const { error: historyError } = await supabase
+      .from('pakistani_passport_status_history')
+      .insert({
+        passport_application_id: passportId,
+        new_status: status,
+        changed_by: userId
+      })
+
+    if (historyError) {
+      console.error('[PAK Status Update] History insert failed:', historyError.message)
+      // Don't fail the whole request if history logging fails
+    }
+
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error('[PAK Status Update] Error:', error)
