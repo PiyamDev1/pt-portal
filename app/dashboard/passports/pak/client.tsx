@@ -410,10 +410,11 @@ export default function PakPassportClient({ initialApplications, currentUserId }
                 <div className="space-y-3">
                   {statusHistory.map((entry: any, idx: number) => (
                     <div key={idx} className="border-l-4 border-blue-400 bg-slate-50 p-3 rounded">
-                      <div className="font-bold text-slate-800">{entry.status || entry.action || 'Update'}</div>
+                      <div className="font-bold text-slate-800">{entry.status || 'Update'}</div>
                       <div className="text-sm text-slate-600">{entry.description || ''}</div>
                       <div className="text-xs text-slate-500 mt-1">
-                        {entry.updated_at ? new Date(entry.updated_at).toLocaleString() : entry.timestamp ? new Date(entry.timestamp).toLocaleString() : 'Unknown time'}
+                        {entry.changed_by && <span className="font-medium">by {entry.changed_by} • </span>}
+                        {entry.date ? new Date(entry.date).toLocaleString() : 'Unknown time'}
                       </div>
                     </div>
                   ))}
