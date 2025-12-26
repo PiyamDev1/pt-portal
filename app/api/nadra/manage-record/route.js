@@ -64,6 +64,21 @@ export async function POST(request) {
       if (logError) throw logError
 
       if (normalizedType === 'family_head') {
+        // Check if family head has any linked applications/members
+        const { data: linkedApps, error: checkError } = await supabase
+          .from('applications')
+          .select('id')
+          .eq('family_head_id', id)
+        
+        if (checkError) throw checkError
+        
+        if (linkedApps && linkedApps.length > 0) {
+          return NextResponse.json({ 
+            error: 'Cannot delete family head with existing members',
+            details: `Please delete all ${linkedApps.length} member application(s) first.`
+          }, { status: 409 })
+        }
+
         const { error: deleteHeadError } = await supabase
           .from('applicants')
           .delete()
