@@ -18,14 +18,13 @@ export async function POST(request) {
       applicantCnic,
       applicantName,
       applicantEmail,
-      familyHeadCnic,
-      familyHeadName,
       applicationType,
       category,
       pageCount,
       speed,
       oldPassportNumber,
       trackingNumber,
+      fingerprintsCompleted,
       currentUserId
     } = body
 
@@ -65,27 +64,8 @@ export async function POST(request) {
       throw new Error('Applicant not found or created')
     }
 
-    // 2. Find or Create Family Head
-    let headId = null
-    if (familyHeadCnic) {
-      let { data: head } = await supabase
-        .from('applicants')
-        .select('id')
-        .eq('citizen_number', familyHeadCnic)
-        .single()
-
-      if (!head && familyHeadName) {
-        const parts = familyHeadName.split(' ')
-        const { data: newHead } = await supabase.from('applicants').insert({
-          first_name: parts[0],
-          last_name: parts.slice(1).join(' ') || 'N/A',
-          citizen_number: familyHeadCnic
-        }).select('id').single()
-        headId = newHead?.id || null
-      } else {
-        headId = head?.id || null
-      }
-    }
+    // 2. Family Head removed: use applicant as self-head (Independent)
+    const headId = applicant.id
 
     // 3. Optional duplicate check on tracking number
     const { data: existingApp } = await supabase
@@ -115,7 +95,7 @@ export async function POST(request) {
 
     if (appError) throw appError
 
-    // 5. INSERT PASSPORT DETAILS (Linked by shared id)
+    // 4. INSERT PASSPORT DETAILS (Linked by shared id)
     const { error: ppError } = await supabase
       .from('pakistani_passport_applications')
       .insert({
@@ -128,7 +108,8 @@ export async function POST(request) {
         old_passport_number: oldPassportNumber || null,
         is_old_passport_returned: false,
         old_passport_returned_at: null,
-        new_passport_number: null
+        new_passport_number: null,
+        fingerprints_completed: !!fingerprintsCompleted
       })
 
     if (ppError) {
