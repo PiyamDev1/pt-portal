@@ -178,16 +178,29 @@ export default function PakPassportClient({ initialApplications, currentUserId }
             
             <div className="space-y-4">
                <h4 className="text-xs font-black uppercase text-slate-400 tracking-widest">2. Passport Specs</h4>
-               <div className="grid grid-cols-2 gap-3">
-                 <select name="applicationType" onChange={handleInputChange} className="p-2 border rounded text-sm">
-                    <option>First Time</option><option>Renewal</option><option>Modification</option><option>Lost</option>
-                 </select>
-                 <select name="speed" onChange={handleInputChange} className="p-2 border rounded text-sm font-bold text-amber-600">
-                    <option>Normal</option><option>Executive</option>
-                 </select>
-                 <select name="category" onChange={handleInputChange} className="p-2 border rounded text-sm"><option>Adult 5 Year</option><option>Adult 10 Year</option><option>Child 5 Year</option></select>
-                 <select name="pageCount" onChange={handleInputChange} className="p-2 border rounded text-sm"><option>34 pages</option><option>54 pages</option><option>72 pages</option><option>100 pages</option></select>
-               </div>
+              <div className="grid grid-cols-2 gap-3">
+                <select name="applicationType" onChange={handleInputChange} className="p-2 border rounded text-sm" value={formData.applicationType}>
+                  <option value="First Time">First Time</option>
+                  <option value="Renewal">Renewal</option>
+                  <option value="Modification">Modification</option>
+                  <option value="Lost">Lost</option>
+                </select>
+                <select name="speed" onChange={handleInputChange} className="p-2 border rounded text-sm font-bold text-amber-600" value={formData.speed}>
+                  <option value="Normal">Normal</option>
+                  <option value="Executive">Executive</option>
+                </select>
+                <select name="category" onChange={handleInputChange} className="p-2 border rounded text-sm" value={formData.category}>
+                  <option value="Adult 5 Year">Adult 5 Year</option>
+                  <option value="Adult 10 Year">Adult 10 Year</option>
+                  <option value="Child 5 Year">Child 5 Year</option>
+                </select>
+                <select name="pageCount" onChange={handleInputChange} className="p-2 border rounded text-sm" value={formData.pageCount}>
+                  <option value="34 pages">34 pages</option>
+                  <option value="54 pages">54 pages</option>
+                  <option value="72 pages">72 pages</option>
+                  <option value="100 pages">100 pages</option>
+                </select>
+              </div>
                
                <input name="oldPassportNumber" onChange={handleInputChange} value={formData.oldPassportNumber} placeholder="Old Passport Number (Required for Renewal)" className="w-full p-2 border border-amber-200 bg-amber-50 rounded text-sm font-mono" />
                <input name="trackingNumber" onChange={handleInputChange} value={formData.trackingNumber} placeholder="Tracking ID" className="w-full p-2 border rounded text-sm font-mono" />
