@@ -46,22 +46,13 @@ export default function VisaApplicationsClient({ initialData, currentUserId }: a
           <p className="text-slate-500 text-sm">Manage visa applications and track processing</p>
         </div>
         <button 
-          onClick={() => { setEditingItem(null); setIsFormOpen(true) }}
+          onClick={() => { setEditingItem(null); setIsFormOpen(!isFormOpen) }}
           className="bg-purple-600 text-white px-5 py-2.5 rounded-lg font-bold text-sm hover:bg-purple-700 flex items-center gap-2 shadow-md shadow-purple-100"
         >
-          <Plus className="w-4 h-4" /> New Application
+          {isFormOpen ? <ChevronDown className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+          {isFormOpen ? 'Hide Form' : 'New Application'}
         </button>
       </div>
-
-      {!isFormOpen && (
-        <button 
-          onClick={() => setIsFormOpen(true)}
-          className="w-full bg-purple-50 border-2 border-dashed border-purple-200 rounded-xl p-4 text-purple-600 hover:bg-purple-100 hover:border-purple-300 transition-colors flex items-center justify-center gap-2"
-        >
-          <ChevronDown className="w-5 h-5" />
-          <span className="font-medium">Show Application Form</span>
-        </button>
-      )}
 
       <VisaForm 
         isOpen={isFormOpen} 
