@@ -37,9 +37,12 @@ export default function RowItem({
       </td>
       <td className="p-5">
         <div className="space-y-2">
-          <div className="text-xs font-mono font-bold text-slate-600 bg-slate-100 px-2 py-1 rounded border border-slate-200 w-fit">
+          <button
+            onClick={() => onViewHistory(item.id, item.tracking_number)}
+            className="text-xs font-mono font-bold text-slate-600 bg-slate-100 px-2 py-1 rounded border border-slate-200 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 transition cursor-pointer"
+          >
             {item.tracking_number}
-          </div>
+          </button>
           <MiniTracking steps={steps} currentStep={currentStep} />
         </div>
       </td>
@@ -104,7 +107,7 @@ export default function RowItem({
         </div>
       </td>
       <td className="p-5 text-center">
-        <div className="flex flex-col items-center gap-2">
+        <div className="flex flex-col items-center gap-3">
           <select
             value={pp.status}
             onChange={(e) => onStatusChange(pp.id, e.target.value)}
@@ -115,19 +118,23 @@ export default function RowItem({
             <option value="Passport Arrived">Passport Arrived</option>
             <option value="Collected">Collected</option>
           </select>
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={pp.fingerprints_completed}
-              onChange={() => onToggleFingerprints(pp.id, pp.fingerprints_completed)}
-              id={`fp-${pp.id}`}
-              className="h-3.5 w-3.5 text-green-600 focus:ring-green-500 border-gray-300 rounded cursor-pointer"
-            />
-            <label htmlFor={`fp-${pp.id}`} className="text-xs text-slate-600 cursor-pointer">Biometrics</label>
+          <div className="flex flex-col items-center gap-1">
+            <span className="text-[10px] text-slate-500 uppercase font-bold">Biometrics</span>
+            <button
+              onClick={() => onToggleFingerprints(pp.id, pp.fingerprints_completed)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 ${
+                pp.fingerprints_completed ? 'bg-green-600' : 'bg-gray-300'
+              }`}
+              role="switch"
+              aria-checked={pp.fingerprints_completed}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  pp.fingerprints_completed ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
           </div>
-          <button onClick={() => onViewHistory(item.id, item.tracking_number)} className="text-xs text-blue-600 hover:text-blue-700 font-medium">
-            View History
-          </button>
         </div>
       </td>
       <td className="p-5 text-right">
