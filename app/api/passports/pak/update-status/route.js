@@ -1,14 +1,14 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 
-// MAPPING UI LABELS TO DATABASE ENUM VALUES
-// Edit the values on the RIGHT to match your exact Database Enum strings
+// CONFIG: Map UI Status -> Database Status
+// If your DB fails on "Processing", change the right side to "In Progress"
 const DB_STATUS_MAP = {
-  'Pending Submission': 'pending',
-  'Biometrics Taken': 'biometrics_taken',
-  'Processing': 'processing',
-  'Passport Arrived': 'arrived',
-  'Collected': 'collected'
+  'Pending Submission': 'Pending Submission',
+  'Biometrics Taken': 'Biometrics Taken',
+  'Processing': 'Processing', // If DB error persists, change this to: 'In Progress'
+  'Passport Arrived': 'Passport Arrived',
+  'Collected': 'Collected'
 }
 
 export async function POST(request) {
@@ -25,9 +25,8 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Missing passportId or status' }, { status: 400 })
     }
 
-    // 1. Convert UI Status to DB Status
-    // If the map has a value, use it. Otherwise, try using the status as-is.
-    let dbStatus = DB_STATUS_MAP[status] || status
+    // 1. Resolve DB Status (fallback to provided status)
+    const dbStatus = DB_STATUS_MAP[status] || status
 
     // 2. Prepare Update Object
     const updateData = {
@@ -39,12 +38,17 @@ export async function POST(request) {
     if (newPassportNo !== undefined) updateData.new_passport_number = newPassportNo
     if (oldPassportReturned !== undefined) updateData.is_old_passport_returned = oldPassportReturned
     
-    // 3. Collection Validation
-    if (status === 'Collected' || dbStatus === 'collected') {
-      // Ensure we have a passport number either in this request or already in DB
+    // 3. Validation for Collection
+    if (status === 'Collected') {
       let hasNumber = !!newPassportNo
+      
+      // If number not provided in this request, check if it exists in DB
       if (!hasNumber) {
-         const { data } = await supabase.from('pakistani_passport_applications').select('new_passport_number').eq('id', passportId).single()
+         const { data } = await supabase
+            .from('pakistani_passport_applications')
+            .select('new_passport_number')
+            .eq('id', passportId)
+            .single()
          if (data?.new_passport_number) hasNumber = true
       }
       
@@ -53,13 +57,17 @@ export async function POST(request) {
       }
     }
 
-    // 4. Update Application
+    // 4. Perform Update
     const { error } = await supabase
       .from('pakistani_passport_applications')
       .update(updateData)
       .eq('id', passportId)
 
-    if (error) throw error
+    if (error) {
+        // Return the actual DB error to the UI so you can see it in the console
+        console.error('DB Update Error:', error)
+        return NextResponse.json({ error: `Database Error: ${error.message}` }, { status: 500 })
+    }
 
     // 5. Log History
     await supabase.from('pakistani_passport_status_history').insert({
