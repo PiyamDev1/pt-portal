@@ -51,6 +51,15 @@ export default function RowItem({ item, onOpenEdit, onUpdateRecord, onViewHistor
   const currentStepIdx = workflow.indexOf(pp.status || 'Pending Submission')
 
   const createdAt = item?.created_at || item?.applications?.created_at || pp?.created_at
+  const formatDate = (d: any) => {
+    try {
+      const dt = new Date(d)
+      if (isNaN(dt.getTime())) return ''
+      return dt.toISOString().slice(0, 10)
+    } catch {
+      return ''
+    }
+  }
 
   return (
     <tr className="hover:bg-slate-50 transition-colors">
@@ -65,7 +74,7 @@ export default function RowItem({ item, onOpenEdit, onUpdateRecord, onViewHistor
             <div className="text-xs text-slate-500 font-mono leading-tight">{item.applicants?.citizen_number}</div>
             {createdAt && (
               <div className="text-[11px] font-semibold text-orange-500 leading-tight">
-                Added: {new Date(createdAt).toLocaleDateString()}
+                Added: {formatDate(createdAt)}
               </div>
             )}
           </div>
