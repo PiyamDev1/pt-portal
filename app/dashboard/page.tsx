@@ -29,7 +29,7 @@ const ALL_MODULES = [
     desc: "Visa application tracking",
     icon: "🛂", 
     color: "bg-purple-600 text-white", 
-    href: "/dashboard/visas" 
+    href: "/dashboard/applications/visa" 
   },
   { 
     id: 'pak-passport', 
@@ -37,7 +37,7 @@ const ALL_MODULES = [
     desc: "Renewal & New Applications",
     icon: "🇵🇰", 
     color: "bg-green-800 text-white", // Dark Green
-    href: "/dashboard/passports/pak" 
+    href: "/dashboard/applications/passports" 
   },
   { 
     id: 'gb-passport', 
