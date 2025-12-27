@@ -171,7 +171,8 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
     if (!acc[headCnic]) {
       acc[headCnic] = { head: item.family_heads, members: [] }
     }
-    acc[headCnic].members.push(item)
+    const hasRealMember = !!(item.applicants || item.nadra_services)
+    if (hasRealMember) acc[headCnic].members.push(item)
     return acc
   }, {})
 

@@ -62,12 +62,19 @@ export default function LedgerTable({
             {/* ROWS */}
             <table className="w-full text-left text-sm">
               <tbody className="divide-y divide-slate-100">
+                {group.members.length === 0 && (
+                  <tr>
+                    <td className="p-6 text-slate-500 italic" colSpan={5}>
+                      No members yet. <button onClick={() => onAddMember(group.head)} className="underline text-blue-600 hover:text-blue-800 font-semibold">Add a member to this family head</button>.
+                    </td>
+                  </tr>
+                )}
                 {group.members.map((item: any) => {
                   const nadraRecord = getNadraRecord(item)
                   const details = getDetails(nadraRecord)
 
                   return (
-                    <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
+                    <tr key={item.id || `${headCnic}-placeholder` } className="hover:bg-slate-50/50 transition-colors">
                       <td className="p-4 pl-12 align-top">
                         <div className="flex items-start gap-3">
                           <span className="text-slate-300 font-light">¬</span>
