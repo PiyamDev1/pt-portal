@@ -1,81 +1,46 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
-import { Search, Plus, MoreHorizontal, User, Calendar, MapPin } from 'lucide-react'
+import { useState } from 'react'
+import { Plus, Search, MoreHorizontal, User, MapPin, Calendar } from 'lucide-react'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
+import VisaSlideOver from './components/VisaSlideOver'
 
 export default function VisasClient({ initialData, currentUserId }: any) {
   const router = useRouter()
   const [searchTerm, setSearchTerm] = useState('')
-  const [isModalOpen, setIsModalOpen] = useState(false)
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isSlideOpen, setIsSlideOpen] = useState(false)
+  const [editingItem, setEditingItem] = useState(null)
 
-  // Metadata for Dropdowns
-  const [countries, setCountries] = useState<any[]>([])
-  const [visaTypes, setVisaTypes] = useState<any[]>([])
-
-  // Form State
-  const [formData, setFormData] = useState({
-    applicantName: '',
-    applicantPassport: '',
-    countryId: '',
-    visaTypeId: '',
-    internalTrackingNo: '',
-    customerPrice: 0,
-    notes: ''
-  })
-
-  // Fetch Metadata on Mount
-  useEffect(() => {
-    fetch('/api/visas/metadata')
-      .then(res => res.json())
-      .then(data => {
-        setCountries(data.countries || [])
-        setVisaTypes(data.types || [])
-      })
-      .catch(err => console.error('Failed to load metadata:', err))
-  }, [])
-
-  const handleCreate = async () => {
-    if (!formData.applicantName || !formData.countryId) {
-      toast.error('Please fill required fields')
-      return
-    }
-    setIsSubmitting(true)
-
+  const handleSave = async (data: any) => {
     try {
-      const res = await fetch('/api/visas/add-application', {
+      const res = await fetch('/api/visas/save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...formData, currentUserId })
+        body: JSON.stringify(data)
       })
       const result = await res.json()
-
       if (!res.ok) throw new Error(result.error)
 
-      toast.success('Visa Application Created')
-      setIsModalOpen(false)
+      toast.success('Visa Application Saved')
+      setIsSlideOpen(false)
       router.refresh()
-      setFormData({
-        applicantName: '',
-        applicantPassport: '',
-        countryId: '',
-        visaTypeId: '',
-        internalTrackingNo: '',
-        customerPrice: 0,
-        notes: ''
-      })
     } catch (e: any) {
       toast.error(e.message)
-    } finally {
-      setIsSubmitting(false)
     }
   }
 
-  const filteredData = initialData.filter((item: any) =>
-    JSON.stringify(item).toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  const filtered = initialData.filter(item => {
+    const query = searchTerm.toLowerCase()
+    const fullName = `${item.applicants?.first_name || ''} ${item.applicants?.last_name || ''}`.toLowerCase()
+    const country = (item.visa_countries?.name || '').toLowerCase()
+    return (
+      fullName.includes(query) || 
+      country.includes(query) || 
+      (item.internal_tracking_number || '').toLowerCase().includes(query) ||
+      (item.passport_number_used || '').toLowerCase().includes(query)
+    )
+  })
 
   return (
     <div className="space-y-6">
@@ -91,7 +56,10 @@ export default function VisasClient({ initialData, currentUserId }: any) {
           />
         </div>
         <button
-          onClick={() => setIsModalOpen(true)}
+          onClick={() => {
+            setEditingItem(null)
+            setIsSlideOpen(true)
+          }}
           className="bg-purple-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-purple-700 shadow-md flex items-center gap-2"
         >
           <Plus className="w-5 h-5" /> New Visa
@@ -111,14 +79,14 @@ export default function VisasClient({ initialData, currentUserId }: any) {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {filteredData.length === 0 ? (
+            {filtered.length === 0 ? (
               <tr>
                 <td colSpan={5} className="p-12 text-center text-slate-400 italic">
                   No visa applications found.
                 </td>
               </tr>
             ) : (
-              filteredData.map((item: any) => (
+              filtered.map((item: any) => (
                 <tr key={item.id} className="hover:bg-slate-50 transition-colors">
                   <td className="p-5">
                     <div className="flex items-center gap-3">
@@ -158,7 +126,13 @@ export default function VisasClient({ initialData, currentUserId }: any) {
                     </span>
                   </td>
                   <td className="p-5 text-right">
-                    <button className="text-slate-400 hover:text-purple-600 transition">
+                    <button 
+                      onClick={() => {
+                        setEditingItem(item)
+                        setIsSlideOpen(true)
+                      }}
+                      className="text-slate-400 hover:text-purple-600 transition"
+                    >
                       <MoreHorizontal className="w-4 h-4" />
                     </button>
                   </td>
@@ -169,107 +143,14 @@ export default function VisasClient({ initialData, currentUserId }: any) {
         </table>
       </div>
 
-      {/* NEW VISA MODAL */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-lg rounded-2xl shadow-xl overflow-hidden">
-            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-              <h3 className="font-bold text-slate-800">New Visa Application</h3>
-              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-red-500">
-                ✕
-              </button>
-            </div>
-            <div className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase">Tracking No</label>
-                  <input
-                    className="w-full mt-1 p-2 border border-slate-200 rounded-lg text-sm"
-                    value={formData.internalTrackingNo}
-                    onChange={e =>
-                      setFormData({ ...formData, internalTrackingNo: e.target.value.toUpperCase() })
-                    }
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase">Passport No</label>
-                  <input
-                    className="w-full mt-1 p-2 border border-slate-200 rounded-lg text-sm"
-                    value={formData.applicantPassport}
-                    onChange={e =>
-                      setFormData({ ...formData, applicantPassport: e.target.value.toUpperCase() })
-                    }
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="text-xs font-bold text-slate-500 uppercase">Applicant Name</label>
-                <input
-                  className="w-full mt-1 p-2 border border-slate-200 rounded-lg text-sm"
-                  value={formData.applicantName}
-                  onChange={e => setFormData({ ...formData, applicantName: e.target.value })}
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase">Country</label>
-                  <select
-                    className="w-full mt-1 p-2 border border-slate-200 rounded-lg text-sm bg-white"
-                    value={formData.countryId}
-                    onChange={e => setFormData({ ...formData, countryId: e.target.value })}
-                  >
-                    <option value="">Select...</option>
-                    {countries.map(c => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase">Visa Type</label>
-                  <select
-                    className="w-full mt-1 p-2 border border-slate-200 rounded-lg text-sm bg-white"
-                    value={formData.visaTypeId}
-                    onChange={e => setFormData({ ...formData, visaTypeId: e.target.value })}
-                  >
-                    <option value="">Select...</option>
-                    {visaTypes.map(t => (
-                      <option key={t.id} value={t.id}>
-                        {t.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label className="text-xs font-bold text-slate-500 uppercase">Price (GBP)</label>
-                <input
-                  type="number"
-                  className="w-full mt-1 p-2 border border-slate-200 rounded-lg text-sm"
-                  value={formData.customerPrice}
-                  onChange={e => setFormData({ ...formData, customerPrice: parseFloat(e.target.value) })}
-                />
-              </div>
-            </div>
-            <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
-              <button
-                onClick={() => setIsModalOpen(false)}
-                className="px-4 py-2 text-slate-500 font-medium hover:bg-slate-100 rounded transition"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleCreate}
-                disabled={isSubmitting}
-                className="px-4 py-2 bg-purple-600 text-white rounded-lg font-bold hover:bg-purple-700 disabled:opacity-50 transition"
-              >
-                {isSubmitting ? 'Saving...' : 'Create Application'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* VISA SLIDE-OVER */}
+      <VisaSlideOver
+        isOpen={isSlideOpen}
+        onClose={() => setIsSlideOpen(false)}
+        data={editingItem}
+        currentUserId={currentUserId}
+        onSave={handleSave}
+      />
     </div>
   )
 }
