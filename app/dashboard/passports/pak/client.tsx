@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import RowItem from './components/RowItem'
 import EditModal from './components/EditModal'
 import HistoryModal from './components/HistoryModal'
+import ArrivalModal from './components/ArrivalModal'
 import NewApplicationForm from './components/NewApplicationForm'
 import { formatCNIC, getPassportRecord } from './components/utils'
 import type { PakApplicationFormData } from './components/types'
@@ -22,6 +23,8 @@ export default function PakPassportClient({ initialApplications, currentUserId }
   // Modals
   const [historyModal, setHistoryModal] = useState<any>(null)
   const [editModal, setEditModal] = useState<any>(null)
+  const [arrivalModal, setArrivalModal] = useState<any>(null)
+  const [newPassportNum, setNewPassportNum] = useState('')
   const [statusHistory, setStatusHistory] = useState<any[]>([])
   
   // Form Data
@@ -109,11 +112,38 @@ export default function PakPassportClient({ initialApplications, currentUserId }
   }
 
   const handleViewHistory = async (appId: string, trackingNo: string) => {
-     const data = await pakPassportApi.getStatusHistory(appId) // You might need passport ID here depending on your API
+     const data = await pakPassportApi.getStatusHistory(appId)
      if (data) {
         setStatusHistory(data.history || [])
         setHistoryModal({ trackingNumber: trackingNo })
      }
+  }
+
+  const handleOpenArrival = (item: any) => {
+    const pp = getPassportRecord(item)
+    setNewPassportNum(pp?.new_passport_number || '')
+    setArrivalModal({ passportId: pp?.id, trackingNumber: item.tracking_number })
+  }
+
+  const handleSaveArrival = async () => {
+    if (!newPassportNum.trim()) {
+      toast.error('Please enter a passport number')
+      return
+    }
+    const result = await pakPassportApi.updateStatus(
+      arrivalModal.passportId,
+      'Passport Arrived',
+      currentUserId,
+      { newPassportNo: newPassportNum }
+    )
+    if (result.ok) {
+      toast.success('Passport number saved')
+      setArrivalModal(null)
+      setNewPassportNum('')
+      router.refresh()
+    } else {
+      toast.error(result.error || 'Failed to save')
+    }
   }
 
   const filteredApps = initialApplications.filter((item: any) => 
@@ -158,20 +188,18 @@ export default function PakPassportClient({ initialApplications, currentUserId }
          <table className="w-full text-left border-collapse">
            <thead className="bg-slate-50 text-slate-500 text-[11px] uppercase tracking-wider font-bold border-b border-slate-200">
              <tr>
-               <th className="p-5">Applicant</th>
-               <th className="p-5">Passport Details</th>
-               <th className="p-5 w-48">Tracking History</th>
-               {/* NEW COLUMN */}
-               <th className="p-5 bg-blue-50/50 border-l border-r border-blue-100 w-64">
-                 Arrival & Collection
-               </th>
-               <th className="p-5 text-center">Current Status</th>
-               <th className="p-5 text-right">Actions</th>
+               <th className="p-4">Applicant</th>
+               <th className="p-4">Tracking Number</th>
+               <th className="p-4">Old Passport</th>
+               <th className="p-4">Passport Details</th>
+               <th className="p-4 bg-blue-50/50 border-l border-r border-blue-100">New Passport & Collection</th>
+               <th className="p-4 text-center">Status</th>
+               <th className="p-4 text-right">Actions</th>
              </tr>
            </thead>
            <tbody className="divide-y divide-slate-100">
              {filteredApps.length === 0 ? (
-                <tr><td colSpan={6} className="p-12 text-center text-slate-400 italic">No records found.</td></tr>
+                <tr><td colSpan={7} className="p-12 text-center text-slate-400 italic">No records found.</td></tr>
              ) : (
                 filteredApps.map((item: any) => (
                   <RowItem
@@ -180,6 +208,7 @@ export default function PakPassportClient({ initialApplications, currentUserId }
                     onOpenEdit={openEditModal}
                     onUpdateRecord={handleUpdateRecord}
                     onViewHistory={handleViewHistory}
+                    onOpenArrival={handleOpenArrival}
                   />
                 ))
              )}
@@ -203,6 +232,14 @@ export default function PakPassportClient({ initialApplications, currentUserId }
         onClose={() => setHistoryModal(null)}
         trackingNumber={historyModal?.trackingNumber}
         statusHistory={statusHistory}
+      />
+
+      <ArrivalModal
+        open={!!arrivalModal}
+        onClose={() => setArrivalModal(null)}
+        newPassportNum={newPassportNum}
+        setNewPassportNum={setNewPassportNum}
+        onSave={handleSaveArrival}
       />
     </div>
   )
