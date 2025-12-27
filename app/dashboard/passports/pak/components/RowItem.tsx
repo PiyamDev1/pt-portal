@@ -64,14 +64,19 @@ export default function RowItem({ item, onOpenEdit, onUpdateRecord, onViewHistor
   return (
     <tr className="hover:bg-slate-50 transition-colors">
       {/* Applicant */}
-      <td className="p-4">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
+      <td className="p-4 align-top">
+        <div className="flex items-start gap-3">
+          <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 mt-0.5">
             <User className="w-4 h-4" />
           </div>
-          <div>
-            <div className="font-semibold text-slate-800 text-sm">{item.applicants?.first_name} {item.applicants?.last_name}</div>
-            <div className="text-xs text-slate-500 font-mono">{item.applicants?.citizen_number}</div>
+          <div className="space-y-1">
+            <div className="font-semibold text-slate-800 text-sm leading-tight">{item.applicants?.first_name} {item.applicants?.last_name}</div>
+            <div className="text-xs text-slate-500 font-mono leading-tight">{item.applicants?.citizen_number}</div>
+            {item.created_at && (
+              <div className="text-[11px] font-semibold text-orange-500 leading-tight">
+                Added: {new Date(item.created_at).toLocaleDateString()}
+              </div>
+            )}
           </div>
         </div>
       </td>
@@ -97,7 +102,7 @@ export default function RowItem({ item, onOpenEdit, onUpdateRecord, onViewHistor
       </td>
 
       {/* Old & New Passport Combined */}
-      <td className="p-4 bg-blue-50/30 border-l border-r border-blue-100">
+      <td className="p-3 bg-blue-50/30 border-l border-r border-blue-100 align-top">
         <div className="space-y-3">
           {/* Old Passport Section */}
           {pp.old_passport_number && (
@@ -145,8 +150,8 @@ export default function RowItem({ item, onOpenEdit, onUpdateRecord, onViewHistor
         </div>
       </td>
 
-      {/* Passport Details */}
-      <td className="p-4">
+      {/* Passport Details + Status */}
+      <td className="p-4 align-top">
         <div className="space-y-2">
           <div className="text-sm font-medium text-slate-700">{pp.application_type}</div>
           <div className="text-xs text-slate-500">{pp.category}</div>
@@ -155,22 +160,21 @@ export default function RowItem({ item, onOpenEdit, onUpdateRecord, onViewHistor
           ) : (
             <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">NORMAL</span>
           )}
+          <div>
+            <label className="text-[10px] uppercase font-bold text-slate-500">Status</label>
+            <select 
+              value={pp.status || 'Pending Submission'}
+              onChange={(e) => handleStatusChange(e.target.value)}
+              className={`mt-1 text-xs font-bold px-2 py-1 rounded border-0 cursor-pointer outline-none focus:ring-2 focus:ring-offset-1 ${statusColors[pp.status] || 'bg-slate-100'}`}
+            >
+              <option value="Pending Submission">Pending Submission</option>
+              <option value="Biometrics Taken">Biometrics Taken</option>
+              <option value="Processing">Processing</option>
+              <option value="Passport Arrived">Passport Arrived</option>
+              <option value="Collected">Collected</option>
+            </select>
+          </div>
         </div>
-      </td>
-
-      {/* Status */}
-      <td className="p-4 text-center">
-        <select 
-          value={pp.status || 'Pending Submission'}
-          onChange={(e) => handleStatusChange(e.target.value)}
-          className={`text-xs font-bold px-2 py-1 rounded border-0 cursor-pointer outline-none focus:ring-2 focus:ring-offset-1 ${statusColors[pp.status] || 'bg-slate-100'}`}
-        >
-          <option value="Pending Submission">Pending Submission</option>
-          <option value="Biometrics Taken">Biometrics Taken</option>
-          <option value="Processing">Processing</option>
-          <option value="Passport Arrived">Passport Arrived</option>
-          <option value="Collected">Collected</option>
-        </select>
       </td>
 
       {/* Actions */}

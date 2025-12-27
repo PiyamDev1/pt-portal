@@ -190,15 +190,14 @@ export default function PakPassportClient({ initialApplications, currentUserId }
              <tr>
                <th className="p-4">Applicant</th>
                <th className="p-4">Tracking & Progress</th>
-               <th className="p-4 bg-blue-50/50 border-l border-r border-blue-100">Passports</th>
+               <th className="p-4 bg-blue-50/50 border-l border-r border-blue-100 w-56">Passports</th>
                <th className="p-4">Details</th>
-               <th className="p-4 text-center">Status</th>
                <th className="p-4 text-right">Actions</th>
              </tr>
            </thead>
-           <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-100">
              {filteredApps.length === 0 ? (
-                <tr><td colSpan={6} className="p-12 text-center text-slate-400 italic">No records found.</td></tr>
+               <tr><td colSpan={5} className="p-12 text-center text-slate-400 italic">No records found.</td></tr>
              ) : (
                 filteredApps.map((item: any) => (
                   <RowItem
