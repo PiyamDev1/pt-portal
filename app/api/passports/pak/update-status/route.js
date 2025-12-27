@@ -1,6 +1,16 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 
+// MAPPING UI LABELS TO DATABASE ENUM VALUES
+// Edit the values on the RIGHT to match your exact Database Enum strings
+const DB_STATUS_MAP = {
+  'Pending Submission': 'pending',
+  'Biometrics Taken': 'biometrics_taken',
+  'Processing': 'processing',
+  'Passport Arrived': 'arrived',
+  'Collected': 'collected'
+}
+
 export async function POST(request) {
   try {
     const supabase = createClient(
@@ -8,77 +18,59 @@ export async function POST(request) {
       process.env.SUPABASE_SERVICE_ROLE_KEY
     )
 
-    // FIX: Destructure the new fields passed from the frontend
-    const { 
-      passportId, 
-      status, 
-      userId, 
-      newPassportNo, 
-      oldPassportReturned 
-    } = await request.json()
+    const body = await request.json()
+    const { passportId, status, userId, newPassportNo, isCollected, oldPassportReturned } = body
 
     if (!passportId || !status) {
       return NextResponse.json({ error: 'Missing passportId or status' }, { status: 400 })
     }
 
-    // Prepare the update object
+    // 1. Convert UI Status to DB Status
+    // If the map has a value, use it. Otherwise, try using the status as-is.
+    let dbStatus = DB_STATUS_MAP[status] || status
+
+    // 2. Prepare Update Object
     const updateData = {
-      status: status,
+      status: dbStatus,
       employee_id: userId
     }
 
-    // FIX: Only add these to the update if they are defined (not null/undefined)
-    if (newPassportNo !== undefined) {
-      updateData.new_passport_number = newPassportNo
-    }
-    if (oldPassportReturned !== undefined) {
-      updateData.is_old_passport_returned = oldPassportReturned
-    }
-
-    // Guard: cannot mark as collected until new passport number is recorded
-    // FIX: Check for lowercase 'collected'
-    if (status.toLowerCase() === 'collected') {
-      // If we are passing the number right now, use it. Otherwise check DB.
-      const passportNumToCheck = newPassportNo || (
-        await supabase
-          .from('pakistani_passport_applications')
-          .select('new_passport_number')
-          .eq('id', passportId)
-          .single()
-      ).data?.new_passport_number
-
-      if (!passportNumToCheck) {
-        return NextResponse.json(
-          { error: 'Cannot mark as Collected until new passport number is recorded.' },
-          { status: 400 }
-        )
+    // Add optional fields if they exist
+    if (newPassportNo !== undefined) updateData.new_passport_number = newPassportNo
+    if (oldPassportReturned !== undefined) updateData.is_old_passport_returned = oldPassportReturned
+    
+    // 3. Collection Validation
+    if (status === 'Collected' || dbStatus === 'collected') {
+      // Ensure we have a passport number either in this request or already in DB
+      let hasNumber = !!newPassportNo
+      if (!hasNumber) {
+         const { data } = await supabase.from('pakistani_passport_applications').select('new_passport_number').eq('id', passportId).single()
+         if (data?.new_passport_number) hasNumber = true
+      }
+      
+      if (!hasNumber) {
+        return NextResponse.json({ error: 'Cannot mark Collected without Passport Number' }, { status: 400 })
       }
     }
 
+    // 4. Update Application
     const { error } = await supabase
       .from('pakistani_passport_applications')
-      .update(updateData) // FIX: Use the dynamic update object
+      .update(updateData)
       .eq('id', passportId)
 
     if (error) throw error
 
-    // Log to history table (works whether trigger exists or not)
-    const { error: historyError } = await supabase
-      .from('pakistani_passport_status_history')
-      .insert({
+    // 5. Log History
+    await supabase.from('pakistani_passport_status_history').insert({
         passport_application_id: passportId,
-        new_status: status,
+        new_status: status, // Log the readable UI status
         changed_by: userId
-      })
-
-    if (historyError) {
-      console.error('[PAK Status Update] History insert failed:', historyError.message)
-      // Don't fail the whole request if history logging fails
-    }
+    })
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('[PAK Status Update] Error:', error)
+    console.error('Update Error:', error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
