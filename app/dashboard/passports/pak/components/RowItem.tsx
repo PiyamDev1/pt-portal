@@ -1,6 +1,5 @@
 'use client'
 
-import { useState } from 'react'
 import { MoreHorizontal, User } from 'lucide-react'
 import { getPassportRecord } from './utils'
 
@@ -21,17 +20,22 @@ export default function RowItem({ item, onOpenEdit, onUpdateRecord, onViewHistor
     onUpdateRecord(pp.id, { status: newStatus })
   }
 
-  const handleCollectionChange = (checked: boolean) => {
-    onUpdateRecord(pp.id, { 
-      status: checked ? 'Collected' : 'Passport Arrived'
-    })
+  const confirmReturn = () => {
+    if (pp.is_old_passport_returned) return
+    const ok = window.confirm('Mark old passport as returned? This cannot be undone.')
+    if (!ok) return
+    onUpdateRecord(pp.id, { status: pp.status, oldPassportReturned: true })
   }
 
-  const handleOldPassportReturn = (checked: boolean) => {
-    onUpdateRecord(pp.id, { 
-      status: pp.status,
-      oldPassportReturned: checked
-    })
+  const confirmCollected = () => {
+    if (pp.status === 'Collected') return
+    if (!pp.new_passport_number) {
+      window.alert('Enter new passport number before marking collected.')
+      return
+    }
+    const ok = window.confirm('Mark as collected? This cannot be undone.')
+    if (!ok) return
+    onUpdateRecord(pp.id, { status: 'Collected' })
   }
 
   // Workflow progress
@@ -44,22 +48,7 @@ export default function RowItem({ item, onOpenEdit, onUpdateRecord, onViewHistor
   ]
   const currentStepIdx = workflow.indexOf(pp.status || 'Pending Submission')
 
-  // Toggle Switch Component
-  const ToggleSwitch = ({ checked, onChange, disabled = false }: any) => (
-    <button
-      onClick={() => !disabled && onChange(!checked)}
-      disabled={disabled}
-      className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors ${
-        checked ? 'bg-green-500' : 'bg-gray-300'
-      } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-    >
-      <span
-        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-          checked ? 'translate-x-5' : 'translate-x-0.5'
-        }`}
-      />
-    </button>
-  )
+  const createdAt = item?.created_at || item?.applications?.created_at || pp?.created_at
 
   return (
     <tr className="hover:bg-slate-50 transition-colors">
@@ -72,9 +61,9 @@ export default function RowItem({ item, onOpenEdit, onUpdateRecord, onViewHistor
           <div className="space-y-1">
             <div className="font-semibold text-slate-800 text-sm leading-tight">{item.applicants?.first_name} {item.applicants?.last_name}</div>
             <div className="text-xs text-slate-500 font-mono leading-tight">{item.applicants?.citizen_number}</div>
-            {item.created_at && (
+            {createdAt && (
               <div className="text-[11px] font-semibold text-orange-500 leading-tight">
-                Added: {new Date(item.created_at).toLocaleDateString()}
+                Added: {new Date(createdAt).toLocaleDateString()}
               </div>
             )}
           </div>
@@ -108,16 +97,19 @@ export default function RowItem({ item, onOpenEdit, onUpdateRecord, onViewHistor
           {pp.old_passport_number && (
             <div className="pb-2 border-b border-blue-200">
               <div className="text-[10px] font-bold text-slate-500 uppercase mb-1">Old Passport</div>
-              <div className="font-mono text-sm font-bold text-slate-700 mb-2">{pp.old_passport_number}</div>
-              <label className="flex items-center gap-2 text-xs cursor-pointer">
-                <ToggleSwitch 
-                  checked={!pp.is_old_passport_returned}
-                  onChange={(val) => handleOldPassportReturn(!val)}
-                />
-                <span className={!pp.is_old_passport_returned ? 'text-amber-600 font-medium' : 'text-green-700 font-medium'}>
-                  {!pp.is_old_passport_returned ? 'Pending Return' : 'Returned'}
-                </span>
-              </label>
+              <div className="flex items-center gap-2">
+                <div className="font-mono text-sm font-bold text-slate-700">{pp.old_passport_number}</div>
+                {pp.is_old_passport_returned ? (
+                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded">Returned</span>
+                ) : (
+                  <button
+                    onClick={confirmReturn}
+                    className="text-[10px] font-bold text-amber-700 bg-amber-100 border border-amber-200 px-2 py-0.5 rounded hover:bg-amber-200"
+                  >
+                    Mark Returned
+                  </button>
+                )}
+              </div>
             </div>
           )}
 
@@ -125,7 +117,19 @@ export default function RowItem({ item, onOpenEdit, onUpdateRecord, onViewHistor
           <div>
             <div className="text-[10px] font-bold text-slate-500 uppercase mb-1">New Passport</div>
             {pp.new_passport_number ? (
-              <div className="font-mono font-bold text-slate-700 text-sm mb-2">{pp.new_passport_number}</div>
+              <div className="flex items-center gap-2 mb-2">
+                <div className="font-mono font-bold text-slate-700 text-sm">{pp.new_passport_number}</div>
+                {pp.status === 'Collected' ? (
+                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded">Collected</span>
+                ) : (
+                  <button
+                    onClick={confirmCollected}
+                    className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded hover:bg-emerald-100"
+                  >
+                    Mark Collected
+                  </button>
+                )}
+              </div>
             ) : (
               <button
                 onClick={() => onOpenArrival(item)}
@@ -133,18 +137,6 @@ export default function RowItem({ item, onOpenEdit, onUpdateRecord, onViewHistor
               >
                 + Enter Passport #
               </button>
-            )}
-            
-            {pp.new_passport_number && (
-              <label className="flex items-center gap-2 text-xs cursor-pointer">
-                <ToggleSwitch 
-                  checked={pp.status === 'Collected'}
-                  onChange={handleCollectionChange}
-                />
-                <span className={pp.status === 'Collected' ? 'text-green-700 font-medium' : 'text-slate-600'}>
-                  {pp.status === 'Collected' ? 'Collected' : 'Pending Collection'}
-                </span>
-              </label>
             )}
           </div>
         </div>
