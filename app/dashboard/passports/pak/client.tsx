@@ -9,12 +9,12 @@ import { getPassportRecord } from './components/utils'
 import EditModal from './components/EditModal'
 import HistoryModal from './components/HistoryModal'
 
-// Status mapping to match backend
+// Status mapping to match backend (lowercase for DB)
 const STATUS_MAP = {
-  PENDING: 'Pending Submission',
-  PROCESSING: 'Processing',
-  ARRIVED: 'Passport Arrived',
-  COLLECTED: 'Collected',
+  PENDING: 'pending',
+  PROCESSING: 'processing',
+  ARRIVED: 'arrived',
+  COLLECTED: 'collected',
 }
 
 const STATUS_LABELS = {
@@ -69,10 +69,12 @@ export default function PakPassportClient({ initialApplications, currentUserId }
     }
   }
 
-  const handleReturnCustody = async (passportId: string) => {
-    if (!confirm('Confirm return of Old Passport?')) return
+  const handleReturnCustody = async (passportId: string, currentStatus: string, isReturned: boolean) => {
     const toastId = toast.loading('Updating custody...')
-    const result = await pakPassportApi.updateCustody(passportId, 'return_old', currentUserId)
+    // Toggle the returned status
+    const result = await pakPassportApi.updateStatus(passportId, currentStatus, currentUserId, {
+      oldPassportReturned: !isReturned
+    })
     
     if (result.ok) {
       toast.success('Custody updated', { id: toastId })
@@ -88,7 +90,7 @@ export default function PakPassportClient({ initialApplications, currentUserId }
       return
     }
     const toastId = toast.loading('Marking as collected...')
-    const result = await pakPassportApi.updateStatus(passportId, 'Collected', currentUserId)
+    const result = await pakPassportApi.updateStatus(passportId, STATUS_MAP.COLLECTED, currentUserId)
     
     if (result.ok) {
       toast.success('Marked as collected', { id: toastId })
@@ -97,7 +99,26 @@ export default function PakPassportClient({ initialApplications, currentUserId }
       toast.error(result.error || 'Failed', { id: toastId })
     }
   }
-
+  const handleNewPassportEntry = async (passportId: string, currentStatus: string, newNumber: string) => {
+    if (!newNumber || newNumber.length < 3) return
+    
+    // Auto-update to arrived status if not already
+    const targetStatus = [STATUS_MAP.ARRIVED, STATUS_MAP.COLLECTED].includes(currentStatus) 
+      ? currentStatus 
+      : STATUS_MAP.ARRIVED
+    
+    const toastId = toast.loading('Saving passport number...')
+    const result = await pakPassportApi.updateStatus(passportId, targetStatus, currentUserId, {
+      newPassportNo: newNumber
+    })
+    
+    if (result.ok) {
+      toast.success('Passport number saved', { id: toastId })
+      router.refresh()
+    } else {
+      toast.error(result.error || 'Failed', { id: toastId })
+    }
+  }
   const handleViewHistory = async (applicationId: string, trackingNumber: string) => {
     const data = await pakPassportApi.getStatusHistory(applicationId)
     if (data) {
@@ -164,11 +185,11 @@ export default function PakPassportClient({ initialApplications, currentUserId }
   // Mini tracking workflow component
   const MiniTracking = ({ pp }: any) => {
     const workflow = [
-      { key: 'pending', label: 'Pending', completed: pp?.status !== 'Pending Submission' },
+      { key: 'pending', label: 'Pending', completed: pp?.status !== STATUS_MAP.PENDING },
       { key: 'biometrics', label: 'Biometrics', completed: pp?.fingerprints_completed },
-      { key: 'processing', label: 'Processing', completed: ['Processing', 'Passport Arrived', 'Collected'].includes(pp?.status) },
+      { key: 'processing', label: 'Processing', completed: [STATUS_MAP.PROCESSING, STATUS_MAP.ARRIVED, STATUS_MAP.COLLECTED].includes(pp?.status) },
       { key: 'arrived', label: 'Arrived', completed: !!pp?.new_passport_number },
-      { key: 'collected', label: 'Collected', completed: pp?.status === 'Collected' }
+      { key: 'collected', label: 'Collected', completed: pp?.status === STATUS_MAP.COLLECTED }
     ]
 
     return (
@@ -348,9 +369,14 @@ export default function PakPassportClient({ initialApplications, currentUserId }
                             <input 
                               type="text" 
                               defaultValue={pp.new_passport_number}
+                              onBlur={(e) => {
+                                const val = e.target.value.trim()
+                                if (val && val !== pp.new_passport_number) {
+                                  handleNewPassportEntry(pp.id, pp.status, val)
+                                }
+                              }}
                               placeholder="Enter Number"
                               className="w-full pl-6 pr-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 bg-white font-mono"
-                              disabled
                             />
                           </div>
                         </div>
@@ -361,7 +387,7 @@ export default function PakPassportClient({ initialApplications, currentUserId }
                             <input 
                               type="checkbox" 
                               checked={!pp.old_passport_custody}
-                              onChange={() => handleReturnCustody(pp.id)}
+                              onChange={() => handleReturnCustody(pp.id, pp.status, !pp.old_passport_custody)}
                               id={`old-pp-${pp.id}`}
                               className="h-3.5 w-3.5 text-blue-600 rounded cursor-pointer"
                             />
@@ -375,14 +401,14 @@ export default function PakPassportClient({ initialApplications, currentUserId }
                         <div className="flex items-center pt-1 border-t border-blue-200/50">
                           <input 
                             type="checkbox" 
-                            checked={pp.status === 'Collected'}
+                            checked={pp.status === STATUS_MAP.COLLECTED}
                             disabled={!pp.new_passport_number}
                             onChange={() => handleMarkCollected(pp.id, !!pp.new_passport_number)}
                             id={`collected-${pp.id}`}
                             className="h-4 w-4 text-green-600 rounded cursor-pointer disabled:opacity-50"
                           />
                           <label htmlFor={`collected-${pp.id}`} className={`ml-2 text-sm font-medium ${
-                            pp.status === 'Collected' ? 'text-green-700' : 'text-gray-700'
+                            pp.status === STATUS_MAP.COLLECTED ? 'text-green-700' : 'text-gray-700'
                           }`}>
                             Collected by Customer
                           </label>

@@ -48,10 +48,10 @@ export const pakPassportApi = {
       body: JSON.stringify({ action: 'delete', id, authCode, userId }),
     }),
 
-  updateStatus: (passportId: string, status: string, userId: string | number) =>
+  updateStatus: (passportId: string, status: string, userId: string | number, extraData?: { newPassportNo?: string; oldPassportReturned?: boolean }) =>
     apiRequest('/api/passports/pak/update-status', {
       method: 'POST',
-      body: JSON.stringify({ passportId, status, userId }),
+      body: JSON.stringify({ passportId, status, userId, ...extraData }),
     }),
 
   updateCustody: (passportId: string, action: string, userId: string | number, newNumber?: string) =>

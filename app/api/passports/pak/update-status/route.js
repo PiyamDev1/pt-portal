@@ -8,26 +8,46 @@ export async function POST(request) {
       process.env.SUPABASE_SERVICE_ROLE_KEY
     )
 
-    const { passportId, status, userId } = await request.json()
+    // FIX: Destructure the new fields passed from the frontend
+    const { 
+      passportId, 
+      status, 
+      userId, 
+      newPassportNo, 
+      oldPassportReturned 
+    } = await request.json()
 
     if (!passportId || !status) {
       return NextResponse.json({ error: 'Missing passportId or status' }, { status: 400 })
     }
 
-    // Guard: cannot mark as Collected until new passport number is recorded
-    if (status === 'Collected') {
-      const { data: existing, error: fetchErr } = await supabase
-        .from('pakistani_passport_applications')
-        .select('id,new_passport_number')
-        .eq('id', passportId)
-        .single()
+    // Prepare the update object
+    const updateData = {
+      status: status,
+      employee_id: userId
+    }
 
-      if (fetchErr) {
-        console.error('[PAK Status Update] Fetch failed:', fetchErr.message)
-        return NextResponse.json({ error: 'Failed to validate record' }, { status: 500 })
-      }
+    // FIX: Only add these to the update if they are defined (not null/undefined)
+    if (newPassportNo !== undefined) {
+      updateData.new_passport_number = newPassportNo
+    }
+    if (oldPassportReturned !== undefined) {
+      updateData.is_old_passport_returned = oldPassportReturned
+    }
 
-      if (!existing?.new_passport_number) {
+    // Guard: cannot mark as collected until new passport number is recorded
+    // FIX: Check for lowercase 'collected'
+    if (status.toLowerCase() === 'collected') {
+      // If we are passing the number right now, use it. Otherwise check DB.
+      const passportNumToCheck = newPassportNo || (
+        await supabase
+          .from('pakistani_passport_applications')
+          .select('new_passport_number')
+          .eq('id', passportId)
+          .single()
+      ).data?.new_passport_number
+
+      if (!passportNumToCheck) {
         return NextResponse.json(
           { error: 'Cannot mark as Collected until new passport number is recorded.' },
           { status: 400 }
@@ -37,10 +57,7 @@ export async function POST(request) {
 
     const { error } = await supabase
       .from('pakistani_passport_applications')
-      .update({
-        status: status,
-        employee_id: userId
-      })
+      .update(updateData) // FIX: Use the dynamic update object
       .eq('id', passportId)
 
     if (error) throw error

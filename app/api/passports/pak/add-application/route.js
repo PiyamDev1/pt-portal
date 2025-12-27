@@ -56,7 +56,7 @@ export async function POST(request) {
       family_head_id: applicant.id, 
       applicant_id: applicant.id,
       submitted_by_employee_id: currentUserId,
-      status: 'In Progress'
+      status: 'pending'
     }).select('id').single()
 
     if (appError) {
@@ -77,7 +77,7 @@ export async function POST(request) {
       old_passport_number: oldPassportNumber || null,
       is_old_passport_returned: false,
       fingerprints_completed: fingerprintsCompleted || false,
-      status: 'In Progress'
+      status: 'pending'
     })
 
     if (ppError) {
