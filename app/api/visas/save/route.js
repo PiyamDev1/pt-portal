@@ -11,44 +11,22 @@ export async function POST(request) {
     )
 
     const body = await request.json()
-    const {
-      id, // If ID exists, it's an EDIT
-      applicantName,
-      applicantPassport,
-      applicantDob, // Added DOB
-      countryName,
-      visaTypeName, // We accept NAMES, not just IDs
-      validity,
-      internalTrackingNo,
-      customerPrice,
-      basePrice,
-      costCurrency,
-      isPartOfPackage, // Added Package Flag
-      currentUserId,
-      status
+    const { 
+      id, 
+      applicantName, applicantPassport, applicantDob,
+      countryId, // CHANGED: We now expect an ID, not a name
+      visaTypeName, // Visa Types remain dynamic
+      validity, internalTrackingNo,
+      customerPrice, basePrice, costCurrency,
+      isPartOfPackage, 
+      currentUserId, status
     } = body
 
-    // 1. DYNAMIC COUNTRY: Find or Create
-    let countryId = null
-    if (countryName) {
-      const { data: existingCountry } = await supabase
-        .from('visa_countries')
-        .select('id')
-        .ilike('name', countryName.trim()) // Case insensitive match
-        .single()
-
-      if (existingCountry) {
-        countryId = existingCountry.id
-      } else {
-        const { data: newCountry, error: cErr } = await supabase
-          .from('visa_countries')
-          .insert({ name: countryName.trim() }) // DB trigger/default should handle UUID
-          .select('id')
-          .single()
-        if (cErr) throw new Error(`Country Error: ${cErr.message}`)
-        countryId = newCountry.id
-      }
+    if (!countryId) {
+        return NextResponse.json({ error: "Please select a valid Country from the list." }, { status: 400 })
     }
+
+    
 
     // 2. DYNAMIC VISA TYPE: Find or Create
     let typeId = null
@@ -73,54 +51,48 @@ export async function POST(request) {
       }
     }
 
-    // 3. APPLICANT: Find or Create (by Passport)
-    // Passport number is required for visas
-    if (!applicantPassport) {
-      return NextResponse.json({ error: "Passport Number is required" }, { status: 400 })
-    }
+    // 2. APPLICANT LOGIC
+    let applicantId = null;
+    let query = supabase.from('applicants').select('id')
     
-    let applicantId = null
-    const { data: existingApp } = await supabase
-      .from('applicants')
-      .select('id')
-      .eq('passport_number', applicantPassport)
-      .single()
+    // Search by passport first, then name if passport is missing (legacy support)
+    if (applicantPassport) query = query.eq('passport_number', applicantPassport)
+    else query = query.eq('first_name', applicantName.split(' ')[0]).eq('last_name', applicantName.split(' ').slice(1).join(' ') || '.')
+    
+    const { data: existingApp } = await query.maybeSingle() // Use maybeSingle to avoid 406 error
 
     if (existingApp) {
-      applicantId = existingApp.id
-      // OPTIONAL: Update DOB/Name if missing? 
-      // For now, we just link.
+        applicantId = existingApp.id
     } else {
-      const nameParts = applicantName.split(' ')
-      const { data: newApp, error: aErr } = await supabase
-        .from('applicants')
-        .insert({
-          first_name: nameParts[0],
-          last_name: nameParts.slice(1).join(' ') || '.',
-          passport_number: applicantPassport,
-          dob: applicantDob || null // Save DOB
-        })
-        .select('id')
-        .single()
-      if (aErr) throw new Error(`Applicant Error: ${aErr.message}`)
-      applicantId = newApp.id
+        const nameParts = applicantName.split(' ')
+        const { data: newApp, error: aErr } = await supabase
+            .from('applicants')
+            .insert({
+                first_name: nameParts[0],
+                last_name: nameParts.slice(1).join(' ') || '.',
+                passport_number: applicantPassport,
+                dob: applicantDob || null
+            })
+            .select('id')
+            .single()
+        if (aErr) throw new Error(`Applicant Error: ${aErr.message}`)
+        applicantId = newApp.id
     }
 
-    // 4. SAVE APPLICATION (Insert or Update)
+    // 3. SAVE APPLICATION
     const payload = {
-      internal_tracking_number: internalTrackingNo,
-      applicant_id: applicantId,
-      visa_country_id: countryId,
-      visa_type_id: typeId,
-      validity: validity,
-      passport_number_used: applicantPassport,
-      customer_price: customerPrice || 0,
-      base_price: basePrice || 0,
-      cost_currency: costCurrency || 'GBP',
-      status: status || 'Pending',
-      is_part_of_package: isPartOfPackage || false, // Save Package Flag
-      employee_id: currentUserId,
-      notes: null // Removed notes as requested
+        internal_tracking_number: internalTrackingNo,
+        applicant_id: applicantId,
+        visa_country_id: countryId, // Using the ID from the dropdown
+        visa_type_id: typeId,
+        validity: validity,
+        passport_number_used: applicantPassport,
+        customer_price: customerPrice || 0,
+        base_price: basePrice || 0,
+        cost_currency: costCurrency || 'GBP',
+        status: status || 'Pending',
+        is_part_of_package: isPartOfPackage || false,
+        employee_id: currentUserId
     }
 
     if (id) {
