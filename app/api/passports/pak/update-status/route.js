@@ -14,6 +14,27 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Missing passportId or status' }, { status: 400 })
     }
 
+    // Guard: cannot mark as Collected until new passport number is recorded
+    if (status === 'Collected') {
+      const { data: existing, error: fetchErr } = await supabase
+        .from('pakistani_passport_applications')
+        .select('id,new_passport_number')
+        .eq('id', passportId)
+        .single()
+
+      if (fetchErr) {
+        console.error('[PAK Status Update] Fetch failed:', fetchErr.message)
+        return NextResponse.json({ error: 'Failed to validate record' }, { status: 500 })
+      }
+
+      if (!existing?.new_passport_number) {
+        return NextResponse.json(
+          { error: 'Cannot mark as Collected until new passport number is recorded.' },
+          { status: 400 }
+        )
+      }
+    }
+
     const { error } = await supabase
       .from('pakistani_passport_applications')
       .update({
