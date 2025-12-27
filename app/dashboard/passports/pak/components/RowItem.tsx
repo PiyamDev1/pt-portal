@@ -17,6 +17,8 @@ export default function RowItem({ item, onOpenEdit, onUpdateRecord, onViewHistor
   }
   
   const handleStatusChange = (newStatus: string) => {
+    if (pp.status === 'Collected') return
+    if (newStatus === 'Collected') return
     onUpdateRecord(pp.id, { status: newStatus })
   }
 
@@ -157,13 +159,14 @@ export default function RowItem({ item, onOpenEdit, onUpdateRecord, onViewHistor
             <select 
               value={pp.status || 'Pending Submission'}
               onChange={(e) => handleStatusChange(e.target.value)}
-              className={`mt-1 text-xs font-bold px-2 py-1 rounded border-0 cursor-pointer outline-none focus:ring-2 focus:ring-offset-1 ${statusColors[pp.status] || 'bg-slate-100'}`}
+              disabled={pp.status === 'Collected'}
+              className={`mt-1 text-xs font-bold px-2 py-1 rounded border-0 outline-none focus:ring-2 focus:ring-offset-1 ${pp.status === 'Collected' ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'} ${statusColors[pp.status] || 'bg-slate-100'}`}
             >
               <option value="Pending Submission">Pending Submission</option>
               <option value="Biometrics Taken">Biometrics Taken</option>
               <option value="Processing">Processing</option>
               <option value="Passport Arrived">Passport Arrived</option>
-              <option value="Collected">Collected</option>
+              <option value="Collected" disabled>Collected (set via button)</option>
             </select>
           </div>
         </div>
