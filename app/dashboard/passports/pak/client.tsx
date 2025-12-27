@@ -373,14 +373,20 @@ export default function PakPassportClient({ initialApplications, currentUserId }
                              )}
                            </div>
                            <div className="flex items-center">
-                             <input
-                               type="checkbox"
-                               checked={pp.status === 'Collected'}
-                               onChange={() => handleMarkCollected(pp.id)}
-                               disabled={!pp.new_passport_number}
-                               id={`collected-${pp.id}`}
-                               className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                             />
+                            <input
+                              type="checkbox"
+                              checked={pp.status === 'Collected'}
+                              onChange={(e) => {
+                                if (!pp.new_passport_number) {
+                                  toast.error('Enter new passport number first')
+                                  return
+                                }
+                                handleMarkCollected(pp.id)
+                              }}
+                              disabled={!pp.new_passport_number}
+                              id={`collected-${pp.id}`}
+                              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                            />
                              <label htmlFor={`collected-${pp.id}`} className={`ml-2 text-sm cursor-pointer ${!pp.new_passport_number ? 'text-slate-400' : 'text-slate-700'}`}>
                                Collected by Customer
                              </label>
