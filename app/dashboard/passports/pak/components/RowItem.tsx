@@ -36,10 +36,37 @@ export default function RowItem({
         </div>
       </td>
       <td className="p-5">
-        <MiniTracking steps={steps} currentStep={currentStep} />
+        <div className="space-y-2">
+          <div className="text-xs font-mono font-bold text-slate-600 bg-slate-100 px-2 py-1 rounded border border-slate-200 w-fit">
+            {item.tracking_number}
+          </div>
+          <MiniTracking steps={steps} currentStep={currentStep} />
+        </div>
       </td>
       <td className="p-5 bg-blue-50/30 border-l border-r border-blue-100">
         <div className="space-y-3">
+          {pp.old_passport_number && (
+            <div>
+              <label className="text-[10px] text-slate-500 uppercase font-bold block mb-1">Old Passport #</label>
+              <div className="flex items-center gap-2">
+                <div className="font-mono text-xs text-slate-600 bg-white px-2 py-1 rounded border border-slate-200 flex-1">
+                  {pp.old_passport_number}
+                </div>
+                {pp.old_passport_custody && (
+                  <button
+                    onClick={() => onReturnCustody(pp.id)}
+                    className="text-[10px] px-2 py-1 bg-amber-100 text-amber-700 rounded border border-amber-300 hover:bg-amber-200 font-bold"
+                    title="Mark as returned"
+                  >
+                    Return
+                  </button>
+                )}
+                {!pp.old_passport_custody && (
+                  <span className="text-[10px] text-green-600 font-bold">✓ Returned</span>
+                )}
+              </div>
+            </div>
+          )}
           <div>
             <label className="text-[10px] text-slate-500 uppercase font-bold block mb-1">New Passport #</label>
             {pp.new_passport_number ? (
@@ -78,9 +105,26 @@ export default function RowItem({
       </td>
       <td className="p-5 text-center">
         <div className="flex flex-col items-center gap-2">
-          <span className={`text-[10px] font-bold uppercase rounded-md py-1 px-2 border ${getStatusColor(pp.status)}`}>
-            {pp.status || 'Pending'}
-          </span>
+          <select
+            value={pp.status}
+            onChange={(e) => onStatusChange(pp.id, e.target.value)}
+            className={`text-xs font-bold uppercase rounded-md py-1 px-2 border cursor-pointer ${getStatusColor(pp.status)}`}
+          >
+            <option value="Pending Submission">Pending Submission</option>
+            <option value="Processing">Processing</option>
+            <option value="Passport Arrived">Passport Arrived</option>
+            <option value="Collected">Collected</option>
+          </select>
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={pp.fingerprints_completed}
+              onChange={() => onToggleFingerprints(pp.id, pp.fingerprints_completed)}
+              id={`fp-${pp.id}`}
+              className="h-3.5 w-3.5 text-green-600 focus:ring-green-500 border-gray-300 rounded cursor-pointer"
+            />
+            <label htmlFor={`fp-${pp.id}`} className="text-xs text-slate-600 cursor-pointer">Biometrics</label>
+          </div>
           <button onClick={() => onViewHistory(item.id, item.tracking_number)} className="text-xs text-blue-600 hover:text-blue-700 font-medium">
             View History
           </button>
