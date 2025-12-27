@@ -24,36 +24,12 @@ const ALL_MODULES = [
     href: "/dashboard/ticketing" 
   },
   { 
-    id: 'visas', 
-    title: "Visas", 
-    desc: "Visa application tracking",
-    icon: "🛂", 
-    color: "bg-purple-600 text-white", 
-    href: "/dashboard/applications/visa" 
-  },
-  { 
-    id: 'pak-passport', 
-    title: "PAK Passport", 
-    desc: "Renewal & New Applications",
-    icon: "🇵🇰", 
-    color: "bg-green-800 text-white", // Dark Green
-    href: "/dashboard/applications/passports" 
-  },
-  { 
     id: 'gb-passport', 
     title: "GB Passport", 
     desc: "British Passport Services",
     icon: "🇬🇧", 
     color: "bg-blue-900 text-white", // Navy Blue
     href: "/dashboard/passports/gb" 
-  },
-  { 
-    id: 'nadra', 
-    title: "Nadra Applications", 
-    desc: "NICOP & ID Cards",
-    icon: "🆔", 
-    color: "bg-green-500 text-white", // Light Green
-    href: "/dashboard/applications/nadra" 
   },
   { 
     id: 'commissions', 
