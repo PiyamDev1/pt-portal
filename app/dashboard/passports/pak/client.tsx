@@ -92,6 +92,7 @@ export default function PakPassportClient({ initialApplications, currentUserId }
       applicantName: `${item.applicants?.first_name} ${item.applicants?.last_name}`,
       applicantCnic: item.applicants?.citizen_number,
       trackingNumber: item.tracking_number,
+      oldPassportNumber: pp?.old_passport_number || '',
       applicationType: pp?.application_type,
       category: pp?.category,
       speed: pp?.speed,

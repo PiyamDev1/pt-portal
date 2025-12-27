@@ -46,17 +46,6 @@ export default function EditModal({
             </div>
           </div>
 
-          <div className="flex items-center gap-3 bg-blue-50 p-3 rounded-lg border border-blue-100">
-            <input
-              type="checkbox"
-              checked={editFormData.fingerprintsCompleted || false}
-              onChange={(e) => setEditFormData({ ...editFormData, fingerprintsCompleted: e.target.checked })}
-              className="h-5 w-5 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
-              id="edit_fp_check"
-            />
-            <label htmlFor="edit_fp_check" className="text-sm font-bold text-blue-800 cursor-pointer">Biometrics Completed?</label>
-          </div>
-
           <button onClick={onSubmit} className="w-full py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition">
             Update Record
           </button>
