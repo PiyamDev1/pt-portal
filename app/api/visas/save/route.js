@@ -15,6 +15,7 @@ export async function POST(request) {
       id, // If ID exists, it's an EDIT
       applicantName,
       applicantPassport,
+      applicantDob, // Added DOB
       countryName,
       visaTypeName, // We accept NAMES, not just IDs
       validity,
@@ -22,7 +23,7 @@ export async function POST(request) {
       customerPrice,
       basePrice,
       costCurrency,
-      notes,
+      isPartOfPackage, // Added Package Flag
       currentUserId,
       status
     } = body
@@ -61,6 +62,7 @@ export async function POST(request) {
       if (existingType) {
         typeId = existingType.id
       } else {
+        // New types default to 0 price unless edited later
         const { data: newType, error: tErr } = await supabase
           .from('visa_types')
           .insert({ name: visaTypeName.trim() })
@@ -72,6 +74,11 @@ export async function POST(request) {
     }
 
     // 3. APPLICANT: Find or Create (by Passport)
+    // Passport number is required for visas
+    if (!applicantPassport) {
+      return NextResponse.json({ error: "Passport Number is required" }, { status: 400 })
+    }
+    
     let applicantId = null
     const { data: existingApp } = await supabase
       .from('applicants')
@@ -81,6 +88,8 @@ export async function POST(request) {
 
     if (existingApp) {
       applicantId = existingApp.id
+      // OPTIONAL: Update DOB/Name if missing? 
+      // For now, we just link.
     } else {
       const nameParts = applicantName.split(' ')
       const { data: newApp, error: aErr } = await supabase
@@ -88,7 +97,8 @@ export async function POST(request) {
         .insert({
           first_name: nameParts[0],
           last_name: nameParts.slice(1).join(' ') || '.',
-          passport_number: applicantPassport
+          passport_number: applicantPassport,
+          dob: applicantDob || null // Save DOB
         })
         .select('id')
         .single()
@@ -107,10 +117,10 @@ export async function POST(request) {
       customer_price: customerPrice || 0,
       base_price: basePrice || 0,
       cost_currency: costCurrency || 'GBP',
-      notes: notes,
       status: status || 'Pending',
-      // Update employee to show who last modified it
-      employee_id: currentUserId
+      is_part_of_package: isPartOfPackage || false, // Save Package Flag
+      employee_id: currentUserId,
+      notes: null // Removed notes as requested
     }
 
     if (id) {

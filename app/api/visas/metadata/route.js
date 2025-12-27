@@ -10,14 +10,15 @@ export async function GET() {
       process.env.SUPABASE_SERVICE_ROLE_KEY
     )
 
-    const [{ data: countries }, { data: types }] = await Promise.all([
+    const [countries, types] = await Promise.all([
       supabase.from('visa_countries').select('id, name').order('name'),
-      supabase.from('visa_types').select('id, name').order('name')
+      // Fetch prices too
+      supabase.from('visa_types').select('id, name, default_cost, default_price').order('name')
     ])
 
     return NextResponse.json({
-      countries: countries || [],
-      types: types || []
+      countries: countries.data || [],
+      types: types.data || []
     })
   } catch (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })

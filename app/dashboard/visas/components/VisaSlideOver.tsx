@@ -1,56 +1,71 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { X, Save } from 'lucide-react'
+import { X, Save, Box } from 'lucide-react'
 
-export default function VisaSlideOver({ isOpen, onClose, data, currentUserId, onSave }: any) {
+export default function VisaSlideOver({ isOpen, onClose, data, currentUserId, onSave, metadata }: any) {
   const [formData, setFormData] = useState<any>({
     internalTrackingNo: '',
     applicantName: '',
     applicantPassport: '',
+    applicantDob: '',
     countryName: '',
     visaTypeName: '',
     validity: '',
     basePrice: 0,
     customerPrice: 0,
-    notes: '',
+    isPartOfPackage: false,
     status: 'Pending'
   })
 
-  // Load data when opening for Edit
   useEffect(() => {
     if (data) {
       setFormData({
         id: data.id,
         internalTrackingNo: data.internal_tracking_number,
         applicantName: `${data.applicants?.first_name} ${data.applicants?.last_name}`,
-        applicantPassport: data.passport_number_used || data.applicants?.passport_number,
+        applicantPassport: data.passport_number_used || data.applicants?.passport_number || '',
+        applicantDob: data.applicants?.dob || '',
         countryName: data.visa_countries?.name || '',
         visaTypeName: data.visa_types?.name || '',
         validity: data.validity || '',
         basePrice: data.base_price || 0,
         customerPrice: data.customer_price || 0,
-        notes: data.notes || '',
+        isPartOfPackage: data.is_part_of_package || false,
         status: data.status
       })
     } else {
-      // Reset for New Entry
       setFormData({
-        internalTrackingNo: '',
-        applicantName: '',
-        applicantPassport: '',
-        countryName: '',
-        visaTypeName: '',
-        validity: '',
-        basePrice: 0,
-        customerPrice: 0,
-        notes: '',
-        status: 'Pending'
+        internalTrackingNo: '', applicantName: '', applicantPassport: '', applicantDob: '',
+        countryName: '', visaTypeName: '', validity: '',
+        basePrice: 0, customerPrice: 0, isPartOfPackage: false, status: 'Pending'
       })
     }
   }, [data, isOpen])
 
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const profit = (formData.customerPrice || 0) - (formData.basePrice || 0)
+
+  // Auto-fill Prices and Validity when Visa Type is selected from list
+  const handleTypeChange = (val: string) => {
+     // Find the type in metadata
+     const matchedType = metadata?.types?.find((t: any) => t.name.toLowerCase() === val.toLowerCase());
+     
+     let updates: any = { visaTypeName: val };
+     
+     if (matchedType) {
+        // Only auto-fill if prices are currently 0 (don't overwrite custom edits)
+        if (formData.basePrice === 0) updates.basePrice = matchedType.default_cost;
+        if (formData.customerPrice === 0) updates.customerPrice = matchedType.default_price;
+        
+        // Auto-fill validity based on name hints (Simple logic)
+        if (!formData.validity) {
+            if (val.includes('90 days')) updates.validity = '90 Days';
+            if (val.includes('1yr')) updates.validity = '1 Year';
+            if (val.includes('30 days')) updates.validity = '30 Days';
+        }
+     }
+     
+     setFormData((prev: any) => ({ ...prev, ...updates }));
+  }
 
   const handleSubmit = async () => {
     setIsSubmitting(true)
@@ -69,11 +84,9 @@ export default function VisaSlideOver({ isOpen, onClose, data, currentUserId, on
         <div className="bg-purple-600 px-6 py-4 flex justify-between items-center text-white">
           <div>
             <h2 className="font-bold text-lg">{data ? 'Edit Visa Application' : 'New Visa Application'}</h2>
-            <p className="text-purple-200 text-xs">Enter details below. New Countries/Types will be auto-saved.</p>
+            <p className="text-purple-200 text-xs">Dynamic fields auto-save to database.</p>
           </div>
-          <button onClick={onClose} className="text-purple-200 hover:text-white">
-            <X className="w-5 h-5" />
-          </button>
+          <button onClick={onClose} className="text-purple-200 hover:text-white"><X /></button>
         </div>
 
         {/* SCROLLABLE FORM */}
@@ -109,14 +122,22 @@ export default function VisaSlideOver({ isOpen, onClose, data, currentUserId, on
                   placeholder="John Doe"
                 />
               </div>
+              <div className="col-span-2">
+                <label className="text-xs font-semibold text-slate-700">Date of Birth</label>
+                <input
+                  type="date"
+                  value={formData.applicantDob}
+                  onChange={e => setFormData({ ...formData, applicantDob: e.target.value })}
+                  className="w-full mt-1 p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 outline-none"
+                />
+              </div>
             </div>
           </div>
 
-          {/* Section 2: Visa Details (Dynamic) */}
+          {/* Section 2: Visa Details */}
           <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 space-y-4">
             <div className="flex justify-between items-center">
               <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Visa Details</h3>
-              <span className="text-[10px] bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">Dynamic Fields</span>
             </div>
             <div>
               <label className="text-xs font-semibold text-slate-700">Destination Country</label>
@@ -128,10 +149,7 @@ export default function VisaSlideOver({ isOpen, onClose, data, currentUserId, on
                 placeholder="Type to search or add new..."
               />
               <datalist id="countries">
-                <option value="Turkey" />
-                <option value="Dubai" />
-                <option value="United Kingdom" />
-                <option value="Schengen" />
+                {metadata?.countries?.map((c: any) => <option key={c.id} value={c.name} />)}
               </datalist>
             </div>
 
@@ -141,15 +159,12 @@ export default function VisaSlideOver({ isOpen, onClose, data, currentUserId, on
                 <input
                   list="visaTypes"
                   value={formData.visaTypeName}
-                  onChange={e => setFormData({ ...formData, visaTypeName: e.target.value })}
+                  onChange={e => handleTypeChange(e.target.value)}
                   className="w-full mt-1 p-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 outline-none"
                   placeholder="e.g. Tourist"
                 />
                 <datalist id="visaTypes">
-                  <option value="Tourist" />
-                  <option value="Business" />
-                  <option value="E-Visa" />
-                  <option value="Sticker" />
+                  {metadata?.types?.map((t: any) => <option key={t.id} value={t.name} />)}
                 </datalist>
               </div>
               <div>
@@ -161,6 +176,19 @@ export default function VisaSlideOver({ isOpen, onClose, data, currentUserId, on
                   placeholder="e.g. 90 Days"
                 />
               </div>
+            </div>
+
+            {/* Package Toggle */}
+            <div className="flex items-center gap-3 pt-2">
+              <div
+                onClick={() => setFormData({ ...formData, isPartOfPackage: !formData.isPartOfPackage })}
+                className={`w-5 h-5 rounded border cursor-pointer flex items-center justify-center transition-colors ${formData.isPartOfPackage ? 'bg-purple-600 border-purple-600' : 'bg-white border-slate-300'}`}
+              >
+                {formData.isPartOfPackage && <Box className="w-3 h-3 text-white" />}
+              </div>
+              <label className="text-sm text-slate-700 font-medium select-none cursor-pointer" onClick={() => setFormData({ ...formData, isPartOfPackage: !formData.isPartOfPackage })}>
+                Mark as part of a Package
+              </label>
             </div>
           </div>
 
@@ -181,7 +209,7 @@ export default function VisaSlideOver({ isOpen, onClose, data, currentUserId, on
                 </div>
               </div>
               <div>
-                <label className="text-xs font-semibold text-purple-700">Agency Price (Sold)</label>
+                <label className="text-xs font-semibold text-purple-700">Agency Price</label>
                 <div className="relative">
                   <span className="absolute left-2 top-1.5 text-purple-400 text-xs">£</span>
                   <input
@@ -193,23 +221,6 @@ export default function VisaSlideOver({ isOpen, onClose, data, currentUserId, on
                 </div>
               </div>
             </div>
-
-            {/* Profit Calculator */}
-            <div className={`p-3 rounded-lg flex justify-between items-center ${profit >= 0 ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
-              <span className="text-xs font-medium">Estimated Profit</span>
-              <span className="font-bold text-lg">£{profit.toFixed(2)}</span>
-            </div>
-          </div>
-
-          {/* Notes */}
-          <div>
-            <label className="text-xs font-semibold text-slate-700">Notes</label>
-            <textarea
-              value={formData.notes}
-              onChange={e => setFormData({ ...formData, notes: e.target.value })}
-              className="w-full mt-1 p-2 border border-slate-200 rounded-lg text-sm h-20 focus:ring-2 focus:ring-purple-500 outline-none"
-              placeholder="Checklist, reminders..."
-            />
           </div>
         </div>
 
