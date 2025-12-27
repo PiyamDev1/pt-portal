@@ -4,6 +4,9 @@ import { useState } from 'react'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
 import MiniTracking from './components/MiniTracking'
+import EditModal from './components/EditModal'
+import ArrivalModal from './components/ArrivalModal'
+import HistoryModal from './components/HistoryModal'
 import { formatCNIC, getStatusColor, getPassportRecord, getTrackingSteps, getCurrentStepIndex } from './components/utils'
 
 export default function PakPassportClient({ initialApplications, currentUserId }: any) {
@@ -381,151 +384,31 @@ export default function PakPassportClient({ initialApplications, currentUserId }
          </table>
       </div>
 
-      {/* EDIT MODAL */}
-      {editModal && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in">
-           <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl flex flex-col max-h-[90vh]">
-              <div className="p-6 border-b border-slate-100 flex justify-between items-center">
-                 <h3 className="font-bold text-lg text-slate-800">Edit Application</h3>
-                 <button onClick={() => setEditModal(false)} className="text-slate-400 hover:text-slate-600">✕</button>
-              </div>
-              
-              <div className="p-6 overflow-y-auto space-y-6">
-                  <div className="grid grid-cols-2 gap-4">
-                     <div className="col-span-2">
-                        <label className="text-[10px] uppercase font-bold text-slate-400">Applicant Name</label>
-                        <input className="w-full p-2 border rounded text-sm" value={editFormData.applicantName || ''} onChange={e => setEditFormData({...editFormData, applicantName: e.target.value})} />
-                     </div>
-                     <div>
-                        <label className="text-[10px] uppercase font-bold text-slate-400">CNIC</label>
-                        <input 
-                          className="w-full p-2 border rounded text-sm font-mono bg-gray-100 text-gray-500 cursor-not-allowed" 
-                          value={editFormData.applicantCnic || ''} 
-                          disabled={true}
-                          title="Citizen Number cannot be changed"
-                        />
-                     </div>
-                     <div>
-                        <label className="text-[10px] uppercase font-bold text-slate-400">Tracking #</label>
-                        <input className="w-full p-2 border rounded text-sm font-mono" value={editFormData.trackingNumber || ''} onChange={e => setEditFormData({...editFormData, trackingNumber: e.target.value.toUpperCase()})} />
-                     </div>
-                     <div>
-                        <label className="text-[10px] uppercase font-bold text-slate-400">Old Passport #</label>
-                        <input className="w-full p-2 border rounded text-sm font-mono" value={editFormData.oldPassportNumber || ''} onChange={e => setEditFormData({...editFormData, oldPassportNumber: e.target.value.toUpperCase()})} />
-                     </div>
-                     <div>
-                        <label className="text-[10px] uppercase font-bold text-slate-400">Speed</label>
-                        <select className="w-full p-2 border rounded text-sm" value={editFormData.speed || 'Normal'} onChange={e => setEditFormData({...editFormData, speed: e.target.value})}>
-                           <option>Normal</option><option>Executive</option>
-                        </select>
-                     </div>
-                  </div>
+      <EditModal
+        open={!!editModal}
+        onClose={() => setEditModal(false)}
+        editFormData={editFormData}
+        setEditFormData={setEditFormData}
+        deleteAuthCode={deleteAuthCode}
+        setDeleteAuthCode={setDeleteAuthCode}
+        onSubmit={handleEditSubmit}
+        onDelete={handleDelete}
+      />
 
-                  <div className="flex items-center gap-3 bg-blue-50 p-3 rounded-lg border border-blue-100">
-                    <input
-                      type="checkbox"
-                      checked={editFormData.fingerprintsCompleted || false}
-                      onChange={e => setEditFormData({...editFormData, fingerprintsCompleted: e.target.checked})}
-                      className="h-5 w-5 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
-                      id="edit_fp_check"
-                    />
-                    <label htmlFor="edit_fp_check" className="text-sm font-bold text-blue-800 cursor-pointer">Biometrics Completed?</label>
-                  </div>
+      <ArrivalModal
+        open={!!arrivalModal}
+        onClose={() => setArrivalModal(null)}
+        newPassportNum={newPassportNum}
+        setNewPassportNum={setNewPassportNum}
+        onSave={handleSaveNewPassport}
+      />
 
-                  <button onClick={handleEditSubmit} className="w-full py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition">
-                     Update Record
-                  </button>
-
-                  <div className="border-t border-red-100 pt-6 mt-6">
-                     <div className="bg-red-50 p-4 rounded-xl border border-red-100">
-                        <h4 className="text-xs font-bold text-red-700 uppercase mb-2">Danger Zone</h4>
-                        <p className="text-xs text-red-600 mb-3">Enter auth code to permanently delete this record.</p>
-                        <div className="flex gap-2">
-                           <input 
-                             type="password" 
-                             placeholder="Auth Code" 
-                             className="flex-1 p-2 border border-red-200 rounded text-sm bg-white"
-                             value={deleteAuthCode}
-                             onChange={e => setDeleteAuthCode(e.target.value)}
-                           />
-                           <button onClick={handleDelete} className="bg-white text-red-600 border border-red-200 px-4 py-2 rounded font-bold hover:bg-red-600 hover:text-white transition">
-                             Delete
-                           </button>
-                        </div>
-                     </div>
-                  </div>
-              </div>
-           </div>
-        </div>
-      )}
-
-      {/* ARRIVAL MODAL */}
-      {arrivalModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-           <div className="bg-white p-6 rounded-xl shadow-2xl w-full max-w-sm">
-              <h3 className="font-bold text-lg text-slate-800 mb-2">New Passport Arrived</h3>
-              <input className="w-full p-3 border rounded-lg font-mono text-lg mb-4 uppercase" placeholder="New Passport #" autoFocus value={newPassportNum} onChange={e => setNewPassportNum(e.target.value.toUpperCase())} />
-              <div className="flex gap-2"><button onClick={() => setArrivalModal(null)} className="flex-1 py-2 text-slate-500 font-bold">Cancel</button><button onClick={handleSaveNewPassport} className="flex-1 py-2 bg-blue-600 text-white font-bold rounded">Save</button></div>
-           </div>
-        </div>
-      )}
-
-      {/* STATUS HISTORY MODAL - Timeline View */}
-      {historyModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-           <div className="bg-white p-6 rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-y-auto">
-              <h3 className="font-bold text-xl text-slate-800 mb-1">Status Timeline</h3>
-              <p className="text-sm text-slate-500 mb-6">Tracking: <span className="font-mono font-bold text-slate-700">{historyModal.trackingNumber}</span></p>
-              
-              {statusHistory.length === 0 ? (
-                <p className="text-center text-slate-400 py-8">No status updates recorded yet.</p>
-              ) : (
-                <div className="relative">
-                  <div className="absolute left-6 top-3 bottom-3 w-0.5 bg-slate-200"></div>
-                  
-                  <div className="space-y-6">
-                    {statusHistory.map((entry: any, idx: number) => (
-                      <div key={entry.id || idx} className="relative pl-16">
-                        <div className={`absolute left-4 top-1 w-5 h-5 rounded-full border-4 border-white shadow-md ${
-                          idx === 0 ? 'bg-green-500' : 'bg-blue-400'
-                        }`}></div>
-                        
-                        <div className="bg-slate-50 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
-                          <div className="flex items-start justify-between mb-2">
-                            <div>
-                              <div className="font-bold text-lg text-slate-800">{entry.status}</div>
-                              {entry.description && (
-                                <div className="text-sm text-slate-600 mt-1">{entry.description}</div>
-                              )}
-                            </div>
-                            {idx === 0 && (
-                              <span className="bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded-full">Current</span>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-3 text-xs text-slate-500">
-                            {entry.changed_by && (
-                              <span className="flex items-center gap-1">
-                                <span className="font-medium text-slate-700">👤 {entry.changed_by}</span>
-                              </span>
-                            )}
-                            <span className="flex items-center gap-1">
-                              <span>🕒</span>
-                              <span>{entry.date ? new Date(entry.date).toLocaleString() : 'Unknown time'}</span>
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-              
-              <button onClick={() => setHistoryModal(null)} className="w-full mt-6 py-3 bg-slate-800 text-white font-bold rounded-lg hover:bg-slate-900 transition">
-                Close
-              </button>
-           </div>
-        </div>
-      )}
+      <HistoryModal
+        open={!!historyModal}
+        onClose={() => setHistoryModal(null)}
+        trackingNumber={historyModal?.trackingNumber}
+        statusHistory={statusHistory}
+      />
     </div>
   )
 }
