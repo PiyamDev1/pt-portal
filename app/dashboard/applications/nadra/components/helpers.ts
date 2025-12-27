@@ -39,6 +39,7 @@ export const getDetails = (nadra: any) => {
 export const countByStatus = (applications: any[], status: string): number => {
   return applications.filter((a: any) => {
     const nadra = getNadraRecord(a)
-    return (nadra?.status || 'Pending Submission') === status
+    if (!nadra) return false
+    return (nadra.status || 'Pending Submission') === status
   }).length
 }

@@ -1,4 +1,4 @@
-import { countByStatus } from './helpers'
+import { countByStatus, getNadraRecord } from './helpers'
 
 interface Stat {
   label: string
@@ -7,25 +7,26 @@ interface Stat {
 }
 
 export default function StatsOverview({ applications }: { applications: any[] }) {
+  const realApps = applications.filter((a: any) => !!getNadraRecord(a))
   const stats: Stat[] = [
     {
       label: 'Total Active',
-      count: applications.length,
+      count: realApps.length,
       color: 'bg-slate-800 text-white'
     },
     {
       label: 'Pending',
-      count: countByStatus(applications, 'Pending Submission'),
+      count: countByStatus(realApps, 'Pending Submission'),
       color: 'bg-amber-100 text-amber-700'
     },
     {
       label: 'In Progress',
-      count: countByStatus(applications, 'In Progress'),
+      count: countByStatus(realApps, 'In Progress'),
       color: 'bg-blue-100 text-blue-700'
     },
     {
       label: 'Completed',
-      count: countByStatus(applications, 'Completed'),
+      count: countByStatus(realApps, 'Completed'),
       color: 'bg-emerald-100 text-emerald-700'
     }
   ]
