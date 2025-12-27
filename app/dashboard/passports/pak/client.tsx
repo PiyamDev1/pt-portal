@@ -15,12 +15,30 @@ const formatCNIC = (value: string) => {
 // Helper: Status Color Mapping
 const getStatusColor = (status: string) => {
   switch (status) {
-    case 'Completed': return 'bg-emerald-100 text-emerald-800 border-emerald-200'
-    case 'In Progress': return 'bg-blue-100 text-blue-800 border-blue-200'
-    case 'Submitted': return 'bg-purple-100 text-purple-800 border-purple-200'
+    case 'Collected': return 'bg-emerald-100 text-emerald-800 border-emerald-200'
+    case 'Passport Arrived': return 'bg-indigo-100 text-indigo-800 border-indigo-200'
+    case 'Processing': return 'bg-yellow-100 text-yellow-800 border-yellow-200'
+    case 'Biometrics Taken': return 'bg-blue-100 text-blue-800 border-blue-200'
+    case 'Pending Submission': return 'bg-gray-100 text-gray-800 border-gray-200'
     case 'Cancelled': return 'bg-red-100 text-red-800 border-red-200'
     default: return 'bg-amber-50 text-amber-800 border-amber-200'
   }
+}
+
+// Mini Vertical Stepper Component
+const MiniTracking = ({ steps, currentStep }: { steps: any[], currentStep: number }) => {
+  return (
+    <div className="flex flex-col space-y-1">
+      {steps.map((step: any, idx: number) => (
+        <div key={idx} className="flex items-center space-x-2">
+          <div className={`w-1.5 h-1.5 rounded-full ${idx <= currentStep ? 'bg-blue-600' : 'bg-gray-200'}`}></div>
+          <span className={`text-[10px] uppercase tracking-wider ${idx <= currentStep ? 'text-gray-700 font-semibold' : 'text-gray-400'}`}>
+            {step.status}
+          </span>
+        </div>
+      ))}
+    </div>
+  )
 }
 
 // Normalize passport join (array vs object)
@@ -58,6 +76,25 @@ export default function PakPassportClient({ initialApplications, currentUserId }
     oldPassportNumber: '',
     fingerprintsCompleted: false
   })
+
+  // Tracking workflow helper functions
+  const getTrackingSteps = (pp: any) => {
+    return [
+      { status: 'Pending', completed: pp?.status !== 'Pending Submission' },
+      { status: 'Biometrics', completed: pp?.fingerprints_completed },
+      { status: 'Processing', completed: ['Processing', 'Passport Arrived', 'Collected'].includes(pp?.status) },
+      { status: 'Arrived', completed: !!pp?.new_passport_number },
+      { status: 'Collected', completed: pp?.status === 'Collected' }
+    ]
+  }
+
+  const getCurrentStepIndex = (pp: any) => {
+    if (pp?.status === 'Collected') return 4
+    if (pp?.new_passport_number) return 3
+    if (['Processing', 'Passport Arrived'].includes(pp?.status)) return 2
+    if (pp?.fingerprints_completed) return 1
+    return 0
+  }
 
   // --- HANDLERS ---
   const handleInputChange = (e: any) => {
@@ -177,47 +214,6 @@ export default function PakPassportClient({ initialApplications, currentUserId }
     } catch (e) { toast.error('Error deleting record', { id: toastId }) }
   }
 
-  // --- EXISTING HANDLERS ---
-  const handleReturnCustody = async (passportId: string) => {
-    if (!confirm('Confirm return of Old Passport?')) return
-    const toastId = toast.loading('Updating custody...')
-    try {
-      const res = await fetch('/api/passports/pak/update-custody', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ passportId, action: 'return_old', userId: currentUserId })
-      })
-      if (res.ok) { toast.success('Custody updated', { id: toastId }); router.refresh(); } 
-      else { toast.error('Failed', { id: toastId }); }
-    } catch (e) { toast.error('Error', { id: toastId }) }
-  }
-
-  const handleToggleFingerprints = async (passportId: string, currentStatus: boolean) => {
-    const toastId = toast.loading('Updating...')
-    try {
-      const res = await fetch('/api/passports/pak/update-custody', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ passportId, action: 'toggle_fingerprints', userId: currentUserId })
-      })
-      if (res.ok) { toast.success('Updated', { id: toastId }); router.refresh(); }
-      else { toast.error('Failed', { id: toastId }); }
-    } catch (e) { toast.error('Error', { id: toastId }) }
-  }
-
-  const handleStatusChange = async (passportId: string, newStatus: string) => {
-    const toastId = toast.loading('Updating status...')
-    try {
-      const res = await fetch('/api/passports/pak/update-status', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ passportId, status: newStatus, userId: currentUserId })
-      })
-      if (res.ok) { toast.success('Status updated', { id: toastId }); router.refresh(); }
-      else { toast.error('Failed', { id: toastId }); }
-    } catch (e) { toast.error('Error', { id: toastId }) }
-  }
-
   const handleViewHistory = async (applicationId: string, trackingNumber: string) => {
     try {
       const res = await fetch(`/api/passports/pak/status-history?applicationId=${applicationId}`)
@@ -231,7 +227,8 @@ export default function PakPassportClient({ initialApplications, currentUserId }
   
   const handleSaveNewPassport = async () => {
     if (!newPassportNum) return toast.error('Enter new passport number')
-    const ppId = getPassportRecord(arrivalModal)?.id
+    const item = arrivalModal
+    const ppId = getPassportRecord(item)?.id
     try {
       const res = await fetch('/api/passports/pak/update-custody', {
         method: 'POST',
@@ -241,6 +238,19 @@ export default function PakPassportClient({ initialApplications, currentUserId }
       if (res.ok) { toast.success('Recorded'); setArrivalModal(null); setNewPassportNum(''); router.refresh(); }
       else { toast.error('Failed'); }
     } catch(e) { toast.error('Error') }
+  }
+
+  const handleMarkCollected = async (passportId: string) => {
+    const toastId = toast.loading('Marking as collected...')
+    try {
+      const res = await fetch('/api/passports/pak/update-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ passportId, status: 'Collected', userId: currentUserId })
+      })
+      if (res.ok) { toast.success('Marked as collected', { id: toastId }); router.refresh(); }
+      else { toast.error('Failed', { id: toastId }); }
+    } catch (e) { toast.error('Error', { id: toastId }) }
   }
 
   const filteredApps = initialApplications.filter((item: any) => 
@@ -309,9 +319,9 @@ export default function PakPassportClient({ initialApplications, currentUserId }
              <tr>
                <th className="p-5">Applicant</th>
                <th className="p-5">Passport Details</th>
-               <th className="p-5 text-center">Biometrics</th>
-               <th className="p-5">Custody</th>
-               <th className="p-5">Tracking & Status</th>
+               <th className="p-5 w-48">Tracking History</th>
+               <th className="p-5 bg-blue-50/50 border-l border-r border-blue-100 w-56">Arrival & Collection</th>
+               <th className="p-5 text-center">Current Status</th>
                <th className="p-5 text-right">Actions</th>
              </tr>
            </thead>
@@ -322,6 +332,9 @@ export default function PakPassportClient({ initialApplications, currentUserId }
                 filteredApps.map((item: any) => {
                    const pp = getPassportRecord(item)
                    if (!pp) return null
+                   const steps = getTrackingSteps(pp)
+                   const currentStep = getCurrentStepIndex(pp)
+                   
                    return (
                      <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
                        <td className="p-5">
@@ -329,50 +342,59 @@ export default function PakPassportClient({ initialApplications, currentUserId }
                          <div className="text-xs text-slate-500 font-mono mt-1">{item.applicants?.citizen_number}</div>
                        </td>
                        <td className="p-5">
-                         <div className="flex items-center gap-2 mb-1">
+                         <div className="flex flex-col gap-1.5">
                            <span className="font-bold text-slate-700">{pp.application_type}</span>
-                           {pp.speed === 'Executive' && <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-bold">EXEC</span>}
-                         </div>
-                         <div className="text-xs text-slate-500">{pp.category} • {pp.page_count}</div>
-                       </td>
-                       <td className="p-5 text-center align-middle">
-                         <div onClick={() => handleToggleFingerprints(pp.id, pp.fingerprints_completed)} className={`w-8 h-8 mx-auto rounded-full flex items-center justify-center cursor-pointer transition ${pp.fingerprints_completed ? 'bg-green-100 text-green-600' : 'bg-slate-100 text-slate-300 hover:bg-slate-200'}`}>
-                           <span className="text-lg">{pp.fingerprints_completed ? '✓' : '•'}</span>
+                           {pp.speed === 'Executive' ? (
+                             <span className="text-[10px] bg-purple-100 text-purple-700 px-2 py-0.5 rounded font-bold border border-purple-200 w-fit">Executive</span>
+                           ) : (
+                             <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-medium border border-slate-200 w-fit">Normal</span>
+                           )}
+                           <div className="text-xs text-slate-500">{pp.category} • {pp.page_count}</div>
                          </div>
                        </td>
                        <td className="p-5">
-                         {pp.old_passport_number ? (
+                         <MiniTracking steps={steps} currentStep={currentStep} />
+                       </td>
+                       <td className="p-5 bg-blue-50/30 border-l border-r border-blue-100">
+                         <div className="space-y-3">
                            <div>
-                             <div className="font-mono text-slate-600 font-bold text-sm">{pp.old_passport_number}</div>
-                             {pp.is_old_passport_returned ? (
-                               <span className="inline-block mt-1 text-[10px] bg-green-50 text-green-700 px-2 py-0.5 rounded border border-green-100">Returned</span>
+                             <label className="text-[10px] text-slate-500 uppercase font-bold block mb-1">New Passport #</label>
+                             {pp.new_passport_number ? (
+                               <div className="font-mono text-sm font-bold text-slate-700 bg-white px-2 py-1.5 rounded border border-slate-200">
+                                 {pp.new_passport_number}
+                               </div>
                              ) : (
-                               <button onClick={() => handleReturnCustody(pp?.id)} className="mt-1 text-[10px] bg-amber-50 text-amber-700 px-2 py-0.5 rounded border border-amber-200 hover:bg-amber-100 font-bold">
-                                 ⚠ In Custody
+                               <button
+                                 onClick={() => setArrivalModal(item)}
+                                 className="w-full text-left px-2 py-1.5 text-sm border border-dashed border-slate-300 rounded text-slate-400 hover:border-blue-400 hover:text-blue-600 transition bg-white"
+                               >
+                                 Enter Number
                                </button>
                              )}
                            </div>
-                         ) : <span className="text-slate-300 text-xs italic">None</span>}
+                           <div className="flex items-center">
+                             <input
+                               type="checkbox"
+                               checked={pp.status === 'Collected'}
+                               onChange={() => handleMarkCollected(pp.id)}
+                               disabled={!pp.new_passport_number}
+                               id={`collected-${pp.id}`}
+                               className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                             />
+                             <label htmlFor={`collected-${pp.id}`} className={`ml-2 text-sm cursor-pointer ${!pp.new_passport_number ? 'text-slate-400' : 'text-slate-700'}`}>
+                               Collected by Customer
+                             </label>
+                           </div>
+                         </div>
                        </td>
-                       <td className="p-5">
-                         <div className="flex flex-col gap-2">
-                           <button onClick={() => handleViewHistory(item.id, item.tracking_number)} className="text-left group">
-                             <span className="font-mono text-sm font-bold text-slate-700 bg-slate-100 px-2 py-1 rounded border border-slate-200 group-hover:border-blue-300 group-hover:text-blue-600 transition">
-                               {item.tracking_number}
-                             </span>
+                       <td className="p-5 text-center">
+                         <div className="flex flex-col items-center gap-2">
+                           <span className={`text-[10px] font-bold uppercase rounded-md py-1 px-2 border ${getStatusColor(pp.status)}`}>
+                             {pp.status || 'Pending'}
+                           </span>
+                           <button onClick={() => handleViewHistory(item.id, item.tracking_number)} className="text-xs text-blue-600 hover:text-blue-700 font-medium">
+                             View History
                            </button>
-                           
-                           <select
-                             value={pp.status || 'Pending Submission'}
-                             onChange={(e) => handleStatusChange(pp.id, e.target.value)}
-                             className={`text-[10px] font-bold uppercase rounded-md py-1 pl-2 pr-6 cursor-pointer border-0 ring-1 ring-inset focus:ring-2 w-fit ${getStatusColor(pp.status)}`}
-                           >
-                             <option value="Pending Submission">Pending</option>
-                             <option value="Submitted">Submitted</option>
-                             <option value="In Progress">Processing</option>
-                             <option value="Completed">Completed</option>
-                             <option value="Cancelled">Cancelled</option>
-                           </select>
                          </div>
                        </td>
                        <td className="p-5 text-right">
@@ -384,15 +406,6 @@ export default function PakPassportClient({ initialApplications, currentUserId }
                             >
                               ✏️
                             </button>
-                            {!pp.new_passport_number && (
-                              <button 
-                                onClick={() => setArrivalModal(item)}
-                                className="w-8 h-8 flex items-center justify-center rounded-lg bg-blue-50 border border-blue-100 text-blue-600 hover:bg-blue-100 transition"
-                                title="Record Arrival"
-                              >
-                                📥
-                              </button>
-                            )}
                          </div>
                        </td>
                      </tr>
@@ -413,53 +426,69 @@ export default function PakPassportClient({ initialApplications, currentUserId }
               </div>
               
               <div className="p-6 overflow-y-auto space-y-6">
-                 <div className="grid grid-cols-2 gap-4">
-                    <div className="col-span-2">
-                       <label className="text-[10px] uppercase font-bold text-slate-400">Applicant Name</label>
-                       <input className="w-full p-2 border rounded text-sm" value={editFormData.applicantName || ''} onChange={e => setEditFormData({...editFormData, applicantName: e.target.value})} />
-                    </div>
-                    <div>
-                       <label className="text-[10px] uppercase font-bold text-slate-400">CNIC</label>
-                       <input className="w-full p-2 border rounded text-sm font-mono" value={editFormData.applicantCnic || ''} onChange={e => setEditFormData({...editFormData, applicantCnic: formatCNIC(e.target.value)})} />
-                    </div>
-                    <div>
-                       <label className="text-[10px] uppercase font-bold text-slate-400">Tracking #</label>
-                       <input className="w-full p-2 border rounded text-sm font-mono" value={editFormData.trackingNumber || ''} onChange={e => setEditFormData({...editFormData, trackingNumber: e.target.value.toUpperCase()})} />
-                    </div>
-                    <div>
-                       <label className="text-[10px] uppercase font-bold text-slate-400">Old Passport #</label>
-                       <input className="w-full p-2 border rounded text-sm font-mono" value={editFormData.oldPassportNumber || ''} onChange={e => setEditFormData({...editFormData, oldPassportNumber: e.target.value.toUpperCase()})} />
-                    </div>
-                    <div>
-                       <label className="text-[10px] uppercase font-bold text-slate-400">Speed</label>
-                       <select className="w-full p-2 border rounded text-sm" value={editFormData.speed || 'Normal'} onChange={e => setEditFormData({...editFormData, speed: e.target.value})}>
-                          <option>Normal</option><option>Executive</option>
-                       </select>
-                    </div>
-                 </div>
+                  <div className="grid grid-cols-2 gap-4">
+                     <div className="col-span-2">
+                        <label className="text-[10px] uppercase font-bold text-slate-400">Applicant Name</label>
+                        <input className="w-full p-2 border rounded text-sm" value={editFormData.applicantName || ''} onChange={e => setEditFormData({...editFormData, applicantName: e.target.value})} />
+                     </div>
+                     <div>
+                        <label className="text-[10px] uppercase font-bold text-slate-400">CNIC</label>
+                        <input 
+                          className="w-full p-2 border rounded text-sm font-mono bg-gray-100 text-gray-500 cursor-not-allowed" 
+                          value={editFormData.applicantCnic || ''} 
+                          disabled={true}
+                          title="Citizen Number cannot be changed"
+                        />
+                     </div>
+                     <div>
+                        <label className="text-[10px] uppercase font-bold text-slate-400">Tracking #</label>
+                        <input className="w-full p-2 border rounded text-sm font-mono" value={editFormData.trackingNumber || ''} onChange={e => setEditFormData({...editFormData, trackingNumber: e.target.value.toUpperCase()})} />
+                     </div>
+                     <div>
+                        <label className="text-[10px] uppercase font-bold text-slate-400">Old Passport #</label>
+                        <input className="w-full p-2 border rounded text-sm font-mono" value={editFormData.oldPassportNumber || ''} onChange={e => setEditFormData({...editFormData, oldPassportNumber: e.target.value.toUpperCase()})} />
+                     </div>
+                     <div>
+                        <label className="text-[10px] uppercase font-bold text-slate-400">Speed</label>
+                        <select className="w-full p-2 border rounded text-sm" value={editFormData.speed || 'Normal'} onChange={e => setEditFormData({...editFormData, speed: e.target.value})}>
+                           <option>Normal</option><option>Executive</option>
+                        </select>
+                     </div>
+                  </div>
 
-                 <button onClick={handleEditSubmit} className="w-full py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition">
-                    Update Record
-                 </button>
+                  <div className="flex items-center gap-3 bg-blue-50 p-3 rounded-lg border border-blue-100">
+                    <input
+                      type="checkbox"
+                      checked={editFormData.fingerprintsCompleted || false}
+                      onChange={e => setEditFormData({...editFormData, fingerprintsCompleted: e.target.checked})}
+                      className="h-5 w-5 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
+                      id="edit_fp_check"
+                    />
+                    <label htmlFor="edit_fp_check" className="text-sm font-bold text-blue-800 cursor-pointer">Biometrics Completed?</label>
+                  </div>
 
-                 <div className="border-t border-red-100 pt-6 mt-6">
-                    <div className="bg-red-50 p-4 rounded-xl border border-red-100">
-                       <h4 className="text-xs font-bold text-red-700 uppercase mb-2">Danger Zone</h4>
-                       <p className="text-xs text-red-600 mb-3">Enter auth code to permanently delete this record.</p>
-                       <div className="flex gap-2">
-                          <input 
-                            type="password" 
-                            placeholder="Auth Code" 
-                            className="flex-1 p-2 border border-red-200 rounded text-sm bg-white"
-                            value={deleteAuthCode}
-                            onChange={e => setDeleteAuthCode(e.target.value)}
-                          />
-                          <button onClick={handleDelete} className="bg-white text-red-600 border border-red-200 px-4 py-2 rounded font-bold hover:bg-red-600 hover:text-white transition">
-                            Delete
-                          </button>
-                       </div>
-                    </div>
-                 </div>
+                  <button onClick={handleEditSubmit} className="w-full py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition">
+                     Update Record
+                  </button>
+
+                  <div className="border-t border-red-100 pt-6 mt-6">
+                     <div className="bg-red-50 p-4 rounded-xl border border-red-100">
+                        <h4 className="text-xs font-bold text-red-700 uppercase mb-2">Danger Zone</h4>
+                        <p className="text-xs text-red-600 mb-3">Enter auth code to permanently delete this record.</p>
+                        <div className="flex gap-2">
+                           <input 
+                             type="password" 
+                             placeholder="Auth Code" 
+                             className="flex-1 p-2 border border-red-200 rounded text-sm bg-white"
+                             value={deleteAuthCode}
+                             onChange={e => setDeleteAuthCode(e.target.value)}
+                           />
+                           <button onClick={handleDelete} className="bg-white text-red-600 border border-red-200 px-4 py-2 rounded font-bold hover:bg-red-600 hover:text-white transition">
+                             Delete
+                           </button>
+                        </div>
+                     </div>
+                  </div>
               </div>
            </div>
         </div>
