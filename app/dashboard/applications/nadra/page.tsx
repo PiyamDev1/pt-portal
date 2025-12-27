@@ -39,7 +39,7 @@ export default async function NadraPage() {
       family_head_id,
       family_heads:applicants!applications_family_head_id_fkey ( first_name, last_name, citizen_number ),
       applicants!applications_applicant_id_fkey ( id, first_name, last_name, citizen_number, email ),
-      nadra_services (
+      nadra_services!inner (
         id,
         service_type,
         status,
