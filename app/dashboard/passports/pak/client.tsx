@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
 import RowItem from './components/RowItem'
@@ -19,6 +19,8 @@ export default function PakPassportClient({ initialApplications, currentUserId }
   const [showForm, setShowForm] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const [currentPage, setCurrentPage] = useState(1)
+  const pageSize = 25
   
   // Modals
   const [historyModal, setHistoryModal] = useState<any>(null)
@@ -147,9 +149,26 @@ export default function PakPassportClient({ initialApplications, currentUserId }
     }
   }
 
-  const filteredApps = initialApplications.filter((item: any) => 
+  const getCreatedAt = (item: any) => {
+    const pp = getPassportRecord(item)
+    return item?.created_at || item?.applications?.created_at || pp?.created_at || 0
+  }
+
+  const sortedApps = [...initialApplications].sort((a: any, b: any) => {
+    const ad = new Date(getCreatedAt(a) || 0).getTime()
+    const bd = new Date(getCreatedAt(b) || 0).getTime()
+    return bd - ad // newest first
+  })
+
+  const filteredApps = sortedApps.filter((item: any) => 
     JSON.stringify(item).toLowerCase().includes(searchQuery.toLowerCase())
   )
+
+  const totalPages = Math.ceil(filteredApps.length / pageSize) || 1
+  const startIdx = (currentPage - 1) * pageSize
+  const pageItems = filteredApps.slice(startIdx, startIdx + pageSize)
+
+  useEffect(() => { setCurrentPage(1) }, [searchQuery])
 
   return (
     <div className="space-y-6">
@@ -200,7 +219,7 @@ export default function PakPassportClient({ initialApplications, currentUserId }
              {filteredApps.length === 0 ? (
                <tr><td colSpan={5} className="p-12 text-center text-slate-400 italic">No records found.</td></tr>
              ) : (
-                filteredApps.map((item: any) => (
+                pageItems.map((item: any) => (
                   <RowItem
                     key={item.id}
                     item={item}
@@ -213,6 +232,30 @@ export default function PakPassportClient({ initialApplications, currentUserId }
              )}
            </tbody>
          </table>
+      </div>
+
+      {/* Pagination */}
+      <div className="flex items-center justify-between mt-4">
+        <div className="text-xs text-slate-500">
+          Showing {filteredApps.length === 0 ? 0 : startIdx + 1}-{Math.min(startIdx + pageSize, filteredApps.length)} of {filteredApps.length}
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+            disabled={currentPage === 1}
+            className={`px-3 py-1 rounded border text-sm ${currentPage === 1 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-100'} `}
+          >
+            ← Previous
+          </button>
+          <span className="text-xs text-slate-600">Page {currentPage} of {totalPages}</span>
+          <button
+            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+            disabled={currentPage >= totalPages}
+            className={`px-3 py-1 rounded border text-sm ${currentPage >= totalPages ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-100'} `}
+          >
+            Next →
+          </button>
+        </div>
       </div>
 
       <EditModal
