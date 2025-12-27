@@ -57,6 +57,8 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
   // SEARCH & FILTER STATES
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('All')
+  const [currentPage, setCurrentPage] = useState(1)
+  const pageSize = 25
 
   // HISTORY STATES
   const [selectedHistory, setSelectedHistory] = useState<any>(null)
@@ -149,7 +151,18 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
   // FILTER & SEARCH LOGIC
   // =====================================================================
 
-  const filteredApplications = initialApplications.filter((item: any) => {
+  const getCreatedAt = (item: any) => {
+    const nadra = getNadraRecord(item)
+    return nadra?.created_at || item?.created_at || 0
+  }
+
+  const sortedApplications = [...initialApplications].sort((a: any, b: any) => {
+    const ad = new Date(getCreatedAt(a) || 0).getTime()
+    const bd = new Date(getCreatedAt(b) || 0).getTime()
+    return bd - ad // newest first
+  })
+
+  const filteredApplications = sortedApplications.filter((item: any) => {
     const query = searchQuery.toLowerCase()
     const nadra = getNadraRecord(item)
     const status = nadra?.status || 'Pending Submission'
@@ -166,7 +179,13 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
     return matchesSearch && matchesStatus
   })
 
-  const groupedData = filteredApplications.reduce((acc: any, item: any) => {
+  const totalPages = Math.ceil(filteredApplications.length / pageSize) || 1
+  const startIdx = (currentPage - 1) * pageSize
+  const pageItems = filteredApplications.slice(startIdx, startIdx + pageSize)
+
+  useEffect(() => { setCurrentPage(1) }, [searchQuery, statusFilter])
+
+  const groupedData = pageItems.reduce((acc: any, item: any) => {
     const headCnic = item.family_heads?.citizen_number || 'Independent'
     if (!acc[headCnic]) {
       acc[headCnic] = { head: item.family_heads, members: [] }
@@ -373,6 +392,30 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
         onAddMember={handleAddMember}
         onViewHistory={setSelectedHistory}
       />
+
+      {/* Pagination */}
+      <div className="flex items-center justify-between mt-4">
+        <div className="text-xs text-slate-500">
+          Showing {filteredApplications.length === 0 ? 0 : startIdx + 1}-{Math.min(startIdx + pageSize, filteredApplications.length)} of {filteredApplications.length}
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+            disabled={currentPage === 1}
+            className={`px-3 py-1 rounded border text-sm ${currentPage === 1 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-100'} `}
+          >
+            ← Previous
+          </button>
+          <span className="text-xs text-slate-600">Page {currentPage} of {totalPages}</span>
+          <button
+            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+            disabled={currentPage >= totalPages}
+            className={`px-3 py-1 rounded border text-sm ${currentPage >= totalPages ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-100'} `}
+          >
+            Next →
+          </button>
+        </div>
+      </div>
 
       <EditModal
         isOpen={!!editingRecord}
