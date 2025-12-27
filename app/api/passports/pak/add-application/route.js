@@ -36,13 +36,12 @@ export async function POST(request) {
     }
 
     // 2. Create Application Hierarchy
-    // FIX: Changed to use lowercase 'pending' to match database enum
     const { data: appRecord, error: appError } = await supabase.from('applications').insert({
       tracking_number: trackingNumber,
       family_head_id: applicant.id, 
       applicant_id: applicant.id,
       submitted_by_employee_id: currentUserId,
-      status: 'pending' 
+      status: 'Pending Submission' // Matches new workflow
     }).select('id').single()
 
     if (appError) throw appError
@@ -59,8 +58,7 @@ export async function POST(request) {
       old_passport_number: oldPassportNumber || null,
       is_old_passport_returned: false,
       fingerprints_completed: fingerprintsCompleted || false,
-      // FIX: Ensure this matches the start of your workflow
-      status: 'pending' 
+      status: 'Pending Submission' // Matches new workflow
     })
 
     if (ppError) {
