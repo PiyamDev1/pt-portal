@@ -1,18 +1,20 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 
-// Full list from your JSON (I have included the most common ones here to save space, but the logic handles the structure)
-const COUNTRIES = [
+// Mapped from your countries.json structure
+const COUNTRIES_DATA = [
+  { name: "Afghanistan", code: "AF" },
+  { name: "Albania", code: "AL" },
+  { name: "Algeria", code: "DZ" },
   { name: "United Kingdom", code: "GB" },
-  { name: "Pakistan", code: "PK" },
+  { name: "United States", code: "US" },
   { name: "Saudi Arabia", code: "SA" },
   { name: "United Arab Emirates", code: "AE" },
   { name: "Turkey", code: "TR" },
-  { name: "United States", code: "US" },
-  { name: "Canada", code: "CA" },
-  { name: "Afghanistan", code: "AF" },
+  { name: "Pakistan", code: "PK" },
   { name: "India", code: "IN" },
-  { name: "Bangladesh", code: "BD" },
+  { name: "Canada", code: "CA" },
+  { name: "Australia", code: "AU" },
   { name: "China", code: "CN" },
   { name: "France", code: "FR" },
   { name: "Germany", code: "DE" },
@@ -27,8 +29,6 @@ const COUNTRIES = [
   { name: "Egypt", code: "EG" },
   { name: "Morocco", code: "MA" },
   { name: "South Africa", code: "ZA" },
-  { name: "Australia", code: "AU" },
-  { name: "New Zealand", code: "NZ" },
   { name: "Japan", code: "JP" },
   { name: "Russia", code: "RU" },
   { name: "Sri Lanka", code: "LK" },
@@ -36,7 +36,7 @@ const COUNTRIES = [
   { name: "Kuwait", code: "KW" },
   { name: "Oman", code: "OM" },
   { name: "Bahrain", code: "BH" }
-  // You can add the rest from your file if needed, but these cover 99% of visa cases
+  // Add more if needed or parse the full JSON in a loop
 ]
 
 export async function GET() {
@@ -46,30 +46,20 @@ export async function GET() {
       process.env.SUPABASE_SERVICE_ROLE_KEY
     )
 
-    let insertedCount = 0;
+    let inserted = 0
 
-    for (const country of COUNTRIES) {
-        // Check if exists to avoid duplicates
-        const { data: existing } = await supabase
-            .from('visa_countries')
-            .select('id')
-            .ilike('name', country.name)
-            .single()
+    for (const c of COUNTRIES_DATA) {
+      const { error } = await supabase
+        .from('visa_countries')
+        .upsert(
+          { name: c.name, code: c.code },
+          { onConflict: 'name' }
+        )
 
-        if (!existing) {
-            await supabase.from('visa_countries').insert({ 
-                name: country.name,
-                // You can add an 'iso_code' column to your DB if you want to save the code too
-                // iso_code: country.code 
-            })
-            insertedCount++;
-        }
+      if (!error) inserted++
     }
 
-    return NextResponse.json({ 
-        success: true, 
-        message: `Database seeded! Added ${insertedCount} new countries.` 
-    })
+    return NextResponse.json({ success: true, message: `Seeded ${inserted} countries` })
   } catch (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }

@@ -12,24 +12,36 @@ export default function VisaApplicationsClient({ initialData, currentUserId }: a
   const [editingItem, setEditingItem] = useState(null)
   const [metadata, setMetadata] = useState<any>({ countries: [], types: [] })
 
+  const loadMetadata = async () => {
+    try {
+      const res = await fetch('/api/visas/metadata')
+      const data = await res.json()
+      setMetadata(data)
+    } catch (err) {
+      console.error('Metadata Load Error', err)
+    }
+  }
+
   useEffect(() => {
-    fetch('/api/visas/metadata')
-      .then(res => res.json())
-      .then(data => setMetadata(data))
-      .catch(err => console.error("Metadata Load Error", err))
+    loadMetadata()
   }, [])
 
   const handleSave = async (data: any) => {
     try {
+        const payload = {
+          ...data,
+          countryId: data.countryId ? Number(data.countryId) : null,
+        }
         const res = await fetch('/api/visas/save', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
+            body: JSON.stringify(payload)
         })
         const result = await res.json()
         if(!res.ok) throw new Error(result.error)
         
         toast.success('Visa Application Saved')
+        await loadMetadata()
         setIsFormOpen(false)
         setEditingItem(null)
         router.refresh()

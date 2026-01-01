@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
+import { redirect } from 'next/navigation'
 import PageHeader from '@/app/components/PageHeader.client'
 import VisaApplicationsClient from './client'
 import DashboardClientWrapper from '@/app/dashboard/client-wrapper'
@@ -13,6 +14,7 @@ export default async function VisaApplicationsPage() {
   )
 
   const { data: { session } } = await supabase.auth.getSession()
+  if (!session) redirect('/login')
 
   // Fetch Visas + Related Info
   const { data: visas } = await supabase
@@ -28,8 +30,8 @@ export default async function VisaApplicationsPage() {
   // Employee Data for Header
   const { data: employee } = await supabase
     .from('employees')
-    .select('full_name, roles(name), locations(name)')
-    .eq('id', session?.user?.id)
+    .select('full_name, roles(name), locations(name, branch_code)')
+    .eq('id', session.user.id)
     .single()
 
   const location = Array.isArray(employee?.locations) ? employee.locations[0] : employee?.locations
@@ -37,12 +39,12 @@ export default async function VisaApplicationsPage() {
 
   return (
     <DashboardClientWrapper>
-      <div className="min-h-screen bg-slate-50 flex flex-col">
+      <div className="min-h-full bg-slate-50 flex flex-col">
         <PageHeader 
             employeeName={employee?.full_name} 
-            role={role?.name} 
-            location={location?.name} 
-            userId={session?.user?.id}
+          role={role?.name} 
+          location={location}
+          userId={session.user.id}
             showBack={true}
         />
         <main className="max-w-7xl mx-auto p-6 w-full flex-grow">

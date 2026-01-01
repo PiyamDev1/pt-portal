@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Save, X, Box, ChevronDown, ChevronUp } from 'lucide-react'
 
 export default function VisaForm({ isOpen, onClose, data, currentUserId, onSave, metadata }: any) {
@@ -44,18 +44,32 @@ export default function VisaForm({ isOpen, onClose, data, currentUserId, onSave,
   }, [data, isOpen])
 
   const [isSubmitting, setIsSubmitting] = useState(false)
+    const [showTypeDropdown, setShowTypeDropdown] = useState(false)
 
-  // Auto-pricing logic
-  const handleTypeChange = (val: string) => {
-     const matchedType = metadata?.types?.find((t: any) => t.name.toLowerCase() === val.toLowerCase());
-     let updates: any = { visaTypeName: val };
-     
-     if (matchedType) {
-        if (formData.basePrice === 0) updates.basePrice = matchedType.default_cost;
-        if (formData.customerPrice === 0) updates.customerPrice = matchedType.default_price;
-     }
-     setFormData((prev: any) => ({ ...prev, ...updates }));
-  }
+    // Filter visa types for selected country
+    const availableVisaTypes = useMemo(() => {
+        if (!formData.countryId) return []
+        return metadata?.types?.filter((t: any) => String(t.country_id) === String(formData.countryId)) || []
+    }, [formData.countryId, metadata])
+
+    const filteredVisaTypes = useMemo(() => {
+        if (!formData.countryId) return []
+        const term = formData.visaTypeName?.trim().toLowerCase() || ''
+        if (!term) return availableVisaTypes
+        return availableVisaTypes.filter((t: any) => t.name.toLowerCase().includes(term))
+    }, [availableVisaTypes, formData.countryId, formData.visaTypeName])
+
+    // Auto-pricing logic
+    const handleTypeChange = (val: string) => {
+        const matchedType = availableVisaTypes.find((t: any) => t.name.toLowerCase() === val.toLowerCase())
+        const updates: any = { visaTypeName: val }
+
+        if (matchedType) {
+            if (formData.basePrice === 0) updates.basePrice = matchedType.default_cost
+            if (formData.customerPrice === 0) updates.customerPrice = matchedType.default_price
+        }
+        setFormData((prev: any) => ({ ...prev, ...updates }))
+    }
 
   const handleSubmit = async () => {
     if(!formData.countryId) {
@@ -126,7 +140,7 @@ export default function VisaForm({ isOpen, onClose, data, currentUserId, onSave,
                             {/* FIXED: Dropdown Select */}
                             <select 
                                 value={formData.countryId}
-                                onChange={e => setFormData({...formData, countryId: e.target.value})}
+                                onChange={e => setFormData({...formData, countryId: e.target.value, visaTypeName: ''})}
                                 className="w-full mt-1 p-2 bg-slate-50 border border-slate-200 rounded text-sm focus:border-purple-500"
                             >
                                 <option value="">Select Country...</option>
@@ -135,20 +149,47 @@ export default function VisaForm({ isOpen, onClose, data, currentUserId, onSave,
                                 ))}
                             </select>
                         </div>
-                        <div>
-                            <label className="text-xs font-medium text-slate-700">Visa Type</label>
-                            {/* Dynamic Text Input with Auto-Complete */}
-                            <input 
-                                list="types-list"
-                                value={formData.visaTypeName}
-                                onChange={e => handleTypeChange(e.target.value)}
-                                className="w-full mt-1 p-2 bg-slate-50 border border-slate-200 rounded text-sm"
-                                placeholder="e.g. Tourist 90 Days"
-                            />
-                             <datalist id="types-list">
-                                {metadata?.types?.map((t: any) => <option key={t.id} value={t.name} />)}
-                            </datalist>
-                        </div>
+                                                <div>
+                                                        <label className="text-xs font-medium text-slate-700">Visa Type</label>
+                                                        <div className="relative">
+                                                            <input 
+                                                                    value={formData.visaTypeName}
+                                                                    onChange={e => { setShowTypeDropdown(true); handleTypeChange(e.target.value) }}
+                                                                    onFocus={() => setShowTypeDropdown(true)}
+                                                                    onBlur={() => setTimeout(() => setShowTypeDropdown(false), 120)}
+                                                                    disabled={!formData.countryId}
+                                                                    className="w-full mt-1 p-2 bg-slate-50 border border-slate-200 rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                                                                    placeholder={!formData.countryId ? "Select Country First" : "Select or Type New..."}
+                                                            />
+                                                            {showTypeDropdown && formData.countryId && (
+                                                                <div className="absolute z-10 mt-1 w-full max-h-52 overflow-auto rounded-md border border-slate-200 bg-white shadow-lg">
+                                                                    {filteredVisaTypes.length > 0 ? (
+                                                                        filteredVisaTypes.map((t: any) => (
+                                                                            <button
+                                                                                key={t.id}
+                                                                                type="button"
+                                                                                onMouseDown={(e) => { e.preventDefault(); handleTypeChange(t.name); setShowTypeDropdown(false) }}
+                                                                                className="w-full text-left px-3 py-2 text-sm hover:bg-purple-50"
+                                                                            >
+                                                                                {t.name}
+                                                                            </button>
+                                                                        ))
+                                                                    ) : null}
+
+                                                                    {/* Create new option */}
+                                                                    {formData.visaTypeName.trim() && !availableVisaTypes.some((t: any) => t.name.toLowerCase() === formData.visaTypeName.trim().toLowerCase()) && (
+                                                                        <button
+                                                                            type="button"
+                                                                            onMouseDown={(e) => { e.preventDefault(); handleTypeChange(formData.visaTypeName.trim()); setShowTypeDropdown(false) }}
+                                                                            className="w-full text-left px-3 py-2 text-sm bg-purple-50 text-purple-800 hover:bg-purple-100 border-t border-purple-100"
+                                                                        >
+                                                                            Create new type: {formData.visaTypeName.trim()}
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                </div>
                         <div>
                             <label className="text-xs font-medium text-slate-700">Validity</label>
                             <input 

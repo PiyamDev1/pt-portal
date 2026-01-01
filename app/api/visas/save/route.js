@@ -28,22 +28,22 @@ export async function POST(request) {
 
     
 
-    // 2. DYNAMIC VISA TYPE: Find or Create
+    // 2. DYNAMIC VISA TYPE scoped to country
     let typeId = null
     if (visaTypeName) {
       const { data: existingType } = await supabase
         .from('visa_types')
         .select('id')
+        .eq('country_id', countryId)
         .ilike('name', visaTypeName.trim())
         .single()
 
       if (existingType) {
         typeId = existingType.id
       } else {
-        // New types default to 0 price unless edited later
         const { data: newType, error: tErr } = await supabase
           .from('visa_types')
-          .insert({ name: visaTypeName.trim() })
+          .insert({ name: visaTypeName.trim(), country_id: countryId })
           .select('id')
           .single()
         if (tErr) throw new Error(`Visa Type Error: ${tErr.message}`)
