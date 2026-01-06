@@ -1,4 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
+import { createServerClient } from '@supabase/auth-helpers-nextjs';
+import { cookies } from 'next/headers';
 import formData from 'form-data';
 import Mailgun from 'mailgun.js';
 import bcrypt from 'bcryptjs';
@@ -59,18 +61,19 @@ export async function POST(request) {
     );
 
     // Check if caller is authenticated and has admin role
-    const cookieHeader = request.headers.get('cookie') || '';
-    const supabaseUser = createClient(
+    const cookieStore = await cookies();
+    const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
       {
-        global: {
-          headers: { cookie: cookieHeader }
+        cookies: {
+          getAll() { return cookieStore.getAll() },
+          setAll() {}
         }
       }
     );
 
-    const { data: { user }, error: userError } = await supabaseUser.auth.getUser();
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
     if (userError || !user) {
       console.log('[add-employee] unauthorized: user not authenticated');
       return NextResponse.json({ error: 'Unauthorized: not authenticated' }, { status: 401, headers: { 'Access-Control-Allow-Origin': origin, Vary: 'Origin' } });

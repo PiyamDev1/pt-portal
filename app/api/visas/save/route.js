@@ -22,7 +22,8 @@ export async function POST(request) {
       currentUserId, status
     } = body
 
-    if (!countryId) {
+    const countryIdNum = Number(countryId)
+    if (!countryId || Number.isNaN(countryIdNum)) {
         return NextResponse.json({ error: "Please select a valid Country from the list." }, { status: 400 })
     }
 
@@ -34,7 +35,7 @@ export async function POST(request) {
       const { data: existingType } = await supabase
         .from('visa_types')
         .select('id')
-        .eq('country_id', countryId)
+        .eq('country_id', countryIdNum)
         .ilike('name', visaTypeName.trim())
         .single()
 
@@ -43,7 +44,7 @@ export async function POST(request) {
       } else {
         const { data: newType, error: tErr } = await supabase
           .from('visa_types')
-          .insert({ name: visaTypeName.trim(), country_id: countryId })
+          .insert({ name: visaTypeName.trim(), country_id: countryIdNum })
           .select('id')
           .single()
         if (tErr) throw new Error(`Visa Type Error: ${tErr.message}`)
@@ -83,7 +84,7 @@ export async function POST(request) {
     const payload = {
         internal_tracking_number: internalTrackingNo,
         applicant_id: applicantId,
-        visa_country_id: countryId, // Using the ID from the dropdown
+        visa_country_id: countryIdNum, // Using the ID from the dropdown
         visa_type_id: typeId,
         validity: validity,
         passport_number_used: applicantPassport,

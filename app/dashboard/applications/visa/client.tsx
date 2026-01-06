@@ -32,6 +32,10 @@ export default function VisaApplicationsClient({ initialData, currentUserId }: a
           ...data,
           countryId: data.countryId ? Number(data.countryId) : null,
         }
+        if (!payload.countryId) {
+          toast.error('Please select a country')
+          return
+        }
         const res = await fetch('/api/visas/save', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
