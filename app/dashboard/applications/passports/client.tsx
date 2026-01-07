@@ -19,6 +19,8 @@ export default function PakPassportClient({ initialApplications, currentUserId }
   const [showForm, setShowForm] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
   const pageSize = 25
   
@@ -57,9 +59,17 @@ export default function PakPassportClient({ initialApplications, currentUserId }
   const handleSubmit = async () => {
     const parsed = PakApplicationFormSchema.safeParse(formData)
     if (!parsed.success) {
+        const errors: PakApplicationFormErrors = {}
+        parsed.error.issues.forEach(err => {
+          if (err.path[0]) {
+            errors[err.path[0] as keyof PakApplicationFormData] = err.message
+          }
+        })
+        setFormErrors(errors)
         toast.error('Please fix validation errors')
         return
     }
+    setFormErrors({})
     setIsSubmitting(true)
     // Pass currentUserId to the API
     const result = await pakPassportApi.addApplication({ ...formData, currentUserId })
@@ -160,28 +170,70 @@ export default function PakPassportClient({ initialApplications, currentUserId }
     return bd - ad // newest first
   })
 
-  const filteredApps = sortedApps.filter((item: any) => 
-    JSON.stringify(item).toLowerCase().includes(searchQuery.toLowerCase())
-  )
+  const filteredApps = sortedApps.filter((item: any) => {
+    const matchesSearch = JSON.stringify(item).toLowerCase().includes(searchQuery.toLowerCase())
+    
+    if (!matchesSearch) return false
+    
+    // Date range filter
+    if (startDate || endDate) {
+      const itemDate = new Date(getCreatedAt(item))
+      if (startDate && itemDate < new Date(startDate)) return false
+      if (endDate) {
+        const endDateTime = new Date(endDate)
+        endDateTime.setHours(23, 59, 59, 999) // Include end date fully
+        if (itemDate > endDateTime) return false
+      }
+    }
+    
+    return true
+  })
 
   const totalPages = Math.ceil(filteredApps.length / pageSize) || 1
   const startIdx = (currentPage - 1) * pageSize
   const pageItems = filteredApps.slice(startIdx, startIdx + pageSize)
 
-  useEffect(() => { setCurrentPage(1) }, [searchQuery])
+  useEffect(() => { setCurrentPage(1) }, [searchQuery, startDate, endDate])
 
   return (
     <div className="space-y-6">
       {/* HEADER & SEARCH */}
       <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-        <div className="relative flex-grow w-full md:max-w-md">
-           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">🔍</span>
-           <input 
-             value={searchQuery} 
-             onChange={e => setSearchQuery(e.target.value)}
-             placeholder="Search tracking, CNIC, or names..." 
-             className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl shadow-sm outline-none focus:ring-2 focus:ring-green-500"
-           />
+        <div className="flex-grow w-full flex flex-col md:flex-row gap-3">
+          <div className="relative flex-grow md:max-w-md">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">🔍</span>
+            <input 
+              value={searchQuery} 
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Search tracking, CNIC, or names..." 
+              className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl shadow-sm outline-none focus:ring-2 focus:ring-green-500"
+            />
+          </div>
+          <div className="flex gap-2 items-center">
+            <input 
+              type="date" 
+              value={startDate} 
+              onChange={e => setStartDate(e.target.value)}
+              className="px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm"
+              placeholder="From"
+            />
+            <span className="text-slate-400">to</span>
+            <input 
+              type="date" 
+              value={endDate} 
+              onChange={e => setEndDate(e.target.value)}
+              className="px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm"
+              placeholder="To"
+            />
+            {(startDate || endDate) && (
+              <button 
+                onClick={() => { setStartDate(''); setEndDate('') }}
+                className="text-xs text-slate-500 hover:text-slate-700 underline"
+              >
+                Clear
+              </button>
+            )}
+          </div>
         </div>
         <button 
           onClick={() => setShowForm(!showForm)}

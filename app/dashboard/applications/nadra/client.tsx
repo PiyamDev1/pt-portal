@@ -57,6 +57,9 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
   // SEARCH & FILTER STATES
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('All')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
+  const [showEmptyFamilies, setShowEmptyFamilies] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const pageSize = 25
 
@@ -175,6 +178,21 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
       item.family_heads?.citizen_number?.includes(query)
 
     const matchesStatus = statusFilter === 'All' || status === statusFilter
+    
+    // Date range filter
+    if (startDate || endDate) {
+      const itemDate = new Date(getCreatedAt(item))
+      if (startDate && itemDate < new Date(startDate)) return false
+      if (endDate) {
+        const endDateTime = new Date(endDate)
+        endDateTime.setHours(23, 59, 59, 999)
+        if (itemDate > endDateTime) return false
+      }
+    }
+    
+    // Filter out family heads with no members unless checkbox is enabled
+    const hasRealMember = !!(item.applicants || item.nadra_services)
+    if (!showEmptyFamilies && !hasRealMember) return false
 
     return matchesSearch && matchesStatus
   })
@@ -183,7 +201,7 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
   const startIdx = (currentPage - 1) * pageSize
   const pageItems = filteredApplications.slice(startIdx, startIdx + pageSize)
 
-  useEffect(() => { setCurrentPage(1) }, [searchQuery, statusFilter])
+  useEffect(() => { setCurrentPage(1) }, [searchQuery, statusFilter, startDate, endDate, showEmptyFamilies])
 
   const groupedData = pageItems.reduce((acc: any, item: any) => {
     const headCnic = item.family_heads?.citizen_number || 'Independent'
@@ -372,6 +390,12 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
         onSearchChange={setSearchQuery}
         statusFilter={statusFilter}
         onStatusChange={setStatusFilter}
+        startDate={startDate}
+        onStartDateChange={setStartDate}
+        endDate={endDate}
+        onEndDateChange={setEndDate}
+        showEmptyFamilies={showEmptyFamilies}
+        onToggleEmptyFamilies={setShowEmptyFamilies}
       />
 
       <FormSection
