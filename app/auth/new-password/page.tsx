@@ -28,7 +28,7 @@ export default function NewPasswordPage() {
       } else router.push('/login')
     }
     getUser()
-  }, [])
+  }, [supabase, router])
 
   const validatePassword = (pwd: string) => {
     const errors = []

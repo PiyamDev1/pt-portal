@@ -23,7 +23,7 @@ export default function MyAccountPage() {
       if (user) setUser(user)
     }
     getUser()
-  }, [])
+  }, [supabase])
 
   // --- ACTION: CHANGE PASSWORD ---
   const handlePasswordChange = async (e: React.FormEvent) => {
@@ -93,16 +93,16 @@ export default function MyAccountPage() {
   const [showCodes, setShowCodes] = useState<string[] | null>(null)
   const [backupCodeCount, setBackupCodeCount] = useState(0)
   
-  const fetchBackupCodeCount = async () => {
-    const res = await fetch(`/api/auth/backup-codes/count?userId=${user.id}`)
-    if (res.ok) {
-      const data = await res.json()
-      setBackupCodeCount(data.count || 0)
-    }
-  }
-
   useEffect(() => {
-    if (user) fetchBackupCodeCount()
+    if (!user) return
+    const fetchBackupCodeCount = async () => {
+      const res = await fetch(`/api/auth/backup-codes/count?userId=${user.id}`)
+      if (res.ok) {
+        const data = await res.json()
+        setBackupCodeCount(data.count || 0)
+      }
+    }
+    fetchBackupCodeCount()
   }, [user])
   
   const handleGenerateBackupCodes = async () => {

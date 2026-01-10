@@ -58,11 +58,17 @@ export default function PageHeader({ employeeName, role, location, userId, showB
           {/* AVATAR PROFILE */}
           <div className="h-10 w-10 rounded-full bg-slate-200 border-2 border-white shadow-sm flex items-center justify-center overflow-hidden cursor-pointer relative">
             {avatarUrl && (
-              <img 
+              <Image
                 src={avatarUrl}
-                className="absolute inset-0 w-full h-full object-cover"
-                onError={(e) => e.currentTarget.style.display = 'none'} 
                 alt="Profile"
+                fill
+                sizes="40px"
+                className="object-cover"
+                onError={(e) => {
+                  const target = e.currentTarget as HTMLImageElement
+                  target.style.display = 'none'
+                }}
+                unoptimized
               />
             )}
             <span className="text-sm font-bold text-slate-600">{initials}</span>

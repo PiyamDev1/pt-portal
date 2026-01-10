@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import QRCode from 'qrcode'
 
 export default function Setup2FAPage() {
@@ -24,7 +25,7 @@ export default function Setup2FAPage() {
       setFactorId(data.id)
       QRCode.toDataURL(data.totp.uri).then(setQrCodeUrl)
     })()
-  }, [])
+  }, [supabase])
 
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -56,7 +57,9 @@ export default function Setup2FAPage() {
 
         {qrCodeUrl ? (
           <div className="flex flex-col items-center space-y-4">
-            <img src={qrCodeUrl} alt="QR Code" className="w-48 h-48 border-4 border-white shadow-sm" />
+            <div className="relative w-48 h-48 border-4 border-white shadow-sm">
+              <Image src={qrCodeUrl} alt="QR Code" fill sizes="192px" className="object-contain" unoptimized />
+            </div>
           </div>
         ) : (
           <div className="h-48 flex items-center justify-center">Loading QR...</div>

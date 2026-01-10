@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import Image from 'next/image'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
 import { getDeviceInfo, getPasswordStrengthIndicator, resizeImage } from './utils'
@@ -232,12 +233,18 @@ export default function SecurityTab({ currentUser, supabase, loading, setLoading
       {/* Avatar Upload */}
       <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-200 flex items-center gap-6">
         <div className="h-20 w-20 bg-slate-100 rounded-full flex items-center justify-center text-2xl font-bold text-slate-400 border-2 border-dashed border-slate-300 overflow-hidden relative">
-          <img 
-            src={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/avatars/${currentUser.id}/avatar.png?t=${new Date().getTime()}`}
-            onError={(e) => e.currentTarget.style.display = 'none'}
-            className="absolute inset-0 w-full h-full object-cover"
-            alt="Avatar"
-          />
+              <Image
+                src={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/avatars/${currentUser.id}/avatar.png?t=${new Date().getTime()}`}
+                alt="Avatar"
+                fill
+                sizes="80px"
+                className="object-cover"
+                onError={(e) => {
+                  const target = e.currentTarget as HTMLImageElement
+                  target.style.display = 'none'
+                }}
+                unoptimized
+              />
           <span>{currentUser.email?.charAt(0).toUpperCase()}</span>
         </div>
         <div>
