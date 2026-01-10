@@ -54,21 +54,14 @@ export default function VisaForm({ isOpen, onClose, data, currentUserId, onSave,
         if (!formData.countryId) return []
         const allTypes = metadata?.types || []
         // Strict: only types explicitly tied to the selected country
-        const countryTypes = allTypes.filter((t: any) => String(t.country_id) === String(formData.countryId))
-        // Strip country prefix from display names
-        return countryTypes.map((t: any) => {
-            const selectedCountry = metadata?.countries?.find((c: any) => String(c.id) === String(formData.countryId))
-            const prefix = selectedCountry ? `${selectedCountry.name} - ` : ''
-            const displayName = t.name.startsWith(prefix) ? t.name.substring(prefix.length) : t.name
-            return { ...t, displayName }
-        })
+        return allTypes.filter((t: any) => String(t.country_id) === String(formData.countryId))
     }, [formData.countryId, metadata])
 
     const filteredVisaTypes = useMemo(() => {
         if (!formData.countryId) return []
         const term = formData.visaTypeName?.trim().toLowerCase() || ''
         if (!term) return availableVisaTypes
-        return availableVisaTypes.filter((t: any) => t.displayName.toLowerCase().includes(term))
+        return availableVisaTypes.filter((t: any) => t.name.toLowerCase().includes(term))
     }, [availableVisaTypes, formData.countryId, formData.visaTypeName])
 
     // Auto-fill: pricing and validity
@@ -88,12 +81,7 @@ export default function VisaForm({ isOpen, onClose, data, currentUserId, onSave,
     useEffect(() => {
         if (!formData.countryId || !formData.visaTypeName) return
         const match = (metadata?.types || []).find(
-            (t: any) => {
-                const selectedCountry = metadata?.countries?.find((c: any) => String(c.id) === String(formData.countryId))
-                const prefix = selectedCountry ? `${selectedCountry.name} - ` : ''
-                const displayName = t.name.startsWith(prefix) ? t.name.substring(prefix.length) : t.name
-                return String(t.country_id) === String(formData.countryId) && displayName.toLowerCase() === formData.visaTypeName.toLowerCase()
-            }
+            (t: any) => String(t.country_id) === String(formData.countryId) && t.name.toLowerCase() === formData.visaTypeName.toLowerCase()
         )
         if (match?.default_validity) {
             setFormData((prev: any) => ({ ...prev, validity: match.default_validity }))
@@ -210,10 +198,10 @@ export default function VisaForm({ isOpen, onClose, data, currentUserId, onSave,
                                                                             <button
                                                                                 key={t.id}
                                                                                 type="button"
-                                                                                onMouseDown={(e) => { e.preventDefault(); handleTypeChange(t.displayName); setShowTypeDropdown(false) }}
+                                                                                onMouseDown={(e) => { e.preventDefault(); handleTypeChange(t.name); setShowTypeDropdown(false) }}
                                                                                 className="w-full text-left px-3 py-2 text-sm hover:bg-purple-50"
                                                                             >
-                                                                                {t.displayName}
+                                                                                {t.name}
                                                                             </button>
                                                                         ))
                                                                     ) : (
@@ -223,7 +211,7 @@ export default function VisaForm({ isOpen, onClose, data, currentUserId, onSave,
                                                                     )}
 
                                                                     {/* Create new option */}
-                                                                    {formData.visaTypeName.trim() && !availableVisaTypes.some((t: any) => t.displayName.toLowerCase() === formData.visaTypeName.trim().toLowerCase()) && (
+                                                                    {formData.visaTypeName.trim() && !availableVisaTypes.some((t: any) => t.name.toLowerCase() === formData.visaTypeName.trim().toLowerCase()) && (
                                                                         <button
                                                                             type="button"
                                                                             onMouseDown={(e) => { e.preventDefault(); handleTypeChange(formData.visaTypeName.trim()); setShowTypeDropdown(false) }}
