@@ -53,10 +53,8 @@ export default function VisaForm({ isOpen, onClose, data, currentUserId, onSave,
     const availableVisaTypes = useMemo(() => {
         if (!formData.countryId) return []
         const allTypes = metadata?.types || []
-        const countryTypes = allTypes.filter((t: any) => String(t.country_id) === String(formData.countryId))
-        if (countryTypes.length) return countryTypes
-        // Fallback: show global/unscoped types if none matched for country
-        return allTypes.filter((t: any) => !t.country_id)
+        // Strict: only types explicitly tied to the selected country
+        return allTypes.filter((t: any) => String(t.country_id) === String(formData.countryId))
     }, [formData.countryId, metadata])
 
     const filteredVisaTypes = useMemo(() => {
@@ -78,6 +76,17 @@ export default function VisaForm({ isOpen, onClose, data, currentUserId, onSave,
         }
         setFormData((prev: any) => ({ ...prev, ...updates }))
     }
+
+    // Auto-fill validity if we know the type default and the field is still empty
+    useEffect(() => {
+        if (!formData.countryId || !formData.visaTypeName || formData.validity) return
+        const match = (metadata?.types || []).find(
+            (t: any) => String(t.country_id) === String(formData.countryId) && t.name.toLowerCase() === formData.visaTypeName.toLowerCase()
+        )
+        if (match?.default_validity) {
+            setFormData((prev: any) => ({ ...prev, validity: match.default_validity }))
+        }
+    }, [formData.countryId, formData.visaTypeName, formData.validity, metadata])
 
   const handleSubmit = async () => {
     if(!formData.countryId) {
