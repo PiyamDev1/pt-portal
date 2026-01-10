@@ -13,10 +13,10 @@ export async function GET() {
     const [countries, types] = await Promise.all([
       // Fetch countries sorted alphabetically
       supabase.from('visa_countries').select('id, name, code').order('name'),
-      // Fetch types with their country_id
+      // Fetch types with their country_id and default_validity
       supabase
         .from('visa_types')
-        .select('id, name, default_cost, default_price, country_id')
+        .select('id, name, default_cost, default_price, default_validity, country_id')
         .order('name')
     ])
 

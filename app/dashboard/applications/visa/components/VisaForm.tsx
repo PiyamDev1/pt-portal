@@ -59,7 +59,7 @@ export default function VisaForm({ isOpen, onClose, data, currentUserId, onSave,
         return availableVisaTypes.filter((t: any) => t.name.toLowerCase().includes(term))
     }, [availableVisaTypes, formData.countryId, formData.visaTypeName])
 
-    // Auto-pricing logic
+    // Auto-fill: pricing and validity
     const handleTypeChange = (val: string) => {
         const matchedType = availableVisaTypes.find((t: any) => t.name.toLowerCase() === val.toLowerCase())
         const updates: any = { visaTypeName: val }
@@ -67,6 +67,7 @@ export default function VisaForm({ isOpen, onClose, data, currentUserId, onSave,
         if (matchedType) {
             if (formData.basePrice === 0) updates.basePrice = matchedType.default_cost
             if (formData.customerPrice === 0) updates.customerPrice = matchedType.default_price
+            if (!formData.validity && matchedType.default_validity) updates.validity = matchedType.default_validity
         }
         setFormData((prev: any) => ({ ...prev, ...updates }))
     }
