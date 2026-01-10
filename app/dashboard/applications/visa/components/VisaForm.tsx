@@ -72,21 +72,21 @@ export default function VisaForm({ isOpen, onClose, data, currentUserId, onSave,
         if (matchedType) {
             if (formData.basePrice === 0) updates.basePrice = matchedType.default_cost
             if (formData.customerPrice === 0) updates.customerPrice = matchedType.default_price
-            if (!formData.validity && matchedType.default_validity) updates.validity = matchedType.default_validity
+            if (matchedType.default_validity) updates.validity = matchedType.default_validity
         }
         setFormData((prev: any) => ({ ...prev, ...updates }))
     }
 
     // Auto-fill validity if we know the type default and the field is still empty
     useEffect(() => {
-        if (!formData.countryId || !formData.visaTypeName || formData.validity) return
+        if (!formData.countryId || !formData.visaTypeName) return
         const match = (metadata?.types || []).find(
             (t: any) => String(t.country_id) === String(formData.countryId) && t.name.toLowerCase() === formData.visaTypeName.toLowerCase()
         )
         if (match?.default_validity) {
             setFormData((prev: any) => ({ ...prev, validity: match.default_validity }))
         }
-    }, [formData.countryId, formData.visaTypeName, formData.validity, metadata])
+    }, [formData.countryId, formData.visaTypeName, metadata])
 
   const handleSubmit = async () => {
     if(!formData.countryId) {

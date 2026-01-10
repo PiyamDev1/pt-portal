@@ -26,6 +26,13 @@ export default function VisaApplicationsClient({ initialData, currentUserId }: a
     loadMetadata()
   }, [])
 
+  // Refresh metadata whenever the form is opened (e.g., after seeding)
+  useEffect(() => {
+    if (isFormOpen) {
+      loadMetadata()
+    }
+  }, [isFormOpen])
+
   const handleSave = async (data: any) => {
     try {
         const payload = {
