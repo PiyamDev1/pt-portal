@@ -1,6 +1,9 @@
 'use client'
 import { useState, useEffect, useMemo } from 'react'
-import { Save, X, Box, ChevronDown, ChevronUp } from 'lucide-react'
+import { Save, ChevronUp, Box, Globe } from 'lucide-react'
+
+// Common nationalities to show at top of list
+const COMMON_NATIONALITIES = ["United Kingdom", "Pakistan", "India", "Bangladesh", "United States", "Travel Document"];
 
 export default function VisaForm({ isOpen, onClose, data, currentUserId, onSave, metadata }: any) {
   const [formData, setFormData] = useState<any>({
@@ -8,8 +11,8 @@ export default function VisaForm({ isOpen, onClose, data, currentUserId, onSave,
     applicantName: '',
     applicantPassport: '',
     applicantDob: '',
-    applicantNationality: '',
-    countryId: '', // CHANGED: Stores ID now
+    nationality: '', // NEW FIELD
+    countryId: '',
     visaTypeName: '',
     validity: '',
     basePrice: 0,
@@ -18,6 +21,7 @@ export default function VisaForm({ isOpen, onClose, data, currentUserId, onSave,
     status: 'Pending'
   })
 
+  // Load Data
   useEffect(() => {
     if (data) {
       setFormData({
@@ -26,8 +30,8 @@ export default function VisaForm({ isOpen, onClose, data, currentUserId, onSave,
         applicantName: `${data.applicants?.first_name} ${data.applicants?.last_name}`,
         applicantPassport: data.passport_number_used || data.applicants?.passport_number || '',
         applicantDob: data.applicants?.dob || '',
-        applicantNationality: data.applicants?.nationality || '',
-        countryId: data.visa_countries?.id || '', // Load ID
+        nationality: '', // We don't strictly save nationality in visa_applications, maybe infer from passport or add field? For now, user re-selects or we default.
+        countryId: data.visa_countries?.id || '',
         visaTypeName: data.visa_types?.name || '',
         validity: data.validity || '',
         basePrice: data.base_price || 0,
@@ -36,63 +40,69 @@ export default function VisaForm({ isOpen, onClose, data, currentUserId, onSave,
         status: data.status
       })
     } else {
-      // Reset
       setFormData({
         internalTrackingNo: '', applicantName: '', applicantPassport: '', applicantDob: '',
-                applicantNationality: '',
-                countryId: '', visaTypeName: '', validity: '',
+        nationality: '', countryId: '', visaTypeName: '', validity: '',
         basePrice: 0, customerPrice: 0, isPartOfPackage: false, status: 'Pending'
       })
     }
   }, [data, isOpen])
 
+  // --- LOGIC ENGINE ---
+
+  // 1. Get List of Nationalities (Merge Common with All Countries)
+  const nationalityOptions = useMemo(() => {
+    const allNames = metadata?.countries?.map((c:any) => c.name) || [];
+    // Combine unique sorted list
+    return Array.from(new Set([...COMMON_NATIONALITIES, ...allNames]));
+  }, [metadata]);
+
+  // 2. Filter Destinations based on Selected Nationality
+  const availableDestinations = useMemo(() => {
+    if (!formData.nationality) return metadata?.countries || []; // Show all if no nationality picked
+
+    // Find all Visa Types that allow this nationality (or "Any")
+    const validTypes = metadata?.types?.filter((t: any) => {
+        const allowed = t.allowed_nationalities || [];
+        return allowed.includes("Any") || allowed.includes(formData.nationality);
+    });
+
+    // Extract unique country IDs from valid types
+    const validCountryIds = new Set(validTypes.map((t: any) => t.country_id));
+
+    return metadata?.countries?.filter((c: any) => validCountryIds.has(c.id));
+  }, [formData.nationality, metadata]);
+
+  // 3. Filter Visa Types based on Destination AND Nationality
+  const availableVisaTypes = useMemo(() => {
+    if (!formData.countryId) return [];
+    
+    return metadata?.types?.filter((t: any) => {
+        const matchCountry = t.country_id === formData.countryId;
+        const allowed = t.allowed_nationalities || [];
+        const matchNationality = !formData.nationality || allowed.includes("Any") || allowed.includes(formData.nationality);
+        
+        return matchCountry && matchNationality;
+    }) || [];
+  }, [formData.countryId, formData.nationality, metadata]);
+
+
+  // Auto-fill Logic
+  const handleTypeChange = (val: string) => {
+     const matchedType = availableVisaTypes.find((t: any) => t.name.toLowerCase() === val.toLowerCase());
+     let updates: any = { visaTypeName: val };
+     
+     if (matchedType) {
+        if (formData.basePrice === 0) updates.basePrice = matchedType.default_cost;
+        if (formData.customerPrice === 0) updates.customerPrice = matchedType.default_price;
+        if (!formData.validity && matchedType.default_validity) updates.validity = matchedType.default_validity;
+     }
+     setFormData((prev: any) => ({ ...prev, ...updates }));
+  }
+
   const [isSubmitting, setIsSubmitting] = useState(false)
-    const [showTypeDropdown, setShowTypeDropdown] = useState(false)
-
-    // Filter visa types for selected country
-    const availableVisaTypes = useMemo(() => {
-        if (!formData.countryId) return []
-        const allTypes = metadata?.types || []
-        // Strict: only types explicitly tied to the selected country
-        return allTypes.filter((t: any) => String(t.country_id) === String(formData.countryId))
-    }, [formData.countryId, metadata])
-
-    const filteredVisaTypes = useMemo(() => {
-        if (!formData.countryId) return []
-        const term = formData.visaTypeName?.trim().toLowerCase() || ''
-        if (!term) return availableVisaTypes
-        return availableVisaTypes.filter((t: any) => t.name.toLowerCase().includes(term))
-    }, [availableVisaTypes, formData.countryId, formData.visaTypeName])
-
-    // Auto-fill: pricing and validity
-    const handleTypeChange = (val: string) => {
-        const matchedType = availableVisaTypes.find((t: any) => t.name.toLowerCase() === val.toLowerCase())
-        const updates: any = { visaTypeName: val }
-
-        if (matchedType) {
-            if (formData.basePrice === 0) updates.basePrice = matchedType.default_cost
-            if (formData.customerPrice === 0) updates.customerPrice = matchedType.default_price
-            if (matchedType.default_validity) updates.validity = matchedType.default_validity
-        }
-        setFormData((prev: any) => ({ ...prev, ...updates }))
-    }
-
-    // Auto-fill validity if we know the type default and the field is still empty
-    useEffect(() => {
-        if (!formData.countryId || !formData.visaTypeName) return
-        const match = (metadata?.types || []).find(
-            (t: any) => String(t.country_id) === String(formData.countryId) && t.name.toLowerCase() === formData.visaTypeName.toLowerCase()
-        )
-        if (match?.default_validity) {
-            setFormData((prev: any) => ({ ...prev, validity: match.default_validity }))
-        }
-    }, [formData.countryId, formData.visaTypeName, metadata])
-
   const handleSubmit = async () => {
-    if(!formData.countryId) {
-        alert("Please select a Country");
-        return;
-    }
+    if(!formData.countryId) return alert("Select a Destination")
     setIsSubmitting(true)
     await onSave({ ...formData, currentUserId })
     setIsSubmitting(false)
@@ -102,24 +112,21 @@ export default function VisaForm({ isOpen, onClose, data, currentUserId, onSave,
 
   return (
     <div className="bg-white rounded-xl border border-purple-100 shadow-lg overflow-hidden mb-6 animate-in slide-in-from-top-4 duration-300">
-        {/* Header */}
         <div className="bg-purple-50 px-6 py-3 border-b border-purple-100 flex justify-between items-center">
             <h3 className="font-bold text-purple-800 flex items-center gap-2">
                 {data ? 'Edit Application' : 'New Application'}
             </h3>
-            <button onClick={onClose} className="text-purple-400 hover:text-purple-700 bg-white rounded-full p-1 shadow-sm">
-                <ChevronUp className="w-4 h-4" />
-            </button>
+            <button onClick={onClose} className="text-purple-400 hover:text-purple-700 bg-white rounded-full p-1 shadow-sm"><ChevronUp className="w-4 h-4" /></button>
         </div>
 
         <div className="p-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 
-                {/* Column 1: Applicant */}
+                {/* 1. Applicant */}
                 <div className="space-y-4">
                     <h4 className="text-xs font-bold text-slate-400 uppercase">Applicant</h4>
                     <div className="space-y-3">
-                         <div>
+                        <div>
                             <label className="text-xs font-medium text-slate-700">Passport No</label>
                             <input 
                                 value={formData.applicantPassport}
@@ -145,98 +152,78 @@ export default function VisaForm({ isOpen, onClose, data, currentUserId, onSave,
                                 className="w-full mt-1 p-2 bg-slate-50 border border-slate-200 rounded text-sm"
                             />
                         </div>
-                        <div>
-                            <label className="text-xs font-medium text-slate-700">Nationality</label>
-                            <select
-                                value={formData.applicantNationality}
-                                onChange={e => setFormData({ ...formData, applicantNationality: e.target.value })}
-                                className="w-full mt-1 p-2 bg-slate-50 border border-slate-200 rounded text-sm"
-                            >
-                                <option value="">Select Nationality...</option>
-                                {metadata?.countries?.map((c: any) => (
-                                    <option key={c.id} value={c.name}>{c.name}</option>
-                                ))}
-                            </select>
-                        </div>
                     </div>
                 </div>
 
-                {/* Column 2: Visa Details */}
+                {/* 2. Visa Logic (Dynamic Filters) */}
                 <div className="space-y-4">
-                    <h4 className="text-xs font-bold text-slate-400 uppercase">Visa Details</h4>
+                    <h4 className="text-xs font-bold text-slate-400 uppercase">Visa Selection</h4>
                     <div className="space-y-3">
+                        
+                        {/* Nationality Filter */}
                         <div>
-                            <label className="text-xs font-medium text-slate-700">Country</label>
-                            {/* FIXED: Dropdown Select */}
+                            <label className="text-xs font-medium text-purple-700 flex items-center gap-1">
+                                <Globe className="w-3 h-3"/> Nationality
+                            </label>
+                            <input 
+                                list="nationality-list"
+                                value={formData.nationality}
+                                onChange={e => {
+                                    // Reset child fields when nationality changes
+                                    setFormData({...formData, nationality: e.target.value, countryId: '', visaTypeName: ''})
+                                }}
+                                className="w-full mt-1 p-2 bg-purple-50 border border-purple-200 rounded text-sm font-semibold text-purple-900 placeholder-purple-300"
+                                placeholder="Start here..."
+                            />
+                            <datalist id="nationality-list">
+                                {nationalityOptions.map((n: string) => <option key={n} value={n} />)}
+                            </datalist>
+                        </div>
+
+                        {/* Destination (Filtered) */}
+                        <div>
+                            <label className="text-xs font-medium text-slate-700">Destination</label>
                             <select 
                                 value={formData.countryId}
                                 onChange={e => setFormData({...formData, countryId: e.target.value, visaTypeName: ''})}
-                                className="w-full mt-1 p-2 bg-slate-50 border border-slate-200 rounded text-sm focus:border-purple-500"
+                                disabled={!formData.nationality}
+                                className="w-full mt-1 p-2 bg-slate-50 border border-slate-200 rounded text-sm focus:border-purple-500 disabled:opacity-50"
                             >
-                                <option value="">Select Country...</option>
-                                {metadata?.countries?.map((c: any) => (
+                                <option value="">{formData.nationality ? 'Select Destination...' : 'Select Nationality First'}</option>
+                                {availableDestinations.map((c: any) => (
                                     <option key={c.id} value={c.id}>{c.name}</option>
                                 ))}
                             </select>
                         </div>
-                                                <div>
-                                                        <label className="text-xs font-medium text-slate-700">Visa Type</label>
-                                                        <div className="relative">
-                                                            <input 
-                                                                    value={formData.visaTypeName}
-                                                                    onChange={e => { setShowTypeDropdown(true); handleTypeChange(e.target.value) }}
-                                                                    onFocus={() => setShowTypeDropdown(true)}
-                                                                    onBlur={() => setTimeout(() => setShowTypeDropdown(false), 120)}
-                                                                    disabled={!formData.countryId}
-                                                                    className="w-full mt-1 p-2 bg-slate-50 border border-slate-200 rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                                                                    placeholder={!formData.countryId ? "Select Country First" : "Select or Type New..."}
-                                                            />
-                                                            {showTypeDropdown && formData.countryId && (
-                                                                <div className="absolute z-10 mt-1 w-full max-h-52 overflow-auto rounded-md border border-slate-200 bg-white shadow-lg">
-                                                                    {filteredVisaTypes.length > 0 ? (
-                                                                        filteredVisaTypes.map((t: any) => (
-                                                                            <button
-                                                                                key={t.id}
-                                                                                type="button"
-                                                                                onMouseDown={(e) => { e.preventDefault(); handleTypeChange(t.name); setShowTypeDropdown(false) }}
-                                                                                className="w-full text-left px-3 py-2 text-sm hover:bg-purple-50"
-                                                                            >
-                                                                                {t.name}
-                                                                            </button>
-                                                                        ))
-                                                                    ) : (
-                                                                        <div className="px-3 py-2 text-xs text-slate-500">
-                                                                            No visa types for this country.
-                                                                        </div>
-                                                                    )}
 
-                                                                    {/* Create new option */}
-                                                                    {formData.visaTypeName.trim() && !availableVisaTypes.some((t: any) => t.name.toLowerCase() === formData.visaTypeName.trim().toLowerCase()) && (
-                                                                        <button
-                                                                            type="button"
-                                                                            onMouseDown={(e) => { e.preventDefault(); handleTypeChange(formData.visaTypeName.trim()); setShowTypeDropdown(false) }}
-                                                                            className="w-full text-left px-3 py-2 text-sm bg-purple-50 text-purple-800 hover:bg-purple-100 border-t border-purple-100"
-                                                                        >
-                                                                            Create new type: {formData.visaTypeName.trim()}
-                                                                        </button>
-                                                                    )}
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                </div>
+                        {/* Visa Type (Filtered) */}
+                        <div>
+                            <label className="text-xs font-medium text-slate-700">Visa Type</label>
+                            <select
+                                value={formData.visaTypeName}
+                                onChange={e => handleTypeChange(e.target.value)}
+                                disabled={!formData.countryId}
+                                className="w-full mt-1 p-2 bg-slate-50 border border-slate-200 rounded text-sm disabled:opacity-50"
+                            >
+                                <option value="">Select Type...</option>
+                                {availableVisaTypes.map((t: any) => (
+                                    <option key={t.id} value={t.name}>{t.name}</option>
+                                ))}
+                            </select>
+                        </div>
+
                         <div>
                             <label className="text-xs font-medium text-slate-700">Validity</label>
                             <input 
                                 value={formData.validity}
                                 onChange={e => setFormData({...formData, validity: e.target.value})}
                                 className="w-full mt-1 p-2 bg-slate-50 border border-slate-200 rounded text-sm"
-                                placeholder="e.g. 90 Days"
                             />
                         </div>
                     </div>
                 </div>
 
-                {/* Column 3: Admin & Financials */}
+                {/* 3. Financials */}
                 <div className="space-y-4">
                      <h4 className="text-xs font-bold text-slate-400 uppercase">Office Use</h4>
                      <div className="space-y-3">
@@ -276,7 +263,6 @@ export default function VisaForm({ isOpen, onClose, data, currentUserId, onSave,
                             </div>
                         </div>
                         
-                        {/* Package Toggle */}
                         <div 
                             onClick={() => setFormData({...formData, isPartOfPackage: !formData.isPartOfPackage})}
                             className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer border transition-all ${formData.isPartOfPackage ? 'bg-purple-50 border-purple-200' : 'bg-white border-slate-200'}`}
@@ -290,7 +276,6 @@ export default function VisaForm({ isOpen, onClose, data, currentUserId, onSave,
                 </div>
             </div>
 
-            {/* Footer Actions */}
             <div className="mt-6 pt-4 border-t border-slate-100 flex justify-end gap-3">
                 <button onClick={onClose} className="px-4 py-2 text-slate-500 hover:text-slate-700 text-sm font-medium">Cancel</button>
                 <button 
