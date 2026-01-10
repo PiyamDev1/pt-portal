@@ -66,7 +66,7 @@ export default function VisaForm({ isOpen, onClose, data, currentUserId, onSave,
 
     // Auto-fill: pricing and validity
     const handleTypeChange = (val: string) => {
-        const matchedType = availableVisaTypes.find((t: any) => t.displayName.toLowerCase() === val.toLowerCase())
+        const matchedType = availableVisaTypes.find((t: any) => t.name.toLowerCase() === val.toLowerCase())
         const updates: any = { visaTypeName: val }
 
         if (matchedType) {
