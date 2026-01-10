@@ -204,7 +204,11 @@ export default function VisaForm({ isOpen, onClose, data, currentUserId, onSave,
                                                                                 {t.name}
                                                                             </button>
                                                                         ))
-                                                                    ) : null}
+                                                                    ) : (
+                                                                        <div className="px-3 py-2 text-xs text-slate-500">
+                                                                            No visa types for this country.
+                                                                        </div>
+                                                                    )}
 
                                                                     {/* Create new option */}
                                                                     {formData.visaTypeName.trim() && !availableVisaTypes.some((t: any) => t.name.toLowerCase() === formData.visaTypeName.trim().toLowerCase()) && (
