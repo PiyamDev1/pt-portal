@@ -97,50 +97,70 @@ export async function GET() {
 
       const countryId = countryData.id
 
-      // 2. Upsert Types for this Country (manual upsert since no composite unique index exists)
-      for (const type of group.types) {
-        const { data: existingType, error: fetchErr } = await supabase
-          .from('visa_types')
-          .select('id')
-          .eq('country_id', countryId)
-          .ilike('name', type.name)
-          .maybeSingle()
+        // 2. Upsert Types for this Country
+        // Unique constraint exists on visa_types.name (global), so we generate globally unique names per seed
+        for (const type of group.types) {
+          const uniqueName = `${group.country} - ${type.name}`
 
-        if (fetchErr) {
-          logs.push(`Error fetching type ${type.name} for ${group.country}: ${fetchErr.message}`)
-          continue
-        }
-
-        if (existingType) {
-          const { error: updateErr } = await supabase
+          // First try to find by the unique name
+          const { data: existingUnique, error: fetchUniqueErr } = await supabase
             .from('visa_types')
-            .update({
-              name: type.name,
-              default_validity: type.validity,
-              default_cost: type.cost,
-              default_price: type.price
-            })
-            .eq('id', existingType.id)
+            .select('id')
+            .ilike('name', uniqueName)
+            .maybeSingle()
 
-          if (updateErr) {
-            logs.push(`Error updating type ${type.name} for ${group.country}: ${updateErr.message}`)
+          if (fetchUniqueErr) {
+            logs.push(`Error fetching type ${uniqueName}: ${fetchUniqueErr.message}`)
+            continue
           }
-        } else {
-          const { error: insertErr } = await supabase
-            .from('visa_types')
-            .insert({
-              country_id: countryId,
-              name: type.name,
-              default_validity: type.validity,
-              default_cost: type.cost,
-              default_price: type.price
-            })
 
-          if (insertErr) {
-            logs.push(`Error creating type ${type.name} for ${group.country}: ${insertErr.message}`)
+          // If not found, try bare name (legacy) to migrate it
+          let targetId = existingUnique?.id
+          if (!targetId) {
+            const { data: existingBare, error: fetchBareErr } = await supabase
+              .from('visa_types')
+              .select('id')
+              .ilike('name', type.name)
+              .maybeSingle()
+
+            if (fetchBareErr) {
+              logs.push(`Error fetching legacy type ${type.name}: ${fetchBareErr.message}`)
+              continue
+            }
+            targetId = existingBare?.id
+          }
+
+          if (targetId) {
+            const { error: updateErr } = await supabase
+              .from('visa_types')
+              .update({
+                name: uniqueName,
+                country_id: countryId,
+                default_validity: type.validity,
+                default_cost: type.cost,
+                default_price: type.price
+              })
+              .eq('id', targetId)
+
+            if (updateErr) {
+              logs.push(`Error updating type ${uniqueName}: ${updateErr.message}`)
+            }
+          } else {
+            const { error: insertErr } = await supabase
+              .from('visa_types')
+              .insert({
+                country_id: countryId,
+                name: uniqueName,
+                default_validity: type.validity,
+                default_cost: type.cost,
+                default_price: type.price
+              })
+
+            if (insertErr) {
+              logs.push(`Error creating type ${uniqueName}: ${insertErr.message}`)
+            }
           }
         }
-      }
       logs.push(`Processed ${group.country} with ${group.types.length} types.`)
     }
 
