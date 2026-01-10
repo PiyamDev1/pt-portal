@@ -99,7 +99,7 @@ export default function VisaApplicationsClient({ initialData, currentUserId }: a
               {initialData.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="p-12 text-center text-slate-400 italic">
-                    No visa applications yet. Click "New Application" to create one.
+                    No visa applications yet. Click &quot;New Application&quot; to create one.
                   </td>
                 </tr>
               ) : (
