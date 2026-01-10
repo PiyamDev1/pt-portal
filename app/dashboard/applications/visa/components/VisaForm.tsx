@@ -78,7 +78,7 @@ export default function VisaForm({ isOpen, onClose, data, currentUserId, onSave,
     if (!formData.countryId) return [];
     
     return metadata?.types?.filter((t: any) => {
-        const matchCountry = t.country_id === formData.countryId;
+        const matchCountry = String(t.country_id) === String(formData.countryId);
         const allowed = t.allowed_nationalities || [];
         const matchNationality = !formData.nationality || allowed.includes("Any") || allowed.includes(formData.nationality);
         
