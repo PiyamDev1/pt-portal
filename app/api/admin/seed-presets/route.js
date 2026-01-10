@@ -16,10 +16,10 @@ const PRESETS = [
   {
     country: "Pakistan",
     types: [
-      { name: "Tourist", validity: "90 days", cost: 45, price: 85 },
-      { name: "Family", validity: "90 days", cost: 45, price: 85 },
-      { name: "Family", validity: "12 months", cost: 68, price: 125 },
-      { name: "Family", validity: "12+ months", cost: 90, price: 165 }
+      { name: "Tourist - Pakistan", validity: "90 days", cost: 45, price: 85 },
+      { name: "Family - 90 days", validity: "90 days", cost: 45, price: 85 },
+      { name: "Family - 12 months", validity: "12 months", cost: 68, price: 125 },
+      { name: "Family - 12+ months", validity: "12+ months", cost: 90, price: 165 }
     ]
   },
   {
@@ -34,16 +34,16 @@ const PRESETS = [
       { name: "BRP - Evisa", validity: "N/A", cost: 0, price: 45 },
       { name: "NTL", validity: "N/A", cost: 0, price: 125 },
       { name: "Spouse - Application only", validity: "30 months", cost: 395, price: 0 },
-      { name: "Visitor", validity: "6 months", cost: 0, price: 295 },
-      { name: "Visitor", validity: "24 months", cost: 0, price: 295 }
+      { name: "Visitor - 6 months", validity: "6 months", cost: 0, price: 295 },
+      { name: "Visitor - 24 months", validity: "24 months", cost: 0, price: 295 }
     ]
   },
   {
     country: "Iran",
     types: [
-      { name: "Tourist", validity: "30 days", cost: 220, price: 245 },
-      { name: "Tourist", validity: "30 days", cost: 165, price: 195 },
-      { name: "Tourist", validity: "30 days", cost: 175, price: 220 }
+      { name: "Tourist - UK Nationals", validity: "30 days", cost: 220, price: 245 },
+      { name: "Tourist - Pakistani", validity: "30 days", cost: 165, price: 195 },
+      { name: "Tourist - Travel Document", validity: "30 days", cost: 175, price: 220 }
     ]
   },
   {
@@ -56,7 +56,7 @@ const PRESETS = [
   {
     country: "Turkey",
     types: [
-      { name: "Tourist", validity: "90 days", cost: 55, price: 85 }
+      { name: "Tourist - Turkey", validity: "90 days", cost: 55, price: 85 }
     ]
   },
   {
@@ -68,7 +68,7 @@ const PRESETS = [
   {
     country: "Kuwait",
     types: [
-      { name: "Tourist", validity: "90 days", cost: 10, price: 25 }
+      { name: "Tourist - Kuwait", validity: "90 days", cost: 10, price: 25 }
     ]
   }
 ]
