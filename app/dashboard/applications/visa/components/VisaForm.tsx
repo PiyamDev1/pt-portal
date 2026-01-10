@@ -51,27 +51,27 @@ export default function VisaForm({ isOpen, onClose, data, currentUserId, onSave,
   // --- LOGIC ENGINE ---
 
   // 1. Get List of Nationalities (Merge Common with All Countries)
-  const nationalityOptions = useMemo(() => {
-    const allNames = metadata?.countries?.map((c:any) => c.name) || [];
-    // Combine unique sorted list
-    return Array.from(new Set([...COMMON_NATIONALITIES, ...allNames]));
-  }, [metadata]);
+    const nationalityOptions = useMemo(() => {
+        const allNames = metadata?.countries?.map((c:any) => c.name) || [];
+        // Combine unique sorted list
+        return Array.from(new Set([...COMMON_NATIONALITIES, ...allNames]));
+    }, [metadata]);
 
   // 2. Filter Destinations based on Selected Nationality
-  const availableDestinations = useMemo(() => {
-    if (!formData.nationality) return metadata?.countries || []; // Show all if no nationality picked
+    const availableDestinations = useMemo(() => {
+        if (!formData.nationality) return metadata?.countries || []; // Show all if no nationality picked
 
-    // Find all Visa Types that allow this nationality (or "Any")
-    const validTypes = metadata?.types?.filter((t: any) => {
-        const allowed = t.allowed_nationalities || [];
-        return allowed.includes("Any") || allowed.includes(formData.nationality);
-    });
+        // Find all Visa Types that allow this nationality (or "Any")
+        const validTypes = metadata?.types?.filter((t: any) => {
+                const allowed = t.allowed_nationalities || [];
+                return allowed.includes("Any") || allowed.includes(formData.nationality);
+        });
 
-    // Extract unique country IDs from valid types
-    const validCountryIds = new Set(validTypes.map((t: any) => t.country_id));
+        // Extract unique country IDs from valid types (stringified for safe compare)
+        const validCountryIds = new Set(validTypes.map((t: any) => String(t.country_id)));
 
-    return metadata?.countries?.filter((c: any) => validCountryIds.has(c.id));
-  }, [formData.nationality, metadata]);
+        return metadata?.countries?.filter((c: any) => validCountryIds.has(String(c.id)));
+    }, [formData.nationality, metadata]);
 
   // 3. Filter Visa Types based on Destination AND Nationality
   const availableVisaTypes = useMemo(() => {
@@ -143,15 +143,33 @@ export default function VisaForm({ isOpen, onClose, data, currentUserId, onSave,
                                 className="w-full mt-1 p-2 bg-slate-50 border border-slate-200 rounded text-sm"
                             />
                         </div>
-                         <div>
-                            <label className="text-xs font-medium text-slate-700">Date of Birth</label>
-                            <input 
-                                type="date"
-                                value={formData.applicantDob}
-                                onChange={e => setFormData({...formData, applicantDob: e.target.value})}
-                                className="w-full mt-1 p-2 bg-slate-50 border border-slate-200 rounded text-sm"
-                            />
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <label className="text-xs font-medium text-slate-700">Date of Birth</label>
+                                <input 
+                                    type="date"
+                                    value={formData.applicantDob}
+                                    onChange={e => setFormData({...formData, applicantDob: e.target.value})}
+                                    className="w-full mt-1 p-2 bg-slate-50 border border-slate-200 rounded text-sm"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-xs font-medium text-purple-700 flex items-center gap-1"><Globe className="w-3 h-3"/> Nationality</label>
+                                <input 
+                                    list="nationality-list"
+                                    value={formData.nationality}
+                                    onChange={e => {
+                                        // Reset dependent fields when nationality changes
+                                        setFormData({...formData, nationality: e.target.value, countryId: '', visaTypeName: ''})
+                                    }}
+                                    className="w-full mt-1 p-2 bg-purple-50 border border-purple-200 rounded text-sm font-semibold text-purple-900 placeholder-purple-300"
+                                    placeholder="Select nationality..."
+                                />
+                            </div>
                         </div>
+                        <datalist id="nationality-list">
+                            {nationalityOptions.map((n: string) => <option key={n} value={n} />)}
+                        </datalist>
                     </div>
                 </div>
 
@@ -160,26 +178,6 @@ export default function VisaForm({ isOpen, onClose, data, currentUserId, onSave,
                     <h4 className="text-xs font-bold text-slate-400 uppercase">Visa Selection</h4>
                     <div className="space-y-3">
                         
-                        {/* Nationality Filter */}
-                        <div>
-                            <label className="text-xs font-medium text-purple-700 flex items-center gap-1">
-                                <Globe className="w-3 h-3"/> Nationality
-                            </label>
-                            <input 
-                                list="nationality-list"
-                                value={formData.nationality}
-                                onChange={e => {
-                                    // Reset child fields when nationality changes
-                                    setFormData({...formData, nationality: e.target.value, countryId: '', visaTypeName: ''})
-                                }}
-                                className="w-full mt-1 p-2 bg-purple-50 border border-purple-200 rounded text-sm font-semibold text-purple-900 placeholder-purple-300"
-                                placeholder="Start here..."
-                            />
-                            <datalist id="nationality-list">
-                                {nationalityOptions.map((n: string) => <option key={n} value={n} />)}
-                            </datalist>
-                        </div>
-
                         {/* Destination (Filtered) */}
                         <div>
                             <label className="text-xs font-medium text-slate-700">Destination</label>
