@@ -8,6 +8,7 @@ export default function VisaForm({ isOpen, onClose, data, currentUserId, onSave,
     applicantName: '',
     applicantPassport: '',
     applicantDob: '',
+    applicantNationality: '',
     countryId: '', // CHANGED: Stores ID now
     visaTypeName: '',
     validity: '',
@@ -25,6 +26,7 @@ export default function VisaForm({ isOpen, onClose, data, currentUserId, onSave,
         applicantName: `${data.applicants?.first_name} ${data.applicants?.last_name}`,
         applicantPassport: data.passport_number_used || data.applicants?.passport_number || '',
         applicantDob: data.applicants?.dob || '',
+        applicantNationality: data.applicants?.nationality || '',
         countryId: data.visa_countries?.id || '', // Load ID
         visaTypeName: data.visa_types?.name || '',
         validity: data.validity || '',
@@ -37,7 +39,8 @@ export default function VisaForm({ isOpen, onClose, data, currentUserId, onSave,
       // Reset
       setFormData({
         internalTrackingNo: '', applicantName: '', applicantPassport: '', applicantDob: '',
-        countryId: '', visaTypeName: '', validity: '',
+                applicantNationality: '',
+                countryId: '', visaTypeName: '', validity: '',
         basePrice: 0, customerPrice: 0, isPartOfPackage: false, status: 'Pending'
       })
     }
@@ -49,7 +52,11 @@ export default function VisaForm({ isOpen, onClose, data, currentUserId, onSave,
     // Filter visa types for selected country
     const availableVisaTypes = useMemo(() => {
         if (!formData.countryId) return []
-        return metadata?.types?.filter((t: any) => String(t.country_id) === String(formData.countryId)) || []
+        const allTypes = metadata?.types || []
+        const countryTypes = allTypes.filter((t: any) => String(t.country_id) === String(formData.countryId))
+        if (countryTypes.length) return countryTypes
+        // Fallback: show global/unscoped types if none matched for country
+        return allTypes.filter((t: any) => !t.country_id)
     }, [formData.countryId, metadata])
 
     const filteredVisaTypes = useMemo(() => {
@@ -128,6 +135,19 @@ export default function VisaForm({ isOpen, onClose, data, currentUserId, onSave,
                                 onChange={e => setFormData({...formData, applicantDob: e.target.value})}
                                 className="w-full mt-1 p-2 bg-slate-50 border border-slate-200 rounded text-sm"
                             />
+                        </div>
+                        <div>
+                            <label className="text-xs font-medium text-slate-700">Nationality</label>
+                            <select
+                                value={formData.applicantNationality}
+                                onChange={e => setFormData({ ...formData, applicantNationality: e.target.value })}
+                                className="w-full mt-1 p-2 bg-slate-50 border border-slate-200 rounded text-sm"
+                            >
+                                <option value="">Select Nationality...</option>
+                                {metadata?.countries?.map((c: any) => (
+                                    <option key={c.id} value={c.name}>{c.name}</option>
+                                ))}
+                            </select>
                         </div>
                     </div>
                 </div>

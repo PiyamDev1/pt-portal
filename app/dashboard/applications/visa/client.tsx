@@ -86,6 +86,7 @@ export default function VisaApplicationsClient({ initialData, currentUserId }: a
             <thead className="bg-slate-50 text-slate-500 text-[11px] uppercase font-bold border-b border-slate-100">
               <tr>
                 <th className="p-4">Applicant</th>
+                <th className="p-4">Nationality</th>
                 <th className="p-4">Country</th>
                 <th className="p-4">Visa Type</th>
                 <th className="p-4">Validity</th>
@@ -98,7 +99,7 @@ export default function VisaApplicationsClient({ initialData, currentUserId }: a
             <tbody className="divide-y divide-slate-50">
               {initialData.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="p-12 text-center text-slate-400 italic">
+                  <td colSpan={9} className="p-12 text-center text-slate-400 italic">
                     No visa applications yet. Click &quot;New Application&quot; to create one.
                   </td>
                 </tr>
@@ -111,6 +112,7 @@ export default function VisaApplicationsClient({ initialData, currentUserId }: a
                       </div>
                       <div className="text-xs text-slate-400 font-mono">{item.passport_number_used}</div>
                     </td>
+                    <td className="p-4 text-sm text-slate-600">{item.applicants?.nationality || '-'}</td>
                     <td className="p-4 text-sm text-slate-700">{item.visa_countries?.name}</td>
                     <td className="p-4">
                       <span className="text-[10px] bg-slate-100 border border-slate-200 px-2 py-1 rounded text-slate-600">

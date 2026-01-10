@@ -21,7 +21,7 @@ export default async function VisaApplicationsPage() {
     .from('visa_applications')
     .select(`
       *,
-      applicants (first_name, last_name, passport_number, dob),
+      applicants (first_name, last_name, passport_number, dob, nationality),
       visa_countries (id, name),
       visa_types (id, name)
     `)

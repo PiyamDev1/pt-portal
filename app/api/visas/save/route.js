@@ -14,6 +14,7 @@ export async function POST(request) {
     const { 
       id, 
       applicantName, applicantPassport, applicantDob,
+      applicantNationality,
       countryId, // CHANGED: We now expect an ID, not a name
       visaTypeName, // Visa Types remain dynamic
       validity, internalTrackingNo,
@@ -63,7 +64,15 @@ export async function POST(request) {
     const { data: existingApp } = await query.maybeSingle() // Use maybeSingle to avoid 406 error
 
     if (existingApp) {
-        applicantId = existingApp.id
+      applicantId = existingApp.id
+      // Keep applicant record fresh with latest details
+      await supabase
+        .from('applicants')
+        .update({
+        dob: applicantDob || null,
+        nationality: applicantNationality || null
+        })
+        .eq('id', existingApp.id)
     } else {
         const nameParts = applicantName.split(' ')
         const { data: newApp, error: aErr } = await supabase
@@ -72,7 +81,8 @@ export async function POST(request) {
                 first_name: nameParts[0],
                 last_name: nameParts.slice(1).join(' ') || '.',
                 passport_number: applicantPassport,
-                dob: applicantDob || null
+          dob: applicantDob || null,
+          nationality: applicantNationality || null
             })
             .select('id')
             .single()
