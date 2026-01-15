@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
 import VisaForm from './components/VisaForm'
 import { loadVisaMetadata, saveVisaApplication } from '@/app/lib/visaApi'
+import { VISA_TABLE_COLUMNS } from '@/app/lib/visaTableConfig'
 
 export default function VisaApplicationsClient({ initialData, currentUserId }: any) {
   const router = useRouter()
@@ -87,56 +88,59 @@ export default function VisaApplicationsClient({ initialData, currentUserId }: a
           <table className="w-full text-left">
             <thead className="bg-slate-50 text-slate-500 text-[11px] uppercase font-bold border-b border-slate-100">
               <tr>
-                <th className="p-4">Applicant</th>
-                <th className="p-4">Nationality</th>
-                <th className="p-4">Country</th>
-                <th className="p-4">Visa Type</th>
-                <th className="p-4">Validity</th>
-                <th className="p-4">App No.</th>
-                <th className="p-4">Price</th>
-                <th className="p-4">Status</th>
+                {VISA_TABLE_COLUMNS.map(col => (
+                  <th key={col.key} className="p-4">{col.label}</th>
+                ))}
                 <th className="p-4 text-right">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
               {initialData.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="p-12 text-center text-slate-400 italic">
+                  <td colSpan={VISA_TABLE_COLUMNS.length + 1} className="p-12 text-center text-slate-400 italic">
                     No visa applications yet. Click &quot;New Application&quot; to create one.
                   </td>
                 </tr>
               ) : (
                 initialData.map((item: any) => (
                   <tr key={item.id} className="hover:bg-slate-50 transition-colors group">
+                    {/* Applicant */}
                     <td className="p-4">
                       <div className="font-semibold text-slate-800 text-sm">
                         {item.applicants?.first_name} {item.applicants?.last_name}
                       </div>
                       <div className="text-xs text-slate-400 font-mono">{item.passport_number_used}</div>
                     </td>
+                    {/* Nationality */}
                     <td className="p-4 text-sm text-slate-600">{item.applicants?.nationality || '-'}</td>
-                    <td className="p-4 text-sm text-slate-700">{item.visa_countries?.name}</td>
-                    <td className="p-4">
-                      <span className="text-[10px] bg-slate-100 border border-slate-200 px-2 py-1 rounded text-slate-600">
-                        {item.visa_types?.name}
-                      </span>
-                    </td>
+                    {/* Country */}
+                    <td className="p-4 text-sm text-slate-600">{item.visa_countries?.name || '-'}</td>
+                    {/* Visa Type */}
+                    <td className="p-4 text-sm text-slate-600">{item.visa_types?.name || '-'}</td>
+                    {/* Validity */}
                     <td className="p-4 text-sm text-slate-600">{item.validity || '-'}</td>
+                    {/* App No */}
+                    <td className="p-4 text-sm text-slate-600 font-mono">{item.internal_tracking_number || '-'}</td>
+                    {/* Price */}
+                    <td className="p-4 text-sm font-semibold text-slate-800">£{item.customer_price?.toFixed(2) || '0.00'}</td>
+                    {/* Status */}
                     <td className="p-4">
-                      <span className="font-mono text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded">
-                        {item.internal_tracking_number}
-                      </span>
+                      {(() => {
+                        const statusColors: Record<string, string> = {
+                          'Pending': 'bg-yellow-50 text-yellow-700 border-yellow-200',
+                          'Approved': 'bg-green-50 text-green-700 border-green-200',
+                          'Rejected': 'bg-red-50 text-red-700 border-red-200',
+                          'Processing': 'bg-blue-50 text-blue-700 border-blue-200'
+                        }
+                        const colors = statusColors[item.status] || 'bg-slate-50 text-slate-700 border-slate-200'
+                        return (
+                          <span className={`text-xs font-semibold px-2 py-1 rounded border ${colors}`}>
+                            {item.status}
+                          </span>
+                        )
+                      })()}
                     </td>
-                    <td className="p-4 font-bold text-slate-700">£{item.customer_price}</td>
-                    <td className="p-4">
-                      <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase
-                        ${item.status === 'Completed' ? 'bg-green-100 text-green-700' : 
-                          item.status === 'Rejected' ? 'bg-red-100 text-red-700' :
-                          'bg-yellow-50 text-yellow-700 border border-yellow-100'
-                        }`}>
-                        {item.status}
-                      </span>
-                    </td>
+                    {/* Action */}
                     <td className="p-4 text-right">
                       <button 
                         onClick={() => { setEditingItem(item); setIsFormOpen(true) }}
