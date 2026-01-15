@@ -155,21 +155,21 @@ export default function VisaForm({ isOpen, onClose, data, currentUserId, onSave,
                             </div>
                             <div>
                                 <label className="text-xs font-medium text-purple-700 flex items-center gap-1"><Globe className="w-3 h-3"/> Nationality</label>
-                                <input 
-                                    list="applicantNationality-list"
+                                <select 
                                     value={formData.applicantNationality}
                                     onChange={e => {
                                         // Reset dependent fields when applicantNationality changes
                                         setFormData({...formData, applicantNationality: e.target.value, countryId: '', visaTypeName: ''})
                                     }}
-                                    className="w-full mt-1 p-2 bg-purple-50 border border-purple-200 rounded text-sm font-semibold text-purple-900 placeholder-purple-300"
-                                    placeholder="Select applicantNationality..."
-                                />
+                                    className="w-full mt-1 p-2 bg-purple-50 border border-purple-200 rounded text-sm font-semibold text-purple-900"
+                                >
+                                    <option value="">Select nationality...</option>
+                                    {applicantNationalityOptions.map((n: string) => (
+                                        <option key={n} value={n}>{n}</option>
+                                    ))}
+                                </select>
                             </div>
                         </div>
-                        <datalist id="applicantNationality-list">
-                            {applicantNationalityOptions.map((n: string) => <option key={n} value={n} />)}
-                        </datalist>
                     </div>
                 </div>
 
