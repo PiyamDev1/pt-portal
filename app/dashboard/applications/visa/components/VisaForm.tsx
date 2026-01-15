@@ -120,7 +120,7 @@ export default function VisaForm({ isOpen, onClose, data, currentUserId, onSave,
         </div>
 
         <div className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
                 
                 {/* 1. Applicant */}
                 <div className="space-y-4">
