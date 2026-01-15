@@ -11,7 +11,7 @@ export default function VisaForm({ isOpen, onClose, data, currentUserId, onSave,
     applicantName: '',
     applicantPassport: '',
     applicantDob: '',
-    nationality: '', // NEW FIELD
+    applicantNationality: '', // NEW FIELD
     countryId: '',
     visaTypeName: '',
     validity: '',
@@ -30,7 +30,7 @@ export default function VisaForm({ isOpen, onClose, data, currentUserId, onSave,
         applicantName: `${data.applicants?.first_name} ${data.applicants?.last_name}`,
         applicantPassport: data.passport_number_used || data.applicants?.passport_number || '',
         applicantDob: data.applicants?.dob || '',
-        nationality: '', // We don't strictly save nationality in visa_applications, maybe infer from passport or add field? For now, user re-selects or we default.
+        applicantNationality: '', // We don't strictly save applicantNationality in visa_applications, maybe infer from passport or add field? For now, user re-selects or we default.
         countryId: data.visa_countries?.id || '',
         visaTypeName: data.visa_types?.name || '',
         validity: data.validity || '',
@@ -42,7 +42,7 @@ export default function VisaForm({ isOpen, onClose, data, currentUserId, onSave,
     } else {
       setFormData({
         internalTrackingNo: '', applicantName: '', applicantPassport: '', applicantDob: '',
-        nationality: '', countryId: '', visaTypeName: '', validity: '',
+        applicantNationality: '', countryId: '', visaTypeName: '', validity: '',
         basePrice: 0, customerPrice: 0, isPartOfPackage: false, status: 'Pending'
       })
     }
@@ -51,7 +51,7 @@ export default function VisaForm({ isOpen, onClose, data, currentUserId, onSave,
   // --- LOGIC ENGINE ---
 
   // 1. Get List of Nationalities (Merge Common with All Countries)
-    const nationalityOptions = useMemo(() => {
+    const applicantNationalityOptions = useMemo(() => {
         const allNames = metadata?.countries?.map((c:any) => c.name) || [];
         // Combine unique sorted list
         return Array.from(new Set([...COMMON_NATIONALITIES, ...allNames]));
@@ -59,19 +59,19 @@ export default function VisaForm({ isOpen, onClose, data, currentUserId, onSave,
 
   // 2. Filter Destinations based on Selected Nationality
     const availableDestinations = useMemo(() => {
-        if (!formData.nationality) return metadata?.countries || []; // Show all if no nationality picked
+        if (!formData.applicantNationality) return metadata?.countries || []; // Show all if no applicantNationality picked
 
-        // Find all Visa Types that allow this nationality (or "Any")
+        // Find all Visa Types that allow this applicantNationality (or "Any")
         const validTypes = metadata?.types?.filter((t: any) => {
                 const allowed = t.allowed_nationalities || [];
-                return allowed.includes("Any") || allowed.includes(formData.nationality);
+                return allowed.includes("Any") || allowed.includes(formData.applicantNationality);
         });
 
         // Extract unique country IDs from valid types (stringified for safe compare)
         const validCountryIds = new Set(validTypes.map((t: any) => String(t.country_id)));
 
         return metadata?.countries?.filter((c: any) => validCountryIds.has(String(c.id)));
-    }, [formData.nationality, metadata]);
+    }, [formData.applicantNationality, metadata]);
 
   // 3. Filter Visa Types based on Destination AND Nationality
   const availableVisaTypes = useMemo(() => {
@@ -80,11 +80,11 @@ export default function VisaForm({ isOpen, onClose, data, currentUserId, onSave,
     return metadata?.types?.filter((t: any) => {
         const matchCountry = String(t.country_id) === String(formData.countryId);
         const allowed = t.allowed_nationalities || [];
-        const matchNationality = !formData.nationality || allowed.includes("Any") || allowed.includes(formData.nationality);
+        const matchNationality = !formData.applicantNationality || allowed.includes("Any") || allowed.includes(formData.applicantNationality);
         
         return matchCountry && matchNationality;
     }) || [];
-  }, [formData.countryId, formData.nationality, metadata]);
+  }, [formData.countryId, formData.applicantNationality, metadata]);
 
 
   // Auto-fill Logic
@@ -156,19 +156,19 @@ export default function VisaForm({ isOpen, onClose, data, currentUserId, onSave,
                             <div>
                                 <label className="text-xs font-medium text-purple-700 flex items-center gap-1"><Globe className="w-3 h-3"/> Nationality</label>
                                 <input 
-                                    list="nationality-list"
-                                    value={formData.nationality}
+                                    list="applicantNationality-list"
+                                    value={formData.applicantNationality}
                                     onChange={e => {
-                                        // Reset dependent fields when nationality changes
-                                        setFormData({...formData, nationality: e.target.value, countryId: '', visaTypeName: ''})
+                                        // Reset dependent fields when applicantNationality changes
+                                        setFormData({...formData, applicantNationality: e.target.value, countryId: '', visaTypeName: ''})
                                     }}
                                     className="w-full mt-1 p-2 bg-purple-50 border border-purple-200 rounded text-sm font-semibold text-purple-900 placeholder-purple-300"
-                                    placeholder="Select nationality..."
+                                    placeholder="Select applicantNationality..."
                                 />
                             </div>
                         </div>
-                        <datalist id="nationality-list">
-                            {nationalityOptions.map((n: string) => <option key={n} value={n} />)}
+                        <datalist id="applicantNationality-list">
+                            {applicantNationalityOptions.map((n: string) => <option key={n} value={n} />)}
                         </datalist>
                     </div>
                 </div>
@@ -184,10 +184,10 @@ export default function VisaForm({ isOpen, onClose, data, currentUserId, onSave,
                             <select 
                                 value={formData.countryId}
                                 onChange={e => setFormData({...formData, countryId: e.target.value, visaTypeName: ''})}
-                                disabled={!formData.nationality}
+                                disabled={!formData.applicantNationality}
                                 className="w-full mt-1 p-2 bg-slate-50 border border-slate-200 rounded text-sm focus:border-purple-500 disabled:opacity-50"
                             >
-                                <option value="">{formData.nationality ? 'Select Destination...' : 'Select Nationality First'}</option>
+                                <option value="">{formData.applicantNationality ? 'Select Destination...' : 'Select Nationality First'}</option>
                                 {availableDestinations.map((c: any) => (
                                     <option key={c.id} value={c.id}>{c.name}</option>
                                 ))}
