@@ -1,25 +1,11 @@
 'use client'
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { Save, ChevronUp, Box, Globe } from 'lucide-react'
-
-// Common nationalities to show at top of list
-const COMMON_NATIONALITIES = ["United Kingdom", "Pakistan", "India", "Bangladesh", "United States", "Travel Document"];
+import { COMMON_NATIONALITIES, DEFAULT_VISA_FORM_STATE } from '@/app/lib/visaConstants'
+import { useVisaFiltering } from '@/app/hooks/useVisaFiltering'
 
 export default function VisaForm({ isOpen, onClose, data, currentUserId, onSave, metadata }: any) {
-  const [formData, setFormData] = useState<any>({
-    internalTrackingNo: '',
-    applicantName: '',
-    applicantPassport: '',
-    applicantDob: '',
-    applicantNationality: '', // NEW FIELD
-    countryId: '',
-    visaTypeName: '',
-    validity: '',
-    basePrice: 0,
-    customerPrice: 0,
-    isPartOfPackage: false,
-    status: 'Pending'
-  })
+  const [formData, setFormData] = useState<any>(DEFAULT_VISA_FORM_STATE)
 
   // Load Data
   useEffect(() => {
@@ -40,51 +26,16 @@ export default function VisaForm({ isOpen, onClose, data, currentUserId, onSave,
         status: data.status
       })
     } else {
-      setFormData({
-        internalTrackingNo: '', applicantName: '', applicantPassport: '', applicantDob: '',
-        applicantNationality: '', countryId: '', visaTypeName: '', validity: '',
-        basePrice: 0, customerPrice: 0, isPartOfPackage: false, status: 'Pending'
-      })
+      setFormData(DEFAULT_VISA_FORM_STATE)
     }
   }, [data, isOpen])
 
-  // --- LOGIC ENGINE ---
-
-  // 1. Get List of Nationalities (Merge Common with All Countries)
-    const applicantNationalityOptions = useMemo(() => {
-        const allNames = metadata?.countries?.map((c:any) => c.name) || [];
-        // Combine unique sorted list
-        return Array.from(new Set([...COMMON_NATIONALITIES, ...allNames]));
-    }, [metadata]);
-
-  // 2. Filter Destinations based on Selected Nationality
-    const availableDestinations = useMemo(() => {
-        if (!formData.applicantNationality) return metadata?.countries || []; // Show all if no applicantNationality picked
-
-        // Find all Visa Types that allow this applicantNationality (or "Any")
-        const validTypes = metadata?.types?.filter((t: any) => {
-                const allowed = t.allowed_nationalities || [];
-                return allowed.includes("Any") || allowed.includes(formData.applicantNationality);
-        });
-
-        // Extract unique country IDs from valid types (stringified for safe compare)
-        const validCountryIds = new Set(validTypes.map((t: any) => String(t.country_id)));
-
-        return metadata?.countries?.filter((c: any) => validCountryIds.has(String(c.id)));
-    }, [formData.applicantNationality, metadata]);
-
-  // 3. Filter Visa Types based on Destination AND Nationality
-  const availableVisaTypes = useMemo(() => {
-    if (!formData.countryId) return [];
-    
-    return metadata?.types?.filter((t: any) => {
-        const matchCountry = String(t.country_id) === String(formData.countryId);
-        const allowed = t.allowed_nationalities || [];
-        const matchNationality = !formData.applicantNationality || allowed.includes("Any") || allowed.includes(formData.applicantNationality);
-        
-        return matchCountry && matchNationality;
-    }) || [];
-  }, [formData.countryId, formData.applicantNationality, metadata]);
+  // Use the filtering hook
+  const { applicantNationalityOptions, availableDestinations, availableVisaTypes } = useVisaFiltering({
+    applicantNationality: formData.applicantNationality,
+    countryId: formData.countryId,
+    metadata
+  })
 
 
   // Auto-fill Logic

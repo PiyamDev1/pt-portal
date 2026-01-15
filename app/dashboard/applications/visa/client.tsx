@@ -5,6 +5,7 @@ import { Plus, ChevronDown } from 'lucide-react'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
 import VisaForm from './components/VisaForm'
+import { loadVisaMetadata, saveVisaApplication } from '@/app/lib/visaApi'
 
 export default function VisaApplicationsClient({ initialData, currentUserId }: any) {
   const router = useRouter()
@@ -14,11 +15,10 @@ export default function VisaApplicationsClient({ initialData, currentUserId }: a
 
   const loadMetadata = async () => {
     try {
-      const res = await fetch('/api/visas/metadata')
-      const data = await res.json()
+      const data = await loadVisaMetadata()
       setMetadata(data)
     } catch (err) {
-      console.error('Metadata Load Error', err)
+      console.error('Failed to load metadata')
     }
   }
 
@@ -43,13 +43,8 @@ export default function VisaApplicationsClient({ initialData, currentUserId }: a
           toast.error('Please select a country')
           return
         }
-        const res = await fetch('/api/visas/save', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        })
-        const result = await res.json()
-        if(!res.ok) throw new Error(result.error)
+        
+        await saveVisaApplication(payload)
         
         toast.success('Visa Application Saved')
         await loadMetadata()
