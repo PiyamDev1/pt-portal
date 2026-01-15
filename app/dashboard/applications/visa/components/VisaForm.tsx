@@ -161,7 +161,7 @@ export default function VisaForm({ isOpen, onClose, data, currentUserId, onSave,
                                         // Reset dependent fields when applicantNationality changes
                                         setFormData({...formData, applicantNationality: e.target.value, countryId: '', visaTypeName: ''})
                                     }}
-                                    className="w-full mt-1 p-2 bg-purple-50 border border-purple-200 rounded text-sm font-semibold text-purple-900"
+                                    className="w-full mt-3 p-2 bg-purple-50 border border-purple-200 rounded text-sm font-semibold text-purple-900"
                                 >
                                     <option value="">Select nationality...</option>
                                     {applicantNationalityOptions.map((n: string) => (
