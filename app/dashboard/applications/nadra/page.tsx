@@ -81,7 +81,7 @@ export default async function NadraPage() {
           showBack={true} 
         />
         
-        <main className="max-w-7xl mx-auto p-6">
+        <main className="max-w-7xl mx-auto p-6 w-full flex-grow">
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-slate-800">Nadra Services</h1>
             <p className="text-slate-500">Manage Family Head records and track application credentials.</p>
