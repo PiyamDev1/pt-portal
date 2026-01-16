@@ -34,7 +34,7 @@ export default function FormSection({
   return (
     <>
       {showForm && (
-        <div className="bg-white p-6 rounded-xl border-t-4 border-blue-600 shadow-md animate-fade-in-down space-y-6">
+        <div className="bg-white p-6 rounded-xl border-t-4 border-slate-900 shadow-md animate-fade-in-down space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             {/* Left Column: Applicant */}
             <div className="space-y-4">
@@ -64,7 +64,7 @@ export default function FormSection({
                   value={formData.pexNumber}
                   onChange={onInputChange}
                   placeholder="PEX-123456789 *"
-                  className="w-full p-2 border border-blue-200 rounded text-sm font-mono uppercase bg-blue-50"
+                  className="w-full p-2 border border-slate-800 rounded text-sm font-mono uppercase bg-slate-50"
                   required
                 />
               </div>
@@ -84,7 +84,7 @@ export default function FormSection({
                       onClick={() => onInputChange({ target: { name: 'ageGroup', value: age } })}
                       className={`p-2 rounded text-sm font-medium border ${
                         formData.ageGroup === age
-                          ? 'bg-blue-600 text-white border-blue-600'
+                          ? 'bg-slate-900 text-white border-slate-900'
                           : 'bg-white text-slate-600 border-slate-200'
                       }`}
                     >
@@ -94,64 +94,64 @@ export default function FormSection({
                 </div>
               </div>
 
-              {/* Pages */}
-              <div>
-                <label className="text-[10px] text-slate-400 font-bold uppercase mb-2 block">Page Count</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {['34', '54'].map((pg) => (
-                    <button
-                      key={pg}
-                      onClick={() => onInputChange({ target: { name: 'pages', value: pg } })}
-                      className={`p-2 rounded text-sm font-medium border ${
-                        formData.pages === pg
-                          ? 'bg-blue-600 text-white border-blue-600'
-                          : 'bg-white text-slate-600 border-slate-200'
-                      }`}
-                    >
-                      {pg} Pages
-                    </button>
-                  ))}
+              {/* Pages & Service Type & Financial Summary Row */}
+              <div className="grid grid-cols-3 gap-3">
+                {/* Pages */}
+                <div>
+                  <label className="text-[10px] text-slate-400 font-bold uppercase mb-2 block">Page Count</label>
+                  <div className="space-y-1">
+                    {['34', '54'].map((pg) => (
+                      <button
+                        key={pg}
+                        onClick={() => onInputChange({ target: { name: 'pages', value: pg } })}
+                        className={`w-full p-2 rounded text-xs font-medium border ${
+                          formData.pages === pg
+                            ? 'bg-slate-900 text-white border-slate-900'
+                            : 'bg-white text-slate-600 border-slate-200'
+                        }`}
+                      >
+                        {pg} Pages
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
 
-              {/* Service Type */}
-              <div>
-                <label className="text-[10px] text-slate-400 font-bold uppercase mb-2 block">Service Type</label>
-                <select
-                  name="serviceType"
-                  value={formData.serviceType}
-                  onChange={onInputChange}
-                  className="w-full p-2 border rounded text-sm bg-white"
-                >
-                  {GB_SERVICE_TYPES.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
-                    </option>
-                  ))}
-                </select>
+                {/* Service Type */}
+                <div>
+                  <label className="text-[10px] text-slate-400 font-bold uppercase mb-2 block">Service Type</label>
+                  <select
+                    name="serviceType"
+                    value={formData.serviceType}
+                    onChange={onInputChange}
+                    className="w-full p-2 border rounded text-xs bg-white"
+                  >
+                    {GB_SERVICE_TYPES.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Financial Summary */}
+                <div>
+                  <label className="text-[10px] text-slate-400 font-bold uppercase mb-2 block">Agency Price</label>
+                  {pricing.price > 0 ? (
+                    <div className="group relative bg-gradient-to-r from-slate-900 to-slate-800 p-3 rounded-lg border border-slate-900 cursor-help">
+                      <div className="text-2xl font-bold text-white">£{pricing.price.toFixed(2)}</div>
+                      {/* Hidden cost shows on hover */}
+                      <div className="absolute bottom-full left-0 right-0 mb-2 bg-slate-900 text-white p-2 rounded text-[10px] opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                        Our Cost: £{pricing.cost.toFixed(2)}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-xs text-amber-700 bg-amber-50 p-2 rounded border border-amber-200">
+                      Not available
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-
-          {/* Financial Summary */}
-          <div className="bg-gradient-to-r from-blue-50 to-slate-50 p-4 rounded-lg border border-blue-100">
-            <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3">Financial Summary</h4>
-            {pricing.price > 0 ? (
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <div className="text-xs text-slate-500">Our Cost</div>
-                  <div className="text-2xl font-bold text-slate-700">£{pricing.cost.toFixed(2)}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-blue-600 font-bold">Agency Price</div>
-                  <div className="text-2xl font-bold text-blue-700">£{pricing.price.toFixed(2)}</div>
-                </div>
-              </div>
-            ) : (
-              <div className="text-sm text-amber-700 bg-amber-50 p-2 rounded border border-amber-200">
-                Service not available for this selection
-              </div>
-            )}
           </div>
 
           {/* Buttons */}
@@ -165,7 +165,7 @@ export default function FormSection({
             <button
               onClick={onSubmit}
               disabled={isSubmitting || pricing.price === 0}
-              className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-6 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-sm font-bold flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Save className="w-4 h-4" /> {isSubmitting ? 'Saving...' : 'Save Application'}
             </button>

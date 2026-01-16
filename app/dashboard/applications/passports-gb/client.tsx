@@ -86,12 +86,12 @@ export default function GbPassportsClient({ initialData, currentUserId }: any) {
             placeholder="Search by Name, PEX, etc..."
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+            className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-slate-900 outline-none"
           />
         </div>
         <button
           onClick={() => setShowForm(!showForm)}
-          className="bg-blue-600 text-white px-5 py-2 rounded-lg font-bold text-sm hover:bg-blue-700 flex items-center gap-2 shadow-md"
+          className="bg-slate-900 text-white px-5 py-2 rounded-lg font-bold text-sm hover:bg-slate-800 flex items-center gap-2 shadow-md"
         >
           <Plus className="w-4 h-4" /> {showForm ? 'Close' : 'New Application'}
         </button>
@@ -149,14 +149,14 @@ export default function GbPassportsClient({ initialData, currentUserId }: any) {
                   </div>
                 </td>
                 <td className="p-4">
-                  <span className="font-mono text-xs bg-blue-50 text-blue-700 border border-blue-100 px-2 py-1 rounded">
+                  <span className="font-mono text-xs bg-slate-900 text-white border border-slate-900 px-2 py-1 rounded">
                     {item.pex_number || 'N/A'}
                   </span>
                 </td>
                 <td className="p-4">
                   <div className="space-y-1 text-xs">
                     <div className="text-slate-500">Cost: <span className="font-mono">£{item.cost_price?.toFixed(2)}</span></div>
-                    <div className="text-blue-600 font-bold">Price: <span className="font-mono">£{item.sale_price?.toFixed(2)}</span></div>
+                    <div className="text-slate-900 font-bold">Price: <span className="font-mono">£{item.sale_price?.toFixed(2)}</span></div>
                   </div>
                 </td>
                 <td className="p-4">
