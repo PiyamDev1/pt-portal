@@ -29,7 +29,7 @@ const ALL_MODULES = [
     desc: "British Passport Services",
     icon: "🇬🇧", 
     color: "bg-blue-900 text-white", // Navy Blue
-    href: "/dashboard/passports/gb" 
+    href: "/dashboard/applications/passports-gb" 
   },
   { 
     id: 'commissions', 

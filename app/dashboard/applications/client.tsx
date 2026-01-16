@@ -3,7 +3,7 @@ import Link from 'next/link'
 
 const NAV_ITEMS = [
   { title: "PAK Passport", icon: "🇵🇰", color: "bg-green-800", href: "/dashboard/applications/passports" },
-  { title: "GB Passport", icon: "🇬🇧", color: "bg-blue-900", href: "/dashboard/passports/gb" },
+  { title: "GB Passport", icon: "🇬🇧", color: "bg-blue-900", href: "/dashboard/applications/passports-gb" },
   { title: "Nadra Services", icon: "🆔", color: "bg-green-500", href: "/dashboard/applications/nadra" },
   { title: "Visas", icon: "🛂", color: "bg-purple-600", href: "/dashboard/applications/visa" },
 ]
