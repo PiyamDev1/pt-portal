@@ -30,12 +30,20 @@ export default function EditModal({
               <input className="w-full p-2 border rounded text-sm font-mono bg-gray-100 text-gray-500 cursor-not-allowed" value={editFormData.applicantCnic || ''} disabled={true} title="Citizen Number cannot be changed" />
             </div>
             <div>
+              <label className="text-[10px] uppercase font-bold text-slate-400">Applicant Email</label>
+              <input className="w-full p-2 border rounded text-sm" value={editFormData.applicantEmail || ''} onChange={(e) => setEditFormData({ ...editFormData, applicantEmail: e.target.value })} />
+            </div>
+            <div>
               <label className="text-[10px] uppercase font-bold text-slate-400">Tracking #</label>
               <input className="w-full p-2 border rounded text-sm font-mono" value={editFormData.trackingNumber || ''} onChange={(e) => setEditFormData({ ...editFormData, trackingNumber: e.target.value.toUpperCase() })} />
             </div>
             <div>
               <label className="text-[10px] uppercase font-bold text-slate-400">Old Passport #</label>
               <input className="w-full p-2 border rounded text-sm font-mono" value={editFormData.oldPassportNumber || ''} onChange={(e) => setEditFormData({ ...editFormData, oldPassportNumber: e.target.value.toUpperCase() })} />
+            </div>
+            <div className="col-span-2">
+              <label className="text-[10px] uppercase font-bold text-slate-400">Family Head Email</label>
+              <input className="w-full p-2 border rounded text-sm" value={editFormData.familyHeadEmail || ''} onChange={(e) => setEditFormData({ ...editFormData, familyHeadEmail: e.target.value })} />
             </div>
             <div>
               <label className="text-[10px] uppercase font-bold text-slate-400">Speed</label>

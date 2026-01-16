@@ -1,5 +1,3 @@
-import { formatCNIC } from './helpers'
-
 interface FormData {
   familyHeadName: string
   familyHeadCnic: string
@@ -10,6 +8,7 @@ interface FormData {
   serviceOption: string
   trackingNumber: string
   pin: string
+  newBorn: boolean
 }
 
 interface FormSectionProps {
@@ -66,6 +65,16 @@ export default function FormSection({
 
               <div className="pt-2 space-y-2">
                 <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest">2. Applicant</h4>
+                <label className="flex items-center gap-2 text-xs text-slate-600">
+                  <input
+                    type="checkbox"
+                    name="newBorn"
+                    checked={formData.newBorn}
+                    onChange={onInputChange}
+                    className="h-4 w-4 rounded border-slate-300 text-green-600 focus:ring-green-600"
+                  />
+                  <span className="font-semibold">New Born / First Application</span>
+                </label>
                 <input
                   name="applicantName"
                   value={formData.applicantName}
@@ -78,8 +87,9 @@ export default function FormSection({
                   value={formData.applicantCnic}
                   onChange={onInputChange}
                   placeholder="Applicant CNIC (Auto-formatted)"
-                  className="w-full p-2 border rounded text-sm font-mono"
-                  required
+                  className={`w-full p-2 border rounded text-sm font-mono ${formData.newBorn ? 'bg-slate-100 cursor-not-allowed' : ''}`}
+                  required={!formData.newBorn}
+                  disabled={formData.newBorn}
                 />
                 <input
                   name="applicantEmail"

@@ -28,27 +28,48 @@ export async function POST(request) {
     } = body
 
     // 1. Find or Create Applicant
-    let { data: applicant } = await supabase
-      .from('applicants')
-      .select('id, email')
-      .eq('citizen_number', applicantCnic)
-      .single()
+    let applicant = null
+    const hasCnic = applicantCnic && applicantCnic.trim() !== ''
 
-    if (!applicant && applicantName) {
+    if (hasCnic) {
+      // Existing adult flow: search by CNIC
+      const { data: existing } = await supabase
+        .from('applicants')
+        .select('id, email')
+        .eq('citizen_number', applicantCnic)
+        .maybeSingle()
+
+      if (existing) {
+        applicant = existing
+        // Update email if missing
+        if (applicantEmail && !existing.email) {
+          await supabase.from('applicants').update({ email: applicantEmail }).eq('id', existing.id)
+          applicant = { ...existing, email: applicantEmail }
+        }
+      } else {
+        const parts = applicantName.split(' ')
+        const { data: newApp, error } = await supabase.from('applicants').insert({
+          first_name: parts[0],
+          last_name: parts.slice(1).join(' ') || 'N/A',
+          citizen_number: applicantCnic,
+          email: applicantEmail || null,
+          is_new_born: false
+        }).select('id, email').single()
+        if (error) throw error
+        applicant = newApp
+      }
+    } else {
+      // New born: no CNIC provided, always create fresh
       const parts = applicantName.split(' ')
-      const { data: newApp } = await supabase.from('applicants').insert({
+      const { data: newBaby, error } = await supabase.from('applicants').insert({
         first_name: parts[0],
-        last_name: parts.slice(1).join(' ') || 'N/A',
-        citizen_number: applicantCnic,
+        last_name: parts.slice(1).join(' ') || '.',
+        citizen_number: null,
+        is_new_born: true,
         email: applicantEmail || null
       }).select('id, email').single()
-      applicant = newApp
-    } else if (applicant && applicantEmail && !applicant.email) {
-      // Update email if it was missing previously
-      await supabase.from('applicants')
-        .update({ email: applicantEmail })
-        .eq('id', applicant.id)
-      applicant = { ...applicant, email: applicantEmail }
+      if (error) throw error
+      applicant = newBaby
     }
 
     if (!applicant?.id) {

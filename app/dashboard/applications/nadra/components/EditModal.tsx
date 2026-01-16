@@ -3,7 +3,7 @@ interface EditModalProps {
   editType: 'application' | 'family_head' | null
   editFormData: any
   deleteAuthCode: string
-  onInputChange: (name: string, value: string) => void
+  onInputChange: (name: string, value: any) => void
   onAuthCodeChange: (code: string) => void
   onSave: () => void
   onDelete: () => void
@@ -58,16 +58,26 @@ export default function EditModal({
                   onChange={(e) => onInputChange('lastName', e.target.value)}
                 />
               </div>
+              <label className="col-span-2 flex items-center gap-2 text-sm text-slate-600">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-slate-300 text-green-600 focus:ring-green-600"
+                  checked={!!editFormData.newBorn}
+                  onChange={(e) => onInputChange('newBorn', e.target.checked)}
+                />
+                <span className="font-semibold">New Born / First Application</span>
+              </label>
               <div className="col-span-2">
                 <label className="text-[10px] font-bold uppercase text-slate-400 flex justify-between">
                   <span>CNIC (Read Only)</span>
                   <span className="text-[9px] text-amber-600 bg-amber-50 px-1 rounded">🔒 Locked</span>
                 </label>
                 <input
-                  className="w-full border rounded p-2 text-sm font-mono bg-slate-100 text-slate-500 cursor-not-allowed"
+                  className={`w-full border rounded p-2 text-sm font-mono ${editFormData.newBorn ? 'bg-slate-100 cursor-not-allowed' : 'bg-slate-100 text-slate-500 cursor-not-allowed'}`}
                   value={editFormData.cnic || ''}
-                  readOnly
-                  title="CNIC cannot be edited to prevent database corruption"
+                  readOnly={!editFormData.newBorn}
+                  disabled={editFormData.newBorn}
+                  title={editFormData.newBorn ? 'Citizen number disabled for newborn flow' : 'CNIC cannot be edited to prevent database corruption'}
                 />
               </div>
               {editType === 'application' && (

@@ -20,6 +20,7 @@ interface FormData {
   serviceOption: string
   trackingNumber: string
   pin: string
+  newBorn: boolean
 }
 
 interface EditFormData {
@@ -50,7 +51,8 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
     serviceType: 'NICOP/CNIC',
     serviceOption: 'Normal',
     trackingNumber: '',
-    pin: ''
+    pin: '',
+    newBorn: false
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -80,7 +82,17 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
   // =====================================================================
 
   const handleInputChange = (e: any) => {
-    let { name, value } = e.target
+    const { name, type, checked } = e.target
+    let value = type === 'checkbox' ? checked : e.target.value
+
+    if (name === 'newBorn') {
+      setFormData((prev) => ({
+        ...prev,
+        newBorn: value,
+        applicantCnic: value ? '' : prev.applicantCnic
+      }))
+      return
+    }
 
     if (['familyHeadCnic', 'applicantCnic'].includes(name)) {
       value = formatCNIC(value)
@@ -90,7 +102,7 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
       value = value.toUpperCase()
     }
 
-    setFormData({ ...formData, [name]: value })
+    setFormData((prev) => ({ ...prev, [name]: value }))
   }
 
   const handleAddMember = (familyHead: any) => {
@@ -102,15 +114,16 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
       applicantCnic: '',
       applicantEmail: '',
       trackingNumber: '',
-      pin: ''
+      pin: '',
+      newBorn: false
     })
     setShowForm(true)
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   const handleSubmit = async () => {
-    if (!formData.applicantCnic || !formData.trackingNumber) {
-      toast.error('Applicant CNIC and Tracking Number are required')
+    if (!formData.trackingNumber || (!formData.applicantCnic && !formData.newBorn)) {
+      toast.error('Tracking Number and Citizen Number are required unless New Born is selected')
       return
     }
 
@@ -136,7 +149,8 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
           serviceType: 'NICOP/CNIC',
           serviceOption: 'Normal',
           trackingNumber: '',
-          pin: ''
+          pin: '',
+          newBorn: false
         })
         setShowForm(false)
         router.refresh()
@@ -289,6 +303,8 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
 
     const nadra = getNadraRecord(record)
     const details = getDetails(nadra)
+    const rawCnic = record.applicants?.citizen_number
+    const isNewBorn = !rawCnic || rawCnic?.startsWith('00000')
 
     setEditFormData({
       id: nadra?.id,
@@ -296,7 +312,8 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
       applicantId: record.applicants?.id,
       firstName: record.applicants?.first_name,
       lastName: record.applicants?.last_name,
-      cnic: record.applicants?.citizen_number,
+      cnic: isNewBorn ? '' : rawCnic,
+      newBorn: isNewBorn,
       email: record.applicants?.email || '',
       serviceType: nadra?.service_type,
       serviceOption: details?.service_option || 'Normal',
@@ -305,7 +322,12 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
     })
   }
 
-  const handleEditInputChange = (name: string, value: string) => {
+  const handleEditInputChange = (name: string, value: any) => {
+    if (name === 'newBorn') {
+      setEditFormData((prev: any) => ({ ...prev, newBorn: value, cnic: value ? '' : prev.cnic }))
+      return
+    }
+
     if (name === 'trackingNumber') value = value.toUpperCase()
     setEditFormData((prev: any) => ({ ...prev, [name]: value }))
   }

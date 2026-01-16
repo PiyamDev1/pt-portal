@@ -42,12 +42,15 @@ export async function POST(request) {
     // HANDLE UPDATE
     // ---------------------------------------------------------
     if (action === 'update') {
+      const applicationId = data.applicationId || id
+      const passportId = data.passportId || id
+
       // 1. Update Parent Application (Tracking Number)
-      if (data.trackingNumber) {
+      if (data.trackingNumber && applicationId) {
         const { error: appError } = await supabase
           .from('applications')
           .update({ tracking_number: data.trackingNumber })
-          .eq('id', id)
+          .eq('id', applicationId)
         if (appError) throw appError
       }
 
@@ -74,9 +77,10 @@ export async function POST(request) {
           page_count: data.pageCount,
           speed: data.speed,
           old_passport_number: data.oldPassportNumber || null,
-          fingerprints_completed: data.fingerprintsCompleted
+          fingerprints_completed: data.fingerprintsCompleted,
+          family_head_email: data.familyHeadEmail || null
         })
-        .eq('id', id)
+        .eq('id', passportId)
 
       if (ppError) throw ppError
 

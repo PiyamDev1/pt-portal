@@ -152,11 +152,16 @@ export async function POST(request) {
         if (updateHeadError) throw updateHeadError
       } else {
         if (data.applicantId) {
+          const zeroPlaceholder = typeof data.cnic === 'string' && data.cnic.startsWith('00000')
+          const isNewBorn = data.newBorn === true || zeroPlaceholder
+          const citizenNumber = isNewBorn ? null : (data.cnic || null)
+
           const applicantPayload = cleanPayload({
             first_name: data.firstName,
             last_name: data.lastName,
-            citizen_number: data.cnic,
-            email: data.email
+            citizen_number: citizenNumber,
+            email: data.email,
+            is_new_born: isNewBorn
           })
 
           const { error: updateApplicantError } = await supabase

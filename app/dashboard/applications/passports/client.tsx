@@ -100,10 +100,13 @@ export default function PakPassportClient({ initialApplications, currentUserId }
   const openEditModal = (item: any) => {
     const pp = getPassportRecord(item)
     setEditFormData({
-      id: pp?.id, // Use the passport ID specifically
+      id: item.id, // Application id
+      passportId: pp?.id,
       applicantId: item.applicants?.id,
       applicantName: `${item.applicants?.first_name} ${item.applicants?.last_name}`,
       applicantCnic: item.applicants?.citizen_number,
+      applicantEmail: item.applicants?.email || '',
+      familyHeadEmail: pp?.family_head_email || '',
       trackingNumber: item.tracking_number,
       oldPassportNumber: pp?.old_passport_number || '',
       applicationType: pp?.application_type,
@@ -116,9 +119,25 @@ export default function PakPassportClient({ initialApplications, currentUserId }
   }
 
   const handleEditSubmit = async () => {
-    // Implement your edit logic here calling pakPassportApi.updateRecord
-    toast.info("Save logic implemented in API")
-    setEditModal(false) 
+    if (!editFormData?.id) {
+      toast.error('No record selected')
+      return
+    }
+
+    const payload = {
+      ...editFormData,
+      applicationId: editFormData.id,
+      passportId: editFormData.passportId,
+    }
+
+    const result = await pakPassportApi.updateRecord(editFormData.id, payload, currentUserId)
+    if (result.ok) {
+      toast.success('Application updated')
+      setEditModal(false)
+      router.refresh()
+    } else {
+      toast.error(result.error || 'Update failed')
+    }
   }
 
   const handleDelete = async () => {
