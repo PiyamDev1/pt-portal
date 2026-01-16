@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
+import { redirect } from 'next/navigation'
 import PageHeader from '@/app/components/PageHeader.client'
 import GbPassportsClient from './client'
 import DashboardClientWrapper from '@/app/dashboard/client-wrapper'
@@ -13,13 +14,15 @@ export default async function GbPassportsPage() {
   )
 
   const { data: { session } } = await supabase.auth.getSession()
+  if (!session) redirect('/login')
 
   // Fetch Data
   const { data: passports } = await supabase
     .from('british_passport_applications')
     .select(`
       *,
-      applicants (first_name, last_name)
+      applicants (id, first_name, last_name),
+      applications (id, tracking_number)
     `)
     .order('created_at', { ascending: false })
 
@@ -39,7 +42,7 @@ export default async function GbPassportsPage() {
         <PageHeader 
             employeeName={employee?.full_name} 
             role={role?.name} 
-            location={location} 
+            location={location?.name}
             userId={session?.user?.id}
             showBack={true}
         />
