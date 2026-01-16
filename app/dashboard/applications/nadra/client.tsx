@@ -30,6 +30,7 @@ interface EditFormData {
   firstName?: string
   lastName?: string
   cnic?: string
+  newBorn?: boolean
   email?: string
   serviceType?: string
   serviceOption?: string
