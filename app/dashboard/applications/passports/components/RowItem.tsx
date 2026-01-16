@@ -72,6 +72,11 @@ export default function RowItem({ item, onOpenEdit, onUpdateRecord, onViewHistor
           <div className="space-y-1">
             <div className="font-semibold text-slate-800 text-sm leading-tight">{item.applicants?.first_name} {item.applicants?.last_name}</div>
             <div className="text-xs text-slate-500 font-mono leading-tight">{item.applicants?.citizen_number}</div>
+            {pp.family_head_email && (
+              <div className="text-[11px] text-sky-700 font-semibold leading-tight">
+                FH Email: {pp.family_head_email}
+              </div>
+            )}
             {createdAt && (
               <div className="text-[11px] font-semibold text-orange-500 leading-tight">
                 Added: {formatDate(createdAt)}

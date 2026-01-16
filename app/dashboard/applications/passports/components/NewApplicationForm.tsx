@@ -29,6 +29,10 @@ export default function NewApplicationForm({ formData, isSubmitting, onChange, o
              <input name="applicantEmail" onChange={onChange} onBlur={onBlur} value={formData.applicantEmail} placeholder="Email Address" className="w-full p-2 bg-white border border-green-100 rounded-lg text-sm focus:ring-2 focus:ring-green-500" />
              {errors.applicantEmail && (<p className="text-red-600 text-xs mt-1">{errors.applicantEmail}</p>)}
            </div>
+           <div>
+             <input name="familyHeadEmail" onChange={onChange} onBlur={onBlur} value={formData.familyHeadEmail} placeholder="Family Head Email (NADRA account)" className="w-full p-2 bg-white border border-green-100 rounded-lg text-sm focus:ring-2 focus:ring-green-500" />
+             {errors.familyHeadEmail && (<p className="text-red-600 text-xs mt-1">{errors.familyHeadEmail}</p>)}
+           </div>
            
            <div className="flex items-center gap-3 bg-green-50 p-3 rounded-lg border border-green-100 mt-2">
              <input type="checkbox" name="fingerprintsCompleted" checked={formData.fingerprintsCompleted} onChange={onChange} className="h-5 w-5 text-green-600 rounded focus:ring-green-500 cursor-pointer" id="fp_check" />

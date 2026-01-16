@@ -38,6 +38,7 @@ export default function PakPassportClient({ initialApplications, currentUserId }
 
   const [formData, setFormData] = useState<PakApplicationFormData>({
     applicantName: '', applicantCnic: '', applicantEmail: '',
+    familyHeadEmail: '',
     applicationType: 'Renewal', category: 'Adult 10 Year', pageCount: '34 pages', speed: 'Normal',
     trackingNumber: '', oldPassportNumber: '', fingerprintsCompleted: false
   })

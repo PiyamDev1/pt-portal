@@ -4,7 +4,6 @@ import { useState } from 'react'
 import { Plus, Search, MoreHorizontal, User, ChevronDown } from 'lucide-react'
 import { toast } from 'sonner'
 import FormSection from './components/FormSection'
-import LedgerTable from './components/LedgerTable'
 import { useRouter } from 'next/navigation'
 
 interface FormData {

@@ -16,6 +16,7 @@ export async function POST(request) {
     const body = await request.json()
     const { 
       applicantCnic, applicantName, applicantEmail,
+      familyHeadEmail,
       applicationType, category, pageCount, speed, 
       oldPassportNumber, trackingNumber, 
       fingerprintsCompleted,
@@ -51,6 +52,7 @@ export async function POST(request) {
       application_id: appRecord.id,
       applicant_id: applicant.id,
       employee_id: currentUserId,
+      family_head_email: familyHeadEmail,
       application_type: applicationType,
       category: category,
       page_count: pageCount,

@@ -7,6 +7,7 @@ export const PakApplicationFormSchema = z.object({
   applicantName: z.string().min(1, 'Name is required'),
   applicantCnic: z.string().regex(cnicPattern, 'CNIC must be #####:#######:#'),
   applicantEmail: z.union([z.string().email('Invalid email'), z.literal('')]),
+  familyHeadEmail: z.string().email('Valid family head email is required'),
   applicationType: z.enum(['First Time', 'Renewal', 'Modification', 'Lost']),
   category: z.enum(['Adult 10 Year', 'Adult 5 Year', 'Child 5 Year']),
   pageCount: z.enum(['34 pages', '54 pages', '72 pages', '100 pages']),
