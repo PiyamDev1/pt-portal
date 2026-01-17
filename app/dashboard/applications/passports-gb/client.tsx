@@ -1,11 +1,12 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Plus, Search, MoreHorizontal, User, Clock } from 'lucide-react'
 import { toast } from 'sonner'
 import FormSection from './components/FormSection'
 import EditModal from './components/EditModal'
 import HistoryModal from './components/HistoryModal'
+import LedgerTable from './components/LedgerTable'
+import SearchHeader from './components/SearchHeader'
 import { useRouter } from 'next/navigation'
 
 interface FormData {
@@ -219,24 +220,19 @@ export default function GbPassportsClient({ initialData, currentUserId }: any) {
 
   return (
     <div className="space-y-6">
-      {/* Search & Header */}
-      <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-        <div className="relative w-full md:w-96">
-          <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
-          <input
-            placeholder="Search by Name, PEX, etc..."
-            value={searchTerm}
-            onChange={e => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-slate-900 outline-none"
-          />
-        </div>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="bg-slate-900 text-white px-5 py-2 rounded-lg font-bold text-sm hover:bg-slate-800 flex items-center gap-2 shadow-md"
-        >
-          <Plus className="w-4 h-4" /> {showForm ? 'Close' : 'New Application'}
-        </button>
+      {/* Page Title */}
+      <div>
+        <h1 className="text-3xl font-bold text-slate-900">British Passport Applications</h1>
+        <p className="text-sm text-slate-500 mt-1">Manage and track all GB passport applications</p>
       </div>
+
+      {/* Search & Header */}
+      <SearchHeader 
+        searchTerm={searchTerm}
+        onSearchChange={setSearchTerm}
+        showForm={showForm}
+        onToggleForm={() => setShowForm(!showForm)}
+      />
 
       {/* Form Section - Passing Metadata */}
       <FormSection
@@ -250,104 +246,12 @@ export default function GbPassportsClient({ initialData, currentUserId }: any) {
       />
 
       {/* Ledger Table */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <table className="w-full text-left">
-          <thead className="bg-slate-50 text-slate-500 text-[11px] uppercase font-bold border-b border-slate-100">
-            <tr>
-              <th className="p-4">Applicant</th>
-              <th className="p-4">Phone</th>
-              <th className="p-4">Service Details</th>
-              <th className="p-4">PEX Ref</th>
-              <th className="p-4">Status</th>
-              <th className="p-4 text-right">Action</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-50">
-            {filtered.map((item: any) => (
-              <tr key={item.id} className="hover:bg-slate-50 transition-colors">
-                <td className="p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-xs">
-                      <User className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <div className="font-semibold text-slate-800 text-sm">
-                        {item.applicants?.first_name && item.applicants?.last_name
-                          ? `${item.applicants.first_name.charAt(0).toUpperCase()}${item.applicants.first_name.slice(1)} ${item.applicants.last_name.charAt(0).toUpperCase()}${item.applicants.last_name.slice(1)}`
-                          : 'N/A'}
-                      </div>
-                      <div className="text-[10px] text-slate-500 mt-0.5">
-                        {item.applicants?.date_of_birth 
-                          ? new Date(item.applicants.date_of_birth).toLocaleDateString('en-GB') 
-                          : 'N/A'}
-                      </div>
-                    </div>
-                  </div>
-                </td>
-                <td className="p-4">
-                  <span className="text-sm text-slate-700">
-                    {item.applicants?.phone_number || 'N/A'}
-                  </span>
-                </td>
-                <td className="p-4">
-                  <div className="space-y-1">
-                    <div className="text-sm font-medium text-slate-700">{item.service_type}</div>
-                    <div className="flex gap-2">
-                      <span className="text-[10px] bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded text-slate-500">
-                        {item.age_group}
-                      </span>
-                      <span className="text-[10px] bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded text-slate-500">
-                        {item.pages} Pages
-                      </span>
-                    </div>
-                  </div>
-                </td>
-                <td className="p-4">
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(item.pex_number || 'N/A')
-                      toast.success('PEX number copied to clipboard')
-                    }}
-                    className="font-mono text-xs bg-slate-100 text-slate-700 border border-slate-200 px-2 py-1 rounded hover:bg-slate-200 transition-colors cursor-pointer"
-                  >
-                    {item.pex_number || 'N/A'}
-                  </button>
-                </td>
-                <td className="p-4">
-                  <select
-                    value={item.status || 'Pending Submission'}
-                    onChange={(e) => handleStatusChange(item.id, e.target.value)}
-                    className={`px-2 py-1 rounded text-[10px] font-bold uppercase border cursor-pointer
-                      ${item.status === 'Completed' ? 'bg-green-100 text-green-700 border-green-200' : 'bg-yellow-50 text-yellow-700 border-yellow-100'}`}
-                  >
-                    <option value="Pending Submission">Pending Submission</option>
-                    <option value="Submitted">Submitted</option>
-                    <option value="In Progress">In Progress</option>
-                    <option value="Completed">Completed</option>
-                  </select>
-                </td>
-                <td className="p-4 text-right">
-                  <div className="flex justify-end gap-2">
-                    <button 
-                      onClick={() => setSelectedHistory(item)}
-                      className="text-slate-400 hover:text-blue-600 p-2 hover:bg-blue-50 rounded transition-colors"
-                      title="View History"
-                    >
-                      <Clock className="w-4 h-4" />
-                    </button>
-                    <button 
-                      onClick={() => openEditModal(item)}
-                      className="text-slate-400 hover:text-slate-700 p-2 hover:bg-slate-100 rounded"
-                    >
-                      <MoreHorizontal className="w-4 h-4" />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <LedgerTable 
+        items={filtered}
+        onStatusChange={handleStatusChange}
+        onViewHistory={(item) => setSelectedHistory(item)}
+        onEdit={openEditModal}
+      />
 
       {/* Edit Modal */}
       <EditModal

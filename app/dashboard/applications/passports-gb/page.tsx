@@ -29,7 +29,7 @@ export default async function GbPassportsPage() {
   // Fetch Employee Info
   const { data: employee } = await supabase
     .from('employees')
-    .select('full_name, roles(name), locations(name)')
+    .select('full_name, roles(name), locations(name, branch_code)')
     .eq('id', session?.user?.id)
     .single()
 
@@ -42,7 +42,7 @@ export default async function GbPassportsPage() {
         <PageHeader 
             employeeName={employee?.full_name} 
             role={role?.name} 
-            location={location?.name}
+            location={location}
             userId={session?.user?.id}
             showBack={true}
         />
