@@ -11,28 +11,24 @@ export async function GET(request) {
     )
 
     const { searchParams } = new URL(request.url)
-    const gbPassportId = searchParams.get('gbPassportId')
+    const passportId = searchParams.get('passportId')
 
-    if (!gbPassportId) {
-      return NextResponse.json({ error: 'Missing gbPassportId' }, { status: 400 })
-    }
+    if (!passportId) return NextResponse.json({ history: [] })
 
-    // Get status history for this GB passport, ordered by newest first
-    const { data: history, error: historyError } = await supabase
+    // Fetch history logs
+    const { data: history, error } = await supabase
       .from('british_passport_status_history')
-      .select('*')
-      .eq('passport_id', gbPassportId)
-      .order('created_at', { ascending: false })
+      .select(`
+        *,
+        employees (full_name)
+      `)
+      .eq('passport_id', passportId)
+      .order('changed_at', { ascending: false })
 
-    if (historyError) {
-      console.error('Supabase error:', historyError)
-      // Return empty history if table doesn't exist or no data
-      return NextResponse.json({ history: [] })
-    }
+    if (error) throw error
 
-    return NextResponse.json({ history: history || [] })
+    return NextResponse.json({ history })
   } catch (error) {
-    console.error('History fetch error:', error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }

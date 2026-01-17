@@ -42,6 +42,9 @@ export default function GbPassportsClient({ initialData, currentUserId }: any) {
   // Fetch metadata on mount
   useEffect(() => {
     fetch('/api/passports/gb/metadata')
+  // Fetch metadata on mount
+  useEffect(() => {
+    fetch('/api/passports/gb/metadata')
       .then(res => res.json())
       .then(data => setMetadata(data))
       .catch(err => console.error("Failed to load GB metadata", err))
@@ -213,15 +216,17 @@ export default function GbPassportsClient({ initialData, currentUserId }: any) {
     }
   }
 
-  const filtered = initialData.filter((item: any) =>
-    JSON.stringify(item).toLowerCase().includes(searchTerm.toLowerCase())
-  )
-
-  return (
-    <div className="space-y-6">
-      {/* Search & Header */}
-      <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-        <div className="relative w-full md:w-96">
+  const handleViewHistory = async (item: any) => {
+    try {
+      const res = await fetch(`/api/passports/gb/status-history?gbPassportId=${item.id}`)
+      if (!res.ok) {
+        const error = await res.json()
+        throw new Error(error.error || 'Failed to fetch history')
+      }
+      const data = await res.json()
+      setStatusHistory(data.history || [])
+      setHistoryModal(item)
+     <div className="relative w-full md:w-96">
           <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
           <input
             placeholder="Search by Name, PEX, etc..."
@@ -246,7 +251,7 @@ export default function GbPassportsClient({ initialData, currentUserId }: any) {
         onInputChange={handleInputChange}
         onSubmit={handleSubmit}
         onToggle={() => setShowForm(!showForm)}
-        metadata={metadata}
+        metadata={metadata} // <--- PASS THIS
       />
 
       {/* Ledger Table */}
@@ -303,9 +308,12 @@ export default function GbPassportsClient({ initialData, currentUserId }: any) {
                   </div>
                 </td>
                 <td className="p-4">
-                  <span className="font-mono text-xs bg-slate-100 text-slate-700 border border-slate-200 px-2 py-1 rounded">
+                  <button
+                    onClick={() => handleViewHistory(item)}
+                    className="font-mono text-xs bg-slate-900 text-white hover:bg-slate-800 border border-slate-900 px-2 py-1 rounded transition"
+                  >
                     {item.pex_number || 'N/A'}
-                  </span>
+                  </button>
                 </td>
                 <td className="p-4">
                   <select
@@ -321,21 +329,11 @@ export default function GbPassportsClient({ initialData, currentUserId }: any) {
                   </select>
                 </td>
                 <td className="p-4 text-right">
-                  <div className="flex justify-end gap-2">
-                    <button 
-                      onClick={() => setSelectedHistory(item)}
-                      className="text-slate-400 hover:text-blue-600 p-2 hover:bg-blue-50 rounded transition-colors"
-                      title="View History"
-                    >
-                      <Clock className="w-4 h-4" />
-                    </button>
-                    <button 
-                      onClick={() => openEditModal(item)}
-                      className="text-slate-400 hover:text-slate-700 p-2 hover:bg-slate-100 rounded"
-                    >
-                      <MoreHorizontal className="w-4 h-4" />
-                    </button>
-                  </div>
+                  <button 
+                    onClick={() => openEditModal(item)}
+                    className="px-3 py-1 bg-slate-900 text-white text-xs font-bold rounded hover:bg-slate-800 transition">
+                    Edit
+                  </button>
                 </td>
               </tr>
             ))}
@@ -355,17 +353,27 @@ export default function GbPassportsClient({ initialData, currentUserId }: any) {
           setDeleteAuthCode('')
         }}
         isSaving={isEditSaving}
-        onDelete={handleDeleteRecord}
-      />
-
-      {/* History Modal */}
-      <HistoryModal
+        onDelete={hdiv className="flex justify-end gap-2">
+                    <button 
+                      onClick={() => setSelectedHistory(item)}
+                      className="text-slate-400 hover:text-blue-600 p-2 hover:bg-blue-50 rounded transition-colors"
+                      title="View History"
+                    >
+                      <Clock className="w-4 h-4" />
+                    </button>
+                    <button 
+                      onClick={() => openEditModal(item)}
+                      className="text-slate-400 hover:text-slate-700 p-2 hover:bg-slate-100 rounded"
+                    >
+                      <MoreHorizontal className="w-4 h-4" />
+                    </button>
+                  </div
+        isOpen={!!historyModal}
+        onClose={() => {
+          setHistoryModal(null)
+          setStatus 
         isOpen={!!selectedHistory} 
         onClose={() => setSelectedHistory(null)}
         data={historyLogs}
         isLoading={loadingHistory}
-        title={`${selectedHistory?.applicants?.first_name || ''} ${selectedHistory?.applicants?.last_name || ''}`}
-      />
-    </div>
-  )
-}
+        title={`${selectedHistory?.applicants?.first_name} ${selectedHistory?.applicants?.last_name || ''}`
