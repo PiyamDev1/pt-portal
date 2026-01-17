@@ -1,14 +1,27 @@
 'use client'
 
-import React from 'react'
-import { X } from 'lucide-react'
+import React, { useState } from 'react'
+import { X, RefreshCw } from 'lucide-react'
 
 export default function HistoryModal({
   isOpen,
   onClose,
   pexNumber,
-  statusHistory
+  statusHistory,
+  gbPassportId,
+  onRefresh
 }: any) {
+  const [isRefreshing, setIsRefreshing] = useState(false)
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true)
+    try {
+      await onRefresh?.()
+    } finally {
+      setIsRefreshing(false)
+    }
+  }
+
   if (!isOpen) return null
 
   return (
@@ -21,12 +34,22 @@ export default function HistoryModal({
               PEX: <span className="font-mono font-bold text-slate-700">{pexNumber}</span>
             </p>
           </div>
-          <button
-            onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 transition"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className="p-2 hover:bg-slate-200 rounded-lg transition disabled:opacity-50"
+              title="Refresh history"
+            >
+              <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+            </button>
+            <button
+              onClick={onClose}
+              className="text-slate-400 hover:text-slate-600 transition"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         <div className="p-6 overflow-y-auto flex-1">

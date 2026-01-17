@@ -133,6 +133,16 @@ export default function GbPassportsClient({ initialData, currentUserId }: any) {
       }
 
       toast.success('Status Updated')
+      
+      // If history modal is open, refresh its data
+      if (historyModal && historyModal.id === id) {
+        const historyRes = await fetch(`/api/passports/gb/status-history?gbPassportId=${id}`)
+        if (historyRes.ok) {
+          const data = await historyRes.json()
+          setStatusHistory(data.history || [])
+        }
+      }
+      
       router.refresh()
     } catch (e: any) {
       toast.error(e.message)
@@ -362,7 +372,17 @@ export default function GbPassportsClient({ initialData, currentUserId }: any) {
           setStatusHistory([])
         }}
         pexNumber={historyModal?.pex_number}
+        gbPassportId={historyModal?.id}
         statusHistory={statusHistory}
+        onRefresh={async () => {
+          if (historyModal?.id) {
+            const res = await fetch(`/api/passports/gb/status-history?gbPassportId=${historyModal.id}`)
+            if (res.ok) {
+              const data = await res.json()
+              setStatusHistory(data.history || [])
+            }
+          }
+        }}
       />
     </div>
   )
