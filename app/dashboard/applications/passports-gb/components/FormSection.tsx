@@ -6,6 +6,7 @@ import { getGbPassportPrice, GB_SERVICE_TYPES } from '@/app/lib/gbPassportPricin
 interface FormData {
   applicantName: string
   applicantPassport: string
+  dateOfBirth: string
   pexNumber: string
   ageGroup: 'Adult' | 'Child'
   pages: '34' | '54'
@@ -54,6 +55,14 @@ export default function FormSection({
                   onChange={onInputChange}
                   placeholder="Existing Passport No (Optional)"
                   className="w-full p-2 border rounded text-sm font-mono uppercase"
+                />
+                <input
+                  name="dateOfBirth"
+                  type="date"
+                  value={formData.dateOfBirth}
+                  onChange={onInputChange}
+                  placeholder="Date of Birth"
+                  className="w-full p-2 border rounded text-sm"
                 />
               </div>
 

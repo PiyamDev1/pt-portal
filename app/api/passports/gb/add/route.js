@@ -25,6 +25,7 @@ export async function POST(request) {
     const body = await request.json()
     const { 
       applicantName, applicantPassport, // Search/Create params
+      dateOfBirth,
       pexNumber, ageGroup, serviceType, pages, 
       currentUserId 
     } = body
@@ -48,13 +49,21 @@ export async function POST(request) {
     const { data: existingApp } = await query.maybeSingle()
 
     if (existingApp) {
-        applicantId = existingApp.id
+      applicantId = existingApp.id
+      // Update DOB if provided
+      if (dateOfBirth) {
+        await supabase
+        .from('applicants')
+        .update({ date_of_birth: dateOfBirth })
+        .eq('id', applicantId)
+      }
     } else {
         const parts = applicantName.split(' ')
         const { data: newApp, error: aErr } = await supabase.from('applicants').insert({
             first_name: parts[0],
             last_name: parts.slice(1).join(' ') || '.',
-            passport_number: applicantPassport
+        passport_number: applicantPassport,
+        date_of_birth: dateOfBirth
         }).select('id').single()
         
         if (aErr) throw new Error(`Applicant Error: ${aErr.message}`)

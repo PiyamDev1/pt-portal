@@ -9,6 +9,7 @@ import { useRouter } from 'next/navigation'
 interface FormData {
   applicantName: string
   applicantPassport: string
+  dateOfBirth: string
   pexNumber: string
   ageGroup: 'Adult' | 'Child'
   pages: '34' | '54'
@@ -24,6 +25,7 @@ export default function GbPassportsClient({ initialData, currentUserId }: any) {
   const [formData, setFormData] = useState<FormData>({
     applicantName: '',
     applicantPassport: '',
+    dateOfBirth: '',
     pexNumber: '',
     ageGroup: 'Adult',
     pages: '34',
