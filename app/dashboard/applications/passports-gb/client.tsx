@@ -60,6 +60,7 @@ export default function GbPassportsClient({ initialData, currentUserId }: any) {
       setFormData({
         applicantName: '',
         applicantPassport: '',
+        dateOfBirth: '',
         pexNumber: '',
         ageGroup: 'Adult',
         pages: '34',
