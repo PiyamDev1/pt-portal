@@ -1,16 +1,16 @@
 'use client'
 
-import { Save, X } from 'lucide-react'
-import { getGbPassportPrice, GB_SERVICE_TYPES } from '@/app/lib/gbPassportPricing'
+import { Save } from 'lucide-react'
+import { useMemo } from 'react'
 
 interface FormData {
   applicantName: string
   applicantPassport: string
   dateOfBirth: string
   pexNumber: string
-  ageGroup: 'Adult' | 'Child'
-  pages: '34' | '54'
-  serviceType: 'Standard' | 'Fast Track 1wk' | 'Premium 1D'
+  ageGroup: string
+  pages: string
+  serviceType: string
 }
 
 interface FormSectionProps {
@@ -20,6 +20,7 @@ interface FormSectionProps {
   onInputChange: (e: any) => void
   onSubmit: () => void
   onToggle: () => void
+  metadata: any // <--- New Prop
 }
 
 export default function FormSection({
@@ -28,9 +29,21 @@ export default function FormSection({
   isSubmitting,
   onInputChange,
   onSubmit,
-  onToggle
+  onToggle,
+  metadata
 }: FormSectionProps) {
-  const pricing = getGbPassportPrice(formData.ageGroup, formData.pages, formData.serviceType)
+  
+  // Real-time price lookup from Metadata
+  const pricing = useMemo(() => {
+    if (!formData.ageGroup || !formData.pages || !formData.serviceType) return { cost: 0, price: 0 }
+    
+    const rule = metadata.pricing.find((p: any) => 
+        p.age === formData.ageGroup && 
+        p.pages === formData.pages && 
+        p.service === formData.serviceType
+    )
+    return rule ? { cost: rule.cost, price: rule.price } : { cost: 0, price: 0 }
+  }, [formData, metadata])
 
   return (
     <>
@@ -94,17 +107,17 @@ export default function FormSection({
               <div>
                 <label className="text-[10px] text-slate-400 font-bold uppercase mb-2 block">Age Group</label>
                 <div className="grid grid-cols-2 gap-2">
-                  {['Adult', 'Child'].map((age) => (
+                  {metadata.ages?.map((age: any) => (
                     <button
-                      key={age}
-                      onClick={() => onInputChange({ target: { name: 'ageGroup', value: age } })}
+                      key={age.id}
+                      onClick={() => onInputChange({ target: { name: 'ageGroup', value: age.name } })}
                       className={`p-2 rounded text-sm font-medium border ${
-                        formData.ageGroup === age
+                        formData.ageGroup === age.name
                           ? 'bg-slate-900 text-white border-slate-900'
                           : 'bg-white text-slate-600 border-slate-200'
                       }`}
                     >
-                      {age}
+                      {age.name}
                     </button>
                   ))}
                 </div>
@@ -116,17 +129,17 @@ export default function FormSection({
                 <div>
                   <label className="text-[10px] text-slate-400 font-bold uppercase mb-2 block">Page Count</label>
                   <div className="space-y-1">
-                    {['34', '54'].map((pg) => (
+                    {metadata.pages?.map((pg: any) => (
                       <button
-                        key={pg}
-                        onClick={() => onInputChange({ target: { name: 'pages', value: pg } })}
+                        key={pg.id}
+                        onClick={() => onInputChange({ target: { name: 'pages', value: pg.option_label } })}
                         className={`w-full p-2 rounded text-xs font-medium border ${
-                          formData.pages === pg
+                          formData.pages === pg.option_label
                             ? 'bg-slate-900 text-white border-slate-900'
                             : 'bg-white text-slate-600 border-slate-200'
                         }`}
                       >
-                        {pg} Pages
+                        {pg.option_label} Pages
                       </button>
                     ))}
                   </div>
@@ -141,9 +154,10 @@ export default function FormSection({
                     onChange={onInputChange}
                     className="w-full p-2 border rounded text-xs bg-white"
                   >
-                    {GB_SERVICE_TYPES.map((t) => (
-                      <option key={t} value={t}>
-                        {t}
+                    <option value="">Select...</option>
+                    {metadata.services?.map((t: any) => (
+                      <option key={t.id} value={t.name}>
+                        {t.name}
                       </option>
                     ))}
                   </select>
@@ -162,7 +176,7 @@ export default function FormSection({
                     </div>
                   ) : (
                     <div className="text-xs text-amber-700 bg-amber-50 p-2 rounded border border-amber-200">
-                      Not available
+                      Select Options
                     </div>
                   )}
                 </div>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Plus, Search, MoreHorizontal, User, ChevronDown } from 'lucide-react'
 import { toast } from 'sonner'
 import FormSection from './components/FormSection'
@@ -11,9 +11,9 @@ interface FormData {
   applicantPassport: string
   dateOfBirth: string
   pexNumber: string
-  ageGroup: 'Adult' | 'Child'
-  pages: '34' | '54'
-  serviceType: 'Standard' | 'Fast Track 1wk' | 'Premium 1D'
+  ageGroup: string
+  pages: string
+  serviceType: string
 }
 
 export default function GbPassportsClient({ initialData, currentUserId }: any) {
@@ -21,15 +21,26 @@ export default function GbPassportsClient({ initialData, currentUserId }: any) {
   const [searchTerm, setSearchTerm] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  
+  // New: Store database options
+  const [metadata, setMetadata] = useState<any>({ ages: [], pages: [], services: [], pricing: [] })
+
+  // Fetch metadata on mount
+  useEffect(() => {
+    fetch('/api/passports/gb/metadata')
+      .then(res => res.json())
+      .then(data => setMetadata(data))
+      .catch(err => console.error("Failed to load GB metadata", err))
+  }, [])
 
   const [formData, setFormData] = useState<FormData>({
     applicantName: '',
     applicantPassport: '',
     dateOfBirth: '',
     pexNumber: '',
-    ageGroup: 'Adult',
-    pages: '34',
-    serviceType: 'Standard'
+    ageGroup: '',    // empty default
+    pages: '',       // empty default
+    serviceType: ''  // empty default
   })
 
   const handleInputChange = (e: any) => {
@@ -38,7 +49,7 @@ export default function GbPassportsClient({ initialData, currentUserId }: any) {
   }
 
   const handleSubmit = async () => {
-    if (!formData.applicantName || !formData.pexNumber) {
+    if (!formData.applicantName || !formData.pexNumber || !formData.ageGroup || !formData.pages || !formData.serviceType) {
       toast.error('Please fill all required fields')
       return
     }
@@ -57,14 +68,15 @@ export default function GbPassportsClient({ initialData, currentUserId }: any) {
       }
 
       toast.success('GB Application Created Successfully')
+      // Reset form
       setFormData({
         applicantName: '',
         applicantPassport: '',
         dateOfBirth: '',
         pexNumber: '',
-        ageGroup: 'Adult',
-        pages: '34',
-        serviceType: 'Standard'
+        ageGroup: '',
+        pages: '',
+        serviceType: ''
       })
       setShowForm(false)
       router.refresh()
@@ -100,7 +112,7 @@ export default function GbPassportsClient({ initialData, currentUserId }: any) {
         </button>
       </div>
 
-      {/* Form Section */}
+      {/* Form Section - Passing Metadata */}
       <FormSection
         showForm={showForm}
         formData={formData}
@@ -108,6 +120,7 @@ export default function GbPassportsClient({ initialData, currentUserId }: any) {
         onInputChange={handleInputChange}
         onSubmit={handleSubmit}
         onToggle={() => setShowForm(!showForm)}
+        metadata={metadata} // <--- PASS THIS
       />
 
       {/* Ledger Table */}

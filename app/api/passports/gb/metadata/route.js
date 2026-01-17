@@ -1,0 +1,48 @@
+import { createClient } from '@supabase/supabase-js'
+import { NextResponse } from 'next/server'
+
+export const dynamic = 'force-dynamic'
+
+export async function GET() {
+  try {
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    )
+
+    // Fetch all lookup tables and the pricing matrix
+    const [ages, pages, services, pricing] = await Promise.all([
+      supabase.from('gb_passport_ages').select('id, name').order('name'),
+      supabase.from('gb_passport_pages').select('id, option_label').order('option_label'),
+      supabase.from('gb_passport_services').select('id, name').order('name'),
+      supabase.from('gb_passport_pricing').select(`
+        id, 
+        cost_price, 
+        sale_price,
+        gb_passport_ages(name),
+        gb_passport_pages(option_label),
+        gb_passport_services(name)
+      `)
+    ])
+
+    // Flatten pricing for easier frontend lookup
+    const flatPricing = pricing.data?.map(p => ({
+        id: p.id,
+        cost: p.cost_price,
+        price: p.sale_price,
+        age: p.gb_passport_ages?.name,
+        pages: p.gb_passport_pages?.option_label,
+        service: p.gb_passport_services?.name
+    })) || []
+
+    return NextResponse.json({
+      ages: ages.data || [],
+      pages: pages.data || [],
+      services: services.data || [],
+      pricing: flatPricing
+    })
+
+  } catch (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+}

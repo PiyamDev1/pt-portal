@@ -1,20 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 
-// Re-defining pricing here for backend security (or import if using TS compiler)
-const PRICING_DB = {
-  'Child_34_Standard':       { cost: 61.50, price: 95.00 },
-  'Child_54_Standard':       { cost: 74.50, price: 110.00 },
-  'Child_34_Fast Track 1wk': { cost: 145.50, price: 180.00 },
-  'Child_54_Fast Track 1wk': { cost: 158.50, price: 210.00 },
-  'Adult_34_Standard':       { cost: 94.50, price: 135.00 },
-  'Adult_54_Standard':       { cost: 107.50, price: 150.00 },
-  'Adult_34_Fast Track 1wk': { cost: 178.50, price: 225.00 },
-  'Adult_54_Fast Track 1wk': { cost: 191.50, price: 250.00 },
-  'Adult_34_Premium 1D':     { cost: 222.50, price: 275.00 },
-  'Adult_54_Premium 1D':     { cost: 235.50, price: 295.00 },
-};
-
 export async function POST(request) {
   try {
     const supabase = createClient(
@@ -24,22 +10,35 @@ export async function POST(request) {
 
     const body = await request.json()
     const { 
-      applicantName, applicantPassport, // Search/Create params
-      dateOfBirth,
+      applicantName, applicantPassport, dateOfBirth,
       pexNumber, ageGroup, serviceType, pages, 
       currentUserId 
     } = body
 
-    // 1. Calculate Financials
-    const priceKey = `${ageGroup}_${pages}_${serviceType}`;
-    const pricing = PRICING_DB[priceKey] || { cost: 0, price: 0 };
+    // 1. LOOKUP FINANCIALS FROM DB (Secure)
+    // A. Get IDs for the text inputs
+    const [ageRes, pageRes, svcRes] = await Promise.all([
+        supabase.from('gb_passport_ages').select('id').eq('name', ageGroup).single(),
+        supabase.from('gb_passport_pages').select('id').eq('option_label', pages).single(),
+        supabase.from('gb_passport_services').select('id').eq('name', serviceType).single()
+    ])
 
-    // Map page count to DB enum value if required
-    const PAGE_ENUM_MAP = {
-      '34': 'P34',
-      '54': 'P54'
+    if (ageRes.error || pageRes.error || svcRes.error) {
+        throw new Error("Invalid Service Options Selected")
     }
-    const pagesDbValue = PAGE_ENUM_MAP[pages] || pages
+
+    // B. Get Pricing ID
+    const { data: pricing, error: pErr } = await supabase
+        .from('gb_passport_pricing')
+        .select('id, cost_price, sale_price')
+        .eq('age_id', ageRes.data.id)
+        .eq('pages_id', pageRes.data.id)
+        .eq('service_id', svcRes.data.id)
+        .single()
+
+    if (pErr || !pricing) {
+        throw new Error("Pricing not found for this combination")
+    }
 
     // 2. Find or Create Applicant
     let applicantId = null;
@@ -57,16 +56,8 @@ export async function POST(request) {
 
     if (existingApp) {
         applicantId = existingApp.id
-        // Attempt to update DOB if provided; ignore if column doesn't exist
         if (dateOfBirth) {
-          try {
-            await supabase
-              .from('applicants')
-              .update({ date_of_birth: dateOfBirth })
-              .eq('id', applicantId)
-          } catch (e) {
-            // Silently ignore DOB update errors to avoid blocking creation
-          }
+             await supabase.from('applicants').update({ date_of_birth: dateOfBirth }).eq('id', applicantId)
         }
     } else {
         const parts = applicantName.split(' ')
@@ -78,23 +69,12 @@ export async function POST(request) {
         
         if (aErr) throw new Error(`Applicant Error: ${aErr.message}`)
         applicantId = newApp.id
-
-        // Attempt to update DOB after insert (safer across schemas)
-        if (dateOfBirth) {
-          try {
-            await supabase
-              .from('applicants')
-              .update({ date_of_birth: dateOfBirth })
-              .eq('id', applicantId)
-          } catch (e) {
-            // Ignore DOB update errors
-          }
-        }
+        if (dateOfBirth) await supabase.from('applicants').update({ date_of_birth: dateOfBirth }).eq('id', applicantId)
     }
 
     // 3. Create Parent Application (The "Folder")
     const trackingNo = `GB-${Date.now().toString().slice(-6)}`;
-    const { data: parentApp, error: pErr } = await supabase.from('applications').insert({
+    const { data: parentApp, error: pAppErr } = await supabase.from('applications').insert({
         tracking_number: trackingNo,
         family_head_id: applicantId,
         applicant_id: applicantId,
@@ -102,9 +82,9 @@ export async function POST(request) {
         status: 'Pending Submission'
     }).select('id').single()
 
-    if (pErr) throw pErr
+    if (pAppErr) throw pAppErr
 
-    // 4. Create GB Passport Record
+    // 4. Create GB Passport Record (With Linked Pricing)
     const { error: gbErr } = await supabase.from('british_passport_applications').insert({
         application_id: parentApp.id,
         applicant_id: applicantId,
@@ -112,9 +92,10 @@ export async function POST(request) {
         pex_number: pexNumber,
         age_group: ageGroup,
         service_type: serviceType,
-      pages: pagesDbValue,
-        cost_price: pricing.cost,
-        sale_price: pricing.price,
+        pages: pages,
+        pricing_id: pricing.id, // <--- Linked to Pricing Table
+        cost_price: pricing.cost_price,
+        sale_price: pricing.sale_price,
         status: 'Pending Submission'
     })
 
@@ -122,6 +103,5 @@ export async function POST(request) {
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
-  }
+    console.error("GB Add Error:", error)
 }
