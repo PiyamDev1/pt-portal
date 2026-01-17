@@ -46,7 +46,8 @@ export default async function NadraPage() {
         application_pin,
         tracking_number,
         created_at,
-        nicop_cnic_details ( service_option )
+        nicop_cnic_details ( service_option ),
+        employees!nadra_services_employee_id_fkey ( full_name )
       )
     `)
     .order('created_at', { ascending: false })

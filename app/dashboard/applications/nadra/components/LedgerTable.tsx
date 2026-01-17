@@ -102,6 +102,12 @@ export default function LedgerTable({
                         <div className="text-xs text-slate-500 font-medium mt-1">
                           {details?.service_option || 'Standard Processing'}
                         </div>
+                        {nadraRecord?.employees?.full_name && (
+                          <div className="mt-2 inline-flex items-center gap-1 bg-blue-50 border border-blue-100 px-2 py-1 rounded text-xs text-blue-700">
+                            <span>👤</span>
+                            <span className="font-medium">{nadraRecord.employees.full_name}</span>
+                          </div>
+                        )}
                       </td>
 
                       <td className="p-4 align-top">
