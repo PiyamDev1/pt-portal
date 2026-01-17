@@ -11,16 +11,18 @@ export async function POST(request) {
     const body = await request.json()
     const { id, status, notes, userId, applicantName, applicantPassport, dateOfBirth, phoneNumber, pexNumber } = body
 
-    // Get the applicant ID
+    // Get the applicant ID and current status (BEFORE any updates)
     const { data: gbApp, error: gbErr } = await supabase
       .from('british_passport_applications')
-      .select('applicant_id')
+      .select('applicant_id, status')
       .eq('id', id)
       .single()
 
     if (gbErr || !gbApp) {
       throw new Error('Application not found')
     }
+
+    const oldStatus = gbApp.status
 
     // Update applicant record if any applicant fields provided
     const applicantUpdate = {}
@@ -57,16 +59,10 @@ export async function POST(request) {
     }
 
     // Log status history if status changed
-    if (status) {
-      const { data: current } = await supabase
-        .from('british_passport_applications')
-        .select('status')
-        .eq('id', id)
-        .single()
-
+    if (status && status !== oldStatus) {
       await supabase.from('british_passport_status_history').insert({
         passport_id: id,
-        old_status: current?.status,
+        old_status: oldStatus,
         new_status: status,
         notes: notes || null,
         changed_by: userId
