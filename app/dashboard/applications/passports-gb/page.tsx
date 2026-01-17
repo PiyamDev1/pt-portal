@@ -21,7 +21,7 @@ export default async function GbPassportsPage() {
     .from('british_passport_applications')
     .select(`
       *,
-      applicants (id, first_name, last_name),
+      applicants (id, first_name, last_name, date_of_birth),
       applications (id, tracking_number)
     `)
     .order('created_at', { ascending: false })

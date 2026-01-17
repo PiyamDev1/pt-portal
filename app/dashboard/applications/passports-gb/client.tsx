@@ -131,7 +131,6 @@ export default function GbPassportsClient({ initialData, currentUserId }: any) {
               <th className="p-4">Applicant</th>
               <th className="p-4">Service Details</th>
               <th className="p-4">PEX Ref</th>
-              <th className="p-4">Prices</th>
               <th className="p-4">Status</th>
               <th className="p-4 text-right">Action</th>
             </tr>
@@ -147,6 +146,11 @@ export default function GbPassportsClient({ initialData, currentUserId }: any) {
                     <div>
                       <div className="font-semibold text-slate-800 text-sm">
                         {item.applicants?.first_name} {item.applicants?.last_name}
+                      </div>
+                      <div className="text-[10px] text-slate-500 mt-0.5">
+                        {item.applicants?.date_of_birth 
+                          ? new Date(item.applicants.date_of_birth).toLocaleDateString('en-GB') 
+                          : 'N/A'}
                       </div>
                     </div>
                   </div>
@@ -170,20 +174,14 @@ export default function GbPassportsClient({ initialData, currentUserId }: any) {
                   </span>
                 </td>
                 <td className="p-4">
-                  <div className="space-y-1 text-xs">
-                    <div className="text-slate-500">Cost: <span className="font-mono">£{item.cost_price?.toFixed(2)}</span></div>
-                    <div className="text-slate-900 font-bold">Price: <span className="font-mono">£{item.sale_price?.toFixed(2)}</span></div>
-                  </div>
-                </td>
-                <td className="p-4">
                   <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase
                     ${item.status === 'Completed' ? 'bg-green-100 text-green-700' : 'bg-yellow-50 text-yellow-700 border border-yellow-100'}`}>
                     {item.status}
                   </span>
                 </td>
                 <td className="p-4 text-right">
-                  <button className="text-slate-300 hover:text-blue-600 p-2 hover:bg-slate-100 rounded">
-                    <MoreHorizontal className="w-5 h-5" />
+                  <button className="px-3 py-1 bg-slate-900 text-white text-xs font-bold rounded hover:bg-slate-800 transition">
+                    Edit
                   </button>
                 </td>
               </tr>
