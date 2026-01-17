@@ -71,15 +71,20 @@ export default function LedgerTable({ items, onStatusChange, onViewHistory, onEd
                 </div>
               </td>
               <td className="p-4">
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(item.pex_number || 'N/A')
-                    toast.success('PEX number copied to clipboard')
-                  }}
-                  className="font-mono text-xs bg-slate-100 text-slate-700 border border-slate-200 px-2 py-1 rounded hover:bg-slate-200 transition-colors cursor-pointer"
-                >
-                  {item.pex_number || 'N/A'}
-                </button>
+                <div className="space-y-2">
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(item.pex_number || 'N/A')
+                      toast.success('PEX number copied to clipboard')
+                    }}
+                    className="font-mono text-xs bg-slate-100 text-slate-700 border border-slate-200 px-2 py-1 rounded hover:bg-slate-200 transition-colors cursor-pointer"
+                  >
+                    {item.pex_number || 'N/A'}
+                  </button>
+                  <div className="text-[10px] text-slate-500">
+                    {item.created_at ? new Date(item.created_at).toLocaleDateString('en-GB') : 'N/A'}
+                  </div>
+                </div>
               </td>
               <td className="p-4">
                 <select
