@@ -49,21 +49,28 @@ export default function FormSection({
                   className="w-full p-2 border rounded text-sm"
                   required
                 />
-                <input
-                  name="applicantPassport"
-                  value={formData.applicantPassport}
-                  onChange={onInputChange}
-                  placeholder="Existing Passport No (Optional)"
-                  className="w-full p-2 border rounded text-sm font-mono uppercase"
-                />
-                <input
-                  name="dateOfBirth"
-                  type="date"
-                  value={formData.dateOfBirth}
-                  onChange={onInputChange}
-                  placeholder="Date of Birth"
-                  className="w-full p-2 border rounded text-sm"
-                />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-end">
+                  <div>
+                    <label className="block text-[10px] text-slate-400 font-bold uppercase mb-1">Existing Passport</label>
+                    <input
+                      name="applicantPassport"
+                      value={formData.applicantPassport}
+                      onChange={onInputChange}
+                      placeholder="Passport No (Optional)"
+                      className="w-full p-2 border rounded text-sm font-mono uppercase"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-slate-400 font-bold uppercase mb-1">Date of Birth</label>
+                    <input
+                      name="dateOfBirth"
+                      type="date"
+                      value={formData.dateOfBirth}
+                      onChange={onInputChange}
+                      className="w-full p-2 border rounded text-sm"
+                    />
+                  </div>
+                </div>
               </div>
 
               <div className="pt-2 space-y-2">

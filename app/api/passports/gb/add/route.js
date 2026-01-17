@@ -34,6 +34,13 @@ export async function POST(request) {
     const priceKey = `${ageGroup}_${pages}_${serviceType}`;
     const pricing = PRICING_DB[priceKey] || { cost: 0, price: 0 };
 
+    // Map page count to DB enum value if required
+    const PAGE_ENUM_MAP = {
+      '34': 'P34',
+      '54': 'P54'
+    }
+    const pagesDbValue = PAGE_ENUM_MAP[pages] || pages
+
     // 2. Find or Create Applicant
     let applicantId = null;
     let query = supabase.from('applicants').select('id')
@@ -49,25 +56,40 @@ export async function POST(request) {
     const { data: existingApp } = await query.maybeSingle()
 
     if (existingApp) {
-      applicantId = existingApp.id
-      // Update DOB if provided
-      if (dateOfBirth) {
-        await supabase
-        .from('applicants')
-        .update({ date_of_birth: dateOfBirth })
-        .eq('id', applicantId)
-      }
+        applicantId = existingApp.id
+        // Attempt to update DOB if provided; ignore if column doesn't exist
+        if (dateOfBirth) {
+          try {
+            await supabase
+              .from('applicants')
+              .update({ date_of_birth: dateOfBirth })
+              .eq('id', applicantId)
+          } catch (e) {
+            // Silently ignore DOB update errors to avoid blocking creation
+          }
+        }
     } else {
         const parts = applicantName.split(' ')
         const { data: newApp, error: aErr } = await supabase.from('applicants').insert({
             first_name: parts[0],
             last_name: parts.slice(1).join(' ') || '.',
-        passport_number: applicantPassport,
-        date_of_birth: dateOfBirth
+            passport_number: applicantPassport
         }).select('id').single()
         
         if (aErr) throw new Error(`Applicant Error: ${aErr.message}`)
         applicantId = newApp.id
+
+        // Attempt to update DOB after insert (safer across schemas)
+        if (dateOfBirth) {
+          try {
+            await supabase
+              .from('applicants')
+              .update({ date_of_birth: dateOfBirth })
+              .eq('id', applicantId)
+          } catch (e) {
+            // Ignore DOB update errors
+          }
+        }
     }
 
     // 3. Create Parent Application (The "Folder")
@@ -90,7 +112,7 @@ export async function POST(request) {
         pex_number: pexNumber,
         age_group: ageGroup,
         service_type: serviceType,
-        pages: pages,
+      pages: pagesDbValue,
         cost_price: pricing.cost,
         sale_price: pricing.price,
         status: 'Pending Submission'
