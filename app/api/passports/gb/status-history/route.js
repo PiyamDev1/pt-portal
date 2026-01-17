@@ -24,7 +24,11 @@ export async function GET(request) {
       .eq('passport_id', gbPassportId)
       .order('created_at', { ascending: false })
 
-    if (historyError) throw historyError
+    if (historyError) {
+      console.error('Supabase error:', historyError)
+      // Return empty history if table doesn't exist or no data
+      return NextResponse.json({ history: [] })
+    }
 
     return NextResponse.json({ history: history || [] })
   } catch (error) {

@@ -203,12 +203,16 @@ export default function GbPassportsClient({ initialData, currentUserId }: any) {
   const handleViewHistory = async (item: any) => {
     try {
       const res = await fetch(`/api/passports/gb/status-history?gbPassportId=${item.id}`)
-      if (!res.ok) throw new Error('Failed to fetch history')
+      if (!res.ok) {
+        const error = await res.json()
+        throw new Error(error.error || 'Failed to fetch history')
+      }
       const data = await res.json()
       setStatusHistory(data.history || [])
       setHistoryModal(item)
     } catch (e: any) {
-      toast.error('Failed to load history')
+      console.error('History fetch error:', e)
+      toast.error(e.message || 'Failed to load history')
     }
   }
 

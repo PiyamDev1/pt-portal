@@ -67,16 +67,18 @@ export async function POST(request) {
             await supabase.from('applicants').update(updateData).eq('id', applicantId)
         }
     } else {
-        const { data: newApp, error: aErr } = await supabase.from('applicants').insert({
+        const insertData = {
             first_name: firstName,
             last_name: lastName,
             passport_number: applicantPassport,
             phone_number: phoneNumber
-        }).select('id').single()
+        }
+        if (dateOfBirth) insertData.date_of_birth = dateOfBirth
+        
+        const { data: newApp, error: aErr } = await supabase.from('applicants').insert(insertData).select('id').single()
         
         if (aErr) throw new Error(`Applicant Error: ${aErr.message}`)
         applicantId = newApp.id
-        if (dateOfBirth) await supabase.from('applicants').update({ date_of_birth: dateOfBirth }).eq('id', applicantId)
     }
 
     // 3. Create Parent Application (The "Folder")
