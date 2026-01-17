@@ -25,7 +25,7 @@ export async function POST(request) {
     // Update applicant record if any applicant fields provided
     const applicantUpdate = {}
     if (applicantName) {
-      const parts = applicantName.split(' ')
+      const parts = applicantName.toLowerCase().split(' ')
       applicantUpdate.first_name = parts[0]
       applicantUpdate.last_name = parts.slice(1).join(' ') || '.'
     }

@@ -31,6 +31,7 @@ export default function GbPassportsClient({ initialData, currentUserId }: any) {
   const [editModal, setEditModal] = useState<any>(null)
   const [editFormData, setEditFormData] = useState<any>({})
   const [isEditSaving, setIsEditSaving] = useState(false)
+  const [deleteAuthCode, setDeleteAuthCode] = useState('')
 
   // Fetch metadata on mount
   useEffect(() => {
@@ -109,6 +110,30 @@ export default function GbPassportsClient({ initialData, currentUserId }: any) {
     setEditModal(item)
   }
 
+  const handleStatusChange = async (id: string, newStatus: string) => {
+    try {
+      const res = await fetch('/api/passports/gb/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id,
+          status: newStatus,
+          userId: currentUserId
+        })
+      })
+
+      if (!res.ok) {
+        const error = await res.json()
+        throw new Error(error.error || 'Failed to update status')
+      }
+
+      toast.success('Status Updated')
+      router.refresh()
+    } catch (e: any) {
+      toast.error(e.message)
+    }
+  }
+
   const handleEditSave = async () => {
     setIsEditSaving(true)
     try {
@@ -140,6 +165,33 @@ export default function GbPassportsClient({ initialData, currentUserId }: any) {
       toast.error(e.message)
     } finally {
       setIsEditSaving(false)
+    }
+  }
+
+  const handleDeleteRecord = async (authCode: string) => {
+    try {
+      const res = await fetch('/api/passports/gb/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: editFormData.id,
+          authCode,
+          userId: currentUserId
+        })
+      })
+
+      if (!res.ok) {
+        const error = await res.json()
+        throw new Error(error.error || 'Failed to delete')
+      }
+
+      toast.success('Application Deleted Successfully')
+      setEditModal(null)
+      setEditFormData({})
+      setDeleteAuthCode('')
+      router.refresh()
+    } catch (e: any) {
+      toast.error(e.message)
     }
   }
 
@@ -186,6 +238,7 @@ export default function GbPassportsClient({ initialData, currentUserId }: any) {
             <tr>
               <th className="p-4">Applicant</th>
               <th className="p-4">Service Details</th>
+              <th className="p-4">Tracking ID</th>
               <th className="p-4">PEX Ref</th>
               <th className="p-4">Status</th>
               <th className="p-4 text-right">Action</th>
@@ -201,7 +254,9 @@ export default function GbPassportsClient({ initialData, currentUserId }: any) {
                     </div>
                     <div>
                       <div className="font-semibold text-slate-800 text-sm">
-                        {item.applicants?.first_name} {item.applicants?.last_name}
+                        {item.applicants?.first_name && item.applicants?.last_name
+                          ? `${item.applicants.first_name.charAt(0).toUpperCase()}${item.applicants.first_name.slice(1)} ${item.applicants.last_name.charAt(0).toUpperCase()}${item.applicants.last_name.slice(1)}`
+                          : 'N/A'}
                       </div>
                       <div className="text-[10px] text-slate-500 mt-0.5">
                         {item.applicants?.date_of_birth 
@@ -225,15 +280,27 @@ export default function GbPassportsClient({ initialData, currentUserId }: any) {
                   </div>
                 </td>
                 <td className="p-4">
+                  <span className="font-mono text-xs bg-slate-100 text-slate-600 border border-slate-200 px-2 py-1 rounded block">
+                    {item.applications?.tracking_number || 'N/A'}
+                  </span>
+                </td>
+                <td className="p-4">
                   <span className="font-mono text-xs bg-slate-900 text-white border border-slate-900 px-2 py-1 rounded">
                     {item.pex_number || 'N/A'}
                   </span>
                 </td>
                 <td className="p-4">
-                  <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase
-                    ${item.status === 'Completed' ? 'bg-green-100 text-green-700' : 'bg-yellow-50 text-yellow-700 border border-yellow-100'}`}>
-                    {item.status}
-                  </span>
+                  <select
+                    value={item.status || 'Pending Submission'}
+                    onChange={(e) => handleStatusChange(item.id, e.target.value)}
+                    className={`px-2 py-1 rounded text-[10px] font-bold uppercase border cursor-pointer
+                      ${item.status === 'Completed' ? 'bg-green-100 text-green-700 border-green-200' : 'bg-yellow-50 text-yellow-700 border-yellow-100'}`}
+                  >
+                    <option value="Pending Submission">Pending Submission</option>
+                    <option value="Submitted">Submitted</option>
+                    <option value="In Progress">In Progress</option>
+                    <option value="Completed">Completed</option>
+                  </select>
                 </td>
                 <td className="p-4 text-right">
                   <button 
@@ -257,8 +324,10 @@ export default function GbPassportsClient({ initialData, currentUserId }: any) {
         onClose={() => {
           setEditModal(null)
           setEditFormData({})
+          setDeleteAuthCode('')
         }}
         isSaving={isEditSaving}
+        onDelete={handleDeleteRecord}
       />
     </div>
   )

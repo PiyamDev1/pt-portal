@@ -44,12 +44,16 @@ export async function POST(request) {
     let applicantId = null;
     let query = supabase.from('applicants').select('id')
     
+    // Convert names to lowercase for DB
+    const parts = applicantName.toLowerCase().split(' ')
+    const firstName = parts[0]
+    const lastName = parts.slice(1).join(' ') || '.'
+    
     // Prioritize Passport Number search
     if (applicantPassport) query = query.eq('passport_number', applicantPassport)
     else {
         // Fallback to Name
-        const parts = applicantName.split(' ')
-        query = query.eq('first_name', parts[0]).eq('last_name', parts.slice(1).join(' ') || '.')
+        query = query.eq('first_name', firstName).eq('last_name', lastName)
     }
     
     const { data: existingApp } = await query.maybeSingle()
@@ -63,10 +67,9 @@ export async function POST(request) {
             await supabase.from('applicants').update(updateData).eq('id', applicantId)
         }
     } else {
-        const parts = applicantName.split(' ')
         const { data: newApp, error: aErr } = await supabase.from('applicants').insert({
-            first_name: parts[0],
-            last_name: parts.slice(1).join(' ') || '.',
+            first_name: firstName,
+            last_name: lastName,
             passport_number: applicantPassport,
             phone_number: phoneNumber
         }).select('id').single()
