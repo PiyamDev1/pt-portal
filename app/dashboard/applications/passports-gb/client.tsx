@@ -5,6 +5,7 @@ import { Plus, Search, MoreHorizontal, User, ChevronDown } from 'lucide-react'
 import { toast } from 'sonner'
 import FormSection from './components/FormSection'
 import EditModal from './components/EditModal'
+import HistoryModal from './components/HistoryModal'
 import { useRouter } from 'next/navigation'
 
 interface FormData {
@@ -32,6 +33,10 @@ export default function GbPassportsClient({ initialData, currentUserId }: any) {
   const [editFormData, setEditFormData] = useState<any>({})
   const [isEditSaving, setIsEditSaving] = useState(false)
   const [deleteAuthCode, setDeleteAuthCode] = useState('')
+
+  // History modal state
+  const [historyModal, setHistoryModal] = useState<any>(null)
+  const [statusHistory, setStatusHistory] = useState<any[]>([])
 
   // Fetch metadata on mount
   useEffect(() => {
@@ -195,6 +200,18 @@ export default function GbPassportsClient({ initialData, currentUserId }: any) {
     }
   }
 
+  const handleViewHistory = async (item: any) => {
+    try {
+      const res = await fetch(`/api/passports/gb/status-history?gbPassportId=${item.id}`)
+      if (!res.ok) throw new Error('Failed to fetch history')
+      const data = await res.json()
+      setStatusHistory(data.history || [])
+      setHistoryModal(item)
+    } catch (e: any) {
+      toast.error('Failed to load history')
+    }
+  }
+
   const filtered = initialData.filter((item: any) =>
     JSON.stringify(item).toLowerCase().includes(searchTerm.toLowerCase())
   )
@@ -237,8 +254,8 @@ export default function GbPassportsClient({ initialData, currentUserId }: any) {
           <thead className="bg-slate-50 text-slate-500 text-[11px] uppercase font-bold border-b border-slate-100">
             <tr>
               <th className="p-4">Applicant</th>
+              <th className="p-4">Phone</th>
               <th className="p-4">Service Details</th>
-              <th className="p-4">Tracking ID</th>
               <th className="p-4">PEX Ref</th>
               <th className="p-4">Status</th>
               <th className="p-4 text-right">Action</th>
@@ -267,6 +284,11 @@ export default function GbPassportsClient({ initialData, currentUserId }: any) {
                   </div>
                 </td>
                 <td className="p-4">
+                  <span className="text-sm text-slate-700">
+                    {item.applicants?.phone_number || 'N/A'}
+                  </span>
+                </td>
+                <td className="p-4">
                   <div className="space-y-1">
                     <div className="text-sm font-medium text-slate-700">{item.service_type}</div>
                     <div className="flex gap-2">
@@ -280,14 +302,12 @@ export default function GbPassportsClient({ initialData, currentUserId }: any) {
                   </div>
                 </td>
                 <td className="p-4">
-                  <span className="font-mono text-xs bg-slate-100 text-slate-600 border border-slate-200 px-2 py-1 rounded block">
-                    {item.applications?.tracking_number || 'N/A'}
-                  </span>
-                </td>
-                <td className="p-4">
-                  <span className="font-mono text-xs bg-slate-900 text-white border border-slate-900 px-2 py-1 rounded">
+                  <button
+                    onClick={() => handleViewHistory(item)}
+                    className="font-mono text-xs bg-slate-900 text-white hover:bg-slate-800 border border-slate-900 px-2 py-1 rounded transition"
+                  >
                     {item.pex_number || 'N/A'}
-                  </span>
+                  </button>
                 </td>
                 <td className="p-4">
                   <select
@@ -328,6 +348,17 @@ export default function GbPassportsClient({ initialData, currentUserId }: any) {
         }}
         isSaving={isEditSaving}
         onDelete={handleDeleteRecord}
+      />
+
+      {/* History Modal */}
+      <HistoryModal
+        isOpen={!!historyModal}
+        onClose={() => {
+          setHistoryModal(null)
+          setStatusHistory([])
+        }}
+        pexNumber={historyModal?.pex_number}
+        statusHistory={statusHistory}
       />
     </div>
   )
