@@ -104,4 +104,6 @@ export async function POST(request) {
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error("GB Add Error:", error)
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
 }
