@@ -123,6 +123,11 @@ export default function LedgerTable({
                             {nadraRecord?.application_pin || 'N/A'}
                           </span>
                         </div>
+                        {nadraRecord?.created_at && (
+                          <div className="text-xs text-slate-500 mt-2">
+                            {new Date(nadraRecord.created_at).toLocaleDateString('en-GB')}
+                          </div>
+                        )}
                       </td>
 
                       <td className="p-4 align-top">

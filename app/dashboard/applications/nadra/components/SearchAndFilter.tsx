@@ -3,6 +3,10 @@ interface SearchAndFilterProps {
   onSearchChange: (query: string) => void
   statusFilter: string
   onStatusChange: (status: string) => void
+  serviceTypeFilter: string
+  onServiceTypeChange: (serviceType: string) => void
+  serviceOptionFilter: string
+  onServiceOptionChange: (serviceOption: string) => void
   startDate: string
   onStartDateChange: (date: string) => void
   endDate: string
@@ -16,6 +20,10 @@ export default function SearchAndFilter({
   onSearchChange,
   statusFilter,
   onStatusChange,
+  serviceTypeFilter,
+  onServiceTypeChange,
+  serviceOptionFilter,
+  onServiceOptionChange,
   startDate,
   onStartDateChange,
   endDate,
@@ -36,7 +44,7 @@ export default function SearchAndFilter({
             onChange={(e) => onSearchChange(e.target.value)}
           />
         </div>
-        <div className="w-full md:w-48">
+        <div className="w-full md:w-40">
           <select
             value={statusFilter}
             onChange={(e) => onStatusChange(e.target.value)}
@@ -48,6 +56,30 @@ export default function SearchAndFilter({
             <option value="In Progress">In Progress</option>
             <option value="Completed">Completed</option>
             <option value="Cancelled">Cancelled</option>
+          </select>
+        </div>
+        <div className="w-full md:w-40">
+          <select
+            value={serviceTypeFilter}
+            onChange={(e) => onServiceTypeChange(e.target.value)}
+            className="w-full h-full py-3 bg-slate-50 border-none rounded-lg focus:ring-2 focus:ring-green-500 font-bold text-slate-600 px-4 cursor-pointer"
+          >
+            <option value="All">All Service Types</option>
+            <option value="NICOP/CNIC">NICOP/CNIC</option>
+            <option value="FAMILY REGISTRATION">Family Registration</option>
+            <option value="POLICE VERIFICATION">Police Verification</option>
+          </select>
+        </div>
+        <div className="w-full md:w-40">
+          <select
+            value={serviceOptionFilter}
+            onChange={(e) => onServiceOptionChange(e.target.value)}
+            className="w-full h-full py-3 bg-slate-50 border-none rounded-lg focus:ring-2 focus:ring-green-500 font-bold text-slate-600 px-4 cursor-pointer"
+          >
+            <option value="All">All Options</option>
+            <option value="Normal">Normal</option>
+            <option value="Urgent">Urgent</option>
+            <option value="Express">Express</option>
           </select>
         </div>
       </div>

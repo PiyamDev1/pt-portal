@@ -60,6 +60,8 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
   // SEARCH & FILTER STATES
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('All')
+  const [serviceTypeFilter, setServiceTypeFilter] = useState('All')
+  const [serviceOptionFilter, setServiceOptionFilter] = useState('All')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [showEmptyFamilies, setShowEmptyFamilies] = useState(false)
@@ -194,6 +196,15 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
 
     const matchesStatus = statusFilter === 'All' || status === statusFilter
     
+    // Service type filter
+    const serviceType = nadra?.service_type || ''
+    const matchesServiceType = serviceTypeFilter === 'All' || serviceType === serviceTypeFilter
+    
+    // Service option filter
+    const details = getDetails(item)
+    const serviceOption = details?.service_option || 'Normal'
+    const matchesServiceOption = serviceOptionFilter === 'All' || serviceOption === serviceOptionFilter
+    
     // Date range filter
     if (startDate || endDate) {
       const itemDate = new Date(getCreatedAt(item))
@@ -209,7 +220,7 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
     const hasRealMember = !!(item.applicants || item.nadra_services)
     if (!showEmptyFamilies && !hasRealMember) return false
 
-    return matchesSearch && matchesStatus
+    return matchesSearch && matchesStatus && matchesServiceType && matchesServiceOption
   })
 
   const totalPages = Math.ceil(filteredApplications.length / pageSize) || 1
@@ -413,6 +424,10 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
         onSearchChange={setSearchQuery}
         statusFilter={statusFilter}
         onStatusChange={setStatusFilter}
+        serviceTypeFilter={serviceTypeFilter}
+        onServiceTypeChange={setServiceTypeFilter}
+        serviceOptionFilter={serviceOptionFilter}
+        onServiceOptionChange={setServiceOptionFilter}
         startDate={startDate}
         onStartDateChange={setStartDate}
         endDate={endDate}
