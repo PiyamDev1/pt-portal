@@ -303,9 +303,15 @@ export default function GbPassportsClient({ initialData, currentUserId }: any) {
                   </div>
                 </td>
                 <td className="p-4">
-                  <span className="font-mono text-xs bg-slate-100 text-slate-700 border border-slate-200 px-2 py-1 rounded">
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(item.pex_number || 'N/A')
+                      toast.success('PEX number copied to clipboard')
+                    }}
+                    className="font-mono text-xs bg-slate-100 text-slate-700 border border-slate-200 px-2 py-1 rounded hover:bg-slate-200 transition-colors cursor-pointer"
+                  >
                     {item.pex_number || 'N/A'}
-                  </span>
+                  </button>
                 </td>
                 <td className="p-4">
                   <select
