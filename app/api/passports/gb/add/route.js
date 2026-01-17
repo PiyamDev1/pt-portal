@@ -10,7 +10,7 @@ export async function POST(request) {
 
     const body = await request.json()
     const { 
-      applicantName, applicantPassport, dateOfBirth,
+      applicantName, applicantPassport, dateOfBirth, phoneNumber,
       pexNumber, ageGroup, serviceType, pages, 
       currentUserId 
     } = body
@@ -56,15 +56,19 @@ export async function POST(request) {
 
     if (existingApp) {
         applicantId = existingApp.id
-        if (dateOfBirth) {
-             await supabase.from('applicants').update({ date_of_birth: dateOfBirth }).eq('id', applicantId)
+        const updateData = {}
+        if (dateOfBirth) updateData.date_of_birth = dateOfBirth
+        if (phoneNumber) updateData.phone_number = phoneNumber
+        if (Object.keys(updateData).length > 0) {
+            await supabase.from('applicants').update(updateData).eq('id', applicantId)
         }
     } else {
         const parts = applicantName.split(' ')
         const { data: newApp, error: aErr } = await supabase.from('applicants').insert({
             first_name: parts[0],
             last_name: parts.slice(1).join(' ') || '.',
-            passport_number: applicantPassport
+            passport_number: applicantPassport,
+            phone_number: phoneNumber
         }).select('id').single()
         
         if (aErr) throw new Error(`Applicant Error: ${aErr.message}`)

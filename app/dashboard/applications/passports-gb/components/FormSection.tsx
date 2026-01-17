@@ -7,6 +7,7 @@ interface FormData {
   applicantName: string
   applicantPassport: string
   dateOfBirth: string
+  phoneNumber: string
   pexNumber: string
   ageGroup: string
   pages: string
@@ -54,14 +55,24 @@ export default function FormSection({
             <div className="space-y-4">
               <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest">1. Applicant Details</h4>
               <div className="space-y-2">
-                <input
-                  name="applicantName"
-                  value={formData.applicantName}
-                  onChange={onInputChange}
-                  placeholder="Full Name *"
-                  className="w-full p-2 border rounded text-sm"
-                  required
-                />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <input
+                    name="applicantName"
+                    value={formData.applicantName}
+                    onChange={onInputChange}
+                    placeholder="Full Name *"
+                    className="w-full p-2 border rounded text-sm"
+                    required
+                  />
+                  <input
+                    name="phoneNumber"
+                    value={formData.phoneNumber}
+                    onChange={onInputChange}
+                    placeholder="Phone Number"
+                    className="w-full p-2 border rounded text-sm"
+                    type="tel"
+                  />
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-end">
                   <div>
                     <label className="block text-[10px] text-slate-400 font-bold uppercase mb-1">Existing Passport</label>

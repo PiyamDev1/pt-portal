@@ -4,12 +4,14 @@ import { useState, useEffect } from 'react'
 import { Plus, Search, MoreHorizontal, User, ChevronDown } from 'lucide-react'
 import { toast } from 'sonner'
 import FormSection from './components/FormSection'
+import EditModal from './components/EditModal'
 import { useRouter } from 'next/navigation'
 
 interface FormData {
   applicantName: string
   applicantPassport: string
   dateOfBirth: string
+  phoneNumber: string
   pexNumber: string
   ageGroup: string
   pages: string
@@ -25,6 +27,11 @@ export default function GbPassportsClient({ initialData, currentUserId }: any) {
   // New: Store database options
   const [metadata, setMetadata] = useState<any>({ ages: [], pages: [], services: [], pricing: [] })
 
+  // Edit modal state
+  const [editModal, setEditModal] = useState<any>(null)
+  const [editFormData, setEditFormData] = useState<any>({})
+  const [isEditSaving, setIsEditSaving] = useState(false)
+
   // Fetch metadata on mount
   useEffect(() => {
     fetch('/api/passports/gb/metadata')
@@ -37,6 +44,7 @@ export default function GbPassportsClient({ initialData, currentUserId }: any) {
     applicantName: '',
     applicantPassport: '',
     dateOfBirth: '',
+    phoneNumber: '',
     pexNumber: '',
     ageGroup: '',    // empty default
     pages: '',       // empty default
@@ -73,6 +81,7 @@ export default function GbPassportsClient({ initialData, currentUserId }: any) {
         applicantName: '',
         applicantPassport: '',
         dateOfBirth: '',
+        phoneNumber: '',
         pexNumber: '',
         ageGroup: '',
         pages: '',
@@ -84,6 +93,53 @@ export default function GbPassportsClient({ initialData, currentUserId }: any) {
       toast.error(e.message)
     } finally {
       setIsSubmitting(false)
+    }
+  }
+
+  const openEditModal = (item: any) => {
+    setEditFormData({
+      id: item.id,
+      applicantName: `${item.applicants?.first_name} ${item.applicants?.last_name}`,
+      applicantPassport: item.applicants?.passport_number || '',
+      dateOfBirth: item.applicants?.date_of_birth || '',
+      phoneNumber: item.applicants?.phone_number || '',
+      pexNumber: item.pex_number || '',
+      status: item.status || 'Pending Submission'
+    })
+    setEditModal(item)
+  }
+
+  const handleEditSave = async () => {
+    setIsEditSaving(true)
+    try {
+      const res = await fetch('/api/passports/gb/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: editFormData.id,
+          applicantName: editFormData.applicantName,
+          applicantPassport: editFormData.applicantPassport,
+          dateOfBirth: editFormData.dateOfBirth,
+          phoneNumber: editFormData.phoneNumber,
+          pexNumber: editFormData.pexNumber,
+          status: editFormData.status,
+          userId: currentUserId
+        })
+      })
+
+      if (!res.ok) {
+        const error = await res.json()
+        throw new Error(error.error || 'Failed to update')
+      }
+
+      toast.success('Application Updated Successfully')
+      setEditModal(null)
+      setEditFormData({})
+      router.refresh()
+    } catch (e: any) {
+      toast.error(e.message)
+    } finally {
+      setIsEditSaving(false)
     }
   }
 
@@ -180,7 +236,9 @@ export default function GbPassportsClient({ initialData, currentUserId }: any) {
                   </span>
                 </td>
                 <td className="p-4 text-right">
-                  <button className="px-3 py-1 bg-slate-900 text-white text-xs font-bold rounded hover:bg-slate-800 transition">
+                  <button 
+                    onClick={() => openEditModal(item)}
+                    className="px-3 py-1 bg-slate-900 text-white text-xs font-bold rounded hover:bg-slate-800 transition">
                     Edit
                   </button>
                 </td>
@@ -189,6 +247,19 @@ export default function GbPassportsClient({ initialData, currentUserId }: any) {
           </tbody>
         </table>
       </div>
+
+      {/* Edit Modal */}
+      <EditModal
+        isOpen={!!editModal}
+        editFormData={editFormData}
+        setEditFormData={setEditFormData}
+        onSave={handleEditSave}
+        onClose={() => {
+          setEditModal(null)
+          setEditFormData({})
+        }}
+        isSaving={isEditSaving}
+      />
     </div>
   )
 }
