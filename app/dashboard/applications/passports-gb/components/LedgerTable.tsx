@@ -12,7 +12,7 @@ interface LedgerTableProps {
 
 export default function LedgerTable({ items, onStatusChange, onViewHistory, onEdit }: LedgerTableProps) {
   const formatName = (firstName: string, lastName: string) => {
-    return `${firstName.charAt(0).toUpperCase()}${firstName.slice(1)} ${lastName.charAt(0).toUpperCase()}${lastName.slice(1)}`
+    return `${firstName.toUpperCase()} ${lastName.toUpperCase()}`
   }
 
   return (
