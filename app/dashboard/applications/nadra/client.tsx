@@ -201,7 +201,7 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
     const matchesServiceType = serviceTypeFilter === 'All' || serviceType === serviceTypeFilter
     
     // Service option filter
-    const details = getDetails(item)
+    const details = getDetails(nadra)
     const serviceOption = details?.service_option || 'Normal'
     const matchesServiceOption = serviceOptionFilter === 'All' || serviceOption === serviceOptionFilter
     

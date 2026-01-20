@@ -62,7 +62,7 @@ export default function SearchAndFilter({
           <select
             value={serviceTypeFilter}
             onChange={(e) => onServiceTypeChange(e.target.value)}
-            className="w-full h-full py-3 bg-slate-50 border-none rounded-lg focus:ring-2 focus:ring-green-500 font-bold text-slate-600 px-4 cursor-pointer"
+            className="w-full h-full py-3 bg-slate-50 border-none rounded-lg focus:ring-2 focus:ring-green-500 text-slate-600 px-4 cursor-pointer text-xs"
           >
             <option value="All">All Service Types</option>
             <option value="NICOP/CNIC">NICOP/CNIC</option>
@@ -74,7 +74,7 @@ export default function SearchAndFilter({
           <select
             value={serviceOptionFilter}
             onChange={(e) => onServiceOptionChange(e.target.value)}
-            className="w-full h-full py-3 bg-slate-50 border-none rounded-lg focus:ring-2 focus:ring-green-500 font-bold text-slate-600 px-4 cursor-pointer"
+            className="w-full h-full py-3 bg-slate-50 border-none rounded-lg focus:ring-2 focus:ring-green-500 text-slate-600 px-4 cursor-pointer text-xs"
           >
             <option value="All">All Options</option>
             <option value="Normal">Normal</option>
