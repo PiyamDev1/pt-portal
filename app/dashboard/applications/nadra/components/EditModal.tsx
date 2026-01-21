@@ -3,6 +3,8 @@ interface EditModalProps {
   editType: 'application' | 'family_head' | null
   editFormData: any
   deleteAuthCode: string
+  agentOptions: { id: string; name: string }[]
+  canChangeAgent: boolean
   onInputChange: (name: string, value: any) => void
   onAuthCodeChange: (code: string) => void
   onSave: () => void
@@ -15,6 +17,8 @@ export default function EditModal({
   editType,
   editFormData,
   deleteAuthCode,
+  agentOptions,
+  canChangeAgent,
   onInputChange,
   onAuthCodeChange,
   onSave,
@@ -100,6 +104,36 @@ export default function EditModal({
                 <span>⚡ Service & Tracking</span>
               </h4>
               <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2">
+                  <label className="text-[10px] font-bold uppercase text-slate-400 flex items-center justify-between">
+                    <span>Assigned Agent</span>
+                    {!canChangeAgent && (
+                      <span className="text-[9px] text-amber-600 bg-amber-50 px-1 rounded">Manager only</span>
+                    )}
+                  </label>
+                  {canChangeAgent ? (
+                    <select
+                      className="w-full border rounded p-2 text-sm bg-white"
+                      value={editFormData.employeeId || ''}
+                      onChange={(e) => onInputChange('employeeId', e.target.value)}
+                    >
+                      <option value="">Select an agent</option>
+                      {agentOptions.map((agent) => (
+                        <option key={agent.id} value={agent.id}>
+                          {agent.name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      className="w-full border rounded p-2 text-sm bg-slate-100 text-slate-500 cursor-not-allowed"
+                      value={editFormData.employeeName || 'Not assigned'}
+                      readOnly
+                      disabled
+                      title="Only managers or master admins can change assigned agents"
+                    />
+                  )}
+                </div>
                 <div className="col-span-2">
                   <label className="text-[10px] font-bold uppercase text-slate-400">Service Option</label>
                   <select

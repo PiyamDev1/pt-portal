@@ -36,6 +36,8 @@ interface EditFormData {
   serviceOption?: string
   trackingNumber?: string
   pin?: string
+  employeeId?: string
+  employeeName?: string
 }
 
 export default function NadraClient({ initialApplications, currentUserId }: any) {
@@ -79,6 +81,9 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
   const [editFormData, setEditFormData] = useState<EditFormData>({})
   const [deleteAuthCode, setDeleteAuthCode] = useState('')
   const [isUpdating, setIsUpdating] = useState(false)
+  const [agentOptions, setAgentOptions] = useState<{ id: string; name: string }[]>([])
+  const [canChangeAgent, setCanChangeAgent] = useState(false)
+  const [agentLoadError, setAgentLoadError] = useState('')
 
   // =====================================================================
   // FORM HANDLERS
@@ -294,6 +299,31 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
     setHistoryLogs([])
   }, [selectedHistory])
 
+  useEffect(() => {
+    const loadAgents = async () => {
+      try {
+        const res = await fetch(`/api/nadra/agent-options?userId=${currentUserId}`)
+        if (!res.ok) {
+          const payload = await res.json()
+          throw new Error(payload?.error || 'Unable to load agents')
+        }
+        const payload = await res.json()
+        setAgentOptions(payload.agentOptions || [])
+        setCanChangeAgent(!!payload.canChangeAgent)
+      } catch (error: any) {
+        setAgentLoadError(error?.message || 'Failed to load agents')
+      }
+    }
+
+    loadAgents()
+  }, [currentUserId])
+
+  useEffect(() => {
+    if (agentLoadError) {
+      toast.error(agentLoadError)
+    }
+  }, [agentLoadError])
+
   // =====================================================================
   // EDIT/DELETE HANDLERS
   // =====================================================================
@@ -330,7 +360,9 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
       serviceType: nadra?.service_type,
       serviceOption: details?.service_option || 'Normal',
       trackingNumber: record.tracking_number,
-      pin: nadra?.application_pin
+      pin: nadra?.application_pin,
+      employeeId: nadra?.employee_id || '',
+      employeeName: nadra?.employees?.full_name || ''
     })
   }
 
@@ -489,6 +521,8 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
         onSave={handleEditSubmit}
         onDelete={handleDelete}
         onClose={closeEditModal}
+        agentOptions={agentOptions}
+        canChangeAgent={canChangeAgent}
       />
 
       <HistoryModal

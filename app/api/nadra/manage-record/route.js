@@ -185,6 +185,70 @@ export async function POST(request) {
 
         if (updateServiceError) throw updateServiceError
 
+        if (data.employeeId) {
+          const { data: employees, error: employeesError } = await supabase
+            .from('employees')
+            .select('id, manager_id, roles ( name )')
+
+          if (employeesError) throw employeesError
+
+          const currentUser = employees?.find((emp) => emp.id === userId)
+          if (!currentUser) {
+            return NextResponse.json({ error: 'User not found' }, { status: 404 })
+          }
+
+          const roleName = Array.isArray(currentUser.roles)
+            ? currentUser.roles[0]?.name
+            : currentUser.roles?.name
+
+          const isMasterAdmin = roleName === 'Master Admin'
+
+          const { data: nadraRecord, error: nadraFetchError } = await supabase
+            .from('nadra_services')
+            .select('id, employee_id')
+            .eq('id', id)
+            .single()
+
+          if (nadraFetchError) {
+            if (nadraFetchError.code === 'PGRST116') {
+              return NextResponse.json({ error: 'Nadra record not found' }, { status: 404 })
+            }
+            throw nadraFetchError
+          }
+
+          const managerMap = new Map()
+          employees?.forEach((emp) => managerMap.set(emp.id, emp.manager_id || null))
+
+          const isManagerOf = (managerId, employeeId) => {
+            let current = employeeId
+            while (current) {
+              if (current === managerId) return true
+              current = managerMap.get(current)
+            }
+            return false
+          }
+
+          if (!isMasterAdmin) {
+            const managesCurrent = nadraRecord?.employee_id
+              ? isManagerOf(userId, nadraRecord.employee_id)
+              : true
+            const managesTarget = isManagerOf(userId, data.employeeId)
+
+            if (!managesCurrent || !managesTarget) {
+              return NextResponse.json({
+                error: 'Only the manager in the hierarchy or a master admin can reassign this agent.'
+              }, { status: 403 })
+            }
+          }
+
+          const { error: updateAgentError } = await supabase
+            .from('nadra_services')
+            .update({ employee_id: data.employeeId })
+            .eq('id', id)
+
+          if (updateAgentError) throw updateAgentError
+        }
+
           if (data.trackingNumber && data.applicationId) {
             const { error: updateAppTrackingError } = await supabase
               .from('applications')
