@@ -82,13 +82,13 @@ export default function Setup2FAPage() {
                   📱 Having trouble scanning? Use manual setup instead
                 </summary>
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-3 text-left">
-                  <p className="text-xs text-blue-900 font-medium mb-3">If you're setting up 2FA on the same device:</p>
+                  <p className="text-xs text-blue-900 font-medium mb-3">If you&apos;re setting up 2FA on the same device:</p>
                   <ol className="text-xs text-blue-800 space-y-2 list-decimal list-inside">
                     <li>Open your authenticator app (Google Authenticator, Microsoft Authenticator, etc.)</li>
-                    <li>Select "Add account" or tap the "+" button</li>
-                    <li>Choose "Enter a setup key" or "Manual entry"</li>
+                    <li>Select &quot;Add account&quot; or tap the &quot;+&quot; button</li>
+                    <li>Choose &quot;Enter a setup key&quot; or &quot;Manual entry&quot;</li>
                     <li>Copy the key below and paste it into your authenticator app</li>
-                    <li>Set the name as "Piyam Travels"</li>
+                    <li>Set the name as &quot;Piyam Travels&quot;</li>
                   </ol>
                   
                   <div className="bg-white border border-blue-300 rounded-lg p-3 mt-4">
