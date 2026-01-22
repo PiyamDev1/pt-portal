@@ -76,34 +76,41 @@ export default function Setup2FAPage() {
               <Image src={qrCodeUrl} alt="QR Code" fill sizes="192px" className="object-contain" unoptimized />
             </div>
             
-            <div className="w-full mt-4">
-              <button
-                type="button"
-                onClick={() => setShowKey(!showKey)}
-                className="text-sm text-blue-600 hover:underline mb-2"
-              >
-                {showKey ? 'Hide manual key' : 'Can\'t scan? Enter key manually'}
-              </button>
-              
-              {showKey && (
-                <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 text-center">
-                  <p className="text-xs text-slate-600 mb-2 font-medium">Manual Setup Key:</p>
-                  <div className="flex items-center justify-center gap-2">
-                    <code className="bg-white px-3 py-2 rounded border border-slate-300 text-sm font-mono select-all break-all">
-                      {secretKey}
-                    </code>
-                    <button
-                      type="button"
-                      onClick={handleCopyKey}
-                      className="px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-xs font-medium"
-                      title="Copy to clipboard"
-                    >
-                      📋 Copy
-                    </button>
+            <div className="w-full mt-6">
+              <details className="text-left">
+                <summary className="cursor-pointer text-sm text-blue-600 hover:underline mb-2 select-none">
+                  📱 Having trouble scanning? Use manual setup instead
+                </summary>
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-3 text-left">
+                  <p className="text-xs text-blue-900 font-medium mb-3">If you're setting up 2FA on the same device:</p>
+                  <ol className="text-xs text-blue-800 space-y-2 list-decimal list-inside">
+                    <li>Open your authenticator app (Google Authenticator, Microsoft Authenticator, etc.)</li>
+                    <li>Select "Add account" or tap the "+" button</li>
+                    <li>Choose "Enter a setup key" or "Manual entry"</li>
+                    <li>Copy the key below and paste it into your authenticator app</li>
+                    <li>Set the name as "Piyam Travels"</li>
+                  </ol>
+                  
+                  <div className="bg-white border border-blue-300 rounded-lg p-3 mt-4">
+                    <p className="text-xs font-semibold text-slate-700 mb-2">Setup Key (Account Key):</p>
+                    <div className="flex items-center justify-center gap-2">
+                      <code className="bg-slate-100 px-3 py-2 rounded border border-slate-300 text-sm font-mono select-all break-all flex-1 text-center">
+                        {secretKey}
+                      </code>
+                      <button
+                        type="button"
+                        onClick={handleCopyKey}
+                        className="px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-xs font-medium whitespace-nowrap"
+                        title="Copy to clipboard"
+                      >
+                        📋 Copy
+                      </button>
+                    </div>
                   </div>
-                  <p className="text-xs text-slate-500 mt-2">Enter this key in your authenticator app</p>
+                  
+                  <p className="text-xs text-blue-700 mt-3 italic">After adding the key to your authenticator app, return here and enter the 6-digit code to confirm.</p>
                 </div>
-              )}
+              </details>
             </div>
           </div>
         ) : (

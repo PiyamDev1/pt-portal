@@ -191,7 +191,8 @@ export async function POST(request) {
       }
       
       // Fetch location/branch details if location_id is provided
-      let locationInfo = '';
+      let locationHTML = '';
+      let locationText = '';
       if (location_id) {
         const { data: locationData } = await supabaseAdmin
           .from('locations')
@@ -200,15 +201,58 @@ export async function POST(request) {
           .maybeSingle();
         
         if (locationData) {
-          locationInfo = `\n\nBranch/Location: ${locationData.name} (${locationData.branch_code})`;
+          locationHTML = `<tr><td style="padding: 8px 0; color: #475569; font-size: 14px;"><strong>Branch/Location:</strong> ${locationData.name} (${locationData.branch_code})</td></tr>`;
+          locationText = `\nBranch/Location: ${locationData.name} (${locationData.branch_code})`;
         }
       }
+      
+      // HTML email template
+      const htmlTemplate = `
+        <html>
+          <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+            <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+              <div style="background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%); color: white; padding: 30px; border-radius: 8px; text-align: center; margin-bottom: 20px;">
+                <h1 style="margin: 0; font-size: 24px;">Welcome to Piyam Travels IMS</h1>
+              </div>
+              
+              <div style="background: #f1f5f9; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                <p style="margin-top: 0;">Hello <strong>${firstName}</strong>,</p>
+                <p>Your account has been created in the Piyam Travels Portal. Use the credentials below to log in:</p>
+                
+                <div style="background: white; padding: 15px; border-radius: 6px; margin: 15px 0; border-left: 4px solid #1e40af;">
+                  <table style="width: 100%;">
+                    <tr><td style="padding: 8px 0; color: #475569; font-size: 14px;"><strong>Email:</strong> ${email}</td></tr>
+                    <tr><td style="padding: 8px 0; color: #475569; font-size: 14px;"><strong>Temporary Password:</strong> ${tempPassword}</td></tr>
+                    ${locationHTML}
+                  </table>
+                </div>
+              </div>
+              
+              <div style="background: #fef3c7; border: 1px solid #f59e0b; padding: 15px; border-radius: 6px; margin-bottom: 20px;">
+                <p style="margin: 0; color: #92400e; font-size: 14px;">
+                  <strong>⚠️ Important:</strong> Please log in immediately and change your temporary password.
+                </p>
+              </div>
+              
+              <div style="text-align: center; margin: 30px 0;">
+                <a href="https://ims.piyamtravel.com" style="background: #1e40af; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">Log In Now</a>
+              </div>
+              
+              <div style="color: #64748b; font-size: 12px; text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0;">
+                <p>If you did not request this account, please contact your administrator.</p>
+                <p>© 2026 Piyam Travels. All rights reserved.</p>
+              </div>
+            </div>
+          </body>
+        </html>
+      `;
       
       await mg.messages.create(senderDomain, {
         from: `${senderEmail}`,
         to: email,
         subject: 'Welcome to IMS - Your Login Details',
-        text: `Hello ${firstName},\n\nYour account has been created.\n\nUsername: ${email}\nTemporary Password: ${tempPassword}${locationInfo}\n\nPlease log in immediately to change your password.\n\nLogin here: https://ims.piyamtravel.com`
+        text: `Hello ${firstName},\n\nYour account has been created.\n\nEmail: ${email}\nTemporary Password: ${tempPassword}${locationText}\n\nPlease log in immediately to change your password.\n\nLogin here: https://ims.piyamtravel.com`,
+        html: htmlTemplate
       });
     } catch (mailError) {
       console.error('Mailgun send error:', mailError);

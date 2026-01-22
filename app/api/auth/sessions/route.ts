@@ -86,9 +86,11 @@ export async function GET(request: Request) {
       const lastActiveTime = new Date(s.updated_at || s.created_at).getTime();
       const isActive = (now.getTime() - lastActiveTime) < sessionTimeout;
       
-      // Create a device key from user agent for deduplication
+      // Create a device key from user agent + IP for more reliable deduplication
       const userAgent = s.user_agent || '';
-      const deviceKey = userAgent.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const ip = s.ip || '';
+      const combinedKey = `${userAgent}|${ip}`.toLowerCase().replace(/[^a-z0-9|]/g, '');
+      const deviceKey = combinedKey.substring(0, 100); // Limit key length
       
       return {
         id: s.id,
