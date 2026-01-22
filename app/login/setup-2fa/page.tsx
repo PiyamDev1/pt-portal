@@ -11,6 +11,8 @@ export default function Setup2FAPage() {
   const [verifyCode, setVerifyCode] = useState('')
   const [factorId, setFactorId] = useState('')
   const [error, setError] = useState('')
+  const [secretKey, setSecretKey] = useState('')
+  const [showKey, setShowKey] = useState(false)
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -23,7 +25,15 @@ export default function Setup2FAPage() {
       const { data, error } = await supabase.auth.mfa.enroll({ factorType: 'totp' })
       if (error) return setError(error.message)
       setFactorId(data.id)
-      QRCode.toDataURL(data.totp.uri).then(setQrCodeUrl)
+      
+      // Extract secret from the URI (format: otpauth://totp/...?secret=XXXXX&...)
+      const uri = data.totp.uri
+      const secretMatch = uri.match(/secret=([^&]+)/)
+      if (secretMatch) {
+        setSecretKey(secretMatch[1])
+      }
+      
+      QRCode.toDataURL(uri).then(setQrCodeUrl)
     })()
   }, [supabase])
 
@@ -44,6 +54,11 @@ export default function Setup2FAPage() {
     }
   }
 
+  const handleCopyKey = async () => {
+    await navigator.clipboard.writeText(secretKey)
+    alert('Secret key copied to clipboard!')
+  }
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-50">
       <div className="absolute top-4 left-4">
@@ -59,6 +74,36 @@ export default function Setup2FAPage() {
           <div className="flex flex-col items-center space-y-4">
             <div className="relative w-48 h-48 border-4 border-white shadow-sm">
               <Image src={qrCodeUrl} alt="QR Code" fill sizes="192px" className="object-contain" unoptimized />
+            </div>
+            
+            <div className="w-full mt-4">
+              <button
+                type="button"
+                onClick={() => setShowKey(!showKey)}
+                className="text-sm text-blue-600 hover:underline mb-2"
+              >
+                {showKey ? 'Hide manual key' : 'Can\'t scan? Enter key manually'}
+              </button>
+              
+              {showKey && (
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 text-center">
+                  <p className="text-xs text-slate-600 mb-2 font-medium">Manual Setup Key:</p>
+                  <div className="flex items-center justify-center gap-2">
+                    <code className="bg-white px-3 py-2 rounded border border-slate-300 text-sm font-mono select-all break-all">
+                      {secretKey}
+                    </code>
+                    <button
+                      type="button"
+                      onClick={handleCopyKey}
+                      className="px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-xs font-medium"
+                      title="Copy to clipboard"
+                    >
+                      📋 Copy
+                    </button>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-2">Enter this key in your authenticator app</p>
+                </div>
+              )}
             </div>
           </div>
         ) : (

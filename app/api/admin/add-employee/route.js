@@ -189,11 +189,26 @@ export async function POST(request) {
       if (!senderDomain) {
         throw new Error('Missing or invalid MAILGUN_DOMAIN');
       }
+      
+      // Fetch location/branch details if location_id is provided
+      let locationInfo = '';
+      if (location_id) {
+        const { data: locationData } = await supabaseAdmin
+          .from('locations')
+          .select('name, branch_code')
+          .eq('id', location_id)
+          .maybeSingle();
+        
+        if (locationData) {
+          locationInfo = `\n\nBranch/Location: ${locationData.name} (${locationData.branch_code})`;
+        }
+      }
+      
       await mg.messages.create(senderDomain, {
         from: `${senderEmail}`,
         to: email,
         subject: 'Welcome to IMS - Your Login Details',
-        text: `Hello ${firstName},\n\nYour account has been created.\n\nUsername: ${email}\nTemporary Password: ${tempPassword}\n\nPlease log in immediately to change your password.\n\nLogin here: https://ims.piyamtravel.com`
+        text: `Hello ${firstName},\n\nYour account has been created.\n\nUsername: ${email}\nTemporary Password: ${tempPassword}${locationInfo}\n\nPlease log in immediately to change your password.\n\nLogin here: https://ims.piyamtravel.com`
       });
     } catch (mailError) {
       console.error('Mailgun send error:', mailError);

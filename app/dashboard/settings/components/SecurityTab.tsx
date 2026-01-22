@@ -380,9 +380,9 @@ export default function SecurityTab({ currentUser, supabase, loading, setLoading
       <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-200">
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-            <span>📱</span> Active Devices
+            <span>📱</span> Active Devices & Session History
           </h3>
-          {sessions.length > 1 && !sessionsLoading && !sessionsError && (
+          {sessions.filter(s => s.is_active).length > 1 && !sessionsLoading && !sessionsError && (
             <button 
               onClick={handleSignOutAll}
               disabled={loading}
@@ -401,21 +401,48 @@ export default function SecurityTab({ currentUser, supabase, loading, setLoading
             <p className="text-sm text-red-600">{sessionsError}</p>
           )}
           {!sessionsLoading && !sessionsError && sessions.length === 0 && (
-            <p className="text-sm text-slate-500 italic">No active devices found.</p>
+            <p className="text-sm text-slate-500 italic">No sessions found.</p>
           )}
           
           {sessions.map((session) => {
             const { name, icon } = getDeviceInfo(session.user_agent)
+            const isActive = session.is_active !== false // Default to active if not specified
             return (
-              <div key={session.id} className={`flex items-center justify-between p-3 rounded border ${session.is_current ? 'border-green-200 bg-green-50' : 'border-slate-100 bg-slate-50'}`}>
+              <div key={session.id} className={`flex items-center justify-between p-3 rounded border ${
+                session.is_current 
+                  ? 'border-green-200 bg-green-50' 
+                  : isActive 
+                    ? 'border-blue-100 bg-blue-50' 
+                    : 'border-slate-100 bg-slate-50 opacity-60'
+              }`}>
                 <div className="flex items-center gap-3">
-                  <div className={`h-10 w-10 rounded flex items-center justify-center text-xl ${session.is_current ? 'bg-green-100 text-green-600' : 'bg-white border border-slate-200 text-slate-400'}`}>
+                  <div className={`h-10 w-10 rounded flex items-center justify-center text-xl ${
+                    session.is_current 
+                      ? 'bg-green-100 text-green-600' 
+                      : isActive
+                        ? 'bg-blue-100 text-blue-600'
+                        : 'bg-slate-100 text-slate-400'
+                  }`}>
                     {icon}
                   </div>
                   <div>
                     <p className="text-sm font-bold text-slate-800">
                       {name}
-                      {session.is_current && <span className="ml-2 text-xs bg-green-200 text-green-800 px-1.5 py-0.5 rounded-full">Current Device</span>}
+                      {session.is_current && (
+                        <span className="ml-2 text-xs bg-green-200 text-green-800 px-1.5 py-0.5 rounded-full">
+                          Current Device
+                        </span>
+                      )}
+                      {!session.is_current && isActive && (
+                        <span className="ml-2 text-xs bg-blue-200 text-blue-800 px-1.5 py-0.5 rounded-full">
+                          Active
+                        </span>
+                      )}
+                      {!isActive && (
+                        <span className="ml-2 text-xs bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded-full">
+                          Inactive
+                        </span>
+                      )}
                     </p>
                     <div className="flex items-center gap-2 text-xs text-slate-500 mt-0.5">
                       <span>📍 {session.ip}</span>
@@ -425,7 +452,7 @@ export default function SecurityTab({ currentUser, supabase, loading, setLoading
                   </div>
                 </div>
 
-                {!session.is_current && (
+                {!session.is_current && isActive && (
                   <button 
                     onClick={() => handleRevokeSession(session.id)}
                     disabled={loading}
@@ -438,6 +465,12 @@ export default function SecurityTab({ currentUser, supabase, loading, setLoading
             )
           })}
         </div>
+        
+        {!sessionsLoading && sessions.length > 0 && (
+          <p className="text-xs text-slate-500 mt-4 text-center">
+            Showing up to 6 most recent sessions. Sessions inactive for over 1 hour are marked as inactive.
+          </p>
+        )}
       </div>
     </div>
   )

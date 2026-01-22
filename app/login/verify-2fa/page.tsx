@@ -96,13 +96,15 @@ export default function Verify2FAPage() {
                 Verify Identity
               </button>
             </form>
-            <button
-              type="button"
-              className="mt-4 text-sm text-blue-700 hover:underline"
-              onClick={() => { setUseBackup(true); setError(''); setCode('') }}
-            >
-              Use backup code
-            </button>
+            <div className="mt-4 flex flex-col items-center gap-2">
+              <button
+                type="button"
+                className="text-sm text-blue-700 hover:underline"
+                onClick={() => { setUseBackup(true); setError(''); setCode('') }}
+              >
+                Use backup code
+              </button>
+            </div>
           </>
         ) : (
           <>
@@ -122,21 +124,23 @@ export default function Verify2FAPage() {
                 Verify with Backup Code
               </button>
             </form>
-            <button
-              type="button"
-              className="mt-4 text-sm text-blue-700 hover:underline"
-              onClick={() => { setUseBackup(false); setError(''); setCode('') }}
-            >
-              Use authenticator app
-            </button>
+            <div className="mt-4 flex flex-col items-center gap-2">
+              <button
+                type="button"
+                className="text-sm text-blue-700 hover:underline"
+                onClick={() => { setUseBackup(false); setError(''); setCode('') }}
+              >
+                Use authenticator app
+              </button>
+              <button
+                onClick={() => router.push('/login')}
+                className="text-sm text-slate-400 hover:text-slate-600"
+              >
+                Back to Login
+              </button>
+            </div>
           </>
         )}
-        <button
-          onClick={() => router.push('/login')}
-          className="mt-6 text-sm text-slate-400 hover:text-slate-600"
-        >
-          Back to Login
-        </button>
       </div>
     </div>
   )

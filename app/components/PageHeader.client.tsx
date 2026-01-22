@@ -48,15 +48,15 @@ export default function PageHeader({ employeeName, role, location, userId, showB
       </div>
       
       <div className="flex items-center gap-4">
-        <div className="relative hidden sm:flex items-center gap-3 group">
+        <Link href="/dashboard/settings" className="relative hidden sm:flex items-center gap-3 group cursor-pointer hover:opacity-80 transition">
           
-          <div className="text-right cursor-pointer select-none">
+          <div className="text-right select-none">
             <p className="text-sm font-medium text-slate-900">{employeeName}</p>
             <p className="text-xs text-blue-600 font-semibold">{role}</p>
           </div>
 
           {/* AVATAR PROFILE */}
-          <div className="h-10 w-10 rounded-full bg-slate-200 border-2 border-white shadow-sm flex items-center justify-center overflow-hidden cursor-pointer relative">
+          <div className="h-10 w-10 rounded-full bg-slate-200 border-2 border-white shadow-sm flex items-center justify-center overflow-hidden relative">
             {avatarUrl && (
               <Image
                 src={avatarUrl}
@@ -73,16 +73,7 @@ export default function PageHeader({ employeeName, role, location, userId, showB
             )}
             <span className="text-sm font-bold text-slate-600">{initials}</span>
           </div>
-
-          {/* DROPDOWN MENU */}
-          <div className="absolute right-0 top-full mt-2 w-48 bg-white border border-slate-200 rounded-lg shadow-md opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition z-50">
-            <ul className="py-2 text-sm">
-              <li>
-                <Link href="/dashboard/settings" className="block px-3 py-2 hover:bg-slate-50 text-slate-700">Settings</Link>
-              </li>
-            </ul>
-          </div>
-        </div>
+        </Link>
         
         <div className="h-8 w-px bg-slate-200 mx-2 hidden sm:block"></div>
         <LogoutButton />
