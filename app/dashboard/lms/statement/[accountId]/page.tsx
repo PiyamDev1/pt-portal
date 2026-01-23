@@ -81,7 +81,7 @@ export default function StatementPage() {
               <p className="text-sm"><span className="text-slate-600">Date:</span> <span className="font-bold">{new Date().toLocaleDateString()}</span></p>
               <p className="text-sm"><span className="text-slate-600">Period:</span> <span className="font-bold">Full Account History</span></p>
               <p className="text-sm"><span className="text-slate-600">Account Status:</span> <span className="font-bold text-blue-600">{account.status?.toUpperCase()}</span></p>
-              <p className="text-sm"><span className="text-slate-600">Outstanding Balance:</span> <span className="font-bold text-slate-900">£{account.total_balance.toLocaleString()}</span></p>
+              <p className="text-sm"><span className="text-slate-600">Outstanding Balance:</span> <span className="font-bold text-slate-900">£{(account.balance || 0).toLocaleString()}</span></p>
             </div>
           </div>
         </div>
@@ -190,7 +190,7 @@ export default function StatementPage() {
               </div>
               <div className="flex justify-between text-sm border-t-2 border-slate-900 pt-2">
                 <span className="font-bold text-slate-900">Current Balance:</span>
-                <span className="font-bold text-slate-900 text-lg">£{account.total_balance.toLocaleString()}</span>
+                <span className="font-bold text-slate-900 text-lg">£{(account.balance || 0).toLocaleString()}</span>
               </div>
             </div>
           </div>

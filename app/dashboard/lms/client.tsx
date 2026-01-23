@@ -173,7 +173,7 @@ function AccountRow({ account, expanded, onToggle, onAddTransaction, onShowState
               className="font-mono text-lg font-bold text-slate-900 hover:text-blue-600 hover:underline transition-colors"
               title="Click to view statement"
             >
-              £{(account.total_balance || 0).toLocaleString()}
+              £{(account.balance || 0).toLocaleString()}
             </button>
           {account.nextDue && (
             <div className="text-xs text-slate-400">Due: {new Date(account.nextDue).toLocaleDateString()}</div>
@@ -553,7 +553,7 @@ function TransactionModal({ data, onClose, onSave, employeeId }: any) {
 
 // Statement Popup - Shows transaction history as bank statement
 function StatementPopup({ account, onClose }: any) {
-  const [runningBalance, setRunningBalance] = useState(account.total_balance || 0)
+  const [runningBalance, setRunningBalance] = useState(account.balance || 0)
 
   return (
     <ModalWrapper onClose={onClose} title={`Statement - ${account.name}`}>
@@ -565,7 +565,7 @@ function StatementPopup({ account, onClose }: any) {
           <p className="text-sm text-slate-600">Email: {account.email || 'N/A'}</p>
           <div className="mt-2 p-2 bg-slate-100 rounded">
             <div className="text-xs text-slate-500">Current Balance</div>
-            <div className="text-xl font-bold text-slate-900">£{account.total_balance.toLocaleString()}</div>
+            <div className="text-xl font-bold text-slate-900">£{(account.balance || 0).toLocaleString()}</div>
           </div>
         </div>
 
