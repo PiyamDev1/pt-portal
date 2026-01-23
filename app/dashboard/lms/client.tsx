@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Search, Plus, Users, Banknote, AlertTriangle, Clock, TrendingUp, X, Check, Receipt, DollarSign, Calendar, Phone } from 'lucide-react'
+import { Search, Plus, Users, Banknote, AlertTriangle, Clock, TrendingUp, X, Check, Receipt, DollarSign, Calendar, Phone, Edit, Trash2, Save } from 'lucide-react'
 import { toast } from 'sonner'
 
 export default function LMSClient({ currentUserId }: any) {
@@ -15,6 +15,8 @@ export default function LMSClient({ currentUserId }: any) {
   const [showNewCustomer, setShowNewCustomer] = useState(false)
   const [showTransaction, setShowTransaction] = useState<any>(null)
   const [showStatementPopup, setShowStatementPopup] = useState<any>(null)
+  const [showEditCustomer, setShowEditCustomer] = useState<any>(null)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<any>(null)
 
   const fetchData = () => {
     setLoading(true)
@@ -114,6 +116,8 @@ export default function LMSClient({ currentUserId }: any) {
                 onToggle={() => setExpandedRow(expandedRow === account.id ? null : account.id)}
                 onAddTransaction={() => setShowTransaction(account)}
                 onShowStatement={() => setShowStatementPopup(account)}
+                onEdit={() => setShowEditCustomer(account)}
+                onDelete={() => setShowDeleteConfirm(account)}
                 getStatusBadge={getStatusBadge}
               />
             ))}
@@ -128,6 +132,8 @@ export default function LMSClient({ currentUserId }: any) {
       {showNewCustomer && <NewCustomerModal onClose={() => setShowNewCustomer(false)} onSave={fetchData} employeeId={currentUserId} />}
       {showTransaction && <TransactionModal data={showTransaction} onClose={() => setShowTransaction(null)} onSave={fetchData} employeeId={currentUserId} />}
       {showStatementPopup && <StatementPopup account={showStatementPopup} onClose={() => setShowStatementPopup(null)} />}
+      {showEditCustomer && <EditCustomerModal customer={showEditCustomer} onClose={() => setShowEditCustomer(null)} onSave={fetchData} employeeId={currentUserId} />}
+      {showDeleteConfirm && <DeleteConfirmModal customer={showDeleteConfirm} onClose={() => setShowDeleteConfirm(null)} onConfirm={fetchData} employeeId={currentUserId} />}
     </div>
   )
 }
@@ -152,7 +158,7 @@ function StatCard({ icon: Icon, label, value, color }: any) {
 }
 
 // Account Row with Expandable Ledger
-function AccountRow({ account, expanded, onToggle, onAddTransaction, onShowStatement, getStatusBadge }: any) {
+function AccountRow({ account, expanded, onToggle, onAddTransaction, onShowStatement, onEdit, onDelete, getStatusBadge }: any) {
   return (
     <>
       <tr className="hover:bg-slate-50 transition-colors cursor-pointer" onClick={onToggle}>
@@ -197,6 +203,20 @@ function AccountRow({ account, expanded, onToggle, onAddTransaction, onShowState
                 <Receipt className="w-4 h-4 text-green-600 group-hover:text-green-700" />
               </button>
             )}
+            <button 
+              onClick={onEdit}
+              className="p-2 bg-amber-100 hover:bg-amber-200 rounded-lg transition-colors group"
+              title="Edit Customer"
+            >
+              <Edit className="w-4 h-4 text-amber-600 group-hover:text-amber-700" />
+            </button>
+            <button 
+              onClick={onDelete}
+              className="p-2 bg-red-100 hover:bg-red-200 rounded-lg transition-colors group"
+              title="Delete Customer"
+            >
+              <Trash2 className="w-4 h-4 text-red-600 group-hover:text-red-700" />
+            </button>
           </div>
         </td>
       </tr>
@@ -923,6 +943,242 @@ function StatementPopup({ account, onClose }: any) {
           </a>
         </div>
       </div>
+    </ModalWrapper>
+  )
+}
+
+// Edit Customer Modal
+function EditCustomerModal({ customer, onClose, onSave, employeeId }: any) {
+  const [form, setForm] = useState({
+    phone: customer.phone || '',
+    email: customer.email || '',
+    address: customer.address || '',
+    dateOfBirth: customer.dateOfBirth || '',
+    notes: customer.notes || ''
+  })
+  const [loading, setLoading] = useState(false)
+
+  const handleSubmit = async (e: any) => {
+    e.preventDefault()
+    
+    setLoading(true)
+    try {
+      const res = await fetch('/api/lms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          action: 'update_customer',
+          customerId: customer.id,
+          ...form,
+          employeeId
+        })
+      })
+      if (!res.ok) throw new Error('Failed')
+      toast.success('Customer updated!')
+      onSave()
+      onClose()
+    } catch (err) {
+      toast.error('Failed to update customer')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <ModalWrapper onClose={onClose} title={`Edit Customer - ${customer.name}`}>
+      <form onSubmit={handleSubmit} className="space-y-3">
+        <div className="bg-slate-50 p-3 rounded-lg mb-4">
+          <div className="text-sm font-bold text-slate-700">{customer.name}</div>
+          <div className="text-xs text-slate-500">ID: {customer.id.substring(0, 8)}</div>
+        </div>
+
+        <div>
+          <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Phone Number</label>
+          <div className="relative">
+            <Phone className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
+            <input 
+              type="tel"
+              placeholder="Phone number" 
+              value={form.phone} 
+              onChange={e => setForm({...form, phone: e.target.value})} 
+              className="w-full pl-10 p-3 border rounded-lg"
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Email Address</label>
+          <input 
+            type="email"
+            placeholder="Email" 
+            value={form.email} 
+            onChange={e => setForm({...form, email: e.target.value})} 
+            className="w-full p-3 border rounded-lg"
+          />
+        </div>
+
+        <div>
+          <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Address</label>
+          <textarea 
+            placeholder="Full address" 
+            value={form.address} 
+            onChange={e => setForm({...form, address: e.target.value})} 
+            className="w-full p-3 border rounded-lg"
+            rows={2}
+          />
+        </div>
+
+        <div>
+          <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Date of Birth</label>
+          <input 
+            type="date"
+            value={form.dateOfBirth} 
+            onChange={e => setForm({...form, dateOfBirth: e.target.value})} 
+            className="w-full p-3 border rounded-lg"
+            max={new Date().toISOString().split('T')[0]}
+          />
+        </div>
+
+        <div>
+          <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Key Notes</label>
+          <textarea 
+            placeholder="Important notes about this customer..." 
+            value={form.notes} 
+            onChange={e => setForm({...form, notes: e.target.value})} 
+            className="w-full p-3 border rounded-lg"
+            rows={3}
+          />
+        </div>
+
+        <div className="flex gap-2 pt-2">
+          <button 
+            type="button"
+            onClick={onClose}
+            className="flex-1 px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg transition-colors"
+          >
+            Cancel
+          </button>
+          <button 
+            type="submit" 
+            disabled={loading} 
+            className="flex-1 px-4 py-3 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            <Save className="w-4 h-4" />
+            {loading ? 'Saving...' : 'Save Changes'}
+          </button>
+        </div>
+      </form>
+    </ModalWrapper>
+  )
+}
+
+// Delete Confirmation Modal
+function DeleteConfirmModal({ customer, onClose, onConfirm, employeeId }: any) {
+  const [password, setPassword] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  const handleDelete = async (e: any) => {
+    e.preventDefault()
+    
+    if (!password) {
+      toast.error('Password required to delete customer')
+      return
+    }
+
+    setLoading(true)
+    try {
+      const res = await fetch('/api/lms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          action: 'delete_customer',
+          customerId: customer.id,
+          password,
+          employeeId
+        })
+      })
+      
+      const data = await res.json()
+      
+      if (!res.ok) {
+        if (data.error === 'Invalid password') {
+          toast.error('Incorrect password')
+        } else {
+          throw new Error(data.error || 'Failed')
+        }
+        setLoading(false)
+        return
+      }
+      
+      toast.success('Customer deleted successfully')
+      onConfirm()
+      onClose()
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete customer')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <ModalWrapper onClose={onClose} title="Delete Customer">
+      <form onSubmit={handleDelete} className="space-y-4">
+        <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-6 h-6 text-red-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <h4 className="font-bold text-red-900 mb-1">Warning: Permanent Deletion</h4>
+              <p className="text-sm text-red-700">
+                You are about to delete <strong>{customer.name}</strong> and all associated records:
+              </p>
+              <ul className="mt-2 text-sm text-red-700 list-disc list-inside space-y-1">
+                <li>{customer.activeLoans} active loan{customer.activeLoans !== 1 ? 's' : ''}</li>
+                <li>{customer.transactions?.length || 0} transaction{customer.transactions?.length !== 1 ? 's' : ''}</li>
+                <li>All payment history</li>
+              </ul>
+              <p className="mt-3 text-sm font-bold text-red-900">
+                This action cannot be undone!
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <label className="text-xs font-bold text-slate-700 uppercase mb-2 block">
+            Enter Your Password to Confirm
+          </label>
+          <input 
+            type="password"
+            placeholder="Your account password" 
+            value={password} 
+            onChange={e => setPassword(e.target.value)} 
+            className="w-full p-3 border-2 border-red-300 rounded-lg focus:border-red-500 outline-none"
+            required
+            autoFocus
+          />
+          <p className="mt-1 text-xs text-slate-500">
+            Password verification required for security
+          </p>
+        </div>
+
+        <div className="flex gap-2 pt-2">
+          <button 
+            type="button"
+            onClick={onClose}
+            className="flex-1 px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg transition-colors"
+          >
+            Cancel
+          </button>
+          <button 
+            type="submit" 
+            disabled={loading || !password} 
+            className="flex-1 px-4 py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            <Trash2 className="w-4 h-4" />
+            {loading ? 'Deleting...' : 'Delete Customer'}
+          </button>
+        </div>
+      </form>
     </ModalWrapper>
   )
 }

@@ -313,6 +313,80 @@ export async function POST(request) {
       }
 
       return NextResponse.json({ success: true, customerId: newCustomer.id })
+    
+    } else if (action === 'update_customer') {
+      const { customerId, phone, email, address, dateOfBirth, notes } = body
+
+      const { error } = await supabase
+        .from('loan_customers')
+        .update({
+          phone_number: phone,
+          email,
+          address,
+          date_of_birth: dateOfBirth,
+          notes
+        })
+        .eq('id', customerId)
+
+      if (error) throw error
+
+      return NextResponse.json({ success: true })
+    
+    } else if (action === 'delete_customer') {
+      const { customerId, password } = body
+
+      // Verify password by checking employee credentials
+      const { data: employee } = await supabase
+        .from('employees')
+        .select('id, password_hash')
+        .eq('id', employeeId)
+        .single()
+
+      if (!employee) {
+        return NextResponse.json({ error: 'Employee not found' }, { status: 404 })
+      }
+
+      // For security, we need to verify the password
+      // In a real app, you'd use bcrypt or similar to compare hashed passwords
+      // For now, we'll do a simple check against stored credentials
+      const bcrypt = require('bcryptjs')
+      const isValid = await bcrypt.compare(password, employee.password_hash)
+
+      if (!isValid) {
+        return NextResponse.json({ error: 'Invalid password' }, { status: 403 })
+      }
+
+      // First, delete all transactions associated with customer's loans
+      const { data: customerLoans } = await supabase
+        .from('loans')
+        .select('id')
+        .eq('loan_customer_id', customerId)
+
+      if (customerLoans && customerLoans.length > 0) {
+        const loanIds = customerLoans.map(l => l.id)
+        
+        // Delete transactions
+        await supabase
+          .from('loan_transactions')
+          .delete()
+          .in('loan_id', loanIds)
+
+        // Delete loans
+        await supabase
+          .from('loans')
+          .delete()
+          .eq('loan_customer_id', customerId)
+      }
+
+      // Finally delete customer
+      const { error } = await supabase
+        .from('loan_customers')
+        .delete()
+        .eq('id', customerId)
+
+      if (error) throw error
+
+      return NextResponse.json({ success: true })
     }
 
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
