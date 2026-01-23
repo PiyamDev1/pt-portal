@@ -3,14 +3,16 @@
 import { useState, useEffect } from 'react'
 import { Search, Plus, AlertCircle, Banknote, Calendar, ArrowRight, TrendingUp } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import NewLoanModal from './components/NewLoanModal'
 
 export default function LMSClient({ currentUserId }: any) {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [data, setData] = useState<any>({ loans: [], stats: {} })
   const [searchTerm, setSearchTerm] = useState('')
+  const [isModalOpen, setIsModalOpen] = useState(false)
 
-  useEffect(() => {
+  const fetchDashboard = () => {
     fetch('/api/lms/dashboard')
       .then(res => {
         if (!res.ok) throw new Error(`API Error: ${res.status}`)
@@ -30,6 +32,10 @@ export default function LMSClient({ currentUserId }: any) {
         setData({ loans: [], stats: { activeCount: 0, totalReceivables: 0, overdueCount: 0 } })
         setLoading(false)
       })
+  }
+
+  useEffect(() => {
+    fetchDashboard()
   }, [])
 
   // Filter by Customer Name
@@ -106,7 +112,7 @@ export default function LMSClient({ currentUserId }: any) {
         {/* Card 3: Action Button */}
         <div className="bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
              <button 
-                onClick={() => router.push('/dashboard/lms/new')}
+                onClick={() => setIsModalOpen(true)}
                 className="w-full h-full flex flex-col items-center justify-center gap-2 bg-slate-50 hover:bg-slate-100 rounded-lg transition-all group cursor-pointer"
              >
                 <div className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-600 group-hover:border-blue-300 group-hover:text-blue-600 transition-colors">
@@ -212,6 +218,14 @@ export default function LMSClient({ currentUserId }: any) {
             </table>
         </div>
       </div>
+
+      {/* Modal */}
+      <NewLoanModal 
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSave={fetchDashboard}
+        currentUserId={currentUserId}
+      />
     </div>
   )
 }
