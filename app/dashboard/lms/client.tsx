@@ -12,18 +12,30 @@ export default function LMSClient({ currentUserId }: any) {
 
   useEffect(() => {
     fetch('/api/lms/dashboard')
-      .then(res => res.json())
+      .then(res => {
+        if (!res.ok) throw new Error(`API Error: ${res.status}`)
+        return res.json()
+      })
       .then(data => {
-        setData(data)
+        if (data.error) {
+          console.error("LMS API Error:", data.error)
+          setData({ loans: [], stats: { activeCount: 0, totalReceivables: 0, overdueCount: 0 } })
+        } else {
+          setData(data)
+        }
         setLoading(false)
       })
-      .catch(err => console.error("LMS Load Error:", err))
+      .catch(err => {
+        console.error("LMS Load Error:", err)
+        setData({ loans: [], stats: { activeCount: 0, totalReceivables: 0, overdueCount: 0 } })
+        setLoading(false)
+      })
   }, [])
 
   // Filter by Customer Name
   const filteredLoans = data.loans?.filter((l: any) => 
-    l.loan_customers?.first_name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    l.loan_customers?.last_name?.toLowerCase().includes(searchTerm.toLowerCase())
+    l.loan_customer?.first_name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    l.loan_customer?.last_name?.toLowerCase().includes(searchTerm.toLowerCase())
   ) || []
 
   // RAG Status Logic (Red/Amber/Green)
@@ -45,6 +57,15 @@ export default function LMSClient({ currentUserId }: any) {
   if (loading) return (
     <div className="flex items-center justify-center h-64 text-slate-400 animate-pulse">
         Loading Loan Portfolio...
+    </div>
+  )
+
+  // Show error state if no data available
+  if (!data.stats || !data.loans) return (
+    <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+      <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-2" />
+      <p className="text-red-700 font-medium">Failed to load LMS data</p>
+      <p className="text-red-600 text-sm mt-1">Please check your database configuration or try again later.</p>
     </div>
   )
 
@@ -136,10 +157,10 @@ export default function LMSClient({ currentUserId }: any) {
                             <tr key={loan.id} className="hover:bg-slate-50 transition-colors group">
                                 <td className="p-4 pl-6">
                                     <div className="font-bold text-slate-800 text-sm">
-                                        {loan.loan_customers?.first_name} {loan.loan_customers?.last_name}
+                                        {loan.loan_customer?.first_name} {loan.loan_customer?.last_name}
                                     </div>
                                     <div className="text-xs text-slate-400 font-mono mt-0.5">
-                                        {loan.loan_customers?.phone_number || 'No Phone'}
+                                        {loan.loan_customer?.phone_number || 'No Phone'}
                                     </div>
                                 </td>
                                 <td className="p-4">

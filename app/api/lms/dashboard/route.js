@@ -20,7 +20,7 @@ export async function GET() {
         term_months,
         next_due_date,
         status,
-        loan_customers (
+        loan_customer:loan_customer_id (
           first_name,
           last_name,
           phone_number
@@ -29,7 +29,10 @@ export async function GET() {
       .neq('status', 'Settled') // Hide completely settled loans from main view
       .order('next_due_date', { ascending: true }) // Urgent first
 
-    if (error) throw error
+    if (error) {
+      console.error('LMS Dashboard Query Error:', error)
+      throw error
+    }
 
     // 2. Calculate Dashboard Stats
     const stats = {
