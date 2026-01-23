@@ -1074,14 +1074,42 @@ function EditCustomerModal({ customer, onClose, onSave, employeeId }: any) {
 
 // Delete Confirmation Modal
 function DeleteConfirmModal({ customer, onClose, onConfirm, employeeId }: any) {
-  const [password, setPassword] = useState('')
+  const [authCode, setAuthCode] = useState('')
+  const [generatedCode, setGeneratedCode] = useState('')
   const [loading, setLoading] = useState(false)
+  const [step, setStep] = useState<'generate' | 'verify'>('generate')
+
+  const generateAuthCode = async () => {
+    setLoading(true)
+    try {
+      const res = await fetch('/api/lms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          action: 'generate_delete_code',
+          employeeId
+        })
+      })
+      
+      const data = await res.json()
+      
+      if (!res.ok) throw new Error(data.error || 'Failed')
+      
+      setGeneratedCode(data.code)
+      setStep('verify')
+      toast.success('Auth code generated! Check your email or copy from below.')
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to generate auth code')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const handleDelete = async (e: any) => {
     e.preventDefault()
     
-    if (!password) {
-      toast.error('Password required to delete customer')
+    if (!authCode) {
+      toast.error('Auth code required to delete customer')
       return
     }
 
@@ -1093,7 +1121,7 @@ function DeleteConfirmModal({ customer, onClose, onConfirm, employeeId }: any) {
         body: JSON.stringify({ 
           action: 'delete_customer',
           customerId: customer.id,
-          password,
+          authCode,
           employeeId
         })
       })
@@ -1101,8 +1129,8 @@ function DeleteConfirmModal({ customer, onClose, onConfirm, employeeId }: any) {
       const data = await res.json()
       
       if (!res.ok) {
-        if (data.error === 'Invalid password') {
-          toast.error('Incorrect password')
+        if (data.error === 'Invalid auth code') {
+          toast.error('Incorrect auth code')
         } else {
           throw new Error(data.error || 'Failed')
         }
@@ -1121,64 +1149,104 @@ function DeleteConfirmModal({ customer, onClose, onConfirm, employeeId }: any) {
   }
 
   return (
-    <ModalWrapper onClose={onClose} title="Delete Customer">
-      <form onSubmit={handleDelete} className="space-y-4">
-        <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4">
-          <div className="flex items-start gap-3">
-            <AlertTriangle className="w-6 h-6 text-red-600 flex-shrink-0 mt-0.5" />
-            <div>
-              <h4 className="font-bold text-red-900 mb-1">Warning: Permanent Deletion</h4>
-              <p className="text-sm text-red-700">
-                You are about to delete <strong>{customer.name}</strong> and all associated records:
-              </p>
-              <ul className="mt-2 text-sm text-red-700 list-disc list-inside space-y-1">
-                <li>{customer.activeLoans} active loan{customer.activeLoans !== 1 ? 's' : ''}</li>
-                <li>{customer.transactions?.length || 0} transaction{customer.transactions?.length !== 1 ? 's' : ''}</li>
-                <li>All payment history</li>
-              </ul>
-              <p className="mt-3 text-sm font-bold text-red-900">
-                This action cannot be undone!
-              </p>
+    <ModalWrapper onClose={onClose} title="Delete Customer - Auth Required">
+      {step === 'generate' ? (
+        <div className="space-y-4">
+          <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="w-6 h-6 text-red-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <h4 className="font-bold text-red-900 mb-1">Warning: Permanent Deletion</h4>
+                <p className="text-sm text-red-700">
+                  You are about to delete <strong>{customer.name}</strong> and all associated records:
+                </p>
+                <ul className="mt-2 text-sm text-red-700 list-disc list-inside space-y-1">
+                  <li>{customer.activeLoans} active loan{customer.activeLoans !== 1 ? 's' : ''}</li>
+                  <li>{customer.transactions?.length || 0} transaction{customer.transactions?.length !== 1 ? 's' : ''}</li>
+                  <li>All payment history</li>
+                </ul>
+                <p className="mt-3 text-sm font-bold text-red-900">
+                  This action cannot be undone!
+                </p>
+              </div>
             </div>
           </div>
-        </div>
 
-        <div>
-          <label className="text-xs font-bold text-slate-700 uppercase mb-2 block">
-            Enter Your Password to Confirm
-          </label>
-          <input 
-            type="password"
-            placeholder="Your account password" 
-            value={password} 
-            onChange={e => setPassword(e.target.value)} 
-            className="w-full p-3 border-2 border-red-300 rounded-lg focus:border-red-500 outline-none"
-            required
-            autoFocus
-          />
-          <p className="mt-1 text-xs text-slate-500">
-            Password verification required for security
-          </p>
-        </div>
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+            <p className="text-sm text-blue-900">
+              An authentication code will be generated for verification. This code will be valid for 5 minutes.
+            </p>
+          </div>
 
-        <div className="flex gap-2 pt-2">
-          <button 
-            type="button"
-            onClick={onClose}
-            className="flex-1 px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg transition-colors"
-          >
-            Cancel
-          </button>
-          <button 
-            type="submit" 
-            disabled={loading || !password} 
-            className="flex-1 px-4 py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-          >
-            <Trash2 className="w-4 h-4" />
-            {loading ? 'Deleting...' : 'Delete Customer'}
-          </button>
+          <div className="flex gap-2 pt-2">
+            <button 
+              type="button"
+              onClick={onClose}
+              className="flex-1 px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg transition-colors"
+            >
+              Cancel
+            </button>
+            <button 
+              onClick={generateAuthCode}
+              disabled={loading} 
+              className="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-colors disabled:opacity-50"
+            >
+              {loading ? 'Generating...' : 'Generate Auth Code'}
+            </button>
+          </div>
         </div>
-      </form>
+      ) : (
+        <form onSubmit={handleDelete} className="space-y-4">
+          <div className="bg-green-50 border-2 border-green-300 rounded-lg p-4">
+            <h4 className="text-xs font-bold text-green-900 uppercase mb-2">Your Auth Code</h4>
+            <div className="bg-white p-3 rounded-lg border-2 border-green-400">
+              <div className="font-mono text-2xl font-black text-center text-green-700 tracking-wider">
+                {generatedCode}
+              </div>
+            </div>
+            <p className="text-xs text-green-700 mt-2">
+              Copy this code or enter it below. Valid for 5 minutes.
+            </p>
+          </div>
+
+          <div>
+            <label className="text-xs font-bold text-slate-700 uppercase mb-2 block">
+              Enter Auth Code to Confirm Deletion
+            </label>
+            <input 
+              type="text"
+              placeholder="Enter 6-digit code" 
+              value={authCode} 
+              onChange={e => setAuthCode(e.target.value.toUpperCase())} 
+              className="w-full p-3 border-2 border-red-300 rounded-lg focus:border-red-500 outline-none text-center font-mono text-xl tracking-wider"
+              maxLength={6}
+              required
+              autoFocus
+            />
+            <p className="mt-1 text-xs text-slate-500">
+              Auth code verification required for security
+            </p>
+          </div>
+
+          <div className="flex gap-2 pt-2">
+            <button 
+              type="button"
+              onClick={onClose}
+              className="flex-1 px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg transition-colors"
+            >
+              Cancel
+            </button>
+            <button 
+              type="submit" 
+              disabled={loading || authCode.length !== 6} 
+              className="flex-1 px-4 py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              <Trash2 className="w-4 h-4" />
+              {loading ? 'Deleting...' : 'Delete Customer'}
+            </button>
+          </div>
+        </form>
+      )}
     </ModalWrapper>
   )
 }

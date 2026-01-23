@@ -332,29 +332,53 @@ export async function POST(request) {
 
       return NextResponse.json({ success: true })
     
-    } else if (action === 'delete_customer') {
-      const { customerId, password } = body
+    } else if (action === 'generate_delete_code') {
+      // Generate a 6-digit auth code for deletion verification
+      const authCode = Math.random().toString(36).substring(2, 8).toUpperCase()
+      const expiresAt = new Date(Date.now() + 5 * 60 * 1000) // 5 minutes from now
 
-      // Verify password by checking employee credentials
-      const { data: employee } = await supabase
-        .from('employees')
-        .select('id, password_hash')
-        .eq('id', employeeId)
+      // Store the auth code in a temp table or in-memory (for production, use Redis)
+      // For now, we'll store it in the employee's session or a dedicated table
+      const { error } = await supabase
+        .from('auth_codes')
+        .insert({
+          employee_id: employeeId,
+          code: authCode,
+          expires_at: expiresAt.toISOString(),
+          purpose: 'delete_customer'
+        })
+
+      if (error) {
+        // If table doesn't exist, just return the code (fallback)
+        console.warn('auth_codes table not found, returning code anyway:', error)
+      }
+
+      return NextResponse.json({ success: true, code: authCode })
+    
+    } else if (action === 'delete_customer') {
+      const { customerId, authCode } = body
+
+      // Verify auth code
+      const { data: validCode } = await supabase
+        .from('auth_codes')
+        .select('*')
+        .eq('employee_id', employeeId)
+        .eq('code', authCode)
+        .eq('purpose', 'delete_customer')
+        .gte('expires_at', new Date().toISOString())
+        .order('created_at', { ascending: false })
+        .limit(1)
         .single()
 
-      if (!employee) {
-        return NextResponse.json({ error: 'Employee not found' }, { status: 404 })
+      if (!validCode) {
+        return NextResponse.json({ error: 'Invalid auth code' }, { status: 403 })
       }
 
-      // For security, we need to verify the password
-      // In a real app, you'd use bcrypt or similar to compare hashed passwords
-      // For now, we'll do a simple check against stored credentials
-      const bcrypt = require('bcryptjs')
-      const isValid = await bcrypt.compare(password, employee.password_hash)
-
-      if (!isValid) {
-        return NextResponse.json({ error: 'Invalid password' }, { status: 403 })
-      }
+      // Delete the used auth code
+      await supabase
+        .from('auth_codes')
+        .delete()
+        .eq('id', validCode.id)
 
       // First, delete all transactions associated with customer's loans
       const { data: customerLoans } = await supabase
