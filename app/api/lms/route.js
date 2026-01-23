@@ -168,7 +168,11 @@ export async function POST(request) {
       return NextResponse.json({ success: true })
 
     } else if (action === 'add_service') {
-      const { serviceAmount, termMonths, firstDueDate } = body
+      const { serviceAmount, initialDeposit, installmentTerms, installmentPlan, paymentFrequency } = body
+
+      const totalAmount = parseFloat(serviceAmount)
+      const deposit = parseFloat(initialDeposit) || 0
+      const remainingAmount = totalAmount - deposit
 
       // Create loan
       const { data: newLoan, error: loanError } = await supabase
@@ -176,30 +180,78 @@ export async function POST(request) {
         .insert({
           loan_customer_id: customerId,
           employee_id: employeeId,
-          total_debt_amount: parseFloat(serviceAmount),
-          current_balance: parseFloat(serviceAmount),
-          term_months: parseInt(termMonths),
-          next_due_date: firstDueDate,
-          status: 'Active'
+          total_debt_amount: totalAmount,
+          current_balance: remainingAmount, // Balance after deposit
+          term_months: parseInt(installmentTerms),
+          next_due_date: installmentPlan?.[0]?.dueDate || new Date().toISOString().split('T')[0],
+          status: 'Active',
+          installment_plan: installmentPlan, // Store plan as JSON
+          payment_frequency: paymentFrequency || 'monthly'
         })
         .select()
         .single()
 
       if (loanError) throw loanError
 
-      // Create transaction record
+      // Create initial service transaction (full amount)
       await supabase
         .from('loan_transactions')
         .insert({
           loan_id: newLoan.id,
           employee_id: employeeId,
           transaction_type: 'Service',
-          amount: parseFloat(serviceAmount),
-          remark: notes || `New service - ${termMonths} month term`,
+          amount: totalAmount,
+          remark: notes || `New service - ${installmentTerms} ${paymentFrequency || 'monthly'} installments`,
           transaction_timestamp: new Date().toISOString()
         })
 
+      // If deposit provided, record it as a payment
+      if (deposit > 0) {
+        await supabase
+          .from('loan_transactions')
+          .insert({
+            loan_id: newLoan.id,
+            employee_id: employeeId,
+            transaction_type: 'Payment',
+            amount: deposit,
+            remark: 'Initial deposit',
+            transaction_timestamp: new Date().toISOString()
+          })
+      }
+
       return NextResponse.json({ success: true, loanId: newLoan.id })
+
+    } else if (action === 'add_fee') {
+      const { loanId, amount, notes } = body
+
+      // Add fee transaction
+      await supabase
+        .from('loan_transactions')
+        .insert({
+          loan_id: loanId,
+          employee_id: employeeId,
+          transaction_type: 'Fee',
+          amount: parseFloat(amount),
+          remark: notes || 'Additional fee',
+          transaction_timestamp: new Date().toISOString()
+        })
+
+      // Update loan balance
+      const { data: loan } = await supabase
+        .from('loans')
+        .select('current_balance, total_debt_amount')
+        .eq('id', loanId)
+        .single()
+
+      await supabase
+        .from('loans')
+        .update({ 
+          current_balance: loan.current_balance + parseFloat(amount),
+          total_debt_amount: loan.total_debt_amount + parseFloat(amount)
+        })
+        .eq('id', loanId)
+
+      return NextResponse.json({ success: true })
 
     } else if (action === 'create_customer') {
       const { firstName, lastName, phone, email, address, initialTransaction } = body

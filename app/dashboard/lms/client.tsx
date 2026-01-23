@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Search, Plus, Users, Banknote, AlertTriangle, Clock, TrendingUp, X, Check, Receipt, DollarSign } from 'lucide-react'
+import { Search, Plus, Users, Banknote, AlertTriangle, Clock, TrendingUp, X, Check, Receipt, DollarSign, Calendar, Phone } from 'lucide-react'
 import { toast } from 'sonner'
 
 export default function LMSClient({ currentUserId }: any) {
@@ -382,16 +382,84 @@ function TransactionModal({ data, onClose, onSave, employeeId }: any) {
     type: data.transactionType || 'service', 
     amount: '', 
     paymentMethodId: '',
-    termMonths: '12',
-    firstDueDate: new Date().toISOString().split('T')[0],
+    initialDeposit: '',
+    firstPaymentDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 30 days from now
+    installmentTerms: '12',
+    paymentFrequency: 'monthly',
     notes: '' 
   })
+  const [installmentPlan, setInstallmentPlan] = useState<any[]>([])
   const [methods, setMethods] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
+  const [planExpanded, setPlanExpanded] = useState(true)
 
   useEffect(() => {
     fetch('/api/lms/payment-methods').then(r => r.json()).then(d => setMethods(d.methods || []))
   }, [])
+
+  // Auto-generate installment plan when form changes
+  useEffect(() => {
+    if (form.type === 'service' && form.amount && form.installmentTerms) {
+      const totalAmount = parseFloat(form.amount)
+      const deposit = parseFloat(form.initialDeposit) || 0
+      const remainingAmount = totalAmount - deposit
+      const numInstallments = parseInt(form.installmentTerms)
+      
+      if (remainingAmount > 0 && numInstallments > 0) {
+        const installmentAmount = remainingAmount / numInstallments
+        const firstDate = new Date(form.firstPaymentDate)
+        
+        const plan = Array.from({ length: numInstallments }, (_, i) => {
+          const dueDate = new Date(firstDate)
+          
+          // Calculate due date based on frequency
+          if (form.paymentFrequency === 'weekly') {
+            dueDate.setDate(dueDate.getDate() + (i * 7))
+          } else if (form.paymentFrequency === 'biweekly') {
+            dueDate.setDate(dueDate.getDate() + (i * 14))
+          } else { // monthly
+            dueDate.setMonth(dueDate.getMonth() + i)
+          }
+          
+          // Calculate running balance
+          const runningBalance = remainingAmount - (installmentAmount * (i + 1))
+          
+          return {
+            id: i + 1,
+            dueDate: dueDate.toISOString().split('T')[0],
+            amount: installmentAmount,
+            runningBalance: Math.max(0, runningBalance),
+            status: 'Pending'
+          }
+        })
+        
+        setInstallmentPlan(plan)
+      } else {
+        setInstallmentPlan([])
+      }
+    }
+  }, [form.amount, form.initialDeposit, form.installmentTerms, form.firstPaymentDate, form.paymentFrequency, form.type])
+
+  const updateInstallmentDate = (index: number, newDate: string) => {
+    const updated = [...installmentPlan]
+    const selectedDate = new Date(newDate)
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    
+    // Validate: no past dates
+    if (selectedDate < today) {
+      toast.error('Cannot set installment date in the past')
+      return
+    }
+    
+    // Validate: maintain order (optional warning)
+    if (index > 0 && selectedDate <= new Date(updated[index - 1].dueDate)) {
+      toast.warning('Installment date should be after previous installment')
+    }
+    
+    updated[index].dueDate = newDate
+    setInstallmentPlan(updated)
+  }
 
   const handleSubmit = async (e: any) => {
     e.preventDefault()
@@ -408,15 +476,21 @@ function TransactionModal({ data, onClose, onSave, employeeId }: any) {
     if (form.type === 'service') {
       payload.action = 'add_service'
       payload.serviceAmount = form.amount
-      payload.termMonths = form.termMonths
-      payload.firstDueDate = form.firstDueDate
+      payload.initialDeposit = form.initialDeposit
+      payload.installmentTerms = form.installmentTerms
+      payload.installmentPlan = installmentPlan
+      payload.paymentFrequency = form.paymentFrequency
     } else if (form.type === 'payment') {
       payload.action = 'record_payment'
-      payload.loanId = data.loans[0]?.id // Use first loan with balance
+      const activeLoan = data.loans?.find((l: any) => l.current_balance > 0) || data.loans?.[0]
+      if (!activeLoan) return toast.error('No active loan found for this customer')
+      payload.loanId = activeLoan.id
       payload.paymentMethodId = form.paymentMethodId
     } else if (form.type === 'fee') {
       payload.action = 'add_fee'
-      // Add fee logic similar to service
+      const activeLoan = data.loans?.find((l: any) => l.current_balance > 0) || data.loans?.[0]
+      if (!activeLoan) return toast.error('No active loan found for this customer')
+      payload.loanId = activeLoan.id
     }
 
     setLoading(true)
@@ -443,9 +517,13 @@ function TransactionModal({ data, onClose, onSave, employeeId }: any) {
   const isService = form.type === 'service'
   const isFee = form.type === 'fee'
 
+  const totalAmount = parseFloat(form.amount) || 0
+  const deposit = parseFloat(form.initialDeposit) || 0
+  const remainingAmount = totalAmount - deposit
+
   return (
     <ModalWrapper onClose={onClose} title={`Record ${form.type === 'service' ? 'Service' : form.type === 'payment' ? 'Payment' : 'Fee'} - ${data.name}`}>
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-4 max-h-[80vh] overflow-y-auto">
         
         {/* Transaction Type Selector */}
         <div>
@@ -478,7 +556,7 @@ function TransactionModal({ data, onClose, onSave, employeeId }: any) {
         {/* Amount Field */}
         <div>
           <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">
-            {isPayment ? 'Payment Amount' : isService ? 'Service Amount' : 'Fee Amount'}
+            {isPayment ? 'Payment Amount' : isService ? 'Total Service Amount' : 'Fee Amount'}
           </label>
           <div className="relative">
             <DollarSign className="absolute left-3 top-3 w-5 h-5 text-slate-400" />
@@ -492,26 +570,225 @@ function TransactionModal({ data, onClose, onSave, employeeId }: any) {
               required 
             />
           </div>
-          {isPayment && data.loans[0] && (
+          {isPayment && data.loans?.[0] && (
             <div className="mt-2 p-2 bg-blue-50 rounded text-xs text-blue-700 font-semibold">
               Current Balance: £{(data.loans[0].current_balance || 0).toLocaleString()}
             </div>
           )}
         </div>
 
-        {/* Service-Specific Fields */}
+        {/* Service-Specific Fields - Installment Plan */}
         {isService && (
           <>
+            <div>
+              <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Initial Deposit (Optional)</label>
+              <div className="relative">
+                <DollarSign className="absolute left-3 top-3 w-5 h-5 text-slate-400" />
+                <input 
+                  type="number" 
+                  step="0.01"
+                  placeholder="0.00" 
+                  value={form.initialDeposit} 
+                  onChange={e => setForm({...form, initialDeposit: e.target.value})} 
+                  className="w-full pl-10 p-3 border rounded-lg"
+                />
+              </div>
+              {deposit > 0 && (
+                <div className="mt-1 text-xs text-slate-600">
+                  Remaining to finance: £{remainingAmount.toFixed(2)}
+                </div>
+              )}
+            </div>
+
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Term (Months)</label>
-                <input type="number" value={form.termMonths} onChange={e => setForm({...form, termMonths: e.target.value})} className="w-full p-3 border rounded-lg" />
+                <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Installment Terms</label>
+                <select 
+                  value={form.installmentTerms} 
+                  onChange={e => setForm({...form, installmentTerms: e.target.value})} 
+                  className="w-full p-3 border rounded-lg"
+                >
+                  <option value="3">3 Payments</option>
+                  <option value="6">6 Payments</option>
+                  <option value="12">12 Payments</option>
+                  <option value="18">18 Payments</option>
+                  <option value="24">24 Payments</option>
+                  <option value="36">36 Payments</option>
+                </select>
               </div>
               <div>
-                <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">First Due Date</label>
-                <input type="date" value={form.firstDueDate} onChange={e => setForm({...form, firstDueDate: e.target.value})} className="w-full p-3 border rounded-lg" />
+                <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Payment Frequency</label>
+                <select 
+                  value={form.paymentFrequency} 
+                  onChange={e => setForm({...form, paymentFrequency: e.target.value})} 
+                  className="w-full p-3 border rounded-lg"
+                >
+                  <option value="weekly">Weekly</option>
+                  <option value="biweekly">Bi-Weekly</option>
+                  <option value="monthly">Monthly</option>
+                </select>
               </div>
             </div>
+
+            <div>
+              <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">First Payment Date</label>
+              <input 
+                type="date" 
+                value={form.firstPaymentDate} 
+                onChange={e => setForm({...form, firstPaymentDate: e.target.value})} 
+                className="w-full p-3 border rounded-lg"
+                min={new Date().toISOString().split('T')[0]}
+              />
+            </div>
+
+            {/* Installment Plan Preview */}
+            {installmentPlan.length > 0 && (
+              <div className="border-2 border-blue-300 rounded-lg overflow-hidden bg-gradient-to-br from-blue-50 to-blue-100">
+                {/* Plan Header */}
+                <div 
+                  className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-3 cursor-pointer flex items-center justify-between"
+                  onClick={() => setPlanExpanded(!planExpanded)}
+                >
+                  <div className="flex items-center gap-2">
+                    <Calendar className="w-5 h-5" />
+                    <h4 className="text-sm font-bold">Installment Schedule</h4>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs bg-white/20 px-2 py-1 rounded">
+                      {installmentPlan.length} payments
+                    </span>
+                    <span className="text-sm font-bold">
+                      {planExpanded ? '▼' : '▶'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Summary Cards */}
+                <div className="grid grid-cols-3 gap-2 p-3 bg-white/50">
+                  <div className="text-center p-2 bg-white rounded-lg border border-blue-200">
+                    <div className="text-[10px] text-slate-500 uppercase font-bold">Per Payment</div>
+                    <div className="text-lg font-black text-blue-700">£{(remainingAmount / installmentPlan.length).toFixed(2)}</div>
+                  </div>
+                  <div className="text-center p-2 bg-white rounded-lg border border-blue-200">
+                    <div className="text-[10px] text-slate-500 uppercase font-bold">Total Financed</div>
+                    <div className="text-lg font-black text-slate-900">£{remainingAmount.toFixed(2)}</div>
+                  </div>
+                  <div className="text-center p-2 bg-white rounded-lg border border-blue-200">
+                    <div className="text-[10px] text-slate-500 uppercase font-bold">Final Payment</div>
+                    <div className="text-xs font-bold text-slate-600">
+                      {installmentPlan[installmentPlan.length - 1]?.dueDate ? 
+                        new Date(installmentPlan[installmentPlan.length - 1].dueDate).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })
+                        : 'N/A'
+                      }
+                    </div>
+                  </div>
+                </div>
+
+                {/* Installment List */}
+                {planExpanded && (
+                  <div className="p-3 bg-white/70">
+                    <div className="max-h-64 overflow-y-auto space-y-2">
+                      {installmentPlan.map((installment, idx) => {
+                        const isFirst = idx === 0
+                        const isLast = idx === installmentPlan.length - 1
+                        const progress = ((idx + 1) / installmentPlan.length) * 100
+                        
+                        return (
+                          <div key={idx} className="bg-white p-3 rounded-lg border-2 border-blue-100 hover:border-blue-300 transition-all shadow-sm">
+                            <div className="flex items-center gap-3">
+                              {/* Payment Number Badge */}
+                              <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm ${
+                                isFirst ? 'bg-green-100 text-green-700 border-2 border-green-300' :
+                                isLast ? 'bg-purple-100 text-purple-700 border-2 border-purple-300' :
+                                'bg-blue-100 text-blue-700 border-2 border-blue-300'
+                              }`}>
+                                #{installment.id}
+                              </div>
+
+                              {/* Date Picker */}
+                              <div className="flex-1">
+                                <div className="text-[10px] text-slate-500 uppercase font-bold mb-1">Due Date</div>
+                                <input 
+                                  type="date"
+                                  value={installment.dueDate}
+                                  onChange={e => updateInstallmentDate(idx, e.target.value)}
+                                  min={new Date().toISOString().split('T')[0]}
+                                  className="w-full p-2 text-sm border-2 border-slate-200 rounded-lg hover:border-blue-400 focus:border-blue-500 outline-none"
+                                />
+                              </div>
+
+                              {/* Amount */}
+                              <div className="text-right">
+                                <div className="text-[10px] text-slate-500 uppercase font-bold mb-1">Payment</div>
+                                <div className="font-mono text-lg font-black text-blue-700">
+                                  £{installment.amount.toFixed(2)}
+                                </div>
+                              </div>
+
+                              {/* Running Balance */}
+                              <div className="text-right">
+                                <div className="text-[10px] text-slate-500 uppercase font-bold mb-1">Balance After</div>
+                                <div className="font-mono text-sm font-bold text-slate-600">
+                                  £{installment.runningBalance.toFixed(2)}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Progress Bar */}
+                            <div className="mt-2 bg-slate-200 rounded-full h-1.5 overflow-hidden">
+                              <div 
+                                className="bg-gradient-to-r from-blue-500 to-blue-600 h-full transition-all duration-300"
+                                style={{ width: `${progress}%` }}
+                              />
+                            </div>
+
+                            {/* Special Badges */}
+                            {isFirst && (
+                              <div className="mt-2 text-[10px] text-green-700 font-bold flex items-center gap-1">
+                                <Check className="w-3 h-3" /> First Payment
+                              </div>
+                            )}
+                            {isLast && (
+                              <div className="mt-2 text-[10px] text-purple-700 font-bold flex items-center gap-1">
+                                <TrendingUp className="w-3 h-3" /> Final Payment
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+
+                    {/* Plan Footer Summary */}
+                    <div className="mt-3 pt-3 border-t-2 border-blue-200 bg-blue-50 rounded-lg p-3">
+                      <div className="grid grid-cols-2 gap-3 text-xs">
+                        <div>
+                          <span className="text-slate-600">Duration:</span>
+                          <span className="ml-2 font-bold text-slate-900">
+                            {form.paymentFrequency === 'weekly' ? `${installmentPlan.length} weeks` :
+                             form.paymentFrequency === 'biweekly' ? `${installmentPlan.length * 2} weeks` :
+                             `${installmentPlan.length} months`}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-slate-600">Start:</span>
+                          <span className="ml-2 font-bold text-slate-900">
+                            {new Date(form.firstPaymentDate).toLocaleDateString('en-GB')}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-slate-600">Total Amount:</span>
+                          <span className="ml-2 font-bold text-blue-700">£{totalAmount.toFixed(2)}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-600">Initial Deposit:</span>
+                          <span className="ml-2 font-bold text-green-700">£{deposit.toFixed(2)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </>
         )}
 
@@ -544,7 +821,7 @@ function TransactionModal({ data, onClose, onSave, employeeId }: any) {
             'bg-amber-600 hover:bg-amber-700 text-white'
           }`}
         >
-          {loading ? 'Recording...' : isPayment ? 'Record Payment' : isService ? 'Add Service' : 'Add Fee'}
+          {loading ? 'Recording...' : isPayment ? 'Record Payment' : isService ? 'Create Service with Plan' : 'Add Fee'}
         </button>
       </form>
     </ModalWrapper>
