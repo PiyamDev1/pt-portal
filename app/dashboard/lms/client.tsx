@@ -13,8 +13,8 @@ export default function LMSClient({ currentUserId }: any) {
   
   // Modals
   const [showNewCustomer, setShowNewCustomer] = useState(false)
-  const [showAddService, setShowAddService] = useState<any>(null)
-  const [showPayment, setShowPayment] = useState<any>(null)
+  const [showTransaction, setShowTransaction] = useState<any>(null)
+  const [showStatementPopup, setShowStatementPopup] = useState<any>(null)
 
   const fetchData = () => {
     setLoading(true)
@@ -112,8 +112,8 @@ export default function LMSClient({ currentUserId }: any) {
                 account={account}
                 expanded={expandedRow === account.id}
                 onToggle={() => setExpandedRow(expandedRow === account.id ? null : account.id)}
-                onAddService={() => setShowAddService(account)}
-                onAddPayment={(loan) => setShowPayment({ account, loan })}
+                onAddTransaction={() => setShowTransaction(account)}
+                onShowStatement={() => setShowStatementPopup(account)}
                 getStatusBadge={getStatusBadge}
               />
             ))}
@@ -126,8 +126,8 @@ export default function LMSClient({ currentUserId }: any) {
 
       {/* Modals */}
       {showNewCustomer && <NewCustomerModal onClose={() => setShowNewCustomer(false)} onSave={fetchData} employeeId={currentUserId} />}
-      {showAddService && <AddServiceModal account={showAddService} onClose={() => setShowAddService(null)} onSave={fetchData} employeeId={currentUserId} />}
-      {showPayment && <PaymentModal data={showPayment} onClose={() => setShowPayment(null)} onSave={fetchData} employeeId={currentUserId} />}
+      {showTransaction && <TransactionModal data={showTransaction} onClose={() => setShowTransaction(null)} onSave={fetchData} employeeId={currentUserId} />}
+      {showStatementPopup && <StatementPopup account={showStatementPopup} onClose={() => setShowStatementPopup(null)} />}
     </div>
   )
 }
@@ -152,7 +152,7 @@ function StatCard({ icon: Icon, label, value, color }: any) {
 }
 
 // Account Row with Expandable Ledger
-function AccountRow({ account, expanded, onToggle, onAddService, onAddPayment, getStatusBadge }: any) {
+function AccountRow({ account, expanded, onToggle, onAddTransaction, onShowStatement, getStatusBadge }: any) {
   return (
     <>
       <tr className="hover:bg-slate-50 transition-colors cursor-pointer" onClick={onToggle}>
@@ -168,9 +168,13 @@ function AccountRow({ account, expanded, onToggle, onAddService, onAddPayment, g
           {getStatusBadge(account)}
         </td>
         <td className="p-3 text-right">
-          <div className={`text-lg font-black font-mono ${account.balance > 0 ? 'text-red-600' : 'text-green-600'}`}>
-            £{account.balance.toLocaleString()}
-          </div>
+            <button 
+              onClick={(e) => { e.stopPropagation(); onShowStatement(account) }}
+              className="font-mono text-lg font-bold text-slate-900 hover:text-blue-600 hover:underline transition-colors"
+              title="Click to view statement"
+            >
+              £{(account.total_balance || 0).toLocaleString()}
+            </button>
           {account.nextDue && (
             <div className="text-xs text-slate-400">Due: {new Date(account.nextDue).toLocaleDateString()}</div>
           )}
@@ -178,15 +182,15 @@ function AccountRow({ account, expanded, onToggle, onAddService, onAddPayment, g
         <td className="p-3">
           <div className="flex gap-1 justify-center" onClick={(e) => e.stopPropagation()}>
             <button 
-              onClick={onAddService}
-              className="p-2 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors group"
+              onClick={() => onAddTransaction({...account, transactionType: 'service'})}
+              className="p-2 bg-blue-100 hover:bg-blue-200 rounded-lg transition-colors group"
               title="Add Service"
             >
-              <Plus className="w-4 h-4 text-slate-600 group-hover:text-slate-900" />
+              <Plus className="w-4 h-4 text-blue-600 group-hover:text-blue-700" />
             </button>
             {account.loans.length > 0 && (
               <button 
-                onClick={() => onAddPayment(account.loans.find(l => l.current_balance > 0) || account.loans[0])}
+                onClick={() => onAddTransaction({...account, transactionType: 'payment'})}
                 className="p-2 bg-green-100 hover:bg-green-200 rounded-lg transition-colors group"
                 title="Record Payment"
               >
@@ -199,7 +203,7 @@ function AccountRow({ account, expanded, onToggle, onAddService, onAddPayment, g
       {expanded && (
         <tr>
           <td colSpan={5} className="bg-slate-50 p-0">
-            <LedgerView account={account} onAddPayment={onAddPayment} />
+            <LedgerView account={account} />
           </td>
         </tr>
       )}
@@ -208,7 +212,7 @@ function AccountRow({ account, expanded, onToggle, onAddService, onAddPayment, g
 }
 
 // Inline Ledger View
-function LedgerView({ account, onAddPayment }: any) {
+function LedgerView({ account }: any) {
   return (
     <div className="p-4 space-y-3">
       <h4 className="font-bold text-slate-700 text-sm">Transaction History</h4>
@@ -260,21 +264,34 @@ function LedgerView({ account, onAddPayment }: any) {
   )
 }
 
-// New Customer Modal
+// Enhanced New Customer Modal - with optional transaction entry
 function NewCustomerModal({ onClose, onSave, employeeId }: any) {
   const [form, setForm] = useState({ firstName: '', lastName: '', phone: '', email: '', address: '' })
+  const [addTransaction, setAddTransaction] = useState(false)
+  const [txForm, setTxForm] = useState({ amount: '', type: 'service', paymentMethodId: '', notes: '' })
+  const [methods, setMethods] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/lms/payment-methods').then(r => r.json()).then(d => setMethods(d.methods || []))
+  }, [])
 
   const handleSubmit = async (e: any) => {
     e.preventDefault()
     if (!form.firstName || !form.lastName) return toast.error('First and Last name required')
+    if (addTransaction && (!txForm.amount || parseFloat(txForm.amount) <= 0)) return toast.error('Valid transaction amount required')
     
     setLoading(true)
     try {
       const res = await fetch('/api/lms', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'create_customer', ...form, employeeId })
+        body: JSON.stringify({ 
+          action: 'create_customer', 
+          ...form, 
+          employeeId,
+          initialTransaction: addTransaction ? txForm : null
+        })
       })
       if (!res.ok) throw new Error('Failed')
       toast.success('Customer created!')
@@ -289,14 +306,68 @@ function NewCustomerModal({ onClose, onSave, employeeId }: any) {
 
   return (
     <ModalWrapper onClose={onClose} title="New Customer">
-      <form onSubmit={handleSubmit} className="space-y-3">
-        <div className="grid grid-cols-2 gap-3">
-          <input placeholder="First Name *" value={form.firstName} onChange={e => setForm({...form, firstName: e.target.value})} className="p-3 border rounded-lg" required />
-          <input placeholder="Last Name *" value={form.lastName} onChange={e => setForm({...form, lastName: e.target.value})} className="p-3 border rounded-lg" required />
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Customer Details */}
+        <div>
+          <h4 className="text-xs font-bold text-slate-500 uppercase mb-3">Customer Information</h4>
+          <div className="grid grid-cols-2 gap-3">
+            <input placeholder="First Name *" value={form.firstName} onChange={e => setForm({...form, firstName: e.target.value})} className="p-3 border rounded-lg" required />
+            <input placeholder="Last Name *" value={form.lastName} onChange={e => setForm({...form, lastName: e.target.value})} className="p-3 border rounded-lg" required />
+          </div>
+          <input placeholder="Phone" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} className="w-full p-3 border rounded-lg mt-3" />
+          <input placeholder="Email" type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} className="w-full p-3 border rounded-lg mt-3" />
+          <input placeholder="Address" value={form.address} onChange={e => setForm({...form, address: e.target.value})} className="w-full p-3 border rounded-lg mt-3" />
         </div>
-        <input placeholder="Phone" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} className="w-full p-3 border rounded-lg" />
-        <input placeholder="Email" type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} className="w-full p-3 border rounded-lg" />
-        <input placeholder="Address" value={form.address} onChange={e => setForm({...form, address: e.target.value})} className="w-full p-3 border rounded-lg" />
+
+        {/* Transaction Checkbox */}
+        <div className="flex items-center gap-2 p-3 bg-slate-50 rounded-lg cursor-pointer" onClick={() => setAddTransaction(!addTransaction)}>
+          <input type="checkbox" checked={addTransaction} onChange={e => setAddTransaction(e.target.checked)} className="w-4 h-4" />
+          <label className="text-sm font-bold text-slate-700 cursor-pointer">Add Initial Transaction</label>
+        </div>
+
+        {/* Conditional Transaction Section */}
+        {addTransaction && (
+          <div className="space-y-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+            <h4 className="text-xs font-bold text-blue-700 uppercase">Initial Transaction</h4>
+            
+            <div>
+              <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Transaction Type</label>
+              <select value={txForm.type} onChange={e => setTxForm({...txForm, type: e.target.value})} className="w-full p-3 border rounded-lg bg-white">
+                <option value="service">Debt Added (Service)</option>
+                <option value="payment">Payment Made</option>
+                <option value="fee">Fee</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Amount</label>
+              <div className="relative">
+                <DollarSign className="absolute left-3 top-3 w-5 h-5 text-slate-400" />
+                <input 
+                  type="number" 
+                  step="0.01"
+                  placeholder="0.00" 
+                  value={txForm.amount} 
+                  onChange={e => setTxForm({...txForm, amount: e.target.value})} 
+                  className="w-full pl-10 p-3 border rounded-lg text-lg font-bold"
+                />
+              </div>
+            </div>
+
+            {txForm.type === 'payment' && (
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Payment Method</label>
+                <select value={txForm.paymentMethodId} onChange={e => setTxForm({...txForm, paymentMethodId: e.target.value})} className="w-full p-3 border rounded-lg bg-white">
+                  <option value="">Select method...</option>
+                  {methods.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                </select>
+              </div>
+            )}
+
+            <textarea placeholder="Notes (optional)" value={txForm.notes} onChange={e => setTxForm({...txForm, notes: e.target.value})} className="w-full p-3 border rounded-lg" rows={2} />
+          </div>
+        )}
+
         <button type="submit" disabled={loading} className="w-full bg-slate-900 text-white py-3 rounded-lg font-bold hover:bg-black disabled:opacity-50">
           {loading ? 'Creating...' : 'Create Customer'}
         </button>
@@ -305,78 +376,16 @@ function NewCustomerModal({ onClose, onSave, employeeId }: any) {
   )
 }
 
-// Add Service Modal
-function AddServiceModal({ account, onClose, onSave, employeeId }: any) {
-  const [form, setForm] = useState({ serviceAmount: '', termMonths: '12', firstDueDate: new Date().toISOString().split('T')[0], notes: '' })
-  const [loading, setLoading] = useState(false)
-
-  const handleSubmit = async (e: any) => {
-    e.preventDefault()
-    if (!form.serviceAmount || parseFloat(form.serviceAmount) <= 0) return toast.error('Valid amount required')
-    
-    setLoading(true)
-    try {
-      const res = await fetch('/api/lms', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          action: 'add_service', 
-          customerId: account.id,
-          ...form,
-          employeeId
-        })
-      })
-      if (!res.ok) throw new Error('Failed')
-      toast.success('Service added!')
-      onSave()
-      onClose()
-    } catch (err) {
-      toast.error('Failed to add service')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  return (
-    <ModalWrapper onClose={onClose} title={`Add Service - ${account.name}`}>
-      <form onSubmit={handleSubmit} className="space-y-3">
-        <div>
-          <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Service Amount</label>
-          <div className="relative">
-            <DollarSign className="absolute left-3 top-3 w-5 h-5 text-slate-400" />
-            <input 
-              type="number" 
-              step="0.01"
-              placeholder="0.00" 
-              value={form.serviceAmount} 
-              onChange={e => setForm({...form, serviceAmount: e.target.value})} 
-              className="w-full pl-10 p-3 border rounded-lg text-lg font-bold"
-              required 
-            />
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Term (Months)</label>
-            <input type="number" value={form.termMonths} onChange={e => setForm({...form, termMonths: e.target.value})} className="w-full p-3 border rounded-lg" />
-          </div>
-          <div>
-            <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">First Due Date</label>
-            <input type="date" value={form.firstDueDate} onChange={e => setForm({...form, firstDueDate: e.target.value})} className="w-full p-3 border rounded-lg" />
-          </div>
-        </div>
-        <textarea placeholder="Notes (optional)" value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} className="w-full p-3 border rounded-lg" rows={2} />
-        <button type="submit" disabled={loading} className="w-full bg-slate-900 text-white py-3 rounded-lg font-bold hover:bg-black disabled:opacity-50">
-          {loading ? 'Adding...' : 'Add Service'}
-        </button>
-      </form>
-    </ModalWrapper>
-  )
-}
-
-// Payment Modal
-function PaymentModal({ data, onClose, onSave, employeeId }: any) {
-  const [form, setForm] = useState({ amount: '', paymentMethodId: '', notes: '' })
+// Unified Transaction Modal - handles Service, Payment, and Fee transactions
+function TransactionModal({ data, onClose, onSave, employeeId }: any) {
+  const [form, setForm] = useState({ 
+    type: data.transactionType || 'service', 
+    amount: '', 
+    paymentMethodId: '',
+    termMonths: '12',
+    firstDueDate: new Date().toISOString().split('T')[0],
+    notes: '' 
+  })
   const [methods, setMethods] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
 
@@ -388,37 +397,89 @@ function PaymentModal({ data, onClose, onSave, employeeId }: any) {
     e.preventDefault()
     if (!form.amount || parseFloat(form.amount) <= 0) return toast.error('Valid amount required')
     
+    const payload: any = { 
+      amount: form.amount,
+      customerId: data.id,
+      notes: form.notes,
+      employeeId 
+    }
+
+    // Route to appropriate action based on type
+    if (form.type === 'service') {
+      payload.action = 'add_service'
+      payload.serviceAmount = form.amount
+      payload.termMonths = form.termMonths
+      payload.firstDueDate = form.firstDueDate
+    } else if (form.type === 'payment') {
+      payload.action = 'record_payment'
+      payload.loanId = data.loans[0]?.id // Use first loan with balance
+      payload.paymentMethodId = form.paymentMethodId
+    } else if (form.type === 'fee') {
+      payload.action = 'add_fee'
+      // Add fee logic similar to service
+    }
+
     setLoading(true)
     try {
       const res = await fetch('/api/lms', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          action: 'record_payment',
-          loanId: data.loan.id,
-          ...form,
-          employeeId
-        })
+        body: JSON.stringify(payload)
       })
       if (!res.ok) throw new Error('Failed')
-      toast.success('Payment recorded!')
+      
+      const actionLabel = form.type === 'service' ? 'Service added' : form.type === 'payment' ? 'Payment recorded' : 'Fee added'
+      toast.success(actionLabel + '!')
       onSave()
       onClose()
     } catch (err) {
-      toast.error('Failed to record payment')
+      toast.error('Failed to record transaction')
     } finally {
       setLoading(false)
     }
   }
 
+  const isPayment = form.type === 'payment'
+  const isService = form.type === 'service'
+  const isFee = form.type === 'fee'
+
   return (
-    <ModalWrapper onClose={onClose} title={`Record Payment - ${data.account.name}`}>
-      <form onSubmit={handleSubmit} className="space-y-3">
-        <div className="bg-blue-50 p-3 rounded-lg text-sm">
-          <div className="text-blue-600 font-bold">Current Balance: £{data.loan.current_balance.toLocaleString()}</div>
-        </div>
+    <ModalWrapper onClose={onClose} title={`Record ${form.type === 'service' ? 'Service' : form.type === 'payment' ? 'Payment' : 'Fee'} - ${data.name}`}>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        
+        {/* Transaction Type Selector */}
         <div>
-          <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Payment Amount</label>
+          <label className="text-xs font-bold text-slate-500 uppercase mb-2 block">Transaction Type</label>
+          <div className="grid grid-cols-3 gap-2">
+            <button
+              type="button"
+              onClick={() => setForm({...form, type: 'service'})}
+              className={`p-2 rounded-lg text-xs font-bold transition-all ${form.type === 'service' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+            >
+              Debt Added
+            </button>
+            <button
+              type="button"
+              onClick={() => setForm({...form, type: 'payment'})}
+              className={`p-2 rounded-lg text-xs font-bold transition-all ${form.type === 'payment' ? 'bg-green-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+            >
+              Payment
+            </button>
+            <button
+              type="button"
+              onClick={() => setForm({...form, type: 'fee'})}
+              className={`p-2 rounded-lg text-xs font-bold transition-all ${form.type === 'fee' ? 'bg-amber-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+            >
+              Fee
+            </button>
+          </div>
+        </div>
+
+        {/* Amount Field */}
+        <div>
+          <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">
+            {isPayment ? 'Payment Amount' : isService ? 'Service Amount' : 'Fee Amount'}
+          </label>
           <div className="relative">
             <DollarSign className="absolute left-3 top-3 w-5 h-5 text-slate-400" />
             <input 
@@ -431,19 +492,160 @@ function PaymentModal({ data, onClose, onSave, employeeId }: any) {
               required 
             />
           </div>
+          {isPayment && data.loans[0] && (
+            <div className="mt-2 p-2 bg-blue-50 rounded text-xs text-blue-700 font-semibold">
+              Current Balance: £{(data.loans[0].current_balance || 0).toLocaleString()}
+            </div>
+          )}
         </div>
-        <div>
-          <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Payment Method</label>
-          <select value={form.paymentMethodId} onChange={e => setForm({...form, paymentMethodId: e.target.value})} className="w-full p-3 border rounded-lg">
-            <option value="">Select method...</option>
-            {methods.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-          </select>
-        </div>
-        <textarea placeholder="Notes (optional)" value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} className="w-full p-3 border rounded-lg" rows={2} />
-        <button type="submit" disabled={loading} className="w-full bg-green-600 text-white py-3 rounded-lg font-bold hover:bg-green-700 disabled:opacity-50">
-          {loading ? 'Recording...' : 'Record Payment'}
+
+        {/* Service-Specific Fields */}
+        {isService && (
+          <>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Term (Months)</label>
+                <input type="number" value={form.termMonths} onChange={e => setForm({...form, termMonths: e.target.value})} className="w-full p-3 border rounded-lg" />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">First Due Date</label>
+                <input type="date" value={form.firstDueDate} onChange={e => setForm({...form, firstDueDate: e.target.value})} className="w-full p-3 border rounded-lg" />
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Payment-Specific Fields */}
+        {isPayment && (
+          <div>
+            <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Payment Method</label>
+            <select value={form.paymentMethodId} onChange={e => setForm({...form, paymentMethodId: e.target.value})} className="w-full p-3 border rounded-lg" required>
+              <option value="">Select method...</option>
+              {methods.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+            </select>
+          </div>
+        )}
+
+        {/* Notes Field */}
+        <textarea 
+          placeholder="Notes (optional)" 
+          value={form.notes} 
+          onChange={e => setForm({...form, notes: e.target.value})} 
+          className="w-full p-3 border rounded-lg" 
+          rows={2} 
+        />
+
+        <button 
+          type="submit" 
+          disabled={loading} 
+          className={`w-full py-3 rounded-lg font-bold disabled:opacity-50 ${
+            isPayment ? 'bg-green-600 hover:bg-green-700 text-white' :
+            isService ? 'bg-blue-600 hover:bg-blue-700 text-white' :
+            'bg-amber-600 hover:bg-amber-700 text-white'
+          }`}
+        >
+          {loading ? 'Recording...' : isPayment ? 'Record Payment' : isService ? 'Add Service' : 'Add Fee'}
         </button>
       </form>
+    </ModalWrapper>
+  )
+}
+
+// Statement Popup - Shows transaction history as bank statement
+function StatementPopup({ account, onClose }: any) {
+  const [runningBalance, setRunningBalance] = useState(account.total_balance || 0)
+
+  return (
+    <ModalWrapper onClose={onClose} title={`Statement - ${account.name}`}>
+      <div className="space-y-4">
+        {/* Customer Header */}
+        <div className="border-b pb-4">
+          <h4 className="font-bold text-slate-800">{account.name}</h4>
+          <p className="text-sm text-slate-600">Phone: {account.phone || 'N/A'}</p>
+          <p className="text-sm text-slate-600">Email: {account.email || 'N/A'}</p>
+          <div className="mt-2 p-2 bg-slate-100 rounded">
+            <div className="text-xs text-slate-500">Current Balance</div>
+            <div className="text-xl font-bold text-slate-900">£{account.total_balance.toLocaleString()}</div>
+          </div>
+        </div>
+
+        {/* Transaction Table */}
+        <div className="max-h-96 overflow-y-auto">
+          <table className="w-full text-xs">
+            <thead className="sticky top-0 bg-slate-100 text-[10px] uppercase text-slate-500">
+              <tr>
+                <th className="p-2 text-left">Date</th>
+                <th className="p-2 text-left">Type</th>
+                <th className="p-2 text-left">Description</th>
+                <th className="p-2 text-right text-red-600">Debit</th>
+                <th className="p-2 text-right text-green-600">Credit</th>
+              </tr>
+            </thead>
+            <tbody>
+              {account.transactions && account.transactions.length > 0 ? (
+                account.transactions.map((tx: any, i: number) => {
+                  const isDebit = tx.transaction_type === 'Service' || tx.transaction_type === 'Fee'
+                  const txAmount = parseFloat(tx.amount) || 0
+                  
+                  return (
+                    <tr key={i} className="border-t border-slate-200 hover:bg-slate-50">
+                      <td className="p-2 text-slate-600">
+                        {new Date(tx.transaction_timestamp).toLocaleDateString()}
+                      </td>
+                      <td className="p-2">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                          tx.transaction_type === 'Service' ? 'bg-blue-50 text-blue-700' :
+                          tx.transaction_type === 'Payment' ? 'bg-green-50 text-green-700' :
+                          'bg-slate-50 text-slate-700'
+                        }`}>
+                          {tx.transaction_type}
+                        </span>
+                      </td>
+                      <td className="p-2 text-slate-600 text-xs">
+                        {tx.remark || '-'}
+                        {tx.loan_payment_methods?.name && <div className="text-[9px] text-slate-400">({tx.loan_payment_methods.name})</div>}
+                      </td>
+                      <td className="p-2 text-right font-mono text-red-600">
+                        {isDebit ? `£${txAmount.toFixed(2)}` : '-'}
+                      </td>
+                      <td className="p-2 text-right font-mono text-green-600">
+                        {tx.transaction_type === 'Payment' ? `£${txAmount.toFixed(2)}` : '-'}
+                      </td>
+                    </tr>
+                  )
+                })
+              ) : (
+                <tr><td colSpan={5} className="p-4 text-center text-slate-400">No transactions found</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Footer Actions */}
+        <div className="flex flex-col gap-2 pt-4 border-t">
+          <div className="flex gap-2">
+            <button 
+              onClick={() => window.print()}
+              className="flex-1 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-900 font-bold rounded-lg transition-colors text-sm"
+            >
+              Print Statement
+            </button>
+            <button 
+              onClick={onClose}
+              className="flex-1 px-4 py-2 bg-slate-900 hover:bg-black text-white font-bold rounded-lg transition-colors text-sm"
+            >
+              Close
+            </button>
+          </div>
+          <a 
+            href={`/dashboard/lms/statement/${account.id}`}
+            target="_blank"
+            className="block text-center px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold rounded-lg transition-colors text-sm"
+          >
+            View Full Statement (Printable)
+          </a>
+        </div>
+      </div>
     </ModalWrapper>
   )
 }

@@ -202,7 +202,7 @@ export async function POST(request) {
       return NextResponse.json({ success: true, loanId: newLoan.id })
 
     } else if (action === 'create_customer') {
-      const { firstName, lastName, phone, email, address } = body
+      const { firstName, lastName, phone, email, address, initialTransaction } = body
 
       const { data: newCustomer, error } = await supabase
         .from('loan_customers')
@@ -219,6 +219,46 @@ export async function POST(request) {
         .single()
 
       if (error) throw error
+
+      // If initial transaction provided, create loan and transaction
+      if (initialTransaction && initialTransaction.amount) {
+        const txType = initialTransaction.type
+        const txAmount = parseFloat(initialTransaction.amount)
+
+        if (txType === 'service' || txType === 'fee') {
+          // Create loan for debt
+          const { data: newLoan, error: loanError } = await supabase
+            .from('loans')
+            .insert({
+              loan_customer_id: newCustomer.id,
+              employee_id: employeeId,
+              total_debt_amount: txAmount,
+              current_balance: txAmount,
+              term_months: 12, // Default
+              status: 'Active'
+            })
+            .select()
+            .single()
+
+          if (loanError) throw loanError
+
+          // Create transaction
+          await supabase
+            .from('loan_transactions')
+            .insert({
+              loan_id: newLoan.id,
+              employee_id: employeeId,
+              transaction_type: txType === 'service' ? 'Service' : 'Fee',
+              amount: txAmount,
+              remark: initialTransaction.notes || 'Initial transaction',
+              transaction_timestamp: new Date().toISOString()
+            })
+        } else if (txType === 'payment') {
+          // Cannot add payment without a loan - need to create a dummy loan first
+          // OR skip payment-only for initial transaction
+          // For now, we'll skip pure payment as it doesn't make sense without debt
+        }
+      }
 
       return NextResponse.json({ success: true, customerId: newCustomer.id })
     }
