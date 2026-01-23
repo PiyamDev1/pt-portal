@@ -14,7 +14,6 @@ export default async function LMSPage() {
 
   const { data: { session } } = await supabase.auth.getSession()
 
-  // Fetch Employee Info for Header
   const { data: employee } = await supabase
     .from('employees')
     .select('full_name, roles(name), locations(name)')
@@ -35,11 +34,9 @@ export default async function LMSPage() {
             showBack={true}
         />
         <main className="max-w-7xl mx-auto p-6 w-full flex-grow">
-            <div className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
-                <div>
-                    <h1 className="text-2xl font-black text-slate-800 tracking-tight">Loan Management</h1>
-                    <p className="text-slate-500 text-sm mt-1">Portfolio Overview & Debt Collection</p>
-                </div>
+            <div className="mb-6">
+                <h1 className="text-3xl font-black text-slate-800 tracking-tight">Loan Management</h1>
+                <p className="text-slate-500 text-sm mt-1">Track customer accounts, services, and payments</p>
             </div>
             
             <LMSClient currentUserId={session?.user?.id} />
