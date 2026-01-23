@@ -10,41 +10,55 @@ export async function GET() {
       process.env.SUPABASE_SERVICE_ROLE_KEY
     )
 
-    // 1. Fetch Active Loans with Customer Data
+    // 1. Fetch all active loans with customer details
     const { data: loans, error } = await supabase
       .from('loans')
       .select(`
         id,
-        total_debt_amount,
         current_balance,
-        term_months,
-        next_due_date,
+        total_debt_amount,
         status,
         loan_customer:loan_customer_id (
+          id,
           first_name,
           last_name,
           phone_number
         )
       `)
-      .neq('status', 'Settled') // Hide completely settled loans from main view
-      .order('next_due_date', { ascending: true }) // Urgent first
+      .gt('current_balance', 0) // Only fetch if they owe money
 
-    if (error) {
-      console.error('LMS Dashboard Query Error:', error)
-      throw error
-    }
+    if (error) throw error
 
-    // 2. Calculate Dashboard Stats
+    // 2. Group by Customer
+    const customerMap = {}
+
+    loans.forEach(loan => {
+        const cust = loan.loan_customer
+        if (!cust) return
+
+        if (!customerMap[cust.id]) {
+            customerMap[cust.id] = {
+                id: cust.id,
+                name: `${cust.first_name} ${cust.last_name}`,
+                phone: cust.phone_number,
+                totalBalance: 0,
+                activeLoans: 0
+            }
+        }
+        
+        customerMap[cust.id].totalBalance += loan.current_balance
+        customerMap[cust.id].activeLoans += 1
+    })
+
+    const customers = Object.values(customerMap).sort((a, b) => b.totalBalance - a.totalBalance)
+
+    // Stats
     const stats = {
-        activeCount: loans.length,
-        totalReceivables: loans.reduce((sum, l) => sum + (l.current_balance || 0), 0),
-        overdueCount: loans.filter(l => {
-            if (!l.next_due_date) return false
-            return new Date(l.next_due_date) < new Date() && l.current_balance > 0
-        }).length
+        totalReceivables: customers.reduce((sum, c) => sum + c.totalBalance, 0),
+        activeCustomers: customers.length
     }
 
-    return NextResponse.json({ loans, stats })
+    return NextResponse.json({ customers, stats })
   } catch (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
