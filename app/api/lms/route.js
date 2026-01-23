@@ -332,53 +332,31 @@ export async function POST(request) {
 
       return NextResponse.json({ success: true })
     
-    } else if (action === 'generate_delete_code') {
-      // Generate a 6-digit auth code for deletion verification
-      const authCode = Math.random().toString(36).substring(2, 8).toUpperCase()
-      const expiresAt = new Date(Date.now() + 5 * 60 * 1000) // 5 minutes from now
+    } else if (action === 'delete_customer') {
+      const { customerId, authCode, userId } = body
 
-      // Store the auth code in a temp table or in-memory (for production, use Redis)
-      // For now, we'll store it in the employee's session or a dedicated table
-      const { error } = await supabase
-        .from('auth_codes')
-        .insert({
-          employee_id: employeeId,
-          code: authCode,
-          expires_at: expiresAt.toISOString(),
-          purpose: 'delete_customer'
-        })
-
-      if (error) {
-        // If table doesn't exist, just return the code (fallback)
-        console.warn('auth_codes table not found, returning code anyway:', error)
+      if (!authCode) {
+        return NextResponse.json({ error: 'Auth code required' }, { status: 403 })
       }
 
-      return NextResponse.json({ success: true, code: authCode })
-    
-    } else if (action === 'delete_customer') {
-      const { customerId, authCode } = body
-
-      // Verify auth code
-      const { data: validCode } = await supabase
-        .from('auth_codes')
+      // Get customer data for logging before deletion
+      const { data: customerData } = await supabase
+        .from('loan_customers')
         .select('*')
-        .eq('employee_id', employeeId)
-        .eq('code', authCode)
-        .eq('purpose', 'delete_customer')
-        .gte('expires_at', new Date().toISOString())
-        .order('created_at', { ascending: false })
-        .limit(1)
+        .eq('id', customerId)
         .single()
 
-      if (!validCode) {
-        return NextResponse.json({ error: 'Invalid auth code' }, { status: 403 })
+      if (!customerData) {
+        return NextResponse.json({ error: 'Customer not found' }, { status: 404 })
       }
 
-      // Delete the used auth code
-      await supabase
-        .from('auth_codes')
-        .delete()
-        .eq('id', validCode.id)
+      // Log deletion (similar to NADRA)
+      await supabase.from('deletion_logs').insert({
+        record_type: 'LMS Customer',
+        deleted_record_data: customerData,
+        deleted_by: userId || null,
+        auth_code_used: authCode
+      })
 
       // First, delete all transactions associated with customer's loans
       const { data: customerLoans } = await supabase
