@@ -112,7 +112,7 @@ export default function LMSClient({ currentUserId }: any) {
       </div>
 
       {/* Accounts Table */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-visible">
         <table className="w-full">
           <thead className="bg-slate-50 border-b border-slate-200">
             <tr className="text-[10px] uppercase font-bold text-slate-500">
