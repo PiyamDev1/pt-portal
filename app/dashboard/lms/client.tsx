@@ -1,22 +1,38 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Search, Plus, Users, Banknote, AlertTriangle, Clock, TrendingUp, X, Check, Receipt, DollarSign, Calendar, Phone, Edit, Trash2, Save } from 'lucide-react'
+import { Search, Plus, Users, Banknote, AlertTriangle, Clock, TrendingUp, X, Check, Receipt, Calendar, Phone, Edit, Trash2, Save } from 'lucide-react'
 import { toast } from 'sonner'
+
+const DEFAULT_PAYMENT_METHODS = [
+  { id: 'cash', name: 'Cash' },
+  { id: 'bank-transfer', name: 'Bank Transfer' },
+  { id: 'card-payment', name: 'Card Payment' }
+]
+
+const mergePaymentMethods = (fetched: any[] = []) => {
+  const existing = new Set(fetched.map((m) => m.name?.toLowerCase?.()))
+  const missing = DEFAULT_PAYMENT_METHODS.filter((m) => !existing.has(m.name.toLowerCase()))
+  return [...fetched, ...missing]
+}
+
+const formatTransactionType = (type: string) => {
+  if (type === 'Service') return 'Installment Plan'
+  if (type === 'Fee') return 'Service Fee'
+  return type
+}
 
 export default function LMSClient({ currentUserId }: any) {
   const [loading, setLoading] = useState(true)
   const [data, setData] = useState<any>({ accounts: [], stats: {} })
   const [searchTerm, setSearchTerm] = useState('')
   const [filter, setFilter] = useState('active')
-  const [expandedRow, setExpandedRow] = useState<string | null>(null)
   
   // Modals
   const [showNewCustomer, setShowNewCustomer] = useState(false)
   const [showTransaction, setShowTransaction] = useState<any>(null)
   const [showStatementPopup, setShowStatementPopup] = useState<any>(null)
   const [showEditCustomer, setShowEditCustomer] = useState<any>(null)
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState<any>(null)
 
   const fetchData = () => {
     setLoading(true)
@@ -112,12 +128,9 @@ export default function LMSClient({ currentUserId }: any) {
               <AccountRow 
                 key={account.id} 
                 account={account}
-                expanded={expandedRow === account.id}
-                onToggle={() => setExpandedRow(expandedRow === account.id ? null : account.id)}
-                onAddTransaction={() => setShowTransaction(account)}
+                onAddTransaction={(payload: any) => setShowTransaction(payload)}
                 onShowStatement={() => setShowStatementPopup(account)}
                 onEdit={() => setShowEditCustomer(account)}
-                onDelete={() => setShowDeleteConfirm(account)}
                 getStatusBadge={getStatusBadge}
               />
             ))}
@@ -133,7 +146,6 @@ export default function LMSClient({ currentUserId }: any) {
       {showTransaction && <TransactionModal data={showTransaction} onClose={() => setShowTransaction(null)} onSave={fetchData} employeeId={currentUserId} />}
       {showStatementPopup && <StatementPopup account={showStatementPopup} onClose={() => setShowStatementPopup(null)} />}
       {showEditCustomer && <EditCustomerModal customer={showEditCustomer} onClose={() => setShowEditCustomer(null)} onSave={fetchData} employeeId={currentUserId} />}
-      {showDeleteConfirm && <DeleteConfirmModal customer={showDeleteConfirm} onClose={() => setShowDeleteConfirm(null)} onConfirm={fetchData} employeeId={currentUserId} />}
     </div>
   )
 }
@@ -157,11 +169,64 @@ function StatCard({ icon: Icon, label, value, color }: any) {
   )
 }
 
-// Account Row with Expandable Ledger
-function AccountRow({ account, expanded, onToggle, onAddTransaction, onShowStatement, onEdit, onDelete, getStatusBadge }: any) {
+// Unified actions dropdown per account
+function ActionsMenu({ account, onAddInstallment, onAddPayment, onShowStatement, onEdit }: any) {
+  const [open, setOpen] = useState(false)
+  const hasLoans = account.loans && account.loans.length > 0
+
+  const handleAction = (cb?: () => void) => {
+    setOpen(false)
+    if (cb) cb()
+  }
+
+  return (
+    <div className="relative inline-block text-left">
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); setOpen(!open) }}
+        className="px-3 py-2 bg-slate-900 text-white rounded-lg text-xs font-bold hover:bg-black transition-colors"
+      >
+        Actions
+      </button>
+
+      {open && (
+        <div className="absolute right-0 mt-2 w-44 bg-white border border-slate-200 rounded-lg shadow-lg z-20 overflow-hidden">
+          <button
+            onClick={(e) => { e.stopPropagation(); handleAction(onShowStatement) }}
+            className="w-full px-3 py-2 text-left text-sm hover:bg-slate-50"
+          >
+            View Statement
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); handleAction(onAddInstallment) }}
+            className="w-full px-3 py-2 text-left text-sm hover:bg-slate-50"
+          >
+            Add Installment Plan
+          </button>
+          <button
+            disabled={!hasLoans}
+            onClick={(e) => { e.stopPropagation(); if (hasLoans) handleAction(onAddPayment) }}
+            className={`w-full px-3 py-2 text-left text-sm hover:bg-slate-50 ${!hasLoans ? 'text-slate-400 cursor-not-allowed' : ''}`}
+          >
+            Record Payment
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); handleAction(onEdit) }}
+            className="w-full px-3 py-2 text-left text-sm hover:bg-slate-50"
+          >
+            Edit Customer
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Account Row
+function AccountRow({ account, onAddTransaction, onShowStatement, onEdit, getStatusBadge }: any) {
   return (
     <>
-      <tr className="hover:bg-slate-50 transition-colors cursor-pointer" onClick={onToggle}>
+      <tr className="hover:bg-slate-50 transition-colors">
         <td className="p-3">
           <div className="font-bold text-slate-800">{account.name}</div>
           <div className="text-xs text-slate-400">{account.activeLoans} active loan{account.activeLoans !== 1 && 's'}</div>
@@ -186,101 +251,16 @@ function AccountRow({ account, expanded, onToggle, onAddTransaction, onShowState
           )}
         </td>
         <td className="p-3">
-          <div className="flex gap-1 justify-center" onClick={(e) => e.stopPropagation()}>
-            <button 
-              onClick={() => onAddTransaction({...account, transactionType: 'service'})}
-              className="p-2 bg-blue-100 hover:bg-blue-200 rounded-lg transition-colors group"
-              title="Add Service"
-            >
-              <Plus className="w-4 h-4 text-blue-600 group-hover:text-blue-700" />
-            </button>
-            {account.loans.length > 0 && (
-              <button 
-                onClick={() => onAddTransaction({...account, transactionType: 'payment'})}
-                className="p-2 bg-green-100 hover:bg-green-200 rounded-lg transition-colors group"
-                title="Record Payment"
-              >
-                <Receipt className="w-4 h-4 text-green-600 group-hover:text-green-700" />
-              </button>
-            )}
-            <button 
-              onClick={onEdit}
-              className="p-2 bg-amber-100 hover:bg-amber-200 rounded-lg transition-colors group"
-              title="Edit Customer"
-            >
-              <Edit className="w-4 h-4 text-amber-600 group-hover:text-amber-700" />
-            </button>
-            <button 
-              onClick={onDelete}
-              className="p-2 bg-red-100 hover:bg-red-200 rounded-lg transition-colors group"
-              title="Delete Customer"
-            >
-              <Trash2 className="w-4 h-4 text-red-600 group-hover:text-red-700" />
-            </button>
-          </div>
+          <ActionsMenu 
+            account={account}
+            onAddInstallment={() => onAddTransaction({...account, transactionType: 'service'})}
+            onAddPayment={() => onAddTransaction({...account, transactionType: 'payment'})}
+            onShowStatement={() => onShowStatement(account)}
+            onEdit={onEdit}
+          />
         </td>
       </tr>
-      {expanded && (
-        <tr>
-          <td colSpan={5} className="bg-slate-50 p-0">
-            <LedgerView account={account} />
-          </td>
-        </tr>
-      )}
     </>
-  )
-}
-
-// Inline Ledger View
-function LedgerView({ account }: any) {
-  return (
-    <div className="p-4 space-y-3">
-      <h4 className="font-bold text-slate-700 text-sm">Transaction History</h4>
-      <div className="max-h-64 overflow-y-auto">
-        <table className="w-full text-xs">
-          <thead className="sticky top-0 bg-slate-100 text-[10px] uppercase text-slate-500">
-            <tr>
-              <th className="p-2 text-left">Date</th>
-              <th className="p-2 text-left">Type</th>
-              <th className="p-2 text-left">Description</th>
-              <th className="p-2 text-right text-red-600">Debit</th>
-              <th className="p-2 text-right text-green-600">Credit</th>
-            </tr>
-          </thead>
-          <tbody>
-            {account.transactions.map((tx: any, i: number) => (
-              <tr key={i} className="border-t border-slate-200">
-                <td className="p-2 text-slate-600">
-                  {new Date(tx.transaction_timestamp).toLocaleDateString()}
-                </td>
-                <td className="p-2">
-                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                    tx.transaction_type === 'Service' ? 'bg-blue-50 text-blue-700' :
-                    tx.transaction_type === 'Payment' ? 'bg-green-50 text-green-700' :
-                    'bg-slate-50 text-slate-700'
-                  }`}>
-                    {tx.transaction_type}
-                  </span>
-                </td>
-                <td className="p-2 text-slate-600">
-                  {tx.remark || '-'}
-                  {tx.loan_payment_methods?.name && ` (${tx.loan_payment_methods.name})`}
-                </td>
-                <td className="p-2 text-right font-mono text-red-600">
-                  {tx.transaction_type === 'Service' || tx.transaction_type === 'Fee' ? `£${parseFloat(tx.amount).toFixed(2)}` : '-'}
-                </td>
-                <td className="p-2 text-right font-mono text-green-600">
-                  {tx.transaction_type === 'Payment' ? `£${parseFloat(tx.amount).toFixed(2)}` : '-'}
-                </td>
-              </tr>
-            ))}
-            {account.transactions.length === 0 && (
-              <tr><td colSpan={5} className="p-4 text-center text-slate-400">No transactions yet</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
   )
 }
 
@@ -293,7 +273,7 @@ function NewCustomerModal({ onClose, onSave, employeeId }: any) {
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    fetch('/api/lms/payment-methods').then(r => r.json()).then(d => setMethods(d.methods || []))
+    fetch('/api/lms/payment-methods').then(r => r.json()).then(d => setMethods(mergePaymentMethods(d.methods || [])))
   }, [])
 
   const handleSubmit = async (e: any) => {
@@ -353,16 +333,16 @@ function NewCustomerModal({ onClose, onSave, employeeId }: any) {
             <div>
               <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Transaction Type</label>
               <select value={txForm.type} onChange={e => setTxForm({...txForm, type: e.target.value})} className="w-full p-3 border rounded-lg bg-white">
-                <option value="service">Debt Added (Service)</option>
-                <option value="payment">Payment Made</option>
-                <option value="fee">Fee</option>
+                <option value="service">Installment Plan</option>
+                <option value="payment">Payment</option>
+                <option value="fee">Service Fee</option>
               </select>
             </div>
 
             <div>
               <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Amount</label>
               <div className="relative">
-                <DollarSign className="absolute left-3 top-3 w-5 h-5 text-slate-400" />
+                <span className="absolute left-3 top-3 text-lg text-slate-500 font-black">£</span>
                 <input 
                   type="number" 
                   step="0.01"
@@ -398,13 +378,26 @@ function NewCustomerModal({ onClose, onSave, employeeId }: any) {
 
 // Unified Transaction Modal - handles Service, Payment, and Fee transactions
 function TransactionModal({ data, onClose, onSave, employeeId }: any) {
+  const getInstallmentOptions = (frequency: string) => {
+    if (frequency === 'weekly') {
+      return Array.from({ length: 10 }, (_, i) => {
+        const weeks = i + 3 // 3 to 12
+        return { value: weeks.toString(), label: `${weeks} week${weeks === 1 ? '' : 's'}` }
+      })
+    }
+    if (frequency === 'biweekly') {
+      return [2, 4, 6, 8, 10, 12].map((weeks) => ({ value: weeks.toString(), label: `${weeks} weeks (bi-weekly)` }))
+    }
+    return [1, 2, 3, 4, 5, 6].map((months) => ({ value: months.toString(), label: `${months} month${months === 1 ? '' : 's'}` }))
+  }
+
   const [form, setForm] = useState({ 
     type: data.transactionType || 'service', 
     amount: '', 
     paymentMethodId: '',
     initialDeposit: '',
     firstPaymentDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 30 days from now
-    installmentTerms: '12',
+    installmentTerms: '6',
     paymentFrequency: 'monthly',
     notes: '' 
   })
@@ -414,16 +407,26 @@ function TransactionModal({ data, onClose, onSave, employeeId }: any) {
   const [planExpanded, setPlanExpanded] = useState(true)
 
   useEffect(() => {
-    fetch('/api/lms/payment-methods').then(r => r.json()).then(d => setMethods(d.methods || []))
+    fetch('/api/lms/payment-methods').then(r => r.json()).then(d => setMethods(mergePaymentMethods(d.methods || [])))
   }, [])
 
   // Auto-generate installment plan when form changes
+  useEffect(() => {
+    // Clamp installment terms to available options when frequency changes
+    setForm(prev => {
+      const options = getInstallmentOptions(prev.paymentFrequency)
+      if (options.some(opt => opt.value === prev.installmentTerms)) return prev
+      return { ...prev, installmentTerms: options[options.length - 1].value }
+    })
+  }, [form.paymentFrequency])
+
   useEffect(() => {
     if (form.type === 'service' && form.amount && form.installmentTerms) {
       const totalAmount = parseFloat(form.amount)
       const deposit = parseFloat(form.initialDeposit) || 0
       const remainingAmount = totalAmount - deposit
-      const numInstallments = parseInt(form.installmentTerms)
+      const termCount = parseInt(form.installmentTerms)
+      const numInstallments = form.paymentFrequency === 'biweekly' ? Math.ceil(termCount / 2) : termCount
       
       if (remainingAmount > 0 && numInstallments > 0) {
         const installmentAmount = remainingAmount / numInstallments
@@ -522,7 +525,7 @@ function TransactionModal({ data, onClose, onSave, employeeId }: any) {
       })
       if (!res.ok) throw new Error('Failed')
       
-      const actionLabel = form.type === 'service' ? 'Service added' : form.type === 'payment' ? 'Payment recorded' : 'Fee added'
+      const actionLabel = form.type === 'service' ? 'Installment plan added' : form.type === 'payment' ? 'Payment recorded' : 'Service fee added'
       toast.success(actionLabel + '!')
       onSave()
       onClose()
@@ -537,12 +540,14 @@ function TransactionModal({ data, onClose, onSave, employeeId }: any) {
   const isService = form.type === 'service'
   const isFee = form.type === 'fee'
 
+  const installmentOptions = getInstallmentOptions(form.paymentFrequency)
+
   const totalAmount = parseFloat(form.amount) || 0
   const deposit = parseFloat(form.initialDeposit) || 0
   const remainingAmount = totalAmount - deposit
 
   return (
-    <ModalWrapper onClose={onClose} title={`Record ${form.type === 'service' ? 'Service' : form.type === 'payment' ? 'Payment' : 'Fee'} - ${data.name}`}>
+    <ModalWrapper onClose={onClose} title={`Record ${form.type === 'service' ? 'Installment Plan' : form.type === 'payment' ? 'Payment' : 'Service Fee'} - ${data.name}`}>
       <form onSubmit={handleSubmit} className="space-y-4 max-h-[80vh] overflow-y-auto">
         
         {/* Transaction Type Selector */}
@@ -554,7 +559,7 @@ function TransactionModal({ data, onClose, onSave, employeeId }: any) {
               onClick={() => setForm({...form, type: 'service'})}
               className={`p-2 rounded-lg text-xs font-bold transition-all ${form.type === 'service' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
             >
-              Debt Added
+              Installment Plan
             </button>
             <button
               type="button"
@@ -568,7 +573,7 @@ function TransactionModal({ data, onClose, onSave, employeeId }: any) {
               onClick={() => setForm({...form, type: 'fee'})}
               className={`p-2 rounded-lg text-xs font-bold transition-all ${form.type === 'fee' ? 'bg-amber-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
             >
-              Fee
+              Service Fee
             </button>
           </div>
         </div>
@@ -576,10 +581,10 @@ function TransactionModal({ data, onClose, onSave, employeeId }: any) {
         {/* Amount Field */}
         <div>
           <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">
-            {isPayment ? 'Payment Amount' : isService ? 'Total Service Amount' : 'Fee Amount'}
+            {isPayment ? 'Payment Amount' : isService ? 'Total Plan Amount' : 'Service Fee Amount'}
           </label>
           <div className="relative">
-            <DollarSign className="absolute left-3 top-3 w-5 h-5 text-slate-400" />
+            <span className="absolute left-3 top-3 text-lg text-slate-500 font-black">£</span>
             <input 
               type="number" 
               step="0.01"
@@ -603,7 +608,7 @@ function TransactionModal({ data, onClose, onSave, employeeId }: any) {
             <div>
               <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Initial Deposit (Optional)</label>
               <div className="relative">
-                <DollarSign className="absolute left-3 top-3 w-5 h-5 text-slate-400" />
+                <span className="absolute left-3 top-3 text-lg text-slate-500 font-black">£</span>
                 <input 
                   type="number" 
                   step="0.01"
@@ -628,12 +633,9 @@ function TransactionModal({ data, onClose, onSave, employeeId }: any) {
                   onChange={e => setForm({...form, installmentTerms: e.target.value})} 
                   className="w-full p-3 border rounded-lg"
                 >
-                  <option value="3">3 Payments</option>
-                  <option value="6">6 Payments</option>
-                  <option value="12">12 Payments</option>
-                  <option value="18">18 Payments</option>
-                  <option value="24">24 Payments</option>
-                  <option value="36">36 Payments</option>
+                  {installmentOptions.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
                 </select>
               </div>
               <div>
@@ -841,7 +843,7 @@ function TransactionModal({ data, onClose, onSave, employeeId }: any) {
             'bg-amber-600 hover:bg-amber-700 text-white'
           }`}
         >
-          {loading ? 'Recording...' : isPayment ? 'Record Payment' : isService ? 'Create Service with Plan' : 'Add Fee'}
+          {loading ? 'Recording...' : isPayment ? 'Record Payment' : isService ? 'Create Installment Plan' : 'Add Service Fee'}
         </button>
       </form>
     </ModalWrapper>
@@ -895,7 +897,7 @@ function StatementPopup({ account, onClose }: any) {
                           tx.transaction_type === 'Payment' ? 'bg-green-50 text-green-700' :
                           'bg-slate-50 text-slate-700'
                         }`}>
-                          {tx.transaction_type}
+                          {formatTransactionType(tx.transaction_type)}
                         </span>
                       </td>
                       <td className="p-2 text-slate-600 text-xs">
@@ -957,6 +959,8 @@ function EditCustomerModal({ customer, onClose, onSave, employeeId }: any) {
     notes: customer.notes || ''
   })
   const [loading, setLoading] = useState(false)
+  const [deleteAuthCode, setDeleteAuthCode] = useState('')
+  const [deleting, setDeleting] = useState(false)
 
   const handleSubmit = async (e: any) => {
     e.preventDefault()
@@ -981,6 +985,38 @@ function EditCustomerModal({ customer, onClose, onSave, employeeId }: any) {
       toast.error('Failed to update customer')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!deleteAuthCode.trim()) {
+      toast.error('Auth code required for deletion')
+      return
+    }
+
+    setDeleting(true)
+    try {
+      const res = await fetch('/api/lms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'delete_customer',
+          customerId: customer.id,
+          authCode: deleteAuthCode.trim(),
+          userId: employeeId
+        })
+      })
+
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Delete failed')
+
+      toast.success('Customer deleted')
+      onSave()
+      onClose()
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete customer')
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -1067,99 +1103,31 @@ function EditCustomerModal({ customer, onClose, onSave, employeeId }: any) {
             {loading ? 'Saving...' : 'Save Changes'}
           </button>
         </div>
-      </form>
-    </ModalWrapper>
-  )
-}
 
-// Delete Confirmation Modal
-function DeleteConfirmModal({ customer, onClose, onConfirm, employeeId }: any) {
-  const [authCode, setAuthCode] = useState('')
-  const [loading, setLoading] = useState(false)
-
-  const handleDelete = async (e: any) => {
-    e.preventDefault()
-    
-    if (!authCode.trim()) {
-      toast.error('Auth code required for deletion')
-      return
-    }
-
-    setLoading(true)
-    try {
-      const res = await fetch('/api/lms', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          action: 'delete_customer',
-          customerId: customer.id,
-          authCode: authCode.trim(),
-          userId: employeeId
-        })
-      })
-      
-      const data = await res.json()
-      
-      if (!res.ok) {
-        toast.error(data.error || 'Delete failed')
-        setLoading(false)
-        return
-      }
-      
-      toast.success('Customer deleted successfully')
-      onConfirm()
-      onClose()
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to delete customer')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  return (
-    <ModalWrapper onClose={onClose} title="Delete Customer - Auth Required">
-      <form onSubmit={handleDelete} className="space-y-4">
-        <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4">
-          <div className="flex items-start gap-3">
-            <AlertTriangle className="w-6 h-6 text-red-600 flex-shrink-0 mt-0.5" />
-            <div>
-              <h4 className="font-bold text-red-900 mb-1">Warning: Permanent Deletion</h4>
-              <p className="text-sm text-red-700">
-                Deleting <strong>{customer.name}</strong> is permanent. All loans and transactions will be deleted.
-                Please enter your Auth Code to confirm.
-              </p>
+        <div className="mt-4 p-3 border border-red-200 rounded-lg bg-red-50">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="w-5 h-5 text-red-600 mt-0.5" />
+            <div className="flex-1 space-y-2">
+              <div className="text-sm font-bold text-red-800">Delete Customer</div>
+              <p className="text-xs text-red-700">Enter your Google Authenticator code to permanently delete this customer and all related records.</p>
+              <input
+                type="text"
+                value={deleteAuthCode}
+                onChange={(e) => setDeleteAuthCode(e.target.value)}
+                placeholder="Auth Code"
+                className="w-full p-2 border border-red-200 rounded-lg focus:border-red-500"
+              />
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={handleDelete}
+                className="w-full px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                <Trash2 className="w-4 h-4" />
+                {deleting ? 'Deleting...' : 'Delete Customer'}
+              </button>
             </div>
           </div>
-        </div>
-
-        <div>
-          <input 
-            type="text"
-            placeholder="Auth Code" 
-            value={authCode} 
-            onChange={e => setAuthCode(e.target.value)} 
-            className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-red-500 outline-none"
-            required
-            autoFocus
-          />
-        </div>
-
-        <div className="flex gap-2 pt-2">
-          <button 
-            type="button"
-            onClick={onClose}
-            className="flex-1 px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg transition-colors"
-          >
-            Cancel
-          </button>
-          <button 
-            type="submit" 
-            disabled={loading} 
-            className="flex-1 px-4 py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-          >
-            <Trash2 className="w-4 h-4" />
-            {loading ? 'Deleting...' : 'Delete'}
-          </button>
         </div>
       </form>
     </ModalWrapper>
