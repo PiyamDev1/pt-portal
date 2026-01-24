@@ -10,6 +10,19 @@ export async function GET() {
       process.env.SUPABASE_SERVICE_ROLE_KEY
     )
 
+    // Ensure default payment methods exist in DB
+    const defaults = ['Cash', 'Bank Transfer', 'Card Payment']
+    const { data: existing } = await supabase
+      .from('loan_payment_methods')
+      .select('id, name')
+
+    const existingNames = new Set((existing || []).map(m => (m.name || '').toLowerCase()))
+    const toInsert = defaults.filter(n => !existingNames.has(n.toLowerCase())).map(n => ({ name: n }))
+
+    if (toInsert.length > 0) {
+      await supabase.from('loan_payment_methods').insert(toInsert)
+    }
+
     const { data: methods, error } = await supabase
       .from('loan_payment_methods')
       .select('*')

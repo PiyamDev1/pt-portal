@@ -5,10 +5,12 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(request) {
   try {
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
-    )
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+    if (!url || !key) {
+      return NextResponse.json({ error: 'Supabase not configured: set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in .env.local' }, { status: 500 })
+    }
+    const supabase = createClient(url, key)
 
     const { searchParams } = new URL(request.url)
     const filter = searchParams.get('filter') || 'active' // active, overdue, all, settled
@@ -126,10 +128,12 @@ export async function GET(request) {
 // POST - Quick Actions
 export async function POST(request) {
   try {
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
-    )
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+    if (!url || !key) {
+      return NextResponse.json({ error: 'Supabase not configured: set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in .env.local' }, { status: 500 })
+    }
+    const supabase = createClient(url, key)
 
     const body = await request.json()
     const { action, customerId, loanId, amount, paymentMethodId, notes, employeeId } = body
@@ -184,9 +188,7 @@ export async function POST(request) {
           current_balance: remainingAmount, // Balance after deposit
           term_months: parseInt(installmentTerms),
           next_due_date: installmentPlan?.[0]?.dueDate || new Date().toISOString().split('T')[0],
-          status: 'Active',
-          installment_plan: installmentPlan, // Store plan as JSON
-          payment_frequency: paymentFrequency || 'monthly'
+          status: 'Active'
         })
         .select()
         .single()
@@ -201,7 +203,7 @@ export async function POST(request) {
           employee_id: employeeId,
           transaction_type: 'Service',
           amount: totalAmount,
-          remark: notes || `New service - ${installmentTerms} ${paymentFrequency || 'monthly'} installments`,
+          remark: notes || `New service - ${installmentTerms} installments`,
           transaction_timestamp: new Date().toISOString()
         })
 
