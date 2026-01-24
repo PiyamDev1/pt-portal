@@ -501,8 +501,8 @@ function TransactionModal({ data, onClose, onSave, employeeId, onPaymentRecorded
     } else if (form.type === 'fee') {
       payload.action = 'add_fee'
       const activeLoan = data.loans?.find((l: any) => l.current_balance > 0) || data.loans?.[0]
-      if (!activeLoan) return toast.error('No active loan found for this customer')
-      payload.loanId = activeLoan.id
+      payload.loanId = activeLoan?.id
+      payload.customerId = data.id
     }
 
     setLoading(true)

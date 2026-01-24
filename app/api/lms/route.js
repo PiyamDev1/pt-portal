@@ -224,16 +224,61 @@ export async function POST(request) {
       return NextResponse.json({ success: true, loanId: newLoan.id })
 
     } else if (action === 'add_fee') {
-      const { loanId, amount, notes } = body
+      const { loanId, amount, notes, customerId } = body
+
+      const feeAmount = parseFloat(amount)
+      if (Number.isNaN(feeAmount) || feeAmount <= 0) {
+        return NextResponse.json({ error: 'Valid fee amount required' }, { status: 400 })
+      }
+
+      let targetLoanId = loanId || null
+
+      // Find an existing loan for this customer if none provided
+      if (!targetLoanId && customerId) {
+        const { data: existingLoan } = await supabase
+          .from('loans')
+          .select('id, current_balance, total_debt_amount')
+          .eq('loan_customer_id', customerId)
+          .order('created_at', { ascending: false })
+          .maybeSingle()
+
+        if (existingLoan) {
+          targetLoanId = existingLoan.id
+        }
+      }
+
+      // If still no loan, create a minimal loan to attach the fee
+      if (!targetLoanId && customerId) {
+        const { data: newLoan, error: newLoanError } = await supabase
+          .from('loans')
+          .insert({
+            loan_customer_id: customerId,
+            employee_id: employeeId,
+            total_debt_amount: feeAmount,
+            current_balance: feeAmount,
+            term_months: 12,
+            status: 'Active',
+            next_due_date: new Date().toISOString().split('T')[0]
+          })
+          .select()
+          .single()
+
+        if (newLoanError) throw newLoanError
+        targetLoanId = newLoan.id
+      }
+
+      if (!targetLoanId) {
+        return NextResponse.json({ error: 'No loan found or created for fee' }, { status: 400 })
+      }
 
       // Add fee transaction
       await supabase
         .from('loan_transactions')
         .insert({
-          loan_id: loanId,
+          loan_id: targetLoanId,
           employee_id: employeeId,
           transaction_type: 'Fee',
-          amount: parseFloat(amount),
+          amount: feeAmount,
           remark: notes || 'Additional fee',
           transaction_timestamp: new Date().toISOString()
         })
@@ -242,18 +287,18 @@ export async function POST(request) {
       const { data: loan } = await supabase
         .from('loans')
         .select('current_balance, total_debt_amount')
-        .eq('id', loanId)
+        .eq('id', targetLoanId)
         .single()
 
       await supabase
         .from('loans')
         .update({ 
-          current_balance: loan.current_balance + parseFloat(amount),
-          total_debt_amount: loan.total_debt_amount + parseFloat(amount)
+          current_balance: (loan?.current_balance || 0) + feeAmount,
+          total_debt_amount: (loan?.total_debt_amount || 0) + feeAmount
         })
-        .eq('id', loanId)
+        .eq('id', targetLoanId)
 
-      return NextResponse.json({ success: true })
+      return NextResponse.json({ success: true, loanId: targetLoanId })
 
     } else if (action === 'create_customer') {
       const { firstName, lastName, phone, email, address, initialTransaction } = body
