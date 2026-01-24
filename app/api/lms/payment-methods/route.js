@@ -13,15 +13,34 @@ export async function GET() {
 
     const supabase = createClient(url, key)
 
-    // Ensure default payment methods exist in DB
-    const defaults = ['Cash', 'Bank Transfer', 'Card Payment']
+    // Ensure default payment methods exist in DB (lowercase)
+    const defaults = ['cash', 'bank transfer', 'card payment']
     const { data: existing, error: fetchError } = await supabase
       .from('loan_payment_methods')
       .select('id, name')
 
     if (fetchError) throw fetchError
 
-    const existingNames = new Set((existing || []).map(m => (m.name || '').toLowerCase()))
+    // Normalize existing names to lowercase
+    if (existing && existing.length > 0) {
+      for (const m of existing) {
+        const lower = (m.name || '').toLowerCase()
+        if (m.name !== lower) {
+          const { error: updateErr } = await supabase
+            .from('loan_payment_methods')
+            .update({ name: lower })
+            .eq('id', m.id)
+          if (updateErr) throw updateErr
+        }
+      }
+    }
+
+    const { data: refreshedData, error: refreshedErr } = await supabase
+      .from('loan_payment_methods')
+      .select('name')
+    if (refreshedErr) throw refreshedErr
+
+    const existingNames = new Set((refreshedData || []).map(m => (m.name || '').toLowerCase()))
     const toInsert = defaults.filter(n => !existingNames.has(n.toLowerCase())).map(n => ({ name: n }))
 
     if (toInsert.length > 0) {

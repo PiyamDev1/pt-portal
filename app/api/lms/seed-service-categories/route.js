@@ -12,9 +12,28 @@ export async function POST() {
     }
     const supabase = createClient(url, key)
 
-    const categories = ['Nadra', 'Passport', 'Ticket', 'Umrah', 'Hotels', 'Visa']
+    const categories = ['nadra', 'passport', 'ticket', 'umrah', 'hotels', 'visa']
 
-    // Upsert categories by name
+    // Normalize existing names to lowercase
+    const { data: existing, error: fetchErr } = await supabase
+      .from('loan_service_categories')
+      .select('id, name')
+    if (fetchErr) throw fetchErr
+
+    if (existing && existing.length > 0) {
+      for (const c of existing) {
+        const lower = (c.name || '').toLowerCase()
+        if (c.name !== lower) {
+          const { error: updateErr } = await supabase
+            .from('loan_service_categories')
+            .update({ name: lower })
+            .eq('id', c.id)
+          if (updateErr) throw updateErr
+        }
+      }
+    }
+
+    // Upsert categories by name (lowercase)
     const toUpsert = categories.map(name => ({ name }))
     const { error } = await supabase
       .from('loan_service_categories')
