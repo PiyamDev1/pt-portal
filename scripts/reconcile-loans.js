@@ -21,6 +21,8 @@ async function main() {
   if (loansError) throw loansError
 
   let backfilled = 0
+  const SYSTEM_EMPLOYEE_ID = 'b6ccb1a4-c548-431e-97af-91705f379036' // System backfill employee
+  
   for (const loan of loans || []) {
     const { data: txs, error: txError } = await supabase
       .from('loan_transactions')
@@ -28,7 +30,7 @@ async function main() {
       .eq('loan_id', loan.id)
     if (txError) throw txError
 
-    const hasDebtTx = (txs || []).some(t => t.transaction_type === 'Service' || t.transaction_type === 'Fee')
+    const hasDebtTx = (txs || []).some(t => (t.transaction_type || '').toLowerCase() === 'service' || (t.transaction_type || '').toLowerCase() === 'fee')
     if (!hasDebtTx) {
       const amount = Number(loan.total_debt_amount || loan.current_balance || 0)
       if (amount <= 0) continue
@@ -36,8 +38,8 @@ async function main() {
         .from('loan_transactions')
         .insert({
           loan_id: loan.id,
-          employee_id: null,
-          transaction_type: 'DEBIT',
+          employee_id: SYSTEM_EMPLOYEE_ID,
+          transaction_type: 'service',
           amount,
           remark: 'Backfilled service to reconcile loan',
           transaction_timestamp: new Date().toISOString()
