@@ -33,6 +33,7 @@ export default function LMSClient({ currentUserId }: any) {
   const [showTransaction, setShowTransaction] = useState<any>(null)
   const [showStatementPopup, setShowStatementPopup] = useState<any>(null)
   const [showEditCustomer, setShowEditCustomer] = useState<any>(null)
+  const [reopenStatementFor, setReopenStatementFor] = useState<any>(null)
 
   const fetchData = () => {
     setLoading(true)
@@ -49,6 +50,14 @@ export default function LMSClient({ currentUserId }: any) {
   }
 
   useEffect(() => { fetchData() }, [filter])
+
+  // Keep statement modal in sync with latest account data when refreshed
+  useEffect(() => {
+    if (showStatementPopup) {
+      const updated = data.accounts?.find((a: any) => a.id === showStatementPopup.id)
+      if (updated) setShowStatementPopup(updated)
+    }
+  }, [data.accounts])
 
   const filtered = data.accounts?.filter((a: any) => 
     a.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -143,8 +152,32 @@ export default function LMSClient({ currentUserId }: any) {
 
       {/* Modals */}
       {showNewCustomer && <NewCustomerModal onClose={() => setShowNewCustomer(false)} onSave={fetchData} employeeId={currentUserId} />}
-      {showTransaction && <TransactionModal data={showTransaction} onClose={() => setShowTransaction(null)} onSave={fetchData} employeeId={currentUserId} />}
-      {showStatementPopup && <StatementPopup account={showStatementPopup} onClose={() => setShowStatementPopup(null)} />}
+      {showTransaction && (
+        <TransactionModal 
+          data={showTransaction} 
+          onClose={() => setShowTransaction(null)} 
+          onSave={fetchData} 
+          employeeId={currentUserId}
+          onPaymentRecorded={() => {
+            // Re-open statement for the same account after recording payment
+            const target = reopenStatementFor || showTransaction
+            setShowTransaction(null)
+            if (target) setShowStatementPopup(target)
+            setReopenStatementFor(null)
+          }}
+        />
+      )}
+      {showStatementPopup && (
+        <StatementPopup 
+          account={showStatementPopup} 
+          onClose={() => setShowStatementPopup(null)}
+          onAddPayment={(acc: any) => { 
+            setShowStatementPopup(null);
+            setReopenStatementFor(acc)
+            setShowTransaction({ ...acc, transactionType: 'payment' })
+          }}
+        />
+      )}
       {showEditCustomer && <EditCustomerModal customer={showEditCustomer} onClose={() => setShowEditCustomer(null)} onSave={fetchData} employeeId={currentUserId} />}
     </div>
   )
@@ -169,58 +202,7 @@ function StatCard({ icon: Icon, label, value, color }: any) {
   )
 }
 
-// Unified actions dropdown per account
-function ActionsMenu({ account, onAddInstallment, onAddPayment, onShowStatement, onEdit }: any) {
-  const [open, setOpen] = useState(false)
-  const hasLoans = account.loans && account.loans.length > 0
-
-  const handleAction = (cb?: () => void) => {
-    setOpen(false)
-    if (cb) cb()
-  }
-
-  return (
-    <div className="relative inline-block text-left">
-      <button
-        type="button"
-        onClick={(e) => { e.stopPropagation(); setOpen(!open) }}
-        className="px-3 py-2 bg-slate-900 text-white rounded-lg text-xs font-bold hover:bg-black transition-colors"
-      >
-        Actions
-      </button>
-
-      {open && (
-        <div className="absolute right-0 mt-2 w-44 bg-white border border-slate-200 rounded-lg shadow-lg z-20 overflow-hidden">
-          <button
-            onClick={(e) => { e.stopPropagation(); handleAction(onShowStatement) }}
-            className="w-full px-3 py-2 text-left text-sm hover:bg-slate-50"
-          >
-            View Statement
-          </button>
-          <button
-            onClick={(e) => { e.stopPropagation(); handleAction(onAddInstallment) }}
-            className="w-full px-3 py-2 text-left text-sm hover:bg-slate-50"
-          >
-            Add Installment Plan
-          </button>
-          <button
-            disabled={!hasLoans}
-            onClick={(e) => { e.stopPropagation(); if (hasLoans) handleAction(onAddPayment) }}
-            className={`w-full px-3 py-2 text-left text-sm hover:bg-slate-50 ${!hasLoans ? 'text-slate-400 cursor-not-allowed' : ''}`}
-          >
-            Record Payment
-          </button>
-          <button
-            onClick={(e) => { e.stopPropagation(); handleAction(onEdit) }}
-            className="w-full px-3 py-2 text-left text-sm hover:bg-slate-50"
-          >
-            Edit Customer
-          </button>
-        </div>
-      )}
-    </div>
-  )
-}
+// (Deprecated) ActionsMenu removed in favor of direct buttons
 
 // Account Row
 function AccountRow({ account, onAddTransaction, onShowStatement, onEdit, getStatusBadge }: any) {
@@ -251,13 +233,20 @@ function AccountRow({ account, onAddTransaction, onShowStatement, onEdit, getSta
           )}
         </td>
         <td className="p-3">
-          <ActionsMenu 
-            account={account}
-            onAddInstallment={() => onAddTransaction({...account, transactionType: 'service'})}
-            onAddPayment={() => onAddTransaction({...account, transactionType: 'payment'})}
-            onShowStatement={() => onShowStatement(account)}
-            onEdit={onEdit}
-          />
+          <div className="flex gap-2 justify-center" onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={() => onShowStatement(account)}
+              className="px-3 py-2 bg-slate-900 text-white rounded-lg text-xs font-bold hover:bg-black transition-colors"
+            >
+              Statement
+            </button>
+            <button
+              onClick={onEdit}
+              className="px-3 py-2 bg-slate-100 text-slate-800 rounded-lg text-xs font-bold hover:bg-slate-200 transition-colors border border-slate-200"
+            >
+              Edit
+            </button>
+          </div>
         </td>
       </tr>
     </>
@@ -377,7 +366,7 @@ function NewCustomerModal({ onClose, onSave, employeeId }: any) {
 }
 
 // Unified Transaction Modal - handles Service, Payment, and Fee transactions
-function TransactionModal({ data, onClose, onSave, employeeId }: any) {
+function TransactionModal({ data, onClose, onSave, employeeId, onPaymentRecorded }: any) {
   const getInstallmentOptions = (frequency: string) => {
     if (frequency === 'weekly') {
       return Array.from({ length: 10 }, (_, i) => {
@@ -528,6 +517,9 @@ function TransactionModal({ data, onClose, onSave, employeeId }: any) {
       const actionLabel = form.type === 'service' ? 'Installment plan added' : form.type === 'payment' ? 'Payment recorded' : 'Service fee added'
       toast.success(actionLabel + '!')
       onSave()
+      if (form.type === 'payment' && typeof onPaymentRecorded === 'function') {
+        try { onPaymentRecorded(data) } catch {}
+      }
       onClose()
     } catch (err) {
       toast.error('Failed to record transaction')
@@ -851,7 +843,7 @@ function TransactionModal({ data, onClose, onSave, employeeId }: any) {
 }
 
 // Statement Popup - Shows transaction history as bank statement
-function StatementPopup({ account, onClose }: any) {
+function StatementPopup({ account, onClose, onAddPayment }: any) {
   const [runningBalance, setRunningBalance] = useState(account.balance || 0)
 
   return (
@@ -923,6 +915,12 @@ function StatementPopup({ account, onClose }: any) {
         {/* Footer Actions */}
         <div className="flex flex-col gap-2 pt-4 border-t">
           <div className="flex gap-2">
+            <button 
+              onClick={() => onAddPayment && onAddPayment(account)}
+              className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg transition-colors text-sm flex items-center justify-center gap-2"
+            >
+              <Receipt className="w-4 h-4" /> Add Payment
+            </button>
             <button 
               onClick={() => window.print()}
               className="flex-1 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-900 font-bold rounded-lg transition-colors text-sm"
