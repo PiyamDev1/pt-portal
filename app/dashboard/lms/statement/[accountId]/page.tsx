@@ -32,7 +32,9 @@ export default function StatementPage() {
 
   // Filter transactions
   const filteredTransactions = account.transactions?.filter((tx: any) => {
-    if (filter.type && tx.transaction_type !== filter.type) return false
+    const tType = (tx.transaction_type || '').toLowerCase()
+    const fType = (filter.type || '').toLowerCase()
+    if (fType && tType !== fType) return false
     if (filter.dateFrom && new Date(tx.transaction_timestamp) < new Date(filter.dateFrom)) return false
     if (filter.dateTo && new Date(tx.transaction_timestamp) > new Date(filter.dateTo)) return false
     return true
@@ -40,8 +42,14 @@ export default function StatementPage() {
 
   // Calculate totals
   const totals = {
-    debits: filteredTransactions.filter((tx: any) => tx.transaction_type === 'Service' || tx.transaction_type === 'Fee').reduce((sum: number, tx: any) => sum + parseFloat(tx.amount), 0),
-    credits: filteredTransactions.filter((tx: any) => tx.transaction_type === 'Payment').reduce((sum: number, tx: any) => sum + parseFloat(tx.amount), 0)
+    debits: filteredTransactions.filter((tx: any) => {
+      const t = (tx.transaction_type || '').toLowerCase()
+      return t === 'service' || t === 'fee'
+    }).reduce((sum: number, tx: any) => sum + parseFloat(tx.amount), 0),
+    credits: filteredTransactions.filter((tx: any) => {
+      const t = (tx.transaction_type || '').toLowerCase()
+      return t === 'payment'
+    }).reduce((sum: number, tx: any) => sum + parseFloat(tx.amount), 0)
   }
 
   return (
@@ -98,9 +106,9 @@ export default function StatementPage() {
                 className="w-full p-2 border rounded text-sm"
               >
                 <option value="">All Types</option>
-                <option value="Service">Debt Added</option>
-                <option value="Payment">Payment</option>
-                <option value="Fee">Fee</option>
+                <option value="service">Debt Added</option>
+                <option value="payment">Payment</option>
+                <option value="fee">Fee</option>
               </select>
             </div>
             <div>
@@ -139,7 +147,7 @@ export default function StatementPage() {
             <tbody>
               {filteredTransactions.length > 0 ? (
                 filteredTransactions.map((tx: any, i: number) => {
-                  const isDebit = tx.transaction_type === 'Service' || tx.transaction_type === 'Fee'
+                  const isDebit = ((tx.transaction_type || '').toLowerCase() === 'service') || ((tx.transaction_type || '').toLowerCase() === 'fee')
                   const txAmount = parseFloat(tx.amount) || 0
                   
                   return (
@@ -147,8 +155,8 @@ export default function StatementPage() {
                       <td className="p-3 text-slate-600">{new Date(tx.transaction_timestamp).toLocaleDateString()}</td>
                       <td className="p-3">
                         <span className={`px-2 py-0.5 rounded text-[11px] font-bold ${
-                          tx.transaction_type === 'Service' ? 'bg-blue-50 text-blue-700' :
-                          tx.transaction_type === 'Payment' ? 'bg-green-50 text-green-700' :
+                          ((tx.transaction_type || '').toLowerCase() === 'service') ? 'bg-blue-50 text-blue-700' :
+                          ((tx.transaction_type || '').toLowerCase() === 'payment') ? 'bg-green-50 text-green-700' :
                           'bg-slate-50 text-slate-700'
                         }`}>
                           {tx.transaction_type}
@@ -162,7 +170,7 @@ export default function StatementPage() {
                         {isDebit ? `£${txAmount.toFixed(2)}` : '-'}
                       </td>
                       <td className="p-3 text-right font-mono text-green-700 font-bold">
-                        {tx.transaction_type === 'Payment' ? `£${txAmount.toFixed(2)}` : '-'}
+                        {((tx.transaction_type || '').toLowerCase() === 'payment') ? `£${txAmount.toFixed(2)}` : '-'}
                       </td>
                     </tr>
                   )
@@ -263,10 +271,10 @@ function generateCSV(transactions: any[]) {
   const headers = ['Date', 'Type', 'Description', 'Debit', 'Credit']
   const rows = transactions.map(tx => [
     new Date(tx.transaction_timestamp).toLocaleDateString(),
-    tx.transaction_type,
+    (tx.transaction_type || '').toLowerCase(),
     tx.remark || '',
-    tx.transaction_type === 'Service' || tx.transaction_type === 'Fee' ? parseFloat(tx.amount).toFixed(2) : '',
-    tx.transaction_type === 'Payment' ? parseFloat(tx.amount).toFixed(2) : ''
+    ((tx.transaction_type || '').toLowerCase() === 'service' || (tx.transaction_type || '').toLowerCase() === 'fee') ? parseFloat(tx.amount).toFixed(2) : '',
+    ((tx.transaction_type || '').toLowerCase() === 'payment') ? parseFloat(tx.amount).toFixed(2) : ''
   ])
   
   const csv = [headers, ...rows]

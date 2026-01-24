@@ -55,9 +55,9 @@ export async function GET(request) {
       const transactions = allTransactions.filter(t => loanIds.includes(t.loan_id))
 
       // Calculate totals
-      const services = transactions.filter(t => t.transaction_type === 'Service')
-      const payments = transactions.filter(t => t.transaction_type === 'Payment')
-      const fees = transactions.filter(t => t.transaction_type === 'Fee')
+      const services = transactions.filter(t => (t.transaction_type || '').toLowerCase() === 'service')
+      const payments = transactions.filter(t => (t.transaction_type || '').toLowerCase() === 'payment')
+      const fees = transactions.filter(t => (t.transaction_type || '').toLowerCase() === 'fee')
 
       const totalServices = services.reduce((sum, t) => sum + parseFloat(t.amount || 0), 0)
       const totalPayments = payments.reduce((sum, t) => sum + parseFloat(t.amount || 0), 0)
@@ -145,7 +145,7 @@ export async function POST(request) {
         .insert({
           loan_id: loanId,
           employee_id: employeeId,
-          transaction_type: 'Payment',
+          transaction_type: 'payment',
           amount: parseFloat(amount),
           payment_method_id: paymentMethodId,
           remark: notes,
@@ -201,7 +201,7 @@ export async function POST(request) {
         .insert({
           loan_id: newLoan.id,
           employee_id: employeeId,
-          transaction_type: 'Service',
+          transaction_type: 'service',
           amount: totalAmount,
           remark: notes || `New service - ${installmentTerms} installments`,
           transaction_timestamp: new Date().toISOString()
@@ -214,7 +214,7 @@ export async function POST(request) {
           .insert({
             loan_id: newLoan.id,
             employee_id: employeeId,
-            transaction_type: 'Payment',
+            transaction_type: 'payment',
             amount: deposit,
             remark: 'Initial deposit',
             transaction_timestamp: new Date().toISOString()
@@ -277,7 +277,7 @@ export async function POST(request) {
         .insert({
           loan_id: targetLoanId,
           employee_id: employeeId,
-          transaction_type: 'Fee',
+          transaction_type: 'fee',
           amount: feeAmount,
           remark: notes || 'Additional fee',
           transaction_timestamp: new Date().toISOString()
@@ -347,7 +347,7 @@ export async function POST(request) {
             .insert({
               loan_id: newLoan.id,
               employee_id: employeeId,
-              transaction_type: txType === 'service' ? 'Service' : 'Fee',
+              transaction_type: txType === 'service' ? 'service' : 'fee',
               amount: txAmount,
               remark: initialTransaction.notes || 'Initial transaction',
               transaction_timestamp: new Date().toISOString()

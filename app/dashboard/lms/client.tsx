@@ -17,8 +17,10 @@ const mergePaymentMethods = (fetched: any[] = []) => {
 }
 
 const formatTransactionType = (type: string) => {
-  if (type === 'Service') return 'Installment Plan'
-  if (type === 'Fee') return 'Service Fee'
+  const t = (type || '').toLowerCase()
+  if (t === 'service') return 'Installment Plan'
+  if (t === 'fee') return 'Service Fee'
+  if (t === 'payment') return 'Payment'
   return type
 }
 
@@ -476,6 +478,9 @@ function TransactionModal({ data, onClose, onSave, employeeId, onPaymentRecorded
   const handleSubmit = async (e: any) => {
     e.preventDefault()
     if (!form.amount || parseFloat(form.amount) <= 0) return toast.error('Valid amount required')
+    if (form.type === 'payment' && ((data.balance || 0) <= 0)) {
+      return toast.error('No outstanding balance to record a payment')
+    }
     
     const payload: any = { 
       amount: form.amount,
@@ -494,7 +499,7 @@ function TransactionModal({ data, onClose, onSave, employeeId, onPaymentRecorded
       payload.paymentFrequency = form.paymentFrequency
     } else if (form.type === 'payment') {
       payload.action = 'record_payment'
-      const activeLoan = data.loans?.find((l: any) => l.current_balance > 0) || data.loans?.[0]
+      const activeLoan = data.loans?.find((l: any) => l.current_balance > 0)
       if (!activeLoan) return toast.error('No active loan found for this customer')
       payload.loanId = activeLoan.id
       payload.paymentMethodId = form.paymentMethodId
@@ -587,9 +592,9 @@ function TransactionModal({ data, onClose, onSave, employeeId, onPaymentRecorded
               required 
             />
           </div>
-          {isPayment && data.loans?.[0] && (
+          {isPayment && (
             <div className="mt-2 p-2 bg-blue-50 rounded text-xs text-blue-700 font-semibold">
-              Current Balance: £{(data.loans[0].current_balance || 0).toLocaleString()}
+              Current Balance: £{(data.balance || 0).toLocaleString()}
             </div>
           )}
         </div>
@@ -875,7 +880,8 @@ function StatementPopup({ account, onClose, onAddPayment }: any) {
             <tbody>
               {account.transactions && account.transactions.length > 0 ? (
                 account.transactions.map((tx: any, i: number) => {
-                  const isDebit = tx.transaction_type === 'Service' || tx.transaction_type === 'Fee'
+                  const tType = (tx.transaction_type || '').toLowerCase()
+                  const isDebit = tType === 'service' || tType === 'fee'
                   const txAmount = parseFloat(tx.amount) || 0
                   
                   return (
@@ -900,7 +906,7 @@ function StatementPopup({ account, onClose, onAddPayment }: any) {
                         {isDebit ? `£${txAmount.toFixed(2)}` : '-'}
                       </td>
                       <td className="p-2 text-right font-mono text-green-600">
-                        {tx.transaction_type === 'Payment' ? `£${txAmount.toFixed(2)}` : '-'}
+                        {tType === 'payment' ? `£${txAmount.toFixed(2)}` : '-'}
                       </td>
                     </tr>
                   )
