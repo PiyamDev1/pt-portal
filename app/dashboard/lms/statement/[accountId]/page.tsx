@@ -331,8 +331,8 @@ export default function StatementPage() {
           .border-b-2 {
             border-bottom: 2px solid #000 !important;
             page-break-after: avoid;
-            margin-bottom: 8px !important;
-            padding-bottom: 6px !important;
+            margin-bottom: 9px !important;
+            padding-bottom: 7px !important;
           }
           
           img {
@@ -348,20 +348,20 @@ export default function StatementPage() {
           }
           
           h2 {
-            font-size: 12px !important;
-            margin-bottom: 2px !important;
+            font-size: 14px !important;
+            margin-bottom: 3px !important;
           }
           
           h3 {
-            font-size: 10px !important;
-            margin-bottom: 4px !important;
+            font-size: 12px !important;
+            margin-bottom: 5px !important;
             text-transform: uppercase;
             letter-spacing: 0.5px;
           }
           
           p {
             margin: 0;
-            font-size: 10px !important;
+            font-size: 12px !important;
             line-height: 1.3;
           }
           
@@ -379,8 +379,8 @@ export default function StatementPage() {
           }
           
           .grid p {
-            font-size: 10px !important;
-            margin: 2px 0 !important;
+            font-size: 12px !important;
+            margin: 3px 0 !important;
           }
           
           .grid .space-y-1 > p {
@@ -389,15 +389,15 @@ export default function StatementPage() {
           
           /* Spacing */
           .space-y-6 > * + * {
-            margin-top: 6px !important;
+            margin-top: 7px !important;
           }
           
           .space-y-2 > * + * {
-            margin-top: 2px !important;
+            margin-top: 3px !important;
           }
           
           .space-y-1 > * + * {
-            margin-top: 1px !important;
+            margin-top: 2px !important;
           }
           
           /* Table Styling - Unified approach */
@@ -405,9 +405,9 @@ export default function StatementPage() {
             width: 100%;
             border-collapse: collapse;
             page-break-inside: auto;
-            margin: 6px 0 !important;
+            margin: 7px 0 !important;
             font-family: Arial, sans-serif;
-            font-size: 10px !important;
+            font-size: 12px !important;
             line-height: 1.4;
             table-layout: fixed;
           }
@@ -429,8 +429,8 @@ export default function StatementPage() {
             background-color: #e5e7eb !important;
             color: #000 !important;
             font-weight: 700;
-            font-size: 10px !important;
-            padding: 4px 5px !important;
+            font-size: 12px !important;
+            padding: 5px 6px !important;
             text-align: left;
             border-bottom: 2px solid #000 !important;
             text-transform: uppercase;
@@ -438,9 +438,9 @@ export default function StatementPage() {
           }
           
           td {
-            padding: 4px 5px !important;
+            padding: 5px 6px !important;
             border-bottom: 1px solid #d1d5db !important;
-            font-size: 10px !important;
+            font-size: 12px !important;
             text-align: left;
             line-height: 1.3;
           }
@@ -450,7 +450,7 @@ export default function StatementPage() {
           td:nth-child(5) {
             text-align: right;
             font-family: 'Courier New', monospace;
-            font-size: 10px !important;
+            font-size: 12px !important;
           }
 
           /* Column widths for alignment */
@@ -503,50 +503,50 @@ export default function StatementPage() {
           .bg-amber-50 {
             background-color: #fffbeb !important;
             border-left: 3px solid #f59e0b !important;
-            padding: 4px 6px !important;
-            margin: 6px 0 !important;
+            padding: 5px 7px !important;
+            margin: 7px 0 !important;
             page-break-inside: avoid;
           }
           
           .bg-amber-50 p {
-            font-size: 10px !important;
-            margin: 2px 0 !important;
+            font-size: 12px !important;
+            margin: 3px 0 !important;
             line-height: 1.3;
           }
           
           .text-amber-900 {
             color: #78350f !important;
             font-weight: 600;
-            font-size: 10px !important;
+            font-size: 12px !important;
           }
           
           .text-amber-800 {
             color: #92400e !important;
-            font-size: 10px !important;
+            font-size: 12px !important;
           }
           
           /* Totals section */
           .border-t-2 {
             border-top: 2px solid #000 !important;
             page-break-before: avoid;
-            margin-top: 6px !important;
-            padding-top: 4px !important;
+            margin-top: 7px !important;
+            padding-top: 5px !important;
           }
           
           .border-t-2 .space-y-2 > div {
             display: flex;
             justify-content: space-between;
-            font-size: 10px !important;
-            margin: 2px 0 !important;
+            font-size: 12px !important;
+            margin: 3px 0 !important;
             page-break-inside: avoid;
           }
           
           .border-t-2 span {
-            font-size: 10px !important;
+            font-size: 12px !important;
           }
           
           .text-lg {
-            font-size: 12px !important;
+            font-size: 14px !important;
           }
           
           /* Badge styling */
