@@ -67,8 +67,8 @@ export default function StatementPage() {
       <div className="max-w-4xl mx-auto p-6 space-y-6">
         {/* Letterhead */}
         <div className="border-b-2 border-slate-900 pb-4 flex items-start gap-6">
-          <div>
-            <img src="/logo.png" alt="Company Logo" className="h-8 w-auto" />
+          <div className="print:w-32 print:h-auto">
+            <img src="/logo.png" alt="Company Logo" className="h-20 w-51 print:h-20 print:w-51" />
           </div>
           <div className="flex-1">
             <h2 className="text-xl font-bold text-slate-900">Piyam Travel</h2>
@@ -325,6 +325,18 @@ export default function StatementPage() {
           img {
             max-width: 100%;
             height: auto;
+            max-height: 80px !important;
+            width: auto !important;
+            display: block;
+          }
+          
+          .print\\:w-32 {
+            width: auto !important;
+            max-width: 128px !important;
+          }
+          
+          .print\\:h-auto {
+            height: auto !important;
           }
           
           .border-b-2 {
