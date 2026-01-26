@@ -268,7 +268,13 @@ function NewCustomerModal({ onClose, onSave, employeeId }: any) {
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    fetch('/api/lms/payment-methods').then(r => r.json()).then(d => setMethods(d.methods || []))
+    fetch('/api/lms/payment-methods')
+      .then(r => r.json())
+      .then(d => {
+        console.log('CustomerForm - Payment methods loaded:', d)
+        setMethods(d.methods || [])
+      })
+      .catch(err => console.error('Error loading payment methods:', err))
   }, [])
 
   const handleSubmit = async (e: any) => {
@@ -403,7 +409,13 @@ function TransactionModal({ data, onClose, onSave, employeeId, onPaymentRecorded
   const [planExpanded, setPlanExpanded] = useState(true)
 
   useEffect(() => {
-    fetch('/api/lms/payment-methods').then(r => r.json()).then(d => setMethods(d.methods || []))
+    fetch('/api/lms/payment-methods')
+      .then(r => r.json())
+      .then(d => {
+        console.log('TransactionModal - Payment methods loaded:', d)
+        setMethods(d.methods || [])
+      })
+      .catch(err => console.error('Error loading payment methods:', err))
   }, [])
 
   // Auto-generate installment plan when form changes
