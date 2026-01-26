@@ -55,7 +55,7 @@ export default function StatementPage() {
   return (
     <div className="min-h-screen bg-white">
       {/* Header with Back Button */}
-      <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-6">
+      <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-6 print:hidden">
         <Link href="/dashboard/lms" className="inline-flex items-center gap-2 text-white hover:text-slate-200 transition-colors mb-4">
           <ArrowLeft className="w-4 h-4" />
           Back to Accounts
@@ -64,39 +64,39 @@ export default function StatementPage() {
       </div>
 
       {/* Print-Friendly Container */}
-      <div className="max-w-4xl mx-auto p-6 space-y-6">
+      <div className="max-w-4xl mx-auto p-6 space-y-6 print:p-0 print:space-y-4">
         {/* Letterhead */}
-        <div className="border-b-2 border-slate-900 pb-4 flex items-start gap-6">
-          <div className="print:w-32 print:h-auto">
-            <img src="/logo.png" alt="Company Logo" className="h-20 w-51 print:h-20 print:w-51" />
+        <div className="border-b-2 border-slate-900 pb-4 flex items-start gap-6 print:gap-3 print:pb-2">
+          <div className="print:w-20">
+            <img src="/logo.png" alt="Company Logo" className="h-20 w-51 print:h-16 print:w-auto" />
           </div>
           <div className="flex-1">
-            <h2 className="text-xl font-bold text-slate-900">Piyam Travel</h2>
-            <p className="text-slate-600">290A Dunstable Road, LU4 8JN, Luton</p>
-            <p className="text-slate-600">01582 968538</p>
-            <p className="text-slate-600">Accounts@piyamtravel.com</p>
-            <p className="text-xs text-slate-400 mt-2">Document Reference: STM-{account.id.substring(0, 8).toUpperCase()}</p>
+            <h2 className="text-xl font-bold text-slate-900 print:text-base print:mb-0">Piyam Travel</h2>
+            <p className="text-slate-600 print:text-xs print:mb-0">290A Dunstable Road, LU4 8JN, Luton</p>
+            <p className="text-slate-600 print:text-xs print:mb-0">01582 968538</p>
+            <p className="text-slate-600 print:text-xs print:mb-0">Accounts@piyamtravel.com</p>
+            <p className="text-xs text-slate-400 mt-2 print:text-[10px] print:mt-1">Document Reference: STM-{account.id.substring(0, 8).toUpperCase()}</p>
           </div>
         </div>
 
         {/* Customer & Period Info */}
-        <div className="grid grid-cols-2 gap-6">
+        <div className="grid grid-cols-2 gap-6 print:gap-8 print:text-xs">
           <div>
-            <h3 className="text-xs font-bold text-slate-500 uppercase mb-2">Customer Details</h3>
+            <h3 className="text-xs font-bold text-slate-500 uppercase mb-2 print:text-[10px] print:mb-1">Customer Details</h3>
             <div className="space-y-1">
-              <p className="font-bold text-slate-900">{account.name}</p>
-              <p className="text-sm text-slate-600">{account.phone}</p>
-              <p className="text-sm text-slate-600">{account.email}</p>
-              <p className="text-sm text-slate-600">{account.address || 'N/A'}</p>
+              <p className="font-bold text-slate-900 print:text-xs print:mb-0">{account.name}</p>
+              <p className="text-sm text-slate-600 print:text-xs print:mb-0">{account.phone}</p>
+              <p className="text-sm text-slate-600 print:text-xs print:mb-0">{account.email}</p>
+              <p className="text-sm text-slate-600 print:text-xs print:mb-0">{account.address || 'N/A'}</p>
             </div>
           </div>
           <div>
-            <h3 className="text-xs font-bold text-slate-500 uppercase mb-2">Statement Details</h3>
+            <h3 className="text-xs font-bold text-slate-500 uppercase mb-2 print:text-[10px] print:mb-1">Statement Details</h3>
             <div className="space-y-1">
-              <p className="text-sm"><span className="text-slate-600">Date:</span> <span className="font-bold">{new Date().toLocaleDateString()}</span></p>
-              <p className="text-sm"><span className="text-slate-600">Period:</span> <span className="font-bold">Full Account History</span></p>
-              <p className="text-sm"><span className="text-slate-600">Account Status:</span> <span className="font-bold text-blue-600">{account.status?.toUpperCase()}</span></p>
-              <p className="text-sm"><span className="text-slate-600">Outstanding Balance:</span> <span className="font-bold text-slate-900">£{(account.balance || 0).toLocaleString()}</span></p>
+              <p className="text-sm print:text-xs print:mb-0"><span className="text-slate-600">Date:</span> <span className="font-bold">{new Date().toLocaleDateString()}</span></p>
+              <p className="text-sm print:text-xs print:mb-0"><span className="text-slate-600">Period:</span> <span className="font-bold">Full Account History</span></p>
+              <p className="text-sm print:text-xs print:mb-0"><span className="text-slate-600">Status:</span> <span className="font-bold text-blue-600">{account.status?.toUpperCase()}</span></p>
+              <p className="text-sm print:text-xs print:mb-0"><span className="text-slate-600">Balance:</span> <span className="font-bold text-slate-900">£{(account.balance || 0).toLocaleString()}</span></p>
             </div>
           </div>
         </div>
@@ -140,15 +140,15 @@ export default function StatementPage() {
         </div>
 
         {/* Transaction Table with Installment Schedule */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm border-collapse">
+        <div className="overflow-x-auto print:overflow-visible">
+          <table className="w-full text-sm border-collapse print:text-xs">
             <thead>
-              <tr className="bg-slate-100 border-b-2 border-slate-900">
-                <th className="p-3 text-left text-xs font-bold text-slate-700 uppercase">Date</th>
-                <th className="p-3 text-left text-xs font-bold text-slate-700 uppercase">Type</th>
-                <th className="p-3 text-left text-xs font-bold text-slate-700 uppercase">Description</th>
-                <th className="p-3 text-right text-xs font-bold text-red-700 uppercase">Debit</th>
-                <th className="p-3 text-right text-xs font-bold text-green-700 uppercase">Credit</th>
+              <tr className="bg-slate-100 border-b-2 border-slate-900 print:bg-slate-200">
+                <th className="p-3 text-left text-xs font-bold text-slate-700 uppercase print:p-2 print:text-[9px]">Date</th>
+                <th className="p-3 text-left text-xs font-bold text-slate-700 uppercase print:p-2 print:text-[9px]">Type</th>
+                <th className="p-3 text-left text-xs font-bold text-slate-700 uppercase print:p-2 print:text-[9px]">Description</th>
+                <th className="p-3 text-right text-xs font-bold text-red-700 uppercase print:p-2 print:text-[9px]">Debit</th>
+                <th className="p-3 text-right text-xs font-bold text-green-700 uppercase print:p-2 print:text-[9px]">Credit</th>
               </tr>
             </thead>
             <tbody>
@@ -169,25 +169,25 @@ export default function StatementPage() {
                   
                   // Original Transaction Row
                   rows.push(
-                    <tr key={`tx-${i}`} className="border-b border-slate-200 hover:bg-slate-50">
-                      <td className="p-3 text-slate-600">{new Date(tx.transaction_timestamp).toLocaleDateString()}</td>
-                      <td className="p-3">
-                        <span className={`px-2 py-0.5 rounded text-[11px] font-bold ${
+                    <tr key={`tx-${i}`} className="border-b border-slate-200 hover:bg-slate-50 print:hover:bg-white">
+                      <td className="p-3 text-slate-600 print:p-2 print:text-xs">{new Date(tx.transaction_timestamp).toLocaleDateString()}</td>
+                      <td className="p-3 print:p-2">
+                        <span className={`px-2 py-0.5 rounded text-[11px] font-bold print:px-1 print:py-0 print:text-[8px] ${
                           isService ? 'bg-blue-50 text-blue-700' :
                           ((tx.transaction_type || '').toLowerCase() === 'payment') ? 'bg-green-50 text-green-700' :
                           'bg-slate-50 text-slate-700'
                         }`}>
-                          {isService ? 'Installment Plan' : (tx.transaction_type || '').toUpperCase()}
+                          {isService ? 'INSTALLMENT' : (tx.transaction_type || '').toUpperCase()}
                         </span>
                       </td>
-                      <td className="p-3 text-slate-600">
+                      <td className="p-3 text-slate-600 print:p-2 print:text-xs">
                         <div>{tx.remark || '-'}</div>
-                        {tx.loan_payment_methods?.name && <div className="text-xs text-slate-400">({tx.loan_payment_methods.name})</div>}
+                        {tx.loan_payment_methods?.name && <div className="text-xs text-slate-400 print:text-[7px]">({tx.loan_payment_methods.name})</div>}
                       </td>
-                      <td className="p-3 text-right font-mono text-red-700 font-bold">
+                      <td className="p-3 text-right font-mono text-red-700 font-bold print:p-2 print:text-xs">
                         {isDebit ? `£${txAmount.toFixed(2)}` : '-'}
                       </td>
-                      <td className="p-3 text-right font-mono text-green-700 font-bold">
+                      <td className="p-3 text-right font-mono text-green-700 font-bold print:p-2 print:text-xs">
                         {((tx.transaction_type || '').toLowerCase() === 'payment') ? `£${txAmount.toFixed(2)}` : '-'}
                       </td>
                     </tr>
@@ -205,21 +205,21 @@ export default function StatementPage() {
                     
                     scheduleRows.forEach((installment: any, idx: number) => {
                       rows.push(
-                        <tr key={`install-${i}-${idx}`} className="border-b border-slate-200 bg-blue-50 hover:bg-blue-100">
-                          <td className="p-3 text-slate-600">{new Date(installment.date).toLocaleDateString()}</td>
-                          <td className="p-3">
-                            <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-blue-100 text-blue-700">
-                              INSTALLMENT
+                        <tr key={`install-${i}-${idx}`} className="border-b border-slate-200 bg-blue-50 hover:bg-blue-100 print:bg-blue-50 print:hover:bg-blue-50">
+                          <td className="p-3 text-slate-600 print:p-2 print:text-xs">{new Date(installment.date).toLocaleDateString()}</td>
+                          <td className="p-3 print:p-2">
+                            <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-blue-100 text-blue-700 print:px-1 print:py-0 print:text-[8px] print:bg-blue-100">
+                              PLAN
                             </span>
                           </td>
-                          <td className="p-3 text-slate-600 text-sm">
+                          <td className="p-3 text-slate-600 text-sm print:p-2 print:text-xs">
                             <div>Total £{txAmount.toFixed(2)}, Remaining £{installment.remaining.toFixed(2)}</div>
-                            <div className="text-xs text-slate-500">Term {idx + 1}/{serviceLoan.term_months}</div>
+                            <div className="text-xs text-slate-500 print:text-[7px]">Term {idx + 1}/{serviceLoan.term_months}</div>
                           </td>
-                          <td className="p-3 text-right font-mono text-amber-700 font-bold">
+                          <td className="p-3 text-right font-mono text-amber-700 font-bold print:p-2 print:text-xs">
                             £{installment.amount.toFixed(2)}
                           </td>
-                          <td className="p-3 text-right font-mono text-slate-400">-</td>
+                          <td className="p-3 text-right font-mono text-slate-400 print:p-2 print:text-xs">-</td>
                         </tr>
                       )
                     })
@@ -229,7 +229,7 @@ export default function StatementPage() {
                 })
               ) : (
                 <tr>
-                  <td colSpan={5} className="p-6 text-center text-slate-400">No transactions found for the selected filters</td>
+                  <td colSpan={5} className="p-6 text-center text-slate-400 print:p-3 print:text-xs">No transactions found for the selected filters</td>
                 </tr>
               )}
             </tbody>
@@ -238,28 +238,28 @@ export default function StatementPage() {
 
         {/* Totals Section */}
         {filteredTransactions.length > 0 && (
-          <div className="border-t-2 border-slate-900 pt-4 flex justify-end">
-            <div className="w-64 space-y-2">
-              <div className="flex justify-between text-sm">
+          <div className="border-t-2 border-slate-900 pt-4 flex justify-end print:pt-2">
+            <div className="w-64 space-y-2 print:space-y-1 print:text-xs">
+              <div className="flex justify-between text-sm print:text-xs">
                 <span className="text-slate-600">Total Debits:</span>
                 <span className="font-bold text-red-700">£{totals.debits.toFixed(2)}</span>
               </div>
-              <div className="flex justify-between text-sm">
+              <div className="flex justify-between text-sm print:text-xs">
                 <span className="text-slate-600">Total Credits:</span>
                 <span className="font-bold text-green-700">£{totals.credits.toFixed(2)}</span>
               </div>
-              <div className="flex justify-between text-sm border-t-2 border-slate-900 pt-2">
+              <div className="flex justify-between text-sm border-t-2 border-slate-900 pt-2 print:pt-1 print:text-xs">
                 <span className="font-bold text-slate-900">Current Balance:</span>
-                <span className="font-bold text-slate-900 text-lg">£{(account.balance || 0).toLocaleString()}</span>
+                <span className="font-bold text-slate-900 text-lg print:text-base">£{(account.balance || 0).toLocaleString()}</span>
               </div>
             </div>
           </div>
         )}
 
         {/* Disclaimer Note */}
-        <div className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded">
-          <p className="text-sm text-amber-900 font-semibold mb-1">Important Notice</p>
-          <p className="text-sm text-amber-800">
+        <div className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded print:bg-amber-50 print:border-l-2 print:p-3 print:rounded-none">
+          <p className="text-sm text-amber-900 font-semibold mb-1 print:text-xs print:mb-0.5">Important Notice</p>
+          <p className="text-sm text-amber-800 print:text-xs print:leading-tight">
             This is not an invoice but a balance statement of your transactions with us. For specific detailed transaction information, please get in contact with our office.
           </p>
         </div>
@@ -289,102 +289,105 @@ export default function StatementPage() {
       {/* Print Styles */}
       <style jsx>{`
         @media print {
-          * {
-            background: white !important;
-            color: black !important;
-          }
-          
-          body {
-            background: white;
+          /* Core page setup */
+          html, body {
             margin: 0;
             padding: 0;
-          }
-          
-          .print\\:hidden {
-            display: none !important;
-          }
-          
-          .min-h-screen {
-            min-height: auto;
-          }
-          
-          .bg-gradient-to-r {
             background: white !important;
             color: black !important;
-          }
-          
-          .max-w-4xl {
-            max-width: 100%;
-            margin: 0;
-            padding: 12px;
-          }
-          
-          body {
-            margin: 0;
-            padding: 0;
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
+            width: 100%;
           }
           
           @page {
             size: A4 portrait;
-            margin: 8mm 8mm 8mm 8mm;
+            margin: 10mm;
           }
           
-          h1, h2, h3 {
-            page-break-after: avoid;
+          /* Color preservation for print */
+          * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            color-adjust: exact !important;
           }
           
-          /* Logo and Letterhead */
-          img {
-            max-width: 100%;
+          /* Hide screen-only elements */
+          .print\\:hidden {
+            display: none !important;
+          }
+          
+          /* Container sizing */
+          .min-h-screen {
+            min-height: auto;
             height: auto;
-            max-height: 80px !important;
-            width: auto !important;
+          }
+          
+          .max-w-4xl {
+            max-width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+          
+          /* Letterhead section */
+          .border-b-2 {
+            border-bottom: 2px solid #000 !important;
+            page-break-after: avoid;
+            margin-bottom: 8px !important;
+            padding-bottom: 6px !important;
+          }
+          
+          img {
+            max-width: 80px !important;
+            height: auto !important;
             display: block;
           }
           
-          .print\\:w-32 {
-            width: auto !important;
-            max-width: 128px !important;
-          }
-          
-          .print\\:h-auto {
-            height: auto !important;
-          }
-          
-          .border-b-2 {
-            border-bottom: 2px solid black !important;
+          /* Typography - Standardized sizes */
+          h1, h2, h3 {
             page-break-after: avoid;
+            margin: 0;
           }
           
-          /* Section Spacing */
-          .border-b.pb-4 {
-            page-break-after: avoid;
+          h2 {
+            font-size: 11px !important;
+            margin-bottom: 2px !important;
           }
           
-          .border-t.pt-6 {
-            page-break-before: avoid;
+          h3 {
+            font-size: 9px !important;
+            margin-bottom: 4px !important;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
           }
           
-          .border-t-2.border-slate-900 {
-            border-top: 1px solid black !important;
-            margin-top: 6px !important;
-            padding-top: 4px !important;
+          p {
+            margin: 0;
+            font-size: 9px !important;
+            line-height: 1.3;
           }
           
-          /* Grid and text sizing for sections */
+          /* Customer & Period Info Grid */
           .grid {
             page-break-inside: avoid;
-            margin-bottom: 4px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 6px !important;
+          }
+          
+          .grid > div {
+            page-break-inside: avoid;
           }
           
           .grid p {
-            font-size: 8px;
-            margin: 2px 0;
-            line-height: 1.2;
+            font-size: 9px !important;
+            margin: 2px 0 !important;
           }
           
+          .grid .space-y-1 > p {
+            margin: 2px 0 !important;
+          }
+          
+          /* Spacing */
           .space-y-6 > * + * {
             margin-top: 6px !important;
           }
@@ -393,100 +396,77 @@ export default function StatementPage() {
             margin-top: 2px !important;
           }
           
-          /* Table Styles - Bank Statement Style */
+          .space-y-1 > * + * {
+            margin-top: 1px !important;
+          }
+          
+          /* Table Styling - Unified approach */
           table {
             width: 100%;
             border-collapse: collapse;
-            page-break-inside: avoid;
-            margin: 8px 0;
-            font-size: 8px;
-            line-height: 1.2;
+            page-break-inside: auto;
+            margin: 6px 0 !important;
+            font-family: Arial, sans-serif;
+            font-size: 9px !important;
+            line-height: 1.4;
           }
           
           thead {
             page-break-after: avoid;
-            background-color: #f0f0f0 !important;
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
+            display: table-header-group;
           }
           
-          th {
-            background-color: #f0f0f0 !important;
-            color: #000 !important;
-            font-weight: 600;
-            border-bottom: 1px solid #000;
-            padding: 3px 2px;
-            text-align: left;
-            font-size: 7px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-          }
-          
-          td {
-            border-bottom: 1px solid #ddd;
-            padding: 3px 2px;
-            text-align: left;
-            font-size: 8px;
-            line-height: 1.1;
+          tbody {
+            display: table-row-group;
           }
           
           tr {
             page-break-inside: avoid;
           }
           
-          /* Description column - allow wrapping */
-          td:nth-child(3) {
-            max-width: 140px;
-            word-wrap: break-word;
-            overflow-wrap: break-word;
+          th {
+            background-color: #e5e7eb !important;
+            color: #000 !important;
+            font-weight: 700;
+            font-size: 9px !important;
+            padding: 3px 4px !important;
+            text-align: left;
+            border-bottom: 2px solid #000 !important;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
           }
           
-          /* Currency columns - right align, monospace */
+          td {
+            padding: 3px 4px !important;
+            border-bottom: 1px solid #d1d5db !important;
+            font-size: 9px !important;
+            text-align: left;
+            line-height: 1.3;
+          }
+          
+          /* Table column specifics */
           td:nth-child(4),
           td:nth-child(5) {
             text-align: right;
             font-family: 'Courier New', monospace;
-            width: 40px;
+            font-size: 9px !important;
           }
           
-          /* Remove alternating row background for print */
-          tbody tr:nth-child(even) {
-            background-color: white !important;
+          /* Remove hover effects */
+          tbody tr:hover {
+            background-color: transparent !important;
           }
           
-          /* Disclaimer Note */
-          .bg-amber-50 {
-            background-color: #fffbeb !important;
-            border-left: 2px solid #f59e0b !important;
-            padding: 4px 6px !important;
-            margin: 4px 0 !important;
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
-          }
-          
-          .bg-amber-50 p {
-            font-size: 7px;
-            margin: 1px 0;
-            line-height: 1.2;
-          }
-          
-          .text-amber-900 {
-            color: #78350f !important;
-            font-size: 7px;
-          }
-          
-          .text-amber-800 {
-            color: #92400e !important;
-            font-size: 7px;
-          }
-          
-          /* Background colors for installment rows */
+          /* Row backgrounds */
           .bg-blue-50 {
-            background-color: #f0f9ff !important;
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
+            background-color: #eff6ff !important;
           }
           
+          .bg-blue-100 {
+            background-color: #dbeafe !important;
+          }
+          
+          /* Text colors */
           .text-red-700 {
             color: #b91c1c !important;
           }
@@ -503,18 +483,77 @@ export default function StatementPage() {
             color: #b45309 !important;
           }
           
-          /* Grid Layout */
-          .grid {
+          .text-slate-600 {
+            color: #475569 !important;
+          }
+          
+          .text-slate-400 {
+            color: #cbd5e1 !important;
+          }
+          
+          /* Disclaimer box */
+          .bg-amber-50 {
+            background-color: #fffbeb !important;
+            border-left: 3px solid #f59e0b !important;
+            padding: 4px 6px !important;
+            margin: 6px 0 !important;
             page-break-inside: avoid;
           }
           
-          /* Spacing */
-          .space-y-6 > * + * {
-            margin-top: 1.5rem;
+          .bg-amber-50 p {
+            font-size: 9px !important;
+            margin: 2px 0 !important;
+            line-height: 1.3;
           }
           
-          .space-y-2 > * + * {
-            margin-top: 0.5rem;
+          .text-amber-900 {
+            color: #78350f !important;
+            font-weight: 600;
+            font-size: 9px !important;
+          }
+          
+          .text-amber-800 {
+            color: #92400e !important;
+            font-size: 9px !important;
+          }
+          
+          /* Totals section */
+          .border-t-2 {
+            border-top: 2px solid #000 !important;
+            page-break-before: avoid;
+            margin-top: 6px !important;
+            padding-top: 4px !important;
+          }
+          
+          .border-t-2 .space-y-2 > div {
+            display: flex;
+            justify-content: space-between;
+            font-size: 9px !important;
+            margin: 2px 0 !important;
+            page-break-inside: avoid;
+          }
+          
+          .border-t-2 span {
+            font-size: 9px !important;
+          }
+          
+          .text-lg {
+            font-size: 11px !important;
+          }
+          
+          /* Badge styling */
+          .px-2.py-0\\.5 {
+            padding: 1px 2px !important;
+            font-size: 8px !important;
+          }
+          
+          .text-\\[11px\\] {
+            font-size: 8px !important;
+          }
+          
+          /* Font for all elements */
+          body, p, td, th, span, div {
+            font-family: Arial, sans-serif !important;
           }
         }
       `}</style>
