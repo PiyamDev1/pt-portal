@@ -195,7 +195,11 @@ export async function POST(request) {
 
       if (loanError) throw loanError
 
-      // Create initial service transaction (full amount)
+      // Create initial service transaction (full amount) with installment plan summary
+      const planSummary = installmentPlan && installmentPlan.length > 0
+        ? `Total £${totalAmount.toFixed(2)}, Remaining £${remainingAmount.toFixed(2)}`
+        : `New service - ${installmentTerms} installments`
+      
       await supabase
         .from('loan_transactions')
         .insert({
@@ -203,11 +207,11 @@ export async function POST(request) {
           employee_id: employeeId,
           transaction_type: 'service',
           amount: totalAmount,
-          remark: notes || `New service - ${installmentTerms} installments`,
+          remark: notes || planSummary,
           transaction_timestamp: new Date().toISOString()
         })
 
-      // If deposit provided, record it as a payment
+      // If deposit provided, record it as a payment transaction
       if (deposit > 0) {
         await supabase
           .from('loan_transactions')
@@ -220,6 +224,12 @@ export async function POST(request) {
             transaction_timestamp: new Date().toISOString()
           })
       }
+
+      // Create future installment plan transactions (optional - for visibility)
+      // Store them as scheduled/pending payments in the installment plan
+      // This allows manual entry of payments against them
+      // For now, we'll log them as remarks in transaction history
+      // The UI will display the installment schedule separately
 
       return NextResponse.json({ success: true, loanId: newLoan.id })
 

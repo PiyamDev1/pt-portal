@@ -178,6 +178,10 @@ export default function LMSClient({ currentUserId }: any) {
             setReopenStatementFor(acc)
             setShowTransaction({ ...acc, transactionType: 'payment' })
           }}
+          onAddDebt={(acc: any) => {
+            setShowStatementPopup(null);
+            setShowTransaction({ ...acc, transactionType: 'fee' })
+          }}
         />
       )}
       {showEditCustomer && <EditCustomerModal customer={showEditCustomer} onClose={() => setShowEditCustomer(null)} onSave={fetchData} employeeId={currentUserId} />}
@@ -848,7 +852,7 @@ function TransactionModal({ data, onClose, onSave, employeeId, onPaymentRecorded
 }
 
 // Statement Popup - Shows transaction history as bank statement
-function StatementPopup({ account, onClose, onAddPayment }: any) {
+function StatementPopup({ account, onClose, onAddPayment, onAddDebt }: any) {
   const [runningBalance, setRunningBalance] = useState(account.balance || 0)
 
   return (
@@ -928,10 +932,10 @@ function StatementPopup({ account, onClose, onAddPayment }: any) {
               <Receipt className="w-4 h-4" /> Add Payment
             </button>
             <button 
-              onClick={() => window.print()}
-              className="flex-1 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-900 font-bold rounded-lg transition-colors text-sm"
+              onClick={() => onAddDebt && onAddDebt(account)}
+              className="flex-1 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg transition-colors text-sm flex items-center justify-center gap-2"
             >
-              Print Statement
+              Add Debt
             </button>
             <button 
               onClick={onClose}
