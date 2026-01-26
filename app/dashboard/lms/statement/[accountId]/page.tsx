@@ -287,30 +287,149 @@ export default function StatementPage() {
       {/* Print Styles */}
       <style jsx>{`
         @media print {
+          * {
+            background: white !important;
+            color: black !important;
+          }
+          
           body {
             background: white;
+            margin: 0;
+            padding: 0;
           }
+          
           .print\\:hidden {
             display: none !important;
           }
+          
+          .min-h-screen {
+            min-height: auto;
+          }
+          
+          .bg-gradient-to-r {
+            background: white !important;
+            color: black !important;
+          }
+          
           .max-w-4xl {
             max-width: 100%;
+            margin: 0;
+            padding: 40px;
           }
+          
+          h1, h2, h3 {
+            page-break-after: avoid;
+          }
+          
+          /* Logo and Letterhead */
+          img {
+            max-width: 100%;
+            height: auto;
+          }
+          
+          .border-b-2 {
+            border-bottom: 2px solid black !important;
+            page-break-after: avoid;
+          }
+          
+          /* Section Spacing */
+          .border-b.pb-4 {
+            page-break-after: avoid;
+          }
+          
+          .border-t.pt-6 {
+            page-break-before: avoid;
+          }
+          
+          .border-t-2.border-slate-900 {
+            border-top: 2px solid black !important;
+          }
+          
+          /* Table Styles */
           table {
             width: 100%;
             border-collapse: collapse;
+            page-break-inside: avoid;
+            margin: 20px 0;
           }
-          th, td {
-            border: 1px solid #e2e8f0;
+          
+          thead {
+            page-break-after: avoid;
+            background-color: #f1f5f9 !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          
+          th {
+            background-color: #f1f5f9 !important;
+            color: black !important;
+            font-weight: bold;
+            border: 1px solid #000;
             padding: 12px;
             text-align: left;
           }
-          th {
-            background-color: #f1f5f9;
-            font-weight: bold;
+          
+          td {
+            border: 1px solid #e2e8f0;
+            padding: 10px 12px;
+            text-align: left;
           }
-          tr:nth-child(even) {
-            background-color: #f9fafb;
+          
+          tr {
+            page-break-inside: avoid;
+          }
+          
+          /* Disclaimer Note */
+          .bg-amber-50 {
+            background-color: #fffbeb !important;
+            border-left: 4px solid #f59e0b !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          
+          .text-amber-900 {
+            color: #78350f !important;
+          }
+          
+          .text-amber-800 {
+            color: #92400e !important;
+          }
+          
+          /* Background colors for installment rows */
+          .bg-blue-50 {
+            background-color: #f0f9ff !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          
+          .text-red-700 {
+            color: #b91c1c !important;
+          }
+          
+          .text-green-700 {
+            color: #15803d !important;
+          }
+          
+          .text-blue-700 {
+            color: #1d4ed8 !important;
+          }
+          
+          .text-amber-700 {
+            color: #b45309 !important;
+          }
+          
+          /* Grid Layout */
+          .grid {
+            page-break-inside: avoid;
+          }
+          
+          /* Spacing */
+          .space-y-6 > * + * {
+            margin-top: 1.5rem;
+          }
+          
+          .space-y-2 > * + * {
+            margin-top: 0.5rem;
           }
         }
       `}</style>
