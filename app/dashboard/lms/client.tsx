@@ -321,9 +321,15 @@ function NewCustomerModal({ onClose, onSave, employeeId }: any) {
         </div>
 
         {/* Transaction Checkbox */}
-        <div className="flex items-center gap-2 p-3 bg-slate-50 rounded-lg cursor-pointer" onClick={() => setAddTransaction(!addTransaction)}>
-          <input type="checkbox" checked={addTransaction} onChange={e => setAddTransaction(e.target.checked)} className="w-4 h-4" />
-          <label className="text-sm font-bold text-slate-700 cursor-pointer">Add Initial Transaction</label>
+        <div className="flex items-center gap-2 p-3 bg-slate-50 rounded-lg">
+          <input 
+            id="add-initial-transaction" 
+            type="checkbox" 
+            checked={addTransaction} 
+            onChange={e => setAddTransaction(e.target.checked)} 
+            className="w-4 h-4 cursor-pointer" 
+          />
+          <label htmlFor="add-initial-transaction" className="text-sm font-bold text-slate-700 cursor-pointer">Add Initial Transaction</label>
         </div>
 
         {/* Conditional Transaction Section */}
