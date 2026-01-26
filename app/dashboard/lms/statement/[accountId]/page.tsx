@@ -153,78 +153,80 @@ export default function StatementPage() {
             </thead>
             <tbody>
               {filteredTransactions.length > 0 ? (
-                <>
-                  {filteredTransactions.map((tx: any, i: number) => {
-                    const isDebit = ((tx.transaction_type || '').toLowerCase() === 'service') || ((tx.transaction_type || '').toLowerCase() === 'fee')
-                    const txAmount = parseFloat(tx.amount) || 0
-                    const isService = ((tx.transaction_type || '').toLowerCase() === 'service')
+                filteredTransactions.flatMap((tx: any, i: number) => {
+                  const isDebit = ((tx.transaction_type || '').toLowerCase() === 'service') || ((tx.transaction_type || '').toLowerCase() === 'fee')
+                  const txAmount = parseFloat(tx.amount) || 0
+                  const isService = ((tx.transaction_type || '').toLowerCase() === 'service')
+                  
+                  // Find the associated loan to get installment plan info
+                  const serviceLoan = isService && account.loans 
+                    ? account.loans.find((l: any) => 
+                        l.created_at && new Date(l.created_at).toDateString() === new Date(tx.transaction_timestamp).toDateString()
+                      )
+                    : null
+                  
+                  const rows = []
+                  
+                  // Original Transaction Row
+                  rows.push(
+                    <tr key={`tx-${i}`} className="border-b border-slate-200 hover:bg-slate-50">
+                      <td className="p-3 text-slate-600">{new Date(tx.transaction_timestamp).toLocaleDateString()}</td>
+                      <td className="p-3">
+                        <span className={`px-2 py-0.5 rounded text-[11px] font-bold ${
+                          isService ? 'bg-blue-50 text-blue-700' :
+                          ((tx.transaction_type || '').toLowerCase() === 'payment') ? 'bg-green-50 text-green-700' :
+                          'bg-slate-50 text-slate-700'
+                        }`}>
+                          {isService ? 'Installment Plan' : (tx.transaction_type || '').toUpperCase()}
+                        </span>
+                      </td>
+                      <td className="p-3 text-slate-600">
+                        <div>{tx.remark || '-'}</div>
+                        {tx.loan_payment_methods?.name && <div className="text-xs text-slate-400">({tx.loan_payment_methods.name})</div>}
+                      </td>
+                      <td className="p-3 text-right font-mono text-red-700 font-bold">
+                        {isDebit ? `£${txAmount.toFixed(2)}` : '-'}
+                      </td>
+                      <td className="p-3 text-right font-mono text-green-700 font-bold">
+                        {((tx.transaction_type || '').toLowerCase() === 'payment') ? `£${txAmount.toFixed(2)}` : '-'}
+                      </td>
+                    </tr>
+                  )
+
+                  {/* Installment Schedule Rows (if this is a service with future installments) */}
+                  if (isService && serviceLoan && serviceLoan.term_months) {
+                    const scheduleRows = generateInstallmentSchedule(
+                      tx.transaction_timestamp,
+                      txAmount,
+                      serviceLoan.current_balance + (parseFloat(serviceLoan.total_debt_amount || 0) * 0.17), // Approximate deposit
+                      serviceLoan.term_months,
+                      serviceLoan.next_due_date
+                    )
                     
-                    // Find the associated loan to get installment plan info
-                    const serviceLoan = isService && account.loans 
-                      ? account.loans.find((l: any) => 
-                          l.created_at && new Date(l.created_at).toDateString() === new Date(tx.transaction_timestamp).toDateString()
-                        )
-                      : null
-                    
-                    return (
-                      <tbody key={i}>
-                        {/* Original Transaction Row */}
-                        <tr className="border-b border-slate-200 hover:bg-slate-50">
-                          <td className="p-3 text-slate-600">{new Date(tx.transaction_timestamp).toLocaleDateString()}</td>
+                    scheduleRows.forEach((installment: any, idx: number) => {
+                      rows.push(
+                        <tr key={`install-${i}-${idx}`} className="border-b border-slate-200 bg-blue-50 hover:bg-blue-100">
+                          <td className="p-3 text-slate-600">{new Date(installment.date).toLocaleDateString()}</td>
                           <td className="p-3">
-                            <span className={`px-2 py-0.5 rounded text-[11px] font-bold ${
-                              isService ? 'bg-blue-50 text-blue-700' :
-                              ((tx.transaction_type || '').toLowerCase() === 'payment') ? 'bg-green-50 text-green-700' :
-                              'bg-slate-50 text-slate-700'
-                            }`}>
-                              {isService ? 'Installment Plan' : (tx.transaction_type || '').toUpperCase()}
+                            <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-blue-100 text-blue-700">
+                              INSTALLMENT
                             </span>
                           </td>
-                          <td className="p-3 text-slate-600">
-                            <div>{tx.remark || '-'}</div>
-                            {tx.loan_payment_methods?.name && <div className="text-xs text-slate-400">({tx.loan_payment_methods.name})</div>}
+                          <td className="p-3 text-slate-600 text-sm">
+                            <div>Total £{txAmount.toFixed(2)}, Remaining £{installment.remaining.toFixed(2)}</div>
+                            <div className="text-xs text-slate-500">Term {idx + 1}/{serviceLoan.term_months}</div>
                           </td>
-                          <td className="p-3 text-right font-mono text-red-700 font-bold">
-                            {isDebit ? `£${txAmount.toFixed(2)}` : '-'}
+                          <td className="p-3 text-right font-mono text-amber-700 font-bold">
+                            £{installment.amount.toFixed(2)}
                           </td>
-                          <td className="p-3 text-right font-mono text-green-700 font-bold">
-                            {((tx.transaction_type || '').toLowerCase() === 'payment') ? `£${txAmount.toFixed(2)}` : '-'}
-                          </td>
+                          <td className="p-3 text-right font-mono text-slate-400">-</td>
                         </tr>
-
-                        {/* Installment Schedule Rows (if this is a service with future installments) */}
-                        {isService && serviceLoan && serviceLoan.term_months && (
-                          <>
-                            {generateInstallmentSchedule(
-                              tx.transaction_timestamp,
-                              txAmount,
-                              serviceLoan.current_balance + (parseFloat(serviceLoan.total_debt_amount || 0) * 0.17), // Approximate deposit
-                              serviceLoan.term_months,
-                              serviceLoan.next_due_date
-                            ).map((installment: any, idx: number) => (
-                              <tr key={`installment-${i}-${idx}`} className="border-b border-slate-200 bg-blue-50 hover:bg-blue-100">
-                                <td className="p-3 text-slate-600">{new Date(installment.date).toLocaleDateString()}</td>
-                                <td className="p-3">
-                                  <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-blue-100 text-blue-700">
-                                    INSTALLMENT PLAN
-                                  </span>
-                                </td>
-                                <td className="p-3 text-slate-600 text-sm">
-                                  <div>Total £{txAmount.toFixed(2)}, Remaining £{installment.remaining.toFixed(2)}</div>
-                                  <div className="text-xs text-slate-500">Term {idx + 1}/{serviceLoan.term_months}</div>
-                                </td>
-                                <td className="p-3 text-right font-mono text-amber-700 font-bold">
-                                  £{installment.amount.toFixed(2)}
-                                </td>
-                                <td className="p-3 text-right font-mono text-slate-400">-</td>
-                              </tr>
-                            ))}
-                          </>
-                        )}
-                      </tbody>
-                    )
-                  })}
-                </>
+                      )
+                    })
+                  }
+                  
+                  return rows
+                })
               ) : (
                 <tr>
                   <td colSpan={5} className="p-6 text-center text-slate-400">No transactions found for the selected filters</td>
