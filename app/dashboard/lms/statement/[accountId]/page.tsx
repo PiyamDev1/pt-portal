@@ -68,7 +68,7 @@ export default function StatementPage() {
         {/* Letterhead */}
         <div className="border-b-2 border-slate-900 pb-4 flex items-start gap-6">
           <div>
-            <img src="/logo.png" alt="Company Logo" className="h-16 w-auto" />
+            <img src="/logo.png" alt="Company Logo" className="h-8 w-auto" />
           </div>
           <div className="flex-1">
             <h2 className="text-xl font-bold text-slate-900">Piyam Travel</h2>
