@@ -336,7 +336,7 @@ export default function StatementPage() {
           }
           
           img {
-            max-width: 80px !important;
+            max-width: 100px !important;
             height: auto !important;
             display: block;
           }
@@ -348,12 +348,12 @@ export default function StatementPage() {
           }
           
           h2 {
-            font-size: 11px !important;
+            font-size: 12px !important;
             margin-bottom: 2px !important;
           }
           
           h3 {
-            font-size: 9px !important;
+            font-size: 10px !important;
             margin-bottom: 4px !important;
             text-transform: uppercase;
             letter-spacing: 0.5px;
@@ -361,7 +361,7 @@ export default function StatementPage() {
           
           p {
             margin: 0;
-            font-size: 9px !important;
+            font-size: 10px !important;
             line-height: 1.3;
           }
           
@@ -379,7 +379,7 @@ export default function StatementPage() {
           }
           
           .grid p {
-            font-size: 9px !important;
+            font-size: 10px !important;
             margin: 2px 0 !important;
           }
           
@@ -407,8 +407,9 @@ export default function StatementPage() {
             page-break-inside: auto;
             margin: 6px 0 !important;
             font-family: Arial, sans-serif;
-            font-size: 9px !important;
+            font-size: 10px !important;
             line-height: 1.4;
+            table-layout: fixed;
           }
           
           thead {
@@ -428,8 +429,8 @@ export default function StatementPage() {
             background-color: #e5e7eb !important;
             color: #000 !important;
             font-weight: 700;
-            font-size: 9px !important;
-            padding: 3px 4px !important;
+            font-size: 10px !important;
+            padding: 4px 5px !important;
             text-align: left;
             border-bottom: 2px solid #000 !important;
             text-transform: uppercase;
@@ -437,9 +438,9 @@ export default function StatementPage() {
           }
           
           td {
-            padding: 3px 4px !important;
+            padding: 4px 5px !important;
             border-bottom: 1px solid #d1d5db !important;
-            font-size: 9px !important;
+            font-size: 10px !important;
             text-align: left;
             line-height: 1.3;
           }
@@ -449,8 +450,15 @@ export default function StatementPage() {
           td:nth-child(5) {
             text-align: right;
             font-family: 'Courier New', monospace;
-            font-size: 9px !important;
+            font-size: 10px !important;
           }
+
+          /* Column widths for alignment */
+          th:nth-child(1), td:nth-child(1) { width: 14%; }
+          th:nth-child(2), td:nth-child(2) { width: 16%; }
+          th:nth-child(3), td:nth-child(3) { width: 40%; }
+          th:nth-child(4), td:nth-child(4) { width: 15%; }
+          th:nth-child(5), td:nth-child(5) { width: 15%; }
           
           /* Remove hover effects */
           tbody tr:hover {
@@ -501,7 +509,7 @@ export default function StatementPage() {
           }
           
           .bg-amber-50 p {
-            font-size: 9px !important;
+            font-size: 10px !important;
             margin: 2px 0 !important;
             line-height: 1.3;
           }
@@ -509,12 +517,12 @@ export default function StatementPage() {
           .text-amber-900 {
             color: #78350f !important;
             font-weight: 600;
-            font-size: 9px !important;
+            font-size: 10px !important;
           }
           
           .text-amber-800 {
             color: #92400e !important;
-            font-size: 9px !important;
+            font-size: 10px !important;
           }
           
           /* Totals section */
@@ -528,27 +536,27 @@ export default function StatementPage() {
           .border-t-2 .space-y-2 > div {
             display: flex;
             justify-content: space-between;
-            font-size: 9px !important;
+            font-size: 10px !important;
             margin: 2px 0 !important;
             page-break-inside: avoid;
           }
           
           .border-t-2 span {
-            font-size: 9px !important;
+            font-size: 10px !important;
           }
           
           .text-lg {
-            font-size: 11px !important;
+            font-size: 12px !important;
           }
           
           /* Badge styling */
           .px-2.py-0\\.5 {
             padding: 1px 2px !important;
-            font-size: 8px !important;
+            font-size: 9px !important;
           }
           
           .text-\\[11px\\] {
-            font-size: 8px !important;
+            font-size: 9px !important;
           }
           
           /* Font for all elements */
