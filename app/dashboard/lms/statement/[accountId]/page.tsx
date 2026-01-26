@@ -314,7 +314,7 @@ export default function StatementPage() {
           .max-w-4xl {
             max-width: 100%;
             margin: 0;
-            padding: 20px;
+            padding: 12px;
           }
           
           body {
@@ -325,8 +325,8 @@ export default function StatementPage() {
           }
           
           @page {
-            size: A4;
-            margin: 10mm;
+            size: A4 portrait;
+            margin: 8mm 8mm 8mm 8mm;
           }
           
           h1, h2, h3 {
@@ -366,42 +366,66 @@ export default function StatementPage() {
           }
           
           .border-t-2.border-slate-900 {
-            border-top: 2px solid black !important;
+            border-top: 1px solid black !important;
+            margin-top: 6px !important;
+            padding-top: 4px !important;
           }
           
-          /* Table Styles */
+          /* Grid and text sizing for sections */
+          .grid {
+            page-break-inside: avoid;
+            margin-bottom: 4px;
+          }
+          
+          .grid p {
+            font-size: 8px;
+            margin: 2px 0;
+            line-height: 1.2;
+          }
+          
+          .space-y-6 > * + * {
+            margin-top: 6px !important;
+          }
+          
+          .space-y-2 > * + * {
+            margin-top: 2px !important;
+          }
+          
+          /* Table Styles - Bank Statement Style */
           table {
             width: 100%;
             border-collapse: collapse;
             page-break-inside: avoid;
-            margin: 20px 0;
-            font-size: 10px;
+            margin: 8px 0;
+            font-size: 8px;
+            line-height: 1.2;
           }
           
           thead {
             page-break-after: avoid;
-            background-color: #f1f5f9 !important;
+            background-color: #f0f0f0 !important;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
           }
           
           th {
-            background-color: #f1f5f9 !important;
-            color: black !important;
-            font-weight: bold;
-            border: 1px solid #000;
-            padding: 6px 4px;
+            background-color: #f0f0f0 !important;
+            color: #000 !important;
+            font-weight: 600;
+            border-bottom: 1px solid #000;
+            padding: 3px 2px;
             text-align: left;
-            font-size: 9px;
-            word-break: break-word;
+            font-size: 7px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
           }
           
           td {
-            border: 1px solid #e2e8f0;
-            padding: 5px 4px;
+            border-bottom: 1px solid #ddd;
+            padding: 3px 2px;
             text-align: left;
-            font-size: 9px;
-            word-break: break-word;
+            font-size: 8px;
+            line-height: 1.1;
           }
           
           tr {
@@ -410,32 +434,48 @@ export default function StatementPage() {
           
           /* Description column - allow wrapping */
           td:nth-child(3) {
-            max-width: 200px;
+            max-width: 140px;
             word-wrap: break-word;
+            overflow-wrap: break-word;
           }
           
-          /* Currency columns - right align */
+          /* Currency columns - right align, monospace */
           td:nth-child(4),
           td:nth-child(5) {
             text-align: right;
-            font-family: monospace;
-            width: 50px;
+            font-family: 'Courier New', monospace;
+            width: 40px;
+          }
+          
+          /* Remove alternating row background for print */
+          tbody tr:nth-child(even) {
+            background-color: white !important;
           }
           
           /* Disclaimer Note */
           .bg-amber-50 {
             background-color: #fffbeb !important;
-            border-left: 4px solid #f59e0b !important;
+            border-left: 2px solid #f59e0b !important;
+            padding: 4px 6px !important;
+            margin: 4px 0 !important;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
           }
           
+          .bg-amber-50 p {
+            font-size: 7px;
+            margin: 1px 0;
+            line-height: 1.2;
+          }
+          
           .text-amber-900 {
             color: #78350f !important;
+            font-size: 7px;
           }
           
           .text-amber-800 {
             color: #92400e !important;
+            font-size: 7px;
           }
           
           /* Background colors for installment rows */
