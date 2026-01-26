@@ -314,7 +314,19 @@ export default function StatementPage() {
           .max-w-4xl {
             max-width: 100%;
             margin: 0;
-            padding: 40px;
+            padding: 20px;
+          }
+          
+          body {
+            margin: 0;
+            padding: 0;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          
+          @page {
+            size: A4;
+            margin: 10mm;
           }
           
           h1, h2, h3 {
@@ -363,6 +375,7 @@ export default function StatementPage() {
             border-collapse: collapse;
             page-break-inside: avoid;
             margin: 20px 0;
+            font-size: 10px;
           }
           
           thead {
@@ -377,18 +390,36 @@ export default function StatementPage() {
             color: black !important;
             font-weight: bold;
             border: 1px solid #000;
-            padding: 12px;
+            padding: 6px 4px;
             text-align: left;
+            font-size: 9px;
+            word-break: break-word;
           }
           
           td {
             border: 1px solid #e2e8f0;
-            padding: 10px 12px;
+            padding: 5px 4px;
             text-align: left;
+            font-size: 9px;
+            word-break: break-word;
           }
           
           tr {
             page-break-inside: avoid;
+          }
+          
+          /* Description column - allow wrapping */
+          td:nth-child(3) {
+            max-width: 200px;
+            word-wrap: break-word;
+          }
+          
+          /* Currency columns - right align */
+          td:nth-child(4),
+          td:nth-child(5) {
+            text-align: right;
+            font-family: monospace;
+            width: 50px;
           }
           
           /* Disclaimer Note */
