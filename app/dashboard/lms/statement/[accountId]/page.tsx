@@ -66,10 +66,17 @@ export default function StatementPage() {
       {/* Print-Friendly Container */}
       <div className="max-w-4xl mx-auto p-6 space-y-6">
         {/* Letterhead */}
-        <div className="border-b-2 border-slate-900 pb-4">
-          <h2 className="text-2xl font-bold text-slate-900">Your Company Name</h2>
-          <p className="text-slate-600">Address | Phone | Email</p>
-          <p className="text-xs text-slate-400 mt-2">Document Reference: STM-{account.id.substring(0, 8).toUpperCase()}</p>
+        <div className="border-b-2 border-slate-900 pb-4 flex items-start gap-6">
+          <div>
+            <img src="/logo.png" alt="Company Logo" className="h-16 w-auto" />
+          </div>
+          <div className="flex-1">
+            <h2 className="text-xl font-bold text-slate-900">Piyam Travel</h2>
+            <p className="text-slate-600">290A Dunstable Road, LU4 8JN, Luton</p>
+            <p className="text-slate-600">01582 968538</p>
+            <p className="text-slate-600">Accounts@piyamtravel.com</p>
+            <p className="text-xs text-slate-400 mt-2">Document Reference: STM-{account.id.substring(0, 8).toUpperCase()}</p>
+          </div>
         </div>
 
         {/* Customer & Period Info */}
@@ -247,11 +254,12 @@ export default function StatementPage() {
           </div>
         )}
 
-        {/* Footer */}
-        <div className="border-t pt-6 text-xs text-slate-500 text-center">
-          <p>This is a computer-generated statement. No signature is required.</p>
-          <p>For questions about this statement, please contact our office.</p>
-          <p className="mt-2 print:hidden">Printed on {new Date().toLocaleString()}</p>
+        {/* Disclaimer Note */}
+        <div className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded">
+          <p className="text-sm text-amber-900 font-semibold mb-1">Important Notice</p>
+          <p className="text-sm text-amber-800">
+            This is not an invoice but a balance statement of your transactions with us. For specific detailed transaction information, please get in contact with our office.
+          </p>
         </div>
 
         {/* Action Buttons (Screen Only) */}
