@@ -390,6 +390,7 @@ function TransactionModal({ data, onClose, onSave, employeeId, onPaymentRecorded
     type: data.transactionType || 'service', 
     amount: '', 
     paymentMethodId: '',
+    transactionDate: new Date().toISOString().split('T')[0],
     initialDeposit: '',
     firstPaymentDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 30 days from now
     installmentTerms: '6',
@@ -490,7 +491,8 @@ function TransactionModal({ data, onClose, onSave, employeeId, onPaymentRecorded
       amount: form.amount,
       customerId: data.id,
       notes: form.notes,
-      employeeId 
+      employeeId,
+      transactionDate: form.transactionDate
     }
 
     // Route to appropriate action based on type
@@ -602,6 +604,20 @@ function TransactionModal({ data, onClose, onSave, employeeId, onPaymentRecorded
             </div>
           )}
         </div>
+
+        {/* Transaction Date Field for Payment and Fee */}
+        {(isPayment || isFee) && (
+          <div>
+            <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Transaction Date</label>
+            <input 
+              type="date" 
+              value={form.transactionDate} 
+              onChange={e => setForm({...form, transactionDate: e.target.value})} 
+              className="w-full p-3 border rounded-lg"
+              required
+            />
+          </div>
+        )}
 
         {/* Service-Specific Fields - Installment Plan */}
         {isService && (
