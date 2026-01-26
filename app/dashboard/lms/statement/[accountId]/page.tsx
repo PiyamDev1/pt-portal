@@ -67,15 +67,15 @@ export default function StatementPage() {
       <div className="max-w-4xl mx-auto p-6 space-y-6 print:p-0 print:space-y-4">
         {/* Letterhead */}
         <div className="border-b-2 border-slate-900 pb-4 flex items-start justify-between gap-6 print:gap-3 print:pb-2">
-          <div className="flex-1">
+          <div className="print:w-24 flex-shrink-0">
+            <img src="/logo.png" alt="Company Logo" className="h-20 w-auto print:h-18 print:w-auto" />
+          </div>
+          <div className="flex-1 text-right print:text-right">
             <h2 className="text-xl font-bold text-slate-900 print:text-base print:mb-0">Piyam Travel</h2>
             <p className="text-slate-600 print:text-xs print:mb-0">290A Dunstable Road, LU4 8JN, Luton</p>
             <p className="text-slate-600 print:text-xs print:mb-0">01582 968538</p>
             <p className="text-slate-600 print:text-xs print:mb-0">Accounts@piyamtravel.com</p>
             <p className="text-xs text-slate-400 mt-2 print:text-[10px] print:mt-1">Document Reference: STM-{account.id.substring(0, 8).toUpperCase()}</p>
-          </div>
-          <div className="print:w-20 flex-shrink-0">
-            <img src="/logo.png" alt="Company Logo" className="h-20 w-51 print:h-16 print:w-auto ml-auto" />
           </div>
         </div>
 
@@ -323,8 +323,8 @@ export default function StatementPage() {
           
           .max-w-4xl {
             max-width: 100% !important;
-            margin: 0 !important;
-            padding: 0 !important;
+            margin: 0 auto !important;
+            padding: 8mm !important;
           }
           
           /* Letterhead section */
