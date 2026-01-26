@@ -415,13 +415,20 @@ function TransactionModal({ data, onClose, onSave, employeeId, onPaymentRecorded
   const [planExpanded, setPlanExpanded] = useState(true)
 
   useEffect(() => {
+    console.log('TransactionModal - Fetching payment methods...')
     fetch('/api/lms/payment-methods')
-      .then(r => r.json())
+      .then(r => {
+        console.log('TransactionModal - Response status:', r.status)
+        return r.json()
+      })
       .then(d => {
         console.log('TransactionModal - Payment methods loaded:', d)
+        console.log('TransactionModal - Methods array:', d.methods)
         setMethods(d.methods || [])
       })
-      .catch(err => console.error('Error loading payment methods:', err))
+      .catch(err => {
+        console.error('TransactionModal - Error loading payment methods:', err)
+      })
   }, [])
 
   // Auto-generate installment plan when form changes
