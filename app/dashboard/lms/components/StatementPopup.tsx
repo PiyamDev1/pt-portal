@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Receipt } from 'lucide-react'
 import { ModalWrapper } from './ModalWrapper'
+import { InstallmentPaymentModal } from './InstallmentPaymentModal'
 import { Account, Transaction } from '../types'
 
 interface StatementPopupProps {
@@ -10,6 +11,7 @@ interface StatementPopupProps {
   onClose: () => void
   onAddPayment: (account: Account) => void
   onAddDebt: (account: Account) => void
+  onRefresh?: () => void
 }
 
 const formatTransactionType = (type?: string) => {
@@ -27,9 +29,11 @@ export function StatementPopup({
   account,
   onClose,
   onAddPayment,
-  onAddDebt
+  onAddDebt,
+  onRefresh,
 }: StatementPopupProps) {
   const [runningBalance] = useState(account.balance || 0)
+  const [selectedInstallment, setSelectedInstallment] = useState<any>(null)
 
   return (
     <ModalWrapper onClose={onClose} title={`Statement - ${account.name}`}>
@@ -61,7 +65,7 @@ export function StatementPopup({
             </thead>
             <tbody>
               {account.transactions && account.transactions.length > 0 ? (
-                account.transactions.map(
+                account.transactions.flatMap(
                   (
                     tx: Transaction & {
                       transaction_timestamp?: string
@@ -78,8 +82,11 @@ export function StatementPopup({
                         ? tx.amount
                         : parseFloat(tx.amount as unknown as string) || 0
 
-                    return (
-                      <tr key={i} className="border-t border-slate-200 hover:bg-slate-50">
+                    const rows = []
+
+                    // Main transaction row
+                    rows.push(
+                      <tr key={`tx-${i}`} className="border-t border-slate-200 hover:bg-slate-50 cursor-pointer">
                         <td className="p-2 text-slate-600">
                           {new Date(tx.transaction_timestamp!).toLocaleDateString()}
                         </td>
@@ -112,6 +119,49 @@ export function StatementPopup({
                         </td>
                       </tr>
                     )
+
+                    // If this is a service, show installment rows
+                    if (tType === 'service') {
+                      const installmentAmount = txAmount / 3 // Default to 3 terms; adjust based on loan data
+                      for (let term = 1; term <= 3; term++) {
+                        const dueDate = new Date(tx.transaction_timestamp!)
+                        dueDate.setMonth(dueDate.getMonth() + (term - 1))
+
+                        rows.push(
+                          <tr
+                            key={`install-${i}-${term}`}
+                            onClick={() =>
+                              setSelectedInstallment({
+                                date: dueDate.toISOString(),
+                                amount: installmentAmount,
+                                remaining: installmentAmount * (3 - term + 1),
+                                term,
+                                totalTerms: 3,
+                              })
+                            }
+                            className="border-t border-blue-200 bg-blue-50 hover:bg-blue-100 cursor-pointer text-[9px]"
+                          >
+                            <td className="p-2 text-slate-600">
+                              {dueDate.toLocaleDateString()}
+                            </td>
+                            <td className="p-2">
+                              <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-blue-100 text-blue-700">
+                                PLAN
+                              </span>
+                            </td>
+                            <td className="p-2 text-slate-600">
+                              <div>Term {term}/3</div>
+                            </td>
+                            <td className="p-2 text-right font-mono text-blue-700 font-bold">
+                              £{installmentAmount.toFixed(2)}
+                            </td>
+                            <td className="p-2 text-right text-slate-400">-</td>
+                          </tr>
+                        )
+                      }
+                    }
+
+                    return rows
                   }
                 )
               ) : (
@@ -157,6 +207,19 @@ export function StatementPopup({
           </a>
         </div>
       </div>
+
+      {/* Installment Payment Modal */}
+      {selectedInstallment && (
+        <InstallmentPaymentModal
+          installment={selectedInstallment}
+          accountId={account.id}
+          onClose={() => setSelectedInstallment(null)}
+          onSave={() => {
+            onRefresh?.()
+            setSelectedInstallment(null)
+          }}
+        />
+      )}
     </ModalWrapper>
   )
 }

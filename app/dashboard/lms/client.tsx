@@ -272,6 +272,7 @@ export default function LMSClient({ currentUserId }: LMSClientProps) {
                 setShowStatementPopup(null)
                 setShowTransaction({ ...acc, transactionType: 'fee' })
               }}
+              onRefresh={fetchData}
             />
           </ErrorBoundary>
         )}
