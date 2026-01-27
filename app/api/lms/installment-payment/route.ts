@@ -57,32 +57,24 @@ export async function POST(request: Request) {
 
     const originalLoan = transactions[0]
     const originalAmount = parseFloat(originalLoan.amount)
-    const installmentAmount = originalAmount / totalTerms
 
-    // 3. Calculate new installment amounts based on payment
-    const difference = paymentAmount - installmentAmount
-    const remainingTerms = totalTerms - installmentTerm
+    // 3. Update the loan current balance
+    // Note: Calculate total payments for this loan to update balance accurately
+    const { data: allPayments, error: paymentsError } = await supabase
+      .from('loan_transactions')
+      .select('amount')
+      .eq('loan_id', originalLoan.loan_id)
+      .eq('transaction_type', 'payment')
 
-    let newInstallmentAmount = installmentAmount
+    if (paymentsError) throw paymentsError
 
-    if (difference > 0 && remainingTerms > 0) {
-      // Overpayment: split across remaining terms
-      newInstallmentAmount = installmentAmount + difference / remainingTerms
-    } else if (difference < 0 && installmentTerm === totalTerms) {
-      // Underpayment on last term: reduce it
-      newInstallmentAmount = paymentAmount
-    } else if (difference < 0) {
-      // Underpayment on earlier term: just take what was paid
-      newInstallmentAmount = paymentAmount
-    }
+    const totalPaid = (allPayments || []).reduce((sum, p) => sum + parseFloat(p.amount), 0)
+    const newBalance = Math.max(0, originalAmount - totalPaid)
 
-    // 4. Update the loan with new installment info (store as metadata)
     const { error: updateError } = await supabase
       .from('loans')
       .update({
-        current_balance: Math.max(0, originalAmount - paymentAmount),
-        installment_amount: newInstallmentAmount,
-        paid_installments: installmentTerm,
+        current_balance: newBalance,
       })
       .eq('id', originalLoan.loan_id)
 
@@ -90,8 +82,8 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       ok: true,
-      message: `Payment recorded. Remaining installments adjusted.`,
-      newInstallmentAmount,
+      message: `Payment recorded successfully.`,
+      newBalance,
     })
   } catch (err: any) {
     console.error('[Installment Payment]', err)
