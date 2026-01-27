@@ -27,22 +27,50 @@ export async function POST(request: Request) {
       )
     }
 
-    // 1. Get the installment record
-    const { data: installment, error: installmentError } = await supabase
-      .from('loan_installments')
-      .select('*, loan_transactions!inner(loan_id, id)')
-      .eq('id', installmentId)
-      .single()
+    // Handle temporary installment IDs (generated client-side before table exists)
+    const isTempId = installmentId.startsWith('temp-')
+    
+    let loanId: string
+    let serviceTransactionId: string
+    let installment: any = null
 
-    if (installmentError || !installment) {
-      throw new Error('Installment not found')
+    // 1. Get the installment record if using database-backed IDs
+    if (!isTempId) {
+      const { data, error: installmentError } = await supabase
+        .from('loan_installments')
+        .select('*, loan_transactions!inner(loan_id, id)')
+        .eq('id', installmentId)
+        .single()
+
+      if (installmentError || !data) {
+        return NextResponse.json(
+          { ok: false, message: 'Installment not found' },
+          { status: 404 }
+        )
+      }
+
+      installment = data
+      loanId = data.loan_transactions.loan_id
+      serviceTransactionId = data.loan_transactions.id
+    } else {
+      // For temporary IDs, extract loan info from request body
+      const { loanId: bodyLoanId, serviceTransactionId: bodyServiceId } = body
+      if (!bodyLoanId || !bodyServiceId) {
+        return NextResponse.json(
+          { ok: false, message: 'loanId and serviceTransactionId required for temporary installments' },
+          { status: 400 }
+        )
+      }
+      loanId = bodyLoanId
+      serviceTransactionId = bodyServiceId
     }
-
-    const loanId = installment.loan_transactions.loan_id
-    const serviceTransactionId = installment.loan_transactions.id
 
     // 2. Record the payment transaction with installment reference
     const paymentTimestamp = paymentDate ? new Date(`${paymentDate}T00:00:00Z`).toISOString() : new Date().toISOString()
+    
+    const remarkText = installment 
+      ? `Installment #${installment.installment_number} payment - ID: ${installmentId.substring(0, 8)}`
+      : `Payment against installment - ID: ${installmentId.substring(0, 8)}`
     
     const { data: paymentData, error: paymentError } = await supabase
       .from('loan_transactions')
@@ -51,7 +79,7 @@ export async function POST(request: Request) {
         employee_id: employeeId,
         transaction_type: 'payment',
         amount: paymentAmount,
-        remark: `Installment #${installment.installment_number} payment - ID: ${installmentId.substring(0, 8)}`,
+        remark: remarkText,
         transaction_timestamp: paymentTimestamp,
         payment_method_id: paymentMethod || null,
       })
@@ -60,26 +88,28 @@ export async function POST(request: Request) {
 
     if (paymentError) throw paymentError
 
-    // 3. Update the installment record
-    const newAmountPaid = parseFloat(installment.amount_paid || 0) + parseFloat(paymentAmount)
-    const installmentAmount = parseFloat(installment.amount)
-    
-    let newStatus = 'pending'
-    if (newAmountPaid >= installmentAmount) {
-      newStatus = 'paid'
-    } else if (newAmountPaid > 0) {
-      newStatus = 'partial'
+    // 3. Update the installment record if it exists in DB
+    if (!isTempId && installment) {
+      const newAmountPaid = parseFloat(installment.amount_paid || 0) + parseFloat(paymentAmount)
+      const installmentAmount = parseFloat(installment.amount)
+      
+      let newStatus = 'pending'
+      if (newAmountPaid >= installmentAmount) {
+        newStatus = 'paid'
+      } else if (newAmountPaid > 0) {
+        newStatus = 'partial'
+      }
+
+      const { error: updateInstallmentError } = await supabase
+        .from('loan_installments')
+        .update({
+          amount_paid: newAmountPaid,
+          status: newStatus,
+        })
+        .eq('id', installmentId)
+
+      if (updateInstallmentError) throw updateInstallmentError
     }
-
-    const { error: updateInstallmentError } = await supabase
-      .from('loan_installments')
-      .update({
-        amount_paid: newAmountPaid,
-        status: newStatus,
-      })
-      .eq('id', installmentId)
-
-    if (updateInstallmentError) throw updateInstallmentError
 
     // 4. Update the loan current balance
     const { data: allPayments, error: paymentsError } = await supabase
@@ -114,9 +144,8 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       ok: true,
-      message: `Payment of £${paymentAmount} recorded for installment #${installment.installment_number}`,
+      message: `Payment of £${paymentAmount} recorded successfully`,
       newBalance,
-      installmentStatus: newStatus,
     })
   } catch (err: any) {
     console.error('[Installment Payment]', err)

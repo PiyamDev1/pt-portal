@@ -101,16 +101,29 @@ export function InstallmentPaymentModal({
 
     setLoading(true)
     try {
+      const isTempId = installment.id.startsWith('temp-')
+      const body: any = {
+        installmentId: installment.id,
+        employeeId,
+        paymentAmount: amountNum,
+        paymentMethod,
+        paymentDate,
+      }
+
+      // For temporary installments, pass loan info
+      if (isTempId && installment.loanId) {
+        body.loanId = installment.loanId
+        // Extract service transaction ID from temp ID format: temp-{serviceId}-{installmentNum}
+        const parts = installment.id.split('-')
+        if (parts.length >= 2) {
+          body.serviceTransactionId = parts[1]
+        }
+      }
+
       const res = await fetch('/api/lms/installment-payment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          installmentId: installment.id,
-          employeeId,
-          paymentAmount: amountNum,
-          paymentMethod,
-          paymentDate,
-        }),
+        body: JSON.stringify(body),
       })
 
       if (!res.ok) {
