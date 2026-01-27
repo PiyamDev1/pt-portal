@@ -21,7 +21,6 @@ export async function GET() {
     const { data: methods, error } = await supabase
       .from('loan_payment_methods')
       .select('*')
-      .order('name')
 
     if (error) {
       console.error('DB query error:', error)
