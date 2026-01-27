@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { Receipt } from 'lucide-react'
 import { ModalWrapper } from './ModalWrapper'
-import { LoadingSpinner } from './Skeletons'
 import { Account, Transaction } from '../types'
 
 interface StatementPopupProps {
@@ -29,23 +28,6 @@ export function StatementPopup({
   onAddDebt
 }: StatementPopupProps) {
   const [runningBalance] = useState(account.balance || 0)
-  const [loadingAction, setLoadingAction] = useState<'payment' | 'debt' | null>(null)
-
-  const handleAddPayment = () => {
-    setLoadingAction('payment')
-    setTimeout(() => {
-      onAddPayment(account)
-      setLoadingAction(null)
-    }, 100)
-  }
-
-  const handleAddDebt = () => {
-    setLoadingAction('debt')
-    setTimeout(() => {
-      onAddDebt(account)
-      setLoadingAction(null)
-    }, 100)
-  }
 
   return (
     <ModalWrapper onClose={onClose} title={`Statement - ${account.name}`}>
@@ -145,20 +127,17 @@ export function StatementPopup({
         <div className="flex flex-col gap-2 pt-4 border-t">
           <div className="flex gap-2">
             <button
-              onClick={handleAddPayment}
-              disabled={loadingAction !== null}
-              className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg transition-colors text-sm flex items-center justify-center gap-2 disabled:opacity-50"
+              onClick={() => onAddPayment(account)}
+              className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg transition-colors text-sm flex items-center justify-center gap-2"
             >
-              {loadingAction === 'payment' ? <LoadingSpinner size="sm" /> : <Receipt className="w-4 h-4" />}
-              {loadingAction === 'payment' ? 'Adding...' : 'Add Payment'}
+              <Receipt className="w-4 h-4" />
+              Add Payment
             </button>
             <button
-              onClick={handleAddDebt}
-              disabled={loadingAction !== null}
-              className="flex-1 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg transition-colors text-sm disabled:opacity-50 flex items-center justify-center gap-2"
+              onClick={() => onAddDebt(account)}
+              className="flex-1 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg transition-colors text-sm flex items-center justify-center gap-2"
             >
-              {loadingAction === 'debt' ? <LoadingSpinner size="sm" /> : null}
-              {loadingAction === 'debt' ? 'Adding...' : 'Add Debt'}
+              Add Debt
             </button>
             <button
               onClick={onClose}

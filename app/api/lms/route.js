@@ -90,7 +90,7 @@ export async function GET(request) {
         isOverdue,
         isDueSoon,
         lastTransaction: transactions.length > 0 
-          ? new Date(Math.max(...transactions.map(t => new Date(t.transaction_timestamp))))
+          ? new Date(Math.max(...transactions.map(t => new Date(t.transaction_timestamp).getTime())))
           : null,
         transactions: transactions.sort((a, b) => 
           new Date(b.transaction_timestamp) - new Date(a.transaction_timestamp)
