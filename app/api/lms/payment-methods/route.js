@@ -55,10 +55,15 @@ export async function GET() {
       .select('*')
       .order('name')
 
-    if (error) throw error
+    if (error) {
+      console.error('Supabase error fetching payment methods:', error)
+      throw error
+    }
 
+    console.log('Payment methods fetched from DB:', methods)
     return NextResponse.json({ methods })
   } catch (error) {
+    console.error('Payment methods API error:', error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
