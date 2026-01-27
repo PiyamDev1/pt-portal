@@ -1,6 +1,8 @@
 import { createServerClient } from '@supabase/auth-helpers-nextjs'
+import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
+import { ensureInstallmentsTableExists } from '@/lib/installmentsDb'
 
 export async function POST(request: Request) {
   try {
@@ -10,6 +12,9 @@ export async function POST(request: Request) {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       { cookies: { getAll() { return cookieStore.getAll() }, setAll() {} } }
     )
+
+    // Ensure table exists
+    await ensureInstallmentsTableExists()
 
     const body = await request.json()
     const {

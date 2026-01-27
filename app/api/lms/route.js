@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
+import { ensureInstallmentsTableExists, createInstallmentRecords } from '@/lib/installmentsDb'
 
 export const dynamic = 'force-dynamic'
 
@@ -174,6 +175,9 @@ export async function POST(request) {
     } else if (action === 'add_service') {
       const { serviceAmount, initialDeposit, installmentTerms, installmentPlan, paymentFrequency } = body
 
+      // Ensure installments table exists
+      await ensureInstallmentsTableExists()
+
       const totalAmount = parseFloat(serviceAmount)
       const deposit = parseFloat(initialDeposit) || 0
       const remainingAmount = totalAmount - deposit
@@ -215,29 +219,14 @@ export async function POST(request) {
 
       if (serviceTxError) throw serviceTxError
 
-      // Create installment records for tracking
-      const installments = []
-      const terms = parseInt(installmentTerms) || 3
-      const installmentAmount = remainingAmount / terms
-      const baseDate = new Date()
-
-      for (let i = 1; i <= terms; i++) {
-        const dueDate = new Date(baseDate)
-        dueDate.setMonth(dueDate.getMonth() + (i - 1))
-
-        installments.push({
-          loan_transaction_id: serviceTransaction.id,
-          installment_number: i,
-          due_date: dueDate.toISOString().split('T')[0],
-          amount: installmentAmount,
-          status: 'pending',
-          amount_paid: 0,
-        })
-      }
-
-      await supabase
-        .from('loan_installments')
-        .insert(installments)
+      // Auto-create installment records using utility function
+      const numberOfTerms = parseInt(installmentTerms) || 3
+      await createInstallmentRecords(
+        serviceTransaction.id,
+        remainingAmount,
+        new Date().toISOString(),
+        numberOfTerms
+      )
 
       // If deposit provided, record it as a payment transaction
       if (deposit > 0) {

@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
+import { ensureInstallmentsTableExists } from '@/lib/installmentsDb'
 
 export async function GET(request: Request) {
   try {
@@ -18,8 +19,10 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'transactionId is required' }, { status: 400 })
     }
 
+    // Ensure table exists (creates it if needed)
+    await ensureInstallmentsTableExists()
+
     // Try to fetch installments from the database
-    // If the table doesn't exist yet, return empty array
     try {
       const { data: installments, error } = await supabase
         .from('loan_installments')
@@ -28,21 +31,17 @@ export async function GET(request: Request) {
         .order('installment_number', { ascending: true })
 
       if (error) {
-        console.warn('Installments table may not exist yet:', error.message)
-        // Return empty array if table doesn't exist
+        console.warn('Error fetching installments:', error.message)
         return NextResponse.json({ installments: [] })
       }
 
       return NextResponse.json({ installments: installments || [] })
-    } catch (tableError: any) {
-      console.warn('Error accessing installments table:', tableError.message)
-      // Gracefully handle table not existing - return empty array
-      // User can run migration endpoint to create table
+    } catch (error: any) {
+      console.warn('Error accessing installments:', error.message)
       return NextResponse.json({ installments: [] })
     }
   } catch (error: any) {
     console.error('Error fetching installments:', error)
-    // Return empty array instead of error to prevent UI breaking
     return NextResponse.json({ installments: [] })
   }
 }
