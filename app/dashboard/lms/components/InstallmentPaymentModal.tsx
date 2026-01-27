@@ -39,6 +39,9 @@ export function InstallmentPaymentModal({
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0])
   const [loading, setLoading] = useState(false)
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([])
+  const [existingPayments, setExistingPayments] = useState<any[]>([])
+  const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null)
+  const [editingAmount, setEditingAmount] = useState('')
 
   useEffect(() => {
     const fetchPaymentMethods = async () => {
@@ -56,6 +59,27 @@ export function InstallmentPaymentModal({
     }
     fetchPaymentMethods()
   }, [])
+
+  const handleDeletePayment = async (paymentId: string) => {
+    if (!confirm('Are you sure you want to delete this payment?')) return
+
+    try {
+      const res = await fetch(`/api/lms/installment-payment?transactionId=${paymentId}&accountId=${accountId}`, {
+        method: 'DELETE',
+      })
+
+      if (!res.ok) {
+        const error = await res.json()
+        throw new Error(error.message || 'Failed to delete payment')
+      }
+
+      setExistingPayments(existingPayments.filter(p => p.id !== paymentId))
+      toast.success('Payment deleted successfully')
+      onSave()
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete payment')
+    }
+  }
 
   const amountNum = parseFloat(paymentAmount) || 0
   const difference = amountNum - installment.amount
@@ -175,6 +199,34 @@ export function InstallmentPaymentModal({
             disabled={loading}
           />
         </div>
+
+        {/* Existing Payments History */}
+        {existingPayments.length > 0 && (
+          <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+            <p className="text-xs font-bold text-slate-700 uppercase mb-2">Payment History</p>
+            <div className="space-y-2 max-h-48 overflow-y-auto">
+              {existingPayments.map((payment) => (
+                <div key={payment.id} className="flex items-center justify-between bg-white p-2 rounded border border-slate-200">
+                  <div className="flex-1">
+                    <p className="text-xs font-semibold text-slate-900">
+                      £{typeof payment.amount === 'number' ? payment.amount.toFixed(2) : parseFloat(payment.amount).toFixed(2)}
+                    </p>
+                    <p className="text-[11px] text-slate-500">
+                      {new Date(payment.transaction_timestamp).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => handleDeletePayment(payment.id)}
+                    disabled={loading}
+                    className="px-2 py-1 text-xs bg-red-100 hover:bg-red-200 text-red-700 rounded transition-colors disabled:opacity-50"
+                  >
+                    Delete
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Actions */}
         <div className="flex gap-2 pt-4 border-t">

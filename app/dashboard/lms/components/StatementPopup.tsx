@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Receipt } from 'lucide-react'
+import { toast } from 'sonner'
 import { ModalWrapper } from './ModalWrapper'
 import { InstallmentPaymentModal } from './InstallmentPaymentModal'
 import { Account, Transaction } from '../types'
@@ -63,6 +64,7 @@ export function StatementPopup({
                 <th className="p-2 text-left">Description</th>
                 <th className="p-2 text-right text-red-600">Debit</th>
                 <th className="p-2 text-right text-green-600">Credit</th>
+                <th className="p-2 text-center">Action</th>
               </tr>
             </thead>
             <tbody>
@@ -119,6 +121,30 @@ export function StatementPopup({
                         <td className="p-2 text-right font-mono text-green-600">
                           {tType === 'payment' ? `£${txAmount.toFixed(2)}` : '-'}
                         </td>
+                        <td className="p-2 text-center">
+                          {tType === 'payment' && (
+                            <button
+                              onClick={async (e) => {
+                                e.stopPropagation()
+                                if (!confirm('Delete this payment?')) return
+                                try {
+                                  const res = await fetch(
+                                    `/api/lms/installment-payment?transactionId=${tx.id}&accountId=${account.id}`,
+                                    { method: 'DELETE' }
+                                  )
+                                  if (!res.ok) throw new Error('Failed to delete')
+                                  onRefresh?.()
+                                  toast.success('Payment deleted')
+                                } catch (err) {
+                                  toast.error('Failed to delete payment')
+                                }
+                              }}
+                              className="px-1.5 py-0.5 text-[9px] bg-red-100 hover:bg-red-200 text-red-700 rounded"
+                            >
+                              Delete
+                            </button>
+                          )}
+                        </td>
                       </tr>
                     )
 
@@ -158,6 +184,7 @@ export function StatementPopup({
                               £{installmentAmount.toFixed(2)}
                             </td>
                             <td className="p-2 text-right text-slate-400">-</td>
+                            <td className="p-2"></td>
                           </tr>
                         )
                       }
@@ -168,7 +195,7 @@ export function StatementPopup({
                 )
               ) : (
                 <tr>
-                  <td colSpan={5} className="p-4 text-center text-slate-400">
+                  <td colSpan={6} className="p-4 text-center text-slate-400">
                     No transactions found
                   </td>
                 </tr>
