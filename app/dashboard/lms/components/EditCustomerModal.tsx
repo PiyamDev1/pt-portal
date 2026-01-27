@@ -1,3 +1,5 @@
+'use client'
+
 import { useState, useCallback } from 'react'
 import { AlertTriangle, Phone, Save, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'

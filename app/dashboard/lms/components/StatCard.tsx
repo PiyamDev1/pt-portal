@@ -1,3 +1,5 @@
+'use client'
+
 import React from 'react'
 import { STAT_CARD_COLORS } from '../constants'
 

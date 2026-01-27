@@ -1,3 +1,5 @@
+'use client'
+
 import { useState, useEffect, useCallback } from 'react'
 import { Calendar, Receipt } from 'lucide-react'
 import { toast } from 'sonner'
