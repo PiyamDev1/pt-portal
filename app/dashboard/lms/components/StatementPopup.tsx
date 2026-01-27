@@ -12,12 +12,12 @@ interface StatementPopupProps {
   onAddDebt: (account: Account) => void
 }
 
-const formatTransactionType = (type: string) => {
+const formatTransactionType = (type?: string) => {
   const t = (type || '').toLowerCase()
   if (t === 'service') return 'Installment Plan'
   if (t === 'fee') return 'Service Fee'
   if (t === 'payment') return 'Payment'
-  return type
+  return type || 'Unknown'
 }
 
 /**

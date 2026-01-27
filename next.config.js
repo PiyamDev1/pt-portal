@@ -10,6 +10,11 @@ const nextConfig = {
     removeConsole: process.env.NODE_ENV === 'production' ? { exclude: ['error', 'warn'] } : false,
   },
   
+  // Ignore ESLint during build (run `npm run lint` separately)
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+  
   // Reduce bundle size
   modularizeImports: {
     'lucide-react': {

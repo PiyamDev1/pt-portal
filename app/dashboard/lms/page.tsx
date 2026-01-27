@@ -40,7 +40,7 @@ export default async function LMSPage() {
                 <p className="text-slate-500 text-sm mt-1">Track customer accounts, services, and payments</p>
             </div>
             
-            <LMSClient currentUserId={session?.user?.id} />
+            <LMSClient currentUserId={session?.user?.id ?? ''} />
         </main>
       </div>
     </DashboardClientWrapper>
