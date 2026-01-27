@@ -14,20 +14,19 @@ export async function GET(request) {
 
     const supabase = createClient(url, key)
 
-    // Exact same query as diagnostic endpoint
-    const { data: testData, error: testError } = await supabase
+    const { data: methods, error } = await supabase
       .from('loan_payment_methods')
       .select('*')
 
-    if (testError) {
-      console.error('Query error:', testError)
+    if (error) {
+      console.error('Query error:', error)
       return NextResponse.json({ 
         methods: [] 
       })
     }
 
     return NextResponse.json({ 
-      methods: testData || [] 
+      methods: methods || [] 
     })
 
   } catch (err) {
