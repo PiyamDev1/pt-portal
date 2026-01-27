@@ -16,7 +16,7 @@ export default async function LMSPage() {
 
   const { data: employee } = await supabase
     .from('employees')
-    .select('full_name, roles(name), locations(name)')
+    .select('full_name, roles(name), locations(name, branch_code)')
     .eq('id', session?.user?.id)
     .single()
 
