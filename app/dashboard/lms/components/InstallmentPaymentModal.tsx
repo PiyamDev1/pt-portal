@@ -101,7 +101,7 @@ export function InstallmentPaymentModal({
 
     setLoading(true)
     try {
-      const isTempId = installment.id.startsWith('temp-')
+      const isTempId = installment.id.startsWith('temp__')
       const body: any = {
         installmentId: installment.id,
         employeeId,
@@ -113,8 +113,8 @@ export function InstallmentPaymentModal({
       // For temporary installments, pass loan info
       if (isTempId && installment.loanId) {
         body.loanId = installment.loanId
-        // Extract service transaction ID from temp ID format: temp-{serviceId}-{installmentNum}
-        const parts = installment.id.split('-')
+        // Extract service transaction ID from temp ID format: temp__{serviceId}__{installmentNum}
+        const parts = installment.id.split('__')
         if (parts.length >= 2) {
           body.serviceTransactionId = parts[1]
         }

@@ -28,7 +28,7 @@ export async function POST(request: Request) {
     }
 
     // Handle temporary installment IDs (generated client-side before table exists)
-    const isTempId = installmentId.startsWith('temp-')
+    const isTempId = installmentId.startsWith('temp__')
     
     let loanId: string
     let serviceTransactionId: string

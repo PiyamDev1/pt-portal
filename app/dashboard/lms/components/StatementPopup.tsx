@@ -189,7 +189,7 @@ export function StatementPopup({
                             const baseDate = new Date(tx.transaction_timestamp || new Date())
                             const dueDate = new Date(baseDate.getTime() + (i * 30 * 24 * 60 * 60 * 1000))
                             return {
-                              id: `temp-${tx.id}-${i + 1}`,
+                              id: `temp__${tx.id}__${i + 1}`,
                               installment_number: i + 1,
                               due_date: dueDate.toISOString().split('T')[0],
                               amount: txAmount / 3,
