@@ -7,6 +7,7 @@ import './globals.css'
 export const metadata: Metadata = {
   title: 'Piyam Travels IMS',
   description: 'Employee Information Management System',
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'https://piyamtravels.com'),
   openGraph: {
     title: 'Piyam Travels IMS',
     description: 'Employee Information Management System',
