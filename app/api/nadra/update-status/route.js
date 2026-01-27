@@ -31,10 +31,6 @@ export async function POST(request) {
         changed_by: userId
       })
 
-    if (historyError) {
-      console.error('Status History Insert Error:', historyError)
-    }
-
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error('Update Status Error:', error)

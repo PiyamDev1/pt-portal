@@ -138,7 +138,6 @@ export async function POST(request) {
         }, { status: 409, headers: { 'Access-Control-Allow-Origin': origin } })
       }
 
-      console.error('[NADRA API] Insert error:', nadraError)
       return NextResponse.json({
         error: 'Database error',
         details: nadraError.message
@@ -153,7 +152,6 @@ export async function POST(request) {
           id: nadraRecord.id,
           service_option: serviceOption
         })
-      if (detailsError) console.error('[NADRA API] Details Insert Error:', detailsError)
     }
 
     // 6. Insert initial status history record
@@ -164,7 +162,6 @@ export async function POST(request) {
         new_status: 'Pending Submission',
         changed_by: currentUserId
       })
-    if (historyError) console.error('[NADRA API] History Insert Error:', historyError)
 
     return NextResponse.json({ success: true, data: nadraRecord }, { 
       status: 200, 

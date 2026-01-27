@@ -3,7 +3,7 @@ const nextConfig = {
   reactStrictMode: true,
   
   // Performance optimizations
-  swcMinify: true, // Use SWC for minification (faster than Terser)
+  swcMinify: true,
   
   compiler: {
     // Remove console logs in production
@@ -20,6 +20,34 @@ const nextConfig = {
   // Enable experimental features for faster builds
   experimental: {
     optimizePackageImports: ['lucide-react', '@supabase/supabase-js'],
+  },
+
+  // Optimize images and static assets
+  images: {
+    formats: ['image/avif', 'image/webp'],
+  },
+
+  // Headers for caching and security
+  async headers() {
+    return [
+      {
+        source: '/:path*',
+        headers: [
+          {
+            key: 'X-DNS-Prefetch-Control',
+            value: 'on'
+          },
+          {
+            key: 'X-Frame-Options',
+            value: 'SAMEORIGIN'
+          },
+          {
+            key: 'X-Content-Type-Options',
+            value: 'nosniff'
+          },
+        ],
+      },
+    ]
   },
   
   async redirects() {
