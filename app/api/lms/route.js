@@ -200,7 +200,7 @@ export async function POST(request) {
         ? `Total £${totalAmount.toFixed(2)}, Remaining £${remainingAmount.toFixed(2)}`
         : `New service - ${installmentTerms} installments`
       
-      await supabase
+      const { data: serviceTransaction, error: serviceTxError } = await supabase
         .from('loan_transactions')
         .insert({
           loan_id: newLoan.id,
@@ -210,19 +210,49 @@ export async function POST(request) {
           remark: notes || planSummary,
           transaction_timestamp: new Date().toISOString()
         })
+        .select()
+        .single()
+
+      if (serviceTxError) throw serviceTxError
+
+      // Create installment records for tracking
+      const installments = []
+      const terms = parseInt(installmentTerms) || 3
+      const installmentAmount = remainingAmount / terms
+      const baseDate = new Date()
+
+      for (let i = 1; i <= terms; i++) {
+        const dueDate = new Date(baseDate)
+        dueDate.setMonth(dueDate.getMonth() + (i - 1))
+
+        installments.push({
+          loan_transaction_id: serviceTransaction.id,
+          installment_number: i,
+          due_date: dueDate.toISOString().split('T')[0],
+          amount: installmentAmount,
+          status: 'pending',
+          amount_paid: 0,
+        })
+      }
+
+      await supabase
+        .from('loan_installments')
+        .insert(installments)
 
       // If deposit provided, record it as a payment transaction
       if (deposit > 0) {
-        await supabase
+        const { data: depositTx } = await supabase
           .from('loan_transactions')
           .insert({
             loan_id: newLoan.id,
             employee_id: employeeId,
             transaction_type: 'payment',
             amount: deposit,
-            remark: 'Initial deposit',
+            remark: `Initial deposit - Loan #${serviceTransaction.id.substring(0, 8)}`,
             transaction_timestamp: new Date().toISOString()
           })
+          .select()
+          .single()
       }
 
       // Create future installment plan transactions (optional - for visibility)

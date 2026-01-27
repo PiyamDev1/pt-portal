@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Receipt } from 'lucide-react'
 import { toast } from 'sonner'
 import { ModalWrapper } from './ModalWrapper'
@@ -37,6 +37,36 @@ export function StatementPopup({
 }: StatementPopupProps) {
   const [runningBalance] = useState(account.balance || 0)
   const [selectedInstallment, setSelectedInstallment] = useState<any>(null)
+  const [installmentsByTransaction, setInstallmentsByTransaction] = useState<Record<string, any[]>>({})
+
+  // Fetch installments for service transactions
+  useEffect(() => {
+    const fetchInstallments = async () => {
+      if (!account.transactions) return
+
+      const serviceTransactions = account.transactions.filter(
+        (tx: any) => tx.transaction_type?.toLowerCase() === 'service'
+      )
+
+      const installmentsMap: Record<string, any[]> = {}
+
+      for (const tx of serviceTransactions) {
+        try {
+          const res = await fetch(`/api/lms/installments?transactionId=${tx.id}`)
+          if (res.ok) {
+            const data = await res.json()
+            installmentsMap[tx.id] = data.installments || []
+          }
+        } catch (err) {
+          console.error('Failed to fetch installments for transaction:', tx.id)
+        }
+      }
+
+      setInstallmentsByTransaction(installmentsMap)
+    }
+
+    fetchInstallments()
+  }, [account.transactions])
 
   return (
     <ModalWrapper onClose={onClose} title={`Statement - ${account.name}`}>
@@ -148,43 +178,51 @@ export function StatementPopup({
                       </tr>
                     )
 
-                    // If this is a service, show installment rows
+                    // If this is a service, show installment rows from database
                     if (tType === 'service') {
-                      const installmentAmount = txAmount / 3 // Default to 3 terms; adjust based on loan data
-                      for (let term = 1; term <= 3; term++) {
-                        const dueDate = new Date(tx.transaction_timestamp!)
-                        dueDate.setMonth(dueDate.getMonth() + (term - 1))
+                      const installments = installmentsByTransaction[tx.id] || []
+                      
+                      for (const installment of installments) {
+                        const statusColor = 
+                          installment.status === 'paid' ? 'bg-green-100 text-green-700' :
+                          installment.status === 'partial' ? 'bg-yellow-100 text-yellow-700' :
+                          installment.status === 'overdue' ? 'bg-red-100 text-red-700' :
+                          'bg-blue-100 text-blue-700'
 
                         rows.push(
                           <tr
-                            key={`install-${i}-${term}`}
+                            key={`install-${tx.id}-${installment.id}`}
                             onClick={() =>
                               setSelectedInstallment({
-                                date: dueDate.toISOString(),
-                                amount: installmentAmount,
-                                remaining: installmentAmount * (3 - term + 1),
-                                term,
-                                totalTerms: 3,
+                                id: installment.id,
+                                date: installment.due_date,
+                                amount: parseFloat(installment.amount),
+                                amountPaid: parseFloat(installment.amount_paid || 0),
+                                status: installment.status,
+                                installmentNumber: installment.installment_number,
                                 loanId: (tx as any).loan_id,
                               })
                             }
                             className="border-t border-blue-200 bg-blue-50 hover:bg-blue-100 cursor-pointer text-[9px]"
                           >
                             <td className="p-2 text-slate-600">
-                              {dueDate.toLocaleDateString()}
+                              {new Date(installment.due_date).toLocaleDateString()}
                             </td>
                             <td className="p-2">
-                              <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-blue-100 text-blue-700">
-                                PLAN
+                              <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold ${statusColor}`}>
+                                {installment.status.toUpperCase()}
                               </span>
                             </td>
-                            <td className="p-2 text-slate-600">
-                              <div>Term {term}/3</div>
+                            <td className="p-2 text-slate-600 text-[10px]">
+                              <div>Installment #{installment.installment_number}</div>
+                              <div className="text-[9px] text-slate-400">ID: {installment.id.substring(0, 8)}</div>
                             </td>
                             <td className="p-2 text-right font-mono text-blue-700 font-bold">
-                              £{installmentAmount.toFixed(2)}
+                              £{parseFloat(installment.amount).toFixed(2)}
                             </td>
-                            <td className="p-2 text-right text-slate-400">-</td>
+                            <td className="p-2 text-right text-slate-400">
+                              {installment.amount_paid > 0 ? `£${parseFloat(installment.amount_paid).toFixed(2)}` : '-'}
+                            </td>
                             <td className="p-2"></td>
                           </tr>
                         )

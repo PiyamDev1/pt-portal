@@ -13,77 +13,110 @@ export async function POST(request: Request) {
 
     const body = await request.json()
     const {
-      accountId,
+      installmentId,
       employeeId,
-      installmentDate,
       paymentAmount,
       paymentMethod,
       paymentDate,
-      installmentTerm,
-      totalTerms,
     } = body
 
-    // 1. Record the payment transaction
-    // Convert date string to proper timestamp
+    if (!installmentId) {
+      return NextResponse.json(
+        { ok: false, message: 'installmentId is required' },
+        { status: 400 }
+      )
+    }
+
+    // 1. Get the installment record
+    const { data: installment, error: installmentError } = await supabase
+      .from('loan_installments')
+      .select('*, loan_transactions!inner(loan_id, id)')
+      .eq('id', installmentId)
+      .single()
+
+    if (installmentError || !installment) {
+      throw new Error('Installment not found')
+    }
+
+    const loanId = installment.loan_transactions.loan_id
+    const serviceTransactionId = installment.loan_transactions.id
+
+    // 2. Record the payment transaction with installment reference
     const paymentTimestamp = paymentDate ? new Date(`${paymentDate}T00:00:00Z`).toISOString() : new Date().toISOString()
     
     const { data: paymentData, error: paymentError } = await supabase
       .from('loan_transactions')
       .insert({
-        loan_id: accountId,
+        loan_id: loanId,
         employee_id: employeeId,
         transaction_type: 'payment',
         amount: paymentAmount,
-        remark: `Installment payment - Term ${installmentTerm}/${totalTerms}`,
+        remark: `Installment #${installment.installment_number} payment - ID: ${installmentId.substring(0, 8)}`,
         transaction_timestamp: paymentTimestamp,
         payment_method_id: paymentMethod || null,
       })
+      .select()
+      .single()
 
     if (paymentError) throw paymentError
 
-    // 2. Get the installment's original loan service transaction
-    const { data: transactions, error: txError } = await supabase
-      .from('loan_transactions')
-      .select('*')
-      .eq('loan_id', accountId)
-      .eq('transaction_type', 'service')
-      .order('transaction_timestamp', { ascending: false })
-      .limit(1)
-
-    if (txError) throw txError
-    if (!transactions || transactions.length === 0) {
-      throw new Error('Loan service transaction not found')
+    // 3. Update the installment record
+    const newAmountPaid = parseFloat(installment.amount_paid || 0) + parseFloat(paymentAmount)
+    const installmentAmount = parseFloat(installment.amount)
+    
+    let newStatus = 'pending'
+    if (newAmountPaid >= installmentAmount) {
+      newStatus = 'paid'
+    } else if (newAmountPaid > 0) {
+      newStatus = 'partial'
     }
 
-    const originalLoan = transactions[0]
-    const originalAmount = parseFloat(originalLoan.amount)
+    const { error: updateInstallmentError } = await supabase
+      .from('loan_installments')
+      .update({
+        amount_paid: newAmountPaid,
+        status: newStatus,
+      })
+      .eq('id', installmentId)
 
-    // 3. Update the loan current balance
-    // Note: Calculate total payments for this loan to update balance accurately
+    if (updateInstallmentError) throw updateInstallmentError
+
+    // 4. Update the loan current balance
     const { data: allPayments, error: paymentsError } = await supabase
       .from('loan_transactions')
       .select('amount')
-      .eq('loan_id', originalLoan.loan_id)
+      .eq('loan_id', loanId)
       .eq('transaction_type', 'payment')
 
     if (paymentsError) throw paymentsError
 
+    // Get original service amount
+    const { data: serviceTx, error: serviceTxError } = await supabase
+      .from('loan_transactions')
+      .select('amount')
+      .eq('id', serviceTransactionId)
+      .single()
+
+    if (serviceTxError) throw serviceTxError
+
     const totalPaid = (allPayments || []).reduce((sum, p) => sum + parseFloat(p.amount), 0)
+    const originalAmount = parseFloat(serviceTx.amount)
     const newBalance = Math.max(0, originalAmount - totalPaid)
 
-    const { error: updateError } = await supabase
+    const { error: updateLoanError } = await supabase
       .from('loans')
       .update({
         current_balance: newBalance,
       })
-      .eq('id', originalLoan.loan_id)
+      .eq('id', loanId)
 
-    if (updateError) throw updateError
+    if (updateLoanError) throw updateLoanError
 
     return NextResponse.json({
       ok: true,
-      message: `Payment recorded successfully.`,
+      message: `Payment of £${paymentAmount} recorded for installment #${installment.installment_number}`,
       newBalance,
+      installmentStatus: newStatus,
     })
   } catch (err: any) {
     console.error('[Installment Payment]', err)
@@ -93,6 +126,7 @@ export async function POST(request: Request) {
     )
   }
 }
+
 // DELETE - Remove a payment transaction
 export async function DELETE(request: Request) {
   try {

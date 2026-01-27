@@ -6,11 +6,15 @@ import { toast } from 'sonner'
 import { API_ENDPOINTS } from '../constants'
 
 interface Installment {
+  id?: string
   date: string
   amount: number
-  remaining: number
-  term: number
-  totalTerms: number
+  amountPaid?: number
+  status?: string
+  installmentNumber?: number
+  remaining?: number
+  term?: number
+  totalTerms?: number
   loanId?: string
 }
 
@@ -90,8 +94,8 @@ export function InstallmentPaymentModal({
       return
     }
 
-    if (!installment.loanId) {
-      toast.error('Loan ID is missing. Please try again.')
+    if (!installment.id) {
+      toast.error('Installment ID is missing. Please try again.')
       return
     }
 
@@ -101,14 +105,11 @@ export function InstallmentPaymentModal({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          accountId: installment.loanId,
+          installmentId: installment.id,
           employeeId,
-          installmentDate: new Date(installment.date).toISOString(),
           paymentAmount: amountNum,
           paymentMethod,
           paymentDate,
-          installmentTerm: installment.term,
-          totalTerms: installment.totalTerms,
         }),
       })
 
@@ -135,18 +136,26 @@ export function InstallmentPaymentModal({
           <p className="text-xs font-bold text-blue-900 uppercase">Installment Details</p>
           <div className="mt-2 space-y-1 text-sm">
             <p>
+              <span className="text-slate-600">Installment ID:</span>{' '}
+              <span className="font-mono text-xs">{installment.id?.substring(0, 8)}</span>
+            </p>
+            <p>
               <span className="text-slate-600">Due Date:</span>{' '}
               <span className="font-bold">{new Date(installment.date).toLocaleDateString()}</span>
             </p>
             <p>
-              <span className="text-slate-600">Original Amount:</span>{' '}
+              <span className="text-slate-600">Amount:</span>{' '}
               <span className="font-bold">£{installment.amount.toFixed(2)}</span>
             </p>
+            {installment.amountPaid && installment.amountPaid > 0 && (
+              <p>
+                <span className="text-slate-600">Already Paid:</span>{' '}
+                <span className="font-bold text-green-600">£{installment.amountPaid.toFixed(2)}</span>
+              </p>
+            )}
             <p>
-              <span className="text-slate-600">Term:</span>{' '}
-              <span className="font-bold">
-                {installment.term}/{installment.totalTerms}
-              </span>
+              <span className="text-slate-600">Status:</span>{' '}
+              <span className="font-bold capitalize">{installment.status || 'pending'}</span>
             </p>
           </div>
         </div>
