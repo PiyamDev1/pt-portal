@@ -39,8 +39,19 @@ const COUNTRIES_DATA = [
   // Add more if needed or parse the full JSON in a loop
 ]
 
-export async function GET() {
+import { verifyAdminAccess, unauthorizedResponse } from '@/lib/adminAuth'
+
+export async function POST(request) {
   try {
+    // Verify admin access via Google auth
+    const authResult = await verifyAdminAccess(request)
+    if (!authResult.authorized) {
+      return unauthorizedResponse(authResult.error, authResult.status)
+    }
+
+    const user = authResult.user
+    console.log(`🔐 Seed countries request from ${user.email} (admin, Google auth)`)
+
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
       process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -63,4 +74,9 @@ export async function GET() {
   } catch (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
+}
+
+// Keep GET for health checks
+export async function GET() {
+  return NextResponse.json({ ok: true, route: 'seed-countries', note: 'Use POST with proper authentication' })
 }

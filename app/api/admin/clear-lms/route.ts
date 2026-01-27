@@ -1,14 +1,21 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
+import { verifyAdminAccess, unauthorizedResponse } from '@/lib/adminAuth'
 
 /**
  * Admin endpoint to clear all LMS data
  * WARNING: This deletes all loans, transactions, customers, and installments
- * SECURITY: Requires authentication and admin role
+ * SECURITY: Requires Google authentication and admin role
  */
 export async function POST(request: Request) {
   try {
+    // Verify admin access via Google auth
+    const authResult = await verifyAdminAccess(request)
+    if (!authResult.authorized) {
+      return unauthorizedResponse(authResult.error, authResult.status)
+    }
+
+    const user = authResult.user!
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY
     
@@ -16,55 +23,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Supabase not configured' }, { status: 500 })
     }
 
-    // Verify authentication
-    const cookieStore = await cookies()
     const supabase = createClient(url, key)
-    
-    // Get the session from cookies
-    const { data: { session } } = await supabase.auth.getSession()
-    
-    if (!session || !session.user) {
-      return NextResponse.json(
-        { error: 'Unauthorized - You must be logged in' },
-        { status: 401 }
-      )
-    }
 
-    // Check if user is admin
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', session.user.id)
-      .single()
-
-    if (profileError || !profile) {
-      return NextResponse.json(
-        { error: 'Unable to verify user role' },
-        { status: 403 }
-      )
-    }
-
-    if (profile.role !== 'admin') {
-      console.warn(`⚠️  Unauthorized deletion attempt by ${session.user.email} (role: ${profile.role})`)
-      return NextResponse.json(
-        { error: 'Forbidden - Admin access required' },
-        { status: 403 }
-      )
-    }
-
-    // Require confirmation token from request body
-    const body = await request.json()
-    const confirmationToken = body.confirmationToken
-
-    if (confirmationToken !== 'DELETE_ALL_LMS_DATA_CONFIRM') {
-      return NextResponse.json(
-        { error: 'Missing or invalid confirmation token' },
-        { status: 400 }
-      )
-    }
-
-    console.log(`🔐 Authorized deletion request from ${session.user.email} (admin)`)
-
+    console.log(`🔐 Authorized deletion request from ${user.email} (admin, Google auth)`)
     console.log('🗑️  Starting LMS data cleanup...')
 
     // Delete in order to respect foreign key constraints

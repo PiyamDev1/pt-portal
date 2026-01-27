@@ -1,37 +1,27 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
+import { verifyAdminAccess, unauthorizedResponse } from '@/lib/adminAuth'
 
 /**
  * One-time migration endpoint to convert all existing applicant names to lowercase
- * This should be called once from admin dashboard or CLI
- * 
- * Call with: curl -X POST https://yourapp.com/api/admin/migrate-names-lowercase \
- *   -H "Authorization: Bearer YOUR_ADMIN_KEY" \
- *   -H "Content-Type: application/json"
+ * Requires Google authentication and admin role
  */
 
 export async function POST(request) {
   try {
-    // Get the service role key from environment
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-    if (!serviceRoleKey) {
-      return NextResponse.json({ error: 'Service role key not configured' }, { status: 500 })
+    // Verify admin access via Google auth
+    const authResult = await verifyAdminAccess(request)
+    if (!authResult.authorized) {
+      return unauthorizedResponse(authResult.error, authResult.status)
     }
+
+    const user = authResult.user
+    console.log(`🔐 Migration request from ${user.email} (admin, Google auth)`)
 
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
-      serviceRoleKey
+      process.env.SUPABASE_SERVICE_ROLE_KEY
     )
-
-    // Verify authorization with a simple admin key check
-    const authHeader = request.headers.get('Authorization')
-    const providedKey = authHeader?.replace('Bearer ', '')
-    
-    // Create a simple admin key from env or use a default
-    const adminKey = process.env.MIGRATION_ADMIN_KEY || 'admin-key-change-me'
-    if (providedKey !== adminKey) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
 
     console.log('Starting migration: Converting applicant names to lowercase...')
 
