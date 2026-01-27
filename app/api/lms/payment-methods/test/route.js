@@ -24,33 +24,25 @@ export async function GET() {
 
     const supabase = createClient(url, key)
 
-    // Test 1: Simple select
+    // Test 1: Simple select with service role key
     const { data: testData, error: testError } = await supabase
       .from('loan_payment_methods')
       .select('*')
 
     diagnostics.test1_select = {
       success: !testError,
-      error: testError ? testError.message : null,
+      error: testError ? {
+        message: testError.message,
+        code: testError.code,
+        details: testError.details,
+        hint: testError.hint
+      } : null,
       rowCount: testData?.length || 0,
       data: testData
     }
 
-    // Test 2: Check RLS policies
-    const { data: policies, error: policyError } = await supabase
-      .rpc('exec_sql', { 
-        query: `SELECT * FROM pg_policies WHERE tablename = 'loan_payment_methods'` 
-      })
-      .catch(() => ({ data: null, error: { message: 'RPC not available' } }))
-
-    diagnostics.test2_policies = {
-      success: !policyError,
-      error: policyError ? policyError.message : null,
-      policies: policies || 'Unable to fetch (RPC not available)'
-    }
-
     return NextResponse.json({ 
-      status: 'success',
+      status: testError ? 'error' : 'success',
       diagnostics 
     })
 
