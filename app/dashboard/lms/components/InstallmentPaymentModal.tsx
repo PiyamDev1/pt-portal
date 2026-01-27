@@ -47,6 +47,15 @@ export function InstallmentPaymentModal({
   const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null)
   const [editingAmount, setEditingAmount] = useState('')
 
+  // Calculate date limits
+  // Permanent: Allow up to 7 days old
+  // Temporary: Allow unlimited past dates for re-entering deleted data
+  const ALLOW_UNLIMITED_PAST = true // Set to false when you want to enforce 7-day limit
+  const today = new Date()
+  const sevenDaysAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000)
+  const minDate = ALLOW_UNLIMITED_PAST ? undefined : sevenDaysAgo.toISOString().split('T')[0]
+  const maxDate = today.toISOString().split('T')[0]
+
   useEffect(() => {
     const fetchPaymentMethods = async () => {
       try {
@@ -217,11 +226,17 @@ export function InstallmentPaymentModal({
 
         {/* Payment Date */}
         <div>
-          <label className="block text-sm font-bold text-slate-700 mb-2">Payment Date</label>
+          <label className="block text-sm font-bold text-slate-700 mb-2">
+            Payment Date
+            {ALLOW_UNLIMITED_PAST && <span className="text-orange-500 text-xs font-normal ml-2">(Backdated: Unlimited)</span>}
+            {!ALLOW_UNLIMITED_PAST && <span className="text-slate-500 text-xs font-normal ml-2">(Last 7 days)</span>}
+          </label>
           <input
             type="date"
             value={paymentDate}
             onChange={(e) => setPaymentDate(e.target.value)}
+            {...(minDate && { min: minDate })}
+            max={maxDate}
             className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-slate-400"
             disabled={loading}
           />
