@@ -195,10 +195,19 @@ export default function StatementPage() {
 
                   {/* Installment Schedule Rows (if this is a service with future installments) */}
                   if (isService && serviceLoan && serviceLoan.term_months) {
+                    // Calculate actual deposit amount from preceding payment transactions on same date
+                    const sameDay = new Date(tx.transaction_timestamp).toDateString()
+                    const depositAmount = filteredTransactions
+                      .filter((t: any) => 
+                        (t.transaction_type || '').toLowerCase() === 'payment' &&
+                        new Date(t.transaction_timestamp).toDateString() === sameDay
+                      )
+                      .reduce((sum: number, t: any) => sum + parseFloat(t.amount), 0)
+                    
                     const scheduleRows = generateInstallmentSchedule(
                       tx.transaction_timestamp,
                       txAmount,
-                      serviceLoan.current_balance + (parseFloat(serviceLoan.total_debt_amount || 0) * 0.17), // Approximate deposit
+                      depositAmount || txAmount * 0.17, // Use actual deposit or 17% as fallback
                       serviceLoan.term_months,
                       serviceLoan.next_due_date
                     )
@@ -576,7 +585,9 @@ function generateInstallmentSchedule(
   termMonths: number,
   nextDueDate?: string
 ) {
+  // Calculate the remaining amount after initial deposit
   const remainingAfterDeposit = totalAmount - initialDeposit
+  // Divide equally across all terms
   const installmentAmount = remainingAfterDeposit / termMonths
   const schedule = []
   
@@ -586,6 +597,7 @@ function generateInstallmentSchedule(
     const dueDate = new Date(firstDueDate)
     dueDate.setMonth(dueDate.getMonth() + i)
     
+    // Calculate remaining balance after this installment
     const remaining = remainingAfterDeposit - (installmentAmount * (i + 1))
     schedule.push({
       date: dueDate.toISOString(),
