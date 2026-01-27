@@ -22,6 +22,7 @@ interface PaymentMethod {
 interface InstallmentPaymentModalProps {
   installment: Installment
   accountId: string
+  employeeId: string
   onClose: () => void
   onSave: () => void
 }
@@ -29,6 +30,7 @@ interface InstallmentPaymentModalProps {
 export function InstallmentPaymentModal({
   installment,
   accountId,
+  employeeId,
   onClose,
   onSave,
 }: InstallmentPaymentModalProps) {
@@ -71,6 +73,7 @@ export function InstallmentPaymentModal({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           accountId,
+          employeeId,
           installmentDate: new Date(installment.date).toISOString(),
           paymentAmount: amountNum,
           paymentMethod,

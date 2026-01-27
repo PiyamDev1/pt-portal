@@ -8,6 +8,7 @@ import { Account, Transaction } from '../types'
 
 interface StatementPopupProps {
   account: Account
+  employeeId: string
   onClose: () => void
   onAddPayment: (account: Account) => void
   onAddDebt: (account: Account) => void
@@ -27,6 +28,7 @@ const formatTransactionType = (type?: string) => {
  */
 export function StatementPopup({
   account,
+  employeeId,
   onClose,
   onAddPayment,
   onAddDebt,
@@ -213,6 +215,7 @@ export function StatementPopup({
         <InstallmentPaymentModal
           installment={selectedInstallment}
           accountId={account.id}
+          employeeId={employeeId}
           onClose={() => setSelectedInstallment(null)}
           onSave={() => {
             onRefresh?.()

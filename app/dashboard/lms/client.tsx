@@ -262,6 +262,7 @@ export default function LMSClient({ currentUserId }: LMSClientProps) {
           <ErrorBoundary>
             <StatementPopup
               account={showStatementPopup}
+              employeeId={currentUserId}
               onClose={() => setShowStatementPopup(null)}
               onAddPayment={(acc: Account) => {
                 setShowStatementPopup(null)

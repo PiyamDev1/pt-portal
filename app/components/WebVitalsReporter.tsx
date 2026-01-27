@@ -5,7 +5,7 @@ import { onCLS, onLCP, onTTFB, onINP, onFCP } from 'web-vitals'
 
 function sendToAnalytics(metric: any) {
   try {
-    fetch('/app/api/vitals', {
+    fetch('/api/vitals', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(metric),
