@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Toaster } from 'sonner'
 import { ProgressBarProvider } from './components/ProgressBarProvider'
 import { WebVitalsReporter } from './components/WebVitalsReporter'
+import { GlobalFooter } from './components/GlobalFooter'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -44,6 +45,7 @@ export default function RootLayout({
         <div className="flex-grow">
           {children}
         </div>
+        <GlobalFooter />
         <Toaster position="top-center" richColors />
         <WebVitalsReporter />
       </body>
