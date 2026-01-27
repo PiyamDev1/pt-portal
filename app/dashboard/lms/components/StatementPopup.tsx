@@ -182,9 +182,24 @@ export function StatementPopup({
                     if (tType === 'service') {
                       const installments = installmentsByTransaction[tx.id] || []
                       
-                      // If no installments from DB, don't generate temporary ones
-                      // (they should exist in DB after service creation)
-                      const displayInstallments = installments
+                      // If no installments from DB, generate temporary ones for display
+                      // Note: These may not account for deposit if service was created before installment tracking
+                      const displayInstallments = installments.length > 0 
+                        ? installments 
+                        : Array.from({ length: 3 }, (_, i) => {
+                            const baseDate = new Date(tx.transaction_timestamp || new Date())
+                            const dueDate = new Date(baseDate.getTime() + ((i + 1) * 30 * 24 * 60 * 60 * 1000))
+                            return {
+                              id: `temp__${tx.id}__${i + 1}`,
+                              installment_number: i + 1,
+                              due_date: dueDate.toISOString().split('T')[0],
+                              amount: txAmount / 3,
+                              amount_paid: 0,
+                              status: 'pending',
+                            }
+                          })
+                      
+                      const isUsingFallback = installments.length === 0
                       
                       for (const installment of displayInstallments) {
                         const statusColor = 
@@ -219,7 +234,13 @@ export function StatementPopup({
                             </td>
                             <td className="p-2 text-slate-600 text-[10px]">
                               <div>Installment #{installment.installment_number}</div>
-                              <div className="text-[9px] text-slate-400">ID: {installment.id.substring(0, 8)}</div>
+                              <div className="text-[9px] text-slate-400">
+                                {isUsingFallback ? (
+                                  <span className="text-orange-500" title="Estimated - payments not tracked">ID: temp</span>
+                                ) : (
+                                  <>ID: {installment.id.substring(0, 8)}</>
+                                )}
+                              </div>
                             </td>
                             <td className="p-2 text-right font-mono text-blue-700 font-bold">
                               £{parseFloat(installment.amount).toFixed(2)}
