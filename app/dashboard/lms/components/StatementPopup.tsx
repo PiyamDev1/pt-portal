@@ -187,7 +187,15 @@ export function StatementPopup({
                       const displayInstallments = installments.length > 0 
                         ? installments 
                         : Array.from({ length: 3 }, (_, i) => {
-                            const baseDate = new Date(tx.transaction_timestamp || new Date())
+                            // Validate the timestamp - use current date as fallback if invalid
+                            let baseDate: Date
+                            if (tx.transaction_timestamp) {
+                              const parsed = new Date(tx.transaction_timestamp)
+                              baseDate = isNaN(parsed.getTime()) ? new Date() : parsed
+                            } else {
+                              baseDate = new Date()
+                            }
+                            
                             const dueDate = new Date(baseDate.getTime() + ((i + 1) * 30 * 24 * 60 * 60 * 1000))
                             return {
                               id: `temp__${tx.id}__${i + 1}`,
