@@ -1,3 +1,6 @@
+/* eslint-disable import/prefer-default-export */
+'use client'
+
 import { useState, useEffect } from 'react'
 
 /**
