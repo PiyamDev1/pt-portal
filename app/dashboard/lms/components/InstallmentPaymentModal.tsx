@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { ModalWrapper } from './ModalWrapper'
 import { toast } from 'sonner'
+import { API_ENDPOINTS } from '../constants'
 
 interface Installment {
   date: string
@@ -11,6 +12,11 @@ interface Installment {
   term: number
   totalTerms: number
   loanId?: string
+}
+
+interface PaymentMethod {
+  id: string
+  name: string
 }
 
 interface InstallmentPaymentModalProps {
@@ -27,9 +33,27 @@ export function InstallmentPaymentModal({
   onSave,
 }: InstallmentPaymentModalProps) {
   const [paymentAmount, setPaymentAmount] = useState(installment.amount.toFixed(2))
-  const [paymentMethod, setPaymentMethod] = useState('bank_transfer')
+  const [paymentMethod, setPaymentMethod] = useState('')
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0])
   const [loading, setLoading] = useState(false)
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([])
+
+  useEffect(() => {
+    const fetchPaymentMethods = async () => {
+      try {
+        const res = await fetch(API_ENDPOINTS.PAYMENT_METHODS)
+        const data = await res.json()
+        setPaymentMethods(data.methods || [])
+        if (data.methods?.length > 0) {
+          setPaymentMethod(data.methods[0].id)
+        }
+      } catch (err) {
+        console.error('Failed to fetch payment methods:', err)
+        toast.error('Failed to load payment methods')
+      }
+    }
+    fetchPaymentMethods()
+  }, [])
 
   const amountNum = parseFloat(paymentAmount) || 0
   const difference = amountNum - installment.amount
@@ -123,13 +147,17 @@ export function InstallmentPaymentModal({
             value={paymentMethod}
             onChange={(e) => setPaymentMethod(e.target.value)}
             className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-slate-400"
-            disabled={loading}
+            disabled={loading || paymentMethods.length === 0}
           >
-            <option value="bank_transfer">Bank Transfer</option>
-            <option value="cash">Cash</option>
-            <option value="card">Card</option>
-            <option value="cheque">Cheque</option>
-            <option value="other">Other</option>
+            {paymentMethods.length === 0 ? (
+              <option disabled>Loading payment methods...</option>
+            ) : (
+              paymentMethods.map((method) => (
+                <option key={method.id} value={method.id}>
+                  {method.name}
+                </option>
+              ))
+            )}
           </select>
         </div>
 

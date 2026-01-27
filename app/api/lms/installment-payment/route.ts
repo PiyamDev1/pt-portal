@@ -31,7 +31,7 @@ export async function POST(request: Request) {
         amount: paymentAmount,
         remark: `Installment payment - Term ${installmentTerm}/${totalTerms}`,
         transaction_timestamp: paymentDate,
-        payment_method_id: paymentMethod === 'other' ? null : paymentMethod,
+        payment_method_id: paymentMethod || null,
       })
 
     if (paymentError) throw paymentError
