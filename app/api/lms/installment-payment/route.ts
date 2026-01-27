@@ -105,6 +105,12 @@ export async function POST(request: Request) {
         newStatus = 'partial'
       }
 
+      console.log(`Updating installment ${installmentId}:`)
+      console.log(`  Old amount_paid: ${installment.amount_paid || 0}`)
+      console.log(`  Payment amount: ${paymentAmount}`)
+      console.log(`  New amount_paid: ${newAmountPaid}`)
+      console.log(`  New status: ${newStatus}`)
+
       const { error: updateInstallmentError } = await supabase
         .from('loan_installments')
         .update({
@@ -114,6 +120,9 @@ export async function POST(request: Request) {
         .eq('id', installmentId)
 
       if (updateInstallmentError) throw updateInstallmentError
+      console.log(`Successfully updated installment ${installmentId}`)
+    } else if (isTempId) {
+      console.log(`Skipping installment update for temp ID: ${installmentId}`)
     }
 
     // 4. Update the loan current balance

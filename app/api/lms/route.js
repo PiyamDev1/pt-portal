@@ -182,6 +182,8 @@ export async function POST(request) {
       const deposit = parseFloat(initialDeposit) || 0
       const remainingAmount = totalAmount - deposit
 
+      console.log(`Adding service: total=${totalAmount}, deposit=${deposit}, remaining=${remainingAmount}`)
+
       // Create loan
       const { data: newLoan, error: loanError } = await supabase
         .from('loans')

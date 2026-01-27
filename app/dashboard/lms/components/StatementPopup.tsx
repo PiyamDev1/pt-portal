@@ -40,31 +40,31 @@ export function StatementPopup({
   const [installmentsByTransaction, setInstallmentsByTransaction] = useState<Record<string, any[]>>({})
 
   // Fetch installments for service transactions
-  useEffect(() => {
-    const fetchInstallments = async () => {
-      if (!account.transactions) return
+  const fetchInstallments = async () => {
+    if (!account.transactions) return
 
-      const serviceTransactions = account.transactions.filter(
-        (tx: any) => tx.transaction_type?.toLowerCase() === 'service'
-      )
+    const serviceTransactions = account.transactions.filter(
+      (tx: any) => tx.transaction_type?.toLowerCase() === 'service'
+    )
 
-      const installmentsMap: Record<string, any[]> = {}
+    const installmentsMap: Record<string, any[]> = {}
 
-      for (const tx of serviceTransactions) {
-        try {
-          const res = await fetch(`/api/lms/installments?transactionId=${tx.id}`)
-          if (res.ok) {
-            const data = await res.json()
-            installmentsMap[tx.id] = data.installments || []
-          }
-        } catch (err) {
-          console.error('Failed to fetch installments for transaction:', tx.id)
+    for (const tx of serviceTransactions) {
+      try {
+        const res = await fetch(`/api/lms/installments?transactionId=${tx.id}`)
+        if (res.ok) {
+          const data = await res.json()
+          installmentsMap[tx.id] = data.installments || []
         }
+      } catch (err) {
+        console.error('Failed to fetch installments for transaction:', tx.id)
       }
-
-      setInstallmentsByTransaction(installmentsMap)
     }
 
+    setInstallmentsByTransaction(installmentsMap)
+  }
+
+  useEffect(() => {
     fetchInstallments()
   }, [account.transactions])
 
@@ -182,21 +182,9 @@ export function StatementPopup({
                     if (tType === 'service') {
                       const installments = installmentsByTransaction[tx.id] || []
                       
-                      // If no installments from DB, generate temporary ones for display
-                      const displayInstallments = installments.length > 0 
-                        ? installments 
-                        : Array.from({ length: 3 }, (_, i) => {
-                            const baseDate = new Date(tx.transaction_timestamp || new Date())
-                            const dueDate = new Date(baseDate.getTime() + (i * 30 * 24 * 60 * 60 * 1000))
-                            return {
-                              id: `temp__${tx.id}__${i + 1}`,
-                              installment_number: i + 1,
-                              due_date: dueDate.toISOString().split('T')[0],
-                              amount: txAmount / 3,
-                              amount_paid: 0,
-                              status: 'pending',
-                            }
-                          })
+                      // If no installments from DB, don't generate temporary ones
+                      // (they should exist in DB after service creation)
+                      const displayInstallments = installments
                       
                       for (const installment of displayInstallments) {
                         const statusColor = 
@@ -301,6 +289,7 @@ export function StatementPopup({
           onClose={() => setSelectedInstallment(null)}
           onSave={() => {
             onRefresh?.()
+            fetchInstallments() // Explicitly refetch installments after payment
             setSelectedInstallment(null)
           }}
         />

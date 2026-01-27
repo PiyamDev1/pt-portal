@@ -85,6 +85,10 @@ export async function createInstallmentRecords(
     const installmentAmount = amount / numberOfTerms
     const baseDate = new Date(serviceDate)
     
+    console.log(`Creating ${numberOfTerms} installments for transaction ${loanTransactionId}:`)
+    console.log(`  Total amount: ${amount}`)
+    console.log(`  Installment amount: ${installmentAmount}`)
+    
     const records = Array.from({ length: numberOfTerms }, (_, i) => {
       const dueDate = new Date(baseDate.getTime() + ((i + 1) * 30 * 24 * 60 * 60 * 1000))
       return {

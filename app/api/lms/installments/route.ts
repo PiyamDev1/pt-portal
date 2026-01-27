@@ -35,6 +35,7 @@ export async function GET(request: Request) {
         return NextResponse.json({ installments: [] })
       }
 
+      console.log(`Fetched ${installments?.length || 0} installments for transaction ${transactionId}`)
       return NextResponse.json({ installments: installments || [] })
     } catch (error: any) {
       console.warn('Error accessing installments:', error.message)
