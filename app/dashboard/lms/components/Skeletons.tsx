@@ -1,3 +1,5 @@
+'use client'
+
 /**
  * Skeleton Loaders - Placeholder UI while data loads
  */
