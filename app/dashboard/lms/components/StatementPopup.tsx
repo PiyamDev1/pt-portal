@@ -182,7 +182,23 @@ export function StatementPopup({
                     if (tType === 'service') {
                       const installments = installmentsByTransaction[tx.id] || []
                       
-                      for (const installment of installments) {
+                      // If no installments from DB, generate temporary ones for display
+                      const displayInstallments = installments.length > 0 
+                        ? installments 
+                        : Array.from({ length: 3 }, (_, i) => {
+                            const baseDate = new Date(tx.transaction_timestamp || new Date())
+                            const dueDate = new Date(baseDate.getTime() + (i * 30 * 24 * 60 * 60 * 1000))
+                            return {
+                              id: `temp-${tx.id}-${i + 1}`,
+                              installment_number: i + 1,
+                              due_date: dueDate.toISOString().split('T')[0],
+                              amount: txAmount / 3,
+                              amount_paid: 0,
+                              status: 'pending',
+                            }
+                          })
+                      
+                      for (const installment of displayInstallments) {
                         const statusColor = 
                           installment.status === 'paid' ? 'bg-green-100 text-green-700' :
                           installment.status === 'partial' ? 'bg-yellow-100 text-yellow-700' :

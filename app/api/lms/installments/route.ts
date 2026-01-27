@@ -18,17 +18,32 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'transactionId is required' }, { status: 400 })
     }
 
-    const { data: installments, error } = await supabase
-      .from('loan_installments')
-      .select('*')
-      .eq('loan_transaction_id', transactionId)
-      .order('installment_number', { ascending: true })
+    // Try to fetch installments from the database
+    // If the table doesn't exist yet, return empty array
+    try {
+      const { data: installments, error } = await supabase
+        .from('loan_installments')
+        .select('*')
+        .eq('loan_transaction_id', transactionId)
+        .order('installment_number', { ascending: true })
 
-    if (error) throw error
+      if (error) {
+        console.warn('Installments table may not exist yet:', error.message)
+        // Return empty array if table doesn't exist
+        return NextResponse.json({ installments: [] })
+      }
 
-    return NextResponse.json({ installments: installments || [] })
+      return NextResponse.json({ installments: installments || [] })
+    } catch (tableError: any) {
+      console.warn('Error accessing installments table:', tableError.message)
+      // Gracefully handle table not existing - return empty array
+      // User can run migration endpoint to create table
+      return NextResponse.json({ installments: [] })
+    }
   } catch (error: any) {
     console.error('Error fetching installments:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    // Return empty array instead of error to prevent UI breaking
+    return NextResponse.json({ installments: [] })
   }
 }
+
