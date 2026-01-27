@@ -64,7 +64,7 @@ export function InstallmentPaymentModal({
     if (!confirm('Are you sure you want to delete this payment?')) return
 
     try {
-      const res = await fetch(`/api/lms/installment-payment?transactionId=${paymentId}&accountId=${accountId}`, {
+      const res = await fetch(`/api/lms/installment-payment?transactionId=${paymentId}&accountId=${installment.loanId || accountId}`, {
         method: 'DELETE',
       })
 
@@ -90,13 +90,18 @@ export function InstallmentPaymentModal({
       return
     }
 
+    if (!installment.loanId) {
+      toast.error('Loan ID is missing. Please try again.')
+      return
+    }
+
     setLoading(true)
     try {
       const res = await fetch('/api/lms/installment-payment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          accountId,
+          accountId: installment.loanId,
           employeeId,
           installmentDate: new Date(installment.date).toISOString(),
           paymentAmount: amountNum,

@@ -165,6 +165,7 @@ export function StatementPopup({
                                 remaining: installmentAmount * (3 - term + 1),
                                 term,
                                 totalTerms: 3,
+                                loanId: (tx as any).loan_id,
                               })
                             }
                             className="border-t border-blue-200 bg-blue-50 hover:bg-blue-100 cursor-pointer text-[9px]"
