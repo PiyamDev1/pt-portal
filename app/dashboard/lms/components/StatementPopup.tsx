@@ -196,6 +196,7 @@ export function StatementPopup({
                                 e.preventDefault()
                                 
                                 console.log('[DELETE-PLAN] Button clicked!')
+                                alert('Delete button clicked! Check console for logs.')
                                 
                                 const confirmed = confirm('Delete this installment plan? This will remove all installment records from the database.')
                                 console.log('[DELETE-PLAN] User confirmed:', confirmed)
@@ -241,7 +242,7 @@ export function StatementPopup({
                               }}
                               className="px-1.5 py-0.5 text-[9px] bg-red-100 hover:bg-red-200 text-red-700 rounded"
                             >
-                              Delete Plan
+                              Delete Plan v2
                             </button>
                           )}
                         </td>
@@ -251,6 +252,8 @@ export function StatementPopup({
                     // If this is a service, show installment rows from database ONLY
                     if (tType === 'service') {
                       const installments = installmentsByTransaction[tx.id] || []
+                      
+                      console.log(`[STATEMENT] Service transaction ${tx.id.substring(0, 8)}: ${installments.length} installments from DB`)
                       
                       // Display ONLY database installments - no fallback generation
                       for (const installment of installments) {
