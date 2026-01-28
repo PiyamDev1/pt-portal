@@ -207,20 +207,21 @@ export function StatementPopup({
                                   console.log('[DELETE-PLAN] Button clicked!')
                                   alert('Delete button clicked! Check console for logs.')
                                   
-                                  const confirmed = confirm('Delete this installment plan? This will remove all installment records from the database.')
-                                  console.log('[DELETE-PLAN] User confirmed:', confirmed)
-                                  
-                                  if (!confirmed) return
+                                const confirmed = confirm('Delete this service charge and all related installments? This will remove the entire transaction from the account.')
                                   
                                   (async () => {
                                     try {
                                       console.log(`[DELETE-PLAN] Starting delete for transaction ${tx.id}`)
                                       console.log(`[DELETE-PLAN] Current remark: "${tx.remark}"`)
                                       
-                                      const url = `/api/lms/delete-installment-plan?transactionId=${tx.id}`
+                                      const url = `/api/lms/delete-installment-plan`
                                       console.log(`[DELETE-PLAN] Calling: ${url}`)
                                       
-                                      const res = await fetch(url, { method: 'DELETE' })
+                                      const res = await fetch(url, { 
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ transactionId: tx.id })
+                                      })
                                       
                                       console.log(`[DELETE-PLAN] Response status: ${res.status}`)
                                       
@@ -231,20 +232,16 @@ export function StatementPopup({
                                         throw new Error(data.error || `Failed to delete (${res.status})`)
                                       }
                                       
-                                      // Clear cached installments for this transaction IMMEDIATELY
-                                      setInstallmentsByTransaction(prev => {
-                                        const updated = { ...prev, [tx.id]: [] }
-                                        console.log('[DELETE-PLAN] Updated installments cache:', updated)
-                                        return updated
-                                      })
-                                      
-                                      // Trigger server refresh
+                                      // Trigger server refresh to reload data
                                       if (onRefresh) {
                                         console.log('[DELETE-PLAN] Triggering onRefresh')
                                         onRefresh()
                                       }
                                       
-                                      toast.success('Installment plan deleted')
+                                      // Close modal after successful deletion
+                                      onClose()
+                                      
+                                      toast.success('Service transaction deleted successfully')
                                     } catch (err: any) {
                                       console.error('[DELETE-PLAN] Error:', err)
                                       toast.error(err.message || 'Failed to delete')

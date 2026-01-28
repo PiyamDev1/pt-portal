@@ -1,145 +1,64 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 
-export async function DELETE(request: Request) {
+export async function POST(request: Request) {
   try {
-    const { searchParams } = new URL(request.url)
-    const transactionId = searchParams.get('transactionId')
+    // 1. Initialize Admin Client
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
+
+    const { transactionId } = await request.json()
 
     if (!transactionId) {
-      return NextResponse.json({ error: 'Transaction ID required' }, { status: 400 })
+      return NextResponse.json({ error: 'Transaction ID is required' }, { status: 400 })
     }
 
-    console.log(`[DELETE-PLAN] Starting delete for transaction ${transactionId}`)
+    console.log(`[Delete Plan] Deleting plan for transaction: ${transactionId}`)
 
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const key = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-    if (!url || !key) {
-      console.error('Supabase credentials missing')
-      return NextResponse.json({ error: 'Supabase not configured' }, { status: 500 })
-    }
-
-    const supabase = createClient(url, key)
-
-    // Step 1: Try to delete from database
-    console.log(`[DELETE-PLAN] Step 1: Attempting to delete database installments`)
-    const { error: deleteError, count } = await supabase
+    // 2. Delete Child Records: Installments
+    // These are the individual payment schedules in 'loan_installments'
+    const { error: instError } = await supabase
       .from('loan_installments')
       .delete()
       .eq('loan_transaction_id', transactionId)
 
-    if (deleteError) {
-      console.error(`[DELETE-PLAN] Error deleting from loan_installments:`, deleteError)
-    } else {
-      console.log(`[DELETE-PLAN] Successfully deleted ${count || 0} database installments`)
+    if (instError) {
+      console.error('[Delete Plan] Error deleting installments:', instError)
+      throw new Error(`Failed to delete installments: ${instError.message}`)
     }
 
-    // Step 2: Update transaction remark
-    console.log(`[DELETE-PLAN] Step 2: Fetching transaction details`)
-    const { data: transaction, error: fetchError } = await supabase
-      .from('loan_transactions')
-      .select('id, remark')
-      .eq('id', transactionId)
-      .single()
-
-    if (fetchError) {
-      console.error(`[DELETE-PLAN] Error fetching transaction:`, fetchError)
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Could not fetch transaction',
-        details: fetchError 
-      }, { status: 500 })
-    }
-
-    if (!transaction) {
-      console.error(`[DELETE-PLAN] Transaction not found: ${transactionId}`)
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Transaction not found' 
-      }, { status: 404 })
-    }
-
-    console.log(`[DELETE-PLAN] Current remark: "${transaction.remark}"`)
-    console.log(`[DELETE-PLAN] Remark type: ${typeof transaction.remark}`)
-    console.log(`[DELETE-PLAN] Remark length: ${(transaction.remark || '').length}`)
-    console.log(`[DELETE-PLAN] Remark bytes: ${Buffer.from(transaction.remark || '').toString('hex')}`)
-
-    // Remove all installment plan patterns from remark
-    let newRemark = (transaction.remark || '')
-      // Remove "X installments - frequency" pattern
-      .replace(/\s*\d+\s+installments?\s*-\s*(weekly|biweekly|monthly)/gi, '')
-      // Remove "X installments" pattern without frequency
-      .replace(/\s*\d+\s+installments?/gi, '')
-      .trim()
-
-    // If remark is now empty or just whitespace, set to null
-    newRemark = newRemark ? newRemark : null
-
-    console.log(`[DELETE-PLAN] Updated remark: "${newRemark}"`)
-
-    // Only update if remark changed
-    if (newRemark !== transaction.remark) {
-      console.log(`[DELETE-PLAN] Step 3: Updating transaction remark`)
-      const { error: updateError } = await supabase
-        .from('loan_transactions')
-        .update({ remark: newRemark })
-        .eq('id', transactionId)
-
-      if (updateError) {
-        console.error(`[DELETE-PLAN] Error updating transaction remark:`, updateError)
-        return NextResponse.json({ 
-          success: false, 
-          error: 'Could not update transaction',
-          details: updateError 
-        }, { status: 500 })
-      }
-
-      console.log(`[DELETE-PLAN] Successfully updated transaction remark`)
-    } else {
-      console.log(`[DELETE-PLAN] Remark unchanged, no update needed`)
-    }
-
-    console.log(`[DELETE-PLAN] Deletion complete for transaction ${transactionId}`)
-    
-    // Verify deletion by checking if any records remain
-    const { data: remainingInstallments, error: verifyError } = await supabase
-      .from('loan_installments')
-      .select('id')
+    // 3. Delete Child Records: Package Links
+    // If the plan was linked to a package, remove that link from 'loan_package_links'
+    const { error: linkError } = await supabase
+      .from('loan_package_links')
+      .delete()
       .eq('loan_transaction_id', transactionId)
-    
-    if (!verifyError) {
-      console.log(`[DELETE-PLAN] Verification: ${remainingInstallments?.length || 0} installments remain in database`)
+
+    if (linkError) {
+      console.error('[Delete Plan] Error deleting package links:', linkError)
+      throw new Error(`Failed to delete package links: ${linkError.message}`)
     }
-    
-    // Fetch updated transaction to verify remark change
-    const { data: updatedTransaction } = await supabase
+
+    // 4. Delete Parent Record: The Service Transaction
+    // This removes the service charge from loan_transactions
+    const { error: transError } = await supabase
       .from('loan_transactions')
-      .select('remark')
+      .delete()
       .eq('id', transactionId)
-      .single()
-    
-    if (updatedTransaction) {
-      console.log(`[DELETE-PLAN] Verification: Updated remark is "${updatedTransaction.remark}"`)
+
+    if (transError) {
+      console.error('[Delete Plan] Error deleting parent transaction:', transError)
+      throw new Error(`Failed to delete transaction: ${transError.message}`)
     }
-    
-    return NextResponse.json({ 
-      success: true,
-      message: 'Installment plan deleted',
-      deleted: {
-        databaseRecords: count || 0,
-        remarkUpdated: newRemark !== transaction.remark
-      },
-      verification: {
-        remainingInstallments: remainingInstallments?.length || 0,
-        finalRemark: updatedTransaction?.remark || null
-      }
-    })
+
+    console.log(`[Delete Plan] Successfully deleted transaction ${transactionId} and all related records`)
+
+    return NextResponse.json({ success: true })
+
   } catch (error: any) {
-    console.error('Error in delete-installment-plan:', error)
-    return NextResponse.json({ 
-      error: error.message || 'Unknown error',
-      stack: error.stack 
-    }, { status: 500 })
+    console.error('[Delete Plan] Critical Error:', error)
+    return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
