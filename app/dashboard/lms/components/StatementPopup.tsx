@@ -194,8 +194,20 @@ export function StatementPopup({
                                     { method: 'DELETE' }
                                   )
                                   if (!res.ok) throw new Error('Failed to delete')
-                                  fetchInstallments() // Refresh installments
-                                  onRefresh?.()
+                                  
+                                  // Clear installments for this transaction from state
+                                  setInstallmentsByTransaction(prev => {
+                                    const updated = { ...prev }
+                                    delete updated[tx.id]
+                                    return updated
+                                  })
+                                  
+                                  // Small delay to ensure API has processed
+                                  setTimeout(() => {
+                                    fetchInstallments()
+                                    onRefresh?.()
+                                  }, 100)
+                                  
                                   toast.success('Installment plan deleted')
                                 } catch (err) {
                                   toast.error('Failed to delete installment plan')
