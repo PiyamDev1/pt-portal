@@ -190,60 +190,65 @@ export function StatementPopup({
                             </button>
                           )}
                           {tType === 'service' && (
-                            <button
-                              onClick={async (e) => {
-                                e.stopPropagation()
-                                e.preventDefault()
-                                
-                                console.log('[DELETE-PLAN] Button clicked!')
-                                alert('Delete button clicked! Check console for logs.')
-                                
-                                const confirmed = confirm('Delete this installment plan? This will remove all installment records from the database.')
-                                console.log('[DELETE-PLAN] User confirmed:', confirmed)
-                                
-                                if (!confirmed) return
-                                
-                                try {
-                                  console.log(`[DELETE-PLAN] Starting delete for transaction ${tx.id}`)
-                                  console.log(`[DELETE-PLAN] Current remark: "${tx.remark}"`)
+                            <div onClick={(e) => e.stopPropagation()}>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  e.preventDefault()
                                   
-                                  const url = `/api/lms/delete-installment-plan?transactionId=${tx.id}`
-                                  console.log(`[DELETE-PLAN] Calling: ${url}`)
+                                  console.log('[DELETE-PLAN] Button clicked!')
+                                  alert('Delete button clicked! Check console for logs.')
                                   
-                                  const res = await fetch(url, { method: 'DELETE' })
+                                  const confirmed = confirm('Delete this installment plan? This will remove all installment records from the database.')
+                                  console.log('[DELETE-PLAN] User confirmed:', confirmed)
                                   
-                                  console.log(`[DELETE-PLAN] Response status: ${res.status}`)
+                                  if (!confirmed) return
                                   
-                                  const data = await res.json()
-                                  console.log('[DELETE-PLAN] Response data:', data)
-                                  
-                                  if (!res.ok) {
-                                    throw new Error(data.error || `Failed to delete (${res.status})`)
-                                  }
-                                  
-                                  // Clear cached installments for this transaction IMMEDIATELY
-                                  setInstallmentsByTransaction(prev => {
-                                    const updated = { ...prev, [tx.id]: [] }
-                                    console.log('[DELETE-PLAN] Updated installments cache:', updated)
-                                    return updated
-                                  })
-                                  
-                                  // Trigger server refresh
-                                  if (onRefresh) {
-                                    console.log('[DELETE-PLAN] Triggering onRefresh')
-                                    onRefresh()
-                                  }
-                                  
-                                  toast.success('Installment plan deleted')
-                                } catch (err: any) {
-                                  console.error('[DELETE-PLAN] Error:', err)
-                                  toast.error(err.message || 'Failed to delete')
-                                }
-                              }}
-                              className="px-1.5 py-0.5 text-[9px] bg-red-100 hover:bg-red-200 text-red-700 rounded"
-                            >
-                              Delete Plan v2
-                            </button>
+                                  (async () => {
+                                    try {
+                                      console.log(`[DELETE-PLAN] Starting delete for transaction ${tx.id}`)
+                                      console.log(`[DELETE-PLAN] Current remark: "${tx.remark}"`)
+                                      
+                                      const url = `/api/lms/delete-installment-plan?transactionId=${tx.id}`
+                                      console.log(`[DELETE-PLAN] Calling: ${url}`)
+                                      
+                                      const res = await fetch(url, { method: 'DELETE' })
+                                      
+                                      console.log(`[DELETE-PLAN] Response status: ${res.status}`)
+                                      
+                                      const data = await res.json()
+                                      console.log('[DELETE-PLAN] Response data:', data)
+                                      
+                                      if (!res.ok) {
+                                        throw new Error(data.error || `Failed to delete (${res.status})`)
+                                      }
+                                      
+                                      // Clear cached installments for this transaction IMMEDIATELY
+                                      setInstallmentsByTransaction(prev => {
+                                        const updated = { ...prev, [tx.id]: [] }
+                                        console.log('[DELETE-PLAN] Updated installments cache:', updated)
+                                        return updated
+                                      })
+                                      
+                                      // Trigger server refresh
+                                      if (onRefresh) {
+                                        console.log('[DELETE-PLAN] Triggering onRefresh')
+                                        onRefresh()
+                                      }
+                                      
+                                      toast.success('Installment plan deleted')
+                                    } catch (err: any) {
+                                      console.error('[DELETE-PLAN] Error:', err)
+                                      toast.error(err.message || 'Failed to delete')
+                                    }
+                                  })()
+                                }}
+                                className="px-1.5 py-0.5 text-[9px] bg-red-100 hover:bg-red-200 text-red-700 rounded font-bold"
+                              >
+                                Delete Plan v2
+                              </button>
+                            </div>
                           )}
                         </td>
                       </tr>
