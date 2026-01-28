@@ -70,6 +70,17 @@ export function TransactionModal({
   // Temporary: Allow unlimited past dates for re-entering deleted data
   const ALLOW_UNLIMITED_PAST = true // Set to false when done re-entering data
 
+  // Validate date format (YYYY-MM-DD)
+  const isValidDateFormat = (dateString: string): boolean => {
+    if (!dateString) return false
+    // Check if it matches YYYY-MM-DD format
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/
+    if (!dateRegex.test(dateString)) return false
+    // Check if it's a valid date
+    const date = new Date(dateString)
+    return date instanceof Date && !isNaN(date.getTime())
+  }
+
   // Fetch payment methods
   useEffect(() => {
     fetch(API_ENDPOINTS.PAYMENT_METHODS)
@@ -169,6 +180,22 @@ export function TransactionModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    
+    // Validate all dates
+    if (!isValidDateFormat(form.transactionDate)) {
+      return toast.error('Invalid Transaction Date format. Use YYYY-MM-DD (e.g., 2026-01-28)')
+    }
+    if (form.type === TRANSACTION_TYPES.SERVICE && !isValidDateFormat(form.firstPaymentDate)) {
+      return toast.error('Invalid First Payment Date format. Use YYYY-MM-DD (e.g., 2026-01-28)')
+    }
+    if (form.type === TRANSACTION_TYPES.SERVICE) {
+      for (let i = 0; i < installmentPlan.length; i++) {
+        if (!isValidDateFormat(installmentPlan[i].dueDate)) {
+          return toast.error(`Invalid due date in installment #${i + 1}. Use YYYY-MM-DD format (e.g., 2026-01-28)`)
+        }
+      }
+    }
+    
     if (!form.amount || parseFloat(form.amount) <= 0) return toast.error('Valid amount required')
     if (
       form.type === TRANSACTION_TYPES.PAYMENT &&

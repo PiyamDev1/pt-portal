@@ -56,6 +56,17 @@ export function InstallmentPaymentModal({
   const minDate = ALLOW_UNLIMITED_PAST ? undefined : sevenDaysAgo.toISOString().split('T')[0]
   const maxDate = today.toISOString().split('T')[0]
 
+  // Validate date format (YYYY-MM-DD)
+  const isValidDateFormat = (dateString: string): boolean => {
+    if (!dateString) return false
+    // Check if it matches YYYY-MM-DD format
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/
+    if (!dateRegex.test(dateString)) return false
+    // Check if it's a valid date
+    const date = new Date(dateString)
+    return date instanceof Date && !isNaN(date.getTime())
+  }
+
   useEffect(() => {
     const fetchPaymentMethods = async () => {
       try {
@@ -98,6 +109,12 @@ export function InstallmentPaymentModal({
   const difference = amountNum - installment.amount
 
   const handleSubmit = async () => {
+    // Validate date format first
+    if (!isValidDateFormat(paymentDate)) {
+      toast.error('Invalid Payment Date format. Use YYYY-MM-DD (e.g., 2026-01-28)')
+      return
+    }
+
     if (!paymentAmount || amountNum <= 0) {
       toast.error('Please enter a valid payment amount')
       return
