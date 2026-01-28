@@ -20,34 +20,44 @@ export async function DELETE(request: Request) {
 
     const supabase = createClient(url, key)
 
-    // Check if table exists first
+    // Delete from database if table exists
     try {
-      const { error: tableCheckError } = await supabase
+      const { error: deleteError } = await supabase
         .from('loan_installments')
-        .select('id', { count: 'exact' })
-        .limit(1)
+        .delete()
+        .eq('loan_transaction_id', transactionId)
 
-      if (tableCheckError) {
-        console.warn('Installments table does not exist or error checking:', tableCheckError)
-        return NextResponse.json({ success: true, message: 'No installments to delete (table does not exist)' })
+      if (!deleteError) {
+        console.log(`Deleted database installments for transaction ${transactionId}`)
       }
     } catch (e: any) {
-      console.warn('Could not check installments table:', e.message)
-      return NextResponse.json({ success: true, message: 'No installments to delete (table check failed)' })
+      console.warn('Could not delete from database:', e.message)
     }
 
-    // Delete all installments for this transaction
-    const { error } = await supabase
-      .from('loan_installments')
-      .delete()
-      .eq('loan_transaction_id', transactionId)
+    // Update the transaction to remove installment plan info from remark
+    const { data: transaction, error: fetchError } = await supabase
+      .from('loan_transactions')
+      .select('remark')
+      .eq('id', transactionId)
+      .single()
 
-    if (error) {
-      console.error('Error deleting installment plan:', error)
-      return NextResponse.json({ error: error.message }, { status: 500 })
+    if (!fetchError && transaction) {
+      const newRemark = (transaction.remark || '')
+        .replace(/\s*\d+\s+installments?\s*-\s*(weekly|biweekly|monthly)/, '')
+        .trim()
+      
+      const { error: updateError } = await supabase
+        .from('loan_transactions')
+        .update({ remark: newRemark || null })
+        .eq('id', transactionId)
+
+      if (updateError) {
+        console.error('Error updating transaction remark:', updateError)
+      } else {
+        console.log(`Updated transaction remark for ${transactionId}`)
+      }
     }
 
-    console.log(`Successfully deleted installments for transaction ${transactionId}`)
     return NextResponse.json({ success: true })
   } catch (error: any) {
     console.error('Error in delete-installment-plan:', error)
