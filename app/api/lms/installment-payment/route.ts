@@ -153,6 +153,56 @@ export async function POST(request: Request) {
           }
         }
       }
+
+      // Recalculate remaining installments after payment
+      console.log(`[RECALCULATE] After payment, recalculating remaining installments`)
+      
+      // Get total paid so far
+      const { data: allPaymentsNow, error: paymentsNowError } = await supabase
+        .from('loan_transactions')
+        .select('amount')
+        .eq('loan_id', loanId)
+        .eq('transaction_type', 'payment')
+
+      if (paymentsNowError) throw paymentsNowError
+
+      const totalPaidNow = (allPaymentsNow || []).reduce((sum, p) => sum + parseFloat(p.amount), 0)
+      
+      // Get service transaction amount
+      const { data: serviceTxNow, error: serviceTxNowError } = await supabase
+        .from('loan_transactions')
+        .select('amount')
+        .eq('id', serviceTransactionId)
+        .single()
+
+      if (serviceTxNowError) throw serviceTxNowError
+
+      const serviceAmount = parseFloat(serviceTxNow.amount)
+      const remainingBalance = serviceAmount - totalPaidNow
+
+      // Get all remaining unpaid/unskipped installments
+      const { data: futureInstallments, error: futureError } = await supabase
+        .from('loan_installments')
+        .select('*')
+        .eq('loan_transaction_id', serviceTransactionId)
+        .gt('installment_number', installment.installment_number)
+        .in('status', ['pending', 'overdue'])
+
+      if (futureError) throw futureError
+
+      if (futureInstallments && futureInstallments.length > 0) {
+        const newAmountPerInstallment = remainingBalance / futureInstallments.length
+        console.log(`[RECALCULATE] Updating ${futureInstallments.length} future installments to £${newAmountPerInstallment.toFixed(2)} each`)
+
+        for (const future of futureInstallments) {
+          const { error: updateFutureError } = await supabase
+            .from('loan_installments')
+            .update({ amount: newAmountPerInstallment })
+            .eq('id', future.id)
+
+          if (updateFutureError) throw updateFutureError
+        }
+      }
     } else if (isTempId) {
       console.log(`Skipping installment update for temp ID: ${installmentId}`)
     }

@@ -270,7 +270,35 @@ export function StatementPopup({
                             <td className="p-2 text-right text-slate-400">
                               {installment.amount_paid > 0 ? `£${parseFloat(installment.amount_paid).toFixed(2)}` : '-'}
                             </td>
-                            <td className="p-2"></td>
+                            <td className="p-2 text-center">
+                              {installment.status !== 'paid' && installment.status !== 'skipped' && (
+                                <button
+                                  onClick={async (e) => {
+                                    e.stopPropagation()
+                                    if (!confirm(`Skip Installment ${installment.installment_number}/${totalInstallments}? Remaining installments will be recalculated.`)) return
+                                    
+                                    try {
+                                      const res = await fetch('/api/lms/skip-installment', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ installmentId: installment.id })
+                                      })
+                                      
+                                      const data = await res.json()
+                                      if (!res.ok) throw new Error(data.error || 'Failed to skip')
+                                      
+                                      toast.success(`Installment skipped. ${data.remainingInstallments} installments recalculated to £${data.newAmountPerInstallment.toFixed(2)} each`)
+                                      onRefresh?.()
+                                    } catch (err: any) {
+                                      toast.error(err.message || 'Failed to skip installment')
+                                    }
+                                  }}
+                                  className="px-1.5 py-0.5 text-[9px] bg-amber-100 hover:bg-amber-200 text-amber-700 rounded font-bold"
+                                >
+                                  SKIP
+                                </button>
+                              )}
+                            </td>
                           </tr>
                         )
                       }
