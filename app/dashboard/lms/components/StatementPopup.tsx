@@ -193,7 +193,15 @@ export function StatementPopup({
                                     `/api/lms/delete-installment-plan?transactionId=${tx.id}`,
                                     { method: 'DELETE' }
                                   )
-                                  if (!res.ok) throw new Error('Failed to delete')
+                                  
+                                  if (!res.ok) {
+                                    const errorData = await res.json()
+                                    console.error('Delete failed:', errorData)
+                                    throw new Error(errorData.error || `Failed to delete (${res.status})`)
+                                  }
+                                  
+                                  const data = await res.json()
+                                  console.log('Delete response:', data)
                                   
                                   // Clear installments for this transaction from state
                                   setInstallmentsByTransaction(prev => {
@@ -202,15 +210,17 @@ export function StatementPopup({
                                     return updated
                                   })
                                   
-                                  // Small delay to ensure API has processed
-                                  setTimeout(() => {
-                                    fetchInstallments()
-                                    onRefresh?.()
-                                  }, 100)
+                                  // Delay to allow database to propagate
+                                  await new Promise(resolve => setTimeout(resolve, 500))
                                   
-                                  toast.success('Installment plan deleted')
-                                } catch (err) {
-                                  toast.error('Failed to delete installment plan')
+                                  // Refetch everything
+                                  await fetchInstallments()
+                                  onRefresh?.()
+                                  
+                                  toast.success('Installment plan deleted successfully')
+                                } catch (err: any) {
+                                  console.error('Delete error:', err)
+                                  toast.error(err.message || 'Failed to delete installment plan')
                                 }
                               }}
                               className="px-1.5 py-0.5 text-[9px] bg-red-100 hover:bg-red-200 text-red-700 rounded"
