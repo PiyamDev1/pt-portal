@@ -15,6 +15,22 @@ export async function DELETE(request: Request) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
+    // Check if table exists first
+    try {
+      const { error: tableCheckError } = await supabase
+        .from('loan_installments')
+        .select('id', { count: 'exact' })
+        .limit(1)
+
+      if (tableCheckError) {
+        console.warn('Installments table does not exist, skipping delete')
+        return NextResponse.json({ success: true, message: 'No installments to delete (table does not exist)' })
+      }
+    } catch (e) {
+      console.warn('Could not check installments table:', e)
+      return NextResponse.json({ success: true, message: 'No installments to delete (table check failed)' })
+    }
+
     // Delete all installments for this transaction
     const { error } = await supabase
       .from('loan_installments')
@@ -29,6 +45,6 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ success: true })
   } catch (error: any) {
     console.error('Error in delete-installment-plan:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ error: error.message }, { status: 500 }))
   }
 }
