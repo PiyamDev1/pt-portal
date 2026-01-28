@@ -38,6 +38,7 @@ export default function StatementPage() {
   const [loading, setLoading] = useState(true)
   const [account, setAccount] = useState<any>(null)
   const [filter, setFilter] = useState({ type: '', dateFrom: '', dateTo: '' })
+  const [installmentsByTransaction, setInstallmentsByTransaction] = useState<Record<string, any[]>>({})
 
   useEffect(() => {
     // Fetch account details
@@ -46,7 +47,44 @@ export default function StatementPage() {
       .then(data => {
         const acc = data.accounts?.find((a: any) => a.id === accountId)
         setAccount(acc)
-        setLoading(false)
+        
+        // Fetch installments for all service transactions
+        if (acc && acc.transactions) {
+          const serviceTransactions = acc.transactions.filter((tx: any) => 
+            (tx.transaction_type || '').toLowerCase() === 'service'
+          )
+          
+          const installmentsMap: Record<string, any[]> = {}
+          let fetchedCount = 0
+          
+          serviceTransactions.forEach((tx: any) => {
+            fetch(`/api/lms/installments?transactionId=${tx.id}`)
+              .then(res => res.json())
+              .then(data => {
+                installmentsMap[tx.id] = data.installments || []
+                fetchedCount++
+                
+                if (fetchedCount === serviceTransactions.length) {
+                  setInstallmentsByTransaction(installmentsMap)
+                  setLoading(false)
+                }
+              })
+              .catch(err => {
+                console.error('Failed to fetch installments:', err)
+                fetchedCount++
+                if (fetchedCount === serviceTransactions.length) {
+                  setInstallmentsByTransaction(installmentsMap)
+                  setLoading(false)
+                }
+              })
+          })
+          
+          if (serviceTransactions.length === 0) {
+            setLoading(false)
+          }
+        } else {
+          setLoading(false)
+        }
       })
       .catch(err => {
         console.error(err)
@@ -229,45 +267,84 @@ export default function StatementPage() {
                     </tr>
                   )
 
-                  {/* Installment Schedule Rows (if this is a service with future installments) */}
-                  if (isService && serviceLoan && serviceLoan.term_months) {
-                    // Calculate actual deposit amount from preceding payment transactions on same date
-                    const sameDay = new Date(tx.transaction_timestamp).toDateString()
-                    const depositAmount = filteredTransactions
-                      .filter((t: any) => 
-                        (t.transaction_type || '').toLowerCase() === 'payment' &&
-                        new Date(t.transaction_timestamp).toDateString() === sameDay
-                      )
-                      .reduce((sum: number, t: any) => sum + parseFloat(t.amount), 0)
+                  {/* Actual Installment Rows from Database */}
+                  if (isService) {
+                    const installments = installmentsByTransaction[tx.id] || []
+                    const totalInstallments = installments.length
                     
-                    const scheduleRows = generateInstallmentSchedule(
-                      tx.transaction_timestamp,
-                      txAmount,
-                      depositAmount || txAmount * 0.17, // Use actual deposit or 17% as fallback
-                      serviceLoan.term_months,
-                      serviceLoan.next_due_date
-                    )
-                    
-                    scheduleRows.forEach((installment: any, idx: number) => {
-                      rows.push(
-                        <tr key={`install-${i}-${idx}`} className="border-b border-slate-200 bg-blue-50 hover:bg-blue-100 print:bg-blue-50 print:hover:bg-blue-50">
-                          <td className="p-3 text-slate-600 print:p-2 print:text-xs">{new Date(installment.date).toLocaleDateString()}</td>
-                          <td className="p-3 print:p-2">
-                            <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-blue-100 text-blue-700 print:px-1 print:py-0 print:text-[8px] print:bg-blue-100">
-                              PLAN
-                            </span>
-                          </td>
-                          <td className="p-3 text-slate-600 text-sm print:p-2 print:text-xs">
-                            <div>Total £{txAmount.toFixed(2)}, Remaining £{installment.remaining.toFixed(2)}</div>
-                            <div className="text-xs text-slate-500 print:text-[7px]">Term {idx + 1}/{serviceLoan.term_months}</div>
-                          </td>
-                          <td className="p-3 text-right font-mono text-amber-700 font-bold print:p-2 print:text-xs">
-                            £{installment.amount.toFixed(2)}
-                          </td>
-                          <td className="p-3 text-right font-mono text-slate-400 print:p-2 print:text-xs">-</td>
-                        </tr>
-                      )
-                    })
+                    if (installments.length > 0) {
+                      // Display actual installments from database
+                      installments.forEach((installment: any, idx: number) => {
+                        const statusColor = 
+                          installment.status === 'paid' ? 'bg-green-100 text-green-700' :
+                          installment.status === 'partial' ? 'bg-yellow-100 text-yellow-700' :
+                          installment.status === 'skipped' ? 'bg-gray-100 text-gray-600' :
+                          installment.status === 'overdue' ? 'bg-red-100 text-red-700' :
+                          'bg-blue-100 text-blue-700'
+                        
+                        rows.push(
+                          <tr key={`install-${tx.id}-${installment.id}`} className="border-b border-slate-200 bg-blue-50 hover:bg-blue-100 print:bg-blue-50 print:hover:bg-blue-50">
+                            <td className="p-3 text-slate-600 print:p-2 print:text-xs">{new Date(installment.due_date).toLocaleDateString()}</td>
+                            <td className="p-3 print:p-2">
+                              <span className={`px-2 py-0.5 rounded text-[11px] font-bold print:px-1 print:py-0 print:text-[8px] ${statusColor}`}>
+                                {installment.status.toUpperCase()}
+                              </span>
+                            </td>
+                            <td className="p-3 text-slate-600 text-sm print:p-2 print:text-xs">
+                              <div>Installment {installment.installment_number}/{totalInstallments}</div>
+                              <div className="text-xs text-slate-500 print:text-[7px]">Plan: {tx.id.substring(0, 8)} | ID: {installment.id.substring(0, 8)}</div>
+                            </td>
+                            <td className="p-3 text-right font-mono text-blue-700 font-bold print:p-2 print:text-xs">
+                              £{parseFloat(installment.amount).toFixed(2)}
+                            </td>
+                            <td className="p-3 text-right font-mono text-slate-400 print:p-2 print:text-xs">
+                              {installment.amount_paid > 0 ? `£${parseFloat(installment.amount_paid).toFixed(2)}` : '-'}
+                            </td>
+                          </tr>
+                        )
+                      })
+                    } else {
+                      // Fallback to generated schedule if no DB installments
+                      if (serviceLoan && serviceLoan.term_months) {
+                        const sameDay = new Date(tx.transaction_timestamp).toDateString()
+                        const depositAmount = filteredTransactions
+                          .filter((t: any) => 
+                            (t.transaction_type || '').toLowerCase() === 'payment' &&
+                            new Date(t.transaction_timestamp).toDateString() === sameDay
+                          )
+                          .reduce((sum: number, t: any) => sum + parseFloat(t.amount), 0)
+                        
+                        const scheduleRows = generateInstallmentSchedule(
+                          tx.transaction_timestamp,
+                          txAmount,
+                          depositAmount || txAmount * 0.17,
+                          serviceLoan.term_months,
+                          serviceLoan.next_due_date
+                        )
+                        
+                        scheduleRows.forEach((installment: any, idx: number) => {
+                          rows.push(
+                            <tr key={`install-${i}-${idx}`} className="border-b border-slate-200 bg-blue-50 hover:bg-blue-100 print:bg-blue-50 print:hover:bg-blue-50">
+                              <td className="p-3 text-slate-600 print:p-2 print:text-xs">{new Date(installment.date).toLocaleDateString()}</td>
+                              <td className="p-3 print:p-2">
+                                <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-blue-100 text-blue-700 print:px-1 print:py-0 print:text-[8px] print:bg-blue-100">
+                                  PLAN
+                                </span>
+                              </td>
+                              <td className="p-3 text-slate-600 text-sm print:p-2 print:text-xs">
+                                <div>Total £{txAmount.toFixed(2)}, Remaining £{installment.remaining.toFixed(2)}</div>
+                                <div className="text-xs text-slate-500 print:text-[7px]">Term {idx + 1}/{serviceLoan.term_months} | Plan: {tx.id.substring(0, 8)}</div>
+                              </td>
+                              <td className="p-3 text-right font-mono text-amber-700 font-bold print:p-2 print:text-xs">
+                                £{installment.amount.toFixed(2)}
+                              </td>
+                              <td className="p-3 text-right font-mono text-slate-400 print:p-2 print:text-xs">-</td>
+                            </tr>
+                          )
+                        })
+                      }
+                    }
+                  }
                   }
                   
                   return rows
