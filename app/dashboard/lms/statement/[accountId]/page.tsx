@@ -345,7 +345,6 @@ export default function StatementPage() {
                       }
                     }
                   }
-                  }
                   
                   return rows
                 })
