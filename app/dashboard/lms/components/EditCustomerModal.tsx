@@ -24,11 +24,45 @@ export function EditCustomerModal({
   onSave,
   employeeId
 }: EditCustomerModalProps) {
+  // Date format conversion utilities
+  const formatToDisplayDate = (isoDate: string): string => {
+    if (!isoDate) return ''
+    const [year, month, day] = isoDate.split('-')
+    return `${day}/${month}/${year}`
+  }
+
+  const formatToISODate = (displayDate: string): string => {
+    if (!displayDate) return ''
+    const parts = displayDate.split('/')
+    if (parts.length !== 3) return ''
+    const [day, month, year] = parts
+    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`
+  }
+
+  // Validate date format (DD/MM/YYYY)
+  const isValidDateFormat = (dateString: string): boolean => {
+    if (!dateString) return true // Empty is valid
+    const dateRegex = /^\d{2}\/\d{2}\/\d{4}$/
+    if (!dateRegex.test(dateString)) return false
+    
+    const parts = dateString.split('/')
+    const day = parseInt(parts[0])
+    const month = parseInt(parts[1])
+    const year = parseInt(parts[2])
+    
+    if (month < 1 || month > 12) return false
+    if (day < 1 || day > 31) return false
+    
+    const date = new Date(`${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`)
+    return date instanceof Date && !isNaN(date.getTime())
+  }
+
+  const displayDateOfBirth = customer.dateOfBirth ? formatToDisplayDate(customer.dateOfBirth) : ''
   const [form, setForm] = useState({
     phone: customer.phone || '',
     email: customer.email || '',
     address: customer.address || '',
-    dateOfBirth: customer.dateOfBirth || '',
+    dateOfBirth: displayDateOfBirth,
     notes: customer.notes || ''
   })
   const [loading, setLoading] = useState(false)
@@ -43,6 +77,15 @@ export function EditCustomerModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
+    // Validate date format
+    if (!isValidDateFormat(form.dateOfBirth)) {
+      toast.error('Invalid date format. Use DD/MM/YYYY (e.g., 15/03/1990)')
+      return
+    }
+
+    // Convert display date to ISO format
+    const isoDateOfBirth = form.dateOfBirth ? formatToISODate(form.dateOfBirth) : ''
+
     setLoading(true)
     try {
       const res = await fetch(API_ENDPOINTS.LMS, {
@@ -51,7 +94,11 @@ export function EditCustomerModal({
         body: JSON.stringify({
           action: 'update_customer',
           customerId: customer.id,
-          ...form,
+          phone: form.phone,
+          email: form.email,
+          address: form.address,
+          dateOfBirth: isoDateOfBirth,
+          notes: form.notes,
           employeeId
         })
       })
@@ -151,14 +198,15 @@ export function EditCustomerModal({
 
         <div>
           <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">
-            Date of Birth
+            Date of Birth (DD/MM/YYYY)
           </label>
           <input
-            type="date"
+            type="text"
+            placeholder="DD/MM/YYYY"
             value={form.dateOfBirth}
             onChange={e => updateForm({ dateOfBirth: e.target.value })}
             className="w-full p-3 border rounded-lg"
-            max={new Date().toISOString().split('T')[0]}
+            maxLength={10}
           />
         </div>
 

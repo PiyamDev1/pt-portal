@@ -38,9 +38,25 @@ export function InstallmentPaymentModal({
   onClose,
   onSave,
 }: InstallmentPaymentModalProps) {
+  // Date format conversion utilities
+  const formatToDisplayDate = (isoDate: string): string => {
+    if (!isoDate) return ''
+    const [year, month, day] = isoDate.split('-')
+    return `${day}/${month}/${year}`
+  }
+
+  const formatToISODate = (displayDate: string): string => {
+    if (!displayDate) return ''
+    const parts = displayDate.split('/')
+    if (parts.length !== 3) return ''
+    const [day, month, year] = parts
+    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`
+  }
+
+  const todayISO = new Date().toISOString().split('T')[0]
   const [paymentAmount, setPaymentAmount] = useState(installment.amount.toFixed(2))
   const [paymentMethod, setPaymentMethod] = useState('')
-  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0])
+  const [paymentDate, setPaymentDate] = useState(formatToDisplayDate(todayISO))
   const [loading, setLoading] = useState(false)
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([])
   const [existingPayments, setExistingPayments] = useState<any[]>([])
@@ -56,14 +72,26 @@ export function InstallmentPaymentModal({
   const minDate = ALLOW_UNLIMITED_PAST ? undefined : sevenDaysAgo.toISOString().split('T')[0]
   const maxDate = today.toISOString().split('T')[0]
 
-  // Validate date format (YYYY-MM-DD)
+  // Validate date format (DD/MM/YYYY)
   const isValidDateFormat = (dateString: string): boolean => {
     if (!dateString) return false
-    // Check if it matches YYYY-MM-DD format
-    const dateRegex = /^\d{4}-\d{2}-\d{2}$/
+    // Check if it matches DD/MM/YYYY format
+    const dateRegex = /^\d{2}\/\d{2}\/\d{4}$/
     if (!dateRegex.test(dateString)) return false
+    
+    const parts = dateString.split('/')
+    const day = parseInt(parts[0])
+    const month = parseInt(parts[1])
+    const year = parseInt(parts[2])
+    
+    // Check if month is valid
+    if (month < 1 || month > 12) return false
+    
+    // Check if day is valid
+    if (day < 1 || day > 31) return false
+    
     // Check if it's a valid date
-    const date = new Date(dateString)
+    const date = new Date(`${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`)
     return date instanceof Date && !isNaN(date.getTime())
   }
 
@@ -111,7 +139,14 @@ export function InstallmentPaymentModal({
   const handleSubmit = async () => {
     // Validate date format first
     if (!isValidDateFormat(paymentDate)) {
-      toast.error('Invalid Payment Date format. Use YYYY-MM-DD (e.g., 2026-01-28)')
+      toast.error('Invalid Payment Date format. Use DD/MM/YYYY (e.g., 28/01/2026)')
+      return
+    }
+
+    // Convert display date to ISO format for API
+    const isoPaymentDate = formatToISODate(paymentDate)
+    if (!isoPaymentDate) {
+      toast.error('Invalid Payment Date. Please check the date and try again.')
       return
     }
 
@@ -133,7 +168,7 @@ export function InstallmentPaymentModal({
         employeeId,
         paymentAmount: amountNum,
         paymentMethod,
-        paymentDate,
+        paymentDate: isoPaymentDate,
       }
 
       // For temporary installments, pass loan info
@@ -244,18 +279,18 @@ export function InstallmentPaymentModal({
         {/* Payment Date */}
         <div>
           <label className="block text-sm font-bold text-slate-700 mb-2">
-            Payment Date
+            Payment Date (DD/MM/YYYY)
             {ALLOW_UNLIMITED_PAST && <span className="text-orange-500 text-xs font-normal ml-2">(Backdated: Unlimited)</span>}
             {!ALLOW_UNLIMITED_PAST && <span className="text-slate-500 text-xs font-normal ml-2">(Last 7 days)</span>}
           </label>
           <input
-            type="date"
+            type="text"
+            placeholder="DD/MM/YYYY"
             value={paymentDate}
             onChange={(e) => setPaymentDate(e.target.value)}
-            {...(minDate && { min: minDate })}
-            max={maxDate}
-            className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-slate-400"
+            className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-slate-400 focus:ring-2 focus:ring-blue-200"
             disabled={loading}
+            maxLength={10}
           />
         </div>
 

@@ -52,11 +52,11 @@ export function TransactionModal({
     type: (data.transactionType || TRANSACTION_TYPES.SERVICE) as 'service' | 'payment' | 'fee',
     amount: '',
     paymentMethodId: '',
-    transactionDate: new Date().toISOString().split('T')[0],
+    transactionDate: formatToDisplayDate(new Date().toISOString().split('T')[0]),
     initialDeposit: '',
-    firstPaymentDate: new Date(Date.now() + DATE_OFFSETS.FIRST_PAYMENT_DAYS * 24 * 60 * 60 * 1000)
+    firstPaymentDate: formatToDisplayDate(new Date(Date.now() + DATE_OFFSETS.FIRST_PAYMENT_DAYS * 24 * 60 * 60 * 1000)
       .toISOString()
-      .split('T')[0],
+      .split('T')[0]),
     installmentTerms: '6',
     paymentFrequency: PAYMENT_FREQUENCIES.MONTHLY as 'weekly' | 'biweekly' | 'monthly',
     notes: ''
@@ -70,14 +70,41 @@ export function TransactionModal({
   // Temporary: Allow unlimited past dates for re-entering deleted data
   const ALLOW_UNLIMITED_PAST = true // Set to false when done re-entering data
 
-  // Validate date format (YYYY-MM-DD)
+  // Date format conversion utilities
+  const formatToDisplayDate = (isoDate: string): string => {
+    if (!isoDate) return ''
+    const [year, month, day] = isoDate.split('-')
+    return `${day}/${month}/${year}`
+  }
+
+  const formatToISODate = (displayDate: string): string => {
+    if (!displayDate) return ''
+    const parts = displayDate.split('/')
+    if (parts.length !== 3) return ''
+    const [day, month, year] = parts
+    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`
+  }
+
+  // Validate date format (DD/MM/YYYY)
   const isValidDateFormat = (dateString: string): boolean => {
     if (!dateString) return false
-    // Check if it matches YYYY-MM-DD format
-    const dateRegex = /^\d{4}-\d{2}-\d{2}$/
+    // Check if it matches DD/MM/YYYY format
+    const dateRegex = /^\d{2}\/\d{2}\/\d{4}$/
     if (!dateRegex.test(dateString)) return false
+    
+    const parts = dateString.split('/')
+    const day = parseInt(parts[0])
+    const month = parseInt(parts[1])
+    const year = parseInt(parts[2])
+    
+    // Check if month is valid
+    if (month < 1 || month > 12) return false
+    
+    // Check if day is valid
+    if (day < 1 || day > 31) return false
+    
     // Check if it's a valid date
-    const date = new Date(dateString)
+    const date = new Date(`${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`)
     return date instanceof Date && !isNaN(date.getTime())
   }
 
@@ -183,15 +210,15 @@ export function TransactionModal({
     
     // Validate all dates
     if (!isValidDateFormat(form.transactionDate)) {
-      return toast.error('Invalid Transaction Date format. Use YYYY-MM-DD (e.g., 2026-01-28)')
+      return toast.error('Invalid Transaction Date format. Use DD/MM/YYYY (e.g., 28/01/2026)')
     }
     if (form.type === TRANSACTION_TYPES.SERVICE && !isValidDateFormat(form.firstPaymentDate)) {
-      return toast.error('Invalid First Payment Date format. Use YYYY-MM-DD (e.g., 2026-01-28)')
+      return toast.error('Invalid First Payment Date format. Use DD/MM/YYYY (e.g., 28/01/2026)')
     }
     if (form.type === TRANSACTION_TYPES.SERVICE) {
       for (let i = 0; i < installmentPlan.length; i++) {
         if (!isValidDateFormat(installmentPlan[i].dueDate)) {
-          return toast.error(`Invalid due date in installment #${i + 1}. Use YYYY-MM-DD format (e.g., 2026-01-28)`)
+          return toast.error(`Invalid due date in installment #${i + 1}. Use DD/MM/YYYY format (e.g., 28/01/2026)`)
         }
       }
     }
@@ -209,7 +236,7 @@ export function TransactionModal({
       customerId: data.id,
       notes: form.notes,
       employeeId,
-      transactionDate: form.transactionDate
+      transactionDate: formatToISODate(form.transactionDate)
     }
 
     if (form.type === TRANSACTION_TYPES.SERVICE) {
@@ -217,7 +244,11 @@ export function TransactionModal({
       payload.serviceAmount = form.amount
       payload.initialDeposit = form.initialDeposit
       payload.installmentTerms = form.installmentTerms
-      payload.installmentPlan = installmentPlan
+      // Convert installment plan dates to ISO format
+      payload.installmentPlan = installmentPlan.map(ip => ({
+        ...ip,
+        dueDate: formatToISODate(ip.dueDate)
+      }))
       payload.paymentFrequency = form.paymentFrequency
     } else if (form.type === TRANSACTION_TYPES.PAYMENT) {
       payload.action = 'record_payment'
@@ -340,11 +371,11 @@ export function TransactionModal({
           <div className="relative">
             <Calendar className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
             <input
-              type="date"
+              type="text"
+              placeholder="DD/MM/YYYY"
               value={form.transactionDate}
               onChange={e => updateForm({ transactionDate: e.target.value })}
               className="w-full pl-10 p-3 border rounded-lg"
-              min={ALLOW_UNLIMITED_PAST ? undefined : new Date().toISOString().split('T')[0]}
             />
           </div>
         </div>
@@ -435,11 +466,11 @@ export function TransactionModal({
                 <div className="relative">
                   <Calendar className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
                   <input
-                    type="date"
+                    type="text"
+                    placeholder="DD/MM/YYYY"
                     value={form.firstPaymentDate}
                     onChange={e => updateForm({ firstPaymentDate: e.target.value })}
                     className="w-full pl-10 p-3 border rounded-lg"
-                    min={ALLOW_UNLIMITED_PAST ? undefined : new Date().toISOString().split('T')[0]}
                   />
                 </div>
               </div>
@@ -486,10 +517,10 @@ export function TransactionModal({
                                 Due Date
                               </div>
                               <input
-                                type="date"
+                                type="text"
+                                placeholder="DD/MM/YYYY"
                                 value={installment.dueDate}
                                 onChange={e => updateInstallmentDate(idx, e.target.value)}
-                                min={ALLOW_UNLIMITED_PAST ? undefined : new Date().toISOString().split('T')[0]}
                                 className="w-full p-2 text-sm border-2 border-slate-200 rounded-lg hover:border-blue-400 focus:border-blue-500 outline-none"
                               />
                             </div>

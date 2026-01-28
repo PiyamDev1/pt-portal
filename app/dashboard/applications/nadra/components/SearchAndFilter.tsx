@@ -86,21 +86,23 @@ export default function SearchAndFilter({
       
       <div className="flex flex-col md:flex-row gap-4 items-center">
         <div className="flex gap-2 items-center">
-          <label className="text-sm text-slate-600">Date Range:</label>
+          <label className="text-sm text-slate-600">Date Range (DD/MM/YYYY):</label>
           <input 
-            type="date" 
+            type="text" 
+            placeholder="DD/MM/YYYY"
             value={startDate} 
             onChange={e => onStartDateChange(e.target.value)}
             className="px-3 py-2 bg-slate-50 border-none rounded-lg text-sm"
-            placeholder="From"
+            maxLength={10}
           />
           <span className="text-slate-400">to</span>
           <input 
-            type="date" 
+            type="text" 
+            placeholder="DD/MM/YYYY"
             value={endDate} 
             onChange={e => onEndDateChange(e.target.value)}
             className="px-3 py-2 bg-slate-50 border-none rounded-lg text-sm"
-            placeholder="To"
+            maxLength={10}
           />
           {(startDate || endDate) && (
             <button 

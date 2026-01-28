@@ -8,6 +8,22 @@ import { useParams } from 'next/navigation'
 export default function StatementPage() {
   const params = useParams()
   const accountId = params.accountId as string
+  
+  // Date format conversion utilities
+  const formatToDisplayDate = (isoDate: string): string => {
+    if (!isoDate) return ''
+    const [year, month, day] = isoDate.split('-')
+    return `${day}/${month}/${year}`
+  }
+
+  const formatToISODate = (displayDate: string): string => {
+    if (!displayDate) return ''
+    const parts = displayDate.split('/')
+    if (parts.length !== 3) return ''
+    const [day, month, year] = parts
+    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`
+  }
+
   const [loading, setLoading] = useState(true)
   const [account, setAccount] = useState<any>(null)
   const [filter, setFilter] = useState({ type: '', dateFrom: '', dateTo: '' })
@@ -35,8 +51,13 @@ export default function StatementPage() {
     const tType = (tx.transaction_type || '').toLowerCase()
     const fType = (filter.type || '').toLowerCase()
     if (fType && tType !== fType) return false
-    if (filter.dateFrom && new Date(tx.transaction_timestamp) < new Date(filter.dateFrom)) return false
-    if (filter.dateTo && new Date(tx.transaction_timestamp) > new Date(filter.dateTo)) return false
+    
+    // Convert filter dates from DD/MM/YYYY to ISO for comparison
+    const isoDateFrom = filter.dateFrom ? formatToISODate(filter.dateFrom) : ''
+    const isoDateTo = filter.dateTo ? formatToISODate(filter.dateTo) : ''
+    
+    if (isoDateFrom && new Date(tx.transaction_timestamp) < new Date(isoDateFrom)) return false
+    if (isoDateTo && new Date(tx.transaction_timestamp) > new Date(isoDateTo)) return false
     return true
   }) || []
 
@@ -119,21 +140,25 @@ export default function StatementPage() {
               </select>
             </div>
             <div>
-              <label className="text-xs font-bold text-slate-600 block mb-1">From Date</label>
+              <label className="text-xs font-bold text-slate-600 block mb-1">From Date (DD/MM/YYYY)</label>
               <input 
-                type="date" 
+                type="text" 
+                placeholder="DD/MM/YYYY"
                 value={filter.dateFrom}
                 onChange={e => setFilter({...filter, dateFrom: e.target.value})}
                 className="w-full p-2 border rounded text-sm"
+                maxLength={10}
               />
             </div>
             <div>
-              <label className="text-xs font-bold text-slate-600 block mb-1">To Date</label>
+              <label className="text-xs font-bold text-slate-600 block mb-1">To Date (DD/MM/YYYY)</label>
               <input 
-                type="date" 
+                type="text" 
+                placeholder="DD/MM/YYYY"
                 value={filter.dateTo}
                 onChange={e => setFilter({...filter, dateTo: e.target.value})}
                 className="w-full p-2 border rounded text-sm"
+                maxLength={10}
               />
             </div>
           </div>
