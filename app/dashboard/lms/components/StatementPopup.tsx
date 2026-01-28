@@ -193,48 +193,50 @@ export function StatementPopup({
                             <button
                               onClick={async (e) => {
                                 e.stopPropagation()
-                                if (!confirm('Delete this installment plan? You can recreate it by editing the service.')) return
+                                e.preventDefault()
+                                
+                                console.log('[DELETE-PLAN] Button clicked!')
+                                
+                                const confirmed = confirm('Delete this installment plan? This will remove all installment records from the database.')
+                                console.log('[DELETE-PLAN] User confirmed:', confirmed)
+                                
+                                if (!confirmed) return
+                                
                                 try {
-                                  console.log(`[DELETE] Starting delete for transaction ${tx.id}`)
-                                  console.log(`[DELETE] Current remark: "${tx.remark}"`)
+                                  console.log(`[DELETE-PLAN] Starting delete for transaction ${tx.id}`)
+                                  console.log(`[DELETE-PLAN] Current remark: "${tx.remark}"`)
                                   
-                                  const res = await fetch(
-                                    `/api/lms/delete-installment-plan?transactionId=${tx.id}`,
-                                    { method: 'DELETE' }
-                                  )
+                                  const url = `/api/lms/delete-installment-plan?transactionId=${tx.id}`
+                                  console.log(`[DELETE-PLAN] Calling: ${url}`)
                                   
-                                  if (!res.ok) {
-                                    const errorData = await res.json()
-                                    console.error('[DELETE] Error response:', errorData)
-                                    throw new Error(errorData.error || `Failed to delete (${res.status})`)
-                                  }
+                                  const res = await fetch(url, { method: 'DELETE' })
+                                  
+                                  console.log(`[DELETE-PLAN] Response status: ${res.status}`)
                                   
                                   const data = await res.json()
-                                  console.log('[DELETE] Success response:', data)
+                                  console.log('[DELETE-PLAN] Response data:', data)
                                   
-                                  // Update local account to remove installments for this transaction
-                                  setLocalAccount(prev => ({
-                                    ...prev,
-                                    transactions: prev.transactions?.map(t => 
-                                      t.id === tx.id 
-                                        ? { ...t, remark: undefined }  // Remove remark to prevent fallback generation
-                                        : t
-                                    ) || []
-                                  }))
+                                  if (!res.ok) {
+                                    throw new Error(data.error || `Failed to delete (${res.status})`)
+                                  }
                                   
-                                  // Clear cached installments for this transaction
-                                  setInstallmentsByTransaction(prev => ({
-                                    ...prev,
-                                    [tx.id]: []
-                                  }))
+                                  // Clear cached installments for this transaction IMMEDIATELY
+                                  setInstallmentsByTransaction(prev => {
+                                    const updated = { ...prev, [tx.id]: [] }
+                                    console.log('[DELETE-PLAN] Updated installments cache:', updated)
+                                    return updated
+                                  })
                                   
-                                  // Trigger full refresh from server (optional, for consistency)
-                                  onRefresh?.()
+                                  // Trigger server refresh
+                                  if (onRefresh) {
+                                    console.log('[DELETE-PLAN] Triggering onRefresh')
+                                    onRefresh()
+                                  }
                                   
-                                  toast.success('Installment plan deleted successfully')
+                                  toast.success('Installment plan deleted')
                                 } catch (err: any) {
-                                  console.error('[DELETE] Error:', err)
-                                  toast.error(err.message || 'Failed to delete installment plan')
+                                  console.error('[DELETE-PLAN] Error:', err)
+                                  toast.error(err.message || 'Failed to delete')
                                 }
                               }}
                               className="px-1.5 py-0.5 text-[9px] bg-red-100 hover:bg-red-200 text-red-700 rounded"
