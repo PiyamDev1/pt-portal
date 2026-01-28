@@ -308,6 +308,7 @@ export function TransactionModal({
         <div>
           <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">
             Transaction Date
+            {ALLOW_UNLIMITED_PAST && <span className="text-orange-500 text-xs font-normal">(Backdated: Unlimited)</span>}
           </label>
           <div className="relative">
             <Calendar className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
@@ -316,6 +317,7 @@ export function TransactionModal({
               value={form.transactionDate}
               onChange={e => updateForm({ transactionDate: e.target.value })}
               className="w-full pl-10 p-3 border rounded-lg"
+              min={ALLOW_UNLIMITED_PAST ? undefined : new Date().toISOString().split('T')[0]}
             />
           </div>
         </div>
@@ -460,7 +462,7 @@ export function TransactionModal({
                                 type="date"
                                 value={installment.dueDate}
                                 onChange={e => updateInstallmentDate(idx, e.target.value)}
-                                min={new Date().toISOString().split('T')[0]}
+                                min={ALLOW_UNLIMITED_PAST ? undefined : new Date().toISOString().split('T')[0]}
                                 className="w-full p-2 text-sm border-2 border-slate-200 rounded-lg hover:border-blue-400 focus:border-blue-500 outline-none"
                               />
                             </div>
