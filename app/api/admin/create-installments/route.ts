@@ -55,60 +55,78 @@ export async function POST(request: Request) {
 
     let createdCount = 0
     let skippedCount = 0
+    let errorCount = 0
+    const errors: string[] = []
 
     // 3. Create installments for each service transaction
     for (const tx of serviceTransactions || []) {
-      // Check if installments already exist
-      const { data: existingInstallments, error: checkError } = await supabase
-        .from('loan_installments')
-        .select('id')
-        .eq('loan_transaction_id', tx.id)
-        .limit(1)
+      try {
+        // Check if installments already exist
+        const { data: existingInstallments, error: checkError } = await supabase
+          .from('loan_installments')
+          .select('id')
+          .eq('loan_transaction_id', tx.id)
+          .limit(1)
 
-      if (checkError) {
-        console.error(`Error checking installments for ${tx.id}:`, checkError)
-        continue
-      }
+        if (checkError) {
+          console.error(`Error checking installments for ${tx.id}:`, checkError)
+          errors.push(`Check error for ${tx.id}: ${checkError.message}`)
+          errorCount++
+          continue
+        }
 
-      if (existingInstallments && existingInstallments.length > 0) {
-        skippedCount++
-        continue
-      }
+        if (existingInstallments && existingInstallments.length > 0) {
+          console.log(`Skipping ${tx.id} - already has installments`)
+          skippedCount++
+          continue
+        }
 
-      const totalAmount = parseFloat(tx.amount)
-      const loan = Array.isArray(tx.loan) ? tx.loan[0] : tx.loan
-      const terms = loan?.term_months || 3 // Use loan terms or default to 3
-      
-      // Calculate installment amount based on current balance (accounts for deposits)
-      const currentBalance = loan?.current_balance || totalAmount
-      const installmentAmount = currentBalance / terms
+        const totalAmount = parseFloat(tx.amount)
+        const loan = Array.isArray(tx.loan) ? tx.loan[0] : tx.loan
+        const terms = loan?.term_months || 3 // Use loan terms or default to 3
+        
+        // Calculate installment amount based on current balance (accounts for deposits)
+        const currentBalance = loan?.current_balance || totalAmount
+        const installmentAmount = currentBalance / terms
 
-      const installments = []
-      const baseDate = new Date(tx.transaction_timestamp)
+        console.log(`Creating installments for ${tx.id}: balance=${currentBalance}, terms=${terms}, amount=${installmentAmount}`)
 
-      for (let i = 1; i <= terms; i++) {
-        const dueDate = new Date(baseDate)
-        dueDate.setMonth(dueDate.getMonth() + i)
+        const installments = []
+        const baseDate = new Date(tx.transaction_timestamp)
 
-        installments.push({
-          loan_transaction_id: tx.id,
-          installment_number: i,
-          due_date: dueDate.toISOString().split('T')[0],
-          amount: installmentAmount,
-          status: 'pending',
-          amount_paid: 0,
-        })
-      }
+        for (let i = 1; i <= terms; i++) {
+          const dueDate = new Date(baseDate)
+          dueDate.setMonth(dueDate.getMonth() + i)
 
-      // Insert installments
-      const { error: insertError } = await supabase
-        .from('loan_installments')
-        .insert(installments)
+          installments.push({
+            loan_transaction_id: tx.id,
+            installment_number: i,
+            due_date: dueDate.toISOString().split('T')[0],
+            amount: installmentAmount,
+            status: 'pending',
+            amount_paid: 0,
+          })
+        }
 
-      if (!insertError) {
-        createdCount += installments.length
-      } else {
-        console.error(`Error creating installments for ${tx.id}:`, insertError)
+        // Insert installments
+        const { data: insertedData, error: insertError } = await supabase
+          .from('loan_installments')
+          .insert(installments)
+          .select()
+
+        if (insertError) {
+          console.error(`Error creating installments for ${tx.id}:`, insertError)
+          errors.push(`Insert error for ${tx.id}: ${insertError.message}`)
+          errorCount++
+        } else {
+          const count = insertedData?.length || 0
+          console.log(`Successfully created ${count} installments for ${tx.id}`)
+          createdCount += count
+        }
+      } catch (err: any) {
+        console.error(`Exception processing ${tx.id}:`, err)
+        errors.push(`Exception for ${tx.id}: ${err.message}`)
+        errorCount++
       }
     }
 
@@ -117,6 +135,8 @@ export async function POST(request: Request) {
       message: `Created ${createdCount} installment records for ${serviceTransactions?.length || 0} service transactions`,
       created: createdCount,
       skipped: skippedCount,
+      errors: errorCount,
+      errorDetails: errors.length > 0 ? errors : undefined,
       total: serviceTransactions?.length || 0,
     })
   } catch (error: any) {

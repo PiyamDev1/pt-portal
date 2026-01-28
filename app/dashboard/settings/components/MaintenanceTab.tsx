@@ -82,7 +82,16 @@ export function MaintenanceTab() {
                             <div className="text-xs text-green-700 space-y-1">
                               <p>✓ Created: {result.created} installments</p>
                               <p>✓ Skipped: {result.skipped} (already had installments)</p>
+                              {result.errors > 0 && <p className="text-red-700">✗ Errors: {result.errors}</p>}
                               <p>✓ Total transactions processed: {result.total}</p>
+                            </div>
+                          )}
+                          {result.errorDetails && result.errorDetails.length > 0 && (
+                            <div className="mt-3 p-2 bg-red-50 border border-red-200 rounded text-xs">
+                              <p className="font-bold text-red-800 mb-1">Error Details:</p>
+                              {result.errorDetails.map((err: string, idx: number) => (
+                                <p key={idx} className="text-red-700 font-mono text-[10px]">{err}</p>
+                              ))}
                             </div>
                           )}
                         </>
