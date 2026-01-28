@@ -246,74 +246,12 @@ export function StatementPopup({
                       </tr>
                     )
 
-                    // If this is a service, show installment rows from database
+                    // If this is a service, show installment rows from database ONLY
                     if (tType === 'service') {
                       const installments = installmentsByTransaction[tx.id] || []
                       
-                      // Try to find a deposit payment made on the same day
-                      const serviceDate = new Date(tx.transaction_timestamp || new Date())
-                      const sameDayTransactions = account.transactions?.filter(t => {
-                        const tDate = new Date(t.transaction_timestamp || '')
-                        return tDate.toDateString() === serviceDate.toDateString()
-                      }) || []
-                      const depositPayment = sameDayTransactions.find(
-                        t => (t.transaction_type || '').toLowerCase() === 'payment'
-                      )
-                      const depositAmount = depositPayment ? parseFloat(depositPayment.amount as any) || 0 : 0
-                      const remainingAmount = Math.max(0, txAmount - depositAmount)
-                      
-                      // Extract number of installments from remark (e.g., "6 installments - monthly")
-                      let numInstallments = 0 // default to 0 - don't generate if no pattern found
-                      const installmentMatch = (tx.remark || '').match(/(\d+)\s+installments?/i)
-                      if (installmentMatch) {
-                        numInstallments = parseInt(installmentMatch[1])
-                      }
-                      
-                      // Extract payment frequency from remark
-                      let paymentFrequency = 'monthly' // default
-                      const frequencyMatch = (tx.remark || '').match(/-(weekly|biweekly|monthly)/i)
-                      if (frequencyMatch) {
-                        paymentFrequency = frequencyMatch[1].toLowerCase()
-                      }
-                      
-                      // Only generate fallback if we have database installments OR a valid installment pattern in remark
-                      const displayInstallments = installments.length > 0 
-                        ? installments 
-                        : numInstallments > 0
-                          ? Array.from({ length: numInstallments }, (_, i) => {
-                            // Validate the timestamp - use current date as fallback if invalid
-                            let baseDate: Date
-                            if (tx.transaction_timestamp) {
-                              const parsed = new Date(tx.transaction_timestamp)
-                              baseDate = isNaN(parsed.getTime()) ? new Date() : parsed
-                            } else {
-                              baseDate = new Date()
-                            }
-                            
-                            const dueDate = new Date(baseDate)
-                            if (paymentFrequency === 'weekly') {
-                              dueDate.setDate(dueDate.getDate() + (i + 1) * 7)
-                            } else if (paymentFrequency === 'biweekly') {
-                              dueDate.setDate(dueDate.getDate() + (i + 1) * 14)
-                            } else {
-                              // monthly
-                              dueDate.setMonth(dueDate.getMonth() + (i + 1))
-                            }
-                            
-                            return {
-                              id: `temp__${tx.id}__${i + 1}`,
-                              installment_number: i + 1,
-                              due_date: dueDate.toISOString().split('T')[0],
-                              amount: remainingAmount / numInstallments,
-                              amount_paid: 0,
-                              status: 'pending',
-                            }
-                          })
-                          : [] // No installments if no database records and no pattern in remark
-                      
-                      const isUsingFallback = installments.length === 0 && displayInstallments.length > 0
-                      
-                      for (const installment of displayInstallments) {
+                      // Display ONLY database installments - no fallback generation
+                      for (const installment of installments) {
                         const statusColor = 
                           installment.status === 'paid' ? 'bg-green-100 text-green-700' :
                           installment.status === 'partial' ? 'bg-yellow-100 text-yellow-700' :
@@ -347,11 +285,7 @@ export function StatementPopup({
                             <td className="p-2 text-slate-600 text-[10px]">
                               <div>Installment #{installment.installment_number}</div>
                               <div className="text-[9px] text-slate-400">
-                                {isUsingFallback ? (
-                                  <span className="text-orange-500" title="Estimated - payments not tracked">ID: temp</span>
-                                ) : (
-                                  <>Ref: {tx.id.substring(0, 8)} | ID: {installment.id.substring(0, 8)}</>
-                                )}
+                                Ref: {tx.id.substring(0, 8)} | ID: {installment.id.substring(0, 8)}
                               </div>
                             </td>
                             <td className="p-2 text-right font-mono text-blue-700 font-bold">
