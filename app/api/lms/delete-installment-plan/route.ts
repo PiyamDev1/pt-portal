@@ -42,19 +42,26 @@ export async function DELETE(request: Request) {
       .single()
 
     if (!fetchError && transaction) {
-      const newRemark = (transaction.remark || '')
-        .replace(/\s*\d+\s+installments?\s*-\s*(weekly|biweekly|monthly)/, '')
+      // Remove installment plan patterns more aggressively
+      let newRemark = (transaction.remark || '')
+        // Remove "X installments - frequency" pattern
+        .replace(/\s*\d+\s+installments?\s*-\s*(weekly|biweekly|monthly)/gi, '')
+        // Remove "X installments" pattern without frequency
+        .replace(/\s*\d+\s+installments?/gi, '')
         .trim()
+      
+      // If remark is now empty or just whitespace, set to null
+      newRemark = newRemark || null
       
       const { error: updateError } = await supabase
         .from('loan_transactions')
-        .update({ remark: newRemark || null })
+        .update({ remark: newRemark })
         .eq('id', transactionId)
 
       if (updateError) {
         console.error('Error updating transaction remark:', updateError)
       } else {
-        console.log(`Updated transaction remark for ${transactionId}`)
+        console.log(`Updated transaction remark for ${transactionId}: "${transaction.remark}" -> "${newRemark}"`)
       }
     }
 

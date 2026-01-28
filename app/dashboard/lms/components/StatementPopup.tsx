@@ -239,8 +239,8 @@ export function StatementPopup({
                       const remainingAmount = Math.max(0, txAmount - depositAmount)
                       
                       // Extract number of installments from remark (e.g., "6 installments - monthly")
-                      let numInstallments = 3 // default fallback
-                      const installmentMatch = (tx.remark || '').match(/(\d+)\s+installments?/)
+                      let numInstallments = 0 // default to 0 - don't generate if no pattern found
+                      const installmentMatch = (tx.remark || '').match(/(\d+)\s+installments?/i)
                       if (installmentMatch) {
                         numInstallments = parseInt(installmentMatch[1])
                       }
@@ -252,9 +252,11 @@ export function StatementPopup({
                         paymentFrequency = frequencyMatch[1].toLowerCase()
                       }
                       
+                      // Only generate fallback if we have database installments OR a valid installment pattern in remark
                       const displayInstallments = installments.length > 0 
                         ? installments 
-                        : Array.from({ length: numInstallments }, (_, i) => {
+                        : numInstallments > 0
+                          ? Array.from({ length: numInstallments }, (_, i) => {
                             // Validate the timestamp - use current date as fallback if invalid
                             let baseDate: Date
                             if (tx.transaction_timestamp) {
@@ -283,8 +285,9 @@ export function StatementPopup({
                               status: 'pending',
                             }
                           })
+                          : [] // No installments if no database records and no pattern in remark
                       
-                      const isUsingFallback = installments.length === 0
+                      const isUsingFallback = installments.length === 0 && displayInstallments.length > 0
                       
                       for (const installment of displayInstallments) {
                         const statusColor = 
