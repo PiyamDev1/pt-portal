@@ -17,6 +17,23 @@ export async function POST(request: Request) {
 
     console.log(`[Delete Plan] Deleting plan for transaction: ${transactionId}`)
 
+    // First, get the transaction to find the loan_id and amount
+    const { data: transaction, error: fetchError } = await supabase
+      .from('loan_transactions')
+      .select('loan_id, amount')
+      .eq('id', transactionId)
+      .single()
+
+    if (fetchError || !transaction) {
+      console.error('[Delete Plan] Error fetching transaction:', fetchError)
+      throw new Error('Transaction not found')
+    }
+
+    const loanId = transaction.loan_id
+    const deletedAmount = parseFloat(transaction.amount || 0)
+
+    console.log(`[Delete Plan] Loan ID: ${loanId}, Amount to remove: ${deletedAmount}`)
+
     // 2. Delete Child Records: Installments
     // These are the individual payment schedules in 'loan_installments'
     const { error: instError } = await supabase
@@ -54,6 +71,34 @@ export async function POST(request: Request) {
     }
 
     console.log(`[Delete Plan] Successfully deleted transaction ${transactionId} and all related records`)
+
+    // 5. Update the loan's current_balance
+    // Subtract the deleted service amount from the loan balance
+    const { data: loan, error: loanFetchError } = await supabase
+      .from('loans')
+      .select('current_balance, total_debt_amount')
+      .eq('id', loanId)
+      .single()
+
+    if (!loanFetchError && loan) {
+      const newBalance = Math.max(0, parseFloat(loan.current_balance || 0) - deletedAmount)
+      const newTotalDebt = Math.max(0, parseFloat(loan.total_debt_amount || 0) - deletedAmount)
+      
+      const { error: updateError } = await supabase
+        .from('loans')
+        .update({ 
+          current_balance: newBalance,
+          total_debt_amount: newTotalDebt,
+          status: newBalance === 0 ? 'Settled' : loan.status || 'Active'
+        })
+        .eq('id', loanId)
+
+      if (updateError) {
+        console.error('[Delete Plan] Error updating loan balance:', updateError)
+      } else {
+        console.log(`[Delete Plan] Updated loan balance: ${newBalance}`)
+      }
+    }
 
     return NextResponse.json({ success: true })
 

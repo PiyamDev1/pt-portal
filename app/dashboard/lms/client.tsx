@@ -68,9 +68,15 @@ export default function LMSClient({ currentUserId }: LMSClientProps) {
   useEffect(() => {
     if (showStatementPopup) {
       const updated = data.accounts?.find((a: Account) => a.id === showStatementPopup.id)
-      if (updated) setShowStatementPopup(updated)
+      if (updated) {
+        setShowStatementPopup(updated)
+      } else if (filter === 'active') {
+        // Account might have moved to settled after deletion
+        // Don't auto-switch tabs, just close the modal
+        console.log('[LMS] Account no longer in active filter after deletion')
+      }
     }
-  }, [data.accounts, showStatementPopup])
+  }, [data.accounts, showStatementPopup, filter])
 
   // Memoized filtered accounts
   const filtered = useMemo(() => {

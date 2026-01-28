@@ -234,16 +234,17 @@ export function StatementPopup({
                                         throw new Error(data.error || `Failed to delete (${res.status})`)
                                       }
                                       
+                                      // Close modal first for better UX
+                                      onClose()
+                                      
+                                      // Show success message
+                                      toast.success('Service charge deleted and balance updated')
+                                      
                                       // Trigger server refresh to reload data
                                       if (onRefresh) {
                                         console.log('[DELETE-PLAN] Triggering onRefresh')
                                         onRefresh()
                                       }
-                                      
-                                      // Close modal after successful deletion
-                                      onClose()
-                                      
-                                      toast.success('Service transaction deleted successfully')
                                     } catch (err: any) {
                                       console.error('[DELETE-PLAN] Error:', err)
                                       toast.error(err.message || 'Failed to delete')
