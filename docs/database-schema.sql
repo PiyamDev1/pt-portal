@@ -6,7 +6,7 @@
 -- WARNING: This schema is for context only and is not meant to be run.
 -- Table order and constraints may not be valid for execution.
 -- 
--- Last Updated: January 23, 2026
+-- Last Updated: January 28, 2026
 -- ============================================================================
 
 -- ============================================================================
@@ -838,6 +838,23 @@ CREATE TABLE public.loan_transactions (
   CONSTRAINT loan_transactions_service_category_id_fkey FOREIGN KEY (service_category_id) REFERENCES public.loan_service_categories(id),
   CONSTRAINT loan_transactions_payment_method_id_fkey FOREIGN KEY (payment_method_id) REFERENCES public.loan_payment_methods(id)
 );
+
+CREATE TABLE public.loan_installments (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  loan_transaction_id uuid NOT NULL,
+  installment_number integer NOT NULL,
+  due_date date NOT NULL,
+  amount numeric NOT NULL,
+  status text NOT NULL DEFAULT 'pending'::text,
+  amount_paid numeric DEFAULT 0,
+  created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  CONSTRAINT loan_installments_pkey PRIMARY KEY (id),
+  CONSTRAINT loan_installments_loan_transaction_id_fkey FOREIGN KEY (loan_transaction_id) REFERENCES public.loan_transactions(id) ON DELETE CASCADE,
+  CONSTRAINT loan_installments_unique_per_transaction UNIQUE (loan_transaction_id, installment_number)
+);
+
+CREATE INDEX IF NOT EXISTS loan_installments_loan_transaction_id_idx ON public.loan_installments(loan_transaction_id);
+CREATE INDEX IF NOT EXISTS loan_installments_status_idx ON public.loan_installments(status);
 
 CREATE TABLE public.loan_package_links (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
