@@ -190,6 +190,9 @@ export function StatementPopup({
                                 e.stopPropagation()
                                 if (!confirm('Delete this installment plan? You can recreate it by editing the service.')) return
                                 try {
+                                  console.log(`[DELETE] Starting delete for transaction ${tx.id}`)
+                                  console.log(`[DELETE] Current remark: "${tx.remark}"`)
+                                  
                                   const res = await fetch(
                                     `/api/lms/delete-installment-plan?transactionId=${tx.id}`,
                                     { method: 'DELETE' }
@@ -197,46 +200,25 @@ export function StatementPopup({
                                   
                                   if (!res.ok) {
                                     const errorData = await res.json()
-                                    console.error('Delete failed:', errorData)
+                                    console.error('[DELETE] Error response:', errorData)
                                     throw new Error(errorData.error || `Failed to delete (${res.status})`)
                                   }
                                   
                                   const data = await res.json()
-                                  console.log('Delete response:', data)
+                                  console.log('[DELETE] Success response:', data)
                                   
-                                  // Update local account state to reflect the deletion
-                                  // Remove the installment pattern from the transaction remark
-                                  setLocalAccount(prev => ({
-                                    ...prev,
-                                    transactions: (prev.transactions || []).map(t => {
-                                      if (t.id === tx.id) {
-                                        let newRemark = (t.remark || '')
-                                          .replace(/\s*\d+\s+installments?\s*-\s*(weekly|biweekly|monthly)/gi, '')
-                                          .replace(/\s*\d+\s+installments?/gi, '')
-                                          .trim()
-                                        return { ...t, remark: newRemark || undefined }
-                                      }
-                                      return t
-                                    })
-                                  }))
+                                  // Close the modal and refresh parent to reload all data from server
+                                  onClose()
                                   
-                                  // Clear installments for this transaction from state
-                                  setInstallmentsByTransaction(prev => {
-                                    const updated = { ...prev }
-                                    delete updated[tx.id]
-                                    return updated
-                                  })
+                                  // Small delay to ensure modal is closed
+                                  await new Promise(resolve => setTimeout(resolve, 100))
                                   
-                                  // Delay to allow database to propagate
-                                  await new Promise(resolve => setTimeout(resolve, 500))
-                                  
-                                  // Refetch everything
-                                  await fetchInstallments()
+                                  // Trigger full refresh from server
                                   onRefresh?.()
                                   
                                   toast.success('Installment plan deleted successfully')
                                 } catch (err: any) {
-                                  console.error('Delete error:', err)
+                                  console.error('[DELETE] Error:', err)
                                   toast.error(err.message || 'Failed to delete installment plan')
                                 }
                               }}
