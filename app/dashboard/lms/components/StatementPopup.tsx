@@ -138,7 +138,16 @@ export function StatementPopup({
                           </span>
                         </td>
                         <td className="p-2 text-slate-600 text-xs">
-                          {tx.remark || '-'}
+                          {tType === 'service' && (tx as any).loan_id ? (
+                            <div>
+                              <div className="text-[9px] text-slate-400 mb-0.5">
+                                Ref: {(tx as any).loan_id.substring(0, 8)}
+                              </div>
+                              <div>{tx.remark || '-'}</div>
+                            </div>
+                          ) : (
+                            tx.remark || '-'
+                          )}
                           {tx.loan_payment_methods?.name && (
                             <div className="text-[9px] text-slate-400">
                               ({tx.loan_payment_methods.name})
@@ -174,6 +183,29 @@ export function StatementPopup({
                               Delete
                             </button>
                           )}
+                          {tType === 'service' && (
+                            <button
+                              onClick={async (e) => {
+                                e.stopPropagation()
+                                if (!confirm('Delete this installment plan? You can recreate it by editing the service.')) return
+                                try {
+                                  const res = await fetch(
+                                    `/api/lms/delete-installment-plan?transactionId=${tx.id}`,
+                                    { method: 'DELETE' }
+                                  )
+                                  if (!res.ok) throw new Error('Failed to delete')
+                                  fetchInstallments() // Refresh installments
+                                  onRefresh?.()
+                                  toast.success('Installment plan deleted')
+                                } catch (err) {
+                                  toast.error('Failed to delete installment plan')
+                                }
+                              }}
+                              className="px-1.5 py-0.5 text-[9px] bg-red-100 hover:bg-red-200 text-red-700 rounded"
+                            >
+                              Delete Plan
+                            </button>
+                          )}
                         </td>
                       </tr>
                     )
@@ -182,11 +214,35 @@ export function StatementPopup({
                     if (tType === 'service') {
                       const installments = installmentsByTransaction[tx.id] || []
                       
-                      // If no installments from DB, generate temporary ones for display
-                      // Note: These may not account for deposit if service was created before installment tracking
+                      // Try to find a deposit payment made on the same day
+                      const serviceDate = new Date(tx.transaction_timestamp || new Date())
+                      const sameDayTransactions = account.transactions?.filter(t => {
+                        const tDate = new Date(t.transaction_timestamp || '')
+                        return tDate.toDateString() === serviceDate.toDateString()
+                      }) || []
+                      const depositPayment = sameDayTransactions.find(
+                        t => (t.transaction_type || '').toLowerCase() === 'payment'
+                      )
+                      const depositAmount = depositPayment ? parseFloat(depositPayment.amount as any) || 0 : 0
+                      const remainingAmount = Math.max(0, txAmount - depositAmount)
+                      
+                      // Extract number of installments from remark (e.g., "6 installments - monthly")
+                      let numInstallments = 3 // default fallback
+                      const installmentMatch = (tx.remark || '').match(/(\d+)\s+installments?/)
+                      if (installmentMatch) {
+                        numInstallments = parseInt(installmentMatch[1])
+                      }
+                      
+                      // Extract payment frequency from remark
+                      let paymentFrequency = 'monthly' // default
+                      const frequencyMatch = (tx.remark || '').match(/-(weekly|biweekly|monthly)/i)
+                      if (frequencyMatch) {
+                        paymentFrequency = frequencyMatch[1].toLowerCase()
+                      }
+                      
                       const displayInstallments = installments.length > 0 
                         ? installments 
-                        : Array.from({ length: 3 }, (_, i) => {
+                        : Array.from({ length: numInstallments }, (_, i) => {
                             // Validate the timestamp - use current date as fallback if invalid
                             let baseDate: Date
                             if (tx.transaction_timestamp) {
@@ -196,12 +252,21 @@ export function StatementPopup({
                               baseDate = new Date()
                             }
                             
-                            const dueDate = new Date(baseDate.getTime() + ((i + 1) * 30 * 24 * 60 * 60 * 1000))
+                            const dueDate = new Date(baseDate)
+                            if (paymentFrequency === 'weekly') {
+                              dueDate.setDate(dueDate.getDate() + (i + 1) * 7)
+                            } else if (paymentFrequency === 'biweekly') {
+                              dueDate.setDate(dueDate.getDate() + (i + 1) * 14)
+                            } else {
+                              // monthly
+                              dueDate.setMonth(dueDate.getMonth() + (i + 1))
+                            }
+                            
                             return {
                               id: `temp__${tx.id}__${i + 1}`,
                               installment_number: i + 1,
                               due_date: dueDate.toISOString().split('T')[0],
-                              amount: txAmount / 3,
+                              amount: remainingAmount / numInstallments,
                               amount_paid: 0,
                               status: 'pending',
                             }
