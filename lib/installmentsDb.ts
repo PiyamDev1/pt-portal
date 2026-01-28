@@ -119,3 +119,59 @@ export async function createInstallmentRecords(
     return null
   }
 }
+
+/**
+ * Create detailed installment records from a plan (with specific dates and amounts)
+ */
+export async function createDetailedInstallmentRecords(
+  loanTransactionId: string,
+  installmentPlan: Array<{ dueDate: string; amount: number }>,
+  paymentFrequency?: string
+) {
+  try {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+    
+    if (!url || !key) {
+      console.warn('Supabase not configured')
+      return null
+    }
+
+    const supabase = createClient(url, key)
+
+    // Ensure table exists
+    const tableExists = await ensureInstallmentsTableExists()
+    if (!tableExists) {
+      console.warn('Could not ensure installments table exists')
+      return null
+    }
+
+    console.log(`Creating ${installmentPlan.length} detailed installments for transaction ${loanTransactionId}:`)
+    
+    const records = installmentPlan.map((installment, i) => ({
+      loan_transaction_id: loanTransactionId,
+      installment_number: i + 1,
+      due_date: installment.dueDate,
+      amount: installment.amount,
+      status: 'pending',
+      amount_paid: 0,
+    }))
+
+    // Insert records
+    const { data, error } = await supabase
+      .from('loan_installments')
+      .insert(records)
+      .select()
+
+    if (error) {
+      console.error('Error creating detailed installment records:', error)
+      return null
+    }
+
+    console.log(`Created ${data?.length || 0} detailed installment records for transaction ${loanTransactionId}`)
+    return data
+  } catch (error) {
+    console.error('Error in createDetailedInstallmentRecords:', error)
+    return null
+  }
+}

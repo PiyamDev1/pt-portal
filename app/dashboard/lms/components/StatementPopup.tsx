@@ -246,7 +246,7 @@ export function StatementPopup({
                                 {isUsingFallback ? (
                                   <span className="text-orange-500" title="Estimated - payments not tracked">ID: temp</span>
                                 ) : (
-                                  <>ID: {installment.id.substring(0, 8)}</>
+                                  <>Ref: {tx.id.substring(0, 8)} | ID: {installment.id.substring(0, 8)}</>
                                 )}
                               </div>
                             </td>

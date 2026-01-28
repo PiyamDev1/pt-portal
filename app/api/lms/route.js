@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
-import { ensureInstallmentsTableExists, createInstallmentRecords } from '@/lib/installmentsDb'
+import { ensureInstallmentsTableExists, createInstallmentRecords, createDetailedInstallmentRecords } from '@/lib/installmentsDb'
 
 export const dynamic = 'force-dynamic'
 
@@ -202,9 +202,11 @@ export async function POST(request) {
       if (loanError) throw loanError
 
       // Create initial service transaction (full amount) with installment plan summary
-      const planSummary = installmentPlan && installmentPlan.length > 0
-        ? `Total £${totalAmount.toFixed(2)}, Remaining £${remainingAmount.toFixed(2)}`
-        : `New service - ${installmentTerms} installments`
+      const planSummary = notes || (
+        installmentPlan && installmentPlan.length > 0
+          ? `${installmentPlan.length} installments - ${paymentFrequency || 'monthly'}`
+          : `${installmentTerms} installments`
+      )
       
       const { data: serviceTransaction, error: serviceTxError } = await supabase
         .from('loan_transactions')
@@ -221,14 +223,24 @@ export async function POST(request) {
 
       if (serviceTxError) throw serviceTxError
 
-      // Auto-create installment records using utility function
-      const numberOfTerms = parseInt(installmentTerms) || 3
-      await createInstallmentRecords(
-        serviceTransaction.id,
-        remainingAmount,
-        new Date().toISOString(),
-        numberOfTerms
-      )
+      // Auto-create installment records using detailed plan from frontend
+      if (installmentPlan && installmentPlan.length > 0) {
+        // Use the detailed plan provided from frontend
+        await createDetailedInstallmentRecords(
+          serviceTransaction.id,
+          installmentPlan,
+          paymentFrequency
+        )
+      } else {
+        // Fallback to simple generation
+        const numberOfTerms = parseInt(installmentTerms) || 3
+        await createInstallmentRecords(
+          serviceTransaction.id,
+          remainingAmount,
+          new Date().toISOString(),
+          numberOfTerms
+        )
+      }
 
       // If deposit provided, record it as a payment transaction
       if (deposit > 0) {
