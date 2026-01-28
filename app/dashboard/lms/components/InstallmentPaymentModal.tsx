@@ -63,6 +63,17 @@ export function InstallmentPaymentModal({
   const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null)
   const [editingAmount, setEditingAmount] = useState('')
 
+  // Auto-format date input (DD/MM/YYYY)
+  const handleDateInput = (value: string): string => {
+    // Remove all non-digit characters
+    const digits = value.replace(/\D/g, '')
+    
+    // Format as DD/MM/YYYY
+    if (digits.length <= 2) return digits
+    if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`
+    return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4, 8)}`
+  }
+
   // Calculate date limits
   // Permanent: Allow up to 7 days old
   // Temporary: Allow unlimited past dates for re-entering deleted data
@@ -287,7 +298,7 @@ export function InstallmentPaymentModal({
             type="text"
             placeholder="DD/MM/YYYY"
             value={paymentDate}
-            onChange={(e) => setPaymentDate(e.target.value)}
+            onChange={(e) => setPaymentDate(handleDateInput(e.target.value))}
             className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-slate-400 focus:ring-2 focus:ring-blue-200"
             disabled={loading}
             maxLength={10}

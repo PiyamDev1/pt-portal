@@ -39,6 +39,17 @@ export function EditCustomerModal({
     return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`
   }
 
+  // Auto-format date input (DD/MM/YYYY)
+  const handleDateInput = (value: string): string => {
+    // Remove all non-digit characters
+    const digits = value.replace(/\D/g, '')
+    
+    // Format as DD/MM/YYYY
+    if (digits.length <= 2) return digits
+    if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`
+    return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4, 8)}`
+  }
+
   // Validate date format (DD/MM/YYYY)
   const isValidDateFormat = (dateString: string): boolean => {
     if (!dateString) return true // Empty is valid
@@ -204,7 +215,7 @@ export function EditCustomerModal({
             type="text"
             placeholder="DD/MM/YYYY"
             value={form.dateOfBirth}
-            onChange={e => updateForm({ dateOfBirth: e.target.value })}
+            onChange={e => updateForm({ dateOfBirth: handleDateInput(e.target.value) })}
             className="w-full p-3 border rounded-lg"
             maxLength={10}
           />

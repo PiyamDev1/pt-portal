@@ -41,6 +41,17 @@ export function TransactionModal({
     return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`
   }
 
+  // Auto-format date input (DD/MM/YYYY)
+  const handleDateInput = (value: string): string => {
+    // Remove all non-digit characters
+    const digits = value.replace(/\D/g, '')
+    
+    // Format as DD/MM/YYYY
+    if (digits.length <= 2) return digits
+    if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`
+    return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4, 8)}`
+  }
+
   // Validate date format (DD/MM/YYYY)
   const isValidDateFormat = (dateString: string): boolean => {
     if (!dateString) return false
@@ -380,7 +391,7 @@ export function TransactionModal({
               type="text"
               placeholder="DD/MM/YYYY"
               value={form.transactionDate}
-              onChange={e => updateForm({ transactionDate: e.target.value })}
+              onChange={e => updateForm({ transactionDate: handleDateInput(e.target.value) })}
               className="w-full pl-10 p-3 border rounded-lg"
             />
           </div>
@@ -475,7 +486,7 @@ export function TransactionModal({
                     type="text"
                     placeholder="DD/MM/YYYY"
                     value={form.firstPaymentDate}
-                    onChange={e => updateForm({ firstPaymentDate: e.target.value })}
+                    onChange={e => updateForm({ firstPaymentDate: handleDateInput(e.target.value) })}
                     className="w-full pl-10 p-3 border rounded-lg"
                   />
                 </div>
