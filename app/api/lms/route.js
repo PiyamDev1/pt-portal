@@ -173,7 +173,7 @@ export async function POST(request) {
       return NextResponse.json({ success: true })
 
     } else if (action === 'add_service') {
-      const { serviceAmount, initialDeposit, installmentTerms, installmentPlan, paymentFrequency } = body
+      const { serviceAmount, initialDeposit, installmentTerms, installmentPlan, paymentFrequency, transactionDate } = body
 
       // Ensure installments table exists
       await ensureInstallmentsTableExists()
@@ -181,8 +181,11 @@ export async function POST(request) {
       const totalAmount = parseFloat(serviceAmount)
       const deposit = parseFloat(initialDeposit) || 0
       const remainingAmount = totalAmount - deposit
+      
+      // Use provided transaction date or default to now
+      const txTimestamp = transactionDate ? new Date(transactionDate).toISOString() : new Date().toISOString()
 
-      console.log(`Adding service: total=${totalAmount}, deposit=${deposit}, remaining=${remainingAmount}`)
+      console.log(`Adding service: total=${totalAmount}, deposit=${deposit}, remaining=${remainingAmount}, date=${txTimestamp}`)
 
       // Create loan
       const { data: newLoan, error: loanError } = await supabase
@@ -216,7 +219,7 @@ export async function POST(request) {
           transaction_type: 'service',
           amount: totalAmount,
           remark: notes || planSummary,
-          transaction_timestamp: new Date().toISOString()
+          transaction_timestamp: txTimestamp
         })
         .select()
         .single()
@@ -259,7 +262,7 @@ export async function POST(request) {
             transaction_type: 'payment',
             amount: deposit,
             remark: `Initial deposit - Loan #${serviceTransaction.id.substring(0, 8)}`,
-            transaction_timestamp: new Date().toISOString()
+            transaction_timestamp: txTimestamp
           })
           .select()
           .single()
