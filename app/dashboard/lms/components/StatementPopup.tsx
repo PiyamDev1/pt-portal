@@ -212,7 +212,7 @@ export function StatementPopup({
                                     ...prev,
                                     transactions: prev.transactions?.map(t => 
                                       t.id === tx.id 
-                                        ? { ...t, remark: null }  // Remove remark to prevent fallback generation
+                                        ? { ...t, remark: undefined }  // Remove remark to prevent fallback generation
                                         : t
                                     ) || []
                                   }))
