@@ -207,13 +207,23 @@ export function StatementPopup({
                                   const data = await res.json()
                                   console.log('[DELETE] Success response:', data)
                                   
-                                  // Close the modal and refresh parent to reload all data from server
-                                  onClose()
+                                  // Update local account to remove installments for this transaction
+                                  setLocalAccount(prev => ({
+                                    ...prev,
+                                    transactions: prev.transactions?.map(t => 
+                                      t.id === tx.id 
+                                        ? { ...t, remark: null }  // Remove remark to prevent fallback generation
+                                        : t
+                                    ) || []
+                                  }))
                                   
-                                  // Small delay to ensure modal is closed
-                                  await new Promise(resolve => setTimeout(resolve, 100))
+                                  // Clear cached installments for this transaction
+                                  setInstallmentsByTransaction(prev => ({
+                                    ...prev,
+                                    [tx.id]: []
+                                  }))
                                   
-                                  // Trigger full refresh from server
+                                  // Trigger full refresh from server (optional, for consistency)
                                   onRefresh?.()
                                   
                                   toast.success('Installment plan deleted successfully')

@@ -61,6 +61,9 @@ export async function DELETE(request: Request) {
     }
 
     console.log(`[DELETE-PLAN] Current remark: "${transaction.remark}"`)
+    console.log(`[DELETE-PLAN] Remark type: ${typeof transaction.remark}`)
+    console.log(`[DELETE-PLAN] Remark length: ${(transaction.remark || '').length}`)
+    console.log(`[DELETE-PLAN] Remark bytes: ${Buffer.from(transaction.remark || '').toString('hex')}`)
 
     // Remove all installment plan patterns from remark
     let newRemark = (transaction.remark || '')
