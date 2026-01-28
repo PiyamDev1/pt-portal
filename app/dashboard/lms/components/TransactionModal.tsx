@@ -26,6 +26,44 @@ export function TransactionModal({
   employeeId,
   onPaymentRecorded
 }: TransactionModalProps) {
+  // Date format conversion utilities
+  const formatToDisplayDate = (isoDate: string): string => {
+    if (!isoDate) return ''
+    const [year, month, day] = isoDate.split('-')
+    return `${day}/${month}/${year}`
+  }
+
+  const formatToISODate = (displayDate: string): string => {
+    if (!displayDate) return ''
+    const parts = displayDate.split('/')
+    if (parts.length !== 3) return ''
+    const [day, month, year] = parts
+    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`
+  }
+
+  // Validate date format (DD/MM/YYYY)
+  const isValidDateFormat = (dateString: string): boolean => {
+    if (!dateString) return false
+    // Check if it matches DD/MM/YYYY format
+    const dateRegex = /^\d{2}\/\d{2}\/\d{4}$/
+    if (!dateRegex.test(dateString)) return false
+    
+    const parts = dateString.split('/')
+    const day = parseInt(parts[0])
+    const month = parseInt(parts[1])
+    const year = parseInt(parts[2])
+    
+    // Check if month is valid
+    if (month < 1 || month > 12) return false
+    
+    // Check if day is valid
+    if (day < 1 || day > 31) return false
+    
+    // Check if it's a valid date
+    const date = new Date(`${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`)
+    return date instanceof Date && !isNaN(date.getTime())
+  }
+
   const getInstallmentOptions = useCallback((frequency: string) => {
     if (frequency === PAYMENT_FREQUENCIES.WEEKLY) {
       return Array.from({ length: 10 }, (_, i) => {
@@ -69,44 +107,6 @@ export function TransactionModal({
 
   // Temporary: Allow unlimited past dates for re-entering deleted data
   const ALLOW_UNLIMITED_PAST = true // Set to false when done re-entering data
-
-  // Date format conversion utilities
-  const formatToDisplayDate = (isoDate: string): string => {
-    if (!isoDate) return ''
-    const [year, month, day] = isoDate.split('-')
-    return `${day}/${month}/${year}`
-  }
-
-  const formatToISODate = (displayDate: string): string => {
-    if (!displayDate) return ''
-    const parts = displayDate.split('/')
-    if (parts.length !== 3) return ''
-    const [day, month, year] = parts
-    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`
-  }
-
-  // Validate date format (DD/MM/YYYY)
-  const isValidDateFormat = (dateString: string): boolean => {
-    if (!dateString) return false
-    // Check if it matches DD/MM/YYYY format
-    const dateRegex = /^\d{2}\/\d{2}\/\d{4}$/
-    if (!dateRegex.test(dateString)) return false
-    
-    const parts = dateString.split('/')
-    const day = parseInt(parts[0])
-    const month = parseInt(parts[1])
-    const year = parseInt(parts[2])
-    
-    // Check if month is valid
-    if (month < 1 || month > 12) return false
-    
-    // Check if day is valid
-    if (day < 1 || day > 31) return false
-    
-    // Check if it's a valid date
-    const date = new Date(`${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`)
-    return date instanceof Date && !isNaN(date.getTime())
-  }
 
   // Fetch payment methods
   useEffect(() => {
