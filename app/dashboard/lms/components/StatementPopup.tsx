@@ -214,7 +214,7 @@ export function StatementPopup({
                                           .replace(/\s*\d+\s+installments?\s*-\s*(weekly|biweekly|monthly)/gi, '')
                                           .replace(/\s*\d+\s+installments?/gi, '')
                                           .trim()
-                                        return { ...t, remark: newRemark || null }
+                                        return { ...t, remark: newRemark || undefined }
                                       }
                                       return t
                                     })
