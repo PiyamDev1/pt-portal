@@ -144,7 +144,13 @@ export function TransactionModal({
 
       if (remainingAmount > 0 && numInstallments > 0) {
         const installmentAmount = remainingAmount / numInstallments
-        const firstDate = new Date(form.firstPaymentDate)
+        // Convert DD/MM/YYYY to ISO format for Date parsing
+        const isoFirstPaymentDate = formatToISODate(form.firstPaymentDate)
+        if (!isoFirstPaymentDate) {
+          setInstallmentPlan([])
+          return
+        }
+        const firstDate = new Date(isoFirstPaymentDate)
 
         const plan = Array.from({ length: numInstallments }, (_, i) => {
           const dueDate = new Date(firstDate)
@@ -161,7 +167,7 @@ export function TransactionModal({
 
           return {
             id: i + 1,
-            dueDate: dueDate.toISOString().split('T')[0],
+            dueDate: formatToDisplayDate(dueDate.toISOString().split('T')[0]),
             amount: installmentAmount,
             runningBalance: Math.max(0, runningBalance),
             status: 'Pending'
