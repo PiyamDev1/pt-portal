@@ -207,7 +207,9 @@ export function StatementPopup({
                                   console.log('[DELETE-PLAN] Button clicked!')
                                   alert('Delete button clicked! Check console for logs.')
                                   
-                                const confirmed = window.confirm('Delete this service charge and all related installments? This will remove the entire transaction from the account.')
+                                  if (!window.confirm('Delete this service charge and all related installments? This will remove the entire transaction from the account.')) {
+                                    return
+                                  }
                                   
                                   (async () => {
                                     try {
