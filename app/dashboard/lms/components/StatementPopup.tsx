@@ -38,12 +38,13 @@ export function StatementPopup({
   const [runningBalance] = useState(account.balance || 0)
   const [selectedInstallment, setSelectedInstallment] = useState<any>(null)
   const [installmentsByTransaction, setInstallmentsByTransaction] = useState<Record<string, any[]>>({})
+  const [localAccount, setLocalAccount] = useState(account)
 
   // Fetch installments for service transactions
   const fetchInstallments = async () => {
-    if (!account.transactions) return
+    if (!localAccount.transactions) return
 
-    const serviceTransactions = account.transactions.filter(
+    const serviceTransactions = localAccount.transactions.filter(
       (tx: any) => tx.transaction_type?.toLowerCase() === 'service'
     )
 
@@ -66,7 +67,7 @@ export function StatementPopup({
 
   useEffect(() => {
     fetchInstallments()
-  }, [account.transactions])
+  }, [localAccount.transactions])
 
   return (
     <ModalWrapper onClose={onClose} title={`Statement - ${account.name}`}>
@@ -98,8 +99,8 @@ export function StatementPopup({
               </tr>
             </thead>
             <tbody>
-              {account.transactions && account.transactions.length > 0 ? (
-                account.transactions.flatMap(
+              {localAccount.transactions && localAccount.transactions.length > 0 ? (
+                localAccount.transactions.flatMap(
                   (
                     tx: Transaction & {
                       transaction_timestamp?: string
@@ -202,6 +203,22 @@ export function StatementPopup({
                                   
                                   const data = await res.json()
                                   console.log('Delete response:', data)
+                                  
+                                  // Update local account state to reflect the deletion
+                                  // Remove the installment pattern from the transaction remark
+                                  setLocalAccount(prev => ({
+                                    ...prev,
+                                    transactions: (prev.transactions || []).map(t => {
+                                      if (t.id === tx.id) {
+                                        let newRemark = (t.remark || '')
+                                          .replace(/\s*\d+\s+installments?\s*-\s*(weekly|biweekly|monthly)/gi, '')
+                                          .replace(/\s*\d+\s+installments?/gi, '')
+                                          .trim()
+                                        return { ...t, remark: newRemark || null }
+                                      }
+                                      return t
+                                    })
+                                  }))
                                   
                                   // Clear installments for this transaction from state
                                   setInstallmentsByTransaction(prev => {
