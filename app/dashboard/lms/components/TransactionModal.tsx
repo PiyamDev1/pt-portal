@@ -67,6 +67,9 @@ export function TransactionModal({
   const [loading, setLoading] = useState(false)
   const [planExpanded, setPlanExpanded] = useState(true)
 
+  // Temporary: Allow unlimited past dates for re-entering deleted data
+  const ALLOW_UNLIMITED_PAST = true // Set to false when done re-entering data
+
   // Fetch payment methods
   useEffect(() => {
     fetch(API_ENDPOINTS.PAYMENT_METHODS)
@@ -398,6 +401,7 @@ export function TransactionModal({
               <div>
                 <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">
                   First Payment Date
+                  {ALLOW_UNLIMITED_PAST && <span className="text-orange-500 text-xs font-normal">(Backdated: Unlimited)</span>}
                 </label>
                 <div className="relative">
                   <Calendar className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
@@ -406,7 +410,7 @@ export function TransactionModal({
                     value={form.firstPaymentDate}
                     onChange={e => updateForm({ firstPaymentDate: e.target.value })}
                     className="w-full pl-10 p-3 border rounded-lg"
-                    min={new Date().toISOString().split('T')[0]}
+                    min={ALLOW_UNLIMITED_PAST ? undefined : new Date().toISOString().split('T')[0]}
                   />
                 </div>
               </div>
