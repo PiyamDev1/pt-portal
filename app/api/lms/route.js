@@ -224,22 +224,29 @@ export async function POST(request) {
       if (serviceTxError) throw serviceTxError
 
       // Auto-create installment records using detailed plan from frontend
-      if (installmentPlan && installmentPlan.length > 0) {
-        // Use the detailed plan provided from frontend
-        await createDetailedInstallmentRecords(
-          serviceTransaction.id,
-          installmentPlan,
-          paymentFrequency
-        )
-      } else {
-        // Fallback to simple generation
-        const numberOfTerms = parseInt(installmentTerms) || 3
-        await createInstallmentRecords(
-          serviceTransaction.id,
-          remainingAmount,
-          new Date().toISOString(),
-          numberOfTerms
-        )
+      try {
+        if (installmentPlan && installmentPlan.length > 0) {
+          // Use the detailed plan provided from frontend
+          console.log('Creating installment plan with', installmentPlan.length, 'installments')
+          await createDetailedInstallmentRecords(
+            serviceTransaction.id,
+            installmentPlan,
+            paymentFrequency
+          )
+        } else {
+          // Fallback to simple generation
+          const numberOfTerms = parseInt(installmentTerms) || 3
+          console.log('Creating fallback installment plan with', numberOfTerms, 'terms')
+          await createInstallmentRecords(
+            serviceTransaction.id,
+            remainingAmount,
+            new Date().toISOString(),
+            numberOfTerms
+          )
+        }
+      } catch (installmentError) {
+        console.error('Error creating installments (continuing without them):', installmentError)
+        // Don't throw - allow the service creation to succeed even if installments fail
       }
 
       // If deposit provided, record it as a payment transaction
