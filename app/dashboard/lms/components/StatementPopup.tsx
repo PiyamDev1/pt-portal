@@ -40,6 +40,11 @@ export function StatementPopup({
   const [installmentsByTransaction, setInstallmentsByTransaction] = useState<Record<string, any[]>>({})
   const [localAccount, setLocalAccount] = useState(account)
 
+  // Sync localAccount with account prop when it changes
+  useEffect(() => {
+    setLocalAccount(account)
+  }, [account])
+
   // Fetch installments for service transactions
   const fetchInstallments = async () => {
     if (!localAccount.transactions) return
