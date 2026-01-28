@@ -40,25 +40,55 @@ export async function POST(request: Request) {
     // 2. Fetch all service transactions that don't have installments yet
     const { data: serviceTransactions, error: fetchError } = await supabase
       .from('loan_transactions')
-      .select('*')
+      .select(`
+        *,
+        loan:loans!loan_id (
+          id,
+          term_months,
+          total_debt_amount,
+          current_balance
+        )
+      `)
       .eq('transaction_type', 'service')
 
     if (fetchError) throw fetchError
 
     let createdCount = 0
+    let skippedCount = 0
 
     // 3. Create installments for each service transaction
     for (const tx of serviceTransactions || []) {
-      const amount = parseFloat(tx.amount)
-      const terms = 3 // Default to 3 months, could be from loan data
-      const installmentAmount = amount / terms
+      // Check if installments already exist
+      const { data: existingInstallments, error: checkError } = await supabase
+        .from('loan_installments')
+        .select('id')
+        .eq('loan_transaction_id', tx.id)
+        .limit(1)
+
+      if (checkError) {
+        console.error(`Error checking installments for ${tx.id}:`, checkError)
+        continue
+      }
+
+      if (existingInstallments && existingInstallments.length > 0) {
+        skippedCount++
+        continue
+      }
+
+      const totalAmount = parseFloat(tx.amount)
+      const loan = Array.isArray(tx.loan) ? tx.loan[0] : tx.loan
+      const terms = loan?.term_months || 3 // Use loan terms or default to 3
+      
+      // Calculate installment amount based on current balance (accounts for deposits)
+      const currentBalance = loan?.current_balance || totalAmount
+      const installmentAmount = currentBalance / terms
 
       const installments = []
       const baseDate = new Date(tx.transaction_timestamp)
 
       for (let i = 1; i <= terms; i++) {
         const dueDate = new Date(baseDate)
-        dueDate.setMonth(dueDate.getMonth() + (i - 1))
+        dueDate.setMonth(dueDate.getMonth() + i)
 
         installments.push({
           loan_transaction_id: tx.id,
@@ -70,23 +100,24 @@ export async function POST(request: Request) {
         })
       }
 
-      // Insert installments (ignore duplicates)
+      // Insert installments
       const { error: insertError } = await supabase
         .from('loan_installments')
-        .upsert(installments, { 
-          onConflict: 'loan_transaction_id,installment_number',
-          ignoreDuplicates: true 
-        })
+        .insert(installments)
 
       if (!insertError) {
         createdCount += installments.length
+      } else {
+        console.error(`Error creating installments for ${tx.id}:`, insertError)
       }
     }
 
     return NextResponse.json({
       success: true,
-      message: `Created ${createdCount} installment records`,
-      serviceTransactionsProcessed: serviceTransactions?.length || 0,
+      message: `Created ${createdCount} installment records for ${serviceTransactions?.length || 0} service transactions`,
+      created: createdCount,
+      skipped: skippedCount,
+      total: serviceTransactions?.length || 0,
     })
   } catch (error: any) {
     console.error('Migration error:', error)
