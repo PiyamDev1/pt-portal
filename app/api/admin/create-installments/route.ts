@@ -1,6 +1,25 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 
+const createTableSQL = `
+  CREATE TABLE IF NOT EXISTS public.loan_installments (
+    id uuid NOT NULL DEFAULT gen_random_uuid(),
+    loan_transaction_id uuid NOT NULL,
+    installment_number integer NOT NULL,
+    due_date date NOT NULL,
+    amount numeric NOT NULL,
+    status text NOT NULL DEFAULT 'pending',
+    amount_paid numeric DEFAULT 0,
+    created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+    CONSTRAINT loan_installments_pkey PRIMARY KEY (id),
+    CONSTRAINT loan_installments_loan_transaction_id_fkey FOREIGN KEY (loan_transaction_id) REFERENCES public.loan_transactions(id) ON DELETE CASCADE,
+    CONSTRAINT loan_installments_unique_per_transaction UNIQUE (loan_transaction_id, installment_number)
+  );
+
+  CREATE INDEX IF NOT EXISTS loan_installments_loan_transaction_id_idx ON public.loan_installments(loan_transaction_id);
+  CREATE INDEX IF NOT EXISTS loan_installments_status_idx ON public.loan_installments(status);
+`
+
 export async function POST(request: Request) {
   try {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -12,31 +31,45 @@ export async function POST(request: Request) {
 
     const supabase = createClient(url, key)
 
-    // 1. Create the installments table
-    const createTableSQL = `
-      CREATE TABLE IF NOT EXISTS public.loan_installments (
-        id uuid NOT NULL DEFAULT gen_random_uuid(),
-        loan_transaction_id uuid NOT NULL,
-        installment_number integer NOT NULL,
-        due_date date NOT NULL,
-        amount numeric NOT NULL,
-        status text NOT NULL DEFAULT 'pending',
-        amount_paid numeric DEFAULT 0,
-        created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
-        CONSTRAINT loan_installments_pkey PRIMARY KEY (id),
-        CONSTRAINT loan_installments_loan_transaction_id_fkey FOREIGN KEY (loan_transaction_id) REFERENCES public.loan_transactions(id) ON DELETE CASCADE,
-        CONSTRAINT loan_installments_unique_per_transaction UNIQUE (loan_transaction_id, installment_number)
-      );
+    // 1. Create the installments table if it doesn't exist
+    // Try to create using direct SQL execution via a simple insert attempt
+    // First check if table exists by attempting a simple query
+    let tableExists = false
+    try {
+      await supabase
+        .from('loan_installments')
+        .select('id', { count: 'exact' })
+        .limit(0)
+      tableExists = true
+    } catch (e) {
+      // Table doesn't exist, need to create it
+      console.log('Table does not exist, will attempt to create')
+    }
 
-      CREATE INDEX IF NOT EXISTS loan_installments_loan_transaction_id_idx ON public.loan_installments(loan_transaction_id);
-      CREATE INDEX IF NOT EXISTS loan_installments_status_idx ON public.loan_installments(status);
-    `
+    if (!tableExists) {
+      // Create table using SQL
+      // Note: This requires the database to have the proper function or we need admin access
+      console.log('Attempting to create loan_installments table...')
+      
+      // Try using the SQL editor/query if available
+      try {
+        const { error: createError } = await supabase.rpc('exec_sql', { 
+          sql: createTableSQL 
+        })
+        
+        if (createError) {
+          throw createError
+        }
+      } catch (rpcError) {
+        // RPC method not available, return error asking to create table manually
+        return NextResponse.json({ 
+          error: 'Table does not exist. Please create the loan_installments table first using the SQL provided below.',
+          requiresManualSetup: true,
+          sql: createTableSQL
+        }, { status: 400 })
+      }
+    }
 
-    const { error: createError } = await supabase.rpc('exec_sql', { sql: createTableSQL })
-    
-    // If RPC doesn't exist, we'll create records directly
-    // For now, just return success
-    
     // 2. Fetch all service transactions that don't have installments yet
     const { data: serviceTransactions, error: fetchError } = await supabase
       .from('loan_transactions')

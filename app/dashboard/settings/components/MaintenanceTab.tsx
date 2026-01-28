@@ -27,7 +27,12 @@ export function MaintenanceTab() {
 
       const data = await res.json()
       setResult(data)
-      toast.success(data.message || 'Migration completed successfully')
+      
+      if (data.requiresManualSetup) {
+        toast.error('Manual table setup required - see instructions below')
+      } else {
+        toast.success(data.message || 'Migration completed successfully')
+      }
     } catch (err: any) {
       toast.error(err.message || 'Failed to migrate installments')
       setResult({ error: err.message })
@@ -65,15 +70,25 @@ export function MaintenanceTab() {
               </button>
 
               {result && (
-                <div className={`mt-4 p-3 rounded-lg ${result.error ? 'bg-red-50 border border-red-200' : 'bg-green-50 border border-green-200'}`}>
+                <div className={`mt-4 p-3 rounded-lg ${result.error || result.requiresManualSetup ? 'bg-red-50 border border-red-200' : 'bg-green-50 border border-green-200'}`}>
                   <div className="flex items-start gap-2">
-                    {result.error ? (
+                    {result.error || result.requiresManualSetup ? (
                       <AlertCircle className="w-5 h-5 text-red-600 mt-0.5" />
                     ) : (
                       <CheckCircle className="w-5 h-5 text-green-600 mt-0.5" />
                     )}
                     <div className="flex-1">
-                      {result.error ? (
+                      {result.requiresManualSetup ? (
+                        <>
+                          <p className="text-sm text-red-800 font-medium mb-2">Manual Setup Required</p>
+                          <p className="text-xs text-red-700 mb-3">{result.error}</p>
+                          <p className="text-xs text-red-700 font-bold mb-2">Run this SQL in Supabase SQL Editor:</p>
+                          <pre className="text-[10px] bg-slate-900 text-green-400 p-3 rounded overflow-x-auto font-mono">
+                            {result.sql}
+                          </pre>
+                          <p className="text-xs text-red-700 mt-2">After running the SQL, try the migration again.</p>
+                        </>
+                      ) : result.error ? (
                         <p className="text-sm text-red-800 font-medium">{result.error}</p>
                       ) : (
                         <>
