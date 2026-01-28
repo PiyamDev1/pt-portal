@@ -101,12 +101,38 @@ export async function DELETE(request: Request) {
     }
 
     console.log(`[DELETE-PLAN] Deletion complete for transaction ${transactionId}`)
+    
+    // Verify deletion by checking if any records remain
+    const { data: remainingInstallments, error: verifyError } = await supabase
+      .from('loan_installments')
+      .select('id')
+      .eq('loan_transaction_id', transactionId)
+    
+    if (!verifyError) {
+      console.log(`[DELETE-PLAN] Verification: ${remainingInstallments?.length || 0} installments remain in database`)
+    }
+    
+    // Fetch updated transaction to verify remark change
+    const { data: updatedTransaction } = await supabase
+      .from('loan_transactions')
+      .select('remark')
+      .eq('id', transactionId)
+      .single()
+    
+    if (updatedTransaction) {
+      console.log(`[DELETE-PLAN] Verification: Updated remark is "${updatedTransaction.remark}"`)
+    }
+    
     return NextResponse.json({ 
       success: true,
       message: 'Installment plan deleted',
       deleted: {
         databaseRecords: count || 0,
-        remarkedUpdated: newRemark !== transaction.remark
+        remarkUpdated: newRemark !== transaction.remark
+      },
+      verification: {
+        remainingInstallments: remainingInstallments?.length || 0,
+        finalRemark: updatedTransaction?.remark || null
       }
     })
   } catch (error: any) {
