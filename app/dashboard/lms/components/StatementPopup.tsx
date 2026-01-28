@@ -45,6 +45,10 @@ export function StatementPopup({
   // Sync localAccount with account prop when it changes
   useEffect(() => {
     setLocalAccount(account)
+    // Also refetch installments when account changes (e.g., after refresh)
+    if (account.transactions) {
+      fetchInstallments()
+    }
   }, [account])
 
   // Fetch installments for service transactions
@@ -78,10 +82,6 @@ export function StatementPopup({
     console.log('[FETCH-INSTALLMENTS] Final map:', installmentsMap)
     setInstallmentsByTransaction(installmentsMap)
   }
-
-  useEffect(() => {
-    fetchInstallments()
-  }, [localAccount.transactions])
 
   return (
     <ModalWrapper onClose={onClose} title={`Statement - ${account.name}`}>
@@ -330,10 +330,12 @@ export function StatementPopup({
           accountId={account.id}
           employeeId={employeeId}
           onClose={() => setSelectedInstallment(null)}
-          onSave={() => {
-            onRefresh?.()
-            fetchInstallments() // Explicitly refetch installments after payment
+          onSave={async () => {
             setSelectedInstallment(null)
+            // Wait for the parent to refresh account data, then installments will auto-refresh
+            if (onRefresh) {
+              await onRefresh()
+            }
           }}
         />
       )}

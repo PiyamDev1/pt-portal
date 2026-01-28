@@ -45,19 +45,18 @@ export default function LMSClient({ currentUserId }: LMSClientProps) {
   const [reopenStatementFor, setReopenStatementFor] = useState<Account | null>(null)
 
   // Fetch data
-  const fetchData = useCallback(() => {
+  const fetchData = useCallback(async () => {
     setLoading(true)
-    fetch(`${API_ENDPOINTS.LMS}?filter=${filter}`)
-      .then(res => res.json())
-      .then(d => {
-        setData(d)
-        setLoading(false)
-      })
-      .catch(err => {
-        console.error(err)
-        toast.error('Failed to load accounts')
-        setLoading(false)
-      })
+    try {
+      const res = await fetch(`${API_ENDPOINTS.LMS}?filter=${filter}`)
+      const d = await res.json()
+      setData(d)
+      setLoading(false)
+    } catch (err) {
+      console.error(err)
+      toast.error('Failed to load accounts')
+      setLoading(false)
+    }
   }, [filter])
 
   useEffect(() => {
