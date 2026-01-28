@@ -162,6 +162,11 @@ export function TransactionModal({
           return
         }
         const firstDate = new Date(isoFirstPaymentDate)
+        // Validate the date is valid before proceeding
+        if (isNaN(firstDate.getTime())) {
+          setInstallmentPlan([])
+          return
+        }
 
         const plan = Array.from({ length: numInstallments }, (_, i) => {
           const dueDate = new Date(firstDate)
