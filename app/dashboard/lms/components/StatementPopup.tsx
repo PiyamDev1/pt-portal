@@ -47,26 +47,33 @@ export function StatementPopup({
 
   // Fetch installments for service transactions
   const fetchInstallments = async () => {
+    console.log('[FETCH-INSTALLMENTS] Starting fetch...')
     if (!localAccount.transactions) return
 
     const serviceTransactions = localAccount.transactions.filter(
       (tx: any) => tx.transaction_type?.toLowerCase() === 'service'
     )
 
+    console.log(`[FETCH-INSTALLMENTS] Found ${serviceTransactions.length} service transactions`)
+
     const installmentsMap: Record<string, any[]> = {}
 
     for (const tx of serviceTransactions) {
       try {
-        const res = await fetch(`/api/lms/installments?transactionId=${tx.id}`)
+        const url = `/api/lms/installments?transactionId=${tx.id}`
+        console.log(`[FETCH-INSTALLMENTS] Fetching ${url}`)
+        const res = await fetch(url)
         if (res.ok) {
           const data = await res.json()
+          console.log(`[FETCH-INSTALLMENTS] Transaction ${tx.id.substring(0, 8)}: got ${data.installments?.length || 0} installments`)
           installmentsMap[tx.id] = data.installments || []
         }
       } catch (err) {
-        console.error('Failed to fetch installments for transaction:', tx.id)
+        console.error('Failed to fetch installments for transaction:', tx.id, err)
       }
     }
 
+    console.log('[FETCH-INSTALLMENTS] Final map:', installmentsMap)
     setInstallmentsByTransaction(installmentsMap)
   }
 
