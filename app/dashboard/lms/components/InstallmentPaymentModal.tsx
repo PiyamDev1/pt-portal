@@ -111,9 +111,12 @@ export function InstallmentPaymentModal({
       try {
         const res = await fetch(API_ENDPOINTS.PAYMENT_METHODS)
         const data = await res.json()
+        console.log('Payment methods response:', data)
         setPaymentMethods(data.methods || [])
         if (data.methods?.length > 0) {
           setPaymentMethod(data.methods[0].id)
+        } else {
+          console.warn('No payment methods found in response')
         }
       } catch (err) {
         console.error('Failed to fetch payment methods:', err)
@@ -274,17 +277,26 @@ export function InstallmentPaymentModal({
             onChange={(e) => setPaymentMethod(e.target.value)}
             className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-slate-400"
             disabled={loading || paymentMethods.length === 0}
+            required
           >
             {paymentMethods.length === 0 ? (
-              <option disabled>Loading payment methods...</option>
+              <option value="">Loading payment methods...</option>
             ) : (
-              paymentMethods.map((method) => (
-                <option key={method.id} value={method.id}>
-                  {method.name}
-                </option>
-              ))
+              <>
+                <option value="">Select payment method</option>
+                {paymentMethods.map((method) => (
+                  <option key={method.id} value={method.id}>
+                    {method.name}
+                  </option>
+                ))}
+              </>
             )}
           </select>
+          {paymentMethods.length === 0 && (
+            <p className="mt-1 text-xs text-red-600">
+              No payment methods found. Please contact administrator.
+            </p>
+          )}
         </div>
 
         {/* Payment Date */}

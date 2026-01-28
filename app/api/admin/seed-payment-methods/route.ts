@@ -4,8 +4,7 @@ import { NextResponse } from 'next/server'
 const DEFAULT_PAYMENT_METHODS = [
   { name: 'Cash' },
   { name: 'Bank Transfer' },
-  { name: 'Card' },
-  { name: 'Cheque' },
+  { name: 'Card Payment' },
 ]
 
 export async function POST(request: Request) {

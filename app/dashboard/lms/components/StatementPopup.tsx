@@ -5,6 +5,7 @@ import { Receipt } from 'lucide-react'
 import { toast } from 'sonner'
 import { ModalWrapper } from './ModalWrapper'
 import { InstallmentPaymentModal } from './InstallmentPaymentModal'
+import { ModifyInstallmentPlanModal } from './ModifyInstallmentPlanModal'
 import { Account, Transaction } from '../types'
 
 interface StatementPopupProps {
@@ -39,6 +40,7 @@ export function StatementPopup({
   const [selectedInstallment, setSelectedInstallment] = useState<any>(null)
   const [installmentsByTransaction, setInstallmentsByTransaction] = useState<Record<string, any[]>>({})
   const [localAccount, setLocalAccount] = useState(account)
+  const [modifyingTransaction, setModifyingTransaction] = useState<any>(null)
 
   // Sync localAccount with account prop when it changes
   useEffect(() => {
@@ -203,57 +205,11 @@ export function StatementPopup({
                                 onClick={(e) => {
                                   e.stopPropagation()
                                   e.preventDefault()
-                                  
-                                  console.log('[DELETE-PLAN] Button clicked!')
-                                  alert('Delete button clicked! Check console for logs.')
-                                  
-                                  if (!window.confirm('Delete this service charge and all related installments? This will remove the entire transaction from the account.')) {
-                                    return
-                                  }
-                                  
-                                  (async () => {
-                                    try {
-                                      console.log(`[DELETE-PLAN] Starting delete for transaction ${tx.id}`)
-                                      console.log(`[DELETE-PLAN] Current remark: "${tx.remark}"`)
-                                      
-                                      const url = `/api/lms/delete-installment-plan`
-                                      console.log(`[DELETE-PLAN] Calling: ${url}`)
-                                      
-                                      const res = await fetch(url, { 
-                                        method: 'POST',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({ transactionId: tx.id })
-                                      })
-                                      
-                                      console.log(`[DELETE-PLAN] Response status: ${res.status}`)
-                                      
-                                      const data = await res.json()
-                                      console.log('[DELETE-PLAN] Response data:', data)
-                                      
-                                      if (!res.ok) {
-                                        throw new Error(data.error || `Failed to delete (${res.status})`)
-                                      }
-                                      
-                                      // Close modal first for better UX
-                                      onClose()
-                                      
-                                      // Show success message
-                                      toast.success('Service charge deleted and balance updated')
-                                      
-                                      // Trigger server refresh to reload data
-                                      if (onRefresh) {
-                                        console.log('[DELETE-PLAN] Triggering onRefresh')
-                                        onRefresh()
-                                      }
-                                    } catch (err: any) {
-                                      console.error('[DELETE-PLAN] Error:', err)
-                                      toast.error(err.message || 'Failed to delete')
-                                    }
-                                  })()
+                                  setModifyingTransaction(tx)
                                 }}
-                                className="px-1.5 py-0.5 text-[9px] bg-red-100 hover:bg-red-200 text-red-700 rounded font-bold"
+                                className="px-1.5 py-0.5 text-[9px] bg-blue-100 hover:bg-blue-200 text-blue-700 rounded font-bold"
                               >
-                                Delete Plan v2
+                                Modify
                               </button>
                             </div>
                           )}
@@ -375,6 +331,18 @@ export function StatementPopup({
             onRefresh?.()
             fetchInstallments() // Explicitly refetch installments after payment
             setSelectedInstallment(null)
+          }}
+        />
+      )}
+
+      {/* Modify Installment Plan Modal */}
+      {modifyingTransaction && (
+        <ModifyInstallmentPlanModal
+          transaction={modifyingTransaction}
+          onClose={() => setModifyingTransaction(null)}
+          onRefresh={() => {
+            setModifyingTransaction(null)
+            onRefresh?.()
           }}
         />
       )}
