@@ -220,6 +220,7 @@ export function StatementPopup({
                     // If this is a service, show installment rows from database ONLY
                     if (tType === 'service') {
                       const installments = installmentsByTransaction[tx.id] || []
+                      const totalInstallments = installments.length
                       
                       console.log(`[STATEMENT] Service transaction ${tx.id.substring(0, 8)}: ${installments.length} installments from DB`)
                       
@@ -228,6 +229,7 @@ export function StatementPopup({
                         const statusColor = 
                           installment.status === 'paid' ? 'bg-green-100 text-green-700' :
                           installment.status === 'partial' ? 'bg-yellow-100 text-yellow-700' :
+                          installment.status === 'skipped' ? 'bg-gray-100 text-gray-600' :
                           installment.status === 'overdue' ? 'bg-red-100 text-red-700' :
                           'bg-blue-100 text-blue-700'
 
@@ -242,6 +244,7 @@ export function StatementPopup({
                                 amountPaid: parseFloat(installment.amount_paid || 0),
                                 status: installment.status,
                                 installmentNumber: installment.installment_number,
+                                totalInstallments: totalInstallments,
                                 loanId: (tx as any).loan_id,
                               })
                             }
@@ -256,7 +259,7 @@ export function StatementPopup({
                               </span>
                             </td>
                             <td className="p-2 text-slate-600 text-[10px]">
-                              <div>Installment #{installment.installment_number}</div>
+                              <div>Installment {installment.installment_number}/{totalInstallments}</div>
                               <div className="text-[9px] text-slate-400">
                                 Ref: {tx.id.substring(0, 8)} | ID: {installment.id.substring(0, 8)}
                               </div>

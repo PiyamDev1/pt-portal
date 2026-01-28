@@ -74,8 +74,8 @@ export async function POST(request: Request) {
     const paymentTimestamp = paymentDate ? new Date(`${paymentDate}T00:00:00Z`).toISOString() : new Date().toISOString()
     
     const remarkText = installment 
-      ? `Installment #${installment.installment_number} payment - ID: ${installmentId.substring(0, 8)}`
-      : `Payment against installment - ID: ${installmentId.substring(0, 8)}`
+      ? `Service Plan ${serviceTransactionId.substring(0, 8)} - Installment #${installment.installment_number} payment`
+      : `Service Plan ${serviceTransactionId.substring(0, 8)} - Payment against installment`
     
     const { data: paymentData, error: paymentError } = await supabase
       .from('loan_transactions')
@@ -121,6 +121,38 @@ export async function POST(request: Request) {
 
       if (updateInstallmentError) throw updateInstallmentError
       console.log(`Successfully updated installment ${installmentId}`)
+      
+      // Handle skipped installments: mark earlier unpaid installments as 'skipped'
+      if (installment.installment_number > 1) {
+        console.log(`Checking for earlier unpaid installments before #${installment.installment_number}`)
+        
+        // Get the service transaction to find all installments
+        const { data: allInstallments, error: allInstallmentsError } = await supabase
+          .from('loan_installments')
+          .select('*')
+          .eq('loan_transaction_id', serviceTransactionId)
+          .lt('installment_number', installment.installment_number)
+          .eq('status', 'pending')
+        
+        if (allInstallmentsError) throw allInstallmentsError
+        
+        // Mark earlier pending installments as 'skipped' with 0 amount paid
+        if (allInstallments && allInstallments.length > 0) {
+          console.log(`Found ${allInstallments.length} earlier pending installments to mark as skipped`)
+          
+          for (const earlier of allInstallments) {
+            const { error: skipError } = await supabase
+              .from('loan_installments')
+              .update({
+                status: 'skipped',
+                amount_paid: 0,
+              })
+              .eq('id', earlier.id)
+            
+            if (skipError) throw skipError
+          }
+        }
+      }
     } else if (isTempId) {
       console.log(`Skipping installment update for temp ID: ${installmentId}`)
     }

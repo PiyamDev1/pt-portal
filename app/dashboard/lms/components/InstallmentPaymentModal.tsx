@@ -12,6 +12,7 @@ interface Installment {
   amountPaid?: number
   status?: string
   installmentNumber?: number
+  totalInstallments?: number
   remaining?: number
   term?: number
   totalTerms?: number
@@ -224,8 +225,10 @@ export function InstallmentPaymentModal({
           <p className="text-xs font-bold text-blue-900 uppercase">Installment Details</p>
           <div className="mt-2 space-y-1 text-sm">
             <p>
-              <span className="text-slate-600">Installment ID:</span>{' '}
-              <span className="font-mono text-xs">{installment.id?.substring(0, 8)}</span>
+              <span className="text-slate-600">Installment:</span>{' '}
+              <span className="font-mono text-xs font-bold">
+                {installment.installmentNumber}{installment.totalInstallments ? `/${installment.totalInstallments}` : ''}
+              </span>
             </p>
             <p>
               <span className="text-slate-600">Due Date:</span>{' '}
