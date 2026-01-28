@@ -76,7 +76,7 @@ export async function POST(request: Request) {
     // Subtract the deleted service amount from the loan balance
     const { data: loan, error: loanFetchError } = await supabase
       .from('loans')
-      .select('current_balance, total_debt_amount')
+      .select('current_balance, total_debt_amount, status')
       .eq('id', loanId)
       .single()
 
