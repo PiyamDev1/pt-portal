@@ -256,6 +256,7 @@ export default function StatementPage() {
                       </td>
                       <td className="p-3 text-slate-600 print:p-2 print:text-xs">
                         <div>{tx.remark || '-'}</div>
+                        {isService && <div className="text-xs text-slate-500 print:text-[7px]">Service Plan: {tx.id.substring(0, 8)}</div>}
                         {tx.loan_payment_methods?.name && <div className="text-xs text-slate-400 print:text-[7px]">({tx.loan_payment_methods.name})</div>}
                       </td>
                       <td className="p-3 text-right font-mono text-red-700 font-bold print:p-2 print:text-xs">
