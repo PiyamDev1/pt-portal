@@ -152,7 +152,7 @@ export async function GET(request) {
 
     // Calculate stats
     const stats = {
-      totalOutstanding: accounts.reduce((sum, a) => sum + (a.balance > 0 ? a.balance : 0), 0),
+      totalOutstanding: accounts.reduce((sum, a) => sum + a.balance, 0), // Include negative balances (credits held)
       activeAccounts: accounts.filter(a => a.balance > 0).length,
       overdueAccounts: accounts.filter(a => a.isOverdue).length,
       dueSoonAccounts: accounts.filter(a => a.isDueSoon).length,

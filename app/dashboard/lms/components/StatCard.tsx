@@ -7,7 +7,7 @@ interface StatCardProps {
   icon: React.ElementType
   label: string
   value: string | number
-  color: 'blue' | 'slate' | 'red' | 'amber'
+  color: 'blue' | 'slate' | 'red' | 'amber' | 'green'
 }
 
 /**

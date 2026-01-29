@@ -41,7 +41,8 @@ export const STAT_CARD_COLORS = {
   blue: 'from-blue-50 to-blue-100 text-blue-700 border-blue-200',
   slate: 'from-slate-50 to-slate-100 text-slate-700 border-slate-200',
   red: 'from-red-50 to-red-100 text-red-700 border-red-200',
-  amber: 'from-amber-50 to-amber-100 text-amber-700 border-amber-200'
+  amber: 'from-amber-50 to-amber-100 text-amber-700 border-amber-200',
+  green: 'from-green-50 to-green-100 text-green-700 border-green-200'
 } as const
 
 // Filter options

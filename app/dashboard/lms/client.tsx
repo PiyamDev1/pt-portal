@@ -149,8 +149,8 @@ export default function LMSClient({ currentUserId }: LMSClientProps) {
           <StatCard
             icon={Banknote}
             label="Outstanding"
-            value={`£${data.stats.totalOutstanding?.toLocaleString() || 0}`}
-            color="blue"
+            value={`£${(data.stats.totalOutstanding || 0).toLocaleString()}`}
+            color={(data.stats.totalOutstanding || 0) < 0 ? "green" : "blue"}
           />
           <StatCard icon={Users} label="Active" value={data.stats.activeAccounts || 0} color="slate" />
           <StatCard
