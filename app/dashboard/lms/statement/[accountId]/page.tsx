@@ -295,7 +295,7 @@ export default function StatementPage() {
                               <div className="text-xs text-slate-500 print:text-[7px]">Plan: {tx.id.substring(0, 8)} | ID: {installment.id.substring(0, 8)}</div>
                             </td>
                             <td className="p-3 text-right font-mono text-blue-700 font-bold print:p-2 print:text-xs">
-                              £{parseFloat(installment.amount).toFixed(2)}
+                              £{(installment.status === 'paid' ? installment.amount_paid : installment.status === 'skipped' ? 0 : parseFloat(installment.amount)).toFixed(2)}
                             </td>
                             <td className="p-3 text-right font-mono text-slate-400 print:p-2 print:text-xs">
                               {installment.amount_paid > 0 ? `£${parseFloat(installment.amount_paid).toFixed(2)}` : '-'}
