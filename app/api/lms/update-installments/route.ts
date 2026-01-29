@@ -32,8 +32,7 @@ export async function POST(request: Request) {
         .from('loan_installments')
         .update({
           due_date,
-          amount: parseFloat(amount),
-          updated_at: new Date().toISOString()
+          amount: parseFloat(amount)
         })
         .eq('id', id)
 
