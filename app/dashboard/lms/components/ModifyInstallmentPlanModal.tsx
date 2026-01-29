@@ -264,7 +264,7 @@ export function ModifyInstallmentPlanModal({
                       <input
                         type="number"
                         step="0.01"
-                        value={inst.amount}
+                        value={inst.status === 'paid' ? inst.amount_paid : inst.status === 'skipped' ? 0 : inst.amount}
                         onChange={(e) => handleInstallmentChange(idx, 'amount', e.target.value)}
                         disabled={inst.status === 'paid' || inst.status === 'skipped'}
                         className="w-full px-2 py-1.5 text-sm border rounded disabled:bg-slate-100 disabled:cursor-not-allowed"
@@ -280,7 +280,10 @@ export function ModifyInstallmentPlanModal({
               <div className="flex justify-between mb-1">
                 <span className="text-blue-700">Total Installments:</span>
                 <span className="font-semibold text-blue-900">
-                  £{editedInstallments.reduce((sum, inst) => sum + inst.amount, 0).toFixed(2)}
+                  £{editedInstallments.reduce((sum, inst) => {
+                    const displayAmount = inst.status === 'paid' ? inst.amount_paid : inst.status === 'skipped' ? 0 : inst.amount
+                    return sum + displayAmount
+                  }, 0).toFixed(2)}
                 </span>
               </div>
               <div className="flex justify-between">
