@@ -116,6 +116,28 @@ export async function GET(request) {
       const isDueSoon = nextDue && !isOverdue && 
         (nextDue - new Date()) / (1000 * 60 * 60 * 24) <= 7 && balance > 0
 
+      // Count active services (services with unpaid amounts)
+      // Each service with installments counts as 1, regardless of how many installments
+      const activeServicesCount = services.filter(service => {
+        const serviceInstallments = allInstallments.filter(i => i.loan_transaction_id === service.id)
+        
+        if (serviceInstallments.length > 0) {
+          // Has installments - check if any are unpaid
+          return serviceInstallments.some(inst => inst.status !== 'paid' && inst.status !== 'skipped')
+        } else {
+          // No installments - check if service amount hasn't been fully paid
+          const servicePayments = payments.filter(p => {
+            // Match payments by date proximity (within 1 day of service)
+            const serviceDateObj = new Date(service.transaction_timestamp)
+            const paymentDateObj = new Date(p.transaction_timestamp)
+            const dayDiff = Math.abs((serviceDateObj - paymentDateObj) / (1000 * 60 * 60 * 24))
+            return dayDiff <= 1
+          })
+          const servicePaid = servicePayments.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0)
+          return servicePaid < parseFloat(service.amount || 0)
+        }
+      }).length
+
       return {
         id: customer.id,
         name: `${customer.first_name} ${customer.last_name}`,
@@ -125,7 +147,7 @@ export async function GET(request) {
         email: customer.email,
         address: customer.address,
         balance,
-        activeLoans: customerLoans.filter(l => l.current_balance > 0).length,
+        activeLoans: activeServicesCount,
         totalLoans: customerLoans.length,
         nextDue: nextDue?.toISOString(),
         isOverdue,
