@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { Receipt } from 'lucide-react'
 import { toast } from 'sonner'
 import { ModalWrapper } from './ModalWrapper'
+import { ConfirmationModal } from './ConfirmationModal'
 import { InstallmentPaymentModal } from './InstallmentPaymentModal'
 import { ModifyInstallmentPlanModal } from './ModifyInstallmentPlanModal'
 import { Account, Transaction } from '../types'
@@ -41,6 +42,8 @@ export function StatementPopup({
   const [installmentsByTransaction, setInstallmentsByTransaction] = useState<Record<string, any[]>>({})
   const [localAccount, setLocalAccount] = useState(account)
   const [modifyingTransaction, setModifyingTransaction] = useState<any>(null)
+  const [deletePaymentId, setDeletePaymentId] = useState<string | null>(null)
+  const [skipInstallmentId, setSkipInstallmentId] = useState<string | null>(null)
 
   // Sync localAccount with account prop when it changes
   useEffect(() => {
@@ -178,20 +181,9 @@ export function StatementPopup({
                         <td className="p-2 text-center">
                           {tType === 'payment' && (
                             <button
-                              onClick={async (e) => {
+                              onClick={(e) => {
                                 e.stopPropagation()
-                                if (!confirm('Delete this payment?')) return
-                                try {
-                                  const res = await fetch(
-                                    `/api/lms/installment-payment?transactionId=${tx.id}&accountId=${account.id}`,
-                                    { method: 'DELETE' }
-                                  )
-                                  if (!res.ok) throw new Error('Failed to delete')
-                                  onRefresh?.()
-                                  toast.success('Payment deleted')
-                                } catch (err) {
-                                  toast.error('Failed to delete payment')
-                                }
+                                setDeletePaymentId(tx.id)
                               }}
                               className="px-1.5 py-0.5 text-[9px] bg-red-100 hover:bg-red-200 text-red-700 rounded"
                             >
@@ -273,25 +265,9 @@ export function StatementPopup({
                             <td className="p-2 text-center">
                               {installment.status !== 'paid' && installment.status !== 'skipped' && (
                                 <button
-                                  onClick={async (e) => {
+                                  onClick={(e) => {
                                     e.stopPropagation()
-                                    if (!confirm(`Skip Installment ${installment.installment_number}/${totalInstallments}? Remaining installments will be recalculated.`)) return
-                                    
-                                    try {
-                                      const res = await fetch('/api/lms/skip-installment', {
-                                        method: 'POST',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({ installmentId: installment.id })
-                                      })
-                                      
-                                      const data = await res.json()
-                                      if (!res.ok) throw new Error(data.error || 'Failed to skip')
-                                      
-                                      toast.success(`Installment skipped. ${data.remainingInstallments} installments recalculated to £${data.newAmountPerInstallment.toFixed(2)} each`)
-                                      onRefresh?.()
-                                    } catch (err: any) {
-                                      toast.error(err.message || 'Failed to skip installment')
-                                    }
+                                    setSkipInstallmentId(installment.id)
                                   }}
                                   className="px-1.5 py-0.5 text-[9px] bg-amber-100 hover:bg-amber-200 text-amber-700 rounded font-bold"
                                 >
@@ -379,6 +355,60 @@ export function StatementPopup({
           }}
         />
       )}
+
+      {/* Delete Payment Confirmation */}
+      <ConfirmationModal
+        isOpen={deletePaymentId !== null}
+        title="Delete Payment"
+        message="Delete this payment record?\n\nThis action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        isDangerous={true}
+        onConfirm={async () => {
+          try {
+            const res = await fetch(
+              `/api/lms/installment-payment?transactionId=${deletePaymentId}&accountId=${account.id}`,
+              { method: 'DELETE' }
+            )
+            if (!res.ok) throw new Error('Failed to delete')
+            onRefresh?.()
+            toast.success('Payment deleted')
+            setDeletePaymentId(null)
+          } catch (err) {
+            toast.error('Failed to delete payment')
+          }
+        }}
+        onCancel={() => setDeletePaymentId(null)}
+      />
+
+      {/* Skip Installment Confirmation */}
+      <ConfirmationModal
+        isOpen={skipInstallmentId !== null}
+        title="Skip Installment"
+        message="Skip this installment?\n\nRemaining unpaid installments will be recalculated evenly."
+        confirmText="Skip"
+        cancelText="Cancel"
+        isDangerous={false}
+        onConfirm={async () => {
+          try {
+            const res = await fetch('/api/lms/skip-installment', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ installmentId: skipInstallmentId })
+            })
+            
+            const data = await res.json()
+            if (!res.ok) throw new Error(data.error || 'Failed to skip')
+            
+            toast.success(`Installment skipped. ${data.remainingInstallments} installments recalculated to £${data.newAmountPerInstallment.toFixed(2)} each`)
+            onRefresh?.()
+            setSkipInstallmentId(null)
+          } catch (err: any) {
+            toast.error(err.message || 'Failed to skip installment')
+          }
+        }}
+        onCancel={() => setSkipInstallmentId(null)}
+      />
     </ModalWrapper>
   )
 }

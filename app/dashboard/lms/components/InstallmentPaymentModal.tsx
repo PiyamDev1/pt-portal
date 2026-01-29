@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { ModalWrapper } from './ModalWrapper'
+import { ConfirmationModal } from './ConfirmationModal'
 import { toast } from 'sonner'
 import { API_ENDPOINTS } from '../constants'
 
@@ -63,6 +64,7 @@ export function InstallmentPaymentModal({
   const [existingPayments, setExistingPayments] = useState<any[]>([])
   const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null)
   const [editingAmount, setEditingAmount] = useState('')
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
 
   // Auto-format date input (DD/MM/YYYY)
   const handleDateInput = (value: string): string => {
@@ -127,9 +129,11 @@ export function InstallmentPaymentModal({
     fetchPaymentMethods()
   }, [])
 
-  const handleDeletePayment = async (paymentId: string) => {
-    if (!confirm('Are you sure you want to delete this payment?')) return
+  const handleDeletePayment = (paymentId: string) => {
+    setDeleteConfirmId(paymentId)
+  }
 
+  const executeDeletePayment = async (paymentId: string) => {
     try {
       const res = await fetch(`/api/lms/installment-payment?transactionId=${paymentId}&accountId=${installment.loanId || accountId}`, {
         method: 'DELETE',
@@ -366,6 +370,22 @@ export function InstallmentPaymentModal({
           </button>
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={deleteConfirmId !== null}
+        title="Delete Payment"
+        message={`Delete this payment record?\n\nThis action cannot be undone.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        isDangerous={true}
+        onConfirm={async () => {
+          if (deleteConfirmId) {
+            await executeDeletePayment(deleteConfirmId)
+          }
+        }}
+        onCancel={() => setDeleteConfirmId(null)}
+      />
     </ModalWrapper>
   )
 }

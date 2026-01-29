@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { ModalWrapper } from './ModalWrapper'
+import { ConfirmationModal } from './ConfirmationModal'
 import { toast } from 'sonner'
 
 interface Transaction {
@@ -37,6 +38,7 @@ export function ModifyInstallmentPlanModal({
   const [editedInstallments, setEditedInstallments] = useState<Installment[]>([])
   const [showSchedule, setShowSchedule] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
   useEffect(() => {
     fetchInstallments()
@@ -136,10 +138,6 @@ export function ModifyInstallmentPlanModal({
   }
 
   const handleDelete = async () => {
-    if (!window.confirm('Delete this service charge and all related installments? This will remove the entire transaction from the account.')) {
-      return
-    }
-
     setLoading(true)
     try {
       const res = await fetch('/api/lms/delete-installment-plan', {
@@ -313,7 +311,7 @@ export function ModifyInstallmentPlanModal({
             </p>
             
             <button
-              onClick={handleDelete}
+              onClick={() => setShowDeleteConfirm(true)}
               disabled={loading}
               className="w-full px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white rounded-lg font-medium transition-colors"
             >
@@ -321,6 +319,18 @@ export function ModifyInstallmentPlanModal({
             </button>
           </div>
         )}
+
+        {/* Confirmation Modal */}
+        <ConfirmationModal
+          isOpen={showDeleteConfirm}
+          title="Delete Service Transaction"
+          message={`Delete this service charge (£${parseFloat(transaction.amount as any).toFixed(2)}) and all related installments?\n\nThis will remove the entire transaction from the account and cannot be undone.`}
+          confirmText="Delete"
+          cancelText="Cancel"
+          isDangerous={true}
+          onConfirm={handleDelete}
+          onCancel={() => setShowDeleteConfirm(false)}
+        />
 
         {/* Close Button */}
         {!showSchedule && (
