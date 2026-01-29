@@ -49,6 +49,13 @@ export async function GET(request) {
 
     if (txError) throw txError
 
+    // Fetch all installments
+    const { data: allInstallments, error: installmentsError } = await supabase
+      .from('loan_installments')
+      .select('*')
+
+    if (installmentsError) throw installmentsError
+
     // Build enriched customer accounts
     const accounts = customers.map(customer => {
       const customerLoans = allLoans.filter(l => l.loan_customer_id === customer.id)
@@ -66,11 +73,44 @@ export async function GET(request) {
 
       const balance = totalServices + totalFees - totalPayments
 
-      // Find next due date from active loans
-      const nextDue = customerLoans
-        .filter(l => l.next_due_date && l.current_balance > 0)
-        .map(l => new Date(l.next_due_date))
-        .sort((a, b) => a - b)[0]
+      // Calculate next due date using smart logic:
+      // 1. Get all service transactions (these create debt with dates)
+      // 2. Get all installments for these services
+      // 3. Find the earliest unpaid date
+      
+      let nextDue = null
+      
+      if (balance > 0) {
+        const dueDates = []
+        
+        // Get service transaction dates and their installments
+        for (const service of services) {
+          const serviceInstallments = allInstallments.filter(i => i.loan_transaction_id === service.id)
+          
+          if (serviceInstallments.length > 0) {
+            // Has installment plan - use installment due dates
+            serviceInstallments.forEach(inst => {
+              if (inst.status !== 'paid' && inst.status !== 'skipped') {
+                dueDates.push(new Date(inst.due_date))
+              }
+            })
+          } else {
+            // No installment plan - use service transaction date as due date
+            dueDates.push(new Date(service.transaction_timestamp))
+          }
+        }
+        
+        // Add fee dates (fees are due immediately)
+        fees.forEach(fee => {
+          dueDates.push(new Date(fee.transaction_timestamp))
+        })
+        
+        // Sort and get earliest
+        if (dueDates.length > 0) {
+          dueDates.sort((a, b) => a - b)
+          nextDue = dueDates[0]
+        }
+      }
 
       const isOverdue = nextDue && nextDue < new Date() && balance > 0
       const isDueSoon = nextDue && !isOverdue && 
