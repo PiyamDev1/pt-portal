@@ -44,6 +44,18 @@ export const isValidDateFormat = (dateString: string): boolean => {
 }
 
 /**
+ * Auto-format date input into DD/MM/YYYY as user types
+ * @param value - Raw input value
+ * @returns Formatted date string
+ */
+export const handleDateInput = (value: string): string => {
+  const digits = value.replace(/\D/g, '')
+  if (digits.length <= 2) return digits
+  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4, 8)}`
+}
+
+/**
  * Format ISO date to locale date string
  * @param isoDateOrTimestamp - ISO date string or full timestamp
  * @returns Formatted date string in locale format

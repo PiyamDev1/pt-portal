@@ -1,126 +1,23 @@
 'use client'
 
-import { useState, useEffect } from 'react'
 import { ArrowLeft, Download, Printer } from 'lucide-react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
+import { formatToDisplayDate } from '@/app/lib/dateFormatter'
+import { useStatementData } from '@/app/hooks/useStatementData'
+import { useStatementFilters } from '@/app/hooks/useStatementFilters'
 
 export default function StatementPage() {
   const params = useParams()
   const accountId = params.accountId as string
-  
-  // Date format conversion utilities
-  const formatToDisplayDate = (isoDate: string): string => {
-    if (!isoDate) return ''
-    const [year, month, day] = isoDate.split('-')
-    return `${day}/${month}/${year}`
-  }
 
-  const formatToISODate = (displayDate: string): string => {
-    if (!displayDate) return ''
-    const parts = displayDate.split('/')
-    if (parts.length !== 3) return ''
-    const [day, month, year] = parts
-    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`
-  }
-
-  // Auto-format date input (DD/MM/YYYY)
-  const handleDateInput = (value: string): string => {
-    // Remove all non-digit characters
-    const digits = value.replace(/\D/g, '')
-    
-    // Format as DD/MM/YYYY
-    if (digits.length <= 2) return digits
-    if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`
-    return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4, 8)}`
-  }
-
-  const [loading, setLoading] = useState(true)
-  const [account, setAccount] = useState<any>(null)
-  const [filter, setFilter] = useState({ type: '', dateFrom: '', dateTo: '' })
-  const [installmentsByTransaction, setInstallmentsByTransaction] = useState<Record<string, any[]>>({})
-
-  useEffect(() => {
-    // Fetch account details
-    fetch(`/api/lms?accountId=${accountId}`)
-      .then(res => res.json())
-      .then(data => {
-        const acc = data.accounts?.find((a: any) => a.id === accountId)
-        setAccount(acc)
-        
-        // Fetch installments for all service transactions
-        if (acc && acc.transactions) {
-          const serviceTransactions = acc.transactions.filter((tx: any) => 
-            (tx.transaction_type || '').toLowerCase() === 'service'
-          )
-          
-          const installmentsMap: Record<string, any[]> = {}
-          let fetchedCount = 0
-          
-          serviceTransactions.forEach((tx: any) => {
-            fetch(`/api/lms/installments?transactionId=${tx.id}`)
-              .then(res => res.json())
-              .then(data => {
-                installmentsMap[tx.id] = data.installments || []
-                fetchedCount++
-                
-                if (fetchedCount === serviceTransactions.length) {
-                  setInstallmentsByTransaction(installmentsMap)
-                  setLoading(false)
-                }
-              })
-              .catch(err => {
-                console.error('Failed to fetch installments:', err)
-                fetchedCount++
-                if (fetchedCount === serviceTransactions.length) {
-                  setInstallmentsByTransaction(installmentsMap)
-                  setLoading(false)
-                }
-              })
-          })
-          
-          if (serviceTransactions.length === 0) {
-            setLoading(false)
-          }
-        } else {
-          setLoading(false)
-        }
-      })
-      .catch(err => {
-        console.error(err)
-        setLoading(false)
-      })
-  }, [accountId])
+  const { loading, account, installmentsByTransaction } = useStatementData(accountId)
+  const { filter, setFilter, handleDateInput, filteredTransactions, totals } = useStatementFilters(account)
 
   if (loading) return <div className="p-12 text-center text-slate-400">Loading statement...</div>
   if (!account) return <div className="p-12 text-center text-slate-400">Account not found</div>
 
-  // Filter transactions
-  const filteredTransactions = account.transactions?.filter((tx: any) => {
-    const tType = (tx.transaction_type || '').toLowerCase()
-    const fType = (filter.type || '').toLowerCase()
-    if (fType && tType !== fType) return false
-    
-    // Convert filter dates from DD/MM/YYYY to ISO for comparison
-    const isoDateFrom = filter.dateFrom ? formatToISODate(filter.dateFrom) : ''
-    const isoDateTo = filter.dateTo ? formatToISODate(filter.dateTo) : ''
-    
-    if (isoDateFrom && new Date(tx.transaction_timestamp) < new Date(isoDateFrom)) return false
-    if (isoDateTo && new Date(tx.transaction_timestamp) > new Date(isoDateTo)) return false
-    return true
-  }) || []
-
-  // Calculate totals
-  const totals = {
-    debits: filteredTransactions.filter((tx: any) => {
-      const t = (tx.transaction_type || '').toLowerCase()
-      return t === 'service' || t === 'fee'
-    }).reduce((sum: number, tx: any) => sum + parseFloat(tx.amount), 0),
-    credits: filteredTransactions.filter((tx: any) => {
-      const t = (tx.transaction_type || '').toLowerCase()
-      return t === 'payment'
-    }).reduce((sum: number, tx: any) => sum + parseFloat(tx.amount), 0)
-  }
+  // filteredTransactions and totals now handled by useStatementFilters
 
   return (
     <div className="min-h-screen bg-white">

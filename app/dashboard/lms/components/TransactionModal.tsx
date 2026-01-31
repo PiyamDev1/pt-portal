@@ -5,8 +5,12 @@ import { Calendar, Receipt } from 'lucide-react'
 import { toast } from 'sonner'
 import { ModalWrapper } from './ModalWrapper'
 import { LoadingSpinner } from './Skeletons'
-import { Account, PaymentMethod, InstallmentPayment } from '../types'
+import { Account, InstallmentPayment } from '../types'
 import { API_ENDPOINTS, TRANSACTION_TYPES, PAYMENT_FREQUENCIES, DATE_OFFSETS } from '../constants'
+import { formatToDisplayDate, formatToISODate, handleDateInput, isValidDateFormat } from '@/app/lib/dateFormatter'
+import { usePaymentMethods } from '../hooks'
+import { TransactionTypeSelector } from './TransactionTypeSelector'
+import { InstallmentPlanPreview } from './InstallmentPlanPreview'
 
 interface TransactionModalProps {
   data: Account & { transactionType?: string }
@@ -26,54 +30,6 @@ export function TransactionModal({
   employeeId,
   onPaymentRecorded
 }: TransactionModalProps) {
-  // Date format conversion utilities
-  const formatToDisplayDate = (isoDate: string): string => {
-    if (!isoDate) return ''
-    const [year, month, day] = isoDate.split('-')
-    return `${day}/${month}/${year}`
-  }
-
-  const formatToISODate = (displayDate: string): string => {
-    if (!displayDate) return ''
-    const parts = displayDate.split('/')
-    if (parts.length !== 3) return ''
-    const [day, month, year] = parts
-    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`
-  }
-
-  // Auto-format date input (DD/MM/YYYY)
-  const handleDateInput = (value: string): string => {
-    // Remove all non-digit characters
-    const digits = value.replace(/\D/g, '')
-    
-    // Format as DD/MM/YYYY
-    if (digits.length <= 2) return digits
-    if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`
-    return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4, 8)}`
-  }
-
-  // Validate date format (DD/MM/YYYY)
-  const isValidDateFormat = (dateString: string): boolean => {
-    if (!dateString) return false
-    // Check if it matches DD/MM/YYYY format
-    const dateRegex = /^\d{2}\/\d{2}\/\d{4}$/
-    if (!dateRegex.test(dateString)) return false
-    
-    const parts = dateString.split('/')
-    const day = parseInt(parts[0])
-    const month = parseInt(parts[1])
-    const year = parseInt(parts[2])
-    
-    // Check if month is valid
-    if (month < 1 || month > 12) return false
-    
-    // Check if day is valid
-    if (day < 1 || day > 31) return false
-    
-    // Check if it's a valid date
-    const date = new Date(`${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`)
-    return date instanceof Date && !isNaN(date.getTime())
-  }
 
   const getInstallmentOptions = useCallback((frequency: string) => {
     if (frequency === PAYMENT_FREQUENCIES.WEEKLY) {
@@ -112,25 +68,13 @@ export function TransactionModal({
   })
 
   const [installmentPlan, setInstallmentPlan] = useState<InstallmentPayment[]>([])
-  const [methods, setMethods] = useState<PaymentMethod[]>([])
+  const { methods } = usePaymentMethods()
   const [loading, setLoading] = useState(false)
   const [planExpanded, setPlanExpanded] = useState(true)
 
   // Temporary: Allow unlimited past dates for re-entering deleted data
   const ALLOW_UNLIMITED_PAST = true // Set to false when done re-entering data
 
-  // Fetch payment methods
-  useEffect(() => {
-    fetch(API_ENDPOINTS.PAYMENT_METHODS)
-      .then(r => r.json())
-      .then(d => {
-        setMethods(d.methods || [])
-      })
-      .catch(err => {
-        console.error('Error loading payment methods:', err)
-        toast.error('Failed to load payment methods')
-      })
-  }, [])
 
   // Clamp installment terms when frequency changes
   useEffect(() => {
@@ -341,32 +285,10 @@ export function TransactionModal({
       } - ${data.name}`}
     >
       <form onSubmit={handleSubmit} className="space-y-4 max-h-[80vh] overflow-y-auto">
-        {/* Transaction Type Selector */}
-        <div>
-          <label className="text-xs font-bold text-slate-500 uppercase mb-2 block">
-            Transaction Type
-          </label>
-          <div className="grid grid-cols-3 gap-2">
-            {[
-              { type: TRANSACTION_TYPES.SERVICE, label: 'Installment Plan', color: 'blue' },
-              { type: TRANSACTION_TYPES.PAYMENT, label: 'Payment', color: 'green' },
-              { type: TRANSACTION_TYPES.FEE, label: 'Service Fee', color: 'amber' }
-            ].map(({ type, label, color }) => (
-              <button
-                key={type}
-                type="button"
-                onClick={() => updateForm({ type: type as 'service' | 'payment' | 'fee' })}
-                className={`p-2 rounded-lg text-xs font-bold transition-all ${
-                  form.type === type
-                    ? `bg-${color}-600 text-white`
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
+        <TransactionTypeSelector
+          value={form.type}
+          onChange={(type) => updateForm({ type })}
+        />
 
         {/* Amount Field */}
         <div>
@@ -498,80 +420,12 @@ export function TransactionModal({
               </div>
             </div>
 
-            {/* Installment Plan Preview */}
-            {installmentPlan.length > 0 && (
-              <div className="border rounded-lg">
-                <button
-                  type="button"
-                  onClick={() => setPlanExpanded(!planExpanded)}
-                  className="w-full p-3 bg-slate-100 hover:bg-slate-200 font-bold text-slate-700 text-xs uppercase flex items-center justify-between"
-                >
-                  <span>Payment Schedule ({installmentPlan.length} payments)</span>
-                  <span>{planExpanded ? '▼' : '▶'}</span>
-                </button>
-
-                {planExpanded && (
-                  <div className="p-4 space-y-2 bg-white max-h-[400px] overflow-y-auto">
-                    {installmentPlan.map((installment, idx) => {
-                      const isFirst = idx === 0
-                      const isLast = idx === installmentPlan.length - 1
-
-                      return (
-                        <div
-                          key={idx}
-                          className="bg-white p-3 rounded-lg border-2 border-blue-100 hover:border-blue-300 transition-all shadow-sm"
-                        >
-                          <div className="flex items-center gap-3">
-                            <div
-                              className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm ${
-                                isFirst
-                                  ? 'bg-green-100 text-green-700 border-2 border-green-300'
-                                  : isLast
-                                    ? 'bg-purple-100 text-purple-700 border-2 border-purple-300'
-                                    : 'bg-blue-100 text-blue-700 border-2 border-blue-300'
-                              }`}
-                            >
-                              #{idx + 1}
-                            </div>
-
-                            <div className="flex-1">
-                              <div className="text-[10px] text-slate-500 uppercase font-bold mb-1">
-                                Due Date
-                              </div>
-                              <input
-                                type="text"
-                                placeholder="DD/MM/YYYY"
-                                value={installment.dueDate}
-                                onChange={e => updateInstallmentDate(idx, e.target.value)}
-                                className="w-full p-2 text-sm border-2 border-slate-200 rounded-lg hover:border-blue-400 focus:border-blue-500 outline-none"
-                              />
-                            </div>
-
-                            <div className="text-right">
-                              <div className="text-[10px] text-slate-500 uppercase font-bold mb-1">
-                                Payment
-                              </div>
-                              <div className="font-mono text-sm font-bold text-slate-600">
-                                £{installment.amount.toFixed(2)}
-                              </div>
-                            </div>
-
-                            <div className="text-right">
-                              <div className="text-[10px] text-slate-500 uppercase font-bold mb-1">
-                                Balance After
-                              </div>
-                              <div className="font-mono text-sm font-bold text-slate-600">
-                                £{(installment.runningBalance || 0).toFixed(2)}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
+            <InstallmentPlanPreview
+              installmentPlan={installmentPlan}
+              planExpanded={planExpanded}
+              onToggle={() => setPlanExpanded(!planExpanded)}
+              onUpdateInstallmentDate={updateInstallmentDate}
+            />
           </>
         )}
 

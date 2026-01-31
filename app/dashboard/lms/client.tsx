@@ -1,8 +1,7 @@
 'use client'
 
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Search, Plus, Users, Banknote, AlertTriangle, Clock, Filter, StickyNote, History } from 'lucide-react'
-import { toast } from 'sonner'
 
 // Imports from extracted components
 import { StatCard } from './components/StatCard'
@@ -20,11 +19,11 @@ import { ErrorBoundary } from './ErrorBoundary'
 import { TableHeaderSkeleton, StatCardSkeleton } from './components/Skeletons'
 
 // Hooks and utilities
-import { useDebounce } from './hooks'
+import { useDebounce, useLmsData, useLmsFilters } from './hooks'
 
 // Types and constants
-import { Account, LMSData } from './types'
-import { FILTER_OPTIONS, STATUS_COLORS, API_ENDPOINTS } from './constants'
+import { Account } from './types'
+import { FILTER_OPTIONS, STATUS_COLORS } from './constants'
 
 interface LMSClientProps {
   currentUserId: string
@@ -36,11 +35,12 @@ interface LMSClientProps {
  */
 export default function LMSClient({ currentUserId }: LMSClientProps) {
   const [loading, setLoading] = useState(true)
-  const [data, setData] = useState<LMSData>({ accounts: [], stats: {} })
   const [searchTerm, setSearchTerm] = useState('')
   const debouncedSearchTerm = useDebounce(searchTerm, 300)
   const [filter, setFilter] = useState('active')
   const [searchFilters, setSearchFilters] = useState<SearchFilters>({})
+
+  const { loading: dataLoading, data, refresh } = useLmsData(filter)
 
   // Modal states
   const [showNewCustomer, setShowNewCustomer] = useState(false)
@@ -52,24 +52,9 @@ export default function LMSClient({ currentUserId }: LMSClientProps) {
   const [showAccountNotes, setShowAccountNotes] = useState<Account | null>(null)
   const [showAuditLogs, setShowAuditLogs] = useState<Account | null>(null)
 
-  // Fetch data
-  const fetchData = useCallback(async () => {
-    setLoading(true)
-    try {
-      const res = await fetch(`${API_ENDPOINTS.LMS}?filter=${filter}`)
-      const d = await res.json()
-      setData(d)
-      setLoading(false)
-    } catch (err) {
-      console.error(err)
-      toast.error('Failed to load accounts')
-      setLoading(false)
-    }
-  }, [filter])
-
   useEffect(() => {
-    fetchData()
-  }, [filter, fetchData])
+    setLoading(dataLoading)
+  }, [dataLoading])
 
   // Keep statement modal in sync with latest data
   useEffect(() => {
@@ -85,54 +70,7 @@ export default function LMSClient({ currentUserId }: LMSClientProps) {
     }
   }, [data.accounts, showStatementPopup, filter])
 
-  // Memoized filtered accounts
-  const filtered = useMemo(() => {
-    let results = data.accounts || []
-    
-    // Apply text search
-    if (debouncedSearchTerm) {
-      results = results.filter((a: Account) => 
-        a.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
-        a.phone?.includes(debouncedSearchTerm) ||
-        a.email?.toLowerCase().includes(debouncedSearchTerm.toLowerCase())
-      )
-    }
-    
-    // Apply advanced filters
-    if (searchFilters.dateFrom) {
-      const from = new Date(searchFilters.dateFrom.split('/').reverse().join('-'))
-      results = results.filter((a: Account) => {
-        const dueDate = new Date(a.nextDue || '')
-        return dueDate >= from
-      })
-    }
-    
-    if (searchFilters.dateTo) {
-      const to = new Date(searchFilters.dateTo.split('/').reverse().join('-'))
-      results = results.filter((a: Account) => {
-        const dueDate = new Date(a.nextDue || '')
-        return dueDate <= to
-      })
-    }
-    
-    if (searchFilters.minAmount !== undefined) {
-      results = results.filter((a: Account) => a.balance >= searchFilters.minAmount!)
-    }
-    
-    if (searchFilters.maxAmount !== undefined) {
-      results = results.filter((a: Account) => a.balance <= searchFilters.maxAmount!)
-    }
-    
-    if (searchFilters.hasOverdue) {
-      results = results.filter((a: Account) => a.isOverdue)
-    }
-    
-    if (searchFilters.hasDueSoon) {
-      results = results.filter((a: Account) => a.isDueSoon && !a.isOverdue)
-    }
-    
-    return results
-  }, [data.accounts, debouncedSearchTerm, searchFilters])
+  const { filtered } = useLmsFilters(data.accounts, debouncedSearchTerm, searchFilters)
 
   // Status badge with memoization
   const getStatusBadge = useCallback((account: Account) => {
@@ -307,7 +245,7 @@ export default function LMSClient({ currentUserId }: LMSClientProps) {
           <ErrorBoundary>
             <NewCustomerModal
               onClose={() => setShowNewCustomer(false)}
-              onSave={fetchData}
+              onSave={refresh}
               employeeId={currentUserId}
             />
           </ErrorBoundary>
@@ -318,7 +256,7 @@ export default function LMSClient({ currentUserId }: LMSClientProps) {
             <TransactionModal
               data={showTransaction}
               onClose={() => setShowTransaction(null)}
-              onSave={fetchData}
+              onSave={refresh}
               employeeId={currentUserId}
               onPaymentRecorded={() => {
                 const target = reopenStatementFor || showTransaction
@@ -345,7 +283,7 @@ export default function LMSClient({ currentUserId }: LMSClientProps) {
                 setShowStatementPopup(null)
                 setShowTransaction({ ...acc, transactionType: 'fee' })
               }}
-              onRefresh={fetchData}
+              onRefresh={refresh}
             />
           </ErrorBoundary>
         )}
@@ -355,7 +293,7 @@ export default function LMSClient({ currentUserId }: LMSClientProps) {
             <EditCustomerModal
               customer={showEditCustomer}
               onClose={() => setShowEditCustomer(null)}
-              onSave={fetchData}
+              onSave={refresh}
               employeeId={currentUserId}
             />
           </ErrorBoundary>

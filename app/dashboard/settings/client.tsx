@@ -6,7 +6,7 @@ import BranchesTab from './components/BranchesTab'
 import StaffTab from './components/StaffTab'
 import HierarchyTab from './components/HierarchyTab'
 import { MaintenanceTab } from './components/MaintenanceTab'
-import ServicePricingTab from './components/ServicePricingTab'
+import Link from 'next/link'
 
 export default function SettingsClient({ 
   currentUser, 
@@ -92,16 +92,15 @@ export default function SettingsClient({
               >
                 Data Maintenance
               </button>
-              <button 
-                onClick={() => setActiveTab('service-pricing')}
-                className={`w-full text-left px-4 py-3 border-l-4 transition-colors ${
-                  activeTab === 'service-pricing' 
-                    ? 'border-blue-900 bg-blue-50 font-medium text-blue-900' 
-                    : 'border-transparent hover:bg-slate-50 text-slate-600'
-                }`}
+              <div className="px-4 py-3 bg-slate-100 border-b border-slate-200 text-xs font-bold text-slate-500 uppercase tracking-wider border-t">
+                Others
+              </div>
+              <Link
+                href="/dashboard/pricing"
+                className="w-full text-left px-4 py-3 border-l-4 border-transparent hover:bg-slate-50 text-slate-600 block"
               >
-                Service Pricing
-              </button>
+                Pricing Management
+              </Link>
             </>
           )}
         </div>
@@ -152,13 +151,6 @@ export default function SettingsClient({
           <MaintenanceTab />
         )}
 
-        {activeTab === 'service-pricing' && isAdmin && (
-          <ServicePricingTab 
-            supabase={supabase}
-            loading={loading}
-            setLoading={setLoading}
-          />
-        )}
       </div>
     </div>
   )

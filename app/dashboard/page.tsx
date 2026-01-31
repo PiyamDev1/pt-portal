@@ -63,11 +63,19 @@ const ALL_MODULES = [
     color: "bg-slate-800 text-white", // Dark
     href: "/dashboard/settings" 
   },
+  { 
+    id: 'pricing', 
+    title: "Pricing Management", 
+    desc: "Service pricing & offers",
+    icon: "💷", 
+    color: "bg-emerald-700 text-white",
+    href: "/dashboard/pricing" 
+  },
 ]
 
 // Mock User Preferences (In future, fetch these from DB)
 const PINNED_IDS = ['ticketing', 'visas', 'nadra']
-const RECENT_IDS = ['pak-passport', 'lms', 'settings']
+const RECENT_IDS = ['pak-passport', 'lms', 'pricing']
 
 export default async function Dashboard() {
   const cookieStore = await cookies()

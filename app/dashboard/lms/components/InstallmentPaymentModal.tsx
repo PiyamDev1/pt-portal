@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react'
 import { ModalWrapper } from './ModalWrapper'
 import { ConfirmationModal } from './ConfirmationModal'
 import { toast } from 'sonner'
-import { API_ENDPOINTS } from '../constants'
+import { formatToDisplayDate, formatToISODate, handleDateInput, isValidDateFormat } from '@/app/lib/dateFormatter'
+import { usePaymentMethods } from '../hooks'
 
 interface Installment {
   id?: string
@@ -20,10 +21,6 @@ interface Installment {
   loanId?: string
 }
 
-interface PaymentMethod {
-  id: string
-  name: string
-}
 
 interface InstallmentPaymentModalProps {
   installment: Installment
@@ -40,42 +37,16 @@ export function InstallmentPaymentModal({
   onClose,
   onSave,
 }: InstallmentPaymentModalProps) {
-  // Date format conversion utilities
-  const formatToDisplayDate = (isoDate: string): string => {
-    if (!isoDate) return ''
-    const [year, month, day] = isoDate.split('-')
-    return `${day}/${month}/${year}`
-  }
-
-  const formatToISODate = (displayDate: string): string => {
-    if (!displayDate) return ''
-    const parts = displayDate.split('/')
-    if (parts.length !== 3) return ''
-    const [day, month, year] = parts
-    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`
-  }
-
   const todayISO = new Date().toISOString().split('T')[0]
   const [paymentAmount, setPaymentAmount] = useState(installment.amount.toFixed(2))
   const [paymentMethod, setPaymentMethod] = useState('')
   const [paymentDate, setPaymentDate] = useState(formatToDisplayDate(todayISO))
   const [loading, setLoading] = useState(false)
-  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([])
+  const { methods: paymentMethods } = usePaymentMethods()
   const [existingPayments, setExistingPayments] = useState<any[]>([])
   const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null)
   const [editingAmount, setEditingAmount] = useState('')
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
-
-  // Auto-format date input (DD/MM/YYYY)
-  const handleDateInput = (value: string): string => {
-    // Remove all non-digit characters
-    const digits = value.replace(/\D/g, '')
-    
-    // Format as DD/MM/YYYY
-    if (digits.length <= 2) return digits
-    if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`
-    return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4, 8)}`
-  }
 
   // Calculate date limits
   // Permanent: Allow up to 7 days old
@@ -86,48 +57,12 @@ export function InstallmentPaymentModal({
   const minDate = ALLOW_UNLIMITED_PAST ? undefined : sevenDaysAgo.toISOString().split('T')[0]
   const maxDate = today.toISOString().split('T')[0]
 
-  // Validate date format (DD/MM/YYYY)
-  const isValidDateFormat = (dateString: string): boolean => {
-    if (!dateString) return false
-    // Check if it matches DD/MM/YYYY format
-    const dateRegex = /^\d{2}\/\d{2}\/\d{4}$/
-    if (!dateRegex.test(dateString)) return false
-    
-    const parts = dateString.split('/')
-    const day = parseInt(parts[0])
-    const month = parseInt(parts[1])
-    const year = parseInt(parts[2])
-    
-    // Check if month is valid
-    if (month < 1 || month > 12) return false
-    
-    // Check if day is valid
-    if (day < 1 || day > 31) return false
-    
-    // Check if it's a valid date
-    const date = new Date(`${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`)
-    return date instanceof Date && !isNaN(date.getTime())
-  }
 
   useEffect(() => {
-    const fetchPaymentMethods = async () => {
-      try {
-        const res = await fetch(API_ENDPOINTS.PAYMENT_METHODS)
-        const data = await res.json()
-        console.log('Payment methods response:', data)
-        setPaymentMethods(data.methods || [])
-        if (data.methods?.length > 0) {
-          setPaymentMethod(data.methods[0].id)
-        } else {
-          console.warn('No payment methods found in response')
-        }
-      } catch (err) {
-        console.error('Failed to fetch payment methods:', err)
-        toast.error('Failed to load payment methods')
-      }
+    if (paymentMethods.length > 0 && !paymentMethod) {
+      setPaymentMethod(paymentMethods[0].id)
     }
-    fetchPaymentMethods()
-  }, [])
+  }, [paymentMethods, paymentMethod])
 
   const handleDeletePayment = (paymentId: string) => {
     setDeleteConfirmId(paymentId)
