@@ -48,9 +48,57 @@ CREATE INDEX IF NOT EXISTS nadra_pricing_is_active_idx ON public.nadra_pricing(i
 CREATE INDEX IF NOT EXISTS pk_passport_pricing_category_idx ON public.pk_passport_pricing(category);
 CREATE INDEX IF NOT EXISTS pk_passport_pricing_is_active_idx ON public.pk_passport_pricing(is_active);
 
+-- GB PASSPORT PRICING TABLE
+-- Links pricing to GB passport categories (age groups), pages, and service types
+CREATE TABLE IF NOT EXISTS public.gb_passport_pricing (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  age_group TEXT NOT NULL,
+  -- Age groups: Adult, Child, Infant, etc.
+  pages TEXT NOT NULL,
+  -- Pages: 32, 48, 52, etc.
+  service_type TEXT NOT NULL,
+  -- Service types: Standard, Express, Premium, etc.
+  cost_price NUMERIC(10, 2) DEFAULT 0,
+  sale_price NUMERIC(10, 2) DEFAULT 0,
+  is_active BOOLEAN DEFAULT true,
+  notes TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
+  CONSTRAINT gb_passport_pricing_unique UNIQUE(age_group, pages, service_type),
+  CONSTRAINT gb_passport_pricing_prices_check CHECK (cost_price >= 0 AND sale_price >= 0)
+);
+
+-- VISA PRICING TABLE
+-- Links pricing to visa countries and visa types
+CREATE TABLE IF NOT EXISTS public.visa_pricing (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  country TEXT NOT NULL,
+  -- Countries: USA, Canada, UK, Schengen, etc.
+  visa_type TEXT NOT NULL,
+  -- Visa types: Tourist, Business, Student, Work, etc.
+  cost_price NUMERIC(10, 2) DEFAULT 0,
+  sale_price NUMERIC(10, 2) DEFAULT 0,
+  is_active BOOLEAN DEFAULT true,
+  notes TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
+  CONSTRAINT visa_pricing_unique UNIQUE(country, visa_type),
+  CONSTRAINT visa_pricing_prices_check CHECK (cost_price >= 0 AND sale_price >= 0)
+);
+
+-- Create indexes for GB Passport
+CREATE INDEX IF NOT EXISTS gb_passport_pricing_age_group_idx ON public.gb_passport_pricing(age_group);
+CREATE INDEX IF NOT EXISTS gb_passport_pricing_is_active_idx ON public.gb_passport_pricing(is_active);
+
+-- Create indexes for Visa
+CREATE INDEX IF NOT EXISTS visa_pricing_country_idx ON public.visa_pricing(country);
+CREATE INDEX IF NOT EXISTS visa_pricing_is_active_idx ON public.visa_pricing(is_active);
+
 -- Enable RLS
 ALTER TABLE public.nadra_pricing ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.pk_passport_pricing ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.gb_passport_pricing ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.visa_pricing ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies: Allow authenticated users to read, only admins to write
 CREATE POLICY "Enable read access for all authenticated users" ON public.nadra_pricing
@@ -63,4 +111,16 @@ CREATE POLICY "Enable read access for all authenticated users" ON public.pk_pass
   FOR SELECT USING (auth.role() = 'authenticated'::text);
 
 CREATE POLICY "Enable write access for authenticated users" ON public.pk_passport_pricing
+  FOR ALL USING (auth.role() = 'authenticated'::text);
+
+CREATE POLICY "Enable read access for all authenticated users" ON public.gb_passport_pricing
+  FOR SELECT USING (auth.role() = 'authenticated'::text);
+
+CREATE POLICY "Enable write access for authenticated users" ON public.gb_passport_pricing
+  FOR ALL USING (auth.role() = 'authenticated'::text);
+
+CREATE POLICY "Enable read access for all authenticated users" ON public.visa_pricing
+  FOR SELECT USING (auth.role() = 'authenticated'::text);
+
+CREATE POLICY "Enable write access for authenticated users" ON public.visa_pricing
   FOR ALL USING (auth.role() = 'authenticated'::text);

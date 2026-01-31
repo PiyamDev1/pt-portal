@@ -31,17 +31,44 @@ interface PKPassportPricing {
   notes: string | null
 }
 
+interface GBPassportPricing {
+  id: string
+  age_group: string
+  pages: string
+  service_type: string
+  cost_price: number
+  sale_price: number
+  is_active: boolean
+  notes: string | null
+}
+
+interface VisaPricing {
+  id: string
+  country: string
+  visa_type: string
+  cost_price: number
+  sale_price: number
+  is_active: boolean
+  notes: string | null
+}
+
+type ActiveTab = 'nadra' | 'passport' | 'gb' | 'visa'
+
 export default function ServicePricingTab({ supabase, loading, setLoading }: ServicePricingTabProps) {
   const [nadraPricing, setNadraPricing] = useState<NadraPricing[]>([])
   const [pkPassPricing, setPKPassPricing] = useState<PKPassportPricing[]>([])
+  const [gbPassPricing, setGBPassPricing] = useState<GBPassportPricing[]>([])
+  const [visaPricing, setVisaPricing] = useState<VisaPricing[]>([])
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editValues, setEditValues] = useState<Record<string, any>>({})
-  const [activeTab, setActiveTab] = useState<'nadra' | 'passport'>('nadra')
+  const [activeTab, setActiveTab] = useState<ActiveTab>('nadra')
   const [setupRequired, setSetupRequired] = useState(false)
 
   // Form state for adding new entries
   const [newNadraEntry, setNewNadraEntry] = useState({ service_type: '', service_option: '', cost_price: 0, sale_price: 0 })
   const [newPKEntry, setNewPKEntry] = useState({ category: '', speed: '', application_type: '', cost_price: 0, sale_price: 0 })
+  const [newGBEntry, setNewGBEntry] = useState({ age_group: '', pages: '', service_type: '', cost_price: 0, sale_price: 0 })
+  const [newVisaEntry, setNewVisaEntry] = useState({ country: '', visa_type: '', cost_price: 0, sale_price: 0 })
 
   const fetchPricing = async () => {
     try {
@@ -66,6 +93,30 @@ export default function ServicePricingTab({ supabase, loading, setLoading }: Ser
       
       if (!pkErr && pkPricingData) {
         setPKPassPricing(pkPricingData)
+      }
+
+      const { data: gbPricingData, error: gbErr } = await supabase
+        .from('gb_passport_pricing')
+        .select('*')
+        .order('age_group', { ascending: true })
+        .order('pages', { ascending: true })
+        .order('service_type', { ascending: true })
+      
+      if (!gbErr && gbPricingData) {
+        setGBPassPricing(gbPricingData)
+      }
+
+      const { data: visaPricingData, error: visaErr } = await supabase
+        .from('visa_pricing')
+        .select('*')
+        .order('country', { ascending: true })
+        .order('visa_type', { ascending: true })
+      
+      if (!visaErr && visaPricingData) {
+        setVisaPricing(visaPricingData)
+      } else if (visaErr?.code === 'PGRST116') {
+        // visa_pricing table doesn't exist yet, that's ok
+        console.log('visa_pricing table not found, will create on first entry')
       }
     } catch (error: any) {
       console.error('Error fetching pricing:', error)
@@ -136,6 +187,57 @@ export default function ServicePricingTab({ supabase, loading, setLoading }: Ser
     }
   }
 
+  const handleAddGBEntry = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newGBEntry.age_group.trim() || !newGBEntry.pages.trim() || !newGBEntry.service_type.trim()) {
+      toast.error('Age Group, Pages, and Service Type are required')
+      return
+    }
+
+    try {
+      const { error } = await supabase.from('gb_passport_pricing').insert({
+        age_group: newGBEntry.age_group.trim(),
+        pages: newGBEntry.pages.trim(),
+        service_type: newGBEntry.service_type.trim(),
+        cost_price: Number(newGBEntry.cost_price) || 0,
+        sale_price: Number(newGBEntry.sale_price) || 0,
+        is_active: true
+      })
+      if (error) throw error
+      
+      toast.success('Service option added')
+      setNewGBEntry({ age_group: '', pages: '', service_type: '', cost_price: 0, sale_price: 0 })
+      await fetchPricing()
+    } catch (error: any) {
+      toast.error('Failed to add service: ' + error.message)
+    }
+  }
+
+  const handleAddVisaEntry = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newVisaEntry.country.trim() || !newVisaEntry.visa_type.trim()) {
+      toast.error('Country and Visa Type are required')
+      return
+    }
+
+    try {
+      const { error } = await supabase.from('visa_pricing').insert({
+        country: newVisaEntry.country.trim(),
+        visa_type: newVisaEntry.visa_type.trim(),
+        cost_price: Number(newVisaEntry.cost_price) || 0,
+        sale_price: Number(newVisaEntry.sale_price) || 0,
+        is_active: true
+      })
+      if (error) throw error
+      
+      toast.success('Visa pricing added')
+      setNewVisaEntry({ country: '', visa_type: '', cost_price: 0, sale_price: 0 })
+      await fetchPricing()
+    } catch (error: any) {
+      toast.error('Failed to add visa pricing: ' + error.message)
+    }
+  }
+
   const handleSave = async () => {
     if (!editingId) return
     if (setupRequired) {
@@ -144,29 +246,21 @@ export default function ServicePricingTab({ supabase, loading, setLoading }: Ser
     }
 
     try {
-      if (activeTab === 'nadra') {
-        const { error } = await supabase
-          .from('nadra_pricing')
-          .update({
-            cost_price: Number(editValues.cost_price) || 0,
-            sale_price: Number(editValues.sale_price) || 0,
-            is_active: editValues.is_active,
-            notes: editValues.notes || null
-          })
-          .eq('id', editingId)
-        if (error) throw error
-      } else {
-        const { error } = await supabase
-          .from('pk_passport_pricing')
-          .update({
-            cost_price: Number(editValues.cost_price) || 0,
-            sale_price: Number(editValues.sale_price) || 0,
-            is_active: editValues.is_active,
-            notes: editValues.notes || null
-          })
-          .eq('id', editingId)
-        if (error) throw error
-      }
+      let table = 'nadra_pricing'
+      if (activeTab === 'passport') table = 'pk_passport_pricing'
+      if (activeTab === 'gb') table = 'gb_passport_pricing'
+      if (activeTab === 'visa') table = 'visa_pricing'
+
+      const { error } = await supabase
+        .from(table)
+        .update({
+          cost_price: Number(editValues.cost_price) || 0,
+          sale_price: Number(editValues.sale_price) || 0,
+          is_active: editValues.is_active,
+          notes: editValues.notes || null
+        })
+        .eq('id', editingId)
+      if (error) throw error
 
       toast.success('Pricing saved successfully')
       setEditingId(null)
@@ -176,13 +270,17 @@ export default function ServicePricingTab({ supabase, loading, setLoading }: Ser
     }
   }
 
-  const handleDelete = async (id: string, serviceType: 'nadra' | 'passport') => {
+  const handleDelete = async (id: string, serviceTab: ActiveTab) => {
     if (!id) return
     
     if (!confirm('Delete this pricing entry?')) return
 
     try {
-      const table = serviceType === 'nadra' ? 'nadra_pricing' : 'pk_passport_pricing'
+      let table = 'nadra_pricing'
+      if (serviceTab === 'passport') table = 'pk_passport_pricing'
+      if (serviceTab === 'gb') table = 'gb_passport_pricing'
+      if (serviceTab === 'visa') table = 'visa_pricing'
+
       const { error } = await supabase.from(table).delete().eq('id', id)
       if (error) throw error
       
@@ -217,10 +315,10 @@ export default function ServicePricingTab({ supabase, loading, setLoading }: Ser
         <h2 className="text-2xl font-bold mb-4">Service Pricing Management</h2>
         <p className="text-gray-600 mb-4">Add and manage service pricing options. Configure what services you offer and their costs.</p>
         
-        <div className="flex gap-2 border-b">
+        <div className="flex gap-2 border-b overflow-x-auto">
           <button
             onClick={() => setActiveTab('nadra')}
-            className={`px-4 py-2 font-medium transition-colors ${
+            className={`px-4 py-2 font-medium transition-colors whitespace-nowrap ${
               activeTab === 'nadra'
                 ? 'border-b-2 border-blue-600 text-blue-600'
                 : 'text-gray-600 hover:text-gray-900'
@@ -230,7 +328,7 @@ export default function ServicePricingTab({ supabase, loading, setLoading }: Ser
           </button>
           <button
             onClick={() => setActiveTab('passport')}
-            className={`px-4 py-2 font-medium transition-colors ${
+            className={`px-4 py-2 font-medium transition-colors whitespace-nowrap ${
               activeTab === 'passport'
                 ? 'border-b-2 border-blue-600 text-blue-600'
                 : 'text-gray-600 hover:text-gray-900'
@@ -238,13 +336,32 @@ export default function ServicePricingTab({ supabase, loading, setLoading }: Ser
           >
             Pakistani Passport
           </button>
+          <button
+            onClick={() => setActiveTab('gb')}
+            className={`px-4 py-2 font-medium transition-colors whitespace-nowrap ${
+              activeTab === 'gb'
+                ? 'border-b-2 border-blue-600 text-blue-600'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            GB Passport
+          </button>
+          <button
+            onClick={() => setActiveTab('visa')}
+            className={`px-4 py-2 font-medium transition-colors whitespace-nowrap ${
+              activeTab === 'visa'
+                ? 'border-b-2 border-blue-600 text-blue-600'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            Visa Services
+          </button>
         </div>
       </div>
 
       {/* NADRA Tab */}
       {activeTab === 'nadra' && (
         <div className="space-y-6">
-          {/* Add New Entry Form */}
           <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
             <h3 className="font-semibold text-blue-900 mb-4">Add New NADRA Service Option</h3>
             <form onSubmit={handleAddNadraEntry} className="space-y-3">
@@ -301,7 +418,6 @@ export default function ServicePricingTab({ supabase, loading, setLoading }: Ser
             </form>
           </div>
 
-          {/* Existing Entries Table */}
           <div className="overflow-x-auto">
             <table className="w-full border-collapse">
               <thead>
@@ -311,14 +427,13 @@ export default function ServicePricingTab({ supabase, loading, setLoading }: Ser
                   <th className="text-right py-3 px-4 font-semibold">Cost Price</th>
                   <th className="text-right py-3 px-4 font-semibold">Sale Price</th>
                   <th className="text-right py-3 px-4 font-semibold">Profit</th>
-                  <th className="text-center py-3 px-4 font-semibold">Active</th>
                   <th className="text-center py-3 px-4 font-semibold">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {nadraPricing.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-8 px-4 text-center text-gray-500">
+                    <td colSpan={6} className="py-8 px-4 text-center text-gray-500">
                       No NADRA services configured yet. Add one above.
                     </td>
                   </tr>
@@ -350,14 +465,6 @@ export default function ServicePricingTab({ supabase, loading, setLoading }: Ser
                           <td className="py-3 px-4 text-right text-gray-600">
                             {(Number(editValues.sale_price) - Number(editValues.cost_price)).toFixed(2)}
                           </td>
-                          <td className="py-3 px-4 text-center">
-                            <input
-                              type="checkbox"
-                              checked={editValues.is_active}
-                              onChange={(e) => setEditValues({ ...editValues, is_active: e.target.checked })}
-                              className="w-4 h-4"
-                            />
-                          </td>
                           <td className="py-3 px-4 text-center flex gap-2 justify-center">
                             <button
                               onClick={handleSave}
@@ -381,11 +488,6 @@ export default function ServicePricingTab({ supabase, loading, setLoading }: Ser
                           <td className="py-3 px-4 text-right">{item.sale_price.toFixed(2)}</td>
                           <td className="py-3 px-4 text-right font-medium text-green-600">
                             {(item.sale_price - item.cost_price).toFixed(2)}
-                          </td>
-                          <td className="py-3 px-4 text-center">
-                            <span className={item.is_active ? 'text-green-600 font-medium' : 'text-gray-400'}>
-                              {item.is_active ? '✓' : '✗'}
-                            </span>
                           </td>
                           <td className="py-3 px-4 text-center flex gap-2 justify-center">
                             <button
@@ -416,7 +518,6 @@ export default function ServicePricingTab({ supabase, loading, setLoading }: Ser
       {/* Pakistani Passport Tab */}
       {activeTab === 'passport' && (
         <div className="space-y-6">
-          {/* Add New Entry Form */}
           <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
             <h3 className="font-semibold text-blue-900 mb-4">Add New Pakistani Passport Service Option</h3>
             <form onSubmit={handleAddPKEntry} className="space-y-3">
@@ -425,7 +526,7 @@ export default function ServicePricingTab({ supabase, loading, setLoading }: Ser
                   <label className="block text-sm font-medium mb-1">Category *</label>
                   <input
                     type="text"
-                    placeholder="e.g., Child 5 Year, Adult 10 Year, Normal"
+                    placeholder="e.g., Child 5 Year, Adult 10 Year"
                     value={newPKEntry.category}
                     onChange={(e) => setNewPKEntry({ ...newPKEntry, category: e.target.value })}
                     className="w-full px-3 py-2 border rounded"
@@ -435,7 +536,7 @@ export default function ServicePricingTab({ supabase, loading, setLoading }: Ser
                   <label className="block text-sm font-medium mb-1">Speed *</label>
                   <input
                     type="text"
-                    placeholder="e.g., Executive, Normal, Express"
+                    placeholder="e.g., Executive, Normal"
                     value={newPKEntry.speed}
                     onChange={(e) => setNewPKEntry({ ...newPKEntry, speed: e.target.value })}
                     className="w-full px-3 py-2 border rounded"
@@ -445,7 +546,7 @@ export default function ServicePricingTab({ supabase, loading, setLoading }: Ser
                   <label className="block text-sm font-medium mb-1">Application Type *</label>
                   <input
                     type="text"
-                    placeholder="e.g., First Time, Renewal, Replacement"
+                    placeholder="e.g., First Time, Renewal"
                     value={newPKEntry.application_type}
                     onChange={(e) => setNewPKEntry({ ...newPKEntry, application_type: e.target.value })}
                     className="w-full px-3 py-2 border rounded"
@@ -483,7 +584,6 @@ export default function ServicePricingTab({ supabase, loading, setLoading }: Ser
             </form>
           </div>
 
-          {/* Existing Entries Table */}
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-sm">
               <thead>
@@ -494,14 +594,13 @@ export default function ServicePricingTab({ supabase, loading, setLoading }: Ser
                   <th className="text-right py-3 px-4 font-semibold">Cost Price</th>
                   <th className="text-right py-3 px-4 font-semibold">Sale Price</th>
                   <th className="text-right py-3 px-4 font-semibold">Profit</th>
-                  <th className="text-center py-3 px-4 font-semibold">Active</th>
                   <th className="text-center py-3 px-4 font-semibold">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {pkPassPricing.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="py-8 px-4 text-center text-gray-500">
+                    <td colSpan={7} className="py-8 px-4 text-center text-gray-500">
                       No Pakistani Passport services configured yet. Add one above.
                     </td>
                   </tr>
@@ -534,13 +633,173 @@ export default function ServicePricingTab({ supabase, loading, setLoading }: Ser
                           <td className="py-3 px-4 text-right text-gray-600">
                             {(Number(editValues.sale_price) - Number(editValues.cost_price)).toFixed(2)}
                           </td>
-                          <td className="py-3 px-4 text-center">
+                          <td className="py-3 px-4 text-center flex gap-2 justify-center">
+                            <button
+                              onClick={handleSave}
+                              className="text-green-600 hover:text-green-900"
+                              title="Save"
+                            >
+                              <Save className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => setEditingId(null)}
+                              className="text-gray-600 hover:text-gray-900"
+                              title="Cancel"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td className="py-3 px-4 text-right">{item.cost_price.toFixed(2)}</td>
+                          <td className="py-3 px-4 text-right">{item.sale_price.toFixed(2)}</td>
+                          <td className="py-3 px-4 text-right font-medium text-green-600">
+                            {(item.sale_price - item.cost_price).toFixed(2)}
+                          </td>
+                          <td className="py-3 px-4 text-center flex gap-2 justify-center">
+                            <button
+                              onClick={() => handleEdit(item)}
+                              className="text-blue-600 hover:text-blue-900 font-medium text-sm"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => handleDelete(item.id, 'passport')}
+                              className="text-red-600 hover:text-red-900"
+                              title="Delete"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </td>
+                        </>
+                      )}
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* GB Passport Tab */}
+      {activeTab === 'gb' && (
+        <div className="space-y-6">
+          <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+            <h3 className="font-semibold text-green-900 mb-4">Add New GB Passport Service Option</h3>
+            <form onSubmit={handleAddGBEntry} className="space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Age Group *</label>
+                  <input
+                    type="text"
+                    placeholder="e.g., Adult, Child, Infant"
+                    value={newGBEntry.age_group}
+                    onChange={(e) => setNewGBEntry({ ...newGBEntry, age_group: e.target.value })}
+                    className="w-full px-3 py-2 border rounded"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Pages *</label>
+                  <input
+                    type="text"
+                    placeholder="e.g., 32, 48, 52"
+                    value={newGBEntry.pages}
+                    onChange={(e) => setNewGBEntry({ ...newGBEntry, pages: e.target.value })}
+                    className="w-full px-3 py-2 border rounded"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Service Type *</label>
+                  <input
+                    type="text"
+                    placeholder="e.g., Standard, Express, Premium"
+                    value={newGBEntry.service_type}
+                    onChange={(e) => setNewGBEntry({ ...newGBEntry, service_type: e.target.value })}
+                    className="w-full px-3 py-2 border rounded"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Cost Price</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={newGBEntry.cost_price}
+                    onChange={(e) => setNewGBEntry({ ...newGBEntry, cost_price: Number(e.target.value) })}
+                    className="w-full px-3 py-2 border rounded"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Sale Price</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={newGBEntry.sale_price}
+                    onChange={(e) => setNewGBEntry({ ...newGBEntry, sale_price: Number(e.target.value) })}
+                    className="w-full px-3 py-2 border rounded"
+                  />
+                </div>
+              </div>
+              <button
+                type="submit"
+                className="inline-flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 font-medium"
+              >
+                <Plus className="h-4 w-4" /> Add Service Option
+              </button>
+            </form>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-sm">
+              <thead>
+                <tr className="border-b-2 border-gray-200 bg-gray-50">
+                  <th className="text-left py-3 px-4 font-semibold">Age Group</th>
+                  <th className="text-left py-3 px-4 font-semibold">Pages</th>
+                  <th className="text-left py-3 px-4 font-semibold">Service Type</th>
+                  <th className="text-right py-3 px-4 font-semibold">Cost Price</th>
+                  <th className="text-right py-3 px-4 font-semibold">Sale Price</th>
+                  <th className="text-right py-3 px-4 font-semibold">Profit</th>
+                  <th className="text-center py-3 px-4 font-semibold">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {gbPassPricing.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="py-8 px-4 text-center text-gray-500">
+                      No GB Passport services configured yet. Add one above.
+                    </td>
+                  </tr>
+                ) : (
+                  gbPassPricing.map((item) => (
+                    <tr key={item.id} className="border-b border-gray-100 hover:bg-green-50">
+                      <td className="py-3 px-4">{item.age_group}</td>
+                      <td className="py-3 px-4">{item.pages}</td>
+                      <td className="py-3 px-4">{item.service_type}</td>
+                      {editingId === item.id ? (
+                        <>
+                          <td className="py-3 px-4">
                             <input
-                              type="checkbox"
-                              checked={editValues.is_active}
-                              onChange={(e) => setEditValues({ ...editValues, is_active: e.target.checked })}
-                              className="w-4 h-4"
+                              type="number"
+                              step="0.01"
+                              value={editValues.cost_price}
+                              onChange={(e) => setEditValues({ ...editValues, cost_price: e.target.value })}
+                              className="w-full px-2 py-1 border rounded"
                             />
+                          </td>
+                          <td className="py-3 px-4">
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={editValues.sale_price}
+                              onChange={(e) => setEditValues({ ...editValues, sale_price: e.target.value })}
+                              className="w-full px-2 py-1 border rounded"
+                            />
+                          </td>
+                          <td className="py-3 px-4 text-right text-gray-600">
+                            {(Number(editValues.sale_price) - Number(editValues.cost_price)).toFixed(2)}
                           </td>
                           <td className="py-3 px-4 text-center flex gap-2 justify-center">
                             <button
@@ -566,10 +825,161 @@ export default function ServicePricingTab({ supabase, loading, setLoading }: Ser
                           <td className="py-3 px-4 text-right font-medium text-green-600">
                             {(item.sale_price - item.cost_price).toFixed(2)}
                           </td>
-                          <td className="py-3 px-4 text-center">
-                            <span className={item.is_active ? 'text-green-600 font-medium' : 'text-gray-400'}>
-                              {item.is_active ? '✓' : '✗'}
-                            </span>
+                          <td className="py-3 px-4 text-center flex gap-2 justify-center">
+                            <button
+                              onClick={() => handleEdit(item)}
+                              className="text-blue-600 hover:text-blue-900 font-medium text-sm"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => handleDelete(item.id, 'gb')}
+                              className="text-red-600 hover:text-red-900"
+                              title="Delete"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </td>
+                        </>
+                      )}
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Visa Tab */}
+      {activeTab === 'visa' && (
+        <div className="space-y-6">
+          <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
+            <h3 className="font-semibold text-purple-900 mb-4">Add New Visa Pricing</h3>
+            <form onSubmit={handleAddVisaEntry} className="space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Country *</label>
+                  <input
+                    type="text"
+                    placeholder="e.g., USA, Canada, UK, Schengen"
+                    value={newVisaEntry.country}
+                    onChange={(e) => setNewVisaEntry({ ...newVisaEntry, country: e.target.value })}
+                    className="w-full px-3 py-2 border rounded"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Visa Type *</label>
+                  <input
+                    type="text"
+                    placeholder="e.g., Tourist, Business, Student, Work"
+                    value={newVisaEntry.visa_type}
+                    onChange={(e) => setNewVisaEntry({ ...newVisaEntry, visa_type: e.target.value })}
+                    className="w-full px-3 py-2 border rounded"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Cost Price</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={newVisaEntry.cost_price}
+                    onChange={(e) => setNewVisaEntry({ ...newVisaEntry, cost_price: Number(e.target.value) })}
+                    className="w-full px-3 py-2 border rounded"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Sale Price</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={newVisaEntry.sale_price}
+                    onChange={(e) => setNewVisaEntry({ ...newVisaEntry, sale_price: Number(e.target.value) })}
+                    className="w-full px-3 py-2 border rounded"
+                  />
+                </div>
+              </div>
+              <button
+                type="submit"
+                className="inline-flex items-center gap-2 bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700 font-medium"
+              >
+                <Plus className="h-4 w-4" /> Add Visa Pricing
+              </button>
+            </form>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-sm">
+              <thead>
+                <tr className="border-b-2 border-gray-200 bg-gray-50">
+                  <th className="text-left py-3 px-4 font-semibold">Country</th>
+                  <th className="text-left py-3 px-4 font-semibold">Visa Type</th>
+                  <th className="text-right py-3 px-4 font-semibold">Cost Price</th>
+                  <th className="text-right py-3 px-4 font-semibold">Sale Price</th>
+                  <th className="text-right py-3 px-4 font-semibold">Profit</th>
+                  <th className="text-center py-3 px-4 font-semibold">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visaPricing.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="py-8 px-4 text-center text-gray-500">
+                      No visa pricing configured yet. Add one above.
+                    </td>
+                  </tr>
+                ) : (
+                  visaPricing.map((item) => (
+                    <tr key={item.id} className="border-b border-gray-100 hover:bg-purple-50">
+                      <td className="py-3 px-4">{item.country}</td>
+                      <td className="py-3 px-4">{item.visa_type}</td>
+                      {editingId === item.id ? (
+                        <>
+                          <td className="py-3 px-4">
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={editValues.cost_price}
+                              onChange={(e) => setEditValues({ ...editValues, cost_price: e.target.value })}
+                              className="w-full px-2 py-1 border rounded"
+                            />
+                          </td>
+                          <td className="py-3 px-4">
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={editValues.sale_price}
+                              onChange={(e) => setEditValues({ ...editValues, sale_price: e.target.value })}
+                              className="w-full px-2 py-1 border rounded"
+                            />
+                          </td>
+                          <td className="py-3 px-4 text-right text-gray-600">
+                            {(Number(editValues.sale_price) - Number(editValues.cost_price)).toFixed(2)}
+                          </td>
+                          <td className="py-3 px-4 text-center flex gap-2 justify-center">
+                            <button
+                              onClick={handleSave}
+                              className="text-green-600 hover:text-green-900"
+                              title="Save"
+                            >
+                              <Save className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => setEditingId(null)}
+                              className="text-gray-600 hover:text-gray-900"
+                              title="Cancel"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td className="py-3 px-4 text-right">{item.cost_price.toFixed(2)}</td>
+                          <td className="py-3 px-4 text-right">{item.sale_price.toFixed(2)}</td>
+                          <td className="py-3 px-4 text-right font-medium text-green-600">
+                            {(item.sale_price - item.cost_price).toFixed(2)}
                           </td>
                           <td className="py-3 px-4 text-center flex gap-2 justify-center">
                             <button
@@ -579,7 +989,7 @@ export default function ServicePricingTab({ supabase, loading, setLoading }: Ser
                               Edit
                             </button>
                             <button
-                              onClick={() => handleDelete(item.id, 'passport')}
+                              onClick={() => handleDelete(item.id, 'visa')}
                               className="text-red-600 hover:text-red-900"
                               title="Delete"
                             >
