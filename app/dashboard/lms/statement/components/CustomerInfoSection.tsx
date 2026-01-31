@@ -1,10 +1,11 @@
 import { Account } from '@/app/types/lms'
+import { memo } from 'react'
 
 interface CustomerInfoSectionProps {
   account: Account
 }
 
-export function CustomerInfoSection({ account }: CustomerInfoSectionProps) {
+function CustomerInfoSectionComponent({ account }: CustomerInfoSectionProps) {
   return (
     <>
       {/* Letterhead */}
@@ -55,3 +56,5 @@ export function CustomerInfoSection({ account }: CustomerInfoSectionProps) {
     </>
   )
 }
+
+export const CustomerInfoSection = memo(CustomerInfoSectionComponent)

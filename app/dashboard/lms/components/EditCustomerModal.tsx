@@ -1,5 +1,6 @@
 'use client'
 
+import { memo } from 'react'
 import { Save } from 'lucide-react'
 import { toast } from 'sonner'
 import { ModalWrapper } from './ModalWrapper'
@@ -16,7 +17,7 @@ interface EditCustomerModalProps {
   employeeId: string
 }
 
-export function EditCustomerModal({
+function EditCustomerModalCore({
   customer,
   onClose,
   onSave,
@@ -138,3 +139,5 @@ export function EditCustomerModal({
     </ModalWrapper>
   )
 }
+
+export const EditCustomerModal = memo(EditCustomerModalCore)

@@ -4,13 +4,15 @@ interface StatementFilter {
   dateTo: string
 }
 
+import { memo } from 'react'
+
 interface TransactionFiltersProps {
   filter: StatementFilter
   setFilter: (filter: StatementFilter) => void
   handleDateInput: (value: string) => string
 }
 
-export function TransactionFilters({ filter, setFilter, handleDateInput }: TransactionFiltersProps) {
+function TransactionFiltersComponent({ filter, setFilter, handleDateInput }: TransactionFiltersProps) {
   return (
     <div className="bg-slate-50 p-4 rounded-lg space-y-3 print:hidden">
       <h3 className="font-bold text-sm text-slate-700">Filters</h3>
@@ -54,3 +56,5 @@ export function TransactionFilters({ filter, setFilter, handleDateInput }: Trans
     </div>
   )
 }
+
+export const TransactionFilters = memo(TransactionFiltersComponent)

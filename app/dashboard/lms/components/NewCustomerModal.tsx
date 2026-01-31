@@ -1,5 +1,6 @@
 'use client'
 
+import { memo } from 'react'
 import { toast } from 'sonner'
 import { ModalWrapper } from './ModalWrapper'
 import { LoadingSpinner } from './Skeletons'
@@ -16,7 +17,7 @@ interface NewCustomerModalProps {
 /**
  * New Customer Modal - Create new customer with optional initial transaction
  */
-export function NewCustomerModal({ onClose, onSave, employeeId }: NewCustomerModalProps) {
+function NewCustomerModalCore({ onClose, onSave, employeeId }: NewCustomerModalProps) {
   const {
     form,
     updateForm,
@@ -90,3 +91,5 @@ export function NewCustomerModal({ onClose, onSave, employeeId }: NewCustomerMod
     </ModalWrapper>
   )
 }
+
+export const NewCustomerModal = memo(NewCustomerModalCore)

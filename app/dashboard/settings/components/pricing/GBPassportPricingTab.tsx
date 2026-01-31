@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, memo } from 'react'
 import { toast } from 'sonner'
 import { Trash2, Save, X, Plus } from 'lucide-react'
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -20,7 +20,7 @@ interface GBPassportPricingTabProps {
   supabase: SupabaseClient
 }
 
-export default function GBPassportPricingTab({
+function GBPassportPricingTabCore({
   pricing,
   editingId,
   editValues,
@@ -225,3 +225,5 @@ export default function GBPassportPricingTab({
     </div>
   )
 }
+
+export default memo(GBPassportPricingTabCore)

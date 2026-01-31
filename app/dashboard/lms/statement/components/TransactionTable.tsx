@@ -1,5 +1,6 @@
 import { generateInstallmentSchedule } from '../utils/statementUtils'
 import { Account, InstallmentPayment } from '@/app/types/lms'
+import { memo } from 'react'
 
 interface TransactionTableProps {
   filteredTransactions: any[]
@@ -16,7 +17,7 @@ interface Transaction {
   loan_payment_methods?: { name: string }
 }
 
-export function TransactionTable({ filteredTransactions, account, installmentsByTransaction }: TransactionTableProps) {
+function TransactionTableComponent({ filteredTransactions, account, installmentsByTransaction }: TransactionTableProps) {
   const parseAmount = (val: string | number): number => {
     if (typeof val === 'number') return val
     return parseFloat(val) || 0
@@ -184,3 +185,6 @@ export function TransactionTable({ filteredTransactions, account, installmentsBy
     </div>
   )
 }
+
+// Memoize to prevent re-renders on parent updates
+export const TransactionTable = memo(TransactionTableComponent)

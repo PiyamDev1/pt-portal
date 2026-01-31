@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, memo } from 'react'
 import { toast } from 'sonner'
 import { Trash2, Save, X, Plus } from 'lucide-react'
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -21,7 +21,7 @@ interface VisaPricingTabProps {
 
 const VISA_TYPES = ['Tourist', 'Business', 'Student', 'Work']
 
-export default function VisaPricingTab({
+function VisaPricingTabCore({
   pricing,
   editingId,
   editValues,
@@ -208,3 +208,5 @@ export default function VisaPricingTab({
     </div>
   )
 }
+
+export default memo(VisaPricingTabCore)

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, memo } from 'react'
 import { ModalWrapper } from './ModalWrapper'
 import { ConfirmationModal } from './ConfirmationModal'
 import { toast } from 'sonner'
@@ -30,7 +30,7 @@ interface InstallmentPaymentModalProps {
   onSave: () => void
 }
 
-export function InstallmentPaymentModal({
+function InstallmentPaymentModalCore({
   installment,
   accountId,
   employeeId,
@@ -324,3 +324,5 @@ export function InstallmentPaymentModal({
     </ModalWrapper>
   )
 }
+
+export const InstallmentPaymentModal = memo(InstallmentPaymentModalCore)

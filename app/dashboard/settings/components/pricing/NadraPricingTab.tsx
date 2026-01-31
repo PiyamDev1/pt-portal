@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, memo } from 'react'
 import { toast } from 'sonner'
 import { Trash2, Save, X, Plus } from 'lucide-react'
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -20,7 +20,7 @@ interface NadraPricingTabProps {
   supabase: SupabaseClient
 }
 
-export default function NadraPricingTab({
+function NadraPricingTabCore({
   nadraPricing,
   editingId,
   editValues,
@@ -214,3 +214,5 @@ export default function NadraPricingTab({
     </div>
   )
 }
+
+export default memo(NadraPricingTabCore)

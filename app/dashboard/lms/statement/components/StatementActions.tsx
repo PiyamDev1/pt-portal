@@ -1,12 +1,13 @@
 import { Download, Printer } from 'lucide-react'
 import { generateCSV, downloadCSV } from '../utils/statementUtils'
+import { memo } from 'react'
 
 interface StatementActionsProps {
   filteredTransactions: any[]
   accountId: string
 }
 
-export function StatementActions({ filteredTransactions, accountId }: StatementActionsProps) {
+function StatementActionsComponent({ filteredTransactions, accountId }: StatementActionsProps) {
   return (
     <div className="flex gap-3 print:hidden">
       <button
@@ -29,3 +30,5 @@ export function StatementActions({ filteredTransactions, accountId }: StatementA
     </div>
   )
 }
+
+export const StatementActions = memo(StatementActionsComponent)

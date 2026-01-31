@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, memo } from 'react'
 import { AlertCircle } from 'lucide-react'
 import { 
   ActiveTab,
@@ -14,7 +14,7 @@ import GBPassportPricingTab from './pricing/GBPassportPricingTab'
 import VisaPricingTab from './pricing/VisaPricingTab'
 import ManagePricingOptionsTab from './pricing/ManagePricingOptionsTab'
 
-export default function ServicePricingTab({ supabase, loading: initialLoading, setLoading }: ServicePricingTabProps) {
+function ServicePricingTabCore({ supabase, loading: initialLoading, setLoading }: ServicePricingTabProps) {
   const [activeTab, setActiveTab] = useState<ActiveTab>('nadra')
   const [loading, setLoadingState] = useState(initialLoading)
   const {
@@ -242,3 +242,5 @@ export default function ServicePricingTab({ supabase, loading: initialLoading, s
     </div>
   )
 }
+
+export default memo(ServicePricingTabCore)

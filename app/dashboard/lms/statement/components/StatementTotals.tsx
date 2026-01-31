@@ -1,4 +1,5 @@
 import { Account } from '@/app/types/lms'
+import { memo } from 'react'
 
 interface Totals {
   debits: number
@@ -11,7 +12,7 @@ interface StatementTotalsProps {
   hasTransactions: boolean
 }
 
-export function StatementTotals({ totals, account, hasTransactions }: StatementTotalsProps) {
+function StatementTotalsComponent({ totals, account, hasTransactions }: StatementTotalsProps) {
   if (!hasTransactions) return null
 
   return (
@@ -33,3 +34,5 @@ export function StatementTotals({ totals, account, hasTransactions }: StatementT
     </div>
   )
 }
+
+export const StatementTotals = memo(StatementTotalsComponent)
