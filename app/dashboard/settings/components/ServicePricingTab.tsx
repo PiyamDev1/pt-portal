@@ -3,76 +3,45 @@
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { Trash2, Save, X, AlertCircle, Plus } from 'lucide-react'
+import { 
+  NadraPricing, 
+  PKPassportPricing, 
+  GBPassportPricing, 
+  VisaPricing, 
+  ActiveTab,
+  ServicePricingTabProps 
+} from '@/app/types/pricing'
+import { PRICING_OPTIONS } from '@/app/lib/pricingOptions'
+import { usePricingOptions } from '@/app/hooks/usePricingOptions'
 
-interface ServicePricingTabProps {
-  supabase: any
-  loading: boolean
-  setLoading: (loading: boolean) => void
-}
-
-interface NadraPricing {
-  id: string
-  service_type: string
-  service_option: string | null
-  cost_price: number
-  sale_price: number
-  is_active: boolean
-  notes: string | null
-}
-
-interface PKPassportPricing {
-  id: string
-  category: string
-  speed: string
-  application_type: string
-  cost_price: number
-  sale_price: number
-  is_active: boolean
-  notes: string | null
-}
-
-interface GBPassportPricing {
-  id: string
-  age_group: string
-  pages: string
-  service_type: string
-  cost_price: number
-  sale_price: number
-  is_active: boolean
-  notes: string | null
-}
-
-interface VisaPricing {
-  id: string
-  country: string
-  visa_type: string
-  cost_price: number
-  sale_price: number
-  is_active: boolean
-  notes: string | null
-}
-
-type ActiveTab = 'nadra' | 'passport' | 'gb' | 'visa' | 'manage'
-
-export default function ServicePricingTab({ supabase, loading, setLoading }: ServicePricingTabProps) {
-  const [nadraPricing, setNadraPricing] = useState<NadraPricing[]>([])
-  const [pkPassPricing, setPKPassPricing] = useState<PKPassportPricing[]>([])
-  const [gbPassPricing, setGBPassPricing] = useState<GBPassportPricing[]>([])
-  const [visaPricing, setVisaPricing] = useState<VisaPricing[]>([])
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [editValues, setEditValues] = useState<Record<string, any>>({})
+export default function ServicePricingTab({ supabase, loading: initialLoading, setLoading }: ServicePricingTabProps) {
   const [activeTab, setActiveTab] = useState<ActiveTab>('nadra')
-  const [setupRequired, setSetupRequired] = useState(false)
+  const [loading, setLoadingState] = useState(initialLoading)
+  const {
+    nadraPricing,
+    pkPassPricing,
+    gbPassPricing,
+    visaPricing,
+    editingId,
+    setEditingId,
+    editValues,
+    setEditValues,
+    setupRequired,
+    fetchPricing,
+    handleEdit,
+    handleSave,
+    handleDelete
+  } = usePricingOptions(supabase)
 
   // Available options - extracted to state for dynamic updates
-  const [nadrServiceTypes, setNadrServiceTypes] = useState(['NICOP/CNIC', 'POC', 'FRC', 'CRC', 'POA'])
-  const [nadrServiceOptions, setNadrServiceOptions] = useState(['Normal', 'Executive', 'Upgrade to Fast', 'Modification', 'Reprint', 'Cancellation'])
-  const [pkCategories, setPKCategories] = useState(['Adult 10 Year', 'Adult 5 Year', 'Child 5 Year'])
-  const [pkSpeeds, setPKSpeeds] = useState(['Normal', 'Executive'])
-  const [pkApplicationTypes, setPKApplicationTypes] = useState(['First Time', 'Renewal', 'Modification', 'Lost'])
-  const [gbAgeGroups, setGBAgeGroups] = useState(['Adult', 'Child', 'Infant'])
-  const [gbPages, setGBPages] = useState(['32', '48', '52'])
-  const [gbServiceTypes, setGBServiceTypes] = useState(['Standard', 'Express', 'Premium'])
+  const [nadrServiceTypes, setNadrServiceTypes] = useState(PRICING_OPTIONS.NADRA.serviceTypes)
+  const [nadrServiceOptions, setNadrServiceOptions] = useState(PRICING_OPTIONS.NADRA.serviceOptions)
+  const [pkCategories, setPKCategories] = useState(PRICING_OPTIONS.PK_PASSPORT.categories)
+  const [pkSpeeds, setPKSpeeds] = useState(PRICING_OPTIONS.PK_PASSPORT.speeds)
+  const [pkApplicationTypes, setPKApplicationTypes] = useState(PRICING_OPTIONS.PK_PASSPORT.applicationTypes)
+  const [gbAgeGroups, setGBAgeGroups] = useState(PRICING_OPTIONS.GB_PASSPORT.ageGroups)
+  const [gbPages, setGBPages] = useState(PRICING_OPTIONS.GB_PASSPORT.pages)
+  const [gbServiceTypes, setGBServiceTypes] = useState(PRICING_OPTIONS.GB_PASSPORT.serviceTypes)
 
   // Form state for adding new entries
   const [newNadraEntry, setNewNadraEntry] = useState({ service_type: '', service_option: '', cost_price: 0, sale_price: 0 })
@@ -80,71 +49,14 @@ export default function ServicePricingTab({ supabase, loading, setLoading }: Ser
   const [newGBEntry, setNewGBEntry] = useState({ age_group: '', pages: '', service_type: '', cost_price: 0, sale_price: 0 })
   const [newVisaEntry, setNewVisaEntry] = useState({ country: '', visa_type: '', cost_price: 0, sale_price: 0 })
 
-  const fetchPricing = async () => {
-    try {
-      const { data: nadraPricingData, error: nadraErr } = await supabase
-        .from('nadra_pricing')
-        .select('*')
-        .order('service_type', { ascending: true })
-        .order('service_option', { ascending: true })
-      
-      if (!nadraErr && nadraPricingData) {
-        setNadraPricing(nadraPricingData)
-      } else if (nadraErr?.code === 'PGRST116') {
-        setSetupRequired(true)
-      }
-
-      const { data: pkPricingData, error: pkErr } = await supabase
-        .from('pk_passport_pricing')
-        .select('*')
-        .order('category', { ascending: true })
-        .order('speed', { ascending: true })
-        .order('application_type', { ascending: true })
-      
-      if (!pkErr && pkPricingData) {
-        setPKPassPricing(pkPricingData)
-      }
-
-      const { data: gbPricingData, error: gbErr } = await supabase
-        .from('gb_passport_pricing')
-        .select('*')
-        .order('age_group', { ascending: true })
-        .order('pages', { ascending: true })
-        .order('service_type', { ascending: true })
-      
-      if (!gbErr && gbPricingData) {
-        setGBPassPricing(gbPricingData)
-      }
-
-      const { data: visaPricingData, error: visaErr } = await supabase
-        .from('visa_pricing')
-        .select('*')
-        .order('country', { ascending: true })
-        .order('visa_type', { ascending: true })
-      
-      if (!visaErr && visaPricingData) {
-        setVisaPricing(visaPricingData)
-      } else if (visaErr?.code === 'PGRST116') {
-        // visa_pricing table doesn't exist yet, that's ok
-        console.log('visa_pricing table not found, will create on first entry')
-      }
-    } catch (error: any) {
-      console.error('Error fetching pricing:', error)
-      toast.error('Failed to load pricing data')
-    } finally {
-      setLoading(false)
-    }
-  }
-
   useEffect(() => {
     setLoading(true)
-    fetchPricing()
+    setLoadingState(true)
+    fetchPricing().then(() => {
+      setLoading(false)
+      setLoadingState(false)
+    })
   }, [])
-
-  const handleEdit = (item: any) => {
-    setEditingId(item.id)
-    setEditValues({ ...item })
-  }
 
   const handleAddNadraEntry = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -249,59 +161,6 @@ export default function ServicePricingTab({ supabase, loading, setLoading }: Ser
       await fetchPricing()
     } catch (error: any) {
       toast.error('Failed to add visa pricing: ' + error.message)
-    }
-  }
-
-  const handleSave = async () => {
-    if (!editingId) return
-    if (setupRequired) {
-      toast.error('Please set up the database tables first')
-      return
-    }
-
-    try {
-      let table = 'nadra_pricing'
-      if (activeTab === 'passport') table = 'pk_passport_pricing'
-      if (activeTab === 'gb') table = 'gb_passport_pricing'
-      if (activeTab === 'visa') table = 'visa_pricing'
-
-      const { error } = await supabase
-        .from(table)
-        .update({
-          cost_price: Number(editValues.cost_price) || 0,
-          sale_price: Number(editValues.sale_price) || 0,
-          is_active: editValues.is_active,
-          notes: editValues.notes || null
-        })
-        .eq('id', editingId)
-      if (error) throw error
-
-      toast.success('Pricing saved successfully')
-      setEditingId(null)
-      await fetchPricing()
-    } catch (error: any) {
-      toast.error('Failed to save pricing: ' + error.message)
-    }
-  }
-
-  const handleDelete = async (id: string, serviceTab: ActiveTab) => {
-    if (!id) return
-    
-    if (!confirm('Delete this pricing entry?')) return
-
-    try {
-      let table = 'nadra_pricing'
-      if (serviceTab === 'passport') table = 'pk_passport_pricing'
-      if (serviceTab === 'gb') table = 'gb_passport_pricing'
-      if (serviceTab === 'visa') table = 'visa_pricing'
-
-      const { error } = await supabase.from(table).delete().eq('id', id)
-      if (error) throw error
-      
-      toast.success('Pricing deleted')
-      await fetchPricing()
-    } catch (error: any) {
-      toast.error('Failed to delete: ' + error.message)
     }
   }
 
@@ -496,7 +355,7 @@ export default function ServicePricingTab({ supabase, loading, setLoading }: Ser
                           </td>
                           <td className="py-3 px-4 text-center flex gap-2 justify-center">
                             <button
-                              onClick={handleSave}
+                              onClick={() => handleSave(activeTab)}
                               className="text-green-600 hover:text-green-900"
                               title="Save"
                             >
@@ -673,7 +532,7 @@ export default function ServicePricingTab({ supabase, loading, setLoading }: Ser
                           </td>
                           <td className="py-3 px-4 text-center flex gap-2 justify-center">
                             <button
-                              onClick={handleSave}
+                              onClick={() => handleSave(activeTab)}
                               className="text-green-600 hover:text-green-900"
                               title="Save"
                             >
@@ -850,7 +709,7 @@ export default function ServicePricingTab({ supabase, loading, setLoading }: Ser
                           </td>
                           <td className="py-3 px-4 text-center flex gap-2 justify-center">
                             <button
-                              onClick={handleSave}
+                              onClick={() => handleSave(activeTab)}
                               className="text-green-600 hover:text-green-900"
                               title="Save"
                             >
@@ -1010,7 +869,7 @@ export default function ServicePricingTab({ supabase, loading, setLoading }: Ser
                           </td>
                           <td className="py-3 px-4 text-center flex gap-2 justify-center">
                             <button
-                              onClick={handleSave}
+                              onClick={() => handleSave(activeTab)}
                               className="text-green-600 hover:text-green-900"
                               title="Save"
                             >
