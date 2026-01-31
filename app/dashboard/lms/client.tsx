@@ -42,11 +42,6 @@ export default function LMSClient({ currentUserId }: LMSClientProps) {
 
   const { loading: dataLoading, data, refresh, page, pageInfo } = useLmsData(filter)
 
-  // Memoize refresh to prevent unnecessary re-renders when passing to child components
-  const memoizedRefresh = useCallback(async (pageNum?: number) => {
-    return refresh(pageNum)
-  }, [refresh])
-
   // Modal states
   const [showNewCustomer, setShowNewCustomer] = useState(false)
   const [showTransaction, setShowTransaction] = useState<(Account & { transactionType?: string }) | null>(null)
@@ -65,7 +60,8 @@ export default function LMSClient({ currentUserId }: LMSClientProps) {
   useEffect(() => {
     if (showStatementPopup && data.accounts) {
       const updated = data.accounts.find((a: Account) => a.id === showStatementPopup.id)
-      if (updated && JSON.stringify(updated) !== JSON.stringify(showStatementPopup)) {
+      // Only update if found and has new data
+      if (updated && updated.balance !== showStatementPopup.balance) {
         setShowStatementPopup(updated)
       }
     }
@@ -249,14 +245,14 @@ export default function LMSClient({ currentUserId }: LMSClientProps) {
             </div>
             <div className="flex gap-2">
               <button
-                onClick={() => memoizedRefresh(Math.max(1, page - 1))}
+                onClick={() => refresh(Math.max(1, page - 1))}
                 disabled={page === 1 || loading}
                 className="px-3 py-2 rounded border border-slate-200 text-sm font-medium hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Previous
               </button>
               <button
-                onClick={() => memoizedRefresh(Math.min(pageInfo.pages, page + 1))}
+                onClick={() => refresh(Math.min(pageInfo.pages, page + 1))}
                 disabled={page === pageInfo.pages || loading}
                 className="px-3 py-2 rounded border border-slate-200 text-sm font-medium hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
               >
@@ -271,7 +267,7 @@ export default function LMSClient({ currentUserId }: LMSClientProps) {
           <ErrorBoundary>
             <NewCustomerModal
               onClose={() => setShowNewCustomer(false)}
-              onSave={memoizedRefresh}
+              onSave={refresh}
               employeeId={currentUserId}
             />
           </ErrorBoundary>
@@ -282,7 +278,7 @@ export default function LMSClient({ currentUserId }: LMSClientProps) {
             <TransactionModal
               data={showTransaction}
               onClose={() => setShowTransaction(null)}
-              onSave={memoizedRefresh}
+              onSave={refresh}
               employeeId={currentUserId}
               onPaymentRecorded={() => {
                 const target = reopenStatementFor || showTransaction
@@ -309,7 +305,7 @@ export default function LMSClient({ currentUserId }: LMSClientProps) {
                 setShowStatementPopup(null)
                 setShowTransaction({ ...acc, transactionType: 'fee' })
               }}
-              onRefresh={memoizedRefresh}
+              onRefresh={refresh}
             />
           </ErrorBoundary>
         )}
@@ -319,7 +315,7 @@ export default function LMSClient({ currentUserId }: LMSClientProps) {
             <EditCustomerModal
               customer={showEditCustomer}
               onClose={() => setShowEditCustomer(null)}
-              onSave={memoizedRefresh}
+              onSave={refresh}
               employeeId={currentUserId}
             />
           </ErrorBoundary>

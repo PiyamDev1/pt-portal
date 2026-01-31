@@ -70,21 +70,11 @@ export function useLmsData(filter: string) {
     }
   }, [filter])
 
+  // Separate effect for initial load
   useEffect(() => {
-    let mounted = true
-    
-    const loadData = async () => {
-      if (mounted) {
-        await refresh(1)
-      }
-    }
-    
-    loadData()
-    
-    return () => {
-      mounted = false
-    }
-  }, [filter, refresh])
+    refresh(1)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filter])
 
   return { loading, data, refresh, page, pageInfo }
 }
