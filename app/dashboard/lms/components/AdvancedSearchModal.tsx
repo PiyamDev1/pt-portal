@@ -2,6 +2,8 @@
 
 import { useState } from 'react'
 import { X, Calendar, DollarSign, Filter } from 'lucide-react'
+import { handleDateInput as coreHandleDateInput } from '@/app/lib/utils'
+import { formatToISODate } from '@/app/lib/dateFormatter'
 import { ModalWrapper } from './ModalWrapper'
 
 interface AdvancedSearchModalProps {
@@ -22,20 +24,8 @@ export interface SearchFilters {
 export function AdvancedSearchModal({ onClose, onApplyFilters, currentFilters }: AdvancedSearchModalProps) {
   const [filters, setFilters] = useState<SearchFilters>(currentFilters)
 
-  const handleDateInput = (value: string): string => {
-    const digits = value.replace(/\D/g, '')
-    if (digits.length <= 2) return digits
-    if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`
-    return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4, 8)}`
-  }
-
-  const formatToISODate = (displayDate: string): string => {
-    if (!displayDate) return ''
-    const parts = displayDate.split('/')
-    if (parts.length !== 3) return ''
-    const [day, month, year] = parts
-    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`
-  }
+  // Use centralized handleDateInput utility
+  const handleDateInput = coreHandleDateInput
 
   const formatToDisplayDate = (isoDate: string): string => {
     if (!isoDate) return ''

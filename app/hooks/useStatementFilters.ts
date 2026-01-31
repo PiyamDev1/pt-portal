@@ -1,15 +1,12 @@
 import { useMemo, useState } from 'react'
 import { formatToISODate } from '@/app/lib/dateFormatter'
+import { handleDateInput as coreHandleDateInput } from '@/app/lib/utils'
 
 export const useStatementFilters = (account: any) => {
   const [filter, setFilter] = useState({ type: '', dateFrom: '', dateTo: '' })
 
-  const handleDateInput = (value: string): string => {
-    const digits = value.replace(/\D/g, '')
-    if (digits.length <= 2) return digits
-    if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`
-    return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4, 8)}`
-  }
+  // Re-export core utility for backward compatibility
+  const handleDateInput = coreHandleDateInput
 
   const filteredTransactions = useMemo(() => {
     if (!account?.transactions) return []
