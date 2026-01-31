@@ -1,20 +1,79 @@
-import { createClient } from '@supabase/supabase-js'
-import { NextRequest, NextResponse } from 'next/server'
+#!/usr/bin/env node
+/**
+ * Setup script to create pricing tables and seed initial data
+ */
 
-export async function POST(request: NextRequest) {
+const { createClient } = require('@supabase/supabase-js');
+const fs = require('fs');
+const path = require('path');
+
+// Load environment variables manually
+function loadEnv() {
   try {
-    // Only allow from localhost/internal requests
-    const authHeader = request.headers.get('authorization')
-    if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const envPath = path.join(__dirname, '..', '.env.local');
+    const envContent = fs.readFileSync(envPath, 'utf8');
+    envContent.split('\n').forEach(line => {
+      const match = line.match(/^([^=]+)=(.*)$/);
+      if (match) {
+        process.env[match[1]] = match[2].replace(/^["']|["']$/g, '');
+      }
+    });
+  } catch (error) {
+    console.error('Could not load .env.local');
+  }
+}
+
+loadEnv();
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!supabaseUrl || !supabaseServiceKey) {
+  console.error('❌ Missing Supabase credentials in .env.local');
+  process.exit(1);
+}
+
+const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+async function setupPricingTables() {
+  console.log('🚀 Starting pricing tables setup...\n');
+
+  try {
+    // Step 1: Check if tables exist
+    console.log('📊 Checking existing tables...');
+    const { data: nadraCheck } = await supabase.from('nadra_pricing').select('count()').limit(1);
+    
+    if (nadraCheck) {
+      console.log('✅ Pricing tables already exist!\n');
+    } else {
+      console.log('⚠️  Tables not found. Please create them in Supabase SQL Editor first.');
+      console.log('📄 Run this SQL: scripts/create-pricing-tables.sql\n');
+      process.exit(1);
     }
 
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
+    // Step 2: Check current counts
+    const [nadra, pk, gb, visa] = await Promise.all([
+      supabase.from('nadra_pricing').select('count()', { count: 'exact', head: true }),
+      supabase.from('pk_passport_pricing').select('count()', { count: 'exact', head: true }),
+      supabase.from('gb_passport_pricing').select('count()', { count: 'exact', head: true }),
+      supabase.from('visa_pricing').select('count()', { count: 'exact', head: true })
+    ]);
 
-    // Insert NADRA pricing
+    console.log('📈 Current record counts:');
+    console.log(`  - NADRA: ${nadra.count || 0}`);
+    console.log(`  - Pakistani Passport: ${pk.count || 0}`);
+    console.log(`  - GB Passport: ${gb.count || 0}`);
+    console.log(`  - Visa: ${visa.count || 0}\n`);
+
+    if (nadra.count > 0 || pk.count > 0 || gb.count > 0) {
+      console.log('⚠️  Data already exists. Skipping seed.');
+      console.log('✅ Setup complete!\n');
+      return;
+    }
+
+    // Step 3: Seed data using the API endpoint
+    console.log('🌱 Seeding pricing data...');
+    
     const nadraPricing = [
       { service_type: 'NICOP/CNIC', service_option: 'Normal', cost_price: 0, sale_price: 0 },
       { service_type: 'NICOP/CNIC', service_option: 'Executive', cost_price: 0, sale_price: 0 },
@@ -46,7 +105,7 @@ export async function POST(request: NextRequest) {
       { service_type: 'POA', service_option: 'Modification', cost_price: 0, sale_price: 0 },
       { service_type: 'POA', service_option: 'Reprint', cost_price: 0, sale_price: 0 },
       { service_type: 'POA', service_option: 'Cancellation', cost_price: 0, sale_price: 0 }
-    ]
+    ];
 
     const pkPricing = [
       { category: 'Adult 10 Year', speed: 'Normal', application_type: 'First Time', cost_price: 0, sale_price: 0 },
@@ -73,7 +132,7 @@ export async function POST(request: NextRequest) {
       { category: 'Child 5 Year', speed: 'Executive', application_type: 'Renewal', cost_price: 0, sale_price: 0 },
       { category: 'Child 5 Year', speed: 'Executive', application_type: 'Modification', cost_price: 0, sale_price: 0 },
       { category: 'Child 5 Year', speed: 'Executive', application_type: 'Lost', cost_price: 0, sale_price: 0 }
-    ]
+    ];
 
     const gbPricing = [
       { age_group: 'Adult', pages: '32', service_type: 'Standard', cost_price: 0, sale_price: 0 },
@@ -103,34 +162,44 @@ export async function POST(request: NextRequest) {
       { age_group: 'Infant', pages: '52', service_type: 'Standard', cost_price: 0, sale_price: 0 },
       { age_group: 'Infant', pages: '52', service_type: 'Express', cost_price: 0, sale_price: 0 },
       { age_group: 'Infant', pages: '52', service_type: 'Premium', cost_price: 0, sale_price: 0 }
-    ]
+    ];
 
-    // Insert all pricing data
-    await supabase.from('nadra_pricing').insert(nadraPricing)
-    await supabase.from('pk_passport_pricing').insert(pkPricing)
-    await supabase.from('gb_passport_pricing').insert(gbPricing)
+    // Insert data
+    await supabase.from('nadra_pricing').insert(nadraPricing);
+    await supabase.from('pk_passport_pricing').insert(pkPricing);
+    await supabase.from('gb_passport_pricing').insert(gbPricing);
 
-    // Verify counts
-    const [nadra, pk, gb] = await Promise.all([
+    console.log('✅ Seeded 30 NADRA pricing entries');
+    console.log('✅ Seeded 24 Pakistani Passport pricing entries');
+    console.log('✅ Seeded 27 GB Passport pricing entries\n');
+
+    // Verify
+    const [nadraFinal, pkFinal, gbFinal] = await Promise.all([
       supabase.from('nadra_pricing').select('count()', { count: 'exact', head: true }),
       supabase.from('pk_passport_pricing').select('count()', { count: 'exact', head: true }),
       supabase.from('gb_passport_pricing').select('count()', { count: 'exact', head: true })
-    ])
+    ]);
 
-    return NextResponse.json({
-      success: true,
-      message: 'Seed data loaded successfully',
-      results: {
-        nadraCount: nadra.count || 0,
-        pkCount: pk.count || 0,
-        gbCount: gb.count || 0
-      }
-    })
-  } catch (error: any) {
-    console.error('Seed error:', error)
-    return NextResponse.json(
-      { error: error.message },
-      { status: 500 }
-    )
+    console.log('🎉 Setup complete!');
+    console.log('📊 Final counts:');
+    console.log(`  - NADRA: ${nadraFinal.count}`);
+    console.log(`  - Pakistani Passport: ${pkFinal.count}`);
+    console.log(`  - GB Passport: ${gbFinal.count}\n`);
+
+  } catch (error) {
+    console.error('❌ Error:', error.message);
+    
+    if (error.code === 'PGRST116' || error.message.includes('does not exist')) {
+      console.log('\n📝 Next steps:');
+      console.log('1. Go to: https://supabase.com/dashboard/project/_/sql');
+      console.log('2. Create new query');
+      console.log('3. Copy and paste contents of: scripts/create-pricing-tables.sql');
+      console.log('4. Click RUN');
+      console.log('5. Re-run this script\n');
+    }
+    
+    process.exit(1);
   }
 }
+
+setupPricingTables();
