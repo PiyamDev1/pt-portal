@@ -42,6 +42,11 @@ export default function LMSClient({ currentUserId }: LMSClientProps) {
 
   const { loading: dataLoading, data, refresh, page, pageInfo } = useLmsData(filter)
 
+  // Memoize refresh to prevent unnecessary re-renders when passing to child components
+  const memoizedRefresh = useCallback(async (pageNum?: number) => {
+    return refresh(pageNum)
+  }, [refresh])
+
   // Modal states
   const [showNewCustomer, setShowNewCustomer] = useState(false)
   const [showTransaction, setShowTransaction] = useState<(Account & { transactionType?: string }) | null>(null)
@@ -56,19 +61,15 @@ export default function LMSClient({ currentUserId }: LMSClientProps) {
     setLoading(dataLoading)
   }, [dataLoading])
 
-  // Keep statement modal in sync with latest data
+  // Keep statement modal in sync with latest data - only check if the specific account changed
   useEffect(() => {
-    if (showStatementPopup) {
-      const updated = data.accounts?.find((a: Account) => a.id === showStatementPopup.id)
-      if (updated) {
+    if (showStatementPopup && data.accounts) {
+      const updated = data.accounts.find((a: Account) => a.id === showStatementPopup.id)
+      if (updated && JSON.stringify(updated) !== JSON.stringify(showStatementPopup)) {
         setShowStatementPopup(updated)
-      } else if (filter === 'active') {
-        // Account might have moved to settled after deletion
-        // Don't auto-switch tabs, just close the modal
-        console.log('[LMS] Account no longer in active filter after deletion')
       }
     }
-  }, [data.accounts, showStatementPopup, filter])
+  }, [data.accounts, showStatementPopup])
 
   const { filtered } = useLmsFilters(data.accounts, debouncedSearchTerm, searchFilters)
 
@@ -248,14 +249,14 @@ export default function LMSClient({ currentUserId }: LMSClientProps) {
             </div>
             <div className="flex gap-2">
               <button
-                onClick={() => refresh(Math.max(1, page - 1))}
+                onClick={() => memoizedRefresh(Math.max(1, page - 1))}
                 disabled={page === 1 || loading}
                 className="px-3 py-2 rounded border border-slate-200 text-sm font-medium hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Previous
               </button>
               <button
-                onClick={() => refresh(Math.min(pageInfo.pages, page + 1))}
+                onClick={() => memoizedRefresh(Math.min(pageInfo.pages, page + 1))}
                 disabled={page === pageInfo.pages || loading}
                 className="px-3 py-2 rounded border border-slate-200 text-sm font-medium hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
               >
@@ -270,7 +271,7 @@ export default function LMSClient({ currentUserId }: LMSClientProps) {
           <ErrorBoundary>
             <NewCustomerModal
               onClose={() => setShowNewCustomer(false)}
-              onSave={refresh}
+              onSave={memoizedRefresh}
               employeeId={currentUserId}
             />
           </ErrorBoundary>
@@ -281,7 +282,7 @@ export default function LMSClient({ currentUserId }: LMSClientProps) {
             <TransactionModal
               data={showTransaction}
               onClose={() => setShowTransaction(null)}
-              onSave={refresh}
+              onSave={memoizedRefresh}
               employeeId={currentUserId}
               onPaymentRecorded={() => {
                 const target = reopenStatementFor || showTransaction
@@ -308,7 +309,7 @@ export default function LMSClient({ currentUserId }: LMSClientProps) {
                 setShowStatementPopup(null)
                 setShowTransaction({ ...acc, transactionType: 'fee' })
               }}
-              onRefresh={refresh}
+              onRefresh={memoizedRefresh}
             />
           </ErrorBoundary>
         )}
@@ -318,7 +319,7 @@ export default function LMSClient({ currentUserId }: LMSClientProps) {
             <EditCustomerModal
               customer={showEditCustomer}
               onClose={() => setShowEditCustomer(null)}
-              onSave={refresh}
+              onSave={memoizedRefresh}
               employeeId={currentUserId}
             />
           </ErrorBoundary>

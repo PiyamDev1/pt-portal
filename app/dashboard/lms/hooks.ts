@@ -71,8 +71,20 @@ export function useLmsData(filter: string) {
   }, [filter])
 
   useEffect(() => {
-    refresh(1)
-  }, [filter]) // Remove 'refresh' from dependencies to prevent infinite loop
+    let mounted = true
+    
+    const loadData = async () => {
+      if (mounted) {
+        await refresh(1)
+      }
+    }
+    
+    loadData()
+    
+    return () => {
+      mounted = false
+    }
+  }, [filter, refresh])
 
   return { loading, data, refresh, page, pageInfo }
 }
