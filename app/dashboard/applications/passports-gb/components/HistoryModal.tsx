@@ -1,4 +1,5 @@
 'use client'
+import { useEffect, useRef } from 'react'
 import { X, Clock, FileText, User } from 'lucide-react'
 
 interface HistoryModalProps {
@@ -10,11 +11,32 @@ interface HistoryModalProps {
 }
 
 export default function HistoryModal({ isOpen, onClose, data, isLoading, title }: HistoryModalProps) {
+  const dialogRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!isOpen) return
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    dialogRef.current?.focus()
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose()
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [isOpen, onClose])
+
   if (!isOpen) return null
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[80vh]">
+      <div ref={dialogRef} className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[80vh]" role="dialog" aria-modal="true" aria-label="Tracking history" tabIndex={-1}>
         
         {/* Header */}
         <div className="bg-slate-50 px-6 py-4 border-b border-slate-100 flex justify-between items-center">
@@ -25,7 +47,7 @@ export default function HistoryModal({ isOpen, onClose, data, isLoading, title }
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">{title}</p>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-colors">
+          <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-colors" type="button" aria-label="Close history">
             <X className="w-5 h-5 text-slate-500" />
           </button>
         </div>
@@ -33,11 +55,11 @@ export default function HistoryModal({ isOpen, onClose, data, isLoading, title }
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
           {isLoading ? (
-            <div className="text-center py-8 text-slate-400">Loading history...</div>
+            <div className="text-center py-8 text-slate-400" role="status" aria-live="polite">Loading history...</div>
           ) : data.length === 0 ? (
-            <div className="text-center py-8 text-slate-400 flex flex-col items-center gap-2">
+            <div className="text-center py-8 text-slate-400 flex flex-col items-center gap-2" role="status" aria-live="polite">
                 <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center">
-                    <Clock className="w-6 h-6 text-slate-300" />
+                    <Clock className="w-6 h-6 text-slate-400" />
                 </div>
                 <p>No history records found.</p>
             </div>
@@ -54,7 +76,7 @@ export default function HistoryModal({ isOpen, onClose, data, isLoading, title }
                       <div>
                         <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Status Change</span>
                         <div className="font-bold text-slate-800 text-sm mt-0.5">
-                          {log.old_status || 'New'} <span className="text-slate-300 mx-1">→</span> <span className="text-blue-600">{log.new_status}</span>
+                          {log.old_status || 'New'} <span className="text-slate-400 mx-1">→</span> <span className="text-blue-600">{log.new_status}</span>
                         </div>
                       </div>
                       <div className="text-[10px] font-mono text-slate-400 bg-white px-2 py-1 rounded border border-slate-100">

@@ -94,8 +94,8 @@ export function useEditCustomer(customer: Account, employeeId: string) {
       onSave()
       onClose()
     } catch (err: unknown) {
-      const error = err as { message?: string }
-      toast.error(error.message || 'Failed to delete customer')
+      console.error('[useEditCustomer] Error deleting customer:', err)
+      toast.error('Failed to delete customer. Please try again or contact support.')
     } finally {
       setDeleting(false)
     }

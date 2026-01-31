@@ -19,6 +19,7 @@ export function FormSelectField({
   variant = 'default',
   icon
 }: FormSelectFieldProps) {
+  const fieldId = `select-${label.toLowerCase().replace(/\s+/g, '-')}`
   const baseClasses = 'w-full mt-3 p-2 border rounded text-sm focus:border-purple-500 focus:ring-1 focus:ring-purple-500 disabled:opacity-50'
   const variantClasses = variant === 'purple'
     ? 'bg-purple-50 border-purple-200 font-semibold text-purple-900'
@@ -26,11 +27,12 @@ export function FormSelectField({
 
   return (
     <div>
-      <label className={`text-xs font-medium ${variant === 'purple' ? 'text-purple-700' : 'text-slate-700'} flex items-center gap-1`}>
+      <label htmlFor={fieldId} className={`text-xs font-medium ${variant === 'purple' ? 'text-purple-700' : 'text-slate-700'} flex items-center gap-1`}>
         {icon}
         {label}
       </label>
       <select
+        id={fieldId}
         value={value}
         onChange={e => onChange(e.target.value)}
         disabled={disabled}

@@ -1,3 +1,5 @@
+import { useEffect, useRef } from 'react'
+
 interface HistoryModalProps {
   isOpen: boolean
   selectedHistory: any
@@ -13,11 +15,32 @@ export default function HistoryModal({
   loadingHistory,
   onClose
 }: HistoryModalProps) {
+  const dialogRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!isOpen) return
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    dialogRef.current?.focus()
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose()
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [isOpen, onClose])
+
   if (!isOpen || !selectedHistory) return null
 
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
-      <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[80vh]">
+      <div ref={dialogRef} className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[80vh]" role="dialog" aria-modal="true" aria-label="Status history" tabIndex={-1}>
         <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
           <div>
             <h3 className="font-bold text-slate-800">Status History</h3>
@@ -26,6 +49,8 @@ export default function HistoryModal({
           <button
             onClick={onClose}
             className="h-8 w-8 flex items-center justify-center rounded-full hover:bg-slate-200 transition text-slate-400"
+            type="button"
+            aria-label="Close history"
           >
             ✕
           </button>
@@ -33,9 +58,9 @@ export default function HistoryModal({
 
         <div className="p-6 overflow-y-auto">
           {loadingHistory ? (
-            <div className="text-center py-8 text-slate-400 text-sm">Loading history...</div>
+            <div className="text-center py-8 text-slate-400 text-sm" role="status" aria-live="polite">Loading history...</div>
           ) : historyLogs.length === 0 ? (
-            <div className="text-center py-8 text-slate-400 text-sm italic">No history recorded yet.</div>
+            <div className="text-center py-8 text-slate-400 text-sm italic" role="status" aria-live="polite">No history recorded yet.</div>
           ) : (
             <div className="relative pl-4 border-l-2 border-slate-100 space-y-8 ml-2">
               {historyLogs.map((log, index) => (
@@ -56,7 +81,7 @@ export default function HistoryModal({
                       <p className="text-[10px] text-slate-400 font-mono">
                         {new Date(log.date).toLocaleDateString()}
                       </p>
-                      <p className="text-[10px] text-slate-300">
+                      <p className="text-[10px] text-slate-500">
                         {new Date(log.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </p>
                     </div>

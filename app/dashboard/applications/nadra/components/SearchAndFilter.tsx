@@ -35,13 +35,16 @@ export default function SearchAndFilter({
     <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
       <div className="flex flex-col md:flex-row gap-4">
         <div className="relative flex-grow">
+          <label htmlFor="nadra-search" className="sr-only">Search applications</label>
           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">🔍</span>
           <input
+            id="nadra-search"
             type="text"
             placeholder="Search by CNIC, Name, or Tracking Number..."
             className="w-full pl-10 pr-4 py-3 bg-slate-50 border-none rounded-lg focus:ring-2 focus:ring-green-500 transition"
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
+            aria-label="Search by CNIC, name, or tracking number"
           />
         </div>
         <div className="w-full md:w-40">
@@ -49,6 +52,7 @@ export default function SearchAndFilter({
             value={statusFilter}
             onChange={(e) => onStatusChange(e.target.value)}
             className="w-full h-full py-3 bg-slate-50 border-none rounded-lg focus:ring-2 focus:ring-green-500 font-bold text-slate-600 px-4 cursor-pointer"
+            aria-label="Filter by status"
           >
             <option value="All">All Statuses</option>
             <option value="Pending Submission">Pending</option>
@@ -63,6 +67,7 @@ export default function SearchAndFilter({
             value={serviceTypeFilter}
             onChange={(e) => onServiceTypeChange(e.target.value)}
             className="w-full h-full py-3 bg-slate-50 border-none rounded-lg focus:ring-2 focus:ring-green-500 text-slate-600 px-4 cursor-pointer text-xs"
+            aria-label="Filter by service type"
           >
             <option value="All">All Service Types</option>
             <option value="NICOP/CNIC">NICOP/CNIC</option>
@@ -75,6 +80,7 @@ export default function SearchAndFilter({
             value={serviceOptionFilter}
             onChange={(e) => onServiceOptionChange(e.target.value)}
             className="w-full h-full py-3 bg-slate-50 border-none rounded-lg focus:ring-2 focus:ring-green-500 text-slate-600 px-4 cursor-pointer text-xs"
+            aria-label="Filter by service option"
           >
             <option value="All">All Options</option>
             <option value="Normal">Normal</option>
@@ -94,6 +100,7 @@ export default function SearchAndFilter({
             onChange={e => onStartDateChange(e.target.value)}
             className="px-3 py-2 bg-slate-50 border-none rounded-lg text-sm"
             maxLength={10}
+            aria-label="Start date"
           />
           <span className="text-slate-400">to</span>
           <input 
@@ -103,11 +110,13 @@ export default function SearchAndFilter({
             onChange={e => onEndDateChange(e.target.value)}
             className="px-3 py-2 bg-slate-50 border-none rounded-lg text-sm"
             maxLength={10}
+            aria-label="End date"
           />
           {(startDate || endDate) && (
             <button 
               onClick={() => { onStartDateChange(''); onEndDateChange('') }}
               className="text-xs text-slate-500 hover:text-slate-700 underline"
+              type="button"
             >
               Clear
             </button>

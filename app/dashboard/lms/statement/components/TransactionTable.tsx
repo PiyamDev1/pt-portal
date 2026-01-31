@@ -45,13 +45,13 @@ function TransactionTableComponent({ filteredTransactions, account, installments
   return (
     <div className="overflow-x-auto print:overflow-visible">
       <table className="w-full text-sm border-collapse print:text-xs">
-        <thead>
-          <tr className="bg-slate-100 border-b-2 border-slate-900 print:bg-slate-200">
-            <th className="p-3 text-left text-xs font-bold text-slate-700 uppercase print:p-2 print:text-[9px]">Date</th>
-            <th className="p-3 text-left text-xs font-bold text-slate-700 uppercase print:p-2 print:text-[9px]">Type</th>
-            <th className="p-3 text-left text-xs font-bold text-slate-700 uppercase print:p-2 print:text-[9px]">Description</th>
-            <th className="p-3 text-right text-xs font-bold text-red-700 uppercase print:p-2 print:text-[9px]">Debit</th>
-            <th className="p-3 text-right text-xs font-bold text-green-700 uppercase print:p-2 print:text-[9px]">Credit</th>
+        <thead className="sticky top-0 z-10 bg-slate-100 print:static print:bg-slate-200">
+          <tr className="border-b-2 border-slate-900">
+            <th scope="col" className="p-3 text-left text-xs font-bold text-slate-700 uppercase print:p-2 print:text-[9px]">Date</th>
+            <th scope="col" className="p-3 text-left text-xs font-bold text-slate-700 uppercase print:p-2 print:text-[9px]">Type</th>
+            <th scope="col" className="p-3 text-left text-xs font-bold text-slate-700 uppercase print:p-2 print:text-[9px]">Description</th>
+            <th scope="col" className="p-3 text-right text-xs font-bold text-red-700 uppercase print:p-2 print:text-[9px]">Debit</th>
+            <th scope="col" className="p-3 text-right text-xs font-bold text-green-700 uppercase print:p-2 print:text-[9px]">Credit</th>
           </tr>
         </thead>
         <tbody>
@@ -175,7 +175,7 @@ function TransactionTableComponent({ filteredTransactions, account, installments
             })
           ) : (
             <tr>
-              <td colSpan={5} className="p-6 text-center text-slate-400 print:p-3 print:text-xs">
+              <td colSpan={5} className="p-6 text-center text-slate-400 print:p-3 print:text-xs" role="status" aria-live="polite">
                 No transactions found for the selected filters
               </td>
             </tr>

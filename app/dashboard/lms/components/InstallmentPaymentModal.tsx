@@ -235,7 +235,7 @@ function InstallmentPaymentModalCore({
             )}
           </select>
           {paymentMethods.length === 0 && (
-            <p className="mt-1 text-xs text-red-600">
+            <p className="mt-1 text-xs text-red-600" role="alert" aria-live="assertive">
               No payment methods found. Please contact administrator.
             </p>
           )}

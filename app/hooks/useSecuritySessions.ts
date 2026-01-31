@@ -29,7 +29,8 @@ export function useSecuritySessions({ userId }: UseSecuritySessionsParams) {
         else setSessions([])
       })
       .catch((err) => {
-        setSessionsError(err.message || 'Unable to load devices')
+        console.error('[useSecuritySessions] Error loading sessions:', err)
+        setSessionsError('Unable to load devices. Please try refreshing.')
       })
       .finally(() => setSessionsLoading(false))
   }, [userId])

@@ -76,13 +76,13 @@ export function AuditLogsModal({ accountId, accountName, onClose }: AuditLogsMod
 
   return (
     <ModalWrapper onClose={onClose} title={`Audit Trail - ${accountName}`}>
-      <div className="space-y-4">
+      <div role="dialog" aria-modal="true" aria-label={`Audit Trail for ${accountName}`} className="space-y-4">
         {loading ? (
-          <div className="flex justify-center py-8">
+          <div role="status" aria-live="polite" className="flex justify-center py-8">
             <div className="animate-spin h-8 w-8 border-4 border-slate-200 border-t-blue-600 rounded-full"></div>
           </div>
         ) : logs.length === 0 ? (
-          <div className="text-center py-8 text-slate-500">
+          <div role="status" aria-live="polite" className="text-center py-8 text-slate-500">
             <Clock className="w-12 h-12 mx-auto mb-2 opacity-50" />
             <p>No audit history yet</p>
           </div>
@@ -113,7 +113,10 @@ export function AuditLogsModal({ accountId, accountName, onClose }: AuditLogsMod
                     </div>
                     {hasChanges && (
                       <button
+                        type="button"
                         onClick={() => setExpandedLog(expandedLog === log.id ? null : log.id)}
+                        aria-label={expandedLog === log.id ? 'Hide changes' : 'Show changes'}
+                        aria-expanded={expandedLog === log.id}
                         className="text-slate-400 hover:text-slate-600 transition-colors"
                       >
                         <ChevronRight

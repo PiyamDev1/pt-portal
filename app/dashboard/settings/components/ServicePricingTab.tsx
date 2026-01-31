@@ -50,7 +50,7 @@ function ServicePricingTabCore({ supabase, loading: initialLoading, setLoading }
       setLoading(false)
       setLoadingState(false)
     })
-  }, [])
+  }, [fetchPricing, setLoading])
 
   // Handler wrappers for database operations
   const handleAddNadraEntry = async (entry: { service_type: string; service_option: string; cost_price: number; sale_price: number }) => {
@@ -114,7 +114,7 @@ function ServicePricingTabCore({ supabase, loading: initialLoading, setLoading }
           <AlertCircle className="h-5 w-5 text-yellow-600 mt-0.5 flex-shrink-0" />
           <div className="flex-1">
             <h3 className="font-semibold text-yellow-900 mb-2">Database Setup Required</h3>
-            <p className="text-sm text-yellow-800 mb-4">The pricing tables don't exist yet. Run the SQL from scripts/create-pricing-tables.sql in your Supabase project SQL Editor.</p>
+            <p className="text-sm text-yellow-800 mb-4">The pricing tables do not exist yet. Run the SQL from scripts/create-pricing-tables.sql in your Supabase project SQL Editor.</p>
           </div>
         </div>
       </div>

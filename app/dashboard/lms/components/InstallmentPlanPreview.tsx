@@ -1,3 +1,4 @@
+import { useId } from 'react'
 import type { InstallmentPayment } from '../types'
 
 interface InstallmentPlanPreviewProps {
@@ -13,6 +14,8 @@ export function InstallmentPlanPreview({
   onToggle,
   onUpdateInstallmentDate
 }: InstallmentPlanPreviewProps) {
+  const panelId = useId()
+
   if (installmentPlan.length === 0) return null
 
   return (
@@ -20,6 +23,8 @@ export function InstallmentPlanPreview({
       <button
         type="button"
         onClick={onToggle}
+        aria-expanded={planExpanded}
+        aria-controls={panelId}
         className="w-full p-3 bg-slate-100 hover:bg-slate-200 font-bold text-slate-700 text-xs uppercase flex items-center justify-between"
       >
         <span>Payment Schedule ({installmentPlan.length} payments)</span>
@@ -27,7 +32,7 @@ export function InstallmentPlanPreview({
       </button>
 
       {planExpanded && (
-        <div className="p-4 space-y-2 bg-white max-h-[400px] overflow-y-auto">
+        <div id={panelId} className="p-4 space-y-2 bg-white max-h-[400px] overflow-y-auto">
           {installmentPlan.map((installment, idx) => {
             const isFirst = idx === 0
             const isLast = idx === installmentPlan.length - 1
@@ -59,6 +64,7 @@ export function InstallmentPlanPreview({
                       placeholder="DD/MM/YYYY"
                       value={installment.dueDate}
                       onChange={e => onUpdateInstallmentDate(idx, e.target.value)}
+                      aria-label={`Installment ${idx + 1} due date`}
                       className="w-full p-2 text-sm border-2 border-slate-200 rounded-lg hover:border-blue-400 focus:border-blue-500 outline-none"
                     />
                   </div>

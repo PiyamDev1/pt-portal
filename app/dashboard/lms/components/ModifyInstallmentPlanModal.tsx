@@ -67,7 +67,7 @@ export function ModifyInstallmentPlanModal({
 
   return (
     <ModalWrapper onClose={onClose} title="Modify Installment Plan">
-      <div className="space-y-4">
+      <div role="dialog" aria-modal="true" aria-label="Modify installment plan" className="space-y-4">
         <TransactionDetails
           transaction={transaction}
           totalInstallments={totalInstallments}
@@ -106,7 +106,9 @@ export function ModifyInstallmentPlanModal({
 
         {!showSchedule && (
           <button
+            type="button"
             onClick={onClose}
+            aria-label="Cancel and close modify installment plan dialog"
             className="w-full px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg font-medium transition-colors"
           >
             Cancel

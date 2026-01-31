@@ -92,7 +92,7 @@ export default function HierarchyTab({
         <p className="text-sm text-slate-500 mb-6">Visualise reporting lines. Use the dropdown on any employee card to change their manager.</p>
         
         <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 min-h-[400px]">
-          {rootEmployees.length === 0 && <p className="text-center text-gray-400 py-10">No employees found.</p>}
+          {rootEmployees.length === 0 && <p className="text-center text-gray-400 py-10" role="status" aria-live="polite">No employees found.</p>}
           
           {rootEmployees.map((root: any) => (
             <EmployeeNode key={root.id} employee={root} level={0} />

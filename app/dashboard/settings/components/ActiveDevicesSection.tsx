@@ -28,6 +28,8 @@ export function ActiveDevicesSection({
             onClick={onSignOutAll}
             disabled={loading}
             className="text-xs font-bold text-red-600 border border-red-200 bg-red-50 px-3 py-1.5 rounded hover:bg-red-100 transition"
+            type="button"
+            aria-label="Sign out all devices"
           >
             Sign Out All Devices
           </button>
@@ -36,13 +38,13 @@ export function ActiveDevicesSection({
 
       <div className="space-y-3">
         {sessionsLoading && (
-          <p className="text-sm text-slate-500 italic">Fetching device list...</p>
+          <p className="text-sm text-slate-500 italic" role="status" aria-live="polite">Fetching device list...</p>
         )}
         {sessionsError && !sessionsLoading && (
-          <p className="text-sm text-red-600">{sessionsError}</p>
+          <p className="text-sm text-red-600" role="status" aria-live="polite">{sessionsError}</p>
         )}
         {!sessionsLoading && !sessionsError && sessions.length === 0 && (
-          <p className="text-sm text-slate-500 italic">No sessions found.</p>
+          <p className="text-sm text-slate-500 italic" role="status" aria-live="polite">No sessions found.</p>
         )}
 
         {sessions.map((session) => {
@@ -98,6 +100,8 @@ export function ActiveDevicesSection({
                   onClick={() => onRevokeSession(session.id)}
                   disabled={loading}
                   className="text-xs text-slate-500 hover:text-red-600 underline px-2"
+                  type="button"
+                  aria-label="Revoke session"
                 >
                   Revoke
                 </button>

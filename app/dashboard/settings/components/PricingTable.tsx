@@ -50,24 +50,25 @@ export const PricingTable: React.FC<PricingTableProps> = ({
   return (
     <div className="overflow-x-auto">
       <table className="w-full border-collapse">
-        <thead>
-          <tr className="border-b-2 border-gray-200 bg-gray-50">
+        <thead className="sticky top-0 z-10 bg-gray-50">
+          <tr className="border-b-2 border-gray-200">
             {columns.map((col) => (
               <th
                 key={col.key}
+                scope="col"
                 className={`text-${col.align || 'left'} py-3 px-4 font-semibold`}
               >
                 {col.label}
               </th>
             ))}
-            <th className="text-right py-3 px-4 font-semibold">Profit</th>
-            <th className="text-center py-3 px-4 font-semibold">Actions</th>
+            <th scope="col" className="text-right py-3 px-4 font-semibold">Profit</th>
+            <th scope="col" className="text-center py-3 px-4 font-semibold">Actions</th>
           </tr>
         </thead>
         <tbody>
           {data.length === 0 ? (
             <tr>
-              <td colSpan={columns.length + 2} className="py-8 px-4 text-center text-gray-500">
+              <td colSpan={columns.length + 2} className="py-8 px-4 text-center text-gray-500" role="status" aria-live="polite">
                 {emptyMessage}
               </td>
             </tr>
@@ -85,17 +86,21 @@ export const PricingTable: React.FC<PricingTableProps> = ({
                       <input
                         type="number"
                         step="0.01"
+                        min="0"
                         value={editValues.cost_price}
                         onChange={(e) => onEditValueChange('cost_price', e.target.value)}
                         className="w-full px-2 py-1 border rounded"
+                        aria-label="Cost price"
                       />
                     ) : editingId === item.id && col.key === 'sale_price' ? (
                       <input
                         type="number"
                         step="0.01"
+                        min="0"
                         value={editValues.sale_price}
                         onChange={(e) => onEditValueChange('sale_price', e.target.value)}
                         className="w-full px-2 py-1 border rounded"
+                        aria-label="Sale price"
                       />
                     ) : col.key === 'cost_price' ? (
                       <span className="text-right">{item.cost_price.toFixed(2)}</span>
@@ -118,6 +123,8 @@ export const PricingTable: React.FC<PricingTableProps> = ({
                         onClick={() => onSave(activeTab)}
                         className="text-green-600 hover:text-green-900"
                         title="Save"
+                        type="button"
+                        aria-label="Save pricing"
                       >
                         <Save className="h-4 w-4" />
                       </button>
@@ -125,6 +132,8 @@ export const PricingTable: React.FC<PricingTableProps> = ({
                         onClick={onCancelEdit}
                         className="text-gray-600 hover:text-gray-900"
                         title="Cancel"
+                        type="button"
+                        aria-label="Cancel edit"
                       >
                         <X className="h-4 w-4" />
                       </button>
@@ -134,6 +143,7 @@ export const PricingTable: React.FC<PricingTableProps> = ({
                       <button
                         onClick={() => onEdit(item)}
                         className="text-blue-600 hover:text-blue-900 font-medium text-sm"
+                        type="button"
                       >
                         Edit
                       </button>
@@ -141,6 +151,8 @@ export const PricingTable: React.FC<PricingTableProps> = ({
                         onClick={() => onDelete(item.id, activeTab)}
                         className="text-red-600 hover:text-red-900"
                         title="Delete"
+                        type="button"
+                        aria-label="Delete pricing entry"
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>

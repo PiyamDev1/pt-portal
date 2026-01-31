@@ -18,20 +18,56 @@ export default function NewApplicationForm({ formData, isSubmitting, onChange, o
         <div className="space-y-5">
            <h4 className="text-xs font-black uppercase text-slate-400 tracking-widest border-b border-slate-100 pb-2">Applicant Information</h4>
            <div>
-             <input name="applicantName" onChange={onChange} onBlur={onBlur} value={formData.applicantName} placeholder="Full Legal Name" className="w-full p-2 bg-white border border-green-100 rounded-lg text-sm focus:ring-2 focus:ring-green-500" />
-             {errors.applicantName && (<p className="text-red-600 text-xs mt-1">{errors.applicantName}</p>)}
+             <input 
+               name="applicantName" 
+               onChange={onChange} 
+               onBlur={onBlur} 
+               value={formData.applicantName} 
+               placeholder="Full Legal Name" 
+               className="w-full p-2 bg-white border border-green-100 rounded-lg text-sm focus:ring-2 focus:ring-green-500" 
+               aria-invalid={!!errors.applicantName}
+               aria-describedby={errors.applicantName ? "applicantName-error" : undefined}
+             />
+             {errors.applicantName && (<p id="applicantName-error" className="text-red-600 text-xs mt-1" role="alert">{errors.applicantName}</p>)}
            </div>
            <div>
-             <input name="applicantCnic" onChange={onChange} onBlur={onBlur} value={formData.applicantCnic} placeholder="CNIC (Auto-formatted)" className="w-full p-2 bg-white border border-green-100 rounded-lg text-sm font-mono focus:ring-2 focus:ring-green-500" />
-             {errors.applicantCnic && (<p className="text-red-600 text-xs mt-1">{errors.applicantCnic}</p>)}
+             <input 
+               name="applicantCnic" 
+               onChange={onChange} 
+               onBlur={onBlur} 
+               value={formData.applicantCnic} 
+               placeholder="CNIC (Auto-formatted)" 
+               className="w-full p-2 bg-white border border-green-100 rounded-lg text-sm font-mono focus:ring-2 focus:ring-green-500" 
+               aria-invalid={!!errors.applicantCnic}
+               aria-describedby={errors.applicantCnic ? "applicantCnic-error" : undefined}
+             />
+             {errors.applicantCnic && (<p id="applicantCnic-error" className="text-red-600 text-xs mt-1" role="alert">{errors.applicantCnic}</p>)}
            </div>
            <div>
-             <input name="applicantEmail" onChange={onChange} onBlur={onBlur} value={formData.applicantEmail} placeholder="Email Address" className="w-full p-2 bg-white border border-green-100 rounded-lg text-sm focus:ring-2 focus:ring-green-500" />
-             {errors.applicantEmail && (<p className="text-red-600 text-xs mt-1">{errors.applicantEmail}</p>)}
+             <input 
+               name="applicantEmail" 
+               onChange={onChange} 
+               onBlur={onBlur} 
+               value={formData.applicantEmail} 
+               placeholder="Email Address" 
+               className="w-full p-2 bg-white border border-green-100 rounded-lg text-sm focus:ring-2 focus:ring-green-500" 
+               aria-invalid={!!errors.applicantEmail}
+               aria-describedby={errors.applicantEmail ? "applicantEmail-error" : undefined}
+             />
+             {errors.applicantEmail && (<p id="applicantEmail-error" className="text-red-600 text-xs mt-1" role="alert">{errors.applicantEmail}</p>)}
            </div>
            <div>
-             <input name="familyHeadEmail" onChange={onChange} onBlur={onBlur} value={formData.familyHeadEmail} placeholder="Family Head Email (NADRA account)" className="w-full p-2 bg-white border border-green-100 rounded-lg text-sm focus:ring-2 focus:ring-green-500" />
-             {errors.familyHeadEmail && (<p className="text-red-600 text-xs mt-1">{errors.familyHeadEmail}</p>)}
+             <input 
+               name="familyHeadEmail" 
+               onChange={onChange} 
+               onBlur={onBlur} 
+               value={formData.familyHeadEmail} 
+               placeholder="Family Head Email (NADRA account)" 
+               className="w-full p-2 bg-white border border-green-100 rounded-lg text-sm focus:ring-2 focus:ring-green-500" 
+               aria-invalid={!!errors.familyHeadEmail}
+               aria-describedby={errors.familyHeadEmail ? "familyHeadEmail-error" : undefined}
+             />
+             {errors.familyHeadEmail && (<p id="familyHeadEmail-error" className="text-red-600 text-xs mt-1" role="alert">{errors.familyHeadEmail}</p>)}
            </div>
            
            <div className="flex items-center gap-3 bg-green-50 p-3 rounded-lg border border-green-100 mt-2">
@@ -55,7 +91,7 @@ export default function NewApplicationForm({ formData, isSubmitting, onChange, o
            </div>
         </div>
       </div>
-      <button onClick={onSubmit} disabled={isSubmitting} className="w-full mt-6 bg-green-600 text-white py-3 rounded-lg font-bold hover:bg-green-700 transition shadow">
+      <button type="button" onClick={onSubmit} disabled={isSubmitting} className="w-full mt-6 bg-green-600 text-white py-3 rounded-lg font-bold hover:bg-green-700 transition shadow">
          {isSubmitting ? 'Saving Application...' : 'Save Application to Ledger'}
       </button>
     </div>

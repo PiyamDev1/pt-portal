@@ -46,7 +46,8 @@ function VisaPricingTabCore({
       await onAddEntry(newEntry)
       setNewEntry({ country: '', visa_type: '', cost_price: 0, sale_price: 0 })
     } catch (error: any) {
-      toast.error('Failed to add visa pricing: ' + error.message)
+      console.error('[VisaPricingTab] Error adding visa pricing:', error)
+      toast.error('Failed to add visa pricing. Please try again or contact support.')
     }
   }
 
@@ -57,20 +58,24 @@ function VisaPricingTabCore({
         <form onSubmit={handleAddEntry} className="space-y-3">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-1">Country *</label>
+              <label htmlFor="visa-country" className="block text-sm font-medium mb-1">Country *</label>
               <input
+                id="visa-country"
                 type="text"
                 placeholder="Enter country name"
                 value={newEntry.country}
                 onChange={(e) => setNewEntry({ ...newEntry, country: e.target.value })}
+                aria-label="Enter country name for visa pricing"
                 className="w-full px-3 py-2 border rounded"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Visa Type *</label>
+              <label htmlFor="visa-type" className="block text-sm font-medium mb-1">Visa Type *</label>
               <select
+                id="visa-type"
                 value={newEntry.visa_type}
                 onChange={(e) => setNewEntry({ ...newEntry, visa_type: e.target.value })}
+                aria-label="Select visa type"
                 className="w-full px-3 py-2 border rounded"
               >
                 <option value="">Select Visa Type</option>
@@ -82,28 +87,33 @@ function VisaPricingTabCore({
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-1">Cost Price</label>
+              <label htmlFor="visa-cost-price" className="block text-sm font-medium mb-1">Cost Price</label>
               <input
+                id="visa-cost-price"
                 type="number"
                 step="0.01"
                 value={newEntry.cost_price}
                 onChange={(e) => setNewEntry({ ...newEntry, cost_price: Number(e.target.value) })}
+                aria-label="Enter cost price for visa"
                 className="w-full px-3 py-2 border rounded"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Sale Price</label>
+              <label htmlFor="visa-sale-price" className="block text-sm font-medium mb-1">Sale Price</label>
               <input
+                id="visa-sale-price"
                 type="number"
                 step="0.01"
                 value={newEntry.sale_price}
                 onChange={(e) => setNewEntry({ ...newEntry, sale_price: Number(e.target.value) })}
+                aria-label="Enter sale price for visa"
                 className="w-full px-3 py-2 border rounded"
               />
             </div>
           </div>
           <button
             type="submit"
+            aria-label="Add new visa pricing entry"
             className="inline-flex items-center gap-2 bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700 font-medium"
           >
             <Plus className="h-4 w-4" /> Add Visa Pricing

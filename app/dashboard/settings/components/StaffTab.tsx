@@ -236,8 +236,8 @@ export default function StaffTab({
                       <span className="text-xs text-gray-400 italic">Manage via Profile</span>
                     </td>
                     <td className="px-4 py-3 flex gap-2">
-                      <button onClick={handleUpdateEmployee} className="text-green-600 font-bold hover:underline">Save</button>
-                      <button onClick={() => setEditingEmployee(null)} className="text-slate-400 hover:underline">Cancel</button>
+                      <button type="button" onClick={handleUpdateEmployee} className="text-green-600 font-bold hover:underline">Save</button>
+                      <button type="button" onClick={() => setEditingEmployee(null)} className="text-slate-400 hover:underline">Cancel</button>
                     </td>
                   </>
                 ) : (

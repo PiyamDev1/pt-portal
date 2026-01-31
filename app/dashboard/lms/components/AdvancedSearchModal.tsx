@@ -46,7 +46,7 @@ export function AdvancedSearchModal({ onClose, onApplyFilters, currentFilters }:
 
   return (
     <ModalWrapper onClose={onClose} title="Advanced Search">
-      <div className="space-y-4">
+      <div role="dialog" aria-modal="true" aria-label="Advanced Search Filters" className="space-y-4">
         {/* Date Range */}
         <div className="bg-slate-50 p-4 rounded-lg">
           <div className="flex items-center gap-2 mb-3">
@@ -55,10 +55,12 @@ export function AdvancedSearchModal({ onClose, onApplyFilters, currentFilters }:
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">From (DD/MM/YYYY)</label>
+              <label htmlFor="filter-date-from" className="block text-xs font-medium text-slate-600 mb-1">From (DD/MM/YYYY)</label>
               <input
+                id="filter-date-from"
                 type="text"
                 placeholder="01/01/2026"
+                aria-label="Start date for search range"
                 value={filters.dateFrom ? formatToDisplayDate(filters.dateFrom) : ''}
                 onChange={(e) => {
                   const formatted = handleDateInput(e.target.value)
@@ -69,10 +71,12 @@ export function AdvancedSearchModal({ onClose, onApplyFilters, currentFilters }:
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">To (DD/MM/YYYY)</label>
+              <label htmlFor="filter-date-to" className="block text-xs font-medium text-slate-600 mb-1">To (DD/MM/YYYY)</label>
               <input
+                id="filter-date-to"
                 type="text"
                 placeholder="31/12/2026"
+                aria-label="End date for search range"
                 value={filters.dateTo ? formatToDisplayDate(filters.dateTo) : ''}
                 onChange={(e) => {
                   const formatted = handleDateInput(e.target.value)
@@ -93,8 +97,9 @@ export function AdvancedSearchModal({ onClose, onApplyFilters, currentFilters }:
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Min (£)</label>
+              <label htmlFor="filter-min-amount" className="block text-xs font-medium text-slate-600 mb-1">Min (£)</label>
               <input
+                id="filter-min-amount"
                 type="number"
                 step="0.01"
                 placeholder="0.00"
@@ -104,8 +109,9 @@ export function AdvancedSearchModal({ onClose, onApplyFilters, currentFilters }:
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Max (£)</label>
+              <label htmlFor="filter-max-amount" className="block text-xs font-medium text-slate-600 mb-1">Max (£)</label>
               <input
+                id="filter-max-amount"
                 type="number"
                 step="0.01"
                 placeholder="10000.00"
@@ -126,19 +132,23 @@ export function AdvancedSearchModal({ onClose, onApplyFilters, currentFilters }:
           <div className="space-y-2">
             <label className="flex items-center gap-2">
               <input
+                id="filter-has-overdue"
                 type="checkbox"
                 checked={filters.hasOverdue || false}
                 onChange={(e) => setFilters({ ...filters, hasOverdue: e.target.checked })}
                 className="rounded"
+                aria-label="Filter for overdue accounts"
               />
               <span className="text-sm text-slate-700">Only Overdue Accounts</span>
             </label>
             <label className="flex items-center gap-2">
               <input
+                id="filter-has-due-soon"
                 type="checkbox"
                 checked={filters.hasDueSoon || false}
                 onChange={(e) => setFilters({ ...filters, hasDueSoon: e.target.checked })}
                 className="rounded"
+                aria-label="Filter for accounts with due soon payments"
               />
               <span className="text-sm text-slate-700">Only Due Soon Accounts</span>
             </label>
@@ -148,13 +158,17 @@ export function AdvancedSearchModal({ onClose, onApplyFilters, currentFilters }:
         {/* Actions */}
         <div className="flex gap-2 pt-4 border-t">
           <button
+            type="button"
             onClick={handleClear}
+            aria-label="Clear all search filters"
             className="flex-1 px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg font-medium transition-colors"
           >
             Clear All
           </button>
           <button
+            type="button"
             onClick={handleApply}
+            aria-label="Apply selected search filters"
             className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
           >
             Apply Filters

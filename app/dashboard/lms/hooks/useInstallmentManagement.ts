@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { toast } from 'sonner'
 
 interface Installment {
@@ -23,11 +23,7 @@ export function useInstallmentManagement(transaction: Transaction) {
   const [editedInstallments, setEditedInstallments] = useState<Installment[]>([])
   const [saving, setSaving] = useState(false)
 
-  useEffect(() => {
-    fetchInstallments()
-  }, [transaction.id])
-
-  const fetchInstallments = async () => {
+  const fetchInstallments = useCallback(async () => {
     try {
       const res = await fetch(`/api/lms/installments?transactionId=${transaction.id}`)
       if (res.ok) {
@@ -39,7 +35,11 @@ export function useInstallmentManagement(transaction: Transaction) {
     } catch (err) {
       // Silently fail - error boundary will handle
     }
-  }
+  }, [transaction.id])
+
+  useEffect(() => {
+    fetchInstallments()
+  }, [fetchInstallments])
 
   const handleInstallmentChange = (index: number, field: 'due_date' | 'amount', value: string) => {
     const updated = [...editedInstallments]
@@ -90,7 +90,8 @@ export function useInstallmentManagement(transaction: Transaction) {
       await fetchInstallments()
       return true
     } catch (err: any) {
-      toast.error(err.message || 'Failed to save changes')
+      console.error('[useInstallmentManagement] Error saving changes:', err)
+      toast.error('Failed to save changes. Please try again or contact support.')
       return false
     } finally {
       setSaving(false)
@@ -119,7 +120,8 @@ export function useInstallmentManagement(transaction: Transaction) {
       toast.success('Service charge deleted and balance updated')
       return true
     } catch (err: any) {
-      toast.error(err.message || 'Failed to delete')
+      console.error('[useInstallmentManagement] Error deleting installment:', err)
+      toast.error('Failed to delete. Please try again or contact support.')
       setLoading(false)
       return false
     }

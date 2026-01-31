@@ -251,7 +251,7 @@ export default async function Dashboard() {
                                     <h4 className="font-bold text-sm text-slate-700 group-hover:text-blue-600 transition-colors">{mod.title}</h4>
                                     <p className="text-[10px] text-slate-400">{mod.desc}</p>
                                 </div>
-                                <span className="text-slate-300 text-xs">→</span>
+                                <span className="text-slate-400 text-xs">→</span>
                             </div>
                         </Link>
                     ))}

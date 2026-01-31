@@ -45,7 +45,8 @@ function PKPassportPricingTabCore({
       await onAddEntry(newEntry)
       setNewEntry({ category: '', speed: '', application_type: '', cost_price: 0, sale_price: 0 })
     } catch (error: any) {
-      toast.error('Failed to add service: ' + error.message)
+      console.error('[PKPassportPricingTab] Error adding service:', error)
+      toast.error('Failed to add service. Please try again or contact support.')
     }
   }
 
@@ -56,10 +57,12 @@ function PKPassportPricingTabCore({
         <form onSubmit={handleAddEntry} className="space-y-3">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-1">Category *</label>
+              <label htmlFor="pk-passport-category" className="block text-sm font-medium mb-1">Category *</label>
               <select
+                id="pk-passport-category"
                 value={newEntry.category}
                 onChange={(e) => setNewEntry({ ...newEntry, category: e.target.value })}
+                aria-label="Select Pakistani passport category"
                 className="w-full px-3 py-2 border rounded"
               >
                 <option value="">Select Category</option>
@@ -69,10 +72,12 @@ function PKPassportPricingTabCore({
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Speed *</label>
+              <label htmlFor="pk-passport-speed" className="block text-sm font-medium mb-1">Speed *</label>
               <select
+                id="pk-passport-speed"
                 value={newEntry.speed}
                 onChange={(e) => setNewEntry({ ...newEntry, speed: e.target.value })}
+                aria-label="Select processing speed"
                 className="w-full px-3 py-2 border rounded"
               >
                 <option value="">Select Speed</option>
@@ -82,10 +87,12 @@ function PKPassportPricingTabCore({
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Application Type *</label>
+              <label htmlFor="pk-passport-app-type" className="block text-sm font-medium mb-1">Application Type *</label>
               <select
+                id="pk-passport-app-type"
                 value={newEntry.application_type}
                 onChange={(e) => setNewEntry({ ...newEntry, application_type: e.target.value })}
+                aria-label="Select application type"
                 className="w-full px-3 py-2 border rounded"
               >
                 <option value="">Select Application Type</option>
@@ -97,28 +104,33 @@ function PKPassportPricingTabCore({
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-1">Cost Price</label>
+              <label htmlFor="pk-cost-price" className="block text-sm font-medium mb-1">Cost Price</label>
               <input
+                id="pk-cost-price"
                 type="number"
                 step="0.01"
                 value={newEntry.cost_price}
                 onChange={(e) => setNewEntry({ ...newEntry, cost_price: Number(e.target.value) })}
+                aria-label="Enter cost price for Pakistani passport service"
                 className="w-full px-3 py-2 border rounded"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Sale Price</label>
+              <label htmlFor="pk-sale-price" className="block text-sm font-medium mb-1">Sale Price</label>
               <input
+                id="pk-sale-price"
                 type="number"
                 step="0.01"
                 value={newEntry.sale_price}
                 onChange={(e) => setNewEntry({ ...newEntry, sale_price: Number(e.target.value) })}
+                aria-label="Enter sale price for Pakistani passport service"
                 className="w-full px-3 py-2 border rounded"
               />
             </div>
           </div>
           <button
             type="submit"
+            aria-label="Add new Pakistani passport service pricing option"
             className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 font-medium"
           >
             <Plus className="h-4 w-4" /> Add Service Option

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { StickyNote, X, Plus, Trash2 } from 'lucide-react'
 import { ModalWrapper } from './ModalWrapper'
 import { ConfirmationModal } from './ConfirmationModal'
@@ -28,11 +28,7 @@ export function AccountNotesModal({ accountId, accountName, employeeId, onClose 
   const [saving, setSaving] = useState(false)
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
 
-  useEffect(() => {
-    fetchNotes()
-  }, [accountId])
-
-  const fetchNotes = async () => {
+  const fetchNotes = useCallback(async () => {
     try {
       const res = await fetch(`/api/lms/notes?accountId=${accountId}`)
       if (res.ok) {
@@ -45,7 +41,11 @@ export function AccountNotesModal({ accountId, accountName, employeeId, onClose 
     } finally {
       setLoading(false)
     }
-  }
+  }, [accountId])
+
+  useEffect(() => {
+    fetchNotes()
+  }, [fetchNotes])
 
   const handleAddNote = async () => {
     if (!newNote.trim()) {
@@ -99,8 +99,9 @@ export function AccountNotesModal({ accountId, accountName, employeeId, onClose 
       <div className="space-y-4">
         {/* Add New Note */}
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <label className="block text-sm font-semibold text-slate-700 mb-2">Add New Note</label>
+          <label htmlFor="new-note" className="block text-sm font-semibold text-slate-700 mb-2">Add New Note</label>
           <textarea
+            id="new-note"
             value={newNote}
             onChange={(e) => setNewNote(e.target.value)}
             placeholder="Enter note about this account..."
@@ -112,6 +113,7 @@ export function AccountNotesModal({ accountId, accountName, employeeId, onClose 
             onClick={handleAddNote}
             disabled={saving || !newNote.trim()}
             className="mt-2 w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+            type="button"
           >
             <Plus className="w-4 h-4" />
             {saving ? 'Saving...' : 'Add Note'}
@@ -126,7 +128,7 @@ export function AccountNotesModal({ accountId, accountName, employeeId, onClose 
           </h3>
 
           {loading ? (
-            <div className="text-center py-8 text-slate-400">Loading notes...</div>
+            <div className="text-center py-8 text-slate-400" role="status" aria-live="polite">Loading notes...</div>
           ) : notes.length === 0 ? (
             <div className="text-center py-8 text-slate-400 text-sm">
               No notes yet. Add one above to get started.
@@ -152,6 +154,8 @@ export function AccountNotesModal({ accountId, accountName, employeeId, onClose 
                       onClick={() => setDeleteConfirmId(note.id)}
                       className="text-red-600 hover:text-red-700 p-1"
                       title="Delete note"
+                      type="button"
+                      aria-label="Delete note"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>

@@ -49,7 +49,9 @@ function NadraPricingTabCore({
       await onAddEntry(newEntry)
       setNewEntry({ service_type: '', service_option: '', cost_price: 0, sale_price: 0 })
     } catch (error: any) {
-      toast.error('Failed to add service: ' + error.message)
+      // Log detailed error server-side, but show generic message to user
+      console.error('[NadraPricingTab] Error adding service:', error)
+      toast.error('Failed to add service. Please try again or contact support.')
     }
   }
 
@@ -60,10 +62,12 @@ function NadraPricingTabCore({
         <form onSubmit={handleAddEntry} className="space-y-3">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-1">Service Type *</label>
+              <label htmlFor="nadra-service-type" className="block text-sm font-medium mb-1">Service Type *</label>
               <select
+                id="nadra-service-type"
                 value={newEntry.service_type}
                 onChange={(e) => setNewEntry({ ...newEntry, service_type: e.target.value })}
+                aria-label="Select NADRA service type"
                 className="w-full px-3 py-2 border rounded"
               >
                 <option value="">Select Service Type</option>
@@ -73,10 +77,12 @@ function NadraPricingTabCore({
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Service Option *</label>
+              <label htmlFor="nadra-service-option" className="block text-sm font-medium mb-1">Service Option *</label>
               <select
+                id="nadra-service-option"
                 value={newEntry.service_option}
                 onChange={(e) => setNewEntry({ ...newEntry, service_option: e.target.value })}
+                aria-label="Select NADRA service option"
                 className="w-full px-3 py-2 border rounded"
               >
                 <option value="">Select Service Option</option>
@@ -88,28 +94,33 @@ function NadraPricingTabCore({
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-1">Cost Price</label>
+              <label htmlFor="nadra-cost-price" className="block text-sm font-medium mb-1">Cost Price</label>
               <input
+                id="nadra-cost-price"
                 type="number"
                 step="0.01"
                 value={newEntry.cost_price}
                 onChange={(e) => setNewEntry({ ...newEntry, cost_price: Number(e.target.value) })}
+                aria-label="Enter cost price for NADRA service"
                 className="w-full px-3 py-2 border rounded"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Sale Price</label>
+              <label htmlFor="nadra-sale-price" className="block text-sm font-medium mb-1">Sale Price</label>
               <input
+                id="nadra-sale-price"
                 type="number"
                 step="0.01"
                 value={newEntry.sale_price}
                 onChange={(e) => setNewEntry({ ...newEntry, sale_price: Number(e.target.value) })}
+                aria-label="Enter sale price for NADRA service"
                 className="w-full px-3 py-2 border rounded"
               />
             </div>
           </div>
           <button
             type="submit"
+            aria-label="Add new NADRA service pricing option"
             className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 font-medium"
           >
             <Plus className="h-4 w-4" /> Add Service Option

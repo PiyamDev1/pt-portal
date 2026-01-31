@@ -1,15 +1,36 @@
-import React from 'react'
+import React, { useEffect, useRef } from 'react'
 
 export default function HistoryModal({ open, onClose, trackingNumber, statusHistory }: any) {
+  const dialogRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    dialogRef.current?.focus()
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose()
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [open, onClose])
+
   if (!open) return null
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white p-6 rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-y-auto">
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-label={`Status timeline for ${trackingNumber}`} className="bg-white p-6 rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-y-auto" tabIndex={-1}>
         <h3 className="font-bold text-xl text-slate-800 mb-1">Status Timeline</h3>
         <p className="text-sm text-slate-500 mb-6">Tracking: <span className="font-mono font-bold text-slate-700">{trackingNumber}</span></p>
 
         {statusHistory?.length === 0 ? (
-          <p className="text-center text-slate-400 py-8">No status updates recorded yet.</p>
+          <p className="text-center text-slate-400 py-8" role="status" aria-live="polite">No status updates recorded yet.</p>
         ) : (
           <div className="relative">
             <div className="absolute left-6 top-3 bottom-3 w-0.5 bg-slate-200"></div>
@@ -49,7 +70,7 @@ export default function HistoryModal({ open, onClose, trackingNumber, statusHist
           </div>
         )}
 
-        <button onClick={onClose} className="w-full mt-6 py-3 bg-slate-800 text-white font-bold rounded-lg hover:bg-slate-900 transition">Close</button>
+        <button onClick={onClose} className="w-full mt-6 py-3 bg-slate-800 text-white font-bold rounded-lg hover:bg-slate-900 transition" type="button" aria-label="Close status timeline">Close</button>
       </div>
     </div>
   )

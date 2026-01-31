@@ -1,7 +1,8 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 
-export const dynamic = 'force-dynamic'
+// Metadata doesn't change often - cache for 1 hour
+export const revalidate = 3600
 
 export async function GET() {
   try {
@@ -40,6 +41,10 @@ export async function GET() {
       pages: pages.data || [],
       services: services.data || [],
       pricing: flatPricing
+    }, {
+      headers: {
+        'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=86400',
+      }
     })
 
   } catch (error) {

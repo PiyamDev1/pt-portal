@@ -1,6 +1,6 @@
 'use client'
 
-import React from 'react'
+import React, { useEffect, useId, useRef } from 'react'
 import { X } from 'lucide-react'
 
 interface ModalWrapperProps {
@@ -13,15 +13,51 @@ interface ModalWrapperProps {
  * Reusable Modal Wrapper - Provides consistent modal styling and structure
  */
 export function ModalWrapper({ children, onClose, title }: ModalWrapperProps) {
+  const titleId = useId()
+  const dialogRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    dialogRef.current?.focus()
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose()
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [onClose])
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in"
+      onMouseDown={event => {
+        if (event.target === event.currentTarget) {
+          onClose()
+        }
+      }}
+    >
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden"
+      >
         <div className="bg-slate-900 text-white p-4 flex justify-between items-center">
-          <h3 className="font-bold">{title}</h3>
+          <h3 id={titleId} className="font-bold">{title}</h3>
           <button 
             onClick={onClose}
-            className="hover:text-slate-300 transition-colors"
+            className="hover:text-slate-400 transition-colors"
             aria-label="Close modal"
+            type="button"
           >
             <X className="w-5 h-5" />
           </button>

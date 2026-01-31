@@ -40,7 +40,7 @@ function NewCustomerModalCore({ onClose, onSave, employeeId }: NewCustomerModalP
 
   return (
     <ModalWrapper onClose={onClose} title="New Customer">
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} role="dialog" aria-modal="true" aria-label="Create new customer" className="space-y-4">
         <CustomerDetailsForm
           firstName={form.firstName}
           lastName={form.lastName}

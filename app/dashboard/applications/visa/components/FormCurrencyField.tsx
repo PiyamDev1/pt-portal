@@ -11,16 +11,18 @@ export function FormCurrencyField({
   onChange,
   variant = 'default'
 }: FormCurrencyFieldProps) {
+  const fieldId = `currency-${label.toLowerCase().replace(/\s+/g, '-')}`
   const bgClass = variant === 'purple' ? 'bg-white border-purple-300' : 'bg-slate-50 border-slate-200'
   const labelClass = variant === 'purple' ? 'text-purple-700' : 'text-slate-500'
   const inputClass = variant === 'purple' ? 'font-bold text-purple-700' : ''
 
   return (
     <div>
-      <label className={`text-xs font-medium ${labelClass}`}>{label}</label>
+      <label htmlFor={fieldId} className={`text-xs font-medium ${labelClass}`}>{label}</label>
       <div className="relative mt-1">
         <span className={`absolute left-2 top-1.5 ${variant === 'purple' ? 'text-purple-400' : 'text-slate-400'} text-xs`}>£</span>
         <input
+          id={fieldId}
           type="number"
           value={value}
           onChange={e => onChange(parseFloat(e.target.value))}

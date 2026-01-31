@@ -170,7 +170,7 @@ export default function ApplicationsClient({ nadraRecords, pakPassportRecords, g
           </div>
           <div className="p-6 divide-y divide-slate-100 max-h-[600px] overflow-y-auto">
             {recentSlice.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+              <div className="flex flex-col items-center justify-center py-12 text-slate-400" role="status" aria-live="polite">
                 <div className="text-4xl mb-2">📄</div>
                 <p className="text-sm italic">No recent activity found</p>
               </div>

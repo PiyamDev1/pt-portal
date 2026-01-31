@@ -45,7 +45,8 @@ function GBPassportPricingTabCore({
       await onAddEntry(newEntry)
       setNewEntry({ age_group: '', pages: '', service_type: '', cost_price: 0, sale_price: 0 })
     } catch (error: any) {
-      toast.error('Failed to add service: ' + error.message)
+      console.error('[GBPassportPricingTab] Error adding service:', error)
+      toast.error('Failed to add service. Please try again or contact support.')
     }
   }
 
@@ -56,10 +57,12 @@ function GBPassportPricingTabCore({
         <form onSubmit={handleAddEntry} className="space-y-3">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-1">Age Group *</label>
+              <label htmlFor="gb-passport-age-group" className="block text-sm font-medium mb-1">Age Group *</label>
               <select
+                id="gb-passport-age-group"
                 value={newEntry.age_group}
                 onChange={(e) => setNewEntry({ ...newEntry, age_group: e.target.value })}
+                aria-label="Select age group for GB passport"
                 className="w-full px-3 py-2 border rounded"
               >
                 <option value="">Select Age Group</option>
@@ -69,10 +72,12 @@ function GBPassportPricingTabCore({
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Pages *</label>
+              <label htmlFor="gb-passport-pages" className="block text-sm font-medium mb-1">Pages *</label>
               <select
+                id="gb-passport-pages"
                 value={newEntry.pages}
                 onChange={(e) => setNewEntry({ ...newEntry, pages: e.target.value })}
+                aria-label="Select number of pages"
                 className="w-full px-3 py-2 border rounded"
               >
                 <option value="">Select Pages</option>
@@ -82,10 +87,12 @@ function GBPassportPricingTabCore({
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Service Type *</label>
+              <label htmlFor="gb-passport-service-type" className="block text-sm font-medium mb-1">Service Type *</label>
               <select
+                id="gb-passport-service-type"
                 value={newEntry.service_type}
                 onChange={(e) => setNewEntry({ ...newEntry, service_type: e.target.value })}
+                aria-label="Select service type"
                 className="w-full px-3 py-2 border rounded"
               >
                 <option value="">Select Service Type</option>
@@ -97,28 +104,33 @@ function GBPassportPricingTabCore({
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-1">Cost Price</label>
+              <label htmlFor="gb-cost-price" className="block text-sm font-medium mb-1">Cost Price</label>
               <input
+                id="gb-cost-price"
                 type="number"
                 step="0.01"
                 value={newEntry.cost_price}
                 onChange={(e) => setNewEntry({ ...newEntry, cost_price: Number(e.target.value) })}
+                aria-label="Enter cost price for GB passport service"
                 className="w-full px-3 py-2 border rounded"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Sale Price</label>
+              <label htmlFor="gb-sale-price" className="block text-sm font-medium mb-1">Sale Price</label>
               <input
+                id="gb-sale-price"
                 type="number"
                 step="0.01"
                 value={newEntry.sale_price}
                 onChange={(e) => setNewEntry({ ...newEntry, sale_price: Number(e.target.value) })}
+                aria-label="Enter sale price for GB passport service"
                 className="w-full px-3 py-2 border rounded"
               />
             </div>
           </div>
           <button
             type="submit"
+            aria-label="Add new GB passport service pricing option"
             className="inline-flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 font-medium"
           >
             <Plus className="h-4 w-4" /> Add Service Option

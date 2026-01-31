@@ -284,7 +284,7 @@ export function TransactionModal({
             : 'Service Fee'
       } - ${data.name}`}
     >
-      <form onSubmit={handleSubmit} className="space-y-4 max-h-[80vh] overflow-y-auto">
+      <form onSubmit={handleSubmit} role="dialog" aria-modal="true" aria-label={`Record transaction for ${data.name}`} className="space-y-4 max-h-[80vh] overflow-y-auto">
         <TransactionTypeSelector
           value={form.type}
           onChange={(type) => updateForm({ type })}
@@ -292,7 +292,7 @@ export function TransactionModal({
 
         {/* Amount Field */}
         <div>
-          <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Amount</label>
+          <label htmlFor="transaction-amount" className="text-xs font-bold text-slate-500 uppercase mb-1 block">Amount</label>
           <div className="relative">
             <span className="absolute left-3 top-3 text-lg text-slate-500 font-black">£</span>
             <input
@@ -327,10 +327,11 @@ export function TransactionModal({
         {/* Payment Method (for payments only) */}
         {isPayment && (
           <div>
-            <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">
+            <label htmlFor="payment-method" className="text-xs font-bold text-slate-500 uppercase mb-1 block">
               Payment Method
             </label>
             <select
+              id="payment-method"
               value={form.paymentMethodId}
               onChange={e => updateForm({ paymentMethodId: e.target.value })}
               className="w-full p-3 border rounded-lg bg-white"
@@ -353,11 +354,13 @@ export function TransactionModal({
               <div className="relative">
                 <span className="absolute left-3 top-3 text-lg text-slate-500 font-black">£</span>
                 <input
+                  id="initial-deposit"
                   type="number"
                   step="0.01"
                   placeholder="0.00 (optional)"
                   value={form.initialDeposit}
                   onChange={e => updateForm({ initialDeposit: e.target.value })}
+                  aria-label="Initial deposit amount"
                   className="w-full pl-10 p-3 border rounded-lg text-lg font-bold"
                 />
               </div>
@@ -367,10 +370,11 @@ export function TransactionModal({
               <h4 className="text-xs font-bold text-blue-700 uppercase">Payment Plan</h4>
 
               <div>
-                <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">
+                <label htmlFor="payment-frequency" className="text-xs font-bold text-slate-500 uppercase mb-1 block">
                   Payment Frequency
                 </label>
                 <select
+                  id="payment-frequency"
                   value={form.paymentFrequency}
                   onChange={e =>
                     updateForm({
@@ -386,10 +390,11 @@ export function TransactionModal({
               </div>
 
               <div>
-                <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">
+                <label htmlFor="installment-duration" className="text-xs font-bold text-slate-500 uppercase mb-1 block">
                   Duration
                 </label>
                 <select
+                  id="installment-duration"
                   value={form.installmentTerms}
                   onChange={e => updateForm({ installmentTerms: e.target.value })}
                   className="w-full p-3 border rounded-lg bg-white"
@@ -403,13 +408,14 @@ export function TransactionModal({
               </div>
 
               <div>
-                <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">
+                <label htmlFor="first-payment-date" className="text-xs font-bold text-slate-500 uppercase mb-1 block">
                   First Payment Date
                   {ALLOW_UNLIMITED_PAST && <span className="text-orange-500 text-xs font-normal">(Backdated: Unlimited)</span>}
                 </label>
                 <div className="relative">
                   <Calendar className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
                   <input
+                    id="first-payment-date"
                     type="text"
                     placeholder="DD/MM/YYYY"
                     value={form.firstPaymentDate}
@@ -454,7 +460,9 @@ export function TransactionModal({
         )}
 
         {/* Notes */}
+        <label htmlFor="transaction-notes" className="sr-only">Additional notes</label>
         <textarea
+          id="transaction-notes"
           placeholder="Additional notes..."
           value={form.notes}
           onChange={e => updateForm({ notes: e.target.value })}

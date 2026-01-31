@@ -115,8 +115,8 @@ export default function BranchesTab({ initialLocations, supabase, loading, setLo
                     </td>
                     <td className="px-6 py-3 text-slate-400">{loc.type}</td>
                     <td className="px-6 py-3 flex gap-3">
-                      <button onClick={handleUpdateBranch} className="text-green-600 font-bold hover:underline">Save</button>
-                      <button onClick={() => setEditingBranch(null)} className="text-slate-400 hover:underline">Cancel</button>
+                      <button type="button" onClick={handleUpdateBranch} className="text-green-600 font-bold hover:underline">Save</button>
+                      <button type="button" onClick={() => setEditingBranch(null)} className="text-slate-400 hover:underline">Cancel</button>
                     </td>
                   </>
                 ) : (

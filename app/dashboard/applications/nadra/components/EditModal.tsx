@@ -1,3 +1,5 @@
+import { useEffect, useRef } from 'react'
+
 interface EditModalProps {
   isOpen: boolean
   editType: 'application' | 'family_head' | null
@@ -25,16 +27,37 @@ export default function EditModal({
   onDelete,
   onClose
 }: EditModalProps) {
+  const dialogRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!isOpen) return
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    dialogRef.current?.focus()
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose()
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [isOpen, onClose])
+
   if (!isOpen) return null
 
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
-      <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+      <div ref={dialogRef} className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[90vh]" role="dialog" aria-modal="true" aria-label={editType === 'family_head' ? 'Modify family head' : 'Modify application'} tabIndex={-1}>
         <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
           <h3 className="font-bold text-slate-800">
             {editType === 'family_head' ? 'Modify Family Head' : 'Modify Application'}
           </h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600" type="button" aria-label="Close edit dialog">
             ✕
           </button>
         </div>
@@ -174,6 +197,8 @@ export default function EditModal({
             <button
               onClick={onSave}
               className="w-full bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700 transition shadow-sm"
+              type="button"
+              aria-label="Save changes"
             >
               Save Changes
             </button>
@@ -188,7 +213,9 @@ export default function EditModal({
                 Deleting this record is permanent. Please enter your Auth Code to confirm.
               </p>
               <div className="flex gap-2">
+                <label htmlFor="nadra-delete-auth" className="sr-only">Auth code</label>
                 <input
+                  id="nadra-delete-auth"
                   type="password"
                   placeholder="Auth Code"
                   className="flex-1 border border-red-200 rounded p-2 text-sm focus:ring-red-500 bg-white"
@@ -198,6 +225,8 @@ export default function EditModal({
                 <button
                   onClick={onDelete}
                   className="bg-white border border-red-200 text-red-600 font-bold px-4 py-2 rounded hover:bg-red-600 hover:text-white transition whitespace-nowrap"
+                  type="button"
+                  aria-label="Delete record"
                 >
                   Delete
                 </button>

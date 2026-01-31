@@ -280,16 +280,16 @@ export default function PakPassportClient({ initialApplications, currentUserId }
          <table className="w-full text-left border-collapse">
            <thead className="bg-slate-50 text-slate-500 text-[11px] uppercase tracking-wider font-bold border-b border-slate-200">
              <tr>
-               <th className="p-4">Applicant</th>
-               <th className="p-4">Tracking & Progress</th>
-               <th className="p-4 bg-blue-50/50 border-l border-r border-blue-100 w-56">Passports</th>
-               <th className="p-4">Details</th>
-               <th className="p-4 text-right">Actions</th>
+               <th scope="col" className="p-4">Applicant</th>
+               <th scope="col" className="p-4">Tracking & Progress</th>
+               <th scope="col" className="p-4 bg-blue-50/50 border-l border-r border-blue-100 w-56">Passports</th>
+               <th scope="col" className="p-4">Details</th>
+               <th scope="col" className="p-4 text-right">Actions</th>
              </tr>
            </thead>
             <tbody className="divide-y divide-slate-100">
              {filteredApps.length === 0 ? (
-               <tr><td colSpan={5} className="p-12 text-center text-slate-400 italic">No records found.</td></tr>
+               <tr><td colSpan={5} className="p-12 text-center text-slate-400 italic" role="status" aria-live="polite">No records found. Try adjusting filters or add a new application.</td></tr>
              ) : (
                 pageItems.map((item: any) => (
                   <RowItem
@@ -316,6 +316,8 @@ export default function PakPassportClient({ initialApplications, currentUserId }
             onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
             disabled={currentPage === 1}
             className={`px-3 py-1 rounded border text-sm ${currentPage === 1 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-100'} `}
+            type="button"
+            aria-label="Previous page"
           >
             ← Previous
           </button>
@@ -324,6 +326,8 @@ export default function PakPassportClient({ initialApplications, currentUserId }
             onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
             disabled={currentPage >= totalPages}
             className={`px-3 py-1 rounded border text-sm ${currentPage >= totalPages ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-100'} `}
+            type="button"
+            aria-label="Next page"
           >
             Next →
           </button>

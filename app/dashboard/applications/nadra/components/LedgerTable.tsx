@@ -22,7 +22,7 @@ export default function LedgerTable({
   return (
     <div className="space-y-4">
       {Object.entries(groupedData).length === 0 ? (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-12 text-center text-slate-400 italic">
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-12 text-center text-slate-400 italic" role="status" aria-live="polite">
           No records found.
         </div>
       ) : (
@@ -44,6 +44,8 @@ export default function LedgerTable({
                   <button
                     onClick={() => onEditHead(group.head)}
                     className="text-xs text-slate-600 underline hover:text-blue-600"
+                    type="button"
+                    aria-label="Modify family head"
                   >
                     Modify Head
                   </button>
@@ -52,6 +54,8 @@ export default function LedgerTable({
                   <button
                     onClick={() => onAddMember(group.head)}
                     className="text-xs bg-white border border-slate-300 text-slate-700 px-3 py-1.5 rounded-md hover:bg-slate-50 font-bold transition flex items-center gap-1"
+                    type="button"
+                    aria-label="Add member"
                   >
                     <span>+</span> Add Member
                   </button>
@@ -72,7 +76,7 @@ export default function LedgerTable({
                 {group.members.length === 0 && (
                   <tr>
                     <td className="p-6 text-slate-500 italic" colSpan={5}>
-                      No members yet. <button onClick={() => onAddMember(group.head)} className="underline text-blue-600 hover:text-blue-800 font-semibold">Add a member to this family head</button>.
+                      No members yet. <button onClick={() => onAddMember(group.head)} className="underline text-blue-600 hover:text-blue-800 font-semibold" type="button" aria-label="Add family member">Add a member to this family head</button>.
                     </td>
                   </tr>
                 )}
@@ -84,7 +88,7 @@ export default function LedgerTable({
                     <tr key={item.id || `${headCnic}-placeholder` } className="hover:bg-slate-50/50 transition-colors">
                       <td className="p-4 pl-12 align-top">
                         <div className="flex items-start gap-3">
-                          <span className="text-slate-300 font-light">¬</span>
+                          <span className="text-slate-400 font-light">¬</span>
                           <div>
                             <div className="font-bold text-slate-800 text-base">
                               {item.applicants?.first_name} {item.applicants?.last_name}
@@ -114,6 +118,8 @@ export default function LedgerTable({
                         <button
                           onClick={() => onViewHistory(item)}
                           className="font-mono text-slate-800 font-bold tracking-wide text-sm hover:underline block"
+                          type="button"
+                          aria-label="View application history"
                         >
                           {nadraRecord?.tracking_number || item.tracking_number}
                         </button>
@@ -151,6 +157,8 @@ export default function LedgerTable({
                         <button
                           onClick={() => onEditApplication(item)}
                           className="h-8 w-8 flex items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 transition"
+                          type="button"
+                          aria-label="Edit application"
                         >
                           ✎
                         </button>

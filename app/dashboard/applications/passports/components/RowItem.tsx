@@ -92,6 +92,8 @@ export default function RowItem({ item, onOpenEdit, onUpdateRecord, onViewHistor
         <button
           onClick={() => onViewHistory(item.id, item.tracking_number)}
           className="font-mono font-bold text-blue-600 hover:text-blue-800 hover:underline text-sm mb-2 block"
+          type="button"
+          aria-label="View tracking history"
         >
           {item.tracking_number}
         </button>
@@ -122,6 +124,8 @@ export default function RowItem({ item, onOpenEdit, onUpdateRecord, onViewHistor
                   <button
                     onClick={confirmReturn}
                     className="text-[10px] font-bold text-amber-700 bg-amber-100 border border-amber-200 px-2 py-0.5 rounded hover:bg-amber-200"
+                    type="button"
+                    aria-label="Mark old passport returned"
                   >
                     Mark Returned
                   </button>
@@ -142,6 +146,8 @@ export default function RowItem({ item, onOpenEdit, onUpdateRecord, onViewHistor
                   <button
                     onClick={confirmCollected}
                     className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded hover:bg-emerald-100"
+                    type="button"
+                    aria-label="Mark passport collected"
                   >
                     Mark Collected
                   </button>
@@ -151,6 +157,8 @@ export default function RowItem({ item, onOpenEdit, onUpdateRecord, onViewHistor
               <button
                 onClick={() => onOpenArrival(item)}
                 className="text-xs px-3 py-1.5 rounded border border-dashed border-slate-300 text-slate-500 hover:border-blue-500 hover:text-blue-600 transition w-full text-center mb-2"
+                type="button"
+                aria-label="Enter new passport number"
               >
                 + Enter Passport #
               </button>
@@ -176,6 +184,7 @@ export default function RowItem({ item, onOpenEdit, onUpdateRecord, onViewHistor
               onChange={(e) => handleStatusChange(e.target.value)}
               disabled={pp.status === 'Collected'}
               className={`mt-1 text-xs font-bold px-2 py-1 rounded border-0 outline-none focus:ring-2 focus:ring-offset-1 ${pp.status === 'Collected' ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'} ${statusColors[pp.status] || 'bg-slate-100'}`}
+              aria-label="Update status"
             >
               <option value="Pending Submission">Pending Submission</option>
               <option value="Biometrics Taken">Biometrics Taken</option>
@@ -192,6 +201,8 @@ export default function RowItem({ item, onOpenEdit, onUpdateRecord, onViewHistor
         <button 
           onClick={() => onOpenEdit(item)}
           className="p-2 text-slate-400 hover:text-blue-600 hover:bg-slate-100 rounded-lg transition"
+          type="button"
+          aria-label="Edit passport application"
         >
           <MoreHorizontal className="w-4 h-4" />
         </button>

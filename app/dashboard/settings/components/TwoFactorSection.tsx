@@ -61,8 +61,8 @@ export function TwoFactorSection({
             <div className="flex items-center justify-between mb-3">
               <p className="font-bold">Backup codes (save these now — shown only once):</p>
               <div className="flex gap-2">
-                <button onClick={onCopyCodes} className="text-xs bg-white border border-yellow-200 px-2 py-1 rounded hover:bg-yellow-100 transition">📋 Copy</button>
-                <button onClick={onDownloadCodes} className="text-xs bg-white border border-yellow-200 px-3 py-1.5 rounded hover:bg-yellow-100 transition">⬇️ Download</button>
+                <button type="button" onClick={onCopyCodes} className="text-xs bg-white border border-yellow-200 px-2 py-1 rounded hover:bg-yellow-100 transition">📋 Copy</button>
+                <button type="button" onClick={onDownloadCodes} className="text-xs bg-white border border-yellow-200 px-3 py-1.5 rounded hover:bg-yellow-100 transition">⬇️ Download</button>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2">

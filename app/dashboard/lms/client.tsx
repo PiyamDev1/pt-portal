@@ -206,11 +206,11 @@ export default function LMSClient({ currentUserId }: LMSClientProps) {
           <table className="w-full">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
-                <th className="p-3 text-left text-xs font-bold text-slate-600 uppercase">Customer</th>
-                <th className="p-3 text-left text-xs font-bold text-slate-600 uppercase">Contact</th>
-                <th className="p-3 text-center text-xs font-bold text-slate-600 uppercase">Status</th>
-                <th className="p-3 text-right text-xs font-bold text-slate-600 uppercase">Balance</th>
-                <th className="p-3 text-center text-xs font-bold text-slate-600 uppercase">Actions</th>
+                <th scope="col" className="p-3 text-left text-xs font-bold text-slate-600 uppercase">Customer</th>
+                <th scope="col" className="p-3 text-left text-xs font-bold text-slate-600 uppercase">Contact</th>
+                <th scope="col" className="p-3 text-center text-xs font-bold text-slate-600 uppercase">Status</th>
+                <th scope="col" className="p-3 text-right text-xs font-bold text-slate-600 uppercase">Balance</th>
+                <th scope="col" className="p-3 text-center text-xs font-bold text-slate-600 uppercase">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -231,8 +231,8 @@ export default function LMSClient({ currentUserId }: LMSClientProps) {
               ))}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="p-12 text-center text-slate-400">
-                    No accounts found
+                  <td colSpan={5} className="p-12 text-center text-slate-400" role="status" aria-live="polite">
+                    No accounts found. Try adjusting filters or adding a new customer.
                   </td>
                 </tr>
               )}

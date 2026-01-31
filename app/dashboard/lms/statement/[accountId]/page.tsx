@@ -18,8 +18,8 @@ export default function StatementPage() {
   const { loading, account, installmentsByTransaction } = useStatementData(accountId)
   const { filter, setFilter, handleDateInput, filteredTransactions, totals } = useStatementFilters(account)
 
-  if (loading) return <div className="p-12 text-center text-slate-400">Loading statement...</div>
-  if (!account) return <div className="p-12 text-center text-slate-400">Account not found</div>
+  if (loading) return <div className="p-12 text-center text-slate-400" role="status" aria-live="polite">Loading statement...</div>
+  if (!account) return <div className="p-12 text-center text-slate-400" role="alert" aria-live="assertive">Account not found</div>
 
   return (
     <div className="min-h-screen bg-white">

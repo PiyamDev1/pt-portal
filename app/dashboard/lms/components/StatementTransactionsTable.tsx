@@ -30,12 +30,12 @@ export function StatementTransactionsTable({
       <table className="w-full text-xs">
         <thead className="sticky top-0 bg-slate-100 text-[10px] uppercase text-slate-500">
           <tr>
-            <th className="p-2 text-left">Date</th>
-            <th className="p-2 text-left">Type</th>
-            <th className="p-2 text-left">Description</th>
-            <th className="p-2 text-right text-red-600">Debit</th>
-            <th className="p-2 text-right text-green-600">Credit</th>
-            <th className="p-2 text-center">Action</th>
+            <th scope="col" className="p-2 text-left">Date</th>
+            <th scope="col" className="p-2 text-left">Type</th>
+            <th scope="col" className="p-2 text-left">Description</th>
+            <th scope="col" className="p-2 text-right text-red-600">Debit</th>
+            <th scope="col" className="p-2 text-right text-green-600">Credit</th>
+            <th scope="col" className="p-2 text-center">Action</th>
           </tr>
         </thead>
         <tbody>
@@ -108,6 +108,8 @@ export function StatementTransactionsTable({
                             onDeletePayment(tx.id)
                           }}
                           className="px-1.5 py-0.5 text-[9px] bg-red-100 hover:bg-red-200 text-red-700 rounded"
+                          type="button"
+                          aria-label="Delete payment"
                         >
                           Delete
                         </button>
@@ -122,6 +124,7 @@ export function StatementTransactionsTable({
                               onModifyTransaction(tx)
                             }}
                             className="px-1.5 py-0.5 text-[9px] bg-blue-100 hover:bg-blue-200 text-blue-700 rounded font-bold"
+                            aria-label="Modify service"
                           >
                             Modify
                           </button>
@@ -188,6 +191,8 @@ export function StatementTransactionsTable({
                                 onSkipInstallment(installment.id)
                               }}
                               className="px-1.5 py-0.5 text-[9px] bg-amber-100 hover:bg-amber-200 text-amber-700 rounded font-bold"
+                              type="button"
+                              aria-label="Skip installment"
                             >
                               SKIP
                             </button>
@@ -203,7 +208,7 @@ export function StatementTransactionsTable({
             )
           ) : (
             <tr>
-              <td colSpan={6} className="p-4 text-center text-slate-400">
+              <td colSpan={6} className="p-4 text-center text-slate-400" role="status" aria-live="polite">
                 No transactions found
               </td>
             </tr>

@@ -79,7 +79,7 @@ export function LoadingSpinner({ size = 'md' }: { size?: 'sm' | 'md' | 'lg' }) {
   }
 
   return (
-    <div className={`${sizeClasses[size]} animate-spin`}>
+    <div className={`${sizeClasses[size]} animate-spin`} role="status" aria-live="polite" aria-label="Loading">
       <svg className="w-full h-full text-slate-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
         <path
