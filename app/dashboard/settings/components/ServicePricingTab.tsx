@@ -52,7 +52,7 @@ interface VisaPricing {
   notes: string | null
 }
 
-type ActiveTab = 'nadra' | 'passport' | 'gb' | 'visa'
+type ActiveTab = 'nadra' | 'passport' | 'gb' | 'visa' | 'manage'
 
 export default function ServicePricingTab({ supabase, loading, setLoading }: ServicePricingTabProps) {
   const [nadraPricing, setNadraPricing] = useState<NadraPricing[]>([])
@@ -63,6 +63,16 @@ export default function ServicePricingTab({ supabase, loading, setLoading }: Ser
   const [editValues, setEditValues] = useState<Record<string, any>>({})
   const [activeTab, setActiveTab] = useState<ActiveTab>('nadra')
   const [setupRequired, setSetupRequired] = useState(false)
+
+  // Available options - extracted to state for dynamic updates
+  const [nadrServiceTypes, setNadrServiceTypes] = useState(['NICOP/CNIC', 'POC', 'FRC', 'CRC', 'POA'])
+  const [nadrServiceOptions, setNadrServiceOptions] = useState(['Normal', 'Executive', 'Upgrade to Fast', 'Modification', 'Reprint', 'Cancellation'])
+  const [pkCategories, setPKCategories] = useState(['Adult 10 Year', 'Adult 5 Year', 'Child 5 Year'])
+  const [pkSpeeds, setPKSpeeds] = useState(['Normal', 'Executive'])
+  const [pkApplicationTypes, setPKApplicationTypes] = useState(['First Time', 'Renewal', 'Modification', 'Lost'])
+  const [gbAgeGroups, setGBAgeGroups] = useState(['Adult', 'Child', 'Infant'])
+  const [gbPages, setGBPages] = useState(['32', '48', '52'])
+  const [gbServiceTypes, setGBServiceTypes] = useState(['Standard', 'Express', 'Premium'])
 
   // Form state for adding new entries
   const [newNadraEntry, setNewNadraEntry] = useState({ service_type: '', service_option: '', cost_price: 0, sale_price: 0 })
@@ -360,8 +370,17 @@ export default function ServicePricingTab({ supabase, loading, setLoading }: Ser
           >
             Visa Services
           </button>
+          <button
+            onClick={() => setActiveTab('manage')}
+            className={`px-4 py-2 font-medium transition-colors whitespace-nowrap ml-auto ${
+              activeTab === 'manage'
+                ? 'border-b-2 border-green-600 text-green-600'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            ⚙️ Manage Options
+          </button>
         </div>
-      </div>
 
       {/* NADRA Tab */}
       {activeTab === 'nadra' && (
@@ -378,11 +397,9 @@ export default function ServicePricingTab({ supabase, loading, setLoading }: Ser
                     className="w-full px-3 py-2 border rounded"
                   >
                     <option value="">Select Service Type</option>
-                    <option value="NICOP/CNIC">NICOP/CNIC</option>
-                    <option value="POC">POC</option>
-                    <option value="FRC">FRC</option>
-                    <option value="CRC">CRC</option>
-                    <option value="POA">POA</option>
+                    {nadrServiceTypes.map((type) => (
+                      <option key={type} value={type}>{type}</option>
+                    ))}
                   </select>
                 </div>
                 <div>
@@ -393,12 +410,9 @@ export default function ServicePricingTab({ supabase, loading, setLoading }: Ser
                     className="w-full px-3 py-2 border rounded"
                   >
                     <option value="">Select Service Option</option>
-                    <option value="Normal">Normal</option>
-                    <option value="Executive">Executive</option>
-                    <option value="Upgrade to Fast">Upgrade to Fast</option>
-                    <option value="Modification">Modification</option>
-                    <option value="Reprint">Reprint</option>
-                    <option value="Cancellation">Cancellation</option>
+                    {nadrServiceOptions.map((option) => (
+                      <option key={option} value={option}>{option}</option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -545,9 +559,9 @@ export default function ServicePricingTab({ supabase, loading, setLoading }: Ser
                     className="w-full px-3 py-2 border rounded"
                   >
                     <option value="">Select Category</option>
-                    <option value="Adult 10 Year">Adult 10 Year</option>
-                    <option value="Adult 5 Year">Adult 5 Year</option>
-                    <option value="Child 5 Year">Child 5 Year</option>
+                    {pkCategories.map((cat) => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
                   </select>
                 </div>
                 <div>
@@ -558,8 +572,9 @@ export default function ServicePricingTab({ supabase, loading, setLoading }: Ser
                     className="w-full px-3 py-2 border rounded"
                   >
                     <option value="">Select Speed</option>
-                    <option value="Normal">Normal</option>
-                    <option value="Executive">Executive</option>
+                    {pkSpeeds.map((speed) => (
+                      <option key={speed} value={speed}>{speed}</option>
+                    ))}
                   </select>
                 </div>
                 <div>
@@ -570,10 +585,9 @@ export default function ServicePricingTab({ supabase, loading, setLoading }: Ser
                     className="w-full px-3 py-2 border rounded"
                   >
                     <option value="">Select Application Type</option>
-                    <option value="First Time">First Time</option>
-                    <option value="Renewal">Renewal</option>
-                    <option value="Modification">Modification</option>
-                    <option value="Lost">Lost</option>
+                    {pkApplicationTypes.map((type) => (
+                      <option key={type} value={type}>{type}</option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -722,9 +736,9 @@ export default function ServicePricingTab({ supabase, loading, setLoading }: Ser
                     className="w-full px-3 py-2 border rounded"
                   >
                     <option value="">Select Age Group</option>
-                    <option value="Adult">Adult</option>
-                    <option value="Child">Child</option>
-                    <option value="Infant">Infant</option>
+                    {gbAgeGroups.map((group) => (
+                      <option key={group} value={group}>{group}</option>
+                    ))}
                   </select>
                 </div>
                 <div>
@@ -735,9 +749,9 @@ export default function ServicePricingTab({ supabase, loading, setLoading }: Ser
                     className="w-full px-3 py-2 border rounded"
                   >
                     <option value="">Select Pages</option>
-                    <option value="32">32</option>
-                    <option value="48">48</option>
-                    <option value="52">52</option>
+                    {gbPages.map((page) => (
+                      <option key={page} value={page}>{page}</option>
+                    ))}
                   </select>
                 </div>
                 <div>
@@ -748,9 +762,9 @@ export default function ServicePricingTab({ supabase, loading, setLoading }: Ser
                     className="w-full px-3 py-2 border rounded"
                   >
                     <option value="">Select Service Type</option>
-                    <option value="Standard">Standard</option>
-                    <option value="Express">Express</option>
-                    <option value="Premium">Premium</option>
+                    {gbServiceTypes.map((type) => (
+                      <option key={type} value={type}>{type}</option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -1043,6 +1057,408 @@ export default function ServicePricingTab({ supabase, loading, setLoading }: Ser
           </div>
         </div>
       )}
+
+      {/* Manage Options Tab */}
+      {activeTab === 'manage' && (
+        <div className="space-y-6 mt-6">
+          <div className="bg-blue-50 border border-blue-200 rounded p-4">
+            <h3 className="font-semibold text-blue-900 mb-4">🔧 Manage Service Options</h3>
+            <p className="text-sm text-blue-800 mb-4">Add or modify service types, categories, and options here. These will appear in all dropdown menus.</p>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* NADRA Service Types */}
+              <div>
+                <label className="block text-sm font-medium mb-2">NADRA Service Types</label>
+                <div className="space-y-2 mb-3">
+                  {nadrServiceTypes.map((type) => (
+                    <div key={type} className="flex items-center gap-2 bg-white p-2 rounded border">
+                      <span className="flex-1 text-sm">{type}</span>
+                      <button
+                        onClick={() => setNadrServiceTypes(nadrServiceTypes.filter(t => t !== type))}
+                        className="text-red-500 hover:text-red-700 text-xs"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    id="new-nadra-type"
+                    type="text"
+                    placeholder="Add new service type"
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter' && (e.target as HTMLInputElement).value) {
+                        const value = (e.target as HTMLInputElement).value
+                        if (!nadrServiceTypes.includes(value)) {
+                          setNadrServiceTypes([...nadrServiceTypes, value])
+                          ;(e.target as HTMLInputElement).value = ''
+                        }
+                      }
+                    }}
+                    className="flex-1 px-2 py-1 border rounded text-sm"
+                  />
+                  <button
+                    onClick={() => {
+                      const input = document.getElementById('new-nadra-type') as HTMLInputElement
+                      const value = input?.value
+                      if (value && !nadrServiceTypes.includes(value)) {
+                        setNadrServiceTypes([...nadrServiceTypes, value])
+                        if (input) input.value = ''
+                      }
+                    }}
+                    className="bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600"
+                  >
+                    Add
+                  </button>
+                </div>
+              </div>
+
+              {/* NADRA Service Options */}
+              <div>
+                <label className="block text-sm font-medium mb-2">NADRA Service Options</label>
+                <div className="space-y-2 mb-3">
+                  {nadrServiceOptions.map((option) => (
+                    <div key={option} className="flex items-center gap-2 bg-white p-2 rounded border">
+                      <span className="flex-1 text-sm">{option}</span>
+                      <button
+                        onClick={() => setNadrServiceOptions(nadrServiceOptions.filter(o => o !== option))}
+                        className="text-red-500 hover:text-red-700 text-xs"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    id="new-nadra-option"
+                    type="text"
+                    placeholder="Add new service option"
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter' && (e.target as HTMLInputElement).value) {
+                        const value = (e.target as HTMLInputElement).value
+                        if (!nadrServiceOptions.includes(value)) {
+                          setNadrServiceOptions([...nadrServiceOptions, value])
+                          ;(e.target as HTMLInputElement).value = ''
+                        }
+                      }
+                    }}
+                    className="flex-1 px-2 py-1 border rounded text-sm"
+                  />
+                  <button
+                    onClick={() => {
+                      const input = document.getElementById('new-nadra-option') as HTMLInputElement
+                      const value = input?.value
+                      if (value && !nadrServiceOptions.includes(value)) {
+                        setNadrServiceOptions([...nadrServiceOptions, value])
+                        if (input) input.value = ''
+                      }
+                    }}
+                    className="bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600"
+                  >
+                    Add
+                  </button>
+                </div>
+              </div>
+
+              {/* PK Passport Categories */}
+              <div>
+                <label className="block text-sm font-medium mb-2">PK Passport Categories</label>
+                <div className="space-y-2 mb-3">
+                  {pkCategories.map((cat) => (
+                    <div key={cat} className="flex items-center gap-2 bg-white p-2 rounded border">
+                      <span className="flex-1 text-sm">{cat}</span>
+                      <button
+                        onClick={() => setPKCategories(pkCategories.filter(c => c !== cat))}
+                        className="text-red-500 hover:text-red-700 text-xs"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    id="new-pk-category"
+                    type="text"
+                    placeholder="Add new category"
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter' && (e.target as HTMLInputElement).value) {
+                        const value = (e.target as HTMLInputElement).value
+                        if (!pkCategories.includes(value)) {
+                          setPKCategories([...pkCategories, value])
+                          ;(e.target as HTMLInputElement).value = ''
+                        }
+                      }
+                    }}
+                    className="flex-1 px-2 py-1 border rounded text-sm"
+                  />
+                  <button
+                    onClick={() => {
+                      const input = document.getElementById('new-pk-category') as HTMLInputElement
+                      const value = input?.value
+                      if (value && !pkCategories.includes(value)) {
+                        setPKCategories([...pkCategories, value])
+                        if (input) input.value = ''
+                      }
+                    }}
+                    className="bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600"
+                  >
+                    Add
+                  </button>
+                </div>
+              </div>
+
+              {/* PK Passport Speeds */}
+              <div>
+                <label className="block text-sm font-medium mb-2">PK Passport Speeds</label>
+                <div className="space-y-2 mb-3">
+                  {pkSpeeds.map((speed) => (
+                    <div key={speed} className="flex items-center gap-2 bg-white p-2 rounded border">
+                      <span className="flex-1 text-sm">{speed}</span>
+                      <button
+                        onClick={() => setPKSpeeds(pkSpeeds.filter(s => s !== speed))}
+                        className="text-red-500 hover:text-red-700 text-xs"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    id="new-pk-speed"
+                    type="text"
+                    placeholder="Add new speed"
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter' && (e.target as HTMLInputElement).value) {
+                        const value = (e.target as HTMLInputElement).value
+                        if (!pkSpeeds.includes(value)) {
+                          setPKSpeeds([...pkSpeeds, value])
+                          ;(e.target as HTMLInputElement).value = ''
+                        }
+                      }
+                    }}
+                    className="flex-1 px-2 py-1 border rounded text-sm"
+                  />
+                  <button
+                    onClick={() => {
+                      const input = document.getElementById('new-pk-speed') as HTMLInputElement
+                      const value = input?.value
+                      if (value && !pkSpeeds.includes(value)) {
+                        setPKSpeeds([...pkSpeeds, value])
+                        if (input) input.value = ''
+                      }
+                    }}
+                    className="bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600"
+                  >
+                    Add
+                  </button>
+                </div>
+              </div>
+
+              {/* PK Application Types */}
+              <div>
+                <label className="block text-sm font-medium mb-2">PK Application Types</label>
+                <div className="space-y-2 mb-3">
+                  {pkApplicationTypes.map((type) => (
+                    <div key={type} className="flex items-center gap-2 bg-white p-2 rounded border">
+                      <span className="flex-1 text-sm">{type}</span>
+                      <button
+                        onClick={() => setPKApplicationTypes(pkApplicationTypes.filter(t => t !== type))}
+                        className="text-red-500 hover:text-red-700 text-xs"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    id="new-pk-app-type"
+                    type="text"
+                    placeholder="Add new application type"
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter' && (e.target as HTMLInputElement).value) {
+                        const value = (e.target as HTMLInputElement).value
+                        if (!pkApplicationTypes.includes(value)) {
+                          setPKApplicationTypes([...pkApplicationTypes, value])
+                          ;(e.target as HTMLInputElement).value = ''
+                        }
+                      }
+                    }}
+                    className="flex-1 px-2 py-1 border rounded text-sm"
+                  />
+                  <button
+                    onClick={() => {
+                      const input = document.getElementById('new-pk-app-type') as HTMLInputElement
+                      const value = input?.value
+                      if (value && !pkApplicationTypes.includes(value)) {
+                        setPKApplicationTypes([...pkApplicationTypes, value])
+                        if (input) input.value = ''
+                      }
+                    }}
+                    className="bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600"
+                  >
+                    Add
+                  </button>
+                </div>
+              </div>
+
+              {/* GB Age Groups */}
+              <div>
+                <label className="block text-sm font-medium mb-2">GB Age Groups</label>
+                <div className="space-y-2 mb-3">
+                  {gbAgeGroups.map((group) => (
+                    <div key={group} className="flex items-center gap-2 bg-white p-2 rounded border">
+                      <span className="flex-1 text-sm">{group}</span>
+                      <button
+                        onClick={() => setGBAgeGroups(gbAgeGroups.filter(g => g !== group))}
+                        className="text-red-500 hover:text-red-700 text-xs"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    id="new-gb-age"
+                    type="text"
+                    placeholder="Add new age group"
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter' && (e.target as HTMLInputElement).value) {
+                        const value = (e.target as HTMLInputElement).value
+                        if (!gbAgeGroups.includes(value)) {
+                          setGBAgeGroups([...gbAgeGroups, value])
+                          ;(e.target as HTMLInputElement).value = ''
+                        }
+                      }
+                    }}
+                    className="flex-1 px-2 py-1 border rounded text-sm"
+                  />
+                  <button
+                    onClick={() => {
+                      const input = document.getElementById('new-gb-age') as HTMLInputElement
+                      const value = input?.value
+                      if (value && !gbAgeGroups.includes(value)) {
+                        setGBAgeGroups([...gbAgeGroups, value])
+                        if (input) input.value = ''
+                      }
+                    }}
+                    className="bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600"
+                  >
+                    Add
+                  </button>
+                </div>
+              </div>
+
+              {/* GB Pages */}
+              <div>
+                <label className="block text-sm font-medium mb-2">GB Pages</label>
+                <div className="space-y-2 mb-3">
+                  {gbPages.map((page) => (
+                    <div key={page} className="flex items-center gap-2 bg-white p-2 rounded border">
+                      <span className="flex-1 text-sm">{page}</span>
+                      <button
+                        onClick={() => setGBPages(gbPages.filter(p => p !== page))}
+                        className="text-red-500 hover:text-red-700 text-xs"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    id="new-gb-pages"
+                    type="text"
+                    placeholder="Add new page count"
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter' && (e.target as HTMLInputElement).value) {
+                        const value = (e.target as HTMLInputElement).value
+                        if (!gbPages.includes(value)) {
+                          setGBPages([...gbPages, value])
+                          ;(e.target as HTMLInputElement).value = ''
+                        }
+                      }
+                    }}
+                    className="flex-1 px-2 py-1 border rounded text-sm"
+                  />
+                  <button
+                    onClick={() => {
+                      const input = document.getElementById('new-gb-pages') as HTMLInputElement
+                      const value = input?.value
+                      if (value && !gbPages.includes(value)) {
+                        setGBPages([...gbPages, value])
+                        if (input) input.value = ''
+                      }
+                    }}
+                    className="bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600"
+                  >
+                    Add
+                  </button>
+                </div>
+              </div>
+
+              {/* GB Service Types */}
+              <div>
+                <label className="block text-sm font-medium mb-2">GB Service Types</label>
+                <div className="space-y-2 mb-3">
+                  {gbServiceTypes.map((type) => (
+                    <div key={type} className="flex items-center gap-2 bg-white p-2 rounded border">
+                      <span className="flex-1 text-sm">{type}</span>
+                      <button
+                        onClick={() => setGBServiceTypes(gbServiceTypes.filter(t => t !== type))}
+                        className="text-red-500 hover:text-red-700 text-xs"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    id="new-gb-service-type"
+                    type="text"
+                    placeholder="Add new service type"
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter' && (e.target as HTMLInputElement).value) {
+                        const value = (e.target as HTMLInputElement).value
+                        if (!gbServiceTypes.includes(value)) {
+                          setGBServiceTypes([...gbServiceTypes, value])
+                          ;(e.target as HTMLInputElement).value = ''
+                        }
+                      }
+                    }}
+                    className="flex-1 px-2 py-1 border rounded text-sm"
+                  />
+                  <button
+                    onClick={() => {
+                      const input = document.getElementById('new-gb-service-type') as HTMLInputElement
+                      const value = input?.value
+                      if (value && !gbServiceTypes.includes(value)) {
+                        setGBServiceTypes([...gbServiceTypes, value])
+                        if (input) input.value = ''
+                      }
+                    }}
+                    className="bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600"
+                  >
+                    Add
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-800">
+              <strong>Note:</strong> New options will appear in the dropdown menus. You can still delete options here that are no longer used.
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
     </div>
   )
 }
+
