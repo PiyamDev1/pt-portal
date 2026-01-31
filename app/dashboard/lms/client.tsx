@@ -133,23 +133,34 @@ export default function LMSClient({ currentUserId }: LMSClientProps) {
           <StatCard
             icon={Banknote}
             label="Outstanding"
-            value={`£${(data.stats.totalOutstanding || 0).toLocaleString()}`}
+            value={dataLoading ? '...' : `£${(data.stats.totalOutstanding || 0).toLocaleString()}`}
             color={(data.stats.totalOutstanding || 0) < 0 ? "green" : "blue"}
           />
-          <StatCard icon={Users} label="Active" value={data.stats.activeAccounts || 0} color="slate" />
+          <StatCard
+            icon={Users}
+            label="Active"
+            value={dataLoading ? '...' : data.stats.activeAccounts || 0}
+            color="slate"
+          />
           <StatCard
             icon={AlertTriangle}
             label="Overdue"
-            value={data.stats.overdueAccounts || 0}
+            value={dataLoading ? '...' : data.stats.overdueAccounts || 0}
             color="red"
           />
-          <StatCard icon={Clock} label="Due Soon" value={data.stats.dueSoonAccounts || 0} color="amber" />
+          <StatCard
+            icon={Clock}
+            label="Due Soon"
+            value={dataLoading ? '...' : data.stats.dueSoonAccounts || 0}
+            color="amber"
+          />
           <button
             onClick={() => setShowNewCustomer(true)}
-            className="bg-gradient-to-br from-slate-900 to-slate-700 text-white rounded-xl p-4 hover:scale-[1.02] transition-all shadow-lg flex flex-col items-center justify-center gap-1 group"
+            disabled={dataLoading}
+            className="bg-gradient-to-br from-slate-900 to-slate-700 text-white rounded-xl p-4 hover:scale-[1.02] transition-all shadow-lg flex flex-col items-center justify-center gap-1 group disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Plus className="w-6 h-6 group-hover:scale-110 transition-transform" />
-            <span className="text-xs font-bold">New Account</span>
+            <span className="text-xs font-bold">{dataLoading ? 'Loading...' : 'New Account'}</span>
           </button>
         </div>
 
@@ -200,41 +211,64 @@ export default function LMSClient({ currentUserId }: LMSClientProps) {
 
         {/* Accounts Table */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-slate-50 border-b border-slate-200">
-              <tr>
-                <th scope="col" className="p-3 text-left text-xs font-bold text-slate-600 uppercase">Customer</th>
-                <th scope="col" className="p-3 text-left text-xs font-bold text-slate-600 uppercase">Contact</th>
-                <th scope="col" className="p-3 text-center text-xs font-bold text-slate-600 uppercase">Status</th>
-                <th scope="col" className="p-3 text-right text-xs font-bold text-slate-600 uppercase">Balance</th>
-                <th scope="col" className="p-3 text-center text-xs font-bold text-slate-600 uppercase">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {filtered.map((account: Account) => (
-                <ErrorBoundary key={account.id}>
-                  <AccountRow
-                    account={account}
-                    onAddTransaction={(payload: Account & { transactionType?: string }) =>
-                      setShowTransaction(payload)
-                    }
-                    onShowStatement={(acc) => setShowStatementPopup(acc)}
-                    onEdit={() => setShowEditCustomer(account)}
-                    onShowNotes={(acc) => setShowAccountNotes(acc)}
-                    onShowAuditLogs={(acc) => setShowAuditLogs(acc)}
-                    getStatusBadge={getStatusBadge}
-                  />
-                </ErrorBoundary>
-              ))}
-              {filtered.length === 0 && (
+          {dataLoading && filtered.length === 0 ? (
+            // Show loading skeleton for initial load
+            <div className="p-4">
+              <TableHeaderSkeleton />
+            </div>
+          ) : (
+            <table className="w-full">
+              <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
-                  <td colSpan={5} className="p-12 text-center text-slate-400" role="status" aria-live="polite">
-                    No accounts found. Try adjusting filters or adding a new customer.
-                  </td>
+                  <th scope="col" className="p-3 text-left text-xs font-bold text-slate-600 uppercase">Customer</th>
+                  <th scope="col" className="p-3 text-left text-xs font-bold text-slate-600 uppercase">Contact</th>
+                  <th scope="col" className="p-3 text-center text-xs font-bold text-slate-600 uppercase">Status</th>
+                  <th scope="col" className="p-3 text-right text-xs font-bold text-slate-600 uppercase">Balance</th>
+                  <th scope="col" className="p-3 text-center text-xs font-bold text-slate-600 uppercase">Actions</th>
                 </tr>
-              )}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-slate-100 relative">
+                {dataLoading && filtered.length > 0 && (
+                  <tr>
+                    <td colSpan={5} className="p-12 text-center">
+                      <div className="flex flex-col items-center gap-3">
+                        <div className="animate-spin">
+                          <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-900 rounded-full"></div>
+                        </div>
+                        <span className="text-sm text-slate-500">Loading accounts...</span>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+                {!dataLoading && (
+                  <>
+                    {filtered.map((account: Account) => (
+                      <ErrorBoundary key={account.id}>
+                        <AccountRow
+                          account={account}
+                          onAddTransaction={(payload: Account & { transactionType?: string }) =>
+                            setShowTransaction(payload)
+                          }
+                          onShowStatement={(acc) => setShowStatementPopup(acc)}
+                          onEdit={() => setShowEditCustomer(account)}
+                          onShowNotes={(acc) => setShowAccountNotes(acc)}
+                          onShowAuditLogs={(acc) => setShowAuditLogs(acc)}
+                          getStatusBadge={getStatusBadge}
+                        />
+                      </ErrorBoundary>
+                    ))}
+                    {filtered.length === 0 && (
+                      <tr>
+                        <td colSpan={5} className="p-12 text-center text-slate-400" role="status" aria-live="polite">
+                          No accounts found. Try adjusting filters or adding a new customer.
+                        </td>
+                      </tr>
+                    )}
+                  </>
+                )}
+              </tbody>
+            </table>
+          )}
         </div>
 
         {/* Pagination */}
@@ -242,21 +276,36 @@ export default function LMSClient({ currentUserId }: LMSClientProps) {
           <div className="flex justify-between items-center mt-4 px-4">
             <div className="text-sm text-slate-600">
               Page {page} of {pageInfo.pages} ({pageInfo.total} total accounts)
+              {dataLoading && <span className="ml-2 text-blue-600 font-medium">Loading...</span>}
             </div>
             <div className="flex gap-2">
               <button
                 onClick={() => refresh(Math.max(1, page - 1))}
-                disabled={page === 1 || loading}
-                className="px-3 py-2 rounded border border-slate-200 text-sm font-medium hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={page === 1 || dataLoading}
+                className="px-3 py-2 rounded border border-slate-200 text-sm font-medium hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
-                Previous
+                {dataLoading ? (
+                  <>
+                    <div className="animate-spin w-3 h-3 border-2 border-slate-300 border-t-slate-900 rounded-full"></div>
+                    Loading
+                  </>
+                ) : (
+                  'Previous'
+                )}
               </button>
               <button
                 onClick={() => refresh(Math.min(pageInfo.pages, page + 1))}
-                disabled={page === pageInfo.pages || loading}
-                className="px-3 py-2 rounded border border-slate-200 text-sm font-medium hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={page === pageInfo.pages || dataLoading}
+                className="px-3 py-2 rounded border border-slate-200 text-sm font-medium hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
-                Next
+                {dataLoading ? (
+                  <>
+                    Loading
+                    <div className="animate-spin w-3 h-3 border-2 border-slate-300 border-t-slate-900 rounded-full"></div>
+                  </>
+                ) : (
+                  'Next'
+                )}
               </button>
             </div>
           </div>

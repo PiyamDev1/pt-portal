@@ -104,7 +104,38 @@ function ServicePricingTabCore({ supabase, loading: initialLoading, setLoading }
   }
 
   if (loading) {
-    return <div className="p-6 text-center">Loading pricing options...</div>
+    return (
+      <div className="p-6">
+        <div className="space-y-4">
+          {/* Header skeleton */}
+          <div className="space-y-2">
+            <div className="h-8 bg-slate-200 rounded w-48 animate-pulse"></div>
+            <div className="h-4 bg-slate-200 rounded w-96 animate-pulse"></div>
+          </div>
+
+          {/* Tabs skeleton */}
+          <div className="flex gap-4 border-b">
+            {[1, 2, 3, 4, 5].map(i => (
+              <div key={i} className="h-10 bg-slate-200 rounded w-32 animate-pulse"></div>
+            ))}
+          </div>
+
+          {/* Content skeleton */}
+          <div className="space-y-3">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="h-12 bg-slate-200 rounded animate-pulse"></div>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-8 flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin w-8 h-8 border-4 border-slate-200 border-t-slate-900 rounded-full mx-auto mb-3"></div>
+            <p className="text-slate-600 font-medium">Loading pricing options...</p>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   if (setupRequired) {
