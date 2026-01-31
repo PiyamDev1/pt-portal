@@ -15,6 +15,7 @@ export async function GET(request) {
 
     const { searchParams } = new URL(request.url)
     const filter = searchParams.get('filter') || 'active' // active, overdue, all, settled
+    const accountId = searchParams.get('accountId') // If provided, return this account regardless of filter
 
     // Fetch all customers with their loan data
     const { data: customers, error: custError } = await supabase
@@ -164,7 +165,11 @@ export async function GET(request) {
 
     // Apply filters
     let filtered = accounts
-    if (filter === 'active') {
+    
+    // If accountId is provided, return that account regardless of filter status
+    if (accountId) {
+      filtered = accounts.filter(a => a.id === accountId)
+    } else if (filter === 'active') {
       filtered = accounts.filter(a => a.balance > 0)
     } else if (filter === 'overdue') {
       filtered = accounts.filter(a => a.isOverdue)
