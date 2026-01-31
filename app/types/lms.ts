@@ -40,10 +40,13 @@ export interface InstallmentPayment {
   id: string
   transaction_id: string
   due_date: string
-  amount: number
-  status: 'pending' | 'paid' | 'skipped'
+  amount: number | string
+  status: 'pending' | 'paid' | 'skipped' | 'partial' | 'overdue'
   paid_date: string | null
+  amount_paid: number | string
+  installment_number: number
   payment_method?: string
+  [key: string]: unknown // Allow additional fields from API
 }
 
 export interface StatementData {
