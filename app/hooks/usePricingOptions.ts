@@ -14,6 +14,7 @@ import type {
   ActiveTab,
   PricingEditValues 
 } from '@/app/types/pricing'
+import { handleApiError, formatErrorForDisplay } from '@/app/lib/errorHandler'
 
 export const usePricingOptions = (supabase: SupabaseClient) => {
   const [nadraPricing, setNadraPricing] = useState<NadraPricing[]>([])
@@ -64,8 +65,9 @@ export const usePricingOptions = (supabase: SupabaseClient) => {
       if (!visaErr && visaPricingData) {
         setVisaPricing(visaPricingData)
       }
-    } catch (error: any) {
-      toast.error('Failed to fetch pricing: ' + error.message)
+    } catch (error) {
+      const apiError = handleApiError(error, 'usePricingOptions.fetchPricing')
+      toast.error(formatErrorForDisplay(apiError))
     }
   }
 
@@ -103,8 +105,9 @@ export const usePricingOptions = (supabase: SupabaseClient) => {
       toast.success('Pricing saved successfully')
       setEditingId(null)
       await fetchPricing()
-    } catch (error: any) {
-      toast.error('Failed to save pricing: ' + error.message)
+    } catch (error) {
+      const apiError = handleApiError(error, 'usePricingOptions.handleSave')
+      toast.error(formatErrorForDisplay(apiError))
     }
   }
 
@@ -124,8 +127,9 @@ export const usePricingOptions = (supabase: SupabaseClient) => {
       
       toast.success('Pricing deleted')
       await fetchPricing()
-    } catch (error: any) {
-      toast.error('Failed to delete: ' + error.message)
+    } catch (error) {
+      const apiError = handleApiError(error, 'usePricingOptions.handleDelete')
+      toast.error(formatErrorForDisplay(apiError))
     }
   }
 

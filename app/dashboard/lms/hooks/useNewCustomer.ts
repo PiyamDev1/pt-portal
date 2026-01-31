@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { toast } from 'sonner'
 import type { PaymentMethod, CustomerForm } from '../types'
 import { API_ENDPOINTS } from '../constants'
+import { handleApiError, formatErrorForDisplay } from '@/app/lib/errorHandler'
 
 interface TransactionForm {
   amount: string
@@ -43,8 +44,9 @@ export function useNewCustomer({ onSave, onClose, employeeId }: UseNewCustomerPa
       .then(d => {
         setMethods(d.methods || [])
       })
-      .catch(() => {
-        toast.error('Failed to load payment methods')
+      .catch((err) => {
+        const apiError = handleApiError(err, 'useNewCustomer.fetchPaymentMethods')
+        toast.error(formatErrorForDisplay(apiError))
       })
   }, [])
 
@@ -76,12 +78,16 @@ export function useNewCustomer({ onSave, onClose, employeeId }: UseNewCustomerPa
           initialTransaction: addTransaction ? txForm : null
         })
       })
-      if (!res.ok) throw new Error('Failed')
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || `Request failed with status ${res.status}`)
+      }
       toast.success('Customer created!')
       onSave()
       onClose()
     } catch (err) {
-      toast.error('Failed to create customer')
+      const apiError = handleApiError(err, 'useNewCustomer.handleSubmit')
+      toast.error(formatErrorForDisplay(apiError))
     } finally {
       setLoading(false)
     }
