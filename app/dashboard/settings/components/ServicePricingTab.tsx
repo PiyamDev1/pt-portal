@@ -142,6 +142,10 @@ export default function ServicePricingTab({ supabase, loading, setLoading }: Ser
       toast.error('Service type is required')
       return
     }
+    if (!newNadraEntry.service_option.trim()) {
+      toast.error('Service option is required')
+      return
+    }
 
     try {
       const { error } = await supabase.from('nadra_pricing').insert({
@@ -164,7 +168,7 @@ export default function ServicePricingTab({ supabase, loading, setLoading }: Ser
   const handleAddPKEntry = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!newPKEntry.category.trim() || !newPKEntry.speed.trim() || !newPKEntry.application_type.trim()) {
-      toast.error('Category, Speed, and Application Type are required')
+      toast.error('All fields (Category, Speed, Application Type) are required')
       return
     }
 
@@ -190,7 +194,7 @@ export default function ServicePricingTab({ supabase, loading, setLoading }: Ser
   const handleAddGBEntry = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!newGBEntry.age_group.trim() || !newGBEntry.pages.trim() || !newGBEntry.service_type.trim()) {
-      toast.error('Age Group, Pages, and Service Type are required')
+      toast.error('All fields (Age Group, Pages, Service Type) are required')
       return
     }
 
@@ -216,7 +220,7 @@ export default function ServicePricingTab({ supabase, loading, setLoading }: Ser
   const handleAddVisaEntry = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!newVisaEntry.country.trim() || !newVisaEntry.visa_type.trim()) {
-      toast.error('Country and Visa Type are required')
+      toast.error('All fields (Country, Visa Type) are required')
       return
     }
 
@@ -368,23 +372,34 @@ export default function ServicePricingTab({ supabase, loading, setLoading }: Ser
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium mb-1">Service Type *</label>
-                  <input
-                    type="text"
-                    placeholder="e.g., NICOP/CNIC, POC, FRC, CRC"
+                  <select
                     value={newNadraEntry.service_type}
                     onChange={(e) => setNewNadraEntry({ ...newNadraEntry, service_type: e.target.value })}
                     className="w-full px-3 py-2 border rounded"
-                  />
+                  >
+                    <option value="">Select Service Type</option>
+                    <option value="NICOP/CNIC">NICOP/CNIC</option>
+                    <option value="POC">POC</option>
+                    <option value="FRC">FRC</option>
+                    <option value="CRC">CRC</option>
+                    <option value="POA">POA</option>
+                  </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Service Option</label>
-                  <input
-                    type="text"
-                    placeholder="e.g., Normal, Executive, Cancellation"
+                  <label className="block text-sm font-medium mb-1">Service Option *</label>
+                  <select
                     value={newNadraEntry.service_option}
                     onChange={(e) => setNewNadraEntry({ ...newNadraEntry, service_option: e.target.value })}
                     className="w-full px-3 py-2 border rounded"
-                  />
+                  >
+                    <option value="">Select Service Option</option>
+                    <option value="Normal">Normal</option>
+                    <option value="Executive">Executive</option>
+                    <option value="Upgrade to Fast">Upgrade to Fast</option>
+                    <option value="Modification">Modification</option>
+                    <option value="Reprint">Reprint</option>
+                    <option value="Cancellation">Cancellation</option>
+                  </select>
                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -524,33 +539,42 @@ export default function ServicePricingTab({ supabase, loading, setLoading }: Ser
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-sm font-medium mb-1">Category *</label>
-                  <input
-                    type="text"
-                    placeholder="e.g., Child 5 Year, Adult 10 Year"
+                  <select
                     value={newPKEntry.category}
                     onChange={(e) => setNewPKEntry({ ...newPKEntry, category: e.target.value })}
                     className="w-full px-3 py-2 border rounded"
-                  />
+                  >
+                    <option value="">Select Category</option>
+                    <option value="Adult 10 Year">Adult 10 Year</option>
+                    <option value="Adult 5 Year">Adult 5 Year</option>
+                    <option value="Child 5 Year">Child 5 Year</option>
+                  </select>
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Speed *</label>
-                  <input
-                    type="text"
-                    placeholder="e.g., Executive, Normal"
+                  <select
                     value={newPKEntry.speed}
                     onChange={(e) => setNewPKEntry({ ...newPKEntry, speed: e.target.value })}
                     className="w-full px-3 py-2 border rounded"
-                  />
+                  >
+                    <option value="">Select Speed</option>
+                    <option value="Normal">Normal</option>
+                    <option value="Executive">Executive</option>
+                  </select>
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Application Type *</label>
-                  <input
-                    type="text"
-                    placeholder="e.g., First Time, Renewal"
+                  <select
                     value={newPKEntry.application_type}
                     onChange={(e) => setNewPKEntry({ ...newPKEntry, application_type: e.target.value })}
                     className="w-full px-3 py-2 border rounded"
-                  />
+                  >
+                    <option value="">Select Application Type</option>
+                    <option value="First Time">First Time</option>
+                    <option value="Renewal">Renewal</option>
+                    <option value="Modification">Modification</option>
+                    <option value="Lost">Lost</option>
+                  </select>
                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -692,33 +716,42 @@ export default function ServicePricingTab({ supabase, loading, setLoading }: Ser
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-sm font-medium mb-1">Age Group *</label>
-                  <input
-                    type="text"
-                    placeholder="e.g., Adult, Child, Infant"
+                  <select
                     value={newGBEntry.age_group}
                     onChange={(e) => setNewGBEntry({ ...newGBEntry, age_group: e.target.value })}
                     className="w-full px-3 py-2 border rounded"
-                  />
+                  >
+                    <option value="">Select Age Group</option>
+                    <option value="Adult">Adult</option>
+                    <option value="Child">Child</option>
+                    <option value="Infant">Infant</option>
+                  </select>
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Pages *</label>
-                  <input
-                    type="text"
-                    placeholder="e.g., 32, 48, 52"
+                  <select
                     value={newGBEntry.pages}
                     onChange={(e) => setNewGBEntry({ ...newGBEntry, pages: e.target.value })}
                     className="w-full px-3 py-2 border rounded"
-                  />
+                  >
+                    <option value="">Select Pages</option>
+                    <option value="32">32</option>
+                    <option value="48">48</option>
+                    <option value="52">52</option>
+                  </select>
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Service Type *</label>
-                  <input
-                    type="text"
-                    placeholder="e.g., Standard, Express, Premium"
+                  <select
                     value={newGBEntry.service_type}
                     onChange={(e) => setNewGBEntry({ ...newGBEntry, service_type: e.target.value })}
                     className="w-full px-3 py-2 border rounded"
-                  />
+                  >
+                    <option value="">Select Service Type</option>
+                    <option value="Standard">Standard</option>
+                    <option value="Express">Express</option>
+                    <option value="Premium">Premium</option>
+                  </select>
                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -862,7 +895,7 @@ export default function ServicePricingTab({ supabase, loading, setLoading }: Ser
                   <label className="block text-sm font-medium mb-1">Country *</label>
                   <input
                     type="text"
-                    placeholder="e.g., USA, Canada, UK, Schengen"
+                    placeholder="Enter country name"
                     value={newVisaEntry.country}
                     onChange={(e) => setNewVisaEntry({ ...newVisaEntry, country: e.target.value })}
                     className="w-full px-3 py-2 border rounded"
@@ -870,13 +903,17 @@ export default function ServicePricingTab({ supabase, loading, setLoading }: Ser
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Visa Type *</label>
-                  <input
-                    type="text"
-                    placeholder="e.g., Tourist, Business, Student, Work"
+                  <select
                     value={newVisaEntry.visa_type}
                     onChange={(e) => setNewVisaEntry({ ...newVisaEntry, visa_type: e.target.value })}
                     className="w-full px-3 py-2 border rounded"
-                  />
+                  >
+                    <option value="">Select Visa Type</option>
+                    <option value="Tourist">Tourist</option>
+                    <option value="Business">Business</option>
+                    <option value="Student">Student</option>
+                    <option value="Work">Work</option>
+                  </select>
                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
