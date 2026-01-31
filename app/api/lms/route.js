@@ -230,20 +230,6 @@ export async function GET(request) {
       }
     })
 
-    // Apply filters
-    let filtered = accounts
-    
-    // If accountId is provided, return that account regardless of filter status
-    if (accountId) {
-      filtered = accounts.filter(a => a.id === accountId)
-    } else if (filter === 'active') {
-      filtered = accounts.filter(a => a.balance > 0)
-    } else if (filter === 'overdue') {
-      filtered = accounts.filter(a => a.isOverdue)
-    } else if (filter === 'settled') {
-      filtered = accounts.filter(a => a.balance <= 0 && a.totalLoans > 0)
-    }
-
     // Calculate stats only from current page for quick response
     const stats = {
       totalOutstanding: accounts.reduce((sum, a) => sum + a.balance, 0),
