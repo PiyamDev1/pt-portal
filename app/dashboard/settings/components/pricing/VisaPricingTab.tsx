@@ -3,19 +3,20 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { Trash2, Save, X, Plus } from 'lucide-react'
-import { VisaPricing } from '@/app/types/pricing'
+import type { SupabaseClient } from '@supabase/supabase-js'
+import type { VisaPricing, PricingEditValues } from '@/app/types/pricing'
 
 interface VisaPricingTabProps {
   pricing: VisaPricing[]
   editingId: string | null
-  editValues: Record<string, any>
+  editValues: PricingEditValues
   setEditingId: (id: string | null) => void
-  setEditValues: (values: Record<string, any>) => void
+  setEditValues: (values: PricingEditValues) => void
   onEdit: (item: VisaPricing) => void
   onSave: () => void
   onDelete: (id: string) => void
   onAddEntry: (entry: { country: string; visa_type: string; cost_price: number; sale_price: number }) => Promise<void>
-  supabase: any
+  supabase: SupabaseClient
 }
 
 const VISA_TYPES = ['Tourist', 'Business', 'Student', 'Work']

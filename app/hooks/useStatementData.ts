@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
+import type { Account, Transaction, InstallmentPayment } from '@/app/types/lms'
 
 export const useStatementData = (accountId: string) => {
   const [loading, setLoading] = useState(true)
-  const [account, setAccount] = useState<any>(null)
-  const [installmentsByTransaction, setInstallmentsByTransaction] = useState<Record<string, any[]>>({})
+  const [account, setAccount] = useState<Account | null>(null)
+  const [installmentsByTransaction, setInstallmentsByTransaction] = useState<Record<string, InstallmentPayment[]>>({})
 
   useEffect(() => {
     let isActive = true
@@ -11,14 +12,15 @@ export const useStatementData = (accountId: string) => {
     const load = async () => {
       try {
         const res = await fetch(`/api/lms?accountId=${accountId}`)
-        const data = await res.json()
-        const acc = data.accounts?.find((a: any) => a.id === accountId)
+        const data = await res.json() as Record<string, unknown>
+        const accounts = Array.isArray(data.accounts) ? data.accounts as Account[] : []
+        const acc = accounts.find((a: Account) => a.id === accountId)
         if (!isActive) return
 
-        setAccount(acc)
+        setAccount(acc || null)
 
-        if (acc && acc.transactions) {
-          const serviceTransactions = acc.transactions.filter((tx: any) =>
+        if (acc && Array.isArray(acc.transactions)) {
+          const serviceTransactions: Transaction[] = acc.transactions.filter((tx: Transaction) =>
             (tx.transaction_type || '').toLowerCase() === 'service'
           )
 
@@ -27,10 +29,10 @@ export const useStatementData = (accountId: string) => {
             return
           }
 
-          const installmentsMap: Record<string, any[]> = {}
+          const installmentsMap: Record<string, InstallmentPayment[]> = {}
           let fetchedCount = 0
 
-          serviceTransactions.forEach((tx: any) => {
+          serviceTransactions.forEach((tx: Transaction) => {
             fetch(`/api/lms/installments?transactionId=${tx.id}`)
               .then(res => res.json())
               .then(data => {

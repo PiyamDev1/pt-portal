@@ -3,20 +3,21 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { Trash2, Save, X, Plus } from 'lucide-react'
-import { PKPassportPricing } from '@/app/types/pricing'
+import type { SupabaseClient } from '@supabase/supabase-js'
+import type { PKPassportPricing, PricingEditValues } from '@/app/types/pricing'
 import { PRICING_OPTIONS } from '@/app/lib/pricingOptions'
 
 interface PKPassportPricingTabProps {
   pricing: PKPassportPricing[]
   editingId: string | null
-  editValues: Record<string, any>
+  editValues: PricingEditValues
   setEditingId: (id: string | null) => void
-  setEditValues: (values: Record<string, any>) => void
+  setEditValues: (values: PricingEditValues) => void
   onEdit: (item: PKPassportPricing) => void
   onSave: () => void
   onDelete: (id: string) => void
   onAddEntry: (entry: { category: string; speed: string; application_type: string; cost_price: number; sale_price: number }) => Promise<void>
-  supabase: any
+  supabase: SupabaseClient
 }
 
 export default function PKPassportPricingTab({

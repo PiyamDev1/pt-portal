@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
+import type { DeviceSession } from '@/app/types/auth'
 
 interface UseSecuritySessionsParams {
   userId: string
 }
 
 export function useSecuritySessions({ userId }: UseSecuritySessionsParams) {
-  const [sessions, setSessions] = useState<any[]>([])
+  const [sessions, setSessions] = useState<DeviceSession[]>([])
   const [sessionsError, setSessionsError] = useState<string | null>(null)
   const [sessionsLoading, setSessionsLoading] = useState(true)
   const [backupCodeCount, setBackupCodeCount] = useState(0)

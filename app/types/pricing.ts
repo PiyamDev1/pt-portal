@@ -2,6 +2,8 @@
  * Pricing Types - Centralized type definitions for all pricing-related interfaces
  */
 
+import type { SupabaseClient } from '@supabase/supabase-js'
+
 export interface NadraPricing {
   id: string
   service_type: string
@@ -47,7 +49,11 @@ export interface VisaPricing {
 export type ActiveTab = 'nadra' | 'passport' | 'gb' | 'visa' | 'manage'
 
 export interface ServicePricingTabProps {
-  supabase: any
+  supabase: SupabaseClient
   loading: boolean
   setLoading: (loading: boolean) => void
+}
+
+export interface PricingEditValues {
+  [key: string]: string | number | undefined
 }

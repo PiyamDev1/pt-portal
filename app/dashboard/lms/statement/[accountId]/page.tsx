@@ -216,7 +216,7 @@ export default function StatementPage() {
                           tx.transaction_timestamp,
                           txAmount,
                           depositAmount || txAmount * 0.17,
-                          serviceLoan.term_months,
+                          Number(serviceLoan.term_months),
                           serviceLoan.next_due_date
                         )
                         

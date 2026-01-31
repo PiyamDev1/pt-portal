@@ -5,21 +5,23 @@
 
 import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import type { 
   NadraPricing, 
   PKPassportPricing, 
   GBPassportPricing, 
   VisaPricing, 
-  ActiveTab 
+  ActiveTab,
+  PricingEditValues 
 } from '@/app/types/pricing'
 
-export const usePricingOptions = (supabase: any) => {
+export const usePricingOptions = (supabase: SupabaseClient) => {
   const [nadraPricing, setNadraPricing] = useState<NadraPricing[]>([])
   const [pkPassPricing, setPKPassPricing] = useState<PKPassportPricing[]>([])
   const [gbPassPricing, setGBPassPricing] = useState<GBPassportPricing[]>([])
   const [visaPricing, setVisaPricing] = useState<VisaPricing[]>([])
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [editValues, setEditValues] = useState<Record<string, any>>({})
+  const [editValues, setEditValues] = useState<PricingEditValues>({})
   const [setupRequired, setSetupRequired] = useState(false)
 
   const fetchPricing = async () => {
