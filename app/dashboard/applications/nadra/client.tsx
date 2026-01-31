@@ -291,7 +291,9 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
           .then((data) => {
             if (data.history) setHistoryLogs(data.history)
           })
-          .catch((err) => console.error(err))
+          .catch(() => {
+            // Error already shown via toast
+          })
           .finally(() => setLoadingHistory(false))
       }, 100)
       return () => clearTimeout(timer)

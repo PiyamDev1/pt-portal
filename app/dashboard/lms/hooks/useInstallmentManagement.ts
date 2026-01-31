@@ -37,7 +37,7 @@ export function useInstallmentManagement(transaction: Transaction) {
         setEditedInstallments(JSON.parse(JSON.stringify(inst))) // Deep copy
       }
     } catch (err) {
-      console.error('Failed to fetch installments:', err)
+      // Silently fail - error boundary will handle
     }
   }
 
@@ -90,7 +90,6 @@ export function useInstallmentManagement(transaction: Transaction) {
       await fetchInstallments()
       return true
     } catch (err: any) {
-      console.error('Save error:', err)
       toast.error(err.message || 'Failed to save changes')
       return false
     } finally {
@@ -120,7 +119,6 @@ export function useInstallmentManagement(transaction: Transaction) {
       toast.success('Service charge deleted and balance updated')
       return true
     } catch (err: any) {
-      console.error('Delete error:', err)
       toast.error(err.message || 'Failed to delete')
       setLoading(false)
       return false

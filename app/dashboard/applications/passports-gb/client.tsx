@@ -45,7 +45,9 @@ export default function GbPassportsClient({ initialData, currentUserId }: any) {
     fetch('/api/passports/gb/metadata')
       .then(res => res.json())
       .then(data => setMetadata(data))
-      .catch(err => console.error("Failed to load GB metadata", err))
+      .catch(() => {
+        // Silently fail - will use defaults
+      })
   }, [])
 
   // Fetch history when selected

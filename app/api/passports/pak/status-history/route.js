@@ -14,9 +14,6 @@ export async function GET(request) {
     const applicationId = searchParams.get('applicationId')
     const passportId = searchParams.get('passportId')
 
-    // DEBUG LOG: See what the server actually receives
-    console.log(`[History API] Params received - AppID: ${applicationId}, PassportID: ${passportId}`)
-
     // 1. Resolve to a specific Passport Record ID
     let targetPassportId = passportId
 

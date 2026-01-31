@@ -28,7 +28,6 @@ export function useSecuritySessions({ userId }: UseSecuritySessionsParams) {
         else setSessions([])
       })
       .catch((err) => {
-        console.error('Session fetch failed:', err)
         setSessionsError(err.message || 'Unable to load devices')
       })
       .finally(() => setSessionsLoading(false))
