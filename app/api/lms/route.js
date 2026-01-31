@@ -16,9 +16,12 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url)
     const filter = searchParams.get('filter') || 'active' // active, overdue, all, settled
     const accountId = searchParams.get('accountId') // If provided, return this account regardless of filter
+    const page = parseInt(searchParams.get('page') || '1')
+    const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 100) // Max 100, default 50
+    const offset = (page - 1) * limit
 
-    // Fetch all customers with their loan data
-    const { data: customers, error: custError } = await supabase
+    // Fetch customers with pagination
+    const { data: customers, error: custError, count: totalCount } = await supabase
       .from('loan_customers')
       .select(`
         id,
@@ -28,65 +31,120 @@ export async function GET(request) {
         email,
         address,
         created_at
-      `)
+      `, { count: 'exact' })
       .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1)
 
     if (custError) throw custError
 
-    // Fetch all loans
+    const customerIds = customers.map(c => c.id)
+
+    // Only fetch loans/transactions/installments for the customers on this page
     const { data: allLoans, error: loansError } = await supabase
       .from('loans')
       .select('*')
+      .in('loan_customer_id', customerIds)
 
     if (loansError) throw loansError
 
-    // Fetch all transactions
+    const loanIds = allLoans.map(l => l.id)
+
+    // Fetch transactions only for loans on this page
     const { data: allTransactions, error: txError } = await supabase
       .from('loan_transactions')
       .select(`
         *,
         loan_payment_methods (name)
       `)
+      .in('loan_id', loanIds.length > 0 ? loanIds : ['00000000-0000-0000-0000-000000000000'])
 
     if (txError) throw txError
 
-    // Fetch all installments
+    // Fetch installments only for transactions on this page
+    const transactionIds = allTransactions.map(t => t.id)
     const { data: allInstallments, error: installmentsError } = await supabase
       .from('loan_installments')
       .select('*')
+      .in('loan_transaction_id', transactionIds.length > 0 ? transactionIds : ['00000000-0000-0000-0000-000000000000'])
 
     if (installmentsError) throw installmentsError
 
+    // Build lookup maps for O(1) access
+    const loansMap = new Map()
+    const transactionsMap = new Map()
+    const installmentsMap = new Map()
+
+    // Map loans by customer ID for fast lookup
+    allLoans.forEach(loan => {
+      if (!loansMap.has(loan.loan_customer_id)) {
+        loansMap.set(loan.loan_customer_id, [])
+      }
+      loansMap.get(loan.loan_customer_id).push(loan)
+    })
+
+    // Map transactions by loan ID for fast lookup
+    allTransactions.forEach(tx => {
+      if (!transactionsMap.has(tx.loan_id)) {
+        transactionsMap.set(tx.loan_id, [])
+      }
+      transactionsMap.get(tx.loan_id).push(tx)
+    })
+
+    // Map installments by transaction ID for fast lookup
+    allInstallments.forEach(inst => {
+      if (!installmentsMap.has(inst.loan_transaction_id)) {
+        installmentsMap.set(inst.loan_transaction_id, [])
+      }
+      installmentsMap.get(inst.loan_transaction_id).push(inst)
+    })
+
     // Build enriched customer accounts
     const accounts = customers.map(customer => {
-      const customerLoans = allLoans.filter(l => l.loan_customer_id === customer.id)
+      const customerLoans = loansMap.get(customer.id) || []
       const loanIds = customerLoans.map(l => l.id)
-      const transactions = allTransactions.filter(t => loanIds.includes(t.loan_id))
+      
+      // Collect all transactions for this customer's loans
+      const transactions = []
+      loanIds.forEach(loanId => {
+        const loanTxs = transactionsMap.get(loanId) || []
+        transactions.push(...loanTxs)
+      })
 
-      // Calculate totals
-      const services = transactions.filter(t => (t.transaction_type || '').toLowerCase() === 'service')
-      const payments = transactions.filter(t => (t.transaction_type || '').toLowerCase() === 'payment')
-      const fees = transactions.filter(t => (t.transaction_type || '').toLowerCase() === 'fee')
+      // Calculate totals (single pass)
+      let totalServices = 0
+      let totalPayments = 0
+      let totalFees = 0
+      const services = []
+      const payments = []
+      const fees = []
 
-      const totalServices = services.reduce((sum, t) => sum + parseFloat(t.amount || 0), 0)
-      const totalPayments = payments.reduce((sum, t) => sum + parseFloat(t.amount || 0), 0)
-      const totalFees = fees.reduce((sum, t) => sum + parseFloat(t.amount || 0), 0)
+      transactions.forEach(t => {
+        const txType = (t.transaction_type || '').toLowerCase()
+        const amount = parseFloat(t.amount || 0)
+        
+        if (txType === 'service') {
+          totalServices += amount
+          services.push(t)
+        } else if (txType === 'payment') {
+          totalPayments += amount
+          payments.push(t)
+        } else if (txType === 'fee') {
+          totalFees += amount
+          fees.push(t)
+        }
+      })
 
       const balance = totalServices + totalFees - totalPayments
 
-      // Calculate next due date using smart logic:
-      // 1. Get all service transactions (these create debt with dates)
-      // 2. Get all installments for these services
-      // 3. Find the earliest unpaid date
-      
+      // Calculate next due date
       let nextDue = null
       
       if (balance > 0) {
         const dueDates = []
         
         // Get service transaction dates and their installments
-        for (const service of services) {
-          const serviceInstallments = allInstallments.filter(i => i.loan_transaction_id === service.id)
+        services.forEach(service => {
+          const serviceInstallments = installmentsMap.get(service.id) || []
           
           if (serviceInstallments.length > 0) {
             // Has installment plan - use installment due dates
@@ -99,45 +157,58 @@ export async function GET(request) {
             // No installment plan - use service transaction date as due date
             dueDates.push(new Date(service.transaction_timestamp))
           }
-        }
+        })
         
         // Add fee dates (fees are due immediately)
         fees.forEach(fee => {
           dueDates.push(new Date(fee.transaction_timestamp))
         })
         
-        // Sort and get earliest
+        // Get earliest date
         if (dueDates.length > 0) {
-          dueDates.sort((a, b) => a - b)
-          nextDue = dueDates[0]
+          nextDue = new Date(Math.min(...dueDates.map(d => d.getTime())))
         }
       }
 
-      const isOverdue = nextDue && nextDue < new Date() && balance > 0
+      const now = new Date()
+      const isOverdue = nextDue && nextDue < now && balance > 0
       const isDueSoon = nextDue && !isOverdue && 
-        (nextDue - new Date()) / (1000 * 60 * 60 * 24) <= 7 && balance > 0
+        (nextDue - now) / (1000 * 60 * 60 * 24) <= 7 && balance > 0
 
-      // Count active services (services with unpaid amounts)
-      // Each service with installments counts as 1, regardless of how many installments
-      const activeServicesCount = services.filter(service => {
-        const serviceInstallments = allInstallments.filter(i => i.loan_transaction_id === service.id)
+      // Count active services
+      let activeServicesCount = 0
+      services.forEach(service => {
+        const serviceInstallments = installmentsMap.get(service.id) || []
         
         if (serviceInstallments.length > 0) {
           // Has installments - check if any are unpaid
-          return serviceInstallments.some(inst => inst.status !== 'paid' && inst.status !== 'skipped')
+          if (serviceInstallments.some(inst => inst.status !== 'paid' && inst.status !== 'skipped')) {
+            activeServicesCount++
+          }
         } else {
           // No installments - check if service amount hasn't been fully paid
-          const servicePayments = payments.filter(p => {
+          const servicePaid = payments.reduce((sum, p) => {
             // Match payments by date proximity (within 1 day of service)
-            const serviceDateObj = new Date(service.transaction_timestamp)
-            const paymentDateObj = new Date(p.transaction_timestamp)
-            const dayDiff = Math.abs((serviceDateObj - paymentDateObj) / (1000 * 60 * 60 * 24))
-            return dayDiff <= 1
-          })
-          const servicePaid = servicePayments.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0)
-          return servicePaid < parseFloat(service.amount || 0)
+            const dayDiff = Math.abs((new Date(service.transaction_timestamp) - new Date(p.transaction_timestamp)) / (1000 * 60 * 60 * 24))
+            return dayDiff <= 1 ? sum + parseFloat(p.amount || 0) : sum
+          }, 0)
+          if (servicePaid < parseFloat(service.amount || 0)) {
+            activeServicesCount++
+          }
         }
-      }).length
+      })
+
+      // Get last transaction date
+      let lastTransaction = null
+      if (transactions.length > 0) {
+        const timestamps = transactions.map(t => new Date(t.transaction_timestamp).getTime())
+        lastTransaction = new Date(Math.max(...timestamps))
+      }
+
+      // Sort transactions by date descending
+      const sortedTransactions = transactions.sort((a, b) => 
+        new Date(b.transaction_timestamp) - new Date(a.transaction_timestamp)
+      )
 
       return {
         id: customer.id,
@@ -153,12 +224,8 @@ export async function GET(request) {
         nextDue: nextDue?.toISOString(),
         isOverdue,
         isDueSoon,
-        lastTransaction: transactions.length > 0 
-          ? new Date(Math.max(...transactions.map(t => new Date(t.transaction_timestamp).getTime())))
-          : null,
-        transactions: transactions.sort((a, b) => 
-          new Date(b.transaction_timestamp) - new Date(a.transaction_timestamp)
-        ),
+        lastTransaction,
+        transactions: sortedTransactions,
         loans: customerLoans
       }
     })
@@ -177,16 +244,39 @@ export async function GET(request) {
       filtered = accounts.filter(a => a.balance <= 0 && a.totalLoans > 0)
     }
 
-    // Calculate stats
+    // Calculate stats only from current page for quick response
     const stats = {
-      totalOutstanding: accounts.reduce((sum, a) => sum + a.balance, 0), // Include negative balances (credits held)
+      totalOutstanding: accounts.reduce((sum, a) => sum + a.balance, 0),
       activeAccounts: accounts.filter(a => a.balance > 0).length,
       overdueAccounts: accounts.filter(a => a.isOverdue).length,
       dueSoonAccounts: accounts.filter(a => a.isDueSoon).length,
       totalAccounts: accounts.filter(a => a.totalLoans > 0).length
     }
 
-    return NextResponse.json({ accounts: filtered, stats, allAccounts: accounts.length })
+    // Apply filters
+    let filtered = accounts
+    
+    // If accountId is provided, return that account regardless of filter status
+    if (accountId) {
+      filtered = accounts.filter(a => a.id === accountId)
+    } else if (filter === 'active') {
+      filtered = accounts.filter(a => a.balance > 0)
+    } else if (filter === 'overdue') {
+      filtered = accounts.filter(a => a.isOverdue)
+    } else if (filter === 'settled') {
+      filtered = accounts.filter(a => a.balance <= 0 && a.totalLoans > 0)
+    }
+
+    return NextResponse.json({ 
+      accounts: filtered, 
+      stats,
+      pagination: {
+        page,
+        limit,
+        total: totalCount || 0,
+        pages: Math.ceil((totalCount || 0) / limit)
+      }
+    })
   } catch (error) {
     console.error('LMS API Error:', error)
     return NextResponse.json({ error: error.message }, { status: 500 })

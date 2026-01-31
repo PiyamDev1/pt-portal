@@ -51,13 +51,17 @@ export function debounce<T extends (...args: any[]) => any>(
 export function useLmsData(filter: string) {
   const [loading, setLoading] = useState(true)
   const [data, setData] = useState<LMSData>({ accounts: [], stats: {} })
+  const [page, setPage] = useState(1)
+  const [pageInfo, setPageInfo] = useState<{ total: number; pages: number }>({ total: 0, pages: 0 })
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (pageNum = 1) => {
     setLoading(true)
     try {
-      const res = await fetch(`${API_ENDPOINTS.LMS}?filter=${filter}`)
+      const res = await fetch(`${API_ENDPOINTS.LMS}?filter=${filter}&page=${pageNum}&limit=50`)
       const d = await res.json()
       setData(d)
+      setPageInfo(d.pagination || { total: 0, pages: 0 })
+      setPage(pageNum)
     } catch (err) {
       console.error(err)
       toast.error('Failed to load accounts')
@@ -67,10 +71,10 @@ export function useLmsData(filter: string) {
   }, [filter])
 
   useEffect(() => {
-    refresh()
+    refresh(1)
   }, [filter, refresh])
 
-  return { loading, data, refresh }
+  return { loading, data, refresh, page, pageInfo }
 }
 
 /**
