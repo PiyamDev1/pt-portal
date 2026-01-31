@@ -1,6 +1,7 @@
 'use client'
 
 import { MoreHorizontal, User } from 'lucide-react'
+import { toast } from 'sonner'
 import { getPassportRecord } from './utils'
 
 export default function RowItem({ item, onOpenEdit, onUpdateRecord, onViewHistory, onOpenArrival }: any) {
@@ -32,7 +33,7 @@ export default function RowItem({ item, onOpenEdit, onUpdateRecord, onViewHistor
   const confirmCollected = () => {
     if (pp.status === 'Collected') return
     if (!pp.new_passport_number) {
-      window.alert('Enter new passport number before marking collected.')
+      toast.error('Enter new passport number before marking collected')
       return
     }
     const ok = window.confirm('Mark as collected? This cannot be undone.')

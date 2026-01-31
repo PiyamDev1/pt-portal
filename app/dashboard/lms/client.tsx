@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { Search, Plus, Users, Banknote, AlertTriangle, Clock } from 'lucide-react'
+import { Search, Plus, Users, Banknote, AlertTriangle, Clock, Filter, StickyNote } from 'lucide-react'
 import { toast } from 'sonner'
 
 // Imports from extracted components
@@ -12,6 +12,8 @@ import { NewCustomerModal } from './components/NewCustomerModal'
 import { TransactionModal } from './components/TransactionModal'
 import { StatementPopup } from './components/StatementPopup'
 import { EditCustomerModal } from './components/EditCustomerModal'
+import { AdvancedSearchModal, SearchFilters } from './components/AdvancedSearchModal'
+import { AccountNotesModal } from './components/AccountNotesModal'
 import { ErrorBoundary } from './ErrorBoundary'
 import { TableHeaderSkeleton, StatCardSkeleton } from './components/Skeletons'
 
@@ -36,6 +38,7 @@ export default function LMSClient({ currentUserId }: LMSClientProps) {
   const [searchTerm, setSearchTerm] = useState('')
   const debouncedSearchTerm = useDebounce(searchTerm, 300)
   const [filter, setFilter] = useState('active')
+  const [searchFilters, setSearchFilters] = useState<SearchFilters>({})
 
   // Modal states
   const [showNewCustomer, setShowNewCustomer] = useState(false)
@@ -43,6 +46,8 @@ export default function LMSClient({ currentUserId }: LMSClientProps) {
   const [showStatementPopup, setShowStatementPopup] = useState<Account | null>(null)
   const [showEditCustomer, setShowEditCustomer] = useState<Account | null>(null)
   const [reopenStatementFor, setReopenStatementFor] = useState<Account | null>(null)
+  const [showAdvancedSearch, setShowAdvancedSearch] = useState(false)
+  const [showAccountNotes, setShowAccountNotes] = useState<Account | null>(null)
 
   // Fetch data
   const fetchData = useCallback(async () => {
@@ -79,14 +84,52 @@ export default function LMSClient({ currentUserId }: LMSClientProps) {
 
   // Memoized filtered accounts
   const filtered = useMemo(() => {
-    return (
-      data.accounts?.filter((a: Account) => 
+    let results = data.accounts || []
+    
+    // Apply text search
+    if (debouncedSearchTerm) {
+      results = results.filter((a: Account) => 
         a.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
         a.phone?.includes(debouncedSearchTerm) ||
         a.email?.toLowerCase().includes(debouncedSearchTerm.toLowerCase())
-      ) || []
-    )
-  }, [data.accounts, debouncedSearchTerm])
+      )
+    }
+    
+    // Apply advanced filters
+    if (searchFilters.dateFrom) {
+      const from = new Date(searchFilters.dateFrom.split('/').reverse().join('-'))
+      results = results.filter((a: Account) => {
+        const dueDate = new Date(a.nextDue || '')
+        return dueDate >= from
+      })
+    }
+    
+    if (searchFilters.dateTo) {
+      const to = new Date(searchFilters.dateTo.split('/').reverse().join('-'))
+      results = results.filter((a: Account) => {
+        const dueDate = new Date(a.nextDue || '')
+        return dueDate <= to
+      })
+    }
+    
+    if (searchFilters.minAmount !== undefined) {
+      results = results.filter((a: Account) => a.balance >= searchFilters.minAmount!)
+    }
+    
+    if (searchFilters.maxAmount !== undefined) {
+      results = results.filter((a: Account) => a.balance <= searchFilters.maxAmount!)
+    }
+    
+    if (searchFilters.hasOverdue) {
+      results = results.filter((a: Account) => a.isOverdue)
+    }
+    
+    if (searchFilters.hasDueSoon) {
+      results = results.filter((a: Account) => a.isDueSoon && !a.isOverdue)
+    }
+    
+    return results
+  }, [data.accounts, debouncedSearchTerm, searchFilters])
 
   // Status badge with memoization
   const getStatusBadge = useCallback((account: Account) => {
@@ -187,14 +230,30 @@ export default function LMSClient({ currentUserId }: LMSClientProps) {
             ))}
           </div>
 
-          <div className="relative flex-1 md:flex-none md:w-80">
-            <Search className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
-            <input
-              placeholder="Search by name, phone, or email..."
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:border-slate-400"
-            />
+          <div className="flex gap-2 flex-1 md:flex-none md:w-96">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
+              <input
+                placeholder="Search by name, phone, or email..."
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:border-slate-400"
+              />
+            </div>
+            <button
+              onClick={() => setShowAdvancedSearch(true)}
+              className={`px-3 py-2 rounded-lg transition-all flex items-center gap-2 ${
+                Object.keys(searchFilters).length > 0
+                  ? 'bg-blue-600 text-white hover:bg-blue-700'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+              title="Advanced Search"
+            >
+              <Filter className="w-4 h-4" />
+              {Object.keys(searchFilters).length > 0 && (
+                <span className="text-xs font-bold">{Object.keys(searchFilters).length}</span>
+              )}
+            </button>
           </div>
         </div>
 
@@ -220,6 +279,7 @@ export default function LMSClient({ currentUserId }: LMSClientProps) {
                     }
                     onShowStatement={(acc) => setShowStatementPopup(acc)}
                     onEdit={() => setShowEditCustomer(account)}
+                    onShowNotes={(acc) => setShowAccountNotes(acc)}
                     getStatusBadge={getStatusBadge}
                   />
                 </ErrorBoundary>
@@ -290,6 +350,30 @@ export default function LMSClient({ currentUserId }: LMSClientProps) {
               onClose={() => setShowEditCustomer(null)}
               onSave={fetchData}
               employeeId={currentUserId}
+            />
+          </ErrorBoundary>
+        )}
+
+        {showAdvancedSearch && (
+          <ErrorBoundary>
+            <AdvancedSearchModal
+              onClose={() => setShowAdvancedSearch(false)}
+              onApplyFilters={(filters) => {
+                setSearchFilters(filters)
+                setShowAdvancedSearch(false)
+              }}
+              currentFilters={searchFilters}
+            />
+          </ErrorBoundary>
+        )}
+
+        {showAccountNotes && (
+          <ErrorBoundary>
+            <AccountNotesModal
+              accountId={showAccountNotes.id}
+              accountName={showAccountNotes.name}
+              employeeId={currentUserId}
+              onClose={() => setShowAccountNotes(null)}
             />
           </ErrorBoundary>
         )}

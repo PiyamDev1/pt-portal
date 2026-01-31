@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { Save, ChevronUp } from 'lucide-react'
+import { toast } from 'sonner'
 import { useVisaFiltering } from '@/app/hooks/useVisaFiltering'
 import { useVisaFormState } from '@/app/hooks/useVisaFormState'
 import { ApplicantSection } from './ApplicantSection'
@@ -49,7 +50,10 @@ export default function VisaForm({ isOpen, onClose, data, currentUserId, onSave,
   }
 
   const handleSubmit = async () => {
-    if (!formData.countryId) return alert('Select a Destination')
+    if (!formData.countryId) {
+      toast.error('Please select a destination')
+      return
+    }
     setIsSubmitting(true)
     await onSave({ ...formData, currentUserId })
     setIsSubmitting(false)

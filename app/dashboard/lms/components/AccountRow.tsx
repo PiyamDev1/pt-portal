@@ -1,6 +1,7 @@
 'use client'
 
 import React from 'react'
+import { StickyNote } from 'lucide-react'
 import { Account } from '../types'
 
 interface AccountRowProps {
@@ -8,6 +9,7 @@ interface AccountRowProps {
   onAddTransaction: (payload: Account & { transactionType?: string }) => void
   onShowStatement: (account: Account) => void
   onEdit: () => void
+  onShowNotes?: (account: Account) => void
   getStatusBadge: (account: Account) => JSX.Element
 }
 
@@ -20,6 +22,7 @@ export const AccountRow = React.memo(function AccountRow({
   onAddTransaction,
   onShowStatement,
   onEdit,
+  onShowNotes,
   getStatusBadge
 }: AccountRowProps) {
   return (
@@ -67,6 +70,15 @@ export const AccountRow = React.memo(function AccountRow({
             >
               Edit
             </button>
+            {onShowNotes && (
+              <button
+                onClick={() => onShowNotes(account)}
+                className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors border border-blue-200"
+                title="View Notes"
+              >
+                <StickyNote className="w-4 h-4" />
+              </button>
+            )}
           </div>
         </td>
       </tr>

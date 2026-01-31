@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 
 export default function MyAccountPage() {
   const [user, setUser] = useState<any>(null)
@@ -28,7 +29,10 @@ export default function MyAccountPage() {
   // --- ACTION: CHANGE PASSWORD ---
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (newPass !== confirmPass) return alert("New passwords do not match")
+    if (newPass !== confirmPass) {
+      toast.error("New passwords do not match")
+      return
+    }
     // Client-side strong validation to match server rules
     const errs: string[] = []
     if (newPass.length < 8) errs.push('at least 8 characters')
@@ -36,7 +40,10 @@ export default function MyAccountPage() {
     if (!/[A-Z]/.test(newPass)) errs.push('an uppercase letter')
     if (!/[0-9]/.test(newPass)) errs.push('a number')
     if (!/[!@#$%^&*(),.?":{}|<>\-_=+\\/\[\];']/.test(newPass)) errs.push('a special character')
-    if (errs.length) return alert('Password must contain: ' + errs.join(', '))
+    if (errs.length) {
+      toast.error('Password must contain: ' + errs.join(', '))
+      return
+    }
     
     setLoading(true)
 
@@ -48,7 +55,8 @@ export default function MyAccountPage() {
 
     if (signInError) {
       setLoading(false)
-      return alert("Incorrect current password.")
+      toast.error("Incorrect current password")
+      return
     }
 
     // 2. Update to New Password
@@ -57,9 +65,9 @@ export default function MyAccountPage() {
     })
 
     if (updateError) {
-      alert("Failed to update password: " + updateError.message)
+      toast.error("Failed to update password: " + updateError.message)
     } else {
-      alert("Password updated successfully!")
+      toast.success("Password updated successfully!")
       setCurrentPass('')
       setNewPass('')
       setConfirmPass('')
@@ -69,7 +77,8 @@ export default function MyAccountPage() {
 
   // --- ACTION: RESET 2FA ---
   const handleReset2FA = async () => {
-    if (!confirm("Are you sure? This will disable your current Authenticator codes and require you to setup 2FA again.")) return;
+    const confirmed = window.confirm("Are you sure? This will disable your current Authenticator codes and require you to setup 2FA again.")
+    if (!confirmed) return
     
     setLoading(true)
     
@@ -80,11 +89,11 @@ export default function MyAccountPage() {
     })
 
     if (res.ok) {
-      alert("2FA has been reset. Redirecting you to setup...");
-      router.push('/login/setup-2fa')
+      toast.success("2FA has been reset. Redirecting you to setup...")
+      setTimeout(() => router.push('/login/setup-2fa'), 1500)
     } else {
       const data = await res.json()
-      alert("Failed to reset 2FA: " + (data?.error || 'Unknown'))
+      toast.error("Failed to reset 2FA: " + (data?.error || 'Unknown'))
     }
     setLoading(false)
   }
@@ -106,7 +115,9 @@ export default function MyAccountPage() {
   }, [user])
   
   const handleGenerateBackupCodes = async () => {
-    if (!confirm('Generate new backup codes? Previous codes will be invalidated.')) return
+    const confirmed = window.confirm('Generate new backup codes? Previous codes will be invalidated.')
+    if (!confirmed) return
+    
     setLoading(true)
     const res = await fetch('/api/auth/generate-backup-codes', {
       method: 'POST',
@@ -117,8 +128,9 @@ export default function MyAccountPage() {
     if (res.ok) {
       setShowCodes(data.codes || [])
       setBackupCodeCount(10)
+      toast.success('Backup codes generated successfully')
     } else {
-      alert('Failed to generate backup codes: ' + (data?.error || 'Unknown'))
+      toast.error('Failed to generate backup codes: ' + (data?.error || 'Unknown'))
     }
     setLoading(false)
   }
@@ -142,9 +154,9 @@ export default function MyAccountPage() {
     const text = showCodes.join('\n')
     try {
       await navigator.clipboard.writeText(text)
-      alert('Backup codes copied to clipboard!')
+      toast.success('Backup codes copied to clipboard!')
     } catch (err) {
-      alert('Failed to copy codes')
+      toast.error('Failed to copy codes')
     }
   }
 
