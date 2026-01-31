@@ -147,6 +147,12 @@ export default function MyAccountPage() {
     a.href = url
     a.download = 'backup-codes.txt'
     a.click()
+    
+    // Mark as downloaded
+    if (user?.id) {
+      localStorage.setItem(`backup-codes-downloaded-${user.id}`, 'true')
+      toast.success('Backup codes downloaded successfully')
+    }
   }
 
   const handleCopyBackupCodes = async () => {

@@ -2,6 +2,8 @@ import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { ensureInstallmentsTableExists } from '@/lib/installmentsDb'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(request: Request) {
   try {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL

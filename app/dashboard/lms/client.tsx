@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { Search, Plus, Users, Banknote, AlertTriangle, Clock, Filter, StickyNote } from 'lucide-react'
+import { Search, Plus, Users, Banknote, AlertTriangle, Clock, Filter, StickyNote, History } from 'lucide-react'
 import { toast } from 'sonner'
 
 // Imports from extracted components
@@ -14,6 +14,8 @@ import { StatementPopup } from './components/StatementPopup'
 import { EditCustomerModal } from './components/EditCustomerModal'
 import { AdvancedSearchModal, SearchFilters } from './components/AdvancedSearchModal'
 import { AccountNotesModal } from './components/AccountNotesModal'
+import { AuditLogsModal } from './components/AuditLogsModal'
+import { BackupCodesReminder } from './components/BackupCodesReminder'
 import { ErrorBoundary } from './ErrorBoundary'
 import { TableHeaderSkeleton, StatCardSkeleton } from './components/Skeletons'
 
@@ -48,6 +50,7 @@ export default function LMSClient({ currentUserId }: LMSClientProps) {
   const [reopenStatementFor, setReopenStatementFor] = useState<Account | null>(null)
   const [showAdvancedSearch, setShowAdvancedSearch] = useState(false)
   const [showAccountNotes, setShowAccountNotes] = useState<Account | null>(null)
+  const [showAuditLogs, setShowAuditLogs] = useState<Account | null>(null)
 
   // Fetch data
   const fetchData = useCallback(async () => {
@@ -187,6 +190,9 @@ export default function LMSClient({ currentUserId }: LMSClientProps) {
   return (
     <ErrorBoundary>
       <div className="space-y-4">
+        {/* Backup Codes Reminder */}
+        <BackupCodesReminder userId={currentUserId} />
+
         {/* Stats Bar */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           <StatCard
@@ -280,6 +286,7 @@ export default function LMSClient({ currentUserId }: LMSClientProps) {
                     onShowStatement={(acc) => setShowStatementPopup(acc)}
                     onEdit={() => setShowEditCustomer(account)}
                     onShowNotes={(acc) => setShowAccountNotes(acc)}
+                    onShowAuditLogs={(acc) => setShowAuditLogs(acc)}
                     getStatusBadge={getStatusBadge}
                   />
                 </ErrorBoundary>
@@ -374,6 +381,16 @@ export default function LMSClient({ currentUserId }: LMSClientProps) {
               accountName={showAccountNotes.name}
               employeeId={currentUserId}
               onClose={() => setShowAccountNotes(null)}
+            />
+          </ErrorBoundary>
+        )}
+
+        {showAuditLogs && (
+          <ErrorBoundary>
+            <AuditLogsModal
+              accountId={showAuditLogs.id}
+              accountName={showAuditLogs.name}
+              onClose={() => setShowAuditLogs(null)}
             />
           </ErrorBoundary>
         )}
