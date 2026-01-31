@@ -72,7 +72,7 @@ export function useLmsData(filter: string) {
 
   useEffect(() => {
     refresh(1)
-  }, [filter, refresh])
+  }, [filter]) // Remove 'refresh' from dependencies to prevent infinite loop
 
   return { loading, data, refresh, page, pageInfo }
 }
