@@ -1,7 +1,7 @@
 /* eslint-disable import/prefer-default-export */
 'use client'
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { toast } from 'sonner'
 import type { Account, LMSData, PaymentMethod } from './types'
 import { API_ENDPOINTS } from './constants'
@@ -53,6 +53,7 @@ export function useLmsData(filter: string) {
   const [data, setData] = useState<LMSData>({ accounts: [], stats: {} })
   const [page, setPage] = useState(1)
   const [pageInfo, setPageInfo] = useState<{ total: number; pages: number }>({ total: 0, pages: 0 })
+  const previousFilterRef = useRef<string>('')
 
   const refresh = useCallback(async (pageNum = 1) => {
     setLoading(true)
@@ -70,11 +71,13 @@ export function useLmsData(filter: string) {
     }
   }, [filter])
 
-  // Separate effect for initial load
+  // Only fetch when filter actually changes
   useEffect(() => {
-    refresh(1)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filter])
+    if (previousFilterRef.current !== filter) {
+      previousFilterRef.current = filter
+      refresh(1)
+    }
+  }, [filter, refresh])
 
   return { loading, data, refresh, page, pageInfo }
 }

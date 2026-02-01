@@ -56,16 +56,22 @@ export default function LMSClient({ currentUserId }: LMSClientProps) {
     setLoading(dataLoading)
   }, [dataLoading])
 
-  // Keep statement modal in sync with latest data - only check if the specific account changed
+  // Keep statement modal in sync with latest data only when explicitly open
   useEffect(() => {
-    if (showStatementPopup && data.accounts) {
-      const updated = data.accounts.find((a: Account) => a.id === showStatementPopup.id)
-      // Only update if found and has new data
-      if (updated && updated.balance !== showStatementPopup.balance) {
-        setShowStatementPopup(updated)
-      }
+    if (!showStatementPopup || !data.accounts || data.accounts.length === 0) {
+      return
     }
-  }, [data.accounts, showStatementPopup])
+
+    const updated = data.accounts.find((a: Account) => a.id === showStatementPopup.id)
+    if (!updated) {
+      return // Account no longer in list, modal will be handled by user closing it
+    }
+
+    // Only update if balance or key fields changed
+    if (updated.balance !== showStatementPopup.balance) {
+      setShowStatementPopup(updated)
+    }
+  }, [showStatementPopup?.id, data.accounts]) // Only depend on the ID and accounts list
 
   const { filtered } = useLmsFilters(data.accounts, debouncedSearchTerm, searchFilters)
 
