@@ -56,15 +56,17 @@ export function useLmsData(filter: string) {
   const previousFilterRef = useRef<string>('')
 
   const refresh = useCallback(async (pageNum = 1) => {
+    console.log('[useLmsData] Fetching data for filter:', filter, 'page:', pageNum)
     setLoading(true)
     try {
       const res = await fetch(`${API_ENDPOINTS.LMS}?filter=${filter}&page=${pageNum}&limit=50`)
       const d = await res.json()
+      console.log('[useLmsData] Data fetched successfully:', d.accounts?.length, 'accounts')
       setData(d)
       setPageInfo(d.pagination || { total: 0, pages: 0 })
       setPage(pageNum)
     } catch (err) {
-      console.error(err)
+      console.error('[useLmsData] Fetch error:', err)
       toast.error('Failed to load accounts')
     } finally {
       setLoading(false)
@@ -73,7 +75,9 @@ export function useLmsData(filter: string) {
 
   // Only fetch when filter actually changes
   useEffect(() => {
+    console.log('[useLmsData effect] Current filter:', filter, 'Previous filter:', previousFilterRef.current)
     if (previousFilterRef.current !== filter) {
+      console.log('[useLmsData effect] Filter changed, triggering refresh')
       previousFilterRef.current = filter
       refresh(1)
     }

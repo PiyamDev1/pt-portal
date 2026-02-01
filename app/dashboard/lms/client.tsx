@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Search, Plus, Users, Banknote, AlertTriangle, Clock, Filter, StickyNote, History } from 'lucide-react'
 
 // Imports from extracted components
@@ -40,7 +40,12 @@ export default function LMSClient({ currentUserId }: LMSClientProps) {
   const [filter, setFilter] = useState('active')
   const [searchFilters, setSearchFilters] = useState<SearchFilters>({})
 
-  const { loading: dataLoading, data, refresh, page, pageInfo } = useLmsData(filter)
+  // Memoize filter to ensure stable reference
+  const memoizedFilter = useMemo(() => filter, [filter])
+  
+  console.log('[LMSClient] Rendering with filter:', memoizedFilter)
+
+  const { loading: dataLoading, data, refresh, page, pageInfo } = useLmsData(memoizedFilter)
 
   // Modal states
   const [showNewCustomer, setShowNewCustomer] = useState(false)
