@@ -2,17 +2,9 @@
 const nextConfig = {
   reactStrictMode: true,
   
-  // Performance optimizations
-  swcMinify: true,
-  
   compiler: {
     // Remove console logs in production
     removeConsole: process.env.NODE_ENV === 'production' ? { exclude: ['error', 'warn'] } : false,
-  },
-  
-  // Ignore ESLint during build (run `npm run lint` separately)
-  eslint: {
-    ignoreDuringBuilds: true,
   },
   
   // Reduce bundle size

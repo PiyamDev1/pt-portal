@@ -9,7 +9,7 @@ type Bucket = { tokens: number; updatedAt: number }
 const buckets = new Map<string, Bucket>()
 
 function keyFromRequest(req: NextRequest) {
-  const ip = req.ip || req.headers.get('x-forwarded-for') || 'unknown'
+  const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown'
   const ua = req.headers.get('user-agent') || 'ua'
   return `${ip}:${ua}`
 }
