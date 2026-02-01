@@ -1,8 +1,12 @@
 # 📖 Documentation Index
 
+> **PT-Portal by Rathobixz Inc.**
+
 ## Complete PT-Portal Documentation Guide
 
 This file helps you find the right documentation for your needs.
+
+**Note**: All documentation has been organized into the `docs/` directory for better navigation.
 
 ---
 
@@ -11,33 +15,33 @@ This file helps you find the right documentation for your needs.
 ### 👤 I'm a User
 **Goal**: Learn how to use PT-Portal
 
-1. Start here: [GETTING_STARTED.md#-im-a-user---i-want-to-use-the-application](GETTING_STARTED.md#-im-a-user---i-want-to-use-the-application)
-2. Main guide: [USAGE_GUIDE.md](USAGE_GUIDE.md)
-3. Need help? [USAGE_GUIDE.md#-frequently-asked-questions](USAGE_GUIDE.md#-frequently-asked-questions)
+1. Start here: [docs/guides/GETTING_STARTED.md#-im-a-user---i-want-to-use-the-application](docs/guides/GETTING_STARTED.md#-im-a-user---i-want-to-use-the-application)
+2. Main guide: [docs/guides/USAGE_GUIDE.md](docs/guides/USAGE_GUIDE.md)
+3. Need help? [docs/guides/USAGE_GUIDE.md#-frequently-asked-questions](docs/guides/USAGE_GUIDE.md#-frequently-asked-questions)
 
 ### 👨‍💻 I'm a Developer
 **Goal**: Set up and develop locally
 
-1. Start here: [GETTING_STARTED.md#-im-a-developer---i-want-to-set-up-locally](GETTING_STARTED.md#-im-a-developer---i-want-to-set-up-locally)
-2. Windows setup: [WINDOWS_SETUP_GUIDE.md](WINDOWS_SETUP_GUIDE.md)
-3. Understanding code: [ARCHITECTURE_GUIDE.md](ARCHITECTURE_GUIDE.md)
-4. Quick reference: [QUICK_REFERENCE.md](QUICK_REFERENCE.md)
+1. Start here: [docs/guides/GETTING_STARTED.md#-im-a-developer---i-want-to-set-up-locally](docs/guides/GETTING_STARTED.md#-im-a-developer---i-want-to-set-up-locally)
+2. Windows setup: [docs/guides/WINDOWS_SETUP_GUIDE.md](docs/guides/WINDOWS_SETUP_GUIDE.md)
+3. Understanding code: [docs/guides/ARCHITECTURE_GUIDE.md](docs/guides/ARCHITECTURE_GUIDE.md)
+4. Quick reference: [docs/guides/QUICK_REFERENCE.md](docs/guides/QUICK_REFERENCE.md)
 
 ### 🏢 I'm a Team Lead
 **Goal**: Set up team and manage project
 
-1. Start here: [GETTING_STARTED.md#-im-a-team-lead---i-want-to-set-up-for-my-team](GETTING_STARTED.md#-im-a-team-lead---i-want-to-set-up-for-my-team)
+1. Start here: [docs/guides/GETTING_STARTED.md#-im-a-team-lead---i-want-to-set-up-for-my-team](docs/guides/GETTING_STARTED.md#-im-a-team-lead---i-want-to-set-up-for-my-team)
 2. Project overview: [README.md](README.md)
-3. Architecture: [ARCHITECTURE_GUIDE.md](ARCHITECTURE_GUIDE.md)
-4. Development setup: [WINDOWS_SETUP_GUIDE.md](WINDOWS_SETUP_GUIDE.md)
+3. Architecture: [docs/guides/ARCHITECTURE_GUIDE.md](docs/guides/ARCHITECTURE_GUIDE.md)
+4. Development setup: [docs/guides/WINDOWS_SETUP_GUIDE.md](docs/guides/WINDOWS_SETUP_GUIDE.md)
 
 ### 🤝 I Want to Contribute
 **Goal**: Submit code changes
 
-1. Start here: [GETTING_STARTED.md#-i-want-to-contribute---how-to-get-started](GETTING_STARTED.md#-i-want-to-contribute---how-to-get-started)
-2. Clone & setup: [WINDOWS_SETUP_GUIDE.md](WINDOWS_SETUP_GUIDE.md)
-3. Understand code: [ARCHITECTURE_GUIDE.md](ARCHITECTURE_GUIDE.md)
-4. Submit PR: [GETTING_STARTED.md#5-commit--push](GETTING_STARTED.md#5-commit--push)
+1. Start here: [docs/guides/GETTING_STARTED.md#-i-want-to-contribute---how-to-get-started](docs/guides/GETTING_STARTED.md#-i-want-to-contribute---how-to-get-started)
+2. Clone & setup: [docs/guides/WINDOWS_SETUP_GUIDE.md](docs/guides/WINDOWS_SETUP_GUIDE.md)
+3. Understand code: [docs/guides/ARCHITECTURE_GUIDE.md](docs/guides/ARCHITECTURE_GUIDE.md)
+4. Submit PR: [docs/guides/GETTING_STARTED.md#5-commit--push](docs/guides/GETTING_STARTED.md#5-commit--push)
 
 ---
 

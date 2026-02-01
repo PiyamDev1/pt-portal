@@ -1,22 +1,25 @@
 # 🌐 PT-Portal
 
+> **Developed by Rathobixz Inc.**
+
 A comprehensive web application for managing travel services, passport applications, visa processing, and loan management. Built with Next.js, React, and Supabase.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue)](https://www.typescriptlang.org/)
 [![Next.js](https://img.shields.io/badge/Next.js-14.2-black)](https://nextjs.org/)
 [![React](https://img.shields.io/badge/React-18.x-61DAFB?logo=react)](https://react.dev)
+[![Made by Rathobixz](https://img.shields.io/badge/Made%20by-Rathobixz%20Inc.-blue)](https://rathobixz.com)
 
 ---
 
 ## 📖 Quick Start
 
 ### For Users
-- **New to PT-Portal?** Start with [USAGE_GUIDE.md](USAGE_GUIDE.md) to learn how to use all features
+- **New to PT-Portal?** Start with [docs/guides/USAGE_GUIDE.md](docs/guides/USAGE_GUIDE.md) to learn how to use all features
 
 ### For Developers
-- **Setting up on Windows?** Follow [WINDOWS_SETUP_GUIDE.md](WINDOWS_SETUP_GUIDE.md)
-- **Want to understand the code?** Read [ARCHITECTURE_GUIDE.md](ARCHITECTURE_GUIDE.md)
+- **Setting up on Windows?** Follow [docs/guides/WINDOWS_SETUP_GUIDE.md](docs/guides/WINDOWS_SETUP_GUIDE.md)
+- **Want to understand the code?** Read [docs/guides/ARCHITECTURE_GUIDE.md](docs/guides/ARCHITECTURE_GUIDE.md)
 - **Running locally?** See [Local Development](#local-development) below
 
 ---
@@ -118,8 +121,10 @@ npm run type-check   # Check TypeScript types
 
 ## 📚 Documentation
 
+All documentation is organized in the `docs/` directory:
+
 ### User Documentation
-- **[USAGE_GUIDE.md](USAGE_GUIDE.md)** - Complete guide to using all features
+- **[docs/guides/USAGE_GUIDE.md](docs/guides/USAGE_GUIDE.md)** - Complete guide to using all features
   - Dashboard navigation
   - Application management
   - Payment processing
@@ -127,13 +132,13 @@ npm run type-check   # Check TypeScript types
   - Best practices and tips
 
 ### Developer Documentation
-- **[WINDOWS_SETUP_GUIDE.md](WINDOWS_SETUP_GUIDE.md)** - Windows setup with VS Code
+- **[docs/guides/WINDOWS_SETUP_GUIDE.md](docs/guides/WINDOWS_SETUP_GUIDE.md)** - Windows setup with VS Code
   - Step-by-step installation
   - Environment setup
   - Common issues and solutions
   - Debugging guide
 
-- **[ARCHITECTURE_GUIDE.md](ARCHITECTURE_GUIDE.md)** - Technical deep dive
+- **[docs/guides/ARCHITECTURE_GUIDE.md](docs/guides/ARCHITECTURE_GUIDE.md)** - Technical deep dive
   - System architecture
   - Component structure
   - Data flow patterns
@@ -142,18 +147,33 @@ npm run type-check   # Check TypeScript types
   - Database schema
   - Performance optimization
 
-### Performance & Optimization
-- **[REFRESH_LOOP_FIX_SUMMARY.md](REFRESH_LOOP_FIX_SUMMARY.md)** - Performance improvements
+- **[docs/guides/QUICK_REFERENCE.md](docs/guides/QUICK_REFERENCE.md)** - Command cheat sheet
+  - Common commands
+  - Code snippets
+  - Quick troubleshooting
+
+- **[docs/guides/GETTING_STARTED.md](docs/guides/GETTING_STARTED.md)** - Onboarding checklists
+  - Role-based guides
+  - Setup verification
+  - Learning paths
+
+### Technical Documentation
+- **[docs/technical/PAYMENT_SERVICE_OPTIMIZATION.md](docs/technical/PAYMENT_SERVICE_OPTIMIZATION.md)** - LMS optimizations
+  - Backend pagination
+  - Query optimization
+  - O(1) lookup implementation
+  - Memory usage reduction
+
+- **[docs/technical/REFRESH_LOOP_FIX_SUMMARY.md](docs/technical/REFRESH_LOOP_FIX_SUMMARY.md)** - Performance improvements
   - Infinite refresh loop diagnosis
   - React.memo optimization
   - Hook memoization patterns
   - Effect dependency optimization
 
-- **[PAYMENT_SERVICE_OPTIMIZATION.md](PAYMENT_SERVICE_OPTIMIZATION.md)** - LMS optimizations
-  - Backend pagination
-  - Query optimization
-  - O(1) lookup implementation
-  - Memory usage reduction
+- **[docs/technical/](docs/technical/)** - Additional technical docs
+  - Build performance
+  - Code quality reports
+  - Bundle analysis
 
 ---
 
@@ -259,9 +279,10 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## 👨‍💻 Author
 
-**PT-Portal Development Team**
+**Rathobixz Inc.**
+- Company: [Rathobixz Inc.](https://rathobixz.com)
 - GitHub: [@PiyamDev1](https://github.com/PiyamDev1)
-- Website: [PT-Portal](https://ptportal.com)
+- Project: PT-Portal - Travel & Document Management System
 
 ---
 
@@ -270,15 +291,16 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - **Live Demo**: [https://ptportal.vercel.app](https://ptportal.vercel.app)
 - **GitHub Repository**: [PiyamDev1/pt-portal](https://github.com/PiyamDev1/pt-portal)
 - **Issue Tracker**: [GitHub Issues](https://github.com/PiyamDev1/pt-portal/issues)
-- **Documentation**: [Full Docs](https://docs.ptportal.com)
+- **Documentation**: [docs/](docs/)
+- **Company**: [Rathobixz Inc.](https://rathobixz.com)
 
 ---
 
 ## 📞 Support
 
+- **Company**: Rathobixz Inc.
 - **Email**: support@ptportal.com
-- **Live Chat**: Available in app
-- **Documentation**: Check guides above
+- **Documentation**: Check [docs/guides/](docs/guides/)
 - **GitHub Issues**: Report bugs or request features
 
 ---
@@ -287,4 +309,6 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ---
 
-Made with ❤️ by PT-Portal Team
+**© 2026 Rathobixz Inc. All rights reserved.**
+
+Made with ❤️ by Rathobixz Inc.

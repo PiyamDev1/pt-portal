@@ -1,7 +1,13 @@
 {
   "name": "pt-portal",
-  "version": "1.0.0",
-  "description": "Piyam Travels Portal - Employee IMS",
+  "version": "2.0.0",
+  "description": "PT-Portal - Travel & Document Management System by Rathobixz Inc.",
+  "author": "Rathobixz Inc.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/PiyamDev1/pt-portal"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
