@@ -47,6 +47,10 @@ export function debounce<T extends (...args: any[]) => any>(
 
 /**
  * LMS Data Hook - Fetches LMS data and tracks loading state
+ * 
+ * IMPORTANT: This hook uses a ref-based approach to prevent infinite refresh loops.
+ * The filter prop is tracked in a useRef and only triggers a fetch when it actually changes.
+ * This prevents the cascade of re-renders that occurred with dependency arrays.
  */
 export function useLmsData(filter: string) {
   const [loading, setLoading] = useState(true)
@@ -56,28 +60,24 @@ export function useLmsData(filter: string) {
   const previousFilterRef = useRef<string>('')
 
   const refresh = useCallback(async (pageNum = 1) => {
-    console.log('[useLmsData] Fetching data for filter:', filter, 'page:', pageNum)
     setLoading(true)
     try {
       const res = await fetch(`${API_ENDPOINTS.LMS}?filter=${filter}&page=${pageNum}&limit=50`)
       const d = await res.json()
-      console.log('[useLmsData] Data fetched successfully:', d.accounts?.length, 'accounts')
       setData(d)
       setPageInfo(d.pagination || { total: 0, pages: 0 })
       setPage(pageNum)
     } catch (err) {
-      console.error('[useLmsData] Fetch error:', err)
+      console.error(err)
       toast.error('Failed to load accounts')
     } finally {
       setLoading(false)
     }
   }, [filter])
 
-  // Only fetch when filter actually changes
+  // Only fetch when filter actually changes (not on every render)
   useEffect(() => {
-    console.log('[useLmsData effect] Current filter:', filter, 'Previous filter:', previousFilterRef.current)
     if (previousFilterRef.current !== filter) {
-      console.log('[useLmsData effect] Filter changed, triggering refresh')
       previousFilterRef.current = filter
       refresh(1)
     }

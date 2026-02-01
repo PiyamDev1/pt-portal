@@ -32,6 +32,10 @@ interface LMSClientProps {
 /**
  * LMS Client - Main loan management system component
  * Handles account management, transactions, and statements
+ * 
+ * IMPORTANT: This component is wrapped in React.memo to prevent re-renders from parent changes.
+ * The filter state is memoized to ensure stable references across renders.
+ * Combined with the ref-based approach in useLmsData, this prevents infinite refresh loops.
  */
 function LMSClientInner({ currentUserId }: LMSClientProps) {
   const [loading, setLoading] = useState(true)
@@ -42,8 +46,6 @@ function LMSClientInner({ currentUserId }: LMSClientProps) {
 
   // Memoize filter to ensure stable reference
   const memoizedFilter = useMemo(() => filter, [filter])
-  
-  console.log('[LMSClient] Rendering with filter:', memoizedFilter)
 
   const { loading: dataLoading, data, refresh, page, pageInfo } = useLmsData(memoizedFilter)
 
