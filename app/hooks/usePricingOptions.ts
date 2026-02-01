@@ -3,7 +3,7 @@
  * Centralizes logic for adding, editing, deleting, and fetching pricing data
  */
 
-import { useState, useEffect } from 'react'
+import { useState, useCallback } from 'react'
 import { toast } from 'sonner'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { 
@@ -25,7 +25,7 @@ export const usePricingOptions = (supabase: SupabaseClient) => {
   const [editValues, setEditValues] = useState<PricingEditValues>({})
   const [setupRequired, setSetupRequired] = useState(false)
 
-  const fetchPricing = async () => {
+  const fetchPricing = useCallback(async () => {
     try {
       const { data: nadraPricingData, error: nadraErr } = await supabase
         .from('nadra_pricing')
@@ -69,9 +69,9 @@ export const usePricingOptions = (supabase: SupabaseClient) => {
       const apiError = handleApiError(error, 'usePricingOptions.fetchPricing')
       toast.error(formatErrorForDisplay(apiError))
     }
-  }
+  }, [supabase])
 
-  const handleEdit = (item: any) => {
+  const handleEdit = useCallback((item: any) => {
     setEditingId(item.id)
     setEditValues({
       cost_price: item.cost_price,
@@ -79,9 +79,9 @@ export const usePricingOptions = (supabase: SupabaseClient) => {
       is_active: item.is_active,
       notes: item.notes || ''
     })
-  }
+  }, [])
 
-  const handleSave = async (activeTab: ActiveTab) => {
+  const handleSave = useCallback(async (activeTab: ActiveTab) => {
     if (!editingId) return
 
     try {
@@ -109,9 +109,9 @@ export const usePricingOptions = (supabase: SupabaseClient) => {
       const apiError = handleApiError(error, 'usePricingOptions.handleSave')
       toast.error(formatErrorForDisplay(apiError))
     }
-  }
+  }, [editingId, editValues, supabase, fetchPricing])
 
-  const handleDelete = async (id: string, serviceTab: ActiveTab) => {
+  const handleDelete = useCallback(async (id: string, serviceTab: ActiveTab) => {
     if (!id) return
     
     if (!confirm('Delete this pricing entry?')) return
@@ -131,7 +131,7 @@ export const usePricingOptions = (supabase: SupabaseClient) => {
       const apiError = handleApiError(error, 'usePricingOptions.handleDelete')
       toast.error(formatErrorForDisplay(apiError))
     }
-  }
+  }, [supabase, fetchPricing])
 
   return {
     // Pricing data

@@ -50,7 +50,7 @@ function ServicePricingTabCore({ supabase, loading: initialLoading, setLoading }
       setLoading(false)
       setLoadingState(false)
     })
-  }, [fetchPricing, setLoading])
+  }, [])
 
   // Handler wrappers for database operations
   const handleAddNadraEntry = async (entry: { service_type: string; service_option: string; cost_price: number; sale_price: number }) => {
