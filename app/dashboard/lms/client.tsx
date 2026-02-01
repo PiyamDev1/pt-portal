@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, memo } from 'react'
 import { Search, Plus, Users, Banknote, AlertTriangle, Clock, Filter, StickyNote, History } from 'lucide-react'
 
 // Imports from extracted components
@@ -33,7 +33,7 @@ interface LMSClientProps {
  * LMS Client - Main loan management system component
  * Handles account management, transactions, and statements
  */
-export default function LMSClient({ currentUserId }: LMSClientProps) {
+function LMSClientInner({ currentUserId }: LMSClientProps) {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const debouncedSearchTerm = useDebounce(searchTerm, 300)
@@ -418,3 +418,6 @@ export default function LMSClient({ currentUserId }: LMSClientProps) {
     </ErrorBoundary>
   )
 }
+
+// Export memoized component to prevent unnecessary re-renders from parent
+export default memo(LMSClientInner)

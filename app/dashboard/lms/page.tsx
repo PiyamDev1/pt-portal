@@ -1,8 +1,7 @@
 import { createServerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
-import dynamic from 'next/dynamic'
 import PageHeader from '@/app/components/PageHeader.client'
-const LMSClient = dynamic(() => import('./client'), { ssr: false })
+import LMSClient from './client'
 import DashboardClientWrapper from '@/app/dashboard/client-wrapper'
 
 export default async function LMSPage() {
