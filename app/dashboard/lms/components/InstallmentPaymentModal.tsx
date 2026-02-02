@@ -37,10 +37,9 @@ function InstallmentPaymentModalCore({
   onClose,
   onSave,
 }: InstallmentPaymentModalProps) {
-  const todayISO = new Date().toISOString().split('T')[0]
   const [paymentAmount, setPaymentAmount] = useState(installment.amount.toFixed(2))
   const [paymentMethod, setPaymentMethod] = useState('')
-  const [paymentDate, setPaymentDate] = useState(formatToDisplayDate(todayISO))
+  const [paymentDate, setPaymentDate] = useState('')
   const [loading, setLoading] = useState(false)
   const { methods: paymentMethods } = usePaymentMethods()
   const [existingPayments, setExistingPayments] = useState<any[]>([])
@@ -57,6 +56,11 @@ function InstallmentPaymentModalCore({
   const minDate = ALLOW_UNLIMITED_PAST ? undefined : sevenDaysAgo.toISOString().split('T')[0]
   const maxDate = today.toISOString().split('T')[0]
 
+  // Initialize payment date to today when modal opens
+  useEffect(() => {
+    const todayISO = new Date().toISOString().split('T')[0]
+    setPaymentDate(formatToDisplayDate(todayISO))
+  }, [])
 
   useEffect(() => {
     if (paymentMethods.length > 0 && !paymentMethod) {

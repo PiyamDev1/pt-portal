@@ -75,6 +75,20 @@ export function TransactionModal({
   // Temporary: Allow unlimited past dates for re-entering deleted data
   const ALLOW_UNLIMITED_PAST = true // Set to false when done re-entering data
 
+  // Reset dates to today when modal opens
+  useEffect(() => {
+    const today = formatToDisplayDate(new Date().toISOString().split('T')[0])
+    const firstPaymentDefault = formatToDisplayDate(
+      new Date(Date.now() + DATE_OFFSETS.FIRST_PAYMENT_DAYS * 24 * 60 * 60 * 1000)
+        .toISOString()
+        .split('T')[0]
+    )
+    setForm(prev => ({
+      ...prev,
+      transactionDate: today,
+      firstPaymentDate: firstPaymentDefault
+    }))
+  }, []) // Empty dependency array means this runs once when component mounts
 
   // Clamp installment terms when frequency changes
   useEffect(() => {
