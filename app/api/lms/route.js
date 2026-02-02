@@ -280,9 +280,12 @@ export async function POST(request) {
     const supabase = createClient(url, key)
 
     const body = await request.json()
-    const { action, customerId, loanId, amount, paymentMethodId, notes, employeeId } = body
+    const { action, customerId, loanId, amount, paymentMethodId, notes, employeeId, transactionDate } = body
 
     if (action === 'record_payment') {
+      // Use provided transaction date or default to now
+      const txTimestamp = transactionDate ? new Date(transactionDate).toISOString() : new Date().toISOString()
+
       // Record payment transaction
       const { error } = await supabase
         .from('loan_transactions')
@@ -293,7 +296,7 @@ export async function POST(request) {
           amount: parseFloat(amount),
           payment_method_id: paymentMethodId,
           remark: notes,
-          transaction_timestamp: new Date().toISOString()
+          transaction_timestamp: txTimestamp
         })
 
       if (error) throw error
@@ -420,7 +423,10 @@ export async function POST(request) {
       return NextResponse.json({ success: true, loanId: newLoan.id })
 
     } else if (action === 'add_fee') {
-      const { loanId, amount, notes, customerId } = body
+      const { loanId, amount, notes, customerId, transactionDate } = body
+
+      // Use provided transaction date or default to now
+      const txTimestamp = transactionDate ? new Date(transactionDate).toISOString() : new Date().toISOString()
 
       const feeAmount = parseFloat(amount)
       if (Number.isNaN(feeAmount) || feeAmount <= 0) {
@@ -476,7 +482,7 @@ export async function POST(request) {
           transaction_type: 'fee',
           amount: feeAmount,
           remark: notes || 'Additional fee',
-          transaction_timestamp: new Date().toISOString()
+          transaction_timestamp: txTimestamp
         })
 
       // Update loan balance
