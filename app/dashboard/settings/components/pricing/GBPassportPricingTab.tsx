@@ -5,10 +5,12 @@ import { toast } from 'sonner'
 import { Trash2, Save, X, Plus } from 'lucide-react'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { GBPassportPricing, PricingEditValues } from '@/app/types/pricing'
-import { PRICING_OPTIONS } from '@/app/lib/pricingOptions'
 
 interface GBPassportPricingTabProps {
   pricing: GBPassportPricing[]
+  ageGroups: string[]
+  pages: string[]
+  serviceTypes: string[]
   editingId: string | null
   editValues: PricingEditValues
   setEditingId: (id: string | null) => void
@@ -22,6 +24,9 @@ interface GBPassportPricingTabProps {
 
 function GBPassportPricingTabCore({
   pricing,
+  ageGroups,
+  pages,
+  serviceTypes,
   editingId,
   editValues,
   setEditingId,
@@ -66,7 +71,7 @@ function GBPassportPricingTabCore({
                 className="w-full px-3 py-2 border rounded"
               >
                 <option value="">Select Age Group</option>
-                {PRICING_OPTIONS.GB_PASSPORT.ageGroups.map((group) => (
+                {ageGroups.map((group) => (
                   <option key={group} value={group}>{group}</option>
                 ))}
               </select>
@@ -81,7 +86,7 @@ function GBPassportPricingTabCore({
                 className="w-full px-3 py-2 border rounded"
               >
                 <option value="">Select Pages</option>
-                {PRICING_OPTIONS.GB_PASSPORT.pages.map((page) => (
+                {pages.map((page) => (
                   <option key={page} value={page}>{page}</option>
                 ))}
               </select>
@@ -96,7 +101,7 @@ function GBPassportPricingTabCore({
                 className="w-full px-3 py-2 border rounded"
               >
                 <option value="">Select Service Type</option>
-                {PRICING_OPTIONS.GB_PASSPORT.serviceTypes.map((type) => (
+                {serviceTypes.map((type) => (
                   <option key={type} value={type}>{type}</option>
                 ))}
               </select>

@@ -43,6 +43,13 @@ export default function PakPassportClient({ initialApplications, currentUserId }
     trackingNumber: '', oldPassportNumber: '', fingerprintsCompleted: false
   })
 
+  const [metadata, setMetadata] = useState({
+    categories: ['Adult 10 Year', 'Adult 5 Year', 'Child 5 Year'],
+    speeds: ['Normal', 'Executive'],
+    applicationTypes: ['First Time', 'Renewal', 'Modification', 'Lost'],
+    pageCounts: ['34 pages', '54 pages', '72 pages', '100 pages']
+  })
+
   // --- HANDLERS ---
   const handleInputChange = (e: any) => {
     let { name, value, type, checked } = e.target
@@ -215,6 +222,45 @@ export default function PakPassportClient({ initialApplications, currentUserId }
 
   useEffect(() => { setCurrentPage(1) }, [searchQuery, startDate, endDate])
 
+  useEffect(() => {
+    const loadMetadata = async () => {
+      try {
+        const res = await fetch('/api/passports/pak/metadata', { credentials: 'include' })
+        if (!res.ok) return
+        const data = await res.json()
+
+        if (data?.categories?.length) {
+          setMetadata(prev => ({ ...prev, categories: data.categories }))
+        }
+        if (data?.speeds?.length) {
+          setMetadata(prev => ({ ...prev, speeds: data.speeds }))
+        }
+        if (data?.applicationTypes?.length) {
+          setMetadata(prev => ({ ...prev, applicationTypes: data.applicationTypes }))
+        }
+        if (data?.pageCounts?.length) {
+          setMetadata(prev => ({ ...prev, pageCounts: data.pageCounts }))
+        }
+      } catch (error) {
+        console.error('[PakPassportClient] Failed to load metadata', error)
+      }
+    }
+
+    loadMetadata()
+  }, [])
+
+  useEffect(() => {
+    setFormData((prev) => ({
+      ...prev,
+      category: metadata.categories.includes(prev.category) ? prev.category : (metadata.categories[0] || prev.category),
+      speed: metadata.speeds.includes(prev.speed) ? prev.speed : (metadata.speeds[0] || prev.speed),
+      applicationType: metadata.applicationTypes.includes(prev.applicationType)
+        ? prev.applicationType
+        : (metadata.applicationTypes[0] || prev.applicationType),
+      pageCount: metadata.pageCounts.includes(prev.pageCount) ? prev.pageCount : (metadata.pageCounts[0] || prev.pageCount)
+    }))
+  }, [metadata])
+
   return (
     <div className="space-y-6">
       {/* HEADER & SEARCH */}
@@ -272,6 +318,7 @@ export default function PakPassportClient({ initialApplications, currentUserId }
           onSubmit={handleSubmit}
           errors={formErrors}
           onBlur={() => {}} 
+          metadata={metadata}
         />
       )}
 

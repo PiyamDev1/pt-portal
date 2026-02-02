@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, memo } from 'react'
+import { useEffect, useState, memo, useCallback } from 'react'
 import { AlertCircle } from 'lucide-react'
 import { 
   ActiveTab,
@@ -39,18 +39,64 @@ function ServicePricingTabCore({ supabase, loading: initialLoading, setLoading }
   const [pkCategories, setPKCategories] = useState(PRICING_OPTIONS.PK_PASSPORT.categories)
   const [pkSpeeds, setPKSpeeds] = useState(PRICING_OPTIONS.PK_PASSPORT.speeds)
   const [pkApplicationTypes, setPKApplicationTypes] = useState(PRICING_OPTIONS.PK_PASSPORT.applicationTypes)
+  const [pkPages, setPKPages] = useState<string[]>([])
   const [gbAgeGroups, setGBAgeGroups] = useState(PRICING_OPTIONS.GB_PASSPORT.ageGroups)
   const [gbPages, setGBPages] = useState(PRICING_OPTIONS.GB_PASSPORT.pages)
   const [gbServiceTypes, setGBServiceTypes] = useState(PRICING_OPTIONS.GB_PASSPORT.serviceTypes)
 
+  const fetchGbLookupOptions = useCallback(async () => {
+    const [agesRes, pagesRes, servicesRes] = await Promise.all([
+      supabase.from('gb_passport_ages').select('name').order('name'),
+      supabase.from('gb_passport_pages').select('option_label').order('option_label'),
+      supabase.from('gb_passport_services').select('name').order('name')
+    ])
+
+    if (!agesRes.error && agesRes.data?.length) {
+      setGBAgeGroups(agesRes.data.map((a: any) => a.name))
+    }
+
+    if (!pagesRes.error && pagesRes.data?.length) {
+      setGBPages(pagesRes.data.map((p: any) => p.option_label))
+    }
+
+    if (!servicesRes.error && servicesRes.data?.length) {
+      setGBServiceTypes(servicesRes.data.map((s: any) => s.name))
+    }
+  }, [supabase])
+
+  const fetchPkLookupOptions = useCallback(async () => {
+    const [categoriesRes, speedsRes, typesRes, pagesRes] = await Promise.all([
+      supabase.from('pk_passport_categories').select('name').order('name'),
+      supabase.from('pk_passport_speeds').select('name').order('name'),
+      supabase.from('pk_passport_application_types').select('name').order('name'),
+      supabase.from('pk_passport_pages').select('option_label').order('option_label')
+    ])
+
+    if (!categoriesRes.error && categoriesRes.data?.length) {
+      setPKCategories(categoriesRes.data.map((c: any) => c.name))
+    }
+
+    if (!speedsRes.error && speedsRes.data?.length) {
+      setPKSpeeds(speedsRes.data.map((s: any) => s.name))
+    }
+
+    if (!typesRes.error && typesRes.data?.length) {
+      setPKApplicationTypes(typesRes.data.map((t: any) => t.name))
+    }
+
+    if (!pagesRes.error && pagesRes.data?.length) {
+      setPKPages(pagesRes.data.map((p: any) => p.option_label))
+    }
+  }, [supabase])
+
   useEffect(() => {
     setLoading(true)
     setLoadingState(true)
-    fetchPricing().then(() => {
+    Promise.all([fetchPricing(), fetchGbLookupOptions(), fetchPkLookupOptions()]).finally(() => {
       setLoading(false)
       setLoadingState(false)
     })
-  }, [])
+  }, [fetchPricing, fetchGbLookupOptions, fetchPkLookupOptions, setLoading])
 
   // Handler wrappers for database operations
   const handleAddNadraEntry = async (entry: { service_type: string; service_option: string; cost_price: number; sale_price: number }) => {
@@ -65,11 +111,12 @@ function ServicePricingTabCore({ supabase, loading: initialLoading, setLoading }
     await fetchPricing()
   }
 
-  const handleAddPKEntry = async (entry: { category: string; speed: string; application_type: string; cost_price: number; sale_price: number }) => {
+  const handleAddPKEntry = async (entry: { category: string; speed: string; application_type: string; pages: string; cost_price: number; sale_price: number }) => {
     const { error } = await supabase.from('pk_passport_pricing').insert({
       category: entry.category.trim(),
       speed: entry.speed.trim(),
       application_type: entry.application_type.trim(),
+      pages: entry.pages.trim(),
       cost_price: Number(entry.cost_price) || 0,
       sale_price: Number(entry.sale_price) || 0,
       is_active: true
@@ -206,6 +253,10 @@ function ServicePricingTabCore({ supabase, loading: initialLoading, setLoading }
       {activeTab === 'passport' && (
         <PKPassportPricingTab
           pricing={pkPassPricing}
+          categories={pkCategories}
+          speeds={pkSpeeds}
+          applicationTypes={pkApplicationTypes}
+          pages={pkPages}
           editingId={editingId}
           editValues={editValues}
           setEditingId={setEditingId}
@@ -221,6 +272,9 @@ function ServicePricingTabCore({ supabase, loading: initialLoading, setLoading }
       {activeTab === 'gb' && (
         <GBPassportPricingTab
           pricing={gbPassPricing}
+          ageGroups={gbAgeGroups}
+          pages={gbPages}
+          serviceTypes={gbServiceTypes}
           editingId={editingId}
           editValues={editValues}
           setEditingId={setEditingId}

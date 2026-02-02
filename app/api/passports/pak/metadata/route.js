@@ -12,17 +12,19 @@ export async function GET() {
     )
 
     // Fetch all lookup tables and the pricing matrix
-    const [categories, speeds, applicationTypes, pricing] = await Promise.all([
-      supabase.from('pk_passport_categories').select('id, name').eq('is_active', true).order('name'),
-      supabase.from('pk_passport_speeds').select('id, name').eq('is_active', true).order('name'),
-      supabase.from('pk_passport_application_types').select('id, name').eq('is_active', true).order('name'),
+    const [categories, speeds, applicationTypes, pages, pricing] = await Promise.all([
+      supabase.from('pk_passport_categories').select('name').eq('is_active', true).order('name'),
+      supabase.from('pk_passport_speeds').select('name').eq('is_active', true).order('name'),
+      supabase.from('pk_passport_application_types').select('name').eq('is_active', true).order('name'),
+      supabase.from('pk_passport_pages').select('option_label').eq('is_active', true).order('option_label'),
       supabase.from('pk_passport_pricing').select(`
-        id, 
-        cost_price, 
-        sale_price,
-        pk_passport_categories(name),
-        pk_passport_speeds(name),
-        pk_passport_application_types(name)
+        id,
+        category,
+        speed,
+        application_type,
+        pages,
+        cost_price,
+        sale_price
       `).eq('is_active', true)
     ])
 
@@ -31,15 +33,17 @@ export async function GET() {
       id: p.id,
       cost: p.cost_price,
       price: p.sale_price,
-      category: p.pk_passport_categories?.name,
-      speed: p.pk_passport_speeds?.name,
-      applicationType: p.pk_passport_application_types?.name
+      category: p.category,
+      speed: p.speed,
+      applicationType: p.application_type,
+      pages: p.pages
     })) || []
 
     return NextResponse.json({
-      categories: categories.data || [],
-      speeds: speeds.data || [],
-      applicationTypes: applicationTypes.data || [],
+      categories: (categories.data || []).map(c => c.name),
+      speeds: (speeds.data || []).map(s => s.name),
+      applicationTypes: (applicationTypes.data || []).map(t => t.name),
+      pageCounts: (pages.data || []).map(p => p.option_label),
       pricing: flatPricing
     }, {
       headers: {

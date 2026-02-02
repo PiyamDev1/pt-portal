@@ -19,6 +19,7 @@ export interface PKPassportPricing {
   category: string
   speed: string
   application_type: string
+  pages: string
   cost_price: number
   sale_price: number
   is_active: boolean

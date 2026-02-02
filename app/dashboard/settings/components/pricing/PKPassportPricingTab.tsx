@@ -5,10 +5,13 @@ import { toast } from 'sonner'
 import { Trash2, Save, X, Plus } from 'lucide-react'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { PKPassportPricing, PricingEditValues } from '@/app/types/pricing'
-import { PRICING_OPTIONS } from '@/app/lib/pricingOptions'
 
 interface PKPassportPricingTabProps {
   pricing: PKPassportPricing[]
+  categories: string[]
+  speeds: string[]
+  applicationTypes: string[]
+  pages: string[]
   editingId: string | null
   editValues: PricingEditValues
   setEditingId: (id: string | null) => void
@@ -16,12 +19,16 @@ interface PKPassportPricingTabProps {
   onEdit: (item: PKPassportPricing) => void
   onSave: () => void
   onDelete: (id: string) => void
-  onAddEntry: (entry: { category: string; speed: string; application_type: string; cost_price: number; sale_price: number }) => Promise<void>
+  onAddEntry: (entry: { category: string; speed: string; application_type: string; pages: string; cost_price: number; sale_price: number }) => Promise<void>
   supabase: SupabaseClient
 }
 
 function PKPassportPricingTabCore({
   pricing,
+  categories,
+  speeds,
+  applicationTypes,
+  pages,
   editingId,
   editValues,
   setEditingId,
@@ -32,18 +39,18 @@ function PKPassportPricingTabCore({
   onAddEntry,
   supabase
 }: PKPassportPricingTabProps) {
-  const [newEntry, setNewEntry] = useState({ category: '', speed: '', application_type: '', cost_price: 0, sale_price: 0 })
+  const [newEntry, setNewEntry] = useState({ category: '', speed: '', application_type: '', pages: '', cost_price: 0, sale_price: 0 })
 
   const handleAddEntry = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!newEntry.category.trim() || !newEntry.speed.trim() || !newEntry.application_type.trim()) {
-      toast.error('All fields (Category, Speed, Application Type) are required')
+    if (!newEntry.category.trim() || !newEntry.speed.trim() || !newEntry.application_type.trim() || !newEntry.pages.trim()) {
+      toast.error('All fields (Category, Speed, Application Type, Pages) are required')
       return
     }
 
     try {
       await onAddEntry(newEntry)
-      setNewEntry({ category: '', speed: '', application_type: '', cost_price: 0, sale_price: 0 })
+      setNewEntry({ category: '', speed: '', application_type: '', pages: '', cost_price: 0, sale_price: 0 })
     } catch (error: any) {
       console.error('[PKPassportPricingTab] Error adding service:', error)
       toast.error('Failed to add service. Please try again or contact support.')
@@ -55,7 +62,7 @@ function PKPassportPricingTabCore({
       <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
         <h3 className="font-semibold text-blue-900 mb-4">Add New Pakistani Passport Service Option</h3>
         <form onSubmit={handleAddEntry} className="space-y-3">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
               <label htmlFor="pk-passport-category" className="block text-sm font-medium mb-1">Category *</label>
               <select
@@ -66,7 +73,7 @@ function PKPassportPricingTabCore({
                 className="w-full px-3 py-2 border rounded"
               >
                 <option value="">Select Category</option>
-                {PRICING_OPTIONS.PK_PASSPORT.categories.map((cat) => (
+                {categories.map((cat) => (
                   <option key={cat} value={cat}>{cat}</option>
                 ))}
               </select>
@@ -81,7 +88,7 @@ function PKPassportPricingTabCore({
                 className="w-full px-3 py-2 border rounded"
               >
                 <option value="">Select Speed</option>
-                {PRICING_OPTIONS.PK_PASSPORT.speeds.map((speed) => (
+                {speeds.map((speed) => (
                   <option key={speed} value={speed}>{speed}</option>
                 ))}
               </select>
@@ -96,8 +103,23 @@ function PKPassportPricingTabCore({
                 className="w-full px-3 py-2 border rounded"
               >
                 <option value="">Select Application Type</option>
-                {PRICING_OPTIONS.PK_PASSPORT.applicationTypes.map((type) => (
+                {applicationTypes.map((type) => (
                   <option key={type} value={type}>{type}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="pk-passport-pages" className="block text-sm font-medium mb-1">Pages *</label>
+              <select
+                id="pk-passport-pages"
+                value={newEntry.pages}
+                onChange={(e) => setNewEntry({ ...newEntry, pages: e.target.value })}
+                aria-label="Select pages"
+                className="w-full px-3 py-2 border rounded"
+              >
+                <option value="">Select Pages</option>
+                {pages.map((page) => (
+                  <option key={page} value={page}>{page}</option>
                 ))}
               </select>
             </div>
@@ -145,6 +167,7 @@ function PKPassportPricingTabCore({
               <th className="text-left py-3 px-4 font-semibold">Category</th>
               <th className="text-left py-3 px-4 font-semibold">Speed</th>
               <th className="text-left py-3 px-4 font-semibold">Application Type</th>
+              <th className="text-left py-3 px-4 font-semibold">Pages</th>
               <th className="text-right py-3 px-4 font-semibold">Cost Price</th>
               <th className="text-right py-3 px-4 font-semibold">Sale Price</th>
               <th className="text-right py-3 px-4 font-semibold">Profit</th>
@@ -154,7 +177,7 @@ function PKPassportPricingTabCore({
           <tbody>
             {pricing.length === 0 ? (
               <tr>
-                <td colSpan={7} className="py-8 px-4 text-center text-gray-500">
+                <td colSpan={8} className="py-8 px-4 text-center text-gray-500">
                   No Pakistani Passport services configured yet. Add one above.
                 </td>
               </tr>
@@ -164,6 +187,7 @@ function PKPassportPricingTabCore({
                   <td className="py-3 px-4">{item.category}</td>
                   <td className="py-3 px-4">{item.speed}</td>
                   <td className="py-3 px-4">{item.application_type}</td>
+                  <td className="py-3 px-4">{item.pages}</td>
                   {editingId === item.id ? (
                     <>
                       <td className="py-3 px-4">
