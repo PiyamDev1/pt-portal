@@ -2,7 +2,10 @@
 
 import { OptionListItem, OptionListInput } from './OptionListComponents'
 
+type ManageScope = 'nadra' | 'passport' | 'gb' | 'visa'
+
 interface ManagePricingOptionsTabProps {
+  scope: ManageScope
   nadrServiceTypes: string[]
   setNadrServiceTypes: (types: string[]) => void
   nadrServiceOptions: string[]
@@ -22,6 +25,7 @@ interface ManagePricingOptionsTabProps {
 }
 
 export default function ManagePricingOptionsTab({
+  scope,
   nadrServiceTypes,
   setNadrServiceTypes,
   nadrServiceOptions,
@@ -39,9 +43,14 @@ export default function ManagePricingOptionsTab({
   gbServiceTypes,
   setGBServiceTypes
 }: ManagePricingOptionsTabProps) {
+  const showNadra = scope === 'nadra'
+  const showPassport = scope === 'passport'
+  const showGb = scope === 'gb'
+
   return (
     <div className="space-y-8">
-      <div>
+      {showNadra && (
+        <div>
         <h3 className="font-semibold text-lg mb-4">NADRA Service Types</h3>
         <div className="space-y-2 mb-3">
           {nadrServiceTypes.map((type) => (
@@ -64,9 +73,11 @@ export default function ManagePricingOptionsTab({
             }
           }}
         />
-      </div>
+        </div>
+      )}
 
-      <div>
+      {showNadra && (
+        <div>
         <h3 className="font-semibold text-lg mb-4">NADRA Service Options</h3>
         <div className="space-y-2 mb-3">
           {nadrServiceOptions.map((option) => (
@@ -89,9 +100,11 @@ export default function ManagePricingOptionsTab({
             }
           }}
         />
-      </div>
+        </div>
+      )}
 
-      <div>
+      {showPassport && (
+        <div>
         <h3 className="font-semibold text-lg mb-4">Pakistani Passport Categories</h3>
         <div className="space-y-2 mb-3">
           {pkCategories.map((cat) => (
@@ -114,9 +127,11 @@ export default function ManagePricingOptionsTab({
             }
           }}
         />
-      </div>
+        </div>
+      )}
 
-      <div>
+      {showPassport && (
+        <div>
         <h3 className="font-semibold text-lg mb-4">Pakistani Passport Speeds</h3>
         <div className="space-y-2 mb-3">
           {pkSpeeds.map((speed) => (
@@ -139,9 +154,11 @@ export default function ManagePricingOptionsTab({
             }
           }}
         />
-      </div>
+        </div>
+      )}
 
-      <div>
+      {showPassport && (
+        <div>
         <h3 className="font-semibold text-lg mb-4">Pakistani Passport Application Types</h3>
         <div className="space-y-2 mb-3">
           {pkApplicationTypes.map((type) => (
@@ -164,9 +181,11 @@ export default function ManagePricingOptionsTab({
             }
           }}
         />
-      </div>
+        </div>
+      )}
 
-      <div>
+      {showGb && (
+        <div>
         <h3 className="font-semibold text-lg mb-4">GB Passport Age Groups</h3>
         <div className="space-y-2 mb-3">
           {gbAgeGroups.map((group) => (
@@ -189,9 +208,11 @@ export default function ManagePricingOptionsTab({
             }
           }}
         />
-      </div>
+        </div>
+      )}
 
-      <div>
+      {showGb && (
+        <div>
         <h3 className="font-semibold text-lg mb-4">GB Passport Pages</h3>
         <div className="space-y-2 mb-3">
           {gbPages.map((page) => (
@@ -214,9 +235,11 @@ export default function ManagePricingOptionsTab({
             }
           }}
         />
-      </div>
+        </div>
+      )}
 
-      <div>
+      {showGb && (
+        <div>
         <h3 className="font-semibold text-lg mb-4">GB Passport Service Types</h3>
         <div className="space-y-2 mb-3">
           {gbServiceTypes.map((type) => (
@@ -239,11 +262,14 @@ export default function ManagePricingOptionsTab({
             }
           }}
         />
-      </div>
+        </div>
+      )}
 
-      <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-800">
-        <strong>Note:</strong> New options will appear in the dropdown menus. You can still delete options here that are no longer used.
-      </div>
+      {(showNadra || showPassport || showGb) && (
+        <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-800">
+          <strong>Note:</strong> New options will appear in the dropdown menus. You can still delete options here that are no longer used.
+        </div>
+      )}
     </div>
   )
 }

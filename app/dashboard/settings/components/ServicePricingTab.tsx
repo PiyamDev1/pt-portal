@@ -2,10 +2,7 @@
 
 import { useEffect, useState, memo, useCallback } from 'react'
 import { AlertCircle } from 'lucide-react'
-import { 
-  ActiveTab,
-  ServicePricingTabProps 
-} from '@/app/types/pricing'
+import { ServicePricingTabProps } from '@/app/types/pricing'
 import { PRICING_OPTIONS } from '@/app/lib/pricingOptions'
 import { usePricingOptions } from '@/app/hooks/usePricingOptions'
 import NadraPricingTab from './pricing/NadraPricingTab'
@@ -14,8 +11,19 @@ import GBPassportPricingTab from './pricing/GBPassportPricingTab'
 import VisaPricingTab from './pricing/VisaPricingTab'
 import ManagePricingOptionsTab from './pricing/ManagePricingOptionsTab'
 
+type PricingSection = 'nadra' | 'passport' | 'gb' | 'visa'
+type PricingPanel = 'pricing' | 'manage'
+
+const SECTION_LABELS: Record<PricingSection, string> = {
+  nadra: 'NADRA Services',
+  passport: 'Pakistani Passport',
+  gb: 'GB Passport',
+  visa: 'Visa Services'
+}
+
 function ServicePricingTabCore({ supabase, loading: initialLoading, setLoading }: ServicePricingTabProps) {
-  const [activeTab, setActiveTab] = useState<ActiveTab>('nadra')
+  const [activeSection, setActiveSection] = useState<PricingSection>('nadra')
+  const [activePanel, setActivePanel] = useState<PricingPanel>('pricing')
   const [loading, setLoadingState] = useState(initialLoading)
   const {
     nadraPricing,
@@ -98,6 +106,10 @@ function ServicePricingTabCore({ supabase, loading: initialLoading, setLoading }
     })
   }, [fetchPricing, fetchGbLookupOptions, fetchPkLookupOptions, setLoading])
 
+  useEffect(() => {
+    setActivePanel('pricing')
+  }, [activeSection])
+
   // Handler wrappers for database operations
   const handleAddNadraEntry = async (entry: { service_type: string; service_option: string; cost_price: number; sale_price: number }) => {
     const { error } = await supabase.from('nadra_pricing').insert({
@@ -160,11 +172,9 @@ function ServicePricingTabCore({ supabase, loading: initialLoading, setLoading }
             <div className="h-4 bg-slate-200 rounded w-96 animate-pulse"></div>
           </div>
 
-          {/* Tabs skeleton */}
-          <div className="flex gap-4 border-b">
-            {[1, 2, 3, 4, 5].map(i => (
-              <div key={i} className="h-10 bg-slate-200 rounded w-32 animate-pulse"></div>
-            ))}
+          <div className="grid grid-cols-1 lg:grid-cols-[240px_1fr] gap-6">
+            <div className="h-40 bg-slate-200 rounded animate-pulse"></div>
+            <div className="h-40 bg-slate-200 rounded animate-pulse"></div>
           </div>
 
           {/* Content skeleton */}
@@ -205,125 +215,154 @@ function ServicePricingTabCore({ supabase, loading: initialLoading, setLoading }
         <h2 className="text-2xl font-bold mb-4">Service Pricing Management</h2>
         <p className="text-gray-600 mb-4">Add and manage service pricing options. Configure what services you offer and their costs.</p>
         
-        <div className="flex gap-2 border-b overflow-x-auto">
-          {['nadra', 'passport', 'gb', 'visa'].map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab as ActiveTab)}
-              className={`px-4 py-2 font-medium transition-colors whitespace-nowrap ${
-                activeTab === tab
-                  ? 'border-b-2 border-blue-600 text-blue-600'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              {tab === 'nadra' && 'NADRA Services'}
-              {tab === 'passport' && 'Pakistani Passport'}
-              {tab === 'gb' && 'GB Passport'}
-              {tab === 'visa' && 'Visa Services'}
-            </button>
-          ))}
-          <button
-            onClick={() => setActiveTab('manage')}
-            className={`px-4 py-2 font-medium transition-colors whitespace-nowrap ml-auto ${
-              activeTab === 'manage'
-                ? 'border-b-2 border-green-600 text-green-600'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            ⚙️ Manage Options
-          </button>
-        </div>
       </div>
 
-      {activeTab === 'nadra' && (
-        <NadraPricingTab
-          nadraPricing={nadraPricing}
-          editingId={editingId}
-          editValues={editValues}
-          setEditingId={setEditingId}
-          setEditValues={setEditValues}
-          onEdit={handleEdit}
-          onSave={() => handleSave('nadra')}
-          onDelete={(id) => handleDelete(id, 'nadra')}
-          onAddEntry={handleAddNadraEntry}
-          supabase={supabase}
-        />
-      )}
+      <div className="grid grid-cols-1 lg:grid-cols-[240px_1fr] gap-6">
+        <aside className="h-fit rounded-lg border bg-white p-3 shadow-sm">
+          <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">Sections</div>
+          <nav className="space-y-1">
+            {(Object.keys(SECTION_LABELS) as PricingSection[]).map((section) => (
+              <button
+                key={section}
+                onClick={() => setActiveSection(section)}
+                className={`w-full text-left px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                  activeSection === section
+                    ? 'bg-slate-900 text-white'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                }`}
+              >
+                {SECTION_LABELS[section]}
+              </button>
+            ))}
+          </nav>
+        </aside>
 
-      {activeTab === 'passport' && (
-        <PKPassportPricingTab
-          pricing={pkPassPricing}
-          categories={pkCategories}
-          speeds={pkSpeeds}
-          applicationTypes={pkApplicationTypes}
-          pages={pkPages}
-          editingId={editingId}
-          editValues={editValues}
-          setEditingId={setEditingId}
-          setEditValues={setEditValues}
-          onEdit={handleEdit}
-          onSave={() => handleSave('passport')}
-          onDelete={(id) => handleDelete(id, 'passport')}
-          onAddEntry={handleAddPKEntry}
-          supabase={supabase}
-        />
-      )}
+        <section className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="text-lg font-semibold text-slate-900">{SECTION_LABELS[activeSection]}</h3>
+              <p className="text-sm text-slate-500">Configure pricing and options for this service.</p>
+            </div>
+            <div className="inline-flex rounded-md border bg-white p-1">
+              <button
+                onClick={() => setActivePanel('pricing')}
+                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                  activePanel === 'pricing'
+                    ? 'bg-slate-900 text-white'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Pricing
+              </button>
+              <button
+                onClick={() => setActivePanel('manage')}
+                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                  activePanel === 'manage'
+                    ? 'bg-slate-900 text-white'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Manage Options
+              </button>
+            </div>
+          </div>
 
-      {activeTab === 'gb' && (
-        <GBPassportPricingTab
-          pricing={gbPassPricing}
-          ageGroups={gbAgeGroups}
-          pages={gbPages}
-          serviceTypes={gbServiceTypes}
-          editingId={editingId}
-          editValues={editValues}
-          setEditingId={setEditingId}
-          setEditValues={setEditValues}
-          onEdit={handleEdit}
-          onSave={() => handleSave('gb')}
-          onDelete={(id) => handleDelete(id, 'gb')}
-          onAddEntry={handleAddGBEntry}
-          supabase={supabase}
-        />
-      )}
+          {activeSection === 'nadra' && activePanel === 'pricing' && (
+            <NadraPricingTab
+              nadraPricing={nadraPricing}
+              editingId={editingId}
+              editValues={editValues}
+              setEditingId={setEditingId}
+              setEditValues={setEditValues}
+              onEdit={handleEdit}
+              onSave={() => handleSave('nadra')}
+              onDelete={(id) => handleDelete(id, 'nadra')}
+              onAddEntry={handleAddNadraEntry}
+              supabase={supabase}
+            />
+          )}
 
-      {activeTab === 'visa' && (
-        <VisaPricingTab
-          pricing={visaPricing}
-          editingId={editingId}
-          editValues={editValues}
-          setEditingId={setEditingId}
-          setEditValues={setEditValues}
-          onEdit={handleEdit}
-          onSave={() => handleSave('visa')}
-          onDelete={(id) => handleDelete(id, 'visa')}
-          onAddEntry={handleAddVisaEntry}
-          supabase={supabase}
-        />
-      )}
+          {activeSection === 'passport' && activePanel === 'pricing' && (
+            <PKPassportPricingTab
+              pricing={pkPassPricing}
+              categories={pkCategories}
+              speeds={pkSpeeds}
+              applicationTypes={pkApplicationTypes}
+              pages={pkPages}
+              editingId={editingId}
+              editValues={editValues}
+              setEditingId={setEditingId}
+              setEditValues={setEditValues}
+              onEdit={handleEdit}
+              onSave={() => handleSave('passport')}
+              onDelete={(id) => handleDelete(id, 'passport')}
+              onAddEntry={handleAddPKEntry}
+              supabase={supabase}
+            />
+          )}
 
-      {activeTab === 'manage' && (
-        <div className="mt-6">
-          <ManagePricingOptionsTab
-            nadrServiceTypes={nadrServiceTypes}
-            setNadrServiceTypes={setNadrServiceTypes}
-            nadrServiceOptions={nadrServiceOptions}
-            setNadrServiceOptions={setNadrServiceOptions}
-            pkCategories={pkCategories}
-            setPKCategories={setPKCategories}
-            pkSpeeds={pkSpeeds}
-            setPKSpeeds={setPKSpeeds}
-            pkApplicationTypes={pkApplicationTypes}
-            setPKApplicationTypes={setPKApplicationTypes}
-            gbAgeGroups={gbAgeGroups}
-            setGBAgeGroups={setGBAgeGroups}
-            gbPages={gbPages}
-            setGBPages={setGBPages}
-            gbServiceTypes={gbServiceTypes}
-            setGBServiceTypes={setGBServiceTypes}
-          />
-        </div>
-      )}
+          {activeSection === 'gb' && activePanel === 'pricing' && (
+            <GBPassportPricingTab
+              pricing={gbPassPricing}
+              ageGroups={gbAgeGroups}
+              pages={gbPages}
+              serviceTypes={gbServiceTypes}
+              editingId={editingId}
+              editValues={editValues}
+              setEditingId={setEditingId}
+              setEditValues={setEditValues}
+              onEdit={handleEdit}
+              onSave={() => handleSave('gb')}
+              onDelete={(id) => handleDelete(id, 'gb')}
+              onAddEntry={handleAddGBEntry}
+              supabase={supabase}
+            />
+          )}
+
+          {activeSection === 'visa' && activePanel === 'pricing' && (
+            <VisaPricingTab
+              pricing={visaPricing}
+              editingId={editingId}
+              editValues={editValues}
+              setEditingId={setEditingId}
+              setEditValues={setEditValues}
+              onEdit={handleEdit}
+              onSave={() => handleSave('visa')}
+              onDelete={(id) => handleDelete(id, 'visa')}
+              onAddEntry={handleAddVisaEntry}
+              supabase={supabase}
+            />
+          )}
+
+          {activePanel === 'manage' && (
+            <div className="rounded-lg border bg-white p-4">
+              {activeSection === 'visa' ? (
+                <div className="text-sm text-slate-500">No configurable options for Visa services yet.</div>
+              ) : (
+                <ManagePricingOptionsTab
+                  scope={activeSection}
+                  nadrServiceTypes={nadrServiceTypes}
+                  setNadrServiceTypes={setNadrServiceTypes}
+                  nadrServiceOptions={nadrServiceOptions}
+                  setNadrServiceOptions={setNadrServiceOptions}
+                  pkCategories={pkCategories}
+                  setPKCategories={setPKCategories}
+                  pkSpeeds={pkSpeeds}
+                  setPKSpeeds={setPKSpeeds}
+                  pkApplicationTypes={pkApplicationTypes}
+                  setPKApplicationTypes={setPKApplicationTypes}
+                  gbAgeGroups={gbAgeGroups}
+                  setGBAgeGroups={setGBAgeGroups}
+                  gbPages={gbPages}
+                  setGBPages={setGBPages}
+                  gbServiceTypes={gbServiceTypes}
+                  setGBServiceTypes={setGBServiceTypes}
+                />
+              )}
+            </div>
+          )}
+        </section>
+      </div>
     </div>
   )
 }
