@@ -16,24 +16,13 @@ export async function POST(request) {
     } = body
 
     // 1. LOOKUP FINANCIALS FROM DB (Secure)
-    // A. Get IDs for the text inputs
-    const [ageRes, pageRes, svcRes] = await Promise.all([
-        supabase.from('gb_passport_ages').select('id').eq('name', ageGroup).single(),
-        supabase.from('gb_passport_pages').select('id').eq('option_label', pages).single(),
-        supabase.from('gb_passport_services').select('id').eq('name', serviceType).single()
-    ])
-
-    if (ageRes.error || pageRes.error || svcRes.error) {
-        throw new Error("Invalid Service Options Selected")
-    }
-
-    // B. Get Pricing ID
+    // Pricing table stores text values for age_group/pages/service_type
     const { data: pricing, error: pErr } = await supabase
         .from('gb_passport_pricing')
         .select('id, cost_price, sale_price')
-        .eq('age_id', ageRes.data.id)
-        .eq('pages_id', pageRes.data.id)
-        .eq('service_id', svcRes.data.id)
+        .eq('age_group', ageGroup)
+        .eq('pages', pages)
+        .eq('service_type', serviceType)
         .single()
 
     if (pErr || !pricing) {
