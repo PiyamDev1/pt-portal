@@ -17,23 +17,23 @@ export async function GET() {
       supabase.from('gb_passport_pages').select('id, option_label').order('option_label'),
       supabase.from('gb_passport_services').select('id, name').order('name'),
       supabase.from('gb_passport_pricing').select(`
-        id, 
-        cost_price, 
+        id,
+        cost_price,
         sale_price,
-        gb_passport_ages(name),
-        gb_passport_pages(option_label),
-        gb_passport_services(name)
+        age_group,
+        pages,
+        service_type
       `)
     ])
 
     // Flatten pricing for easier frontend lookup
     const flatPricing = pricing.data?.map(p => ({
-        id: p.id,
-        cost: p.cost_price,
-        price: p.sale_price,
-        age: p.gb_passport_ages?.name,
-        pages: p.gb_passport_pages?.option_label,
-        service: p.gb_passport_services?.name
+      id: p.id,
+      cost: p.cost_price,
+      price: p.sale_price,
+      age: p.age_group,
+      pages: p.pages,
+      service: p.service_type
     })) || []
 
     return NextResponse.json({
