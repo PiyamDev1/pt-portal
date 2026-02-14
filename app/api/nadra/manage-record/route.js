@@ -141,7 +141,8 @@ export async function POST(request) {
         const payload = cleanPayload({
           first_name: data.firstName,
           last_name: data.lastName,
-          citizen_number: data.cnic
+          citizen_number: data.cnic,
+          phone_number: data.phone
         })
 
         const { error: updateHeadError } = await supabase
@@ -175,7 +176,8 @@ export async function POST(request) {
           const servicePayload = cleanPayload({
             service_type: data.serviceType,
             tracking_number: data.trackingNumber,
-            application_pin: data.pin
+            application_pin: data.pin,
+            notes: data.notes
           })
 
           const { error: updateServiceError } = await supabase

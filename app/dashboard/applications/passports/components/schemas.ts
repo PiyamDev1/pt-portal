@@ -7,6 +7,7 @@ export const PakApplicationFormSchema = z.object({
   applicantName: z.string().min(1, 'Name is required'),
   applicantCnic: z.string().regex(cnicPattern, 'CNIC must be #####:#######:#'),
   applicantEmail: z.union([z.string().email('Invalid email'), z.literal('')]),
+  applicantPhone: z.union([z.string(), z.literal('')]),
   familyHeadEmail: z.string().email('Valid family head email is required'),
   applicationType: z.string().min(1, 'Application type is required'),
   category: z.string().min(1, 'Category is required'),

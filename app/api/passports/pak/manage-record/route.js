@@ -62,7 +62,8 @@ export async function POST(request) {
             first_name: data.applicantName?.split(' ')[0],
             last_name: data.applicantName?.split(' ').slice(1).join(' ') || '',
             citizen_number: data.applicantCnic,
-            email: data.applicantEmail
+            email: data.applicantEmail,
+            phone_number: data.applicantPhone
           })
           .eq('id', data.applicantId)
         if (applicantError) throw applicantError

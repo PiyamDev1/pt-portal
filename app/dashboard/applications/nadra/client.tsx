@@ -9,10 +9,12 @@ import FormSection from './components/FormSection'
 import LedgerTable from './components/LedgerTable'
 import EditModal from './components/EditModal'
 import HistoryModal from './components/HistoryModal'
+import NotesModal from './components/NotesModal'
 
 interface FormData {
   familyHeadName: string
   familyHeadCnic: string
+  familyHeadPhone: string
   applicantName: string
   applicantCnic: string
   applicantEmail: string
@@ -32,12 +34,14 @@ interface EditFormData {
   cnic?: string
   newBorn?: boolean
   email?: string
+  phone?: string
   serviceType?: string
   serviceOption?: string
   trackingNumber?: string
   pin?: string
   employeeId?: string
   employeeName?: string
+  notes?: string
 }
 
 export default function NadraClient({ initialApplications, currentUserId }: any) {
@@ -48,6 +52,7 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
   const [formData, setFormData] = useState<FormData>({
     familyHeadName: '',
     familyHeadCnic: '',
+    familyHeadPhone: '',
     applicantName: '',
     applicantCnic: '',
     applicantEmail: '',
@@ -74,6 +79,11 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
   const [selectedHistory, setSelectedHistory] = useState<any>(null)
   const [historyLogs, setHistoryLogs] = useState<any[]>([])
   const [loadingHistory, setLoadingHistory] = useState(false)
+
+  // NOTES STATES
+  const [notesModal, setNotesModal] = useState<{ nadraId: string; note: string } | null>(null)
+  const [notesText, setNotesText] = useState('')
+  const [notesSaving, setNotesSaving] = useState(false)
 
   // EDIT/DELETE STATES
   const [editingRecord, setEditingRecord] = useState<any>(null)
@@ -118,6 +128,7 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
       ...formData,
       familyHeadName: `${familyHead.first_name} ${familyHead.last_name}`,
       familyHeadCnic: familyHead.citizen_number,
+      familyHeadPhone: familyHead.phone_number || '',
       applicantName: '',
       applicantCnic: '',
       applicantEmail: '',
@@ -151,6 +162,7 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
         setFormData({
           familyHeadName: '',
           familyHeadCnic: '',
+          familyHeadPhone: '',
           applicantName: '',
           applicantCnic: '',
           applicantEmail: '',
@@ -340,7 +352,8 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
         id: record.id,
         firstName: record.first_name,
         lastName: record.last_name,
-        cnic: record.citizen_number
+        cnic: record.citizen_number,
+        phone: record.phone_number || ''
       })
       return
     }
@@ -364,8 +377,49 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
       trackingNumber: record.tracking_number,
       pin: nadra?.application_pin,
       employeeId: nadra?.employee_id || '',
-      employeeName: nadra?.employees?.full_name || ''
+      employeeName: nadra?.employees?.full_name || '',
+      notes: nadra?.notes || ''
     })
+  }
+
+  const openNotesModal = (record: any) => {
+    const nadra = getNadraRecord(record)
+    if (!nadra?.id) {
+      toast.error('Notes are only available for saved applications')
+      return
+    }
+    setNotesModal({ nadraId: nadra.id, note: nadra?.notes || '' })
+    setNotesText(nadra?.notes || '')
+  }
+
+  const handleSaveNotes = async () => {
+    if (!notesModal?.nadraId) return
+    setNotesSaving(true)
+    try {
+      const res = await fetch('/api/nadra/manage-record', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'update',
+          type: 'application',
+          id: notesModal.nadraId,
+          data: { notes: notesText },
+          userId: currentUserId
+        })
+      })
+      if (res.ok) {
+        toast.success('Notes updated')
+        setNotesModal(null)
+        router.refresh()
+      } else {
+        const payload = await res.json()
+        toast.error(payload?.error || 'Failed to update notes')
+      }
+    } catch (e) {
+      toast.error('Error saving notes')
+    } finally {
+      setNotesSaving(false)
+    }
   }
 
   const handleEditInputChange = (name: string, value: any) => {
@@ -487,6 +541,7 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
         onEditHead={(head) => openEditModal(head, 'family_head')}
         onAddMember={handleAddMember}
         onViewHistory={setSelectedHistory}
+        onOpenNotes={openNotesModal}
       />
 
       {/* Pagination */}
@@ -533,6 +588,15 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
         historyLogs={historyLogs}
         loadingHistory={loadingHistory}
         onClose={() => setSelectedHistory(null)}
+      />
+
+      <NotesModal
+        isOpen={!!notesModal}
+        note={notesText}
+        onChange={setNotesText}
+        onSave={handleSaveNotes}
+        onClose={() => setNotesModal(null)}
+        isSaving={notesSaving}
       />
     </div>
   )

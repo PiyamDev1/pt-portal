@@ -16,6 +16,7 @@ export async function POST(request) {
     const body = await request.json()
     const { 
       applicantCnic, applicantName, applicantEmail,
+      applicantPhone,
       familyHeadEmail,
       applicationType, category, pageCount, speed, 
       oldPassportNumber, trackingNumber, 
@@ -31,9 +32,11 @@ export async function POST(request) {
     if (!applicant) {
          const parts = applicantName.split(' ')
          const { data: newApp } = await supabase.from('applicants').insert({
-            first_name: parts[0], last_name: parts.slice(1).join(' ') || 'N/A', citizen_number: applicantCnic, email: applicantEmail
+          first_name: parts[0], last_name: parts.slice(1).join(' ') || 'N/A', citizen_number: applicantCnic, email: applicantEmail, phone_number: applicantPhone || null
          }).select('id').single()
          applicant = newApp
+        } else if (applicantPhone) {
+          await supabase.from('applicants').update({ phone_number: applicantPhone }).eq('id', applicant.id)
     }
 
     // 2. Create Application Hierarchy

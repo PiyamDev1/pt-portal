@@ -2,6 +2,7 @@ export type PakApplicationFormData = {
   applicantName: string
   applicantCnic: string
   applicantEmail: string
+  applicantPhone: string
   familyHeadEmail: string
   applicationType: string
   category: string

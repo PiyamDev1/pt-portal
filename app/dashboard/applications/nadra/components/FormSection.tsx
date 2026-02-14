@@ -1,6 +1,7 @@
 interface FormData {
   familyHeadName: string
   familyHeadCnic: string
+  familyHeadPhone: string
   applicantName: string
   applicantCnic: string
   applicantEmail: string
@@ -60,6 +61,13 @@ export default function FormSection({
                   onChange={onInputChange}
                   placeholder="Family Head CNIC (Auto-formatted)"
                   className="w-full p-2 border rounded text-sm font-mono"
+                />
+                <input
+                  name="familyHeadPhone"
+                  value={formData.familyHeadPhone}
+                  onChange={onInputChange}
+                  placeholder="Family Head Phone"
+                  className="w-full p-2 border rounded text-sm"
                 />
               </div>
 

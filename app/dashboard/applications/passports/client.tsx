@@ -38,6 +38,7 @@ export default function PakPassportClient({ initialApplications, currentUserId }
 
   const [formData, setFormData] = useState<PakApplicationFormData>({
     applicantName: '', applicantCnic: '', applicantEmail: '',
+    applicantPhone: '',
     familyHeadEmail: '',
     applicationType: 'Renewal', category: 'Adult 10 Year', pageCount: '34 pages', speed: 'Normal',
     trackingNumber: '', oldPassportNumber: '', fingerprintsCompleted: false
@@ -113,6 +114,7 @@ export default function PakPassportClient({ initialApplications, currentUserId }
       applicantName: `${item.applicants?.first_name} ${item.applicants?.last_name}`,
       applicantCnic: item.applicants?.citizen_number,
       applicantEmail: item.applicants?.email || '',
+      applicantPhone: item.applicants?.phone_number || '',
       familyHeadEmail: pp?.family_head_email || '',
       trackingNumber: item.tracking_number,
       oldPassportNumber: pp?.old_passport_number || '',

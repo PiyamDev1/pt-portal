@@ -78,6 +78,11 @@ export default function RowItem({ item, onOpenEdit, onUpdateRecord, onViewHistor
                 FH Email: {pp.family_head_email}
               </div>
             )}
+            {item.applicants?.phone_number && (
+              <div className="text-[11px] text-slate-600 font-semibold leading-tight">
+                Phone: {item.applicants.phone_number}
+              </div>
+            )}
             {createdAt && (
               <div className="text-[11px] font-semibold text-orange-500 leading-tight">
                 Added: {formatDate(createdAt)}

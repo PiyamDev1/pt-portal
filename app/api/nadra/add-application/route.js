@@ -20,6 +20,7 @@ export async function POST(request) {
       applicantEmail,
       familyHeadCnic,
       familyHeadName,
+      familyHeadPhone,
       serviceType,
       serviceOption,
       trackingNumber,
@@ -81,7 +82,7 @@ export async function POST(request) {
     if (familyHeadCnic) {
       let { data: head } = await supabase
         .from('applicants')
-        .select('id')
+        .select('id, phone_number')
         .eq('citizen_number', familyHeadCnic)
         .single()
 
@@ -90,11 +91,18 @@ export async function POST(request) {
         const { data: newHead } = await supabase.from('applicants').insert({
           first_name: parts[0],
           last_name: parts.slice(1).join(' ') || 'N/A',
-          citizen_number: familyHeadCnic
+          citizen_number: familyHeadCnic,
+          phone_number: familyHeadPhone || null
         }).select('id').single()
         headId = newHead?.id || null
       } else {
         headId = head?.id || null
+        if (headId && familyHeadPhone && familyHeadPhone !== head?.phone_number) {
+          await supabase
+            .from('applicants')
+            .update({ phone_number: familyHeadPhone })
+            .eq('id', headId)
+        }
       }
     }
 

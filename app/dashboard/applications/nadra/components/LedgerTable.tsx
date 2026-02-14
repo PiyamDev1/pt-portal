@@ -8,6 +8,7 @@ interface LedgerTableProps {
   onEditHead: (head: any) => void
   onAddMember: (head: any) => void
   onViewHistory: (item: any) => void
+  onOpenNotes: (item: any) => void
 }
 
 export default function LedgerTable({
@@ -17,7 +18,8 @@ export default function LedgerTable({
   onEditApplication,
   onEditHead,
   onAddMember,
-  onViewHistory
+  onViewHistory,
+  onOpenNotes
 }: LedgerTableProps) {
   return (
     <div className="space-y-4">
@@ -36,7 +38,12 @@ export default function LedgerTable({
                   <h4 className="font-bold text-slate-800 text-sm">
                     {group.head ? `${group.head.first_name} ${group.head.last_name}` : 'No Family Head'}
                   </h4>
-                  <p className="text-[10px] text-slate-500 font-mono uppercase">{headCnic}</p>
+                  <div className="flex items-center gap-2 text-[10px] text-slate-500 font-mono uppercase">
+                    <span>{headCnic}</span>
+                    {group.head?.phone_number && (
+                      <span className="text-slate-500 font-sans normal-case">• 📞 {group.head.phone_number}</span>
+                    )}
+                  </div>
                 </div>
               </div>
               <div className="flex items-center gap-3">
@@ -153,15 +160,25 @@ export default function LedgerTable({
                         </select>
                       </td>
 
-                      <td className="p-4 align-top w-12 text-right">
-                        <button
-                          onClick={() => onEditApplication(item)}
-                          className="h-8 w-8 flex items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 transition"
-                          type="button"
-                          aria-label="Edit application"
-                        >
-                          ✎
-                        </button>
+                      <td className="p-4 align-top w-20 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => onOpenNotes(item)}
+                            className="h-8 w-8 flex items-center justify-center rounded-full bg-blue-50 hover:bg-blue-100 text-blue-600 transition"
+                            type="button"
+                            aria-label="Open notes"
+                          >
+                            📝
+                          </button>
+                          <button
+                            onClick={() => onEditApplication(item)}
+                            className="h-8 w-8 flex items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 transition"
+                            type="button"
+                            aria-label="Edit application"
+                          >
+                            ✎
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   )

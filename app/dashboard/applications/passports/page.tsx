@@ -29,7 +29,7 @@ export default async function PakPassportPage() {
         id,
         tracking_number,
         applicants:applicants!applications_applicant_id_fkey(
-          id, first_name, last_name, citizen_number, email
+          id, first_name, last_name, citizen_number, email, phone_number
         ),
         pakistani_passport_applications!inner (
           id,

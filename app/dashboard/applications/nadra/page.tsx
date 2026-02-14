@@ -27,7 +27,7 @@ export default async function NadraPage() {
   // Query all family heads (applicants marked as family heads)
   const { data: familyHeads } = await supabase
     .from('applicants')
-    .select('id, first_name, last_name, citizen_number')
+    .select('id, first_name, last_name, citizen_number, phone_number')
     .not('id', 'is', null)
 
   // Query applications with their details
@@ -37,8 +37,8 @@ export default async function NadraPage() {
       id,
       tracking_number,
       family_head_id,
-      family_heads:applicants!applications_family_head_id_fkey ( first_name, last_name, citizen_number ),
-      applicants!applications_applicant_id_fkey ( id, first_name, last_name, citizen_number, email ),
+      family_heads:applicants!applications_family_head_id_fkey ( first_name, last_name, citizen_number, phone_number ),
+      applicants!applications_applicant_id_fkey ( id, first_name, last_name, citizen_number, email, phone_number ),
       nadra_services!inner (
         id,
         service_type,
@@ -47,6 +47,7 @@ export default async function NadraPage() {
         tracking_number,
         created_at,
         employee_id,
+        notes,
         nicop_cnic_details ( service_option ),
         employees!nadra_services_employee_id_fkey ( id, full_name )
       )

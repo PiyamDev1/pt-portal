@@ -64,6 +64,19 @@ export default function NewApplicationForm({ formData, isSubmitting, onChange, o
            </div>
            <div>
              <input 
+               name="applicantPhone" 
+               onChange={onChange} 
+               onBlur={onBlur} 
+               value={formData.applicantPhone} 
+               placeholder="Phone Number" 
+               className="w-full p-2 bg-white border border-green-100 rounded-lg text-sm focus:ring-2 focus:ring-green-500" 
+               aria-invalid={!!errors.applicantPhone}
+               aria-describedby={errors.applicantPhone ? "applicantPhone-error" : undefined}
+             />
+             {errors.applicantPhone && (<p id="applicantPhone-error" className="text-red-600 text-xs mt-1" role="alert">{errors.applicantPhone}</p>)}
+           </div>
+           <div>
+             <input 
                name="familyHeadEmail" 
                onChange={onChange} 
                onBlur={onBlur} 

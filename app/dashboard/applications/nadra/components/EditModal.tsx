@@ -107,6 +107,16 @@ export default function EditModal({
                   title={editFormData.newBorn ? 'Citizen number disabled for newborn flow' : 'CNIC cannot be edited to prevent database corruption'}
                 />
               </div>
+              {editType === 'family_head' && (
+                <div className="col-span-2">
+                  <label className="text-[10px] font-bold uppercase text-slate-400">Phone Number</label>
+                  <input
+                    className="w-full border rounded p-2 text-sm bg-white"
+                    value={editFormData.phone || ''}
+                    onChange={(e) => onInputChange('phone', e.target.value)}
+                  />
+                </div>
+              )}
               {editType === 'application' && (
                 <div className="col-span-2">
                   <label className="text-[10px] font-bold uppercase text-slate-400">Email Address</label>
