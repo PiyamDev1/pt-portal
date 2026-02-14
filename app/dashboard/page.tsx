@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import PageHeader from '@/app/components/PageHeader.client'
 import DashboardClientWrapper from './client-wrapper'
+import { BackupCodesReminder } from './lms/components/BackupCodesReminder'
 
 // --- MODULE CONFIGURATION ---
 const ALL_MODULES = [
@@ -132,6 +133,8 @@ export default async function Dashboard() {
         />
 
         <main className="p-6 max-w-7xl mx-auto space-y-8 flex-grow w-full">
+
+          <BackupCodesReminder userId={session.user.id} />
           
           {/* 1. WELCOME & STATS */}
           <div className="space-y-6">

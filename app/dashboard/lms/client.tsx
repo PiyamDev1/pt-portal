@@ -14,7 +14,6 @@ import { EditCustomerModal } from './components/EditCustomerModal'
 import { AdvancedSearchModal, SearchFilters } from './components/AdvancedSearchModal'
 import { AccountNotesModal } from './components/AccountNotesModal'
 import { AuditLogsModal } from './components/AuditLogsModal'
-import { BackupCodesReminder } from './components/BackupCodesReminder'
 import { ErrorBoundary } from './ErrorBoundary'
 import { TableHeaderSkeleton, StatCardSkeleton } from './components/Skeletons'
 
@@ -138,9 +137,6 @@ function LMSClientInner({ currentUserId }: LMSClientProps) {
   return (
     <ErrorBoundary>
       <div className="space-y-4">
-        {/* Backup Codes Reminder */}
-        <BackupCodesReminder userId={currentUserId} />
-
         {/* Stats Bar */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           <StatCard
