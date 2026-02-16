@@ -28,6 +28,15 @@ const nextConfig = {
   async headers() {
     return [
       {
+        source: '/dashboard/timeclock/:path*',
+        headers: [
+          {
+            key: 'Permissions-Policy',
+            value: 'geolocation=(self), microphone=(), camera=(self)'
+          },
+        ],
+      },
+      {
         source: '/:path*',
         headers: [
           {

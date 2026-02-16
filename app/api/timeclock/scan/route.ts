@@ -82,6 +82,12 @@ function computeHash(material: string) {
   return crypto.createHash('sha256').update(material).digest('hex')
 }
 
+function getUtcDayBounds(date: Date) {
+  const start = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 0, 0, 0, 0))
+  const end = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 23, 59, 59, 999))
+  return { start, end }
+}
+
 export async function POST(request: Request) {
   try {
     if (!supabaseUrl || !serviceKey) {
@@ -163,6 +169,19 @@ export async function POST(request: Request) {
       .limit(1)
       .maybeSingle()
 
+    const { start, end } = getUtcDayBounds(new Date())
+    const { data: lastPunch } = await adminSupabase
+      .from('timeclock_events')
+      .select('punch_type')
+      .eq('employee_id', session.user.id)
+      .gte('scanned_at', start.toISOString())
+      .lte('scanned_at', end.toISOString())
+      .order('scanned_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    const punchType = lastPunch?.punch_type === 'IN' ? 'OUT' : 'IN'
+
     const prevHash = lastEvent?.hash || null
     const deviceTsIso = new Date(normalizedTs * 1000).toISOString()
     const headerStore = await headers()
@@ -174,6 +193,7 @@ export async function POST(request: Request) {
       payload.device_id,
       session.user.id,
       'PUNCH',
+      punchType,
       deviceTsIso,
       payload.nonce,
       geo?.lat ?? '',
@@ -193,6 +213,7 @@ export async function POST(request: Request) {
         employee_id: session.user.id,
         device_id: payload.device_id,
         event_type: 'PUNCH',
+        punch_type: punchType,
         qr_payload: payload,
         nonce: payload.nonce,
         device_ts: deviceTsIso,

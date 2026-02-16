@@ -27,10 +27,29 @@ export default function TimeclockClient() {
   const [qrText, setQrText] = useState('')
   const [result, setResult] = useState<ScanResponse | null>(null)
   const [cameraError, setCameraError] = useState('')
+  const [cameraPermission, setCameraPermission] = useState<'granted' | 'denied' | 'prompt' | 'unknown'>('unknown')
 
   const detectorSupported = typeof window !== 'undefined' && 'BarcodeDetector' in window
 
   useEffect(() => {
+    let isMounted = true
+
+    const checkPermission = async () => {
+      if (!navigator.permissions) return
+      try {
+        const status = await navigator.permissions.query({ name: 'camera' as PermissionName })
+        if (!isMounted) return
+        setCameraPermission(status.state)
+        status.onchange = () => {
+          setCameraPermission(status.state)
+        }
+      } catch {
+        setCameraPermission('unknown')
+      }
+    }
+
+    checkPermission()
+
     if (!isScanning) {
       stopStream()
       return
@@ -93,10 +112,26 @@ export default function TimeclockClient() {
     startCamera()
 
     return () => {
+      isMounted = false
       isActive = false
       stopStream()
     }
   }, [isScanning, detectorSupported])
+
+  const requestCameraPermission = async () => {
+    setCameraError('')
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment' },
+        audio: false,
+      })
+      stream.getTracks().forEach(track => track.stop())
+      setCameraPermission('granted')
+    } catch (error: any) {
+      setCameraPermission('denied')
+      setCameraError(error?.message || 'Camera access denied.')
+    }
+  }
 
   const stopStream = () => {
     if (scanTimerRef.current) {
@@ -204,6 +239,13 @@ export default function TimeclockClient() {
             </button>
             <button
               type="button"
+              onClick={requestCameraPermission}
+              className="px-4 py-2 rounded-lg border border-slate-200 text-slate-700 text-sm font-semibold hover:bg-slate-50"
+            >
+              Enable Camera
+            </button>
+            <button
+              type="button"
               onClick={() => {
                 setIsScanning(false)
                 stopStream()
@@ -225,6 +267,12 @@ export default function TimeclockClient() {
             </div>
           )}
         </div>
+
+        {cameraPermission === 'denied' && (
+          <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-700">
+            Camera permission is blocked. Enable it in your browser settings for this site.
+          </div>
+        )}
 
         {cameraError && (
           <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-700">

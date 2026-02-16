@@ -11,6 +11,7 @@ type TimeclockEvent = {
   id: string
   employee_id?: string
   event_type: string
+  punch_type?: string
   device_ts: string
   scanned_at: string
   geo?: { lat?: number; lng?: number; accuracy?: number } | null
@@ -48,41 +49,6 @@ const extractDeviceName = (device?: TimeclockEvent['timeclock_devices']) => {
 const extractEmployeeName = (employee?: TimeclockEvent['employees']) => {
   if (!employee) return 'Unknown'
   return Array.isArray(employee) ? employee[0]?.full_name || 'Unknown' : employee?.full_name || 'Unknown'
-}
-
-const getDateKey = (value?: string | null) => {
-  if (!value) return 'unknown'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return 'unknown'
-  const year = date.getFullYear()
-  const month = `${date.getMonth() + 1}`.padStart(2, '0')
-  const day = `${date.getDate()}`.padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
-const buildPunchMap = (events: TimeclockEvent[]) => {
-  const map = new Map<string, string>()
-  const grouped = new Map<string, TimeclockEvent[]>()
-
-  events.forEach((event) => {
-    const dateKey = getDateKey(event.scanned_at)
-    const groupKey = `${event.employee_id || 'team'}:${dateKey}`
-    if (!grouped.has(groupKey)) {
-      grouped.set(groupKey, [])
-    }
-    grouped.get(groupKey)?.push(event)
-  })
-
-  grouped.forEach((groupEvents) => {
-    const ordered = [...groupEvents].sort(
-      (a, b) => new Date(a.scanned_at).getTime() - new Date(b.scanned_at).getTime()
-    )
-    ordered.forEach((event, index) => {
-      map.set(event.id, index % 2 === 0 ? 'IN' : 'OUT')
-    })
-  })
-
-  return map
 }
 
 const escapeCsv = (value: string) => {
@@ -163,7 +129,6 @@ export default function TimeclockTeamClient() {
     loadEvents()
   }, [queryString])
 
-  const punchMap = buildPunchMap(events)
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
 
   const applyPreset = (preset: 'today' | 'last7' | 'last30' | 'clear') => {
@@ -215,13 +180,12 @@ export default function TimeclockTeamClient() {
         return
       }
 
-      const exportPunchMap = buildPunchMap(data.events || [])
       const rows = (data.events || []).map((event) => {
         const geo = event.geo || {}
         return [
           extractEmployeeName(event.employees),
           extractDeviceName(event.timeclock_devices),
-          exportPunchMap.get(event.id) || event.event_type,
+          event.punch_type || event.event_type,
           formatDate(event.device_ts),
           formatDate(event.scanned_at),
           geo.lat?.toString() || '',
@@ -374,9 +338,7 @@ export default function TimeclockTeamClient() {
                   <tr key={event.id} className="border-b border-slate-100 last:border-b-0">
                     <td className="py-3 pr-4 font-medium">{extractEmployeeName(event.employees)}</td>
                     <td className="py-3 pr-4">{extractDeviceName(event.timeclock_devices)}</td>
-                    <td className="py-3 pr-4">
-                      {punchMap.get(event.id) || event.event_type}
-                    </td>
+                    <td className="py-3 pr-4">{event.punch_type || event.event_type}</td>
                     <td className="py-3 pr-4">{formatDate(event.device_ts)}</td>
                     <td className="py-3 pr-4">{formatDate(event.scanned_at)}</td>
                     <td className="py-3 pr-4">{geoText}</td>

@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS public.timeclock_events (
   employee_id UUID NOT NULL REFERENCES employees(id),
   device_id UUID NOT NULL REFERENCES timeclock_devices(id),
   event_type TEXT NOT NULL DEFAULT 'PUNCH',
+  punch_type TEXT NOT NULL DEFAULT 'IN',
   qr_payload JSONB NOT NULL,
   nonce TEXT NOT NULL,
   device_ts TIMESTAMP WITH TIME ZONE NOT NULL,

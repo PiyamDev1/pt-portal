@@ -6,6 +6,7 @@ type TimeclockEvent = {
   id: string
   employee_id?: string
   event_type: string
+  punch_type?: string
   device_ts: string
   scanned_at: string
   geo?: { lat?: number; lng?: number; accuracy?: number } | null
@@ -36,41 +37,6 @@ const toLocalDateInput = (date: Date) => {
 const extractDeviceName = (device?: TimeclockEvent['timeclock_devices']) => {
   if (!device) return 'Unknown'
   return Array.isArray(device) ? device[0]?.name || 'Unknown' : device?.name || 'Unknown'
-}
-
-const getDateKey = (value?: string | null) => {
-  if (!value) return 'unknown'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return 'unknown'
-  const year = date.getFullYear()
-  const month = `${date.getMonth() + 1}`.padStart(2, '0')
-  const day = `${date.getDate()}`.padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
-const buildPunchMap = (events: TimeclockEvent[]) => {
-  const map = new Map<string, string>()
-  const grouped = new Map<string, TimeclockEvent[]>()
-
-  events.forEach((event) => {
-    const dateKey = getDateKey(event.scanned_at)
-    const groupKey = `${event.employee_id || 'self'}:${dateKey}`
-    if (!grouped.has(groupKey)) {
-      grouped.set(groupKey, [])
-    }
-    grouped.get(groupKey)?.push(event)
-  })
-
-  grouped.forEach((groupEvents) => {
-    const ordered = [...groupEvents].sort(
-      (a, b) => new Date(a.scanned_at).getTime() - new Date(b.scanned_at).getTime()
-    )
-    ordered.forEach((event, index) => {
-      map.set(event.id, index % 2 === 0 ? 'IN' : 'OUT')
-    })
-  })
-
-  return map
 }
 
 export default function TimeclockHistoryClient() {
@@ -146,7 +112,6 @@ export default function TimeclockHistoryClient() {
     setDateTo(end)
   }
 
-  const punchMap = buildPunchMap(events)
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
 
   return (
@@ -242,9 +207,7 @@ export default function TimeclockHistoryClient() {
                 return (
                   <tr key={event.id} className="border-b border-slate-100 last:border-b-0">
                     <td className="py-3 pr-4 font-medium">{extractDeviceName(event.timeclock_devices)}</td>
-                    <td className="py-3 pr-4">
-                      {punchMap.get(event.id) || event.event_type}
-                    </td>
+                    <td className="py-3 pr-4">{event.punch_type || event.event_type}</td>
                     <td className="py-3 pr-4">{formatDate(event.device_ts)}</td>
                     <td className="py-3 pr-4">{formatDate(event.scanned_at)}</td>
                     <td className="py-3 pr-4">{geoText}</td>
