@@ -49,6 +49,14 @@ const ALL_MODULES = [
     href: "/dashboard/employee-record" 
   },
   { 
+    id: 'timeclock', 
+    title: "Timeclock", 
+    desc: "QR clock in and out",
+    icon: "⏱️", 
+    color: "bg-slate-900 text-white", 
+    href: "/dashboard/timeclock" 
+  },
+  { 
     id: 'lms', 
     title: "LMS", 
     desc: "Loan Management System",
