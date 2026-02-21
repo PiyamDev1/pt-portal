@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, memo } from 'react'
 
 interface EditModalProps {
   isOpen: boolean
@@ -14,7 +14,7 @@ interface EditModalProps {
   onClose: () => void
 }
 
-export default function EditModal({
+function EditModalContent({
   isOpen,
   editType,
   editFormData,
@@ -271,3 +271,5 @@ export default function EditModal({
     </div>
   )
 }
+
+export default memo(EditModalContent)

@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
 import { formatCNIC, getNadraRecord, getDetails } from './components/helpers'
@@ -280,7 +280,7 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
     } finally {
       setIsUpdating(false)
     }
-  }
+  }, [editType, editFormData?.id, currentUserId, refetch])
 
   // =====================================================================
   // HISTORY FETCHING
@@ -422,7 +422,7 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
     }
   }
 
-  const handleEditInputChange = (name: string, value: any) => {
+  const handleEditInputChange = useCallback((name: string, value: any) => {
     if (name === 'newBorn') {
       setEditFormData((prev: any) => ({ ...prev, newBorn: value, cnic: value ? '' : prev.cnic }))
       return
@@ -430,9 +430,9 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
 
     if (name === 'trackingNumber') value = value.toUpperCase()
     setEditFormData((prev: any) => ({ ...prev, [name]: value }))
-  }
+  }, [])
 
-  const handleEditSubmit = async () => {
+  const handleEditSubmit = useCallback(async () => {
     if (!editType || !editFormData?.id) {
       toast.error('Select a record to modify')
       return
@@ -451,7 +451,10 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
       })
       if (res.ok) {
         toast.success('Record updated')
-        closeEditModal()
+        setEditingRecord(null)
+        setEditType(null)
+        setEditFormData({})
+        setDeleteAuthCode('')
         router.refresh()
       } else {
         const payload = await res.json()
@@ -460,9 +463,9 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
     } catch (e) {
       toast.error('Error updating')
     }
-  }
+  }, [editType, editFormData?.id, currentUserId, router])
 
-  const handleDelete = async () => {
+  const handleDelete = useCallback(async () => {
     if (!deleteAuthCode) {
       toast.error('Auth code required for deletion')
       return
@@ -481,7 +484,10 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
       })
       if (res.ok) {
         toast.success('Record deleted permanently')
-        closeEditModal()
+        setEditingRecord(null)
+        setEditType(null)
+        setEditFormData({})
+        setDeleteAuthCode('')
         router.refresh()
       } else {
         const payload = await res.json()
@@ -490,14 +496,14 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
     } catch (e) {
       toast.error('Error deleting')
     }
-  }
+  }, [deleteAuthCode, editType, editFormData.id, currentUserId, router])
 
-  const closeEditModal = () => {
+  const closeEditModal = useCallback(() => {
     setEditingRecord(null)
     setEditType(null)
     setEditFormData({})
     setDeleteAuthCode('')
-  }
+  }, [])
 
   // =====================================================================
   // RENDER
