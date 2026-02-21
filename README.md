@@ -157,6 +157,44 @@ All documentation is organized in the `docs/` directory:
   - Setup verification
   - Learning paths
 
+### Codebase Refactoring & Cleanup
+These documents guide the ongoing refactoring efforts:
+
+- **[CODEBASE_STRUCTURE_GUIDE.md](CODEBASE_STRUCTURE_GUIDE.md)** - New modular structure
+  - Extracted hooks and components
+  - Centralized constants
+  - Import best practices
+  - Component patterns and templates
+
+- **[CODEBASE_REFACTORING_PLAN.md](CODEBASE_REFACTORING_PLAN.md)** - Overall refactoring strategy
+  - Priority matrix with effort estimates
+  - Phase-by-phase implementation plan
+  - Risk mitigation strategies
+  - Success metrics
+
+- **[CODEBASE_CLEANUP_GUIDE.md](CODEBASE_CLEANUP_GUIDE.md)** - Code quality standards
+  - File organization standards
+  - Code quality checklist
+  - Common cleanup tasks
+  - Maintenance schedule
+
+- **[hooks/README.md](hooks/README.md)** - Custom hooks documentation
+  - `useAsync` - Async operations
+  - `useModal` - Modal state management
+  - `usePagination` - Pagination logic
+  - `useFormState` - Form state management
+  - `useTableFilters` - Table filtering and sorting
+
+- **[components/README.md](components/README.md)** - Reusable components
+  - `ModalBase` - Consistent modal wrapper
+  - `ConfirmationDialog` - Deletion/warning dialogs
+  - Usage patterns and examples
+
+- **[lib/constants/README.md](lib/constants/README.md)** - Constants organization
+  - API endpoints
+  - Validation rules and messages
+  - UI constants (colors, spacing, sizes)
+
 ### Technical Documentation
 - **[docs/technical/PAYMENT_SERVICE_OPTIMIZATION.md](docs/technical/PAYMENT_SERVICE_OPTIMIZATION.md)** - LMS optimizations
   - Backend pagination
@@ -187,16 +225,36 @@ pt-portal/
 │   ├── auth/                     # Authentication pages
 │   ├── components/               # Reusable components
 │   ├── hooks/                    # Custom React hooks
-│   ├── lib/                      # Utility functions
+│   ├── lib/                      # Utility functions and constants
+│   │   ├── constants/            # Centralized constants (NEW)
+│   │   │   ├── api.ts           # API endpoints
+│   │   │   ├── validation.ts    # Validation rules
+│   │   │   ├── ui.ts            # UI constants
+│   │   │   └── index.ts         # Barrel export
+│   │   └── ...
 │   ├── types/                    # TypeScript types
 │   └── layout.tsx               # Root layout
+├── components/                   # Shared UI components (NEW)
+│   ├── ModalBase.tsx            # Reusable modal
+│   ├── ConfirmationDialog.tsx   # Confirmation dialog
+│   └── index.ts                 # Barrel export
+├── hooks/                        # Shared hooks (NEW)
+│   ├── useAsync.ts              # Async operations hook
+│   ├── useModal.ts              # Modal state hook
+│   ├── usePagination.ts         # Pagination hook
+│   ├── useFormState.ts          # Form state hook
+│   ├── useTableFilters.ts       # Table filtering hook
+│   └── index.ts                 # Barrel export
 ├── public/                       # Static assets
 ├── scripts/                      # Setup and utility scripts
-├── docs/                         # Additional documentation
+├── docs/                         # User and developer documentation
 ├── package.json
 ├── tsconfig.json
 ├── tailwind.config.js
-└── next.config.js
+├── next.config.js
+├── CODEBASE_STRUCTURE_GUIDE.md   # New module guide (NEW)
+├── CODEBASE_REFACTORING_PLAN.md  # Refactoring roadmap (NEW)
+└── CODEBASE_CLEANUP_GUIDE.md     # Code quality guide (NEW)
 ```
 
 ---
