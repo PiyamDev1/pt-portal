@@ -31,34 +31,33 @@ The codebase has grown significantly and contains several large monolithic compo
 
 ### Priority 1: High Impact, Medium Effort ⭐⭐⭐
 
-#### 1.1 Extract LMS API Route Logic
-**File:** `app/api/lms/route.js` (648 → 200 lines)
+#### 1.1 Split Large Modals & Components
+**Files:** PassportModal (400+), PaymentModal (350+), others
 
 ```
 Create:
-- lib/lms/queries.ts - LMS data fetching functions
-- lib/lms/transforms.ts - Data transformation logic
-- lib/lms/validators.ts - Request validation
-- app/api/lms/route.js - Main handler (delegates to above)
+- components/{Feature}Modal/index.tsx - Main component (simplified)
+- components/{Feature}Modal/Form.tsx - Form UI
+- hooks/use{Feature}Form.ts - Form state + handlers
+- components/{Feature}Modal/types.ts - Types
+```
+
+**Estimate:** 2-3 hours per modal
+**Benefit:** Reusable forms, testable logic, cleaner modals
+
+#### 1.2 Modularize Settings Components (425 → 150 lines)
+**File:** `app/dashboard/settings/components/StaffTab.tsx` (425 → 200 lines)
+
+```
+Create:
+- components/StaffTab/StaffForm.tsx - Add/Edit form
+- components/StaffTab/StaffList.tsx - List display
+- components/StaffTab/useStaffActions.ts - Handlers + API calls
+- components/StaffTab/index.tsx - Main component
 ```
 
 **Estimate:** 2-3 hours
-**Benefit:** Reusable queries, testable logic, cleaner route
-
-#### 1.2 Split TransactionModal (498 → 150 lines)
-**File:** `app/dashboard/lms/components/TransactionModal.tsx`
-
-```
-Create:
-- components/TransactionModal/FormState.ts - useState + initialization
-- components/TransactionModal/FormHandlers.ts - Submission logic
-- components/TransactionModal/index.tsx - Main component (simplified)
-- components/TransactionModal/TransactionForm.tsx - Form UI (reusable)
-- components/TransactionModal/InstallmentPreview.tsx - Preview UI
-```
-
-**Estimate:** 3-4 hours
-**Benefit:** ~60% smaller main file, reusable form, testable handlers
+**Benefit:** 50% smaller main file, reusable pieces, testable handlers
 
 #### 1.3 Extract Pricing Utilities
 **Files:** `pricing/*.tsx` (5 files, similar patterns)
@@ -90,54 +89,52 @@ Create:
 - components/StaffTab/types.ts - Shared types
 ```
 
+### Priority 2: Medium Impact, Quick Wins ⭐⭐
+
+#### 2.1 Extract Pricing Utilities (Already Identified)
+**Files:** `pricing/*.tsx` (5 files, similar patterns)
+
+```
+Create:
+- lib/pricing/schemas.ts - Zod schemas for all services
+- lib/pricing/validators.ts - Validation functions
+- lib/pricing/transforms.ts - Data transformations
+- lib/pricing/api.ts - API calls (CRUD operations)
+- hooks/usePricingForm.ts - Form state hook (reusable)
+- hooks/usePricingApi.ts - API hook (reusable)
+```
+
 **Estimate:** 2-3 hours
-**Benefit:** Testable pieces, clearer responsibilities, easier to maintain
+**Benefit:** 30-40% code reduction, reusable across all pricing tabs
 
-#### 2.2 Extract Common LMS Modals
-**Files:** Multiple modal files (200-500 lines each)
+#### 2.2 Modularize Additional Components
+**Targets:** TimeclockClient (400 lines), NADRA components, etc.
 
-```
-Create:
-- components/modals/ModalBase.tsx - Common modal wrapper
-- hooks/useModalState.ts - Modal state management
-- hooks/useFormState.ts - Generic form state management
-- components/modals/ConfirmationDialog.tsx - Reusable confirmation
-```
+Use established patterns with useFormState, useTableFilters, and ModalBase.
 
-**Estimate:** 1-2 hours
-**Benefit:** 50+ lines saved per modal, consistent UX
+**Estimate:** 2-3 hours per component
+**Benefit:** Consistent structure, easier testing
 
-#### 2.3 Extract Common Hooks
-**Patterns Identified:**
+### Priority 3: Already Completed (Phase 1) ✅
 
-```
-Create:
-- hooks/useAsync.ts - Handle async operations (loading/error)
+✅ **Extract Common Hooks**
+- hooks/useAsync.ts - Handle async operations
 - hooks/useTableFilters.ts - Table filtering/sorting
 - hooks/usePagination.ts - Pagination logic
-- hooks/useFormValidation.ts - Form validation wrapper
-```
+- hooks/useFormState.ts - Form state management
 
-**Estimate:** 1-2 hours
-**Benefit:** Reduced prop drilling, code reuse
-
-### Priority 3: Lower Impact, Quick Wins ⭐
-
-#### 3.1 Organize Utilities & Constants
-**Issue:** Constants scattered across files
-
-```
-Create:
+✅ **Organize Utilities & Constants**
 - lib/constants/api.ts - API endpoints
-- lib/constants/dates.ts - Date constants
 - lib/constants/validation.ts - Validation messages
 - lib/constants/ui.ts - UI constants
-```
 
-**Estimate:** 30 mins
-**Benefit:** Single source of truth, easier to update
+✅ **Create Base Components**
+- components/ModalBase.tsx - Common modal wrapper
+- components/ConfirmationDialog.tsx - Reusable confirmation
 
-#### 3.2 Extract Type Definitions
+### Priority 4: Lower Impact, Future Items ⭐
+
+#### 4.1 Organize Type Definitions
 **Consolidate:** Scattered type imports
 
 ```
@@ -148,7 +145,7 @@ Create:
 Organize into: app/types/{feature}/index.ts
 ```
 
-**Estimate:** 1 hour
+**Estimate:** 1-2 hours
 **Benefit:** Better discoverability, cleaner imports
 
 #### 3.3 Standardize Component Structure
@@ -169,25 +166,26 @@ ComponentName/
 
 ## Recommended Implementation Order
 
-### Phase 1 (Week 1) - Foundation
-1. Extract common hooks → `hooks/` directory
-2. Organize constants → `lib/constants/` directory
-3. Consolidate types → `app/types/` directory
+**Phase 1 (Completed)** ✅ - Foundation
+- [x] Extract common hooks → `hooks/` directory
+- [x] Organize constants → `lib/constants/` directory
+- [x] Create base components → `components/` directory
 
-### Phase 2 (Week 1-2) - High Impact API
-1. Refactor LMS API route → Extract queries/transforms
-2. Create reusable modal base components
-3. Implement common form hooks
+**Phase 2 (Next)** - High-Priority Modularization
+1. Split large modals using ModalBase and form hooks
+2. Modularize StaffTab component
+3. Extract pricing utilities and reusable hooks
 
-### Phase 3 (Week 2) - Component Refactoring
-1. Split StaffTab into sub-components
-2. Modularize TransactionModal
-3. Extract pricing utilities
+**Phase 3** - Additional Refactoring  
+1. Apply patterns to timeclock and NADRA components
+2. Extract type definitions to app/types
+3. Standardize component structure across dashboard
 
-### Phase 4 (Week 3) - Documentation & Testing
+**Phase 4** - Documentation & Testing
 1. Add component documentation
 2. Create unit tests for extracted utilities
 3. Update component README files
+4. Train team on new patterns
 
 ## File Organization Recommendations
 
@@ -208,32 +206,54 @@ app/
 ```
 app/
 ├── api/
-│   ├── lms/
-│   │   ├── lib/
-│   │   │   ├── queries.ts
-│   │   │   ├── transforms.ts
-│   │   │   └── validators.ts
-│   │   └── route.js (simplified)
+│   ├── ...existing routes (no refactoring for LMS)
 │   └── ...
 ├── dashboard/
-│   ├── lms/
+│   ├── applications/
+│   │   ├── passports/
+│   │   │   ├── components/
+│   │   │   │   ├── PassportModal/
+│   │   │   │   │   ├── index.tsx (simplified)
+│   │   │   │   │   ├── Form.tsx (reusable)
+│   │   │   │   │   └── types.ts
+│   │   │   │   └── ...
+│   │   │   ├── hooks/
+│   │   │   │   └── usePassportForm.ts
+│   │   │   └── ...
+│   │   ├── nadra/
+│   │   │   └── ...similar structure
+│   │   └── ...
+│   ├── settings/
 │   │   ├── components/
-│   │   │   ├── Account/
-│   │   │   ├── Modals/
-│   │   │   └── Tables/
-│   │   ├── hooks/     # Modular hooks
-│   │   ├── types.ts   # Local types
+│   │   │   ├── StaffTab/
+│   │   │   │   ├── index.tsx (simplified)
+│   │   │   │   ├── StaffForm.tsx
+│   │   │   │   ├── StaffList.tsx
+│   │   │   │   └── useStaffActions.ts
+│   │   │   └── ...
 │   │   └── ...
 │   └── ...
-├── hooks/          # Shared hooks
-├── lib/            # Shared utilities
+├── components/      # Shared components
+│   ├── ModalBase.tsx
+│   ├── ConfirmationDialog.tsx
+│   └── ...
+├── hooks/           # Shared hooks
+│   ├── useAsync.ts
+│   ├── useFormState.ts
+│   ├── usePagination.ts
+│   ├── useTableFilters.ts
+│   └── ...
+├── lib/             # Shared utilities
 │   ├── constants/
-│   ├── api/
-│   └── utils/
-└── types/          # Centralized types
+│   │   ├── api.ts
+│   │   ├── validation.ts
+│   │   ├── ui.ts
+│   │   └── index.ts
+│   └── ...
+└── types/           # Centralized types
     ├── common.ts
     ├── api.ts
-    └── {feature}/
+    └── ...
 ```
 
 ## Specific Code Examples to Improve
@@ -253,27 +273,31 @@ const form = useTransactionForm(data.transactionType)
 // Cleaner, testable, reusable
 ```
 
-### Example 2: LMS API Route
-**Before:** 648 lines, all concerns mixed
-```js
-export async function GET(request) {
-  // ... 20 lines of setup
-  // ... 100 lines of customer queries
-  // ... 150 lines of loan queries
-  // ... 200 lines of transaction queries
-  // ... 178 lines of data transformation
-  // ... return formatted data
+### Example 2: StaffTab Modularization
+**Before:** 425 lines, mixed concerns
+```tsx
+export function StaffTab() {
+  const [form, setForm] = useState({ /* 8 fields */ })
+  const [staff, setStaff] = useState([])
+  const [loading, setLoading] = useState(false)
+  // ... 50 lines of form handling
+  // ... 100 lines of staff list logic
+  // ... 150 lines of JSX
 }
 ```
 
-**After:** Delegated, testable
-```js
-export async function GET(request) {
-  const { filter, page, limit } = parseQuery(request)
-  const customers = await lmsQueries.getCustomersWithPagination(...)
-  const data = await lmsQueries.enrichWithLoans(customers)
-  const formatted = lmsTransforms.formatResponse(data)
-  return NextResponse.json(formatted)
+**After:** Modularized, testable
+```tsx
+export function StaffTab() {
+  const form = useFormState({ /* 8 fields */ })
+  const { staff, loading, delete: deleteStaff } = useStaffList()
+  
+  return (
+    <>
+      <StaffForm form={form} onSubmit={handleAdd} />
+      <StaffList staff={staff} loading={loading} onDelete={deleteStaff} />
+    </>
+  )
 }
 ```
 
@@ -300,12 +324,12 @@ export function ModalBase({ children, title, onClose, isLoading })
 ## Estimated Impact
 
 ### Lines Saved
-- LMS API: 400 lines
-- TransactionModal: 300 lines
 - StaffTab: 200 lines
+- PaymentModal: 250 lines
+- PassportModal: 280 lines
 - Pricing utilities: 200 lines
 - Duplicate modal code: 300 lines
-- **Total: ~1400 lines** (5-6% reduction)
+- **Total: ~1230 lines** (5% reduction)
 
 ### Quality Improvements
 - Testability: ⬆️ 50%
@@ -361,6 +385,6 @@ export function ModalBase({ children, title, onClose, isLoading })
 
 ---
 
-**Estimated Total Effort:** 15-20 hours
-**Estimated Timeline:** 3 weeks at normal velocity
-**ROI:** High (maintainability + velocity gains)
+**Estimated Total Effort:** 12-16 hours
+**Estimated Timeline:** 2-3 weeks at normal velocity
+**ROI:** High (maintainability + velocity gains without LMS API changes)
