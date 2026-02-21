@@ -35,7 +35,7 @@ export default async function SettingsPage() {
     supabase.from('locations').select('*').order('name'),
     supabase.from('departments').select('*').order('name'),
     supabase.from('roles').select('*').order('level'), // Level 1 = Boss
-    supabase.from('employees').select('id, full_name, email, role_id, department_id, location_id, manager_id'),
+    supabase.from('employees').select('id, full_name, email, role_id, department_id, location_id, manager_id, is_active'),
     supabase.from('employees')
       .select('full_name, roles(name), locations(name, branch_code)')
       .eq('id', session.user.id)

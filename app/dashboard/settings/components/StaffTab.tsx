@@ -9,6 +9,7 @@ interface StaffTabProps {
   initialDepts: any[]
   initialLocations: any[]
   supabase: any
+  userRole?: string
   loading: boolean
   setLoading: (loading: boolean) => void
 }
@@ -19,6 +20,7 @@ export default function StaffTab({
   initialDepts, 
   initialLocations,
   supabase, 
+  userRole = 'User',
   loading, 
   setLoading 
 }: StaffTabProps) {
@@ -27,6 +29,10 @@ export default function StaffTab({
   const [showAddForm, setShowAddForm] = useState(false)
   const [editingEmployee, setEditingEmployee] = useState<any>(null)
   const [resettingId, setResettingId] = useState<string | null>(null)
+  const [togglingId, setTogglingId] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
+  const [deleteConfirmEmail, setDeleteConfirmEmail] = useState('')
   const [newEmployee, setNewEmployee] = useState({
     firstName: '',
     lastName: '',
@@ -35,6 +41,8 @@ export default function StaffTab({
     department_ids: [] as string[],
     location_id: ''
   })
+
+  const isSuperAdmin = userRole === 'Master Admin'
 
   const toggleDepartment = (deptId: string) => {
     setNewEmployee(prev => {
@@ -81,6 +89,69 @@ export default function StaffTab({
     const data = await res.json()
     if (!res.ok) throw new Error(data.error || 'Failed to reset password')
     return data
+  }
+
+  const handleDisableEnable = async (emp: any) => {
+    const newStatus = !emp.is_active
+    if (!newStatus && !confirm(`Disable ${emp.full_name}? They will not be able to log in.`)) return
+
+    try {
+      setTogglingId(emp.id)
+      const res = await fetch('/api/admin/disable-enable-employee', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          employeeId: emp.id,
+          isActive: newStatus
+        })
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setEmployees(employees.map(e => 
+          e.id === emp.id ? { ...e, is_active: newStatus } : e
+        ))
+        const action = newStatus ? 'enabled' : 'disabled'
+        toast.success(`Employee ${action}`)
+      } else {
+        toast.error(data.error || `Failed to ${newStatus ? 'enable' : 'disable'} employee`)
+      }
+    } catch (err: any) {
+      toast.error('Error: ' + (err.message || err))
+    } finally {
+      setTogglingId(null)
+    }
+  }
+
+  const handleDeleteEmployee = async (emp: any) => {
+    if (deleteConfirmEmail !== emp.email) {
+      toast.error('Email does not match')
+      return
+    }
+
+    try {
+      setDeletingId(emp.id)
+      const res = await fetch('/api/admin/delete-employee', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          employeeId: emp.id,
+          confirmEmail: emp.email
+        })
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setEmployees(employees.filter(e => e.id !== emp.id))
+        toast.success(`${emp.full_name} has been permanently deleted`)
+        setDeleteConfirmId(null)
+        setDeleteConfirmEmail('')
+      } else {
+        toast.error(data.error || 'Failed to delete employee')
+      }
+    } catch (err: any) {
+      toast.error('Error: ' + (err.message || err))
+    } finally {
+      setDeletingId(null)
+    }
   }
 
   const handleUpdateEmployee = async () => {
@@ -185,7 +256,7 @@ export default function StaffTab({
 
               <button 
                 disabled={loading}
-                className="w-full bg-blue-900 text-white py-3 rounded hover:bg-blue-800 font-bold transition-colors"
+                className="w-full bg-blue-900 text-white py-3 rounded hover:bg-blue-800 font-bold transition-colors disabled:opacity-50"
               >
                 {loading ? 'Creating Account & Sending Email...' : 'Create Account'}
               </button>
@@ -201,13 +272,14 @@ export default function StaffTab({
               <th className="px-4 py-3">Role</th>
               <th className="px-4 py-3">Branch</th>
               <th className="px-4 py-3">Department</th>
+              <th className="px-4 py-3">Status</th>
               <th className="px-4 py-3">Action</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {employees.map((emp: any) => (
-              <tr key={emp.id} className="hover:bg-slate-50">
-                <td className="px-4 py-3 font-medium">
+              <tr key={emp.id} className={emp.is_active === false ? 'hover:bg-slate-50 opacity-60' : 'hover:bg-slate-50'}>
+                <td className={`px-4 py-3 font-medium ${emp.is_active === false ? 'line-through text-slate-400' : ''}`}>
                   {emp.full_name}
                   <div className="text-xs text-slate-400 font-normal">{emp.email}</div>
                 </td>
@@ -235,6 +307,7 @@ export default function StaffTab({
                     <td className="px-2 py-3">
                       <span className="text-xs text-gray-400 italic">Manage via Profile</span>
                     </td>
+                    <td className="px-2 py-3" />
                     <td className="px-4 py-3 flex gap-2">
                       <button type="button" onClick={handleUpdateEmployee} className="text-green-600 font-bold hover:underline">Save</button>
                       <button type="button" onClick={() => setEditingEmployee(null)} className="text-slate-400 hover:underline">Cancel</button>
@@ -246,30 +319,98 @@ export default function StaffTab({
                     <td className="px-4 py-3">{initialLocations.find((l:any) => l.id === emp.location_id)?.name || '-'}</td>
                     <td className="px-4 py-3">{initialDepts.find((d:any) => d.id === emp.department_id)?.name || '-'}</td>
                     <td className="px-4 py-3">
-                      <button 
-                        onClick={() => setEditingEmployee(emp)}
-                        className="text-blue-600 hover:text-blue-800 font-medium"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={async () => {
-                          if (!confirm(`Send a temporary password to ${emp.email}?`)) return
-                          try {
-                            setResettingId(emp.id)
-                            const resp = await adminResetPassword({ employee_id: emp.id })
-                            toast.success(resp.message || 'Temporary password emailed')
-                          } catch (err: any) {
-                            toast.error('Error: ' + (err.message || err))
-                          } finally {
-                            setResettingId(null)
-                          }
-                        }}
-                        disabled={loading || resettingId === emp.id}
-                        className="ml-3 text-red-600 hover:underline"
-                      >
-                        {resettingId === emp.id ? 'Sending...' : 'Reset Password'}
-                      </button>
+                      {emp.is_active === false ? (
+                        <span className="px-2 py-1 bg-red-100 text-red-700 rounded text-xs font-semibold">Disabled</span>
+                      ) : (
+                        <span className="px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-semibold">Active</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex gap-2 flex-wrap">
+                        <button 
+                          onClick={() => setEditingEmployee(emp)}
+                          className="text-blue-600 hover:text-blue-800 font-medium"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={async () => {
+                            if (!confirm(`Send a temporary password to ${emp.email}?`)) return
+                            try {
+                              setResettingId(emp.id)
+                              const resp = await adminResetPassword({ employee_id: emp.id })
+                              toast.success(resp.message || 'Temporary password emailed')
+                            } catch (err: any) {
+                              toast.error('Error: ' + (err.message || err))
+                            } finally {
+                              setResettingId(null)
+                            }
+                          }}
+                          disabled={loading || resettingId === emp.id}
+                          className="text-orange-600 hover:text-orange-800 font-medium disabled:opacity-50"
+                        >
+                          {resettingId === emp.id ? 'Sending...' : 'Reset'}
+                        </button>
+
+                        <button
+                          onClick={() => handleDisableEnable(emp)}
+                          disabled={togglingId === emp.id || loading}
+                          className={`font-medium ${
+                            emp.is_active === false 
+                              ? 'text-green-600 hover:text-green-800' 
+                              : 'text-yellow-600 hover:text-yellow-800'
+                          } disabled:opacity-50`}
+                        >
+                          {togglingId === emp.id ? 'Updating...' : (emp.is_active === false ? 'Enable' : 'Disable')}
+                        </button>
+
+                        {isSuperAdmin && (
+                          <>
+                            {deleteConfirmId === emp.id ? (
+                              <div className="col-span-full bg-red-50 border border-red-200 rounded p-3 mt-2">
+                                <p className="text-sm font-semibold text-red-900 mb-2">
+                                  ⚠️ Confirm deletion of {emp.full_name}
+                                </p>
+                                <p className="text-xs text-red-700 mb-3">
+                                  This action cannot be undone. Type their email to confirm:
+                                </p>
+                                <input
+                                  type="text"
+                                  placeholder={`Type: ${emp.email}`}
+                                  value={deleteConfirmEmail}
+                                  onChange={e => setDeleteConfirmEmail(e.target.value)}
+                                  className="w-full p-2 border border-red-300 rounded mb-2 text-sm"
+                                />
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={() => handleDeleteEmployee(emp)}
+                                    disabled={deletingId === emp.id || deleteConfirmEmail !== emp.email}
+                                    className="px-3 py-1 bg-red-600 text-white rounded text-sm font-bold hover:bg-red-700 disabled:opacity-50"
+                                  >
+                                    {deletingId === emp.id ? 'Deleting...' : 'Permanently Delete'}
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setDeleteConfirmId(null)
+                                      setDeleteConfirmEmail('')
+                                    }}
+                                    className="px-3 py-1 bg-slate-300 text-slate-700 rounded text-sm font-bold hover:bg-slate-400"
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => setDeleteConfirmId(emp.id)}
+                                className="text-red-600 hover:text-red-800 font-medium"
+                              >
+                                Delete
+                              </button>
+                            )}
+                          </>
+                        )}
+                      </div>
                     </td>
                   </>
                 )}
@@ -281,3 +422,4 @@ export default function StaffTab({
     </div>
   )
 }
+

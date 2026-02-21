@@ -1,0 +1,287 @@
+Plan to scaffold pt-timeclock-esp32 (ESP32-8048S050)
+
+Goal
+Build a portrait UI timeclock device with 4 swipeable tabs (QR, Notices, Log, Settings) that generates a signed dynamic QR (ptc1 namespace) and supports Wi-Fi setup, NTP time sync, local logging, and a secure device configuration flow.
+
+Initial startup provisioning (new)
+- On first boot, launch a setup flow before showing tabs
+- Steps:
+	1) Wi-Fi selection + password (captive portal or on-device keyboard)
+	2) Connect to Wi-Fi
+	3) Register device with server
+	4) Download device config + assigned branch/location
+	5) Save device_id, secret, and location_id to NVS
+- Device ID strategy:
+	- Use ESP32 MAC address as the permanent device_id
+	- Example device_id: "ESP32S3-<MAC_NO_COLONS>"
+	- Server can also map to UUID if desired, but keep MAC as stable external ID
+
+Hardware assumptions
+- ESP32-S3 + 800x480 RGB LCD with touch (ESP32-8048S050 module)
+- Capacitive touch controller (typical: GT911 or FT5x06)
+- Portrait mounting (rotate display + touch accordingly)
+- External power (stable 5V USB or 5V DC)
+
+Stack
+- PlatformIO + Arduino framework
+- LVGL 8.x for UI
+- NVS for persistent settings
+- Wi-Fi captive portal for first-time setup
+- NTP for time sync
+- Lightweight QR library (qrcodegen or similar)
+
+Repository structure
+- platformio.ini
+	- Board: esp32-s3-devkitc-1 (or correct for module)
+	- Framework: arduino
+	- Libraries: lvgl, lvgl_esp32_drivers (if used), WiFiManager (or AsyncWiFiManager), qrcodegen
+	- Build flags: LV_COLOR_DEPTH=16, LV_USE_LOG, LV_USE_FREETYPE (optional)
+
+- src/main.cpp
+	- Boot sequence
+	- LVGL init
+	- Display + touch init
+	- UI creation and screen manager
+	- Main loop with lv_timer_handler
+
+- src/ui/
+	- ui_root.h/.cpp (tab view + shared styles)
+	- ui_qr.h/.cpp (QR tab UI + refresh timer)
+	- ui_notices.h/.cpp (notices list + refresh)
+	- ui_log.h/.cpp (log list + scroll)
+	- ui_settings.h/.cpp (settings form + buttons)
+
+- src/services/
+	- service_wifi.h/.cpp (Wi-Fi connect + captive portal + status)
+	- service_time.h/.cpp (NTP sync, time validity)
+	- service_qr.h/.cpp (payload build, HMAC, QR generation)
+	- service_storage.h/.cpp (NVS config read/write)
+	- service_log.h/.cpp (ring buffer + UI bridge)
+	- service_http.h/.cpp (API calls, retry/backoff)
+
+- src/assets/
+	- fonts (custom or LVGL built-ins)
+	- icons (PNG or LVGL symbols)
+
+- include/
+	- config.h (structs, defaults)
+	- pins.h (LCD and touch pin map placeholders)
+	- secrets.h (API base URL and placeholders, no real secrets)
+
+- README.md
+	- Build, flash, and configure steps
+	- How to set pins for your board
+	- Where to put device ID and secret
+
+UI design (portrait)
+- Global
+	- Tab view at bottom with 4 icons and labels
+	- Swipe left/right between tabs
+	- Status bar at top: Wi-Fi icon, time sync status, QR refresh countdown
+
+- QR tab
+	- Large QR code centered
+	- Countdown ring or bar with seconds to next refresh
+	- Manual code field below QR
+		- Hidden/blurred by default
+		- Tap to reveal for 10 seconds, then auto-hide
+		- Tap again to copy (if supported) or show toast "Code shown"
+	- QR refresh interval setting in Settings
+
+- Notices tab
+	- Scrollable list of notices
+	- Each notice: title, timestamp, short body
+	- Pull to refresh button
+	- Offline state: show last cached notices
+
+- Log tab
+	- Scrollable log list (timestamp + message)
+	- Logs stored in ring buffer (RAM)
+	- Optional flush to NVS every N events (configurable)
+
+- Settings tab
+	- Device ID (read-only label)
+	- Assigned branch/location (read-only label)
+	- Wi-Fi status and button "Configure Wi-Fi"
+	- NTP sync button
+	- QR refresh interval selector (5s/10s/20s/30s)
+	- API endpoint status
+	- Revoke/reset device button (clears secret + Wi-Fi)
+	- Virtual keyboard for text entry when needed
+
+UI/UX animation guidance
+- Page transitions: horizontal slide with 200-250ms ease-out
+- QR refresh: subtle scale pulse on refresh (1.0 -> 1.03 -> 1.0)
+- Countdown ring: smooth 1s updates, not jumping
+- Notices and logs: staggered list item fade-in (60-100ms delay each)
+- Settings changes: show toast/snackbar confirmations
+- Error states: soft shake animation on input or button
+
+Provisioning UX copy (startup flow)
+- Screen 1: Welcome
+	- Title: "Timeclock Setup"
+	- Subtitle: "Connect to Wi-Fi to start generating QR codes."
+	- Button: "Start Setup"
+- Screen 2: Wi-Fi
+	- Title: "Connect to Wi-Fi"
+	- Subtitle: "Choose a network and enter the password."
+	- Button: "Open Wi-Fi Setup"
+	- Secondary: "Use On-Device Keyboard"
+- Screen 3: Connecting
+	- Title: "Connecting..."
+	- Subtitle: "This may take a few seconds."
+	- Animated spinner + progress text
+- Screen 4: Registering
+	- Title: "Registering Device"
+	- Subtitle: "Linking device to your branch."
+	- Animated progress bar
+- Screen 5: Success
+	- Title: "Setup Complete"
+	- Subtitle: "Device is ready to use."
+	- Button: "Go to Timeclock"
+- Screen 6: Error
+	- Title: "Setup Failed"
+	- Subtitle: "Check Wi-Fi and try again."
+	- Button: "Retry"
+
+Core features (details)
+- Wi-Fi setup
+	- If no credentials, start captive portal AP
+	- AP SSID: PT-Timeclock-XXXX
+	- Portal collects SSID/password, saves to NVS
+	- Connection retry with exponential backoff
+	- UI shows connecting status
+
+- Device registration and config
+	- On successful Wi-Fi, call server to register or fetch config
+	- API endpoint: POST /api/timeclock/devices/register
+		- Request: { device_id, device_name, firmware_version }
+		- Response: { device_id, secret, location_id, location_name, qr_interval_sec }
+	- Save device_id, secret, location_id, qr_interval_sec in NVS
+	- Use location_name for UI display
+	- If device already exists, server returns existing secret and config
+
+- Storage (NVS)
+	- device_id (string)
+	- device_secret (string)
+	- wifi_ssid (string)
+	- wifi_pass (string)
+	- qr_interval_sec (int)
+	- time_sync_ok (bool)
+	- last_notice_fetch (unix ts)
+
+- Time sync
+	- NTP pool servers
+	- Require valid time before QR generation
+	- UI warning if time not synced
+
+- QR payload format
+	- Prefix: ptc1:
+	- JSON payload: { v, device_id, ts, nonce, sig }
+	- ts = unix seconds
+	- nonce = random 8-16 chars
+	- sig = base64url(HMAC_SHA256(secret, device_id.ts.nonce))
+
+- QR refresh
+	- Timer based on qr_interval_sec
+	- Regen nonce and payload each interval
+	- Update QR graphic + manual code
+
+- Notices fetch
+	- API: GET /api/timeclock/notices?device_id=...
+	- Cache response in RAM, optionally NVS
+	- Retry if offline
+	- UI shows last updated time
+
+- Config refresh
+	- Periodically fetch config: GET /api/timeclock/devices/config?device_id=...
+	- Update qr_interval_sec and location label if changed
+
+- Logs
+	- Add log entries for Wi-Fi connect, time sync, QR refresh, API errors
+	- Limit to N entries
+	- UI auto-scroll to newest entry
+
+Virtual keyboard
+- Use LVGL keyboard widget
+- Attach to focused text fields
+- Close button and input validation
+- Use for Wi-Fi password or manual overrides
+
+Security and safety
+- Secret stored in NVS (not printed in logs)
+- Masked display of secret in Settings
+- Disable debug logs in production
+- On revoke, clear secret and force re-provision
+
+Portrait orientation
+- Set LVGL display rotation (90 or 270 depending on panel)
+- Adjust touch mapping accordingly
+
+Build plan (milestones)
+1) Boot + LVGL + portrait display + touch
+2) Tab view with placeholders
+3) Wi-Fi captive portal + NVS
+4) Device registration + config download
+5) NTP sync
+6) QR generation + dynamic refresh
+7) Notices fetch + list
+8) Log list + ring buffer
+9) Settings + keyboard
+10) Polish UI + error states
+
+Testing checklist
+- Wi-Fi connect/disconnect behavior
+- Captive portal works on phone
+- Time sync after reboot
+- QR refresh interval correct
+- Manual code reveal auto-hide
+- Notices load offline and online
+- Logs persist across reboots (if NVS enabled)
+
+Open questions
+- Exact panel pinout and touch controller type
+- API endpoints for notices and logs
+- Whether QR payload should include location or device-specific metadata
+
+Database and API notes (for PT portal)
+- Existing table: timeclock_devices
+  - id (UUID) - internal
+  - name (TEXT)
+  - location_id (UUID)
+  - secret (TEXT)
+  - is_active (BOOLEAN)
+  - created_at, updated_at
+  - Add suggested columns:
+	 - device_external_id (TEXT, unique) -- store ESP32 MAC-based ID
+	 - firmware_version (TEXT)
+	 - last_seen_at (TIMESTAMPTZ)
+	 - qr_interval_sec (INT, default 20)
+
+- Existing table: timeclock_events
+  - employee_id, device_id, event_type, punch_type, qr_payload, etc.
+  - Keep as-is, used by portal scanning
+
+Suggested API endpoints
+1) POST /api/timeclock/devices/register
+	- Body: { device_id, device_name, firmware_version }
+	- Logic: upsert into timeclock_devices by device_external_id
+	- If no secret yet, generate and store one
+	- Return: { device_id, secret, location_id, location_name, qr_interval_sec }
+
+2) GET /api/timeclock/devices/config?device_id=...
+	- Return latest config (location_id, location_name, qr_interval_sec, is_active)
+
+3) GET /api/timeclock/notices?device_id=...
+	- Return array of notices: { id, title, body, created_at }
+
+4) POST /api/timeclock/devices/heartbeat
+	- Body: { device_id, firmware_version, ip, last_seen_at }
+	- Used to mark device online in portal
+
+PT portal web updates
+- Add a "Timeclock Devices" tab in Settings
+  - List devices, external ID, location, last seen, active flag
+  - Assign location/branch to device
+  - Rotate secret button
+  - Set QR interval per device

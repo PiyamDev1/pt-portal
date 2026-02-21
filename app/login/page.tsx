@@ -18,14 +18,21 @@ export default function LoginPage() {
 
   // --- LOGIC: Validate Branch, Password Status & Redirect ---
   const postLoginChecks = async (userId: string) => {
-    // 1. Check database for Branch Code match AND Temporary Password Flag
+    // 1. Check database for Account Status, Branch Code match AND Temporary Password Flag
     const { data: employee } = await supabase
       .from('employees')
-      .select('is_temporary_password, locations(branch_code)')
+      .select('is_active, is_temporary_password, locations(branch_code)')
       .eq('id', userId)
       .single()
 
-    // --- NEW: FORCE PASSWORD CHANGE CHECK ---
+    // --- CHECK: Account Active Status ---
+    if (employee?.is_active === false) {
+      await supabase.auth.signOut()
+      throw new Error('Your account has been disabled. Contact your administrator for access.')
+    }
+    // ----------------------------------------
+
+    // --- FORCE PASSWORD CHANGE CHECK ---
     if (employee?.is_temporary_password) {
       router.push('/auth/new-password')
       return

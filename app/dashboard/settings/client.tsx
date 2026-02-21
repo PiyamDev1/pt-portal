@@ -133,6 +133,7 @@ export default function SettingsClient({
             initialDepts={initialDepts}
             initialLocations={initialLocations}
             supabase={supabase}
+            userRole={userRole}
             loading={loading}
             setLoading={setLoading}
           />
