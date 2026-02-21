@@ -70,19 +70,27 @@ export default function EditModal({
             </h4>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="text-[10px] font-bold uppercase text-slate-400">First Name</label>
+                <label htmlFor="edit-firstName" className="text-[10px] font-bold uppercase text-slate-400">First Name</label>
                 <input
+                  id="edit-firstName"
+                  name="firstName"
+                  type="text"
                   className="w-full border rounded p-2 text-sm bg-white"
                   value={editFormData.firstName || ''}
                   onChange={(e) => onInputChange('firstName', e.target.value)}
+                  autoComplete="given-name"
                 />
               </div>
               <div>
-                <label className="text-[10px] font-bold uppercase text-slate-400">Last Name</label>
+                <label htmlFor="edit-lastName" className="text-[10px] font-bold uppercase text-slate-400">Last Name</label>
                 <input
+                  id="edit-lastName"
+                  name="lastName"
+                  type="text"
                   className="w-full border rounded p-2 text-sm bg-white"
                   value={editFormData.lastName || ''}
                   onChange={(e) => onInputChange('lastName', e.target.value)}
+                  autoComplete="family-name"
                 />
               </div>
               <label className="col-span-2 flex items-center gap-2 text-sm text-slate-600">
@@ -109,21 +117,29 @@ export default function EditModal({
               </div>
               {editType === 'family_head' && (
                 <div className="col-span-2">
-                  <label className="text-[10px] font-bold uppercase text-slate-400">Phone Number</label>
+                  <label htmlFor="edit-phone" className="text-[10px] font-bold uppercase text-slate-400">Phone Number</label>
                   <input
+                    id="edit-phone"
+                    name="phone"
+                    type="tel"
                     className="w-full border rounded p-2 text-sm bg-white"
                     value={editFormData.phone || ''}
                     onChange={(e) => onInputChange('phone', e.target.value)}
+                    autoComplete="tel"
                   />
                 </div>
               )}
               {editType === 'application' && (
                 <div className="col-span-2">
-                  <label className="text-[10px] font-bold uppercase text-slate-400">Email Address</label>
+                  <label htmlFor="edit-email" className="text-[10px] font-bold uppercase text-slate-400">Email Address</label>
                   <input
+                    id="edit-email"
+                    name="email"
+                    type="email"
                     className="w-full border rounded p-2 text-sm bg-white"
                     value={editFormData.email || ''}
                     onChange={(e) => onInputChange('email', e.target.value)}
+                    autoComplete="email"
                   />
                 </div>
               )}
@@ -183,19 +199,27 @@ export default function EditModal({
                   </select>
                 </div>
                 <div>
-                  <label className="text-[10px] font-bold uppercase text-slate-400">Tracking ID</label>
+                  <label htmlFor="edit-trackingNumber" className="text-[10px] font-bold uppercase text-slate-400">Tracking ID</label>
                   <input
+                    id="edit-trackingNumber"
+                    name="trackingNumber"
+                    type="text"
                     className="w-full border rounded p-2 text-sm font-mono bg-white"
                     value={editFormData.trackingNumber || ''}
                     onChange={(e) => onInputChange('trackingNumber', e.target.value)}
+                    autoComplete="off"
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] font-bold uppercase text-slate-400">PIN</label>
+                  <label htmlFor="edit-pin" className="text-[10px] font-bold uppercase text-slate-400">PIN</label>
                   <input
+                    id="edit-pin"
+                    name="pin"
+                    type="text"
                     className="w-full border rounded p-2 text-sm font-mono bg-white"
                     value={editFormData.pin || ''}
                     onChange={(e) => onInputChange('pin', e.target.value)}
+                    autoComplete="off"
                   />
                 </div>
               </div>
