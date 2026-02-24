@@ -2,7 +2,7 @@
 CREATE TABLE IF NOT EXISTS timeclock_manual_codes (
   id BIGSERIAL PRIMARY KEY,
   code TEXT NOT NULL UNIQUE, -- 8-digit numeric code
-  device_id TEXT NOT NULL REFERENCES timeclock_devices(id),
+  device_id UUID NOT NULL REFERENCES timeclock_devices(id),
   qr_payload TEXT NOT NULL, -- Full QR payload for reference
   user_id UUID NOT NULL REFERENCES auth.users(id),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),

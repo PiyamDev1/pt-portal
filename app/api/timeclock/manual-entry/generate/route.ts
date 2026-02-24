@@ -90,23 +90,27 @@ export async function POST(request: Request) {
     }
 
     // Get or create a virtual device for manual entry
-    const deviceId = `MANUAL-${session.user.id.slice(0, 8)}`
-    const { data: device, error: deviceError } = await adminSupabase
+    const manualDeviceName = `Manual Entry (${session.user.id.slice(0, 8)})`
+    const { data: device } = await adminSupabase
       .from('timeclock_devices')
       .select('id, secret')
-      .eq('id', deviceId)
+      .eq('name', manualDeviceName)
       .maybeSingle()
 
+    let deviceId: string
     let deviceSecret: string
     if (device) {
+      deviceId = device.id
       deviceSecret = device.secret
     } else {
       // Create virtual device if it doesn't exist
+      deviceId = crypto.randomUUID()
       deviceSecret = crypto.randomBytes(32).toString('hex')
       await adminSupabase
         .from('timeclock_devices')
         .insert({
           id: deviceId,
+          name: manualDeviceName,
           secret: deviceSecret,
           location: 'Virtual - Manual Entry',
           is_active: true,
