@@ -23,14 +23,21 @@ export default async function ManualEntryPage() {
     redirect('/login')
   }
 
-  // Check if user is manager, admin, or superadmin
+  // Check if user is a manager (has reports) or has Master Admin role
   const { data: user } = await supabase
     .from('employees')
-    .select('role, manager_id')
+    .select('roles(name)')
     .eq('id', session.user.id)
     .single()
 
-  const isManager = user?.role === 'manager' || user?.role === 'admin' || user?.role === 'superadmin'
+  const { count: reportCount } = await supabase
+    .from('employees')
+    .select('id', { count: 'exact', head: true })
+    .eq('manager_id', session.user.id)
+
+  const role = Array.isArray(user?.roles) ? user.roles[0] : user?.roles
+  const isManager = role?.name === 'Master Admin' || (reportCount || 0) > 0
+  
   if (!isManager) {
     redirect('/dashboard/timeclock')
   }
