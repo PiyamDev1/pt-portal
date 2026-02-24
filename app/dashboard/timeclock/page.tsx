@@ -32,20 +32,23 @@ export default async function TimeclockPage() {
   const { data: { session } } = await supabase.auth.getSession()
   if (!session) redirect('/login')
 
-  const { data: employee } = await supabase
+  const { data: employee, error: empError } = await supabase
     .from('employees')
     .select('full_name, role, roles(name), locations(name, branch_code)')
     .eq('id', session.user.id)
     .single()
+
+  // Fallback if employee data can't be fetched
+  const empData = employee || { full_name: 'Employee', role: 'user', roles: [], locations: [] }
 
   const { count: reportCount } = await supabase
     .from('employees')
     .select('id', { count: 'exact', head: true })
     .eq('manager_id', session.user.id)
 
-  const location = Array.isArray(employee?.locations) ? employee.locations[0] : employee?.locations
-  const role = Array.isArray(employee?.roles) ? employee.roles[0] : employee?.roles
-  const userRole = employee?.role
+  const location = Array.isArray(empData?.locations) ? empData.locations[0] : empData?.locations
+  const role = Array.isArray(empData?.roles) ? empData.roles[0] : empData?.roles
+  const userRole = empData?.role
   const isManager = userRole === 'manager' || userRole === 'admin' || userRole === 'superadmin'
   const canSeeTeam = userRole === 'superadmin' || role?.name === 'Master Admin' || (reportCount || 0) > 0
 
@@ -53,9 +56,9 @@ export default async function TimeclockPage() {
     <DashboardClientWrapper>
       <div className="min-h-screen bg-slate-50 flex flex-col">
         <PageHeader
-          employeeName={employee?.full_name || 'Employee'}
+          employeeName={empData?.full_name || 'Employee'}
           role={role?.name || 'User'}
-          location={location || { name: 'N/A', branch_code: 'N/A' }}
+          location={location}
           userId={session.user.id}
           showBack={true}
         />
