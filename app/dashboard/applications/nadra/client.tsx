@@ -280,7 +280,7 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
     } finally {
       setIsUpdating(false)
     }
-  }, [editType, editFormData?.id, currentUserId, refetch])
+  }
 
   // =====================================================================
   // HISTORY FETCHING

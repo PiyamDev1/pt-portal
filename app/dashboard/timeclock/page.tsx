@@ -34,7 +34,7 @@ export default async function TimeclockPage() {
 
   const { data: employee } = await supabase
     .from('employees')
-    .select('full_name, roles(name), locations(name, branch_code)')
+    .select('full_name, role, roles(name), locations(name, branch_code)')
     .eq('id', session.user.id)
     .single()
 
@@ -45,6 +45,7 @@ export default async function TimeclockPage() {
 
   const location = Array.isArray(employee?.locations) ? employee.locations[0] : employee?.locations
   const role = Array.isArray(employee?.roles) ? employee.roles[0] : employee?.roles
+  const isManager = employee?.role === 'manager' || employee?.role === 'admin'
   const canSeeTeam = role?.name === 'Master Admin' || (reportCount || 0) > 0
 
   return (
@@ -76,6 +77,15 @@ export default async function TimeclockPage() {
               >
                 <h2 className="text-lg font-semibold text-slate-800">Team punches</h2>
                 <p className="text-sm text-slate-500">See punches for your reporting team.</p>
+              </a>
+            )}
+            {isManager && (
+              <a
+                href="/dashboard/timeclock/manual-entry"
+                className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:border-green-300 transition"
+              >
+                <h2 className="text-lg font-semibold text-slate-800">Manual entry</h2>
+                <p className="text-sm text-slate-500">Use QR code or 4-4 numeric code for punches.</p>
               </a>
             )}
           </div>
