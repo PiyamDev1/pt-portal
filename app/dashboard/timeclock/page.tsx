@@ -45,8 +45,8 @@ export default async function TimeclockPage() {
 
   const location = Array.isArray(employee?.locations) ? employee.locations[0] : employee?.locations
   const role = Array.isArray(employee?.roles) ? employee.roles[0] : employee?.roles
-  const isManager = employee?.role === 'manager' || employee?.role === 'admin'
-  const canSeeTeam = role?.name === 'Master Admin' || (reportCount || 0) > 0
+  const isManager = employee?.role === 'manager' || employee?.role === 'admin' || employee?.role === 'superadmin'
+  const canSeeTeam = employee?.role === 'superadmin' || role?.name === 'Master Admin' || (reportCount || 0) > 0
 
   return (
     <DashboardClientWrapper>

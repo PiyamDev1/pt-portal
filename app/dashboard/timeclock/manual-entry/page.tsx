@@ -23,14 +23,14 @@ export default async function ManualEntryPage() {
     redirect('/login')
   }
 
-  // Check if user is manager or admin
+  // Check if user is manager, admin, or superadmin
   const { data: user } = await supabase
     .from('employees')
     .select('role, manager_id')
     .eq('id', session.user.id)
     .single()
 
-  const isManager = user?.role === 'manager' || user?.role === 'admin'
+  const isManager = user?.role === 'manager' || user?.role === 'admin' || user?.role === 'superadmin'
   if (!isManager) {
     redirect('/dashboard/timeclock')
   }
