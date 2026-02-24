@@ -70,14 +70,22 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Verify manager role
+    // Check if user has Master Admin role or is a manager (has direct reports)
     const { data: user } = await supabase
       .from('employees')
-      .select('role')
+      .select('roles(name)')
       .eq('id', session.user.id)
       .single()
 
-    if (user?.role !== 'manager' && user?.role !== 'admin') {
+    const { count: reportCount } = await supabase
+      .from('employees')
+      .select('id', { count: 'exact', head: true })
+      .eq('manager_id', session.user.id)
+
+    const role = Array.isArray(user?.roles) ? user.roles[0] : user?.roles
+    const isManager = role?.name === 'Master Admin' || (reportCount || 0) > 0
+
+    if (!isManager) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
