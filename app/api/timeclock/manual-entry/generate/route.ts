@@ -91,11 +91,19 @@ export async function POST(request: Request) {
 
     // Get or create a virtual device for manual entry
     const manualDeviceName = `Manual Entry (${session.user.id.slice(0, 8)})`
-    const { data: device } = await adminSupabase
+    const { data: device, error: deviceError } = await adminSupabase
       .from('timeclock_devices')
       .select('id, secret')
       .eq('name', manualDeviceName)
       .maybeSingle()
+
+    if (deviceError) {
+      console.error('Manual device lookup error:', deviceError)
+      return NextResponse.json(
+        { error: 'Device lookup failed', details: deviceError.message },
+        { status: 500 }
+      )
+    }
 
     let deviceId: string
     let deviceSecret: string
@@ -106,7 +114,7 @@ export async function POST(request: Request) {
       // Create virtual device if it doesn't exist
       deviceId = crypto.randomUUID()
       deviceSecret = crypto.randomBytes(32).toString('hex')
-      await adminSupabase
+      const { error: insertDeviceError } = await adminSupabase
         .from('timeclock_devices')
         .insert({
           id: deviceId,
@@ -117,6 +125,14 @@ export async function POST(request: Request) {
         })
         .select()
         .single()
+
+      if (insertDeviceError) {
+        console.error('Manual device insert error:', insertDeviceError)
+        return NextResponse.json(
+          { error: 'Device creation failed', details: insertDeviceError.message },
+          { status: 500 }
+        )
+      }
     }
 
     // Generate code and payload
@@ -138,7 +154,10 @@ export async function POST(request: Request) {
 
     if (codeError) {
       console.error('Code storage error:', codeError)
-      return NextResponse.json({ error: 'Failed to generate code' }, { status: 500 })
+      return NextResponse.json(
+        { error: 'Failed to generate code', details: codeError.message },
+        { status: 500 }
+      )
     }
 
     return NextResponse.json({
