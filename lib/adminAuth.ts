@@ -57,14 +57,14 @@ export async function verifyAdminAccess(request: Request): Promise<VerifyResult>
     }
 
     // Verify user has admin role
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('role')
+    const { data: employee, error: employeeError } = await supabase
+      .from('employees')
+      .select('id, role_id')
       .eq('id', user.id)
       .single()
 
-    if (profileError || !profile) {
-      console.warn(`⚠️  Access denied for ${user.email} - profile not found`)
+    if (employeeError || !employee) {
+      console.warn(`⚠️  Access denied for ${user.email} - employee profile not found`)
       return {
         authorized: false,
         error: 'Unable to verify user role',
@@ -72,8 +72,27 @@ export async function verifyAdminAccess(request: Request): Promise<VerifyResult>
       }
     }
 
-    if (profile.role !== 'admin') {
-      console.warn(`⚠️  Access denied for ${user.email} - insufficient permissions (role: ${profile.role})`)
+    // Get the role name from the roles table
+    const { data: roleData, error: roleError } = await supabase
+      .from('roles')
+      .select('name')
+      .eq('id', employee.role_id)
+      .single()
+
+    if (roleError || !roleData) {
+      console.warn(`⚠️  Access denied for ${user.email} - role not found`)
+      return {
+        authorized: false,
+        error: 'Unable to verify user role',
+        status: 403
+      }
+    }
+
+    // Check if user has admin or master admin role
+    const isAdmin = ['Admin', 'Master Admin'].includes(roleData.name)
+    
+    if (!isAdmin) {
+      console.warn(`⚠️  Access denied for ${user.email} - insufficient permissions (role: ${roleData.name})`)
       return {
         authorized: false,
         error: 'Forbidden - Admin access required',
