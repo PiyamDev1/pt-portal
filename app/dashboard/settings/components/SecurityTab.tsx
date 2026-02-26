@@ -219,6 +219,7 @@ export default function SecurityTab({ currentUser, supabase, loading, setLoading
         currentPass={currentPass}
         newPass={newPass}
         confirmPass={confirmPass}
+        username={currentUser.email}
         onCurrentPassChange={setCurrentPass}
         onNewPassChange={setNewPass}
         onConfirmPassChange={setConfirmPass}

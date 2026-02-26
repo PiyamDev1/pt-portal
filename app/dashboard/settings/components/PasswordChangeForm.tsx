@@ -5,6 +5,7 @@ interface PasswordChangeFormProps {
   currentPass: string
   newPass: string
   confirmPass: string
+  username?: string
   onCurrentPassChange: (value: string) => void
   onNewPassChange: (value: string) => void
   onConfirmPassChange: (value: string) => void
@@ -16,6 +17,7 @@ export function PasswordChangeForm({
   currentPass,
   newPass,
   confirmPass,
+  username,
   onCurrentPassChange,
   onNewPassChange,
   onConfirmPassChange,
@@ -27,6 +29,17 @@ export function PasswordChangeForm({
         <span>🔒</span> Change Password
       </h3>
       <form onSubmit={onSubmit} className="max-w-md space-y-4">
+        {/* Hidden username field for password managers and accessibility */}
+        <input
+          type="text"
+          name="username"
+          autoComplete="username"
+          value={username || ''}
+          readOnly
+          className="sr-only"
+          aria-hidden="true"
+          tabIndex={-1}
+        />
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1">Current Password</label>
           <input
