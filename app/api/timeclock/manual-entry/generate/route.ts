@@ -142,20 +142,29 @@ export async function POST(request: Request) {
     const expiresAt = Date.now() + 30000 // 30 seconds
 
     // Store code mapping (will be cleaned up after expiry)
+    const insertData = {
+      code: numericCode,
+      device_id: deviceId,
+      qr_payload: qrPayload,
+      user_id: session.user.id,
+      expires_at: new Date(expiresAt).toISOString(),
+    }
+    
+    console.log('Attempting to insert code:', { ...insertData, qr_payload: qrPayload.substring(0, 20) + '...' })
+    
     const { error: codeError } = await adminSupabase
       .from('timeclock_manual_codes')
-      .insert({
-        code: numericCode,
-        device_id: deviceId,
-        qr_payload: qrPayload,
-        user_id: session.user.id,
-        expires_at: new Date(expiresAt).toISOString(),
-      })
+      .insert(insertData)
 
     if (codeError) {
       console.error('Code storage error:', codeError)
       return NextResponse.json(
-        { error: 'Failed to generate code', details: codeError.message },
+        { 
+          error: 'Failed to generate code', 
+          details: codeError.message,
+          code: codeError.code,
+          hint: codeError.hint 
+        },
         { status: 500 }
       )
     }

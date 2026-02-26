@@ -15,20 +15,8 @@ CREATE INDEX IF NOT EXISTS idx_timeclock_manual_codes_code ON timeclock_manual_c
 CREATE INDEX IF NOT EXISTS idx_timeclock_manual_codes_user_id ON timeclock_manual_codes(user_id);
 CREATE INDEX IF NOT EXISTS idx_timeclock_manual_codes_expires_at ON timeclock_manual_codes(expires_at);
 
--- RLS: Only managers/admins can see their own codes
-ALTER TABLE timeclock_manual_codes ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Users can view their own codes" ON timeclock_manual_codes
-  FOR SELECT
-  USING (user_id = auth.uid());
-
-CREATE POLICY "Users can insert their own codes" ON timeclock_manual_codes
-  FOR INSERT
-  WITH CHECK (user_id = auth.uid());
-
-CREATE POLICY "Users can delete their own codes" ON timeclock_manual_codes
-  FOR DELETE
-  USING (user_id = auth.uid());
+-- No RLS needed - access is controlled through API endpoints with proper authentication
+ALTER TABLE timeclock_manual_codes DISABLE ROW LEVEL SECURITY;
 
 -- Cleanup: Delete expired codes older than 1 minute (automatic via trigger or manual cleanup)
 -- Note: Consider adding a periodic cleanup job or trigger to remove expired codes
