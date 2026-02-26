@@ -16,12 +16,18 @@ export default function ManualEntryClient({ userId }: { userId: string }) {
   const [error, setError] = useState<string | null>(null)
   const [timeLeft, setTimeLeft] = useState(30)
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
+  const [isSuspended, setIsSuspended] = useState(false)
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const suspendTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   // Generate new code on mount and every 30 seconds
   useEffect(() => {
     const generateCode = async () => {
       try {
+        if (isSuspended) {
+          return
+        }
         setLoading(true)
         setError(null)
         const response = await fetch('/api/timeclock/manual-entry/generate', {
@@ -45,9 +51,23 @@ export default function ManualEntryClient({ userId }: { userId: string }) {
     }
 
     generateCode()
-    const interval = setInterval(generateCode, 30000)
-    return () => clearInterval(interval)
-  }, [])
+    refreshIntervalRef.current = setInterval(generateCode, 30000)
+    suspendTimerRef.current = setTimeout(() => {
+      setIsSuspended(true)
+      if (refreshIntervalRef.current) {
+        clearInterval(refreshIntervalRef.current)
+      }
+    }, 120000)
+
+    return () => {
+      if (refreshIntervalRef.current) {
+        clearInterval(refreshIntervalRef.current)
+      }
+      if (suspendTimerRef.current) {
+        clearTimeout(suspendTimerRef.current)
+      }
+    }
+  }, [isSuspended])
 
   // Count down timer
   useEffect(() => {
@@ -97,8 +117,21 @@ export default function ManualEntryClient({ userId }: { userId: string }) {
 
       {loading && <div className="text-center py-8">Generating code...</div>}
       {error && <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 text-red-800">{error}</div>}
+      {isSuspended && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6 text-yellow-900">
+          <p className="font-semibold mb-2">Session paused to reduce API usage</p>
+          <p className="text-sm mb-4">This page auto-pauses after 2 minutes. Refresh to generate a new code.</p>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="bg-yellow-600 hover:bg-yellow-700 text-white font-semibold px-4 py-2 rounded-lg"
+          >
+            Refresh Page
+          </button>
+        </div>
+      )}
 
-      {payload && !loading && (
+      {payload && !loading && !isSuspended && (
         <>
           {/* QR Code Section */}
           <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
