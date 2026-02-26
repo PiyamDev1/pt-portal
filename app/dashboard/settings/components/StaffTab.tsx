@@ -81,9 +81,17 @@ export default function StaffTab({
   }
 
   const adminResetPassword = async ({ employee_id, email }: { employee_id?: string; email?: string }) => {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.access_token) {
+      throw new Error('Not authenticated')
+    }
+
     const res = await fetch('/api/admin/reset-password', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`
+      },
       body: JSON.stringify(employee_id ? { employee_id } : { email })
     })
     const data = await res.json()
