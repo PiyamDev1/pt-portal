@@ -100,22 +100,15 @@ export async function verifyAdminAccess(request: Request): Promise<VerifyResult>
       }
     }
 
-    // Verify Google authentication provider
-    if (!user.app_metadata?.provider || user.app_metadata.provider !== 'google') {
-      console.warn(`⚠️  Access denied for ${user.email} - not authenticated via Google`)
-      return {
-        authorized: false,
-        error: 'Forbidden - Must authenticate via Google',
-        status: 403
-      }
-    }
-
+    // User is authenticated and has admin role - allow access
+    console.log(`✅ Admin access granted for ${user.email} (${roleData.name})`)
+    
     return {
       authorized: true,
       user: {
         id: user.id,
         email: user.email || '',
-        provider: user.app_metadata.provider
+        provider: user.app_metadata?.provider || 'email'
       }
     }
   } catch (error: any) {
