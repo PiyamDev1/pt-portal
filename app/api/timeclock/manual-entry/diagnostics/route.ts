@@ -56,7 +56,7 @@ export async function GET(request: Request) {
 
     // Check 3: Test insert into timeclock_devices
     try {
-      const testDeviceId = 'test-' + Date.now()
+      const testDeviceId = crypto.randomUUID()
       const { data: insertResult, error: insertError } = await adminSupabase
         .from('timeclock_devices')
         .insert({
