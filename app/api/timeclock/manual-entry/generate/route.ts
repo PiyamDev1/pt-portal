@@ -114,6 +114,7 @@ export async function POST(request: Request) {
       // Create virtual device if it doesn't exist
       deviceId = crypto.randomUUID()
       deviceSecret = crypto.randomBytes(32).toString('hex')
+      
       const { error: insertDeviceError } = await adminSupabase
         .from('timeclock_devices')
         .insert({
