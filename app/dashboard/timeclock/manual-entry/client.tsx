@@ -15,6 +15,7 @@ export default function ManualEntryClient({ userId }: { userId: string }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [timeLeft, setTimeLeft] = useState(30)
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
   // Generate new code on mount and every 30 seconds
@@ -34,25 +35,7 @@ export default function ManualEntryClient({ userId }: { userId: string }) {
         console.log('Generated payload:', data)
         setPayload(data)
         setTimeLeft(30)
-
-        // Render QR code to canvas
-        if (canvasRef.current && data.qrPayload) {
-          try {
-            console.log('Rendering QR code to canvas...')
-            await QRCode.toCanvas(canvasRef.current, data.qrPayload, {
-              width: 256,
-              margin: 2,
-              color: {
-                dark: '#000000',
-                light: '#FFFFFF',
-              },
-            })
-            console.log('QR code rendered successfully')
-          } catch (qrError) {
-            console.error('QR generation error:', qrError)
-            setError('Failed to generate QR code: ' + (qrError instanceof Error ? qrError.message : 'Unknown error'))
-          }
-        }
+        setQrDataUrl(null)
       } catch (err) {
         console.error('Code generation error:', err)
         setError(err instanceof Error ? err.message : 'Unknown error')
@@ -80,6 +63,33 @@ export default function ManualEntryClient({ userId }: { userId: string }) {
     return () => clearInterval(timer)
   }, [payload])
 
+  useEffect(() => {
+    if (!payload?.qrPayload) return
+    const renderQr = async () => {
+      try {
+        console.log('Rendering QR code to data URL...')
+        const dataUrl = await QRCode.toDataURL(payload.qrPayload, {
+          width: 256,
+          margin: 2,
+          color: {
+            dark: '#000000',
+            light: '#FFFFFF',
+          },
+        })
+        setQrDataUrl(dataUrl)
+        console.log('QR code rendered successfully')
+      } catch (qrError) {
+        console.error('QR generation error:', qrError)
+        setError(
+          'Failed to generate QR code: ' +
+            (qrError instanceof Error ? qrError.message : 'Unknown error')
+        )
+      }
+    }
+
+    renderQr()
+  }, [payload])
+
   return (
     <div className="max-w-md mx-auto p-6">
       <h1 className="text-2xl font-bold mb-2">Manual Punch Entry</h1>
@@ -94,11 +104,19 @@ export default function ManualEntryClient({ userId }: { userId: string }) {
           <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
             <div className="flex flex-col items-center">
               <p className="text-sm font-semibold text-gray-700 mb-4">Scan QR Code</p>
-              <canvas 
-                ref={canvasRef}
-                className="border-2 border-gray-200 rounded-lg"
-                style={{ display: 'block' }}
-              />
+              {qrDataUrl ? (
+                <img
+                  src={qrDataUrl}
+                  alt="Manual entry QR code"
+                  className="border-2 border-gray-200 rounded-lg"
+                  width={256}
+                  height={256}
+                />
+              ) : (
+                <div className="h-64 w-64 border-2 border-dashed border-gray-200 rounded-lg flex items-center justify-center text-sm text-gray-500">
+                  Generating QR...
+                </div>
+              )}
               <p className="text-sm text-gray-600 mt-4 text-center">
                 Expires in <span className="font-semibold text-blue-600">{timeLeft}s</span>
               </p>
