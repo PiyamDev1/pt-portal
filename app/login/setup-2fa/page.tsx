@@ -22,18 +22,34 @@ export default function Setup2FAPage() {
 
   useEffect(() => {
     (async () => {
+      // Get current user info
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        setError('Not authenticated')
+        return
+      }
+
       const { data, error } = await supabase.auth.mfa.enroll({ factorType: 'totp' })
       if (error) return setError(error.message)
       setFactorId(data.id)
       
-      // Extract secret from the URI (format: otpauth://totp/...?secret=XXXXX&...)
-      const uri = data.totp.uri
-      const secretMatch = uri.match(/secret=([^&]+)/)
+      // Extract secret from the original URI (format: otpauth://totp/...?secret=XXXXX&...)
+      const originalUri = data.totp.uri
+      const secretMatch = originalUri.match(/secret=([^&]+)/)
       if (secretMatch) {
         setSecretKey(secretMatch[1])
+        
+        // Create custom TOTP URI with desired format:
+        // otpauth://totp/IMS:Piyamtravel.com:username?secret=SECRET&issuer=IMS
+        const issuer = 'IMS'
+        const accountName = `Piyamtravel.com:${user.email}`
+        const customUri = `otpauth://totp/${issuer}:${accountName}?secret=${secretMatch[1]}&issuer=${issuer}`
+        
+        QRCode.toDataURL(customUri).then(setQrCodeUrl)
+      } else {
+        // Fallback to original URI if we can't extract secret
+        QRCode.toDataURL(originalUri).then(setQrCodeUrl)
       }
-      
-      QRCode.toDataURL(uri).then(setQrCodeUrl)
     })()
   }, [supabase])
 
@@ -88,7 +104,7 @@ export default function Setup2FAPage() {
                     <li>Select &quot;Add account&quot; or tap the &quot;+&quot; button</li>
                     <li>Choose &quot;Enter a setup key&quot; or &quot;Manual entry&quot;</li>
                     <li>Copy the key below and paste it into your authenticator app</li>
-                    <li>Set the name as &quot;Piyam Travels&quot;</li>
+                    <li>Set the account name as &quot;IMS&quot; or &quot;Piyam Travels&quot;</li>
                   </ol>
                   
                   <div className="bg-white border border-blue-300 rounded-lg p-3 mt-4">
