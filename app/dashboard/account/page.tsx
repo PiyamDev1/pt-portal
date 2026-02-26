@@ -183,6 +183,7 @@ export default function MyAccountPage() {
             <label className="block text-sm font-medium text-slate-700 mb-1">Current Password</label>
             <input 
               type="password" required 
+              autoComplete="current-password"
               className="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none"
               value={currentPass} onChange={e => setCurrentPass(e.target.value)}
             />
@@ -192,6 +193,7 @@ export default function MyAccountPage() {
             <label className="block text-sm font-medium text-slate-700 mb-1">New Password</label>
             <input 
               type="password" required minLength={6}
+              autoComplete="new-password"
               className="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none"
               value={newPass} onChange={e => setNewPass(e.target.value)}
             />
@@ -200,6 +202,7 @@ export default function MyAccountPage() {
             <label className="block text-sm font-medium text-slate-700 mb-1">Confirm New Password</label>
             <input 
               type="password" required minLength={6}
+              autoComplete="new-password"
               className="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none"
               value={confirmPass} onChange={e => setConfirmPass(e.target.value)}
             />

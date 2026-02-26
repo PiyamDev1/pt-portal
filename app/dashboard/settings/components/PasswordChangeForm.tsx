@@ -31,6 +31,7 @@ export function PasswordChangeForm({
           <label className="block text-sm font-medium text-slate-700 mb-1">Current Password</label>
           <input
             type="password" required
+            autoComplete="current-password"
             className="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none"
             value={currentPass}
             onChange={e => onCurrentPassChange(e.target.value)}
@@ -40,6 +41,7 @@ export function PasswordChangeForm({
           <label className="block text-sm font-medium text-slate-700 mb-1">New Password</label>
           <input
             type="password" required
+            autoComplete="new-password"
             className="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none"
             value={newPass}
             onChange={e => onNewPassChange(e.target.value)}
@@ -68,6 +70,7 @@ export function PasswordChangeForm({
           <label className="block text-sm font-medium text-slate-700 mb-1">Confirm New Password</label>
           <input
             type="password" required
+            autoComplete="new-password"
             className="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none"
             value={confirmPass}
             onChange={e => onConfirmPassChange(e.target.value)}
