@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import QRCode from 'qrcode'
 
 type ManualPayload = {
-  code: string // The 4-4 numeric code
+  code: string // The 8-digit numeric code
   qrPayload: string // Full QR payload to display
   expiresAt: number // When this code expires
   codeDisplay: string // Formatted as XXXX-XXXX
@@ -12,11 +12,8 @@ type ManualPayload = {
 
 export default function ManualEntryClient({ userId }: { userId: string }) {
   const [payload, setPayload] = useState<ManualPayload | null>(null)
-  const [manualCode, setManualCode] = useState('')
   const [loading, setLoading] = useState(true)
-  const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
   const [timeLeft, setTimeLeft] = useState(30)
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
@@ -30,16 +27,18 @@ export default function ManualEntryClient({ userId }: { userId: string }) {
           method: 'POST',
         })
         if (!response.ok) {
-          throw new Error('Failed to generate code')
+          const errorData = await response.json()
+          throw new Error(errorData.error || 'Failed to generate code')
         }
         const data = await response.json()
+        console.log('Generated payload:', data)
         setPayload(data)
         setTimeLeft(30)
-        setManualCode('')
 
         // Render QR code to canvas
-        if (canvasRef.current) {
+        if (canvasRef.current && data.qrPayload) {
           try {
+            console.log('Rendering QR code to canvas...')
             await QRCode.toCanvas(canvasRef.current, data.qrPayload, {
               width: 256,
               margin: 2,
@@ -48,11 +47,14 @@ export default function ManualEntryClient({ userId }: { userId: string }) {
                 light: '#FFFFFF',
               },
             })
+            console.log('QR code rendered successfully')
           } catch (qrError) {
             console.error('QR generation error:', qrError)
+            setError('Failed to generate QR code: ' + (qrError instanceof Error ? qrError.message : 'Unknown error'))
           }
         }
       } catch (err) {
+        console.error('Code generation error:', err)
         setError(err instanceof Error ? err.message : 'Unknown error')
       } finally {
         setLoading(false)
@@ -78,77 +80,27 @@ export default function ManualEntryClient({ userId }: { userId: string }) {
     return () => clearInterval(timer)
   }, [payload])
 
-  const handleSubmitCode = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setSubmitting(true)
-    setError(null)
-    setSuccess(null)
-
-    try {
-      const response = await fetch('/api/timeclock/manual-entry/submit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: manualCode.replace(/-/g, '') }),
-      })
-
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error || 'Failed to submit code')
-      }
-
-      const data = await response.json()
-      setSuccess(`Punch recorded: ${data.punchType}`)
-      setManualCode('')
-      
-      // Refresh the code after successful punch
-      setTimeout(async () => {
-        const genResponse = await fetch('/api/timeclock/manual-entry/generate', {
-          method: 'POST',
-        })
-        if (genResponse.ok) {
-          const newPayload = await genResponse.json()
-          setPayload(newPayload)
-          setTimeLeft(30)
-        }
-      }, 1000)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error')
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  const handleManualCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let value = e.target.value.replace(/\D/g, '') // Only digits
-    if (value.length <= 4) {
-      setManualCode(value)
-    } else if (value.length === 5) {
-      setManualCode(value.slice(0, 4) + '-' + value.slice(4))
-    } else {
-      setManualCode(value.slice(0, 4) + '-' + value.slice(4, 8))
-    }
-  }
-
   return (
     <div className="max-w-md mx-auto p-6">
       <h1 className="text-2xl font-bold mb-2">Manual Punch Entry</h1>
-      <p className="text-gray-600 mb-6">For managers: Display QR code or use the numeric code for quick entry</p>
+      <p className="text-gray-600 mb-6">Display this code for staff to scan or enter manually</p>
 
       {loading && <div className="text-center py-8">Generating code...</div>}
       {error && <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 text-red-800">{error}</div>}
-      {success && <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6 text-green-800">{success}</div>}
 
       {payload && !loading && (
         <>
           {/* QR Code Section */}
           <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
             <div className="flex flex-col items-center">
+              <p className="text-sm font-semibold text-gray-700 mb-4">Scan QR Code</p>
               <canvas 
                 ref={canvasRef}
-                className="border border-gray-100 rounded-lg"
+                className="border-2 border-gray-200 rounded-lg"
+                style={{ display: 'block' }}
               />
               <p className="text-sm text-gray-600 mt-4 text-center">
-                Expires in {timeLeft}s
+                Expires in <span className="font-semibold text-blue-600">{timeLeft}s</span>
               </p>
             </div>
           </div>
@@ -161,42 +113,17 @@ export default function ManualEntryClient({ userId }: { userId: string }) {
           </div>
 
           {/* Numeric Code Section */}
-          <form onSubmit={handleSubmitCode} className="bg-gray-50 rounded-lg border border-gray-200 p-6">
-            <div className="mb-4">
-              <p className="text-sm font-semibold text-gray-700 mb-2">Numeric Code</p>
-              <div className="text-center font-mono text-2xl font-bold tracking-widest mb-4 text-blue-600">
-                {payload.codeDisplay}
-              </div>
-              <p className="text-xs text-gray-600 text-center mb-4">
-                Enter this code for manual punch entry
-              </p>
+          <div className="bg-gray-50 rounded-lg border border-gray-200 p-6">
+            <p className="text-sm font-semibold text-gray-700 mb-3 text-center">Manual Entry Code</p>
+            <div className="text-center font-mono text-3xl font-bold tracking-widest mb-3 text-blue-600">
+              {payload.codeDisplay}
             </div>
+            <p className="text-xs text-gray-600 text-center">
+              Staff can enter this code on their timeclock portal
+            </p>
+          </div>
 
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Enter Code
-              </label>
-              <input
-                type="text"
-                value={manualCode}
-                onChange={handleManualCodeChange}
-                placeholder="XXXX-XXXX"
-                maxLength={9}
-                className="w-full px-4 py-2 text-center text-2xl font-mono tracking-widest border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
-                autoFocus
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={submitting || manualCode.replace(/-/g, '').length !== 8}
-              className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white font-semibold py-2 rounded-lg transition-colors"
-            >
-              {submitting ? 'Submitting...' : 'Submit Punch'}
-            </button>
-          </form>
-
-          <p className="text-xs text-gray-500 text-center mt-4">
+          <p className="text-xs text-gray-500 text-center mt-6">
             Code refreshes every 30 seconds for security
           </p>
         </>
