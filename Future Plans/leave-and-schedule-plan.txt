@@ -1,0 +1,319 @@
+LEAVE, SCHEDULE, AND MANAGER CONSOLE - DETAILED PLAN
+
+1) SCOPE SUMMARY
+
+Goal: Build a leave management system, employee schedule views, and manager tools for approvals, hierarchy, and shift management. Integrate attendance plant scoring impact per leave type.
+
+Key rules from requirements:
+- Employees must select a leave category and can add a note.
+- No auto-approval. Managers must approve/reject within 48 hours.
+- HR/Admin can override schedules and decisions. Directors/HR/Super Admin can see all employees.
+- Notifications: email + in-app + SMS for relevant parties.
+- Company holidays are set by HR/Admin (Islamic lunar calendar).
+- Leave balances are set per employee by HR/Admin.
+- Shifts are flexible (can vary by day of week).
+- Leave resets: Jan 1 every year (current policy).
+- Partial-day leave is supported.
+- Leaves do not accrue or roll over. Unused expired leave converts to points: +10 per unused day.
+- Plant score impact: Annual leave and SSP no impact. Sick leave: -1 point per day. Unpaid leave: -2 points per day.
+- Annual leave must be requested at least 3 months before the start date.
+- Unpaid leave must be requested at least 10 working days before the start date.
+- Emergency leave (half day or full day) counts as sick leave.
+- Sick leave must be requested at least 4 hours before shift start; employee must call, then manager/HR/admin approves.
+
+2) DATA MODEL
+
+2.1 Core Tables
+
+A) leave_types
+- id (uuid, PK)
+- name (text)                        // Annual, Sick, Unpaid, SSP, Bereavement, Paternity, Maternity
+- code (text, unique)                // annual, sick, unpaid, ssp, bereavement, paternity, maternity
+- is_paid (boolean)
+- affects_plant (boolean)
+- plant_points_per_day (integer)     // 0, -1, -2
+- requires_hr (boolean)              // true for unpaid, maternity, etc.
+- created_at, updated_at
+
+B) leave_balances
+- id (uuid, PK)
+- employee_id (uuid, FK)
+- leave_type_id (uuid, FK)
+- year (integer)                     // e.g., 2026
+- allocated_days (numeric)           // can be fractional for partial days
+- used_days (numeric)
+- expired_days (numeric)
+- last_reset_at (timestamp)
+- created_at, updated_at
+
+C) leave_requests
+- id (uuid, PK)
+- employee_id (uuid, FK)
+- leave_type_id (uuid, FK)
+- start_date (date)
+- end_date (date)
+- start_time (time, nullable)        // for partial day
+- end_time (time, nullable)
+- is_partial_day (boolean)
+- partial_day_hours (numeric)        // optional, for precise hours
+- note (text)
+- status (enum)                      // pending, approved, rejected, cancelled
+- manager_id (uuid, FK)
+- manager_decision_at (timestamp)
+- manager_decision_note (text)
+- hr_id (uuid, FK)
+- hr_decision_at (timestamp)
+- hr_decision_note (text)
+- override_by_id (uuid, FK)          // HR/Admin override
+- override_at (timestamp)
+- created_at, updated_at
+
+D) company_holidays
+- id (uuid, PK)
+- name (text)
+- date (date)
+- is_lunar (boolean)                 // true for Islamic holidays
+- region (text, nullable)
+- created_by (uuid, FK)
+- created_at, updated_at
+
+E) employee_schedules
+- id (uuid, PK)
+- employee_id (uuid, FK)
+- day_of_week (int)                  // 0=Sun ... 6=Sat
+- start_time (time)
+- end_time (time)
+- break_minutes (int)
+- is_working_day (boolean)
+- effective_from (date)
+- effective_to (date, nullable)
+- timezone (text)                    // per employee or inherited from location
+- created_at, updated_at
+
+F) notifications
+- id (uuid, PK)
+- recipient_id (uuid, FK)
+- type (text)                        // leave_request, approval, rejection, override, reminder
+- payload (jsonb)
+- channel (text)                     // in_app, email, sms
+- status (text)                      // queued, sent, failed
+- created_at, updated_at
+
+G) department_coverage_rules
+- id (uuid, PK)
+- department_id (uuid, FK)
+- min_staff_percentage (numeric)     // e.g., 80 = must have 80% of team working
+- created_by (uuid, FK)
+- created_at, updated_at
+
+H) shift_swaps
+- id (uuid, PK)
+- requester_id (uuid, FK)            // employee proposing swap
+- replacer_id (uuid, FK)             // employee accepting swap
+- swap_date (date)
+- proposed_at (timestamp)
+- approved_by (uuid, FK)
+- approved_at (timestamp)
+- status (enum)                      // pending, approved, rejected, cancelled
+- created_at, updated_at
+
+I) manager_delegations
+- id (uuid, PK)
+- manager_id (uuid, FK)              // who is delegating
+- delegate_id (uuid, FK)             // who is taking over
+- start_date (date)
+- end_date (date)
+- created_at, updated_at
+
+2.2 Changes to employees table
+- designation (text)
+- timezone (text)
+- manager_id (uuid)                  // already exists
+
+3) BUSINESS RULES
+
+3.1 Leave Request Rules
+- Employee must choose a leave category.
+- Employee can add a note.
+- Partial days allowed: specify start/end time or hours.
+- Annual leave minimum notice: 3 months before start date.
+- Unpaid leave minimum notice: 10 working days before start date.
+- Emergency leave (half day or full day) is recorded as sick leave.
+- Sick leave must be requested at least 4 hours before shift start; call required, then manager/HR/admin approval.
+- No auto approval. Manager must act within 48 hours.
+- HR/Admin can override.
+
+3.2 Approval Flow
+- Submit -> Manager review within 48 hours.
+- If HR required (leave_type.requires_hr), it must also be approved by HR.
+- HR/Admin can override at any time.
+
+3.3 Plant Score Impact
+- Annual leave, SSP, bereavement, maternity, paternity: 0 points per day.
+- Sick leave: -1 point per day.
+- Unpaid leave: -2 points per day.
+- Partial day impact is proportional by hours (e.g., 0.5 day = -0.5 or -1 points).
+
+3.4 Leave Reset and Expiry
+- Reset annually on Jan 1 (configurable by HR/Admin).
+- Unused days expire and convert to points: +10 per unused day.
+- No roll-over.
+
+3.5 Operational Enhancements
+- Leave blackout rules (no annual leave during peak periods), with HR override flag.
+- Leave quotas by role/department to reduce manual balance setup.
+- Leave clash warnings (max employees out per team/day).
+- Coverage score to show staffing risk before approving leave.
+- Pending aging banner at 24h/36h to avoid SLA breaches.
+- Full audit trail for overrides and schedule changes.
+- Leave expiry warnings: auto-notify employees 30/14/7 days before deadline.
+- Calendar heatmap showing team capacity (red/yellow/green staffing % by date).
+- Department minimum staffing rules: block approval if coverage would breach minimum.
+- Sick leave pattern flagging: alert HR to suspicious patterns.
+- Substitute finder: suggest cover when leave is approved.
+- Manager delegation: manager can assign approval authority while away.
+- Shift swap system: employees propose peer swaps; manager approves once.
+- Leave analytics dashboard: trends, costs, department breakdowns.
+- Payroll integration: track SSP vs company-paid for accounting.
+
+4) UI/UX PAGES
+
+4.1 Employee Leave Portal
+- Route: /dashboard/leave
+- Tabs: Request Leave, My Requests, My Balance, Company Holidays, My Schedule
+- Request form:
+  - Category (select)
+  - Dates (start/end)
+  - Partial day toggle + time range
+  - Note (optional)
+  - Submit
+- My Requests list: status, date range, approval time left
+- Balance view: allocated, used, remaining, expires on Jan 1
+- Company holidays list + calendar
+- My Schedule view: weekly grid + next change date
+
+4.2 Manager Console
+- Route: /dashboard/manager/leave
+- Tabs: Pending Approvals, Team Calendar, Team Schedules, Team Hierarchy
+- Pending Approvals:
+  - SLA timer (48 hours)
+  - Approve / Reject with note
+- Team Calendar:
+  - Month view with who is out
+- Team Schedules:
+  - Edit employee schedule by day
+- Team Hierarchy:
+  - Org chart showing direct and indirect reports
+
+4.3 HR/Admin Console
+- Route: /dashboard/admin/leave
+- Manage leave balances per employee
+- Set company holidays (lunar dates)
+- Override approvals
+- Review audit logs
+
+5) API ENDPOINTS
+
+5.1 Employee
+- POST /api/leave/request
+- GET /api/leave/requests?self=1
+- GET /api/leave/balances
+- GET /api/leave/schedule
+- GET /api/leave/company-holidays
+
+5.2 Manager
+- GET /api/leave/requests?scope=team
+- POST /api/leave/approve
+- POST /api/leave/reject
+- GET /api/leave/team-calendar
+- GET /api/leave/team-schedules
+- POST /api/leave/team-schedules/update
+- GET /api/leave/hierarchy
+
+5.3 HR/Admin
+- POST /api/leave/balances/set
+- POST /api/leave/override
+- POST /api/leave/company-holidays
+- POST /api/leave/company-holidays/delete
+- POST /api/leave/reset
+- POST /api/leave/department-coverage-rules
+- GET /api/leave/leave-analytics
+
+5.4 Operations
+- GET /api/leave/coverage-score?date=YYYY-MM-DD
+- GET /api/leave/substitute-finder?date=YYYY-MM-DD&department_id=X
+- POST /api/leave/shift-swaps
+- GET /api/leave/shift-swaps?scope=pending
+- POST /api/leave/shift-swaps/{id}/approve
+- POST /api/leave/manager-delegation
+- GET /api/leave/expiry-warnings?days_until=30
+- POST /api/leave/audit-log/export
+
+6) NOTIFICATIONS
+
+Channels: in-app, email, SMS for all relevant parties.
+
+Events:
+- New request submitted -> manager + employee
+- Manager decision -> employee + HR (if required)
+- HR decision -> employee + manager
+- Override -> employee + manager + HR
+- 24-hour reminder if pending
+- 48-hour SLA breach alert to HR
+
+7) ATTENDANCE PLANT INTEGRATION
+
+- Daily cron job calculates plant points using leave records.
+- Approved leave for day excludes normal attendance scoring.
+- Sick leave applies -1 per day, unpaid leave -2 per day, partial days pro-rated.
+- Annual leave and SSP have zero impact.
+- Expired unused leave yields +10 points per day at reset.
+
+8) PHASED IMPLEMENTATION
+
+Phase 1: Data + Basic UI
+- Tables: leave_types, leave_balances, leave_requests, company_holidays, employee_schedules
+- Employee leave portal (request + balance + schedule + holidays)
+- Manager pending approvals
+
+Phase 2: Manager Tools
+- Team calendar with heatmap (red/yellow/green staffing %)
+- Team hierarchy org chart
+- Schedule editing
+- Coverage score display on approval modal
+- Substitute finder suggestions
+- Manager delegation (while away)
+- Leave expiry warnings (email/SMS at 30/14/7 days)
+- Shift swap system (employee-initiated peer swaps)
+
+Phase 3: HR/Admin + Analytics
+- Balance management
+- Company holiday management
+- Overrides
+- SLA enforcement and notifications
+- Department minimum staffing rules
+- Sick leave pattern flagging/alerts
+- Leave analytics dashboard (trends, costs, dept breakdowns)
+- Leave history export/audit reports
+- Payroll integration (SSP vs company-paid tracking)
+
+Phase 4: Plant integration
+- Daily cron job for plant scoring adjustments
+- Expiry conversion to points (+10 per unused day)
+- Exclude approved leave from attendance calculation
+
+9) OPEN DECISIONS (FOR LATER)
+
+- SLA enforcement: auto-escalate to HR after 48 hours?
+- Partial day calculation: hours or half-day steps?
+- Holiday calendar UI: list + calendar, or calendar only?
+- Who sees team calendar: all managers or only those with reports?
+
+10) SECURITY AND PERMISSIONS
+
+- Employees: can view and manage only their own requests
+- Managers: can view and approve requests of direct reports
+- Directors/HR/Super Admin: can view all
+- HR/Admin overrides allowed
+
+END OF PLAN
