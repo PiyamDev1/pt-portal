@@ -219,6 +219,57 @@ R) employee_data_changes (new)
 - purpose (text)                    // self_service, hr_update, admin_override
 - created_at
 
+S) probation_reviews (new)
+- id (uuid, PK)
+- employee_id (uuid, FK)
+- review_type (enum: 3_month, 6_month, extended)
+- scheduled_date (date)
+- actual_review_date (date, nullable)
+- reviewer_id (uuid, FK)            // Manager/supervisor conducting review
+- assessment_outcome (enum: exceeds, meets, needs_improvement, failing)
+- passed (boolean)
+- extend_probation (boolean)
+- extended_to_date (date, nullable)
+- notes (text)
+- areas_of_strength (text)
+- areas_for_development (text)
+- recommendation (enum: confirm_employment, extend_probation, terminate)
+- hr_notes (text)                   // Confidential HR comments
+- created_at, updated_at
+
+T) return_to_work_interviews (new)
+- id (uuid, PK)
+- employee_id (uuid, FK)
+- absence_start_date (date)
+- absence_end_date (date)
+- days_absent (integer)
+- interview_date (date)
+- conducted_by_id (uuid, FK)        // Manager/supervisor
+- reason_for_absence (text)
+- fit_to_return (boolean)
+- wellness_concerns (text)          // Any ongoing health issues
+- pattern_flagged (boolean)         // Monday/Friday, repeated short absences
+- action_required (text)            // Occupational health referral, adjustments needed
+- notes (text)
+- created_at, updated_at
+
+U) grievance_records (new)
+- id (uuid, PK)
+- employee_id (uuid, FK, nullable)  // Null if anonymous whistleblowing
+- is_anonymous (boolean)
+- grievance_type (enum: bullying, harassment, discrimination, working_conditions, pay_dispute, whistleblowing, other)
+- submitted_date (timestamp)
+- description (text)
+- evidence_attached (text)          // File references or links
+- assigned_to_id (uuid, FK)         // HR person handling case
+- status (enum: submitted, under_investigation, resolved, closed)
+- investigation_notes (text)        // Confidential case notes
+- resolution_date (date, nullable)
+- outcome (text)                    // Summary of resolution
+- appeal_submitted (boolean)
+- appeal_date (date, nullable)
+- created_at, updated_at
+
 3) BUSINESS RULES
 
 3.1 Employment Basics
@@ -254,6 +305,28 @@ R) employee_data_changes (new)
 - Offboarding tasks ensure clean exit: equipment, references, final pay.
 - Exit reason tracked for analytics.
 
+3.7 Probation Review Management
+- All new employees on probation require structured review at 3 months minimum.
+- Review outcome determines: confirm employment, extend probation (max 6 months total), or terminate.
+- Reviews must be documented before probation end date.
+- Failed probation with documented reviews protects against unfair dismissal claims.
+- Passed probation updates employee status to 'permanent' automatically.
+
+3.8 Return-to-Work Interviews
+- Mandatory after every sick leave absence (UK best practice).
+- Must be conducted within 5 working days of return.
+- Pattern flagging: 3+ absences in 3 months, repeated Monday/Friday absences.
+- Identifies wellness concerns early, shows duty of care.
+- Links to disciplinary if persistent unexplained absences.
+
+3.9 Grievance & Whistleblowing
+- All employees have right to raise formal grievance.
+- Anonymous whistleblowing option for serious concerns (fraud, safety, harassment).
+- Must be acknowledged within 5 working days, investigated within 30 days.
+- Appeals allowed within 10 working days of resolution.
+- Confidential records, restricted access to assigned HR only.
+- Protection against retaliation (legal requirement).
+
 4) DETAILED PHASE BREAKDOWN
 
 PHASE 1: EMPLOYEE DATA FOUNDATION (CRITICAL)
@@ -270,6 +343,7 @@ Tables to create:
 - audit_logs (GDPR compliance: who changed what, when)
 - ssp_rules (SSP thresholds by country/year)
 - leave_costs (calculate leave cost on approval)
+- probation_reviews (track 3/6 month assessments for new hires)
 
 UI/UX:
 - Employee profile page (view/edit basics)
@@ -293,6 +367,12 @@ UI/UX:
   - Assign/unassign to employees
   - Check return on offboarding
   - Asset condition log
+- Probation management dashboard (for HR/managers)
+  - List all employees on probation with review due dates
+  - Overdue review alerts (red flag if past probation end date)
+  - Record 3-month and 6-month reviews
+  - Outcome tracking: pass, extend, terminate
+  - Auto-update employee status to permanent when passed
 
 API Endpoints:
 - GET /api/employees/{id}/profile
@@ -305,6 +385,9 @@ API Endpoints:
 - GET /api/contract-renewals?alert_in_days=30
 - POST /api/employees/{id}/equipment/assign
 - POST /api/employees/{id}/equipment/return
+- GET /api/probation/upcoming-reviews
+- POST /api/probation/{employee_id}/review
+- GET /api/probation/{employee_id}/history
 
 Business Logic:
 - Validate SSP eligibility on sick leave approval
@@ -314,6 +397,10 @@ Business Logic:
 - Equipment must be returned before termination processed
 - All changes to sensitive data (salary, NI, bank) logged with user/timestamp
 - Audit trail immutable + encrypted
+- Probation reviews auto-scheduled at 3 months from start_date
+- Alert manager 2 weeks before probation review due
+- Failed probation reviews require HR approval before termination
+- Passed probation updates employee.employment_status to 'permanent'
 
 PHASE 2: DISCIPLINE, COMPLIANCE & ONBOARDING
 
@@ -323,6 +410,8 @@ Tables to create:
 - onboarding_tasks
 - offboarding_records (partial: structure only)
 - employee_data_changes (track self-service profile updates)
+- return_to_work_interviews (mandatory after sick leave)
+- grievance_records (formal complaints & whistleblowing)
 
 UI/UX:
 - Disciplinary dashboard (HR/managers)
@@ -353,6 +442,19 @@ UI/UX:
   - Assign employees to bands
   - Compensation equity analysis (flag outliers)
   - Department-wide salary overview
+- Return-to-work interview tracker (for managers/HR)
+  - Alert when employee returns from sick leave
+  - Must complete interview within 5 days
+  - Pattern detection: flag repeated short absences, Monday/Friday patterns
+  - Wellness escalation: refer to occupational health if needed
+  - Link to disciplinary if persistent unexplained absences
+- Grievance management (for HR only)
+  - Formal grievance submission form (employee-facing)
+  - Anonymous whistleblowing option
+  - Case tracking: status, assigned investigator, notes
+  - SLA alerts: acknowledgement within 5 days, resolution within 30 days
+  - Appeal process tracking
+  - Confidential access controls (only assigned HR can view)
 
 API Endpoints:
 - POST /api/discipline/record/{employee_id}
@@ -365,6 +467,16 @@ API Endpoints:
 - GET /api/analytics/compensation-equity
 - POST /api/offboarding/initiate/{employee_id}
 - GET /api/offboarding/tasks/{employee_id}
+- GET /api/return-to-work/pending-interviews
+- POST /api/return-to-work/{employee_id}/interview
+- GET /api/return-to-work/{employee_id}/history
+- POST /api/grievance/submit
+- POST /api/grievance/submit-anonymous
+- GET /api/grievance/list (HR only)
+- POST /api/grievance/{id}/assign
+- POST /api/grievance/{id}/update-status
+- POST /api/grievance/{id}/resolve
+- POST /api/grievance/{id}/appeal
 
 Business Logic:
 - Attendance plant warnings auto-create discipline records
@@ -374,6 +486,12 @@ Business Logic:
 - Salary band assignments ensure pay equity
 - Self-service profile updates tracked in employee_data_changes
 - Exit interview feedback triggers stay conversations for flight risks
+- Return-to-work interview mandatory within 5 days of sick leave return
+- Pattern flagging: 3+ absences in 3 months, repeated Monday/Friday absences
+- Grievance acknowledgement auto-sent within 5 days
+- Grievance SLA: must be investigated and resolved within 30 days
+- Anonymous grievances protect whistleblower identity
+- Retaliation against grievance filers is disciplinary offence
 
 PHASE 3: PERFORMANCE REVIEWS, ANALYTICS & PAYROLL
 
