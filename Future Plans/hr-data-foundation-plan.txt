@@ -20,10 +20,16 @@ A) employees table enhancements
 - annual_salary (numeric)
 - hourly_rate (numeric, nullable)
 - salary_currency (text, default: GBP)
+- salary_band_id (uuid, FK)         // Link to salary bands for equity analysis
 - date_of_birth (date)
 - phone_number (text)
-- ni_number (text, encrypted)
 - personal_email (text)
+- ni_number (text, encrypted)
+- tax_code (text)                   // UK PAYE code
+- pension_scheme_id (uuid, FK, nullable)
+- pension_provider (text)
+- bank_account (encrypted)
+- bank_sort_code (encrypted)
 - emergency_contact_name (text)
 - emergency_contact_phone (text)
 - address_line1, address_line2, city, postcode (text)
@@ -32,6 +38,10 @@ A) employees table enhancements
 - right_to_work_document (text, ref to document storage)
 - background_check_status (enum: pending, approved, failed)
 - background_check_date (date)
+- location_type (enum: office, remote, hybrid)  // Work location policy
+- office_location (text)
+- employee_data_consent (jsonb)     // {contact: true, marketing: false, gdpr: true}
+- last_data_update (timestamp)      // Track when employee profile was updated
 
 B) employee_documents (new)
 - id (uuid, PK)
@@ -160,6 +170,55 @@ M) employee_benefits (new)
 - notes (text)
 - created_at, updated_at
 
+N) salary_bands (new)
+- id (uuid, PK)
+- role_id (uuid, FK)
+- band_name (text)                  // Junior, Senior, Lead, etc.
+- min_salary (numeric)
+- max_salary (numeric)
+- currency (text, default: GBP)
+- created_at, updated_at
+
+O) employee_equipment (new)
+- id (uuid, PK)
+- employee_id (uuid, FK)
+- equipment_type (text)             // Laptop, Phone, Keys, Access card, Monitor, etc.
+- asset_tag (text, unique)
+- serial_number (text)
+- assigned_date (date)
+- returned_date (date, nullable)
+- condition_on_return (text)        // Good, Fair, Damaged, etc.
+- created_at, updated_at
+
+P) audit_logs (new)
+- id (uuid, PK)
+- table_name (text)                 // employees, documents, salary, etc.
+- record_id (uuid)
+- action (enum: create, update, delete)
+- changed_fields (jsonb)            // {salary: {old: 30000, new: 35000}}
+- changed_by_id (uuid, FK)
+- ip_address (text)
+- timestamp (timestamp)
+
+Q) contract_renewals (new)
+- id (uuid, PK)
+- employee_id (uuid, FK)
+- current_end_date (date)
+- renewal_alert_sent_at (timestamp, nullable)
+- renewal_status (enum: pending, renewed, not_renewed)
+- created_at, updated_at
+
+R) employee_data_changes (new)
+- id (uuid, PK)
+- employee_id (uuid, FK)
+- field_name (text)                 // salary, phone, address, etc.
+- old_value (text)
+- new_value (text)
+- changed_by_id (uuid, FK)
+- change_date (timestamp)
+- purpose (text)                    // self_service, hr_update, admin_override
+- created_at
+
 3) BUSINESS RULES
 
 3.1 Employment Basics
@@ -200,36 +259,61 @@ M) employee_benefits (new)
 PHASE 1: EMPLOYEE DATA FOUNDATION (CRITICAL)
 
 Tables to create:
-- Enhance employees table (add contract, salary, dob, phone, ni, right-to-work)
+- Enhance employees table (add contract, salary, dob, phone, ni, right-to-work, tax code, pension, location type)
 - employee_documents (store offer, contract, handbook)
 - employee_certifications (track professional certs)
 - mandatory_training (define required training)
 - employee_training_records (track completion)
+- salary_bands (define pay ranges by role for equity analysis)
+- employee_equipment (track laptops, phones, keys, access cards)
+- contract_renewals (track fixed contract end dates)
+- audit_logs (GDPR compliance: who changed what, when)
 - ssp_rules (SSP thresholds by country/year)
 - leave_costs (calculate leave cost on approval)
 
 UI/UX:
 - Employee profile page (view/edit basics)
-  - Contract type, salary, start date
-  - Right-to-work status
-  - Documents acknowledgement checklist
+  - Personal: name, email, phone, address, DoB, NI
+  - Employment: contract type, salary, start date, location type
+  - Compliance: right-to-work, background check, docs acknowledgement
+  - Equipment assigned
+- Self-service employee portal
+  - Update phone, personal email, address, bank details
+  - Download own documents (offer, contract, pay slips)
+  - View assigned benefits
+  - See training status
+  - Audit trail of own data changes
 - Training compliance dashboard (for HR/managers)
   - Who is due for GDPR, H&S, etc.
   - Expiry warnings
+  - Completion rates by dept
 - Admin: Bulk import employee data (CSV)
+- Contract renewal alerts (60/30/14 days before end date)
+- Equipment tracking
+  - Assign/unassign to employees
+  - Check return on offboarding
+  - Asset condition log
 
 API Endpoints:
 - GET /api/employees/{id}/profile
-- POST /api/employees/{id}/profile
+- POST /api/employees/{id}/profile (self-service update)
 - GET /api/employees/{id}/training
 - POST /api/employees/{id}/training/acknowledge
 - GET /api/training/compliance-dashboard
 - POST /api/admin/employees/import
+- GET /api/audit-logs?employee_id=X
+- GET /api/contract-renewals?alert_in_days=30
+- POST /api/employees/{id}/equipment/assign
+- POST /api/employees/{id}/equipment/return
 
 Business Logic:
 - Validate SSP eligibility on sick leave approval
-- Calculate leave cost based on salary
+- Calculate leave cost based on salary band
 - Flag missing right-to-work docs
+- Auto-send contract renewal alerts (60/30/14 days)
+- Equipment must be returned before termination processed
+- All changes to sensitive data (salary, NI, bank) logged with user/timestamp
+- Audit trail immutable + encrypted
 
 PHASE 2: DISCIPLINE, COMPLIANCE & ONBOARDING
 
@@ -238,6 +322,7 @@ Tables to create:
 - employee_benefits (track health insurance, pension)
 - onboarding_tasks
 - offboarding_records (partial: structure only)
+- employee_data_changes (track self-service profile updates)
 
 UI/UX:
 - Disciplinary dashboard (HR/managers)
@@ -246,13 +331,28 @@ UI/UX:
   - Resolution tracking
 - Onboarding checklist
   - Manager/HR pre-hire prep
-  - Equipment orders
+  - Equipment orders/assignments
   - IT access requests
   - Document handouts
+  - Training scheduling
+  - Welcome portal setup
 - Employee benefits page
   - View assigned benefits
   - Enroll/opt-out (if applicable)
-- Offboarding workflow (begin design)
+  - Pension scheme details
+  - Dependant information
+- Offboarding workflow (full design)
+  - Notice tracking
+  - Equipment return checklist
+  - Exit interview form
+  - Reference process
+  - Final pay processing
+  - Knowledge transfer tasks
+- Salary band management
+  - Define pay ranges by role/level
+  - Assign employees to bands
+  - Compensation equity analysis (flag outliers)
+  - Department-wide salary overview
 
 API Endpoints:
 - POST /api/discipline/record/{employee_id}
@@ -260,12 +360,20 @@ API Endpoints:
 - POST /api/onboarding/tasks
 - POST /api/onboarding/tasks/{id}/complete
 - GET /api/employees/{id}/benefits
+- GET /api/salary-bands
+- POST /api/salary-bands
+- GET /api/analytics/compensation-equity
+- POST /api/offboarding/initiate/{employee_id}
+- GET /api/offboarding/tasks/{employee_id}
 
 Business Logic:
 - Attendance plant warnings auto-create discipline records
 - 3 warnings trigger final warning + HR escalation
 - Onboarding tasks auto-generated when employee is hired
-- Benefits enrolment validation (e.g., only certain roles get car allowance)
+- Benefits enrolment validation
+- Salary band assignments ensure pay equity
+- Self-service profile updates tracked in employee_data_changes
+- Exit interview feedback triggers stay conversations for flight risks
 
 PHASE 3: PERFORMANCE REVIEWS, ANALYTICS & PAYROLL
 
@@ -305,6 +413,9 @@ Business Logic:
 - Leave cost reports feed into budget planning
 - Turnover analysis flags retention risks
 - Skill gaps trigger training recommendations
+- Sick leave pattern alerts if Monday/Friday spike or frequent short absences
+- Exit interview triggers HR follow-up for departing talent
+- Attrition risk scoring integrated into HR dashboard
 
 PHASE 4: ADVANCED & INTEGRATION (FUTURE)
 
@@ -357,10 +468,13 @@ F) Organizational Development
 6) SECURITY & COMPLIANCE
 
 - Encrypt PII (NI number, bank details, address)
-- Audit logs for all disciplinary/HR decisions
+- Audit logs for all disciplinary/HR decisions (immutable + timestamped)
 - GDPR: right to data export, right to deletion
 - Data retention: termination records 6 years
 - Access control: HR only sees their location/dept (unless admin)
+- Self-service profile updates require validation (e.g., address change needs verification)
+- Sensitive data changes (salary, NI, bank) trigger email confirmation
+- Equipment return is mandatory before final termination
 
 7) OPEN DECISIONS
 
@@ -370,6 +484,12 @@ F) Organizational Development
 - Should performance reviews feed into bonuses/raises (payroll scope)?
 - Multi-language support needed?
 - Should we auto-disable login on termination or require manual action?
+- Who defines salary bands: HR, Finance, or role-based formula?
+- Should attrition risk scoring weight engagement/survey data?
+- Sick leave Monday/Friday alerts: automatic flag or HR manual review?
+- Should exit interviews be mandatory or optional?
+- Can employees negotiate/view their salary band (transparency)?
+- Contract renewal: auto-extend or require active renewal decision?
 
 8) SUCCESS METRICS
 
