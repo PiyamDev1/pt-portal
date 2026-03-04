@@ -1,0 +1,381 @@
+HR DATA FOUNDATION & EMPLOYEE MANAGEMENT - DETAILED PLAN
+
+1) SCOPE SUMMARY
+
+Goal: Build comprehensive HR data infrastructure supporting leave management, payroll, compliance, performance, and employee lifecycle management.
+
+Phases span employee onboarding through performance reviews, disciplinary tracking, training compliance, and offboarding workflows.
+
+2) DATA MODEL
+
+2.1 Core Tables (New/Modified)
+
+A) employees table enhancements
+- contract_type (enum: permanent, fixed, seasonal, freelance)
+- employment_status (enum: active, terminated, suspended, on_leave)
+- start_date (date)
+- end_date (date, nullable)
+- probation_end_date (date, nullable)
+- notice_period_days (integer)
+- annual_salary (numeric)
+- hourly_rate (numeric, nullable)
+- salary_currency (text, default: GBP)
+- date_of_birth (date)
+- phone_number (text)
+- ni_number (text, encrypted)
+- personal_email (text)
+- emergency_contact_name (text)
+- emergency_contact_phone (text)
+- address_line1, address_line2, city, postcode (text)
+- right_to_work_verified (boolean)
+- right_to_work_verified_date (date)
+- right_to_work_document (text, ref to document storage)
+- background_check_status (enum: pending, approved, failed)
+- background_check_date (date)
+
+B) employee_documents (new)
+- id (uuid, PK)
+- employee_id (uuid, FK)
+- document_type (enum: offer_letter, contract, handbook, data_policy, other)
+- file_path (text)
+- uploaded_at (timestamp)
+- expiry_date (date, nullable)
+- acknowledged_at (timestamp, nullable)
+- acknowledged_by_id (uuid, FK)
+- created_at, updated_at
+
+C) employee_certifications (new)
+- id (uuid, PK)
+- employee_id (uuid, FK)
+- certification_name (text)
+- issuer (text)
+- issue_date (date)
+- expiry_date (date, nullable)
+- credential_id (text)
+- file_path (text)
+- status (enum: active, expired, pending_renewal)
+- created_at, updated_at
+
+D) mandatory_training (new)
+- id (uuid, PK)
+- name (text)                        // GDPR, H&S, Data Protection, etc.
+- code (text, unique)
+- required_for_roles (uuid[], array of role_ids)
+- expiry_months (integer)
+- created_at, updated_at
+
+E) employee_training_records (new)
+- id (uuid, PK)
+- employee_id (uuid, FK)
+- training_id (uuid, FK)
+- completion_date (date)
+- expiry_date (date)
+- certificate_path (text)
+- score (numeric, nullable)
+- status (enum: pending, in_progress, completed, expired)
+- created_at, updated_at
+
+F) disciplinary_records (new)
+- id (uuid, PK)
+- employee_id (uuid, FK)
+- warning_number (integer)          // 1, 2, 3
+- issue_date (date)
+- reason (text)
+- severity (enum: verbal, written, final)
+- issued_by_id (uuid, FK)
+- notes (text)
+- resolution_date (date, nullable)
+- resolved_by_id (uuid, FK)
+- created_at, updated_at
+
+G) performance_reviews (new)
+- id (uuid, PK)
+- employee_id (uuid, FK)
+- reviewer_id (uuid, FK)
+- review_period_start (date)
+- review_period_end (date)
+- rating (numeric 1-5)
+- comments (text)
+- goals_met (text)
+- development_areas (text)
+- salary_review_recommended (boolean)
+- reviewed_at (timestamp)
+- created_at, updated_at
+
+H) onboarding_tasks (new)
+- id (uuid, PK)
+- employee_id (uuid, FK)
+- task_name (text)                  // "Provide offer letter", "Arrange IT equipment", etc.
+- due_date (date)
+- completed_at (timestamp, nullable)
+- completed_by_id (uuid, FK)
+- priority (enum: low, medium, high)
+- created_at, updated_at
+
+I) offboarding_records (new)
+- id (uuid, PK)
+- employee_id (uuid, FK)
+- notice_given_date (date)
+- last_working_day (date)
+- exit_reason (text)
+- exit_type (enum: resignation, redundancy, termination, retirement)
+- reference_provided (boolean)
+- equipment_checklist (jsonb)       // {laptop: returned, keys: returned, etc.}
+- final_pay_processed (boolean)
+- processed_by_id (uuid, FK)
+- created_at, updated_at
+
+J) employee_skills (new)
+- id (uuid, PK)
+- employee_id (uuid, FK)
+- skill_name (text)
+- proficiency_level (enum: beginner, intermediate, expert)
+- years_of_experience (numeric)
+- created_at, updated_at
+
+K) ssp_rules (new)
+- id (uuid, PK)
+- country (text)                    // GB, etc.
+- year (integer)
+- daily_rate (numeric)
+- weekly_threshold (numeric)        // min salary to qualify
+- min_continuous_days (integer)
+- created_at, updated_at
+
+L) leave_costs (new)
+- id (uuid, PK)
+- leave_request_id (uuid, FK)
+- calculated_cost (numeric)
+- cost_center (text)
+- payment_type (enum: salary, ssp, unpaid)
+- created_at, updated_at
+
+M) employee_benefits (new)
+- id (uuid, PK)
+- employee_id (uuid, FK)
+- benefit_type (text)               // health insurance, pension, car allowance, etc.
+- monthly_cost (numeric)
+- start_date (date)
+- end_date (date, nullable)
+- notes (text)
+- created_at, updated_at
+
+3) BUSINESS RULES
+
+3.1 Employment Basics
+- Contract type determines leave entitlements and notice periods.
+- Employment status controls system access and leave approvals.
+- Probation period: limited leave during first 3-6 months (configurable).
+- Notice period is validated when termination is processed.
+
+3.2 Salary & Payroll
+- Salary is used to calculate leave costs and SSP eligibility.
+- SSP daily rate is set by UK rules annually, validated on sick leave approval.
+- Bank details encrypted for payroll protection.
+- Salary currency allows multi-currency support (future).
+
+3.3 Compliance & Right-to-Work
+- Right-to-work must be verified before employment starts.
+- Documents (offer, contract, handbook) must be acknowledged.
+- Background check status required before user access.
+- Training compliance tracked; non-compliance flagged to HR.
+
+3.4 Disciplinary Tracking
+- Attendance plant warnings link to disciplinary records.
+- 3 warnings trigger escalation (already in plant plan).
+- Records are permanent audit trail.
+
+3.5 Performance Management
+- Reviews tied to salary review recommendations.
+- Goals and development areas tracked annually.
+- Optional: link to bonuses/raises in Phase 3+.
+
+3.6 Onboarding/Offboarding
+- Onboarding tasks create checklist for HR/manager pre-hire.
+- Offboarding tasks ensure clean exit: equipment, references, final pay.
+- Exit reason tracked for analytics.
+
+4) DETAILED PHASE BREAKDOWN
+
+PHASE 1: EMPLOYEE DATA FOUNDATION (CRITICAL)
+
+Tables to create:
+- Enhance employees table (add contract, salary, dob, phone, ni, right-to-work)
+- employee_documents (store offer, contract, handbook)
+- employee_certifications (track professional certs)
+- mandatory_training (define required training)
+- employee_training_records (track completion)
+- ssp_rules (SSP thresholds by country/year)
+- leave_costs (calculate leave cost on approval)
+
+UI/UX:
+- Employee profile page (view/edit basics)
+  - Contract type, salary, start date
+  - Right-to-work status
+  - Documents acknowledgement checklist
+- Training compliance dashboard (for HR/managers)
+  - Who is due for GDPR, H&S, etc.
+  - Expiry warnings
+- Admin: Bulk import employee data (CSV)
+
+API Endpoints:
+- GET /api/employees/{id}/profile
+- POST /api/employees/{id}/profile
+- GET /api/employees/{id}/training
+- POST /api/employees/{id}/training/acknowledge
+- GET /api/training/compliance-dashboard
+- POST /api/admin/employees/import
+
+Business Logic:
+- Validate SSP eligibility on sick leave approval
+- Calculate leave cost based on salary
+- Flag missing right-to-work docs
+
+PHASE 2: DISCIPLINE, COMPLIANCE & ONBOARDING
+
+Tables to create:
+- disciplinary_records (link to plant warnings)
+- employee_benefits (track health insurance, pension)
+- onboarding_tasks
+- offboarding_records (partial: structure only)
+
+UI/UX:
+- Disciplinary dashboard (HR/managers)
+  - View warnings history
+  - Issue new warnings with reason
+  - Resolution tracking
+- Onboarding checklist
+  - Manager/HR pre-hire prep
+  - Equipment orders
+  - IT access requests
+  - Document handouts
+- Employee benefits page
+  - View assigned benefits
+  - Enroll/opt-out (if applicable)
+- Offboarding workflow (begin design)
+
+API Endpoints:
+- POST /api/discipline/record/{employee_id}
+- GET /api/discipline/history/{employee_id}
+- POST /api/onboarding/tasks
+- POST /api/onboarding/tasks/{id}/complete
+- GET /api/employees/{id}/benefits
+
+Business Logic:
+- Attendance plant warnings auto-create discipline records
+- 3 warnings trigger final warning + HR escalation
+- Onboarding tasks auto-generated when employee is hired
+- Benefits enrolment validation (e.g., only certain roles get car allowance)
+
+PHASE 3: PERFORMANCE REVIEWS, ANALYTICS & PAYROLL
+
+Tables to create:
+- performance_reviews (full implementation)
+- employee_skills (competency matrix)
+
+UI/UX:
+- Performance review cycle
+  - Manager review form
+  - Self-assessment (if applicable)
+  - Calibration review (multi-rater if needed)
+  - Feedback summary view
+- Skills matrix
+  - Auto-suggest skill gaps by role
+  - Training recommendations
+- HR Analytics dashboard
+  - Turnover by dept/role
+  - Cost analysis (salary, benefits, leave cost)
+  - Headcount forecast
+  - Utilization metrics
+- Payroll integration
+  - Export leave costs by employee/dept
+  - SSP vs company-paid breakdown
+  - Budget vs actual spend
+
+API Endpoints:
+- POST /api/performance-reviews
+- GET /api/performance-reviews/{employee_id}
+- POST /api/employees/{id}/skills
+- GET /api/analytics/turnover
+- GET /api/analytics/leave-costs
+- POST /api/payroll/export
+
+Business Logic:
+- Salary review triggered by performance rating
+- Leave cost reports feed into budget planning
+- Turnover analysis flags retention risks
+- Skill gaps trigger training recommendations
+
+PHASE 4: ADVANCED & INTEGRATION (FUTURE)
+
+- Payroll system integration (ADP, Sage, etc.)
+- Learning management system (LMS) integration
+- Performance appraisal workflows (360 feedback, goal tracking)
+- Succession planning
+- Headcount budget vs actual
+- Multi-currency support
+- Custom benefits packages
+
+5) ADDITIONAL MISSING HR ELEMENTS
+
+A) Recruitment & Applicant Tracking (NOT in scope for now but flagged)
+- Job postings
+- Candidate pipeline
+- Offer generation
+- Interview tracking
+
+B) Time & Attendance Beyond Timeclock
+- Absence notifications (automated)
+- Hotline/call-in for sick leave
+- Lateness patterns and interventions
+- GDPR-compliant absence tracking
+
+C) Payroll Processing
+- Salary run processing
+- Tax deductions (PAYE, NI)
+- Pension contributions
+- Bonus/commission tracking
+- Payment method management
+
+D) Employee Relations
+- Grievance procedures
+- Complaint tracking
+- Investigation workflows
+- Settlement agreements
+
+E) Health & Safety
+- Accident reports
+- Risk assessments
+- Incident tracking
+
+F) Organizational Development
+- Succession planning
+- Talent pipeline
+- Development plans
+- Career path tracking
+
+6) SECURITY & COMPLIANCE
+
+- Encrypt PII (NI number, bank details, address)
+- Audit logs for all disciplinary/HR decisions
+- GDPR: right to data export, right to deletion
+- Data retention: termination records 6 years
+- Access control: HR only sees their location/dept (unless admin)
+
+7) OPEN DECISIONS
+
+- Should employee photos/avatars be stored (GDPR)?
+- How detailed should benefit tracking be (could be complex)?
+- Who can issue discipline: manager only, or HR only?
+- Should performance reviews feed into bonuses/raises (payroll scope)?
+- Multi-language support needed?
+- Should we auto-disable login on termination or require manual action?
+
+8) SUCCESS METRICS
+
+- Phase 1: 100% of active employees have salary, NI, right-to-work data
+- Phase 2: 100% of staff complete mandatory training by deadline
+- Phase 3: Performance review cycle completed 100% by target date
+- All phases: no compliance breaches (right-to-work, training, etc.)
+
+END OF PLAN
