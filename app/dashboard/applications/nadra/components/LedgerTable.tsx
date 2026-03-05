@@ -48,6 +48,22 @@ export default function LedgerTable({
                   </div>
                 </div>
               </div>
+              
+              {/* Center: Document Management Button */}
+              <div className="flex-1 flex justify-center">
+                {group.head && (
+                  <button
+                    onClick={() => onManageDocuments?.(group.head.id, `${group.head.first_name} ${group.head.last_name}`)}
+                    className="inline-flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-semibold text-sm transition shadow-sm hover:shadow-md"
+                    type="button"
+                    aria-label="Manage family documents"
+                  >
+                    <span className="text-lg">📄</span>
+                    <span>Manage Documents</span>
+                  </button>
+                )}
+              </div>
+              
               <div className="flex items-center gap-3">
                 {group.head && (
                   <button
@@ -164,15 +180,6 @@ export default function LedgerTable({
 
                       <td className="p-4 align-top w-20 text-right">
                         <div className="flex items-center justify-end gap-2">
-                          <button
-                            onClick={() => onManageDocuments?.(group.head?.id, `${group.head?.first_name} ${group.head?.last_name}`)}
-                            className="h-8 w-8 flex items-center justify-center rounded-full bg-purple-50 hover:bg-purple-100 text-purple-600 transition"
-                            type="button"
-                            aria-label="Manage documents"
-                            title="Manage documents"
-                          >
-                            📄
-                          </button>
                           <button
                             onClick={() => onOpenNotes(item)}
                             className="h-8 w-8 flex items-center justify-center rounded-full bg-blue-50 hover:bg-blue-100 text-blue-600 transition"
