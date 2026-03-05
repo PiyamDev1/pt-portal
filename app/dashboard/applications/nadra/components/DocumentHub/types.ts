@@ -5,6 +5,7 @@
 
 /**
  * Represents a single document stored in MinIO
+ * Documents are stored at the family level and shared by all applicants in the family
  */
 export interface Document {
   id: string;
@@ -13,7 +14,7 @@ export interface Document {
   fileType: string;
   uploadedAt: string;
   uploadedBy: string;
-  applicantId: string;
+  familyHeadId: string; // Family-level storage - shared by all applicants
   minio: {
     bucket: string;
     key: string;

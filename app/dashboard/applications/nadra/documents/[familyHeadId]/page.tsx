@@ -1,8 +1,9 @@
 /**
  * Nadra Documents Page
- * Document management interface for individual applicants
+ * Document management interface for family-level document sharing
+ * All applicants in a family can access shared documents
  * 
- * Route: /dashboard/applications/nadra/documents/[applicantId]
+ * Route: /dashboard/applications/nadra/documents/[familyHeadId]
  */
 
 import { createServerClient } from '@supabase/auth-helpers-nextjs'
@@ -16,19 +17,19 @@ import { Metadata } from 'next'
 
 export const metadata: Metadata = {
   title: 'Document Management - Nadra Applications',
-  description: 'Manage documents for Nadra applications',
+  description: 'Manage documents shared by the family for all applicants',
 }
 
 interface NadraDocumentsPageProps {
   params: Promise<{
-    applicantId: string
+    familyHeadId: string
   }>
 }
 
 export default async function NadraDocumentsPage({
   params,
 }: NadraDocumentsPageProps) {
-  const { applicantId } = await params
+  const { familyHeadId } = await params
 
   // Initialize Supabase client
   const cookieStore = await cookies()
@@ -58,15 +59,15 @@ export default async function NadraDocumentsPage({
     .eq('id', session.user.id)
     .single()
 
-  // Fetch applicant data
-  const { data: applicant } = await supabase
-    .from('applicants')
+  // Fetch family head data (document owner)
+  const { data: familyHead } = await supabase
+    .from('family_heads')
     .select('id, first_name, last_name, citizen_number, email, phone_number')
-    .eq('id', applicantId)
+    .eq('id', familyHeadId)
     .single()
 
-  // Handle applicant not found
-  if (!applicant) {
+  // Handle family head not found
+  if (!familyHead) {
     notFound()
   }
 
@@ -75,7 +76,7 @@ export default async function NadraDocumentsPage({
     : employee?.locations
   const role = Array.isArray(employee?.roles) ? employee.roles[0] : employee?.roles
 
-  const applicantFullName = `${applicant.first_name} ${applicant.last_name}`
+  const familyHeadFullName = `${familyHead.first_name} ${familyHead.last_name}`
 
   return (
     <DashboardClientWrapper>
@@ -117,8 +118,8 @@ export default async function NadraDocumentsPage({
           {/* Document Hub */}
           <div className="h-[calc(100vh-280px)] rounded-lg">
             <DocumentHub
-              applicantId={applicantId}
-              applicantName={applicantFullName}
+              familyHeadId={familyHeadId}
+              familyHeadName={familyHeadFullName}
               showStatus={true}
             />
           </div>

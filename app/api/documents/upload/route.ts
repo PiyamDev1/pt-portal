@@ -23,11 +23,11 @@ const ALLOWED_MIME_TYPES = [
 
 /**
  * PLACEHOLDER: POST /api/documents/upload
- * Upload a document to MinIO
+ * Upload a document to MinIO (family-level storage)
  * 
  * Form Data:
  * - file: File (required)
- * - applicantId: string (required)
+ * - familyHeadId: string (required)
  * 
  * Response: { success: boolean, document?: Document, error?: string }
  */
@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
     // Parse form data
     const formData = await request.formData()
     const file = formData.get('file') as File | null
-    const applicantId = formData.get('applicantId') as string | null
+    const familyHeadId = formData.get('familyHeadId') as string | null
 
     // Validation: Check required fields
     if (!file) {
@@ -49,11 +49,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (!applicantId) {
+    if (!familyHeadId) {
       return NextResponse.json(
         {
           success: false,
-          error: 'applicantId is required',
+          error: 'familyHeadId is required',
         },
         { status: 400 }
       )
@@ -84,19 +84,19 @@ export async function POST(request: NextRequest) {
     // PLACEHOLDER: Upload to MinIO
     // In production:
     // 1. Authenticate request (check session)
-    // 2. Verify applicant exists and user has access
-    // 3. Upload file to MinIO bucket
+    // 2. Verify family exists and user has access
+    // 3. Upload file to MinIO bucket under family path
     // 4. Generate MinIO metadata (bucket, key, etag)
-    // 5. Store document metadata in Supabase
+    // 5. Store document metadata in Supabase (family_head_id)
     // 6. Generate thumbnail for preview
     // 7. Return Document object with MinIO location
 
-    console.log(`[PLACEHOLDER] Uploading file: ${file.name} for applicant: ${applicantId}`)
+    console.log(`[PLACEHOLDER] Uploading file: ${file.name} for family: ${familyHeadId}`)
     console.log(`File size: ${file.size} bytes, type: ${file.type}`)
 
     // Mock response - return a placeholder document
     const documentId = `doc-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-    const minioKey = `applicant-${applicantId}/${Date.now()}-${file.name}`
+    const minioKey = `family-${familyHeadId}/${Date.now()}-${file.name}`
 
     return NextResponse.json(
       {
@@ -108,7 +108,7 @@ export async function POST(request: NextRequest) {
           fileType: file.type,
           uploadedAt: new Date().toISOString(),
           uploadedBy: '[PLACEHOLDER] Session User',
-          applicantId,
+          familyHeadId,
           minio: {
             bucket: 'nadra-documents',
             key: minioKey,

@@ -140,12 +140,12 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
-  const handleManageDocuments = (applicantId: string, applicantName: string) => {
-    if (!applicantId) {
-      toast.error('Cannot manage documents for this applicant')
+  const handleManageDocuments = (familyHeadId: string, familyHeadName: string) => {
+    if (!familyHeadId) {
+      toast.error('Cannot manage documents for this family')
       return
     }
-    router.push(`/dashboard/applications/nadra/documents/${applicantId}`)
+    router.push(`/dashboard/applications/nadra/documents/${familyHeadId}`)
   }
 
   const handleSubmit = async () => {

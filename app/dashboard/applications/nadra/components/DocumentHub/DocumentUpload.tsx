@@ -15,9 +15,10 @@ import { UploadProgress, Document } from './types'
 
 export interface DocumentUploadProps {
   /**
-   * Applicant ID to associate documents with
+   * Family Head ID to associate documents with
+   * All applicants in the family will have access to these documents
    */
-  applicantId: string
+  familyHeadId: string
 
   /**
    * Callback when documents are successfully uploaded
@@ -42,10 +43,10 @@ export interface DocumentUploadProps {
 
 /**
  * DocumentUpload Component
- * Provides drag-and-drop and file picker for document uploads
+ * Provides drag-and-drop and file picker for family-level document uploads
  */
 export function DocumentUpload({
-  applicantId,
+  familyHeadId,
   onSuccess,
   onError,
   disabled = false,
@@ -144,7 +145,7 @@ export function DocumentUpload({
           }, 200)
 
           // Upload document
-          const doc = await documentService.uploadDocument(file, applicantId)
+          const doc = await documentService.uploadDocument(file, familyHeadId)
 
           clearInterval(progressInterval)
 
@@ -188,7 +189,7 @@ export function DocumentUpload({
         fileInputRef.current.value = ''
       }
     },
-    [applicantId, onSuccess, onError]
+    [familyHeadId, onSuccess, onError]
   )
 
   /**

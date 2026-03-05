@@ -46,9 +46,9 @@ export interface DocumentService {
   getMinioConfig(): Promise<MinioConfig>
 
   // Document Operations
-  uploadDocument(file: File, applicantId: string): Promise<Document>
-  uploadMultipleDocuments(files: File[], applicantId: string): Promise<BatchUploadResponse>
-  getDocuments(applicantId: string): Promise<Document[]>
+  uploadDocument(file: File, familyHeadId: string): Promise<Document>
+  uploadMultipleDocuments(files: File[], familyHeadId: string): Promise<BatchUploadResponse>
+  getDocuments(familyHeadId: string): Promise<Document[]>
   deleteDocument(documentId: string): Promise<{ success: boolean }>
   downloadDocument(documentId: string): Promise<Blob>
 
@@ -137,8 +137,9 @@ class PlaceholderDocumentService implements DocumentService {
   /**
    * PLACEHOLDER: Upload single document
    * In production: Will send file to backend API endpoint
+   * Documents are stored at family level and shared by all applicants in the family
    */
-  async uploadDocument(file: File, applicantId: string): Promise<Document> {
+  async uploadDocument(file: File, familyHeadId: string): Promise<Document> {
     // Validate file first
     const validation = this.validateFile(file)
     if (!validation.valid) {
@@ -148,7 +149,7 @@ class PlaceholderDocumentService implements DocumentService {
     try {
       const formData = new FormData()
       formData.append('file', file)
-      formData.append('applicantId', applicantId)
+      formData.append('familyHeadId', familyHeadId)
 
       // PLACEHOLDER: Call our API endpoint which will handle MinIO upload
       const response = await fetch(`${API_BASE}/documents/upload`, {
@@ -176,10 +177,11 @@ class PlaceholderDocumentService implements DocumentService {
   /**
    * PLACEHOLDER: Upload multiple documents
    * Handles batch uploads with progress tracking
+   * Documents are stored at family level
    */
   async uploadMultipleDocuments(
     files: File[],
-    applicantId: string
+    familyHeadId: string
   ): Promise<BatchUploadResponse> {
     const response: BatchUploadResponse = {
       successful: [],
@@ -189,7 +191,7 @@ class PlaceholderDocumentService implements DocumentService {
 
     for (const file of files) {
       try {
-        const doc = await this.uploadDocument(file, applicantId)
+        const doc = await this.uploadDocument(file, familyHeadId)
         response.successful.push(doc)
       } catch (error) {
         response.failed.push({
@@ -204,12 +206,13 @@ class PlaceholderDocumentService implements DocumentService {
   }
 
   /**
-   * PLACEHOLDER: Get all documents for an applicant
+   * PLACEHOLDER: Get all documents for a family
+   * Returns all documents shared by the family
    */
-  async getDocuments(applicantId: string): Promise<Document[]> {
+  async getDocuments(familyHeadId: string): Promise<Document[]> {
     try {
       const response = await fetch(
-        `${API_BASE}/documents?applicantId=${applicantId}`,
+        `${API_BASE}/documents?familyHeadId=${familyHeadId}`,
         {
           method: 'GET',
         }

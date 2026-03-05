@@ -2,10 +2,10 @@
 
 /**
  * Document Hub Page
- * Main document management interface for applicants
- * Combines upload, grid, and preview components
+ * Main document management interface for family-level document sharing
+ * All applicants in the family can access shared documents
  * 
- * @page /dashboard/applications/nadra/[applicantId]/documents
+ * @page /dashboard/applications/nadra/documents/[familyHeadId]
  */
 
 import React, { useState, useEffect, useCallback } from 'react'
@@ -19,14 +19,15 @@ import { AlertCircle, Loader } from 'lucide-react'
 
 export interface DocumentHubProps {
   /**
-   * Applicant ID for document context
+   * Family Head ID for document context
+   * All applicants in the family share these documents
    */
-  applicantId: string
+  familyHeadId: string
 
   /**
-   * Applicant name for page header
+   * Family head name for page header
    */
-  applicantName?: string
+  familyHeadName?: string
 
   /**
    * Show MinIO status bar
@@ -41,11 +42,11 @@ export interface DocumentHubProps {
 
 /**
  * DocumentHub Component
- * Main interface for managing documents
+ * Main interface for managing family-level documents
  */
 export function DocumentHub({
-  applicantId,
-  applicantName = 'Applicant',
+  familyHeadId,
+  familyHeadName = 'Family',
   showStatus = true,
   className = '',
 }: DocumentHubProps) {
@@ -61,7 +62,7 @@ export function DocumentHub({
    */
   useEffect(() => {
     loadDocuments()
-  }, [applicantId])
+  }, [familyHeadId])
 
   /**
    * Load documents from service
@@ -71,7 +72,7 @@ export function DocumentHub({
     setError(null)
 
     try {
-      const docs = await documentService.getDocuments(applicantId)
+      const docs = await documentService.getDocuments(familyHeadId)
       setDocuments(docs)
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load documents'
@@ -80,7 +81,7 @@ export function DocumentHub({
     } finally {
       setIsLoading(false)
     }
-  }, [applicantId])
+  }, [familyHeadId])
 
   /**
    * Handle successful upload
@@ -182,7 +183,7 @@ export function DocumentHub({
       <div>
         <h1 className="text-2xl font-bold text-slate-800">Document Management</h1>
         <p className="text-slate-600 text-sm mt-1">
-          Manage documents for <span className="font-medium">{applicantName}</span>
+          Manage documents shared by <span className="font-medium">{familyHeadName}</span> family
         </p>
       </div>
 
@@ -194,7 +195,7 @@ export function DocumentHub({
           <div className="flex-shrink-0">
             <h2 className="text-lg font-semibold text-slate-800 mb-3">Upload Documents</h2>
             <DocumentUpload
-              applicantId={applicantId}
+              familyHeadId={familyHeadId}
               onSuccess={handleUploadSuccess}
               onError={handleUploadError}
               disabled={isDeleting}
