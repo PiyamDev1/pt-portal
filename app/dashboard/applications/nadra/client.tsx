@@ -140,6 +140,14 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
+  const handleManageDocuments = (applicantId: string, applicantName: string) => {
+    if (!applicantId) {
+      toast.error('Cannot manage documents for this applicant')
+      return
+    }
+    router.push(`/dashboard/applications/nadra/documents/${applicantId}`)
+  }
+
   const handleSubmit = async () => {
     if (!formData.trackingNumber || (!formData.applicantCnic && !formData.newBorn)) {
       toast.error('Tracking Number and Citizen Number are required unless New Born is selected')
@@ -548,6 +556,7 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
         onAddMember={handleAddMember}
         onViewHistory={setSelectedHistory}
         onOpenNotes={openNotesModal}
+        onManageDocuments={handleManageDocuments}
       />
 
       {/* Pagination */}

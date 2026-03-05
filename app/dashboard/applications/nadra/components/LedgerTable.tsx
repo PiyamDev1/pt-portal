@@ -9,6 +9,7 @@ interface LedgerTableProps {
   onAddMember: (head: any) => void
   onViewHistory: (item: any) => void
   onOpenNotes: (item: any) => void
+  onManageDocuments?: (applicantId: string, applicantName: string) => void
 }
 
 export default function LedgerTable({
@@ -19,7 +20,8 @@ export default function LedgerTable({
   onEditHead,
   onAddMember,
   onViewHistory,
-  onOpenNotes
+  onOpenNotes,
+  onManageDocuments
 }: LedgerTableProps) {
   return (
     <div className="space-y-4">
@@ -162,6 +164,15 @@ export default function LedgerTable({
 
                       <td className="p-4 align-top w-20 text-right">
                         <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => onManageDocuments?.(item.applicants?.id, `${item.applicants?.first_name} ${item.applicants?.last_name}`)}
+                            className="h-8 w-8 flex items-center justify-center rounded-full bg-purple-50 hover:bg-purple-100 text-purple-600 transition"
+                            type="button"
+                            aria-label="Manage documents"
+                            title="Manage documents"
+                          >
+                            📄
+                          </button>
                           <button
                             onClick={() => onOpenNotes(item)}
                             className="h-8 w-8 flex items-center justify-center rounded-full bg-blue-50 hover:bg-blue-100 text-blue-600 transition"
