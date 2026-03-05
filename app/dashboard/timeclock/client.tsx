@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import jsQR from 'jsqr'
 
 type GeoPoint = {
   lat: number
@@ -18,6 +19,7 @@ type ScanResponse = {
 
 export default function TimeclockClient() {
   const videoRef = useRef<HTMLVideoElement | null>(null)
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const scanTimerRef = useRef<number | null>(null)
 
@@ -30,6 +32,7 @@ export default function TimeclockClient() {
   const [cameraPermission, setCameraPermission] = useState<'granted' | 'denied' | 'prompt' | 'unknown'>('unknown')
 
   const detectorSupported = typeof window !== 'undefined' && 'BarcodeDetector' in window
+  const isIOS = typeof window !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent)
 
   useEffect(() => {
     let isMounted = true
@@ -62,10 +65,20 @@ export default function TimeclockClient() {
       setMessage('Point your camera at the QR code.')
 
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
+        // Use iOS-optimized constraints for better compatibility
+        const constraints = isIOS ? {
+          video: { 
+            facingMode: { ideal: 'environment' },
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          },
+          audio: false,
+        } : {
           video: { facingMode: 'environment' },
           audio: false,
-        })
+        }
+
+        const stream = await navigator.mediaDevices.getUserMedia(constraints)
 
         if (!isActive) return
 
@@ -73,36 +86,80 @@ export default function TimeclockClient() {
         if (videoRef.current) {
           videoRef.current.srcObject = stream
           videoRef.current.playsInline = true
+          videoRef.current.setAttribute('playsinline', 'true')
+          videoRef.current.setAttribute('webkit-playsinline', 'true')
           await videoRef.current.play()
         }
 
-        if (!detectorSupported) {
-          setCameraError('QR scanning is not supported on this device. Use manual entry below.')
-          return
-        }
+        // Use BarcodeDetector if supported, otherwise use jsQR (for iOS)
+        if (detectorSupported) {
+          const detector = new (window as any).BarcodeDetector({ formats: ['qr_code'] })
 
-        const detector = new (window as any).BarcodeDetector({ formats: ['qr_code'] })
+          const scanLoop = async () => {
+            if (!isActive || !videoRef.current) return
 
-        const scanLoop = async () => {
-          if (!isActive || !videoRef.current) return
-
-          try {
-            const barcodes = await detector.detect(videoRef.current)
-            if (barcodes?.length) {
-              const rawValue = barcodes[0]?.rawValue || ''
-              if (rawValue) {
-                await handleSubmit(rawValue)
-                return
+            try {
+              const barcodes = await detector.detect(videoRef.current)
+              if (barcodes?.length) {
+                const rawValue = barcodes[0]?.rawValue || ''
+                if (rawValue) {
+                  await handleSubmit(rawValue)
+                  return
+                }
               }
+            } catch (error: any) {
+              setCameraError(error?.message || 'Unable to read QR code.')
             }
-          } catch (error: any) {
-            setCameraError(error?.message || 'Unable to read QR code.')
+
+            scanTimerRef.current = window.setTimeout(scanLoop, 350)
           }
 
-          scanTimerRef.current = window.setTimeout(scanLoop, 350)
-        }
+          scanLoop()
+        } else {
+          // Fallback for iOS and browsers without BarcodeDetector
+          if (!canvasRef.current) {
+            canvasRef.current = document.createElement('canvas')
+          }
 
-        scanLoop()
+          const canvas = canvasRef.current
+          const context = canvas.getContext('2d', { willReadFrequently: true })
+
+          const scanLoopJsQR = () => {
+            if (!isActive || !videoRef.current || !context) return
+
+            const video = videoRef.current
+            
+            // Wait for video to be ready
+            if (video.readyState !== video.HAVE_ENOUGH_DATA) {
+              scanTimerRef.current = window.setTimeout(scanLoopJsQR, 100)
+              return
+            }
+
+            canvas.width = video.videoWidth
+            canvas.height = video.videoHeight
+
+            if (canvas.width === 0 || canvas.height === 0) {
+              scanTimerRef.current = window.setTimeout(scanLoopJsQR, 100)
+              return
+            }
+
+            context.drawImage(video, 0, 0, canvas.width, canvas.height)
+            const imageData = context.getImageData(0, 0, canvas.width, canvas.height)
+
+            const code = jsQR(imageData.data, imageData.width, imageData.height, {
+              inversionAttempts: 'dontInvert',
+            })
+
+            if (code?.data) {
+              handleSubmit(code.data)
+              return
+            }
+
+            scanTimerRef.current = window.setTimeout(scanLoopJsQR, 350)
+          }
+
+          scanLoopJsQR()
+        }
       } catch (error: any) {
         setCameraError(error?.message || 'Camera access denied.')
         setStatus('error')
@@ -121,10 +178,19 @@ export default function TimeclockClient() {
   const requestCameraPermission = async () => {
     setCameraError('')
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
+      const constraints = isIOS ? {
+        video: { 
+          facingMode: { ideal: 'environment' },
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        },
+        audio: false,
+      } : {
         video: { facingMode: 'environment' },
         audio: false,
-      })
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia(constraints)
       stream.getTracks().forEach(track => track.stop())
       setCameraPermission('granted')
     } catch (error: any) {
@@ -179,10 +245,30 @@ export default function TimeclockClient() {
     })
   }
 
+  const isManualCodeInput = (value: string) => {
+    return /^[\d\s-]+$/.test(value) && value.replace(/\D/g, '').length === 8
+  }
+
+  const handleManualInputChange = (value: string) => {
+    // Apply ####-#### masking for numeric/manual code input.
+    if (/^[\d\s-]*$/.test(value)) {
+      const digits = value.replace(/\D/g, '').slice(0, 8)
+      if (digits.length <= 4) {
+        setQrText(digits)
+        return
+      }
+      setQrText(`${digits.slice(0, 4)}-${digits.slice(4)}`)
+      return
+    }
+
+    // Keep non-numeric input unchanged so full QR payload paste still works.
+    setQrText(value)
+  }
+
   const handleSubmit = async (rawValue?: string) => {
     const payload = rawValue ?? qrText.trim()
     if (!payload) {
-      setMessage('Paste or scan a QR code first.')
+      setMessage('Enter a manual code or scan a QR code first.')
       setStatus('error')
       return
     }
@@ -195,14 +281,21 @@ export default function TimeclockClient() {
 
     try {
       const geo = await getGeo()
-      const response = await fetch('/api/timeclock/scan', {
+      const manualCode = payload.replace(/\D/g, '')
+      const isManualCode = isManualCodeInput(payload)
+
+      const response = await fetch(isManualCode ? '/api/timeclock/manual-entry/submit' : '/api/timeclock/scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          qrText: payload,
-          geo,
-          clientTs: new Date().toISOString(),
-        }),
+        body: JSON.stringify(
+          isManualCode
+            ? { code: manualCode }
+            : {
+                qrText: payload,
+                geo,
+                clientTs: new Date().toISOString(),
+              }
+        ),
       })
 
       const data = await response.json()
@@ -214,7 +307,13 @@ export default function TimeclockClient() {
 
       setStatus('success')
       setMessage(data?.message || 'Clock-in recorded.')
-      setResult(data)
+      setResult({
+        ok: true,
+        message: data?.message || 'Clock-in recorded.',
+        eventId: data?.eventId,
+        eventType: data?.eventType || 'PUNCH',
+        scannedAt: data?.scannedAt,
+      })
     } catch (error: any) {
       setStatus('error')
       setMessage(error?.message || 'Clock-in failed.')
@@ -227,7 +326,11 @@ export default function TimeclockClient() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h2 className="text-lg font-semibold text-slate-800">Scan QR</h2>
-            <p className="text-sm text-slate-500">Allow camera access to scan the device QR.</p>
+            <p className="text-sm text-slate-500">
+              {isIOS 
+                ? 'Point your camera at the QR code (iOS compatible)' 
+                : 'Allow camera access to scan the device QR.'}
+            </p>
           </div>
           <div className="flex gap-2">
             <button
@@ -259,6 +362,12 @@ export default function TimeclockClient() {
           </div>
         </div>
 
+        {isIOS && !detectorSupported && (
+          <div className="rounded-lg bg-blue-50 border border-blue-200 px-4 py-3 text-sm text-blue-800">
+            ℹ️ Using iOS-compatible QR scanner. Point camera directly at QR code for best results.
+          </div>
+        )}
+
         <div className="relative rounded-xl border border-slate-200 bg-slate-900 overflow-hidden">
           <video ref={videoRef} className="w-full h-64 object-cover" />
           {!isScanning && (
@@ -284,15 +393,24 @@ export default function TimeclockClient() {
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
         <div>
           <h2 className="text-lg font-semibold text-slate-800">Manual Entry</h2>
-          <p className="text-sm text-slate-500">If camera scanning is unavailable, paste the QR payload.</p>
+          <p className="text-sm text-slate-500">Enter 8-digit code. Hyphen is added automatically.</p>
         </div>
-        <textarea
+        <input
+          type="text"
           value={qrText}
-          onChange={event => setQrText(event.target.value)}
-          rows={4}
+          onChange={event => handleManualInputChange(event.target.value)}
+          onKeyDown={event => {
+            if (event.key === 'Enter') {
+              event.preventDefault()
+              handleSubmit()
+            }
+          }}
+          maxLength={256}
+          inputMode="numeric"
           className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          placeholder="Paste QR payload here (ptc1:... or raw JSON)"
+          placeholder="1234-5678"
         />
+        <p className="text-xs text-slate-500">You can still paste full QR payload text here if needed.</p>
         <button
           type="button"
           onClick={() => handleSubmit()}

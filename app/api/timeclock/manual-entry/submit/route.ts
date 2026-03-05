@@ -39,27 +39,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Check if user has Master Admin role or is a manager (has direct reports)
-    const { data: user } = await supabase
-      .from('employees')
-      .select('roles(name)')
-      .eq('id', session.user.id)
-      .single()
-
-    const { count: reportCount } = await supabase
-      .from('employees')
-      .select('id', { count: 'exact', head: true })
-      .eq('manager_id', session.user.id)
-
-    const role = Array.isArray(user?.roles) ? user.roles[0] : user?.roles
-    const isManager = role?.name === 'Master Admin' || (reportCount || 0) > 0
-
-    if (!isManager) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
-
     const body = await request.json()
-    const code = typeof body?.code === 'string' ? body.code.trim() : ''
+    const rawCode = typeof body?.code === 'string' ? body.code.trim() : ''
+    const code = rawCode.replace(/\D/g, '')
 
     if (!code || code.length !== 8 || !/^\d{8}$/.test(code)) {
       return NextResponse.json({ error: 'Invalid code format' }, { status: 400 })
@@ -115,6 +97,7 @@ export async function POST(request: Request) {
     // Compute hash for tamper evidence
     const prevHash = lastEvent?.hash || null
     const nowIso = new Date().toISOString()
+    const nonce = crypto.randomUUID()
     const hashMaterial = [
       'ptc1',
       deviceId,
@@ -122,6 +105,7 @@ export async function POST(request: Request) {
       'MANUAL',
       punchType,
       nowIso,
+      nonce,
       ip,
       userAgent,
       prevHash || '',
@@ -135,13 +119,20 @@ export async function POST(request: Request) {
       .insert({
         employee_id: session.user.id,
         device_id: deviceId,
+        event_type: 'PUNCH',
         punch_type: punchType,
+        qr_payload: {
+          source: 'manual_code',
+          code,
+          payload: codeRecord.qr_payload,
+        },
+        nonce,
+        device_ts: nowIso,
         scanned_at: nowIso,
         hash,
         prev_hash: prevHash,
-        ip_address: ip,
+        ip,
         user_agent: userAgent,
-        entry_method: 'MANUAL',
       })
       .select()
       .single()
@@ -159,6 +150,8 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       success: true,
+      eventId: insertedEvent?.id,
+      eventType: insertedEvent?.event_type || 'PUNCH',
       punchType,
       scannedAt: nowIso,
       message: `Punch recorded: ${punchType}`,
