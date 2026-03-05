@@ -59,9 +59,9 @@ export default async function NadraDocumentsPage({
     .eq('id', session.user.id)
     .single()
 
-  // Fetch family head data (document owner)
+  // Fetch family head data (document owner) - family heads are in applicants table
   const { data: familyHead } = await supabase
-    .from('family_heads')
+    .from('applicants')
     .select('id, first_name, last_name, citizen_number, email, phone_number')
     .eq('id', familyHeadId)
     .single()
