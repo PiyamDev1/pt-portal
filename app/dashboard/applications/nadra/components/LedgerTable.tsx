@@ -54,7 +54,7 @@ export default function LedgerTable({
                 {group.head && (
                   <button
                     onClick={() => onManageDocuments?.(group.head.id, `${group.head.first_name} ${group.head.last_name}`)}
-                    className="inline-flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-semibold text-sm transition shadow-sm hover:shadow-md"
+                    className="inline-flex items-center gap-2 bg-sky-600 hover:bg-sky-700 text-white px-4 py-2 rounded-lg font-semibold text-sm transition shadow-sm hover:shadow-md"
                     type="button"
                     aria-label="Manage family documents"
                   >

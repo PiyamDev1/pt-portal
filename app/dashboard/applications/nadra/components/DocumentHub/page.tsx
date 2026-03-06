@@ -30,7 +30,7 @@ export interface DocumentHubProps {
   familyHeadName?: string
 
   /**
-   * Show MinIO status bar
+   * Show file server status bar
    */
   showStatus?: boolean
 
@@ -159,7 +159,7 @@ export function DocumentHub({
 
   return (
     <div className={`flex flex-col h-full gap-4 ${className}`}>
-      {/* MinIO Status (Optional) */}
+      {/* File Server Status (Optional) */}
       {showStatus && <MinioStatus />}
 
       {/* Error Alert */}
@@ -191,15 +191,31 @@ export function DocumentHub({
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-4 min-h-0">
         {/* Left column: Upload + Grid */}
         <div className="lg:col-span-2 flex flex-col gap-4 min-h-0">
-          {/* Upload Section */}
-          <div className="flex-shrink-0">
-            <h2 className="text-lg font-semibold text-slate-800 mb-3">Upload Documents</h2>
-            <DocumentUpload
-              familyHeadId={familyHeadId}
-              onSuccess={handleUploadSuccess}
-              onError={handleUploadError}
-              disabled={isDeleting}
-            />
+          {/* Categorized Upload Sections */}
+          <div className="flex-shrink-0 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="rounded-lg border border-slate-200 bg-white p-3">
+              <DocumentUpload
+                familyHeadId={familyHeadId}
+                category="receipt"
+                heading="Receipts"
+                compact={true}
+                onSuccess={handleUploadSuccess}
+                onError={handleUploadError}
+                disabled={isDeleting}
+              />
+            </div>
+
+            <div className="rounded-lg border border-slate-200 bg-white p-3">
+              <DocumentUpload
+                familyHeadId={familyHeadId}
+                category="application-review"
+                heading="Application Review"
+                compact={true}
+                onSuccess={handleUploadSuccess}
+                onError={handleUploadError}
+                disabled={isDeleting}
+              />
+            </div>
           </div>
 
           {/* Grid Section */}

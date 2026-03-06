@@ -46,8 +46,16 @@ export interface DocumentService {
   getMinioConfig(): Promise<MinioConfig>
 
   // Document Operations
-  uploadDocument(file: File, familyHeadId: string): Promise<Document>
-  uploadMultipleDocuments(files: File[], familyHeadId: string): Promise<BatchUploadResponse>
+  uploadDocument(
+    file: File,
+    familyHeadId: string,
+    category?: 'receipt' | 'application-review' | 'general'
+  ): Promise<Document>
+  uploadMultipleDocuments(
+    files: File[],
+    familyHeadId: string,
+    category?: 'receipt' | 'application-review' | 'general'
+  ): Promise<BatchUploadResponse>
   getDocuments(familyHeadId: string): Promise<Document[]>
   deleteDocument(documentId: string): Promise<{ success: boolean }>
   downloadDocument(documentId: string): Promise<Blob>
@@ -139,7 +147,11 @@ class PlaceholderDocumentService implements DocumentService {
    * In production: Will send file to backend API endpoint
    * Documents are stored at family level and shared by all applicants in the family
    */
-  async uploadDocument(file: File, familyHeadId: string): Promise<Document> {
+  async uploadDocument(
+    file: File,
+    familyHeadId: string,
+    category: 'receipt' | 'application-review' | 'general' = 'general'
+  ): Promise<Document> {
     // Validate file first
     const validation = this.validateFile(file)
     if (!validation.valid) {
@@ -150,6 +162,7 @@ class PlaceholderDocumentService implements DocumentService {
       const formData = new FormData()
       formData.append('file', file)
       formData.append('familyHeadId', familyHeadId)
+      formData.append('category', category)
 
       // PLACEHOLDER: Call our API endpoint which will handle MinIO upload
       const response = await fetch(`${API_BASE}/documents/upload`, {
@@ -181,7 +194,8 @@ class PlaceholderDocumentService implements DocumentService {
    */
   async uploadMultipleDocuments(
     files: File[],
-    familyHeadId: string
+    familyHeadId: string,
+    category: 'receipt' | 'application-review' | 'general' = 'general'
   ): Promise<BatchUploadResponse> {
     const response: BatchUploadResponse = {
       successful: [],
@@ -191,7 +205,7 @@ class PlaceholderDocumentService implements DocumentService {
 
     for (const file of files) {
       try {
-        const doc = await this.uploadDocument(file, familyHeadId)
+        const doc = await this.uploadDocument(file, familyHeadId, category)
         response.successful.push(doc)
       } catch (error) {
         response.failed.push({

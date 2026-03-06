@@ -12,6 +12,7 @@ export interface Document {
   fileName: string;
   fileSize: number;
   fileType: string;
+  category?: 'receipt' | 'application-review' | 'general';
   uploadedAt: string;
   uploadedBy: string;
   familyHeadId: string; // Family-level storage - shared by all applicants
@@ -121,7 +122,8 @@ export interface ApplicantInfo {
  */
 export interface BatchUploadRequest {
   files: File[];
-  applicantId: string;
+  familyHeadId: string;
+  category?: 'receipt' | 'application-review' | 'general';
   metadata?: Record<string, string>;
 }
 

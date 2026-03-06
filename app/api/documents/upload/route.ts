@@ -28,6 +28,7 @@ const ALLOWED_MIME_TYPES = [
  * Form Data:
  * - file: File (required)
  * - familyHeadId: string (required)
+ * - category: 'receipt' | 'application-review' | 'general' (optional)
  * 
  * Response: { success: boolean, document?: Document, error?: string }
  */
@@ -37,6 +38,11 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData()
     const file = formData.get('file') as File | null
     const familyHeadId = formData.get('familyHeadId') as string | null
+    const rawCategory = formData.get('category') as string | null
+    const category =
+      rawCategory === 'receipt' || rawCategory === 'application-review'
+        ? rawCategory
+        : 'general'
 
     // Validation: Check required fields
     if (!file) {
@@ -96,7 +102,7 @@ export async function POST(request: NextRequest) {
 
     // Mock response - return a placeholder document
     const documentId = `doc-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-    const minioKey = `family-${familyHeadId}/${Date.now()}-${file.name}`
+    const minioKey = `family-${familyHeadId}/${category}/${Date.now()}-${file.name}`
 
     return NextResponse.json(
       {
@@ -106,6 +112,7 @@ export async function POST(request: NextRequest) {
           fileName: file.name,
           fileSize: file.size,
           fileType: file.type,
+          category,
           uploadedAt: new Date().toISOString(),
           uploadedBy: '[PLACEHOLDER] Session User',
           familyHeadId,

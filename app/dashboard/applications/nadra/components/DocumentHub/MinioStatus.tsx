@@ -77,7 +77,7 @@ export function MinioStatus({
         className={`flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-100 ${className}`}
       >
         <Loader className="w-4 h-4 text-slate-500 animate-spin" />
-        <span className="text-sm text-slate-600">Checking MinIO...</span>
+        <span className="text-sm text-slate-600">Checking File Server...</span>
       </div>
     )
   }
@@ -89,12 +89,12 @@ export function MinioStatus({
         {connected ? (
           <>
             <div className="w-2 h-2 bg-green-500 rounded-full" />
-            <span className="text-xs text-slate-600">MinIO Connected</span>
+            <span className="text-xs text-slate-600">File Server Connected</span>
           </>
         ) : (
           <>
             <div className="w-2 h-2 bg-red-500 rounded-full" />
-            <span className="text-xs text-slate-600">MinIO Offline</span>
+            <span className="text-xs text-slate-600">File Server Offline</span>
           </>
         )}
       </div>
@@ -120,7 +120,7 @@ export function MinioStatus({
           <div className="flex-1 min-w-0">
             {/* Status Title */}
             <h3 className="font-semibold text-slate-800">
-              {connected ? 'MinIO Connected' : 'MinIO Offline'}
+              {connected ? 'Document Storage Connected' : 'Document Storage Offline'}
             </h3>
 
             {/* Status Details */}

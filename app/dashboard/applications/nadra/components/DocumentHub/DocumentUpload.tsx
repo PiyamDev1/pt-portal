@@ -36,6 +36,21 @@ export interface DocumentUploadProps {
   disabled?: boolean
 
   /**
+   * Upload category for server-side organization
+   */
+  category?: 'receipt' | 'application-review' | 'general'
+
+  /**
+   * Optional heading for the upload area
+   */
+  heading?: string
+
+  /**
+   * Smaller footprint for sectioned layouts
+   */
+  compact?: boolean
+
+  /**
    * Custom CSS class
    */
   className?: string
@@ -50,6 +65,9 @@ export function DocumentUpload({
   onSuccess,
   onError,
   disabled = false,
+  category = 'general',
+  heading,
+  compact = false,
   className = '',
 }: DocumentUploadProps) {
   const [dragActive, setDragActive] = useState(false)
@@ -145,7 +163,7 @@ export function DocumentUpload({
           }, 200)
 
           // Upload document
-          const doc = await documentService.uploadDocument(file, familyHeadId)
+          const doc = await documentService.uploadDocument(file, familyHeadId, category)
 
           clearInterval(progressInterval)
 
@@ -229,19 +247,33 @@ export function DocumentUpload({
     setUploads(prev => prev.filter(u => u.fileId !== fileId))
   }
 
+  const sectionText =
+    category === 'receipt'
+      ? 'Upload receipts and payment records for this family.'
+      : category === 'application-review'
+        ? 'Upload files needed for application review.'
+        : 'Upload supporting documents for this family.'
+
   return (
     <div className={`space-y-4 ${className}`}>
+      {heading && (
+        <div>
+          <h3 className="text-sm font-semibold text-slate-800">{heading}</h3>
+          <p className="text-xs text-slate-600 mt-0.5">{sectionText}</p>
+        </div>
+      )}
+
       {/* Upload Zone */}
       <div
         onDragEnter={handleDrag}
         onDragLeave={handleDrag}
         onDragOver={handleDrag}
         onDrop={handleDrop}
-        className={`relative border-2 border-dashed rounded-lg p-8 transition-all ${
+        className={`relative border-2 border-dashed rounded-lg transition-all ${
           dragActive
             ? 'border-blue-500 bg-blue-50'
             : 'border-slate-300 bg-slate-50'
-        } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:border-blue-400'}`}
+        } ${compact ? 'p-4' : 'p-8'} ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:border-blue-400'}`}
       >
         <input
           ref={fileInputRef}
@@ -253,14 +285,16 @@ export function DocumentUpload({
           accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.xls,.xlsx"
         />
 
-        <div className="flex flex-col items-center gap-3 text-center">
+        <div className={`flex flex-col items-center text-center ${compact ? 'gap-2' : 'gap-3'}`}>
           <div className="flex gap-4">
-            <Upload className="w-12 h-12 text-blue-500" />
+            <Upload className={`${compact ? 'w-8 h-8' : 'w-12 h-12'} text-blue-500`} />
           </div>
 
           <div>
-            <h3 className="font-semibold text-slate-800">Drop documents here</h3>
-            <p className="text-sm text-slate-600">
+            <h3 className="font-semibold text-slate-800">
+              {compact ? 'Drop files here' : 'Drop documents here'}
+            </h3>
+            <p className={`${compact ? 'text-xs' : 'text-sm'} text-slate-600`}>
               or{' '}
               <button
                 onClick={() => fileInputRef.current?.click()}
