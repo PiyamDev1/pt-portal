@@ -188,13 +188,13 @@ export function DocumentHub({
       </div>
 
       {/* Main Content (2-column layout on desktop) */}
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-4 min-h-0">
-        {/* Left column: Upload + Grid */}
-        <div className="lg:col-span-2 flex flex-col gap-4 min-h-0">
+      <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-4 min-h-0">
+        {/* Left column: Upload + Documents + Stats */}
+        <div className="flex flex-col gap-4 min-h-0">
           {/* Upload Sections - Pyramid Structure */}
           <div className="flex-shrink-0 space-y-3">
             {/* Top: Main Documents (Full Width) */}
-            <div className="rounded-lg border border-slate-200 bg-white p-3">
+            <div className="rounded-lg border border-slate-200 bg-white p-2.5">
               <DocumentUpload
                 familyHeadId={familyHeadId}
                 category="general"
@@ -208,7 +208,7 @@ export function DocumentHub({
 
             {/* Bottom: Receipts and Application Review (Side by Side) */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div className="rounded-lg border border-slate-200 bg-white p-3">
+              <div className="rounded-lg border border-slate-200 bg-white p-2.5">
                 <DocumentUpload
                   familyHeadId={familyHeadId}
                   category="receipt"
@@ -220,7 +220,7 @@ export function DocumentHub({
                 />
               </div>
 
-              <div className="rounded-lg border border-slate-200 bg-white p-3">
+              <div className="rounded-lg border border-slate-200 bg-white p-2.5">
                 <DocumentUpload
                   familyHeadId={familyHeadId}
                   category="application-review"
@@ -317,12 +317,44 @@ export function DocumentHub({
               </div>
             )}
           </div>
+
+          {/* Stats */}
+          <div className="grid grid-cols-3 gap-4 px-4 py-3 bg-slate-50 rounded-lg border border-slate-200 flex-shrink-0">
+            <div>
+              <p className="text-xs text-slate-600">Total Documents</p>
+              <p className="text-lg font-semibold text-slate-800">{documents.length}</p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-600">Total Size</p>
+              <p className="text-lg font-semibold text-slate-800">
+                {(() => {
+                  const totalBytes = documents.reduce((sum, doc) => sum + doc.fileSize, 0)
+                  if (totalBytes === 0) return '0 KB'
+                  const k = 1024
+                  const sizes = ['B', 'KB', 'MB']
+                  const i = Math.min(Math.floor(Math.log(totalBytes) / Math.log(k)), sizes.length - 1)
+                  return Math.round((totalBytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i]
+                })()}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-600">Last Upload</p>
+              <p className="text-lg font-semibold text-slate-800">
+                {documents.length > 0
+                  ? new Date(documents[0].uploadedAt).toLocaleDateString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                    })
+                  : '-'}
+              </p>
+            </div>
+          </div>
         </div>
 
         {/* Right column: Preview */}
-        <div className="lg:col-span-1 min-h-0 flex flex-col">
-          <h2 className="text-lg font-semibold text-slate-800 mb-3">Preview</h2>
-          <div className="flex-1 min-h-0 overflow-auto">
+        <div className="min-h-0 flex flex-col">
+          <h2 className="text-lg font-semibold text-slate-800 mb-3">Preview Container</h2>
+          <div className="flex-1 min-h-0 overflow-auto rounded-lg border border-slate-200 bg-white p-3">
             <DocumentPreview
               document={selectedDocument}
               onClose={() => setSelectedDocument(null)}
@@ -330,39 +362,6 @@ export function DocumentHub({
               onDownload={handleDownloadDocument}
             />
           </div>
-        </div>
-      </div>
-
-      {/* Summary Stats */}
-      <div className="grid grid-cols-3 gap-4 px-4 py-3 bg-slate-50 rounded-lg border border-slate-200 flex-shrink-0">
-        <div>
-          <p className="text-xs text-slate-600">Total Documents</p>
-          <p className="text-lg font-semibold text-slate-800">{documents.length}</p>
-        </div>
-        <div>
-          <p className="text-xs text-slate-600">Total Size</p>
-          <p className="text-lg font-semibold text-slate-800">
-            {(() => {
-              const totalBytes = documents.reduce((sum, doc) => sum + doc.fileSize, 0)
-              const k = 1024
-              const sizes = ['B', 'KB', 'MB']
-              const i = Math.floor(Math.log(totalBytes / 1024) / Math.log(k))
-              return (
-                Math.round((totalBytes / Math.pow(k, i + 1)) * 100) / 100 + ' ' + sizes[i]
-              )
-            })()}
-          </p>
-        </div>
-        <div>
-          <p className="text-xs text-slate-600">Last Upload</p>
-          <p className="text-lg font-semibold text-slate-800">
-            {documents.length > 0
-              ? new Date(documents[0].uploadedAt).toLocaleDateString('en-US', {
-                  month: 'short',
-                  day: 'numeric',
-                })
-              : '-'}
-          </p>
         </div>
       </div>
     </div>
