@@ -203,7 +203,16 @@ export default function RowItem({ item, onOpenEdit, onUpdateRecord, onViewHistor
 
       {/* Actions */}
       <td className="p-4 text-right">
-        <div className="flex items-center justify-end gap-2">
+        <div className="flex flex-col items-end gap-2">
+          <button 
+            onClick={() => onOpenEdit(item)}
+            className="p-2 text-slate-400 hover:text-blue-600 hover:bg-slate-100 rounded-lg transition"
+            type="button"
+            aria-label="Edit passport application"
+          >
+            <MoreHorizontal className="w-4 h-4" />
+          </button>
+
           <button
             onClick={() => onManageDocuments?.(item.id, item.tracking_number)}
             className="h-8 w-8 flex items-center justify-center rounded-full bg-sky-50 hover:bg-sky-100 text-sky-600 transition"
@@ -212,15 +221,6 @@ export default function RowItem({ item, onOpenEdit, onUpdateRecord, onViewHistor
             title="Manage documents"
           >
             📄
-          </button>
-
-          <button 
-            onClick={() => onOpenEdit(item)}
-            className="p-2 text-slate-400 hover:text-blue-600 hover:bg-slate-100 rounded-lg transition"
-            type="button"
-            aria-label="Edit passport application"
-          >
-            <MoreHorizontal className="w-4 h-4" />
           </button>
         </div>
       </td>
