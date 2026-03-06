@@ -257,9 +257,11 @@ export function DocumentUpload({
   return (
     <div className={`space-y-4 ${className}`}>
       {heading && (
-        <div>
+        <div className={compact ? 'min-h-[44px]' : ''}>
           <h3 className="text-sm font-semibold text-slate-800">{heading}</h3>
-          <p className="text-xs text-slate-600 mt-0.5">{sectionText}</p>
+          <p className={`text-xs text-slate-600 mt-0.5 ${compact ? 'min-h-[30px]' : ''}`}>
+            {sectionText}
+          </p>
         </div>
       )}
 
