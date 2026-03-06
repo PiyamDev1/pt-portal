@@ -158,7 +158,7 @@ export function DocumentHub({
   }, [])
 
   return (
-    <div className={`flex flex-col h-full gap-4 ${className}`}>
+    <div className={`flex flex-col gap-4 ${className}`}>
       {/* File Server Status (Optional) */}
       {showStatus && <MinioStatus />}
 
@@ -235,7 +235,7 @@ export function DocumentHub({
           </div>
 
           {/* Categorized Grid Section - Scrollable */}
-          <div className="flex-1 min-h-0 overflow-auto">
+          <div className="flex-1 min-h-[240px] overflow-auto">
             <h2 className="text-xl font-semibold text-slate-800 mb-4 sticky top-0 bg-slate-50 py-2 z-10">Your Documents</h2>
 
             {isLoading ? (

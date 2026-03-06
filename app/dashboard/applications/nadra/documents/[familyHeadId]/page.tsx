@@ -116,7 +116,7 @@ export default async function NadraDocumentsPage({
           </div>
 
           {/* Document Hub */}
-          <div className="h-[calc(100vh-280px)] rounded-lg">
+          <div className="min-h-[calc(100vh-280px)] rounded-lg">
             <DocumentHub
               familyHeadId={familyHeadId}
               familyHeadName={familyHeadFullName}
