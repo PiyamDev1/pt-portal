@@ -9,9 +9,10 @@ const DB_STATUS_MAP = {
   'Processing': 'Processing', // If DB error persists, change this to: 'In Progress'
   'Passport Arrived': 'Passport Arrived',
   'Collected': 'Collected',
-  'Cancelled': 'Cancelled',
-  'Rejected': 'Rejected'
+  'Cancelled': 'Cancelled'
 }
+
+const ALLOWED_PASSPORT_STATUSES = new Set(Object.keys(DB_STATUS_MAP))
 
 export async function POST(request) {
   try {
@@ -27,8 +28,12 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Missing passportId or status' }, { status: 400 })
     }
 
+    if (!ALLOWED_PASSPORT_STATUSES.has(status)) {
+      return NextResponse.json({ error: `Invalid status: ${status}` }, { status: 400 })
+    }
+
     // 1. Resolve DB Status (fallback to provided status)
-    const dbStatus = DB_STATUS_MAP[status] || status
+    const dbStatus = DB_STATUS_MAP[status]
 
     // 2. Prepare Update Object
     const updateData = {

@@ -106,8 +106,6 @@ export function getStatusColor(status: string, context: 'nadra' | 'passport' | '
         return 'bg-gray-100 text-gray-800 border-gray-200'
       case 'cancelled':
         return 'bg-orange-100 text-orange-800 border-orange-200'
-      case 'rejected':
-        return 'bg-red-100 text-red-800 border-red-200'
       default:
         return 'bg-slate-100 text-slate-700 border-slate-200'
     }
