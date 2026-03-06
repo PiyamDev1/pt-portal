@@ -190,33 +190,10 @@ export function DocumentHub({
       {/* Main Content (2-column layout on desktop) */}
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-4 min-h-0">
         {/* Left column: Upload + Grid */}
-        <div className="lg:col-span-2 flex flex-col gap-4 min-h-0">
-          {/* Upload Sections - 3 columns */}
-          <div className="flex-shrink-0 grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div className="rounded-lg border border-slate-200 bg-white p-3">
-              <DocumentUpload
-                familyHeadId={familyHeadId}
-                category="receipt"
-                heading="Receipts"
-                compact={true}
-                onSuccess={handleUploadSuccess}
-                onError={handleUploadError}
-                disabled={isDeleting}
-              />
-            </div>
-
-            <div className="rounded-lg border border-slate-200 bg-white p-3">
-              <DocumentUpload
-                familyHeadId={familyHeadId}
-                category="application-review"
-                heading="Application Review"
-                compact={true}
-                onSuccess={handleUploadSuccess}
-                onError={handleUploadError}
-                disabled={isDeleting}
-              />
-            </div>
-
+        <div className="lg:col-span-2 flex flex-col gap-4">
+          {/* Upload Sections - Pyramid Structure */}
+          <div className="flex-shrink-0 space-y-3">
+            {/* Top: Main Documents (Full Width) */}
             <div className="rounded-lg border border-slate-200 bg-white p-3">
               <DocumentUpload
                 familyHeadId={familyHeadId}
@@ -228,10 +205,37 @@ export function DocumentHub({
                 disabled={isDeleting}
               />
             </div>
+
+            {/* Bottom: Receipts and Application Review (Side by Side) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="rounded-lg border border-slate-200 bg-white p-3">
+                <DocumentUpload
+                  familyHeadId={familyHeadId}
+                  category="receipt"
+                  heading="Receipts"
+                  compact={true}
+                  onSuccess={handleUploadSuccess}
+                  onError={handleUploadError}
+                  disabled={isDeleting}
+                />
+              </div>
+
+              <div className="rounded-lg border border-slate-200 bg-white p-3">
+                <DocumentUpload
+                  familyHeadId={familyHeadId}
+                  category="application-review"
+                  heading="Application Review"
+                  compact={true}
+                  onSuccess={handleUploadSuccess}
+                  onError={handleUploadError}
+                  disabled={isDeleting}
+                />
+              </div>
+            </div>
           </div>
 
-          {/* Categorized Grid Section - Larger */}
-          <div className="flex-1 overflow-auto">
+          {/* Categorized Grid Section - No scrolling */}
+          <div className="flex-shrink-0">
             <h2 className="text-xl font-semibold text-slate-800 mb-4">Your Documents</h2>
 
             {isLoading ? (
@@ -318,7 +322,7 @@ export function DocumentHub({
         {/* Right column: Preview */}
         <div className="lg:col-span-1 min-h-0 flex flex-col">
           <h2 className="text-lg font-semibold text-slate-800 mb-3">Preview</h2>
-          <div className="flex-1 min-h-0">
+          <div className="flex-1 min-h-0 overflow-auto">
             <DocumentPreview
               document={selectedDocument}
               onClose={() => setSelectedDocument(null)}
