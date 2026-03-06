@@ -191,8 +191,8 @@ export function DocumentHub({
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-4 min-h-0">
         {/* Left column: Upload + Grid */}
         <div className="lg:col-span-2 flex flex-col gap-4 min-h-0">
-          {/* Categorized Upload Sections */}
-          <div className="flex-shrink-0 grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Upload Sections - 3 columns */}
+          <div className="flex-shrink-0 grid grid-cols-1 md:grid-cols-3 gap-3">
             <div className="rounded-lg border border-slate-200 bg-white p-3">
               <DocumentUpload
                 familyHeadId={familyHeadId}
@@ -216,11 +216,23 @@ export function DocumentHub({
                 disabled={isDeleting}
               />
             </div>
+
+            <div className="rounded-lg border border-slate-200 bg-white p-3">
+              <DocumentUpload
+                familyHeadId={familyHeadId}
+                category="general"
+                heading="Main Documents"
+                compact={true}
+                onSuccess={handleUploadSuccess}
+                onError={handleUploadError}
+                disabled={isDeleting}
+              />
+            </div>
           </div>
 
-          {/* Grid Section */}
+          {/* Categorized Grid Section - Larger */}
           <div className="flex-1 overflow-auto">
-            <h2 className="text-lg font-semibold text-slate-800 mb-3">Your Documents</h2>
+            <h2 className="text-xl font-semibold text-slate-800 mb-4">Your Documents</h2>
 
             {isLoading ? (
               <div className="flex items-center justify-center py-12">
@@ -230,13 +242,75 @@ export function DocumentHub({
                 </div>
               </div>
             ) : (
-              <DocumentGrid
-                documents={documents}
-                isLoading={isLoading}
-                onSelectDocument={setSelectedDocument}
-                onDelete={handleDeleteDocument}
-                onDownload={handleDownloadDocument}
-              />
+              <div className="space-y-6">
+                {/* Main Documents */}
+                {(() => {
+                  const mainDocs = documents.filter(d => !d.category || d.category === 'general')
+                  return mainDocs.length > 0 && (
+                    <div>
+                      <h3 className="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
+                        <span className="text-base">📁</span>
+                        Main Documents ({mainDocs.length})
+                      </h3>
+                      <DocumentGrid
+                        documents={mainDocs}
+                        isLoading={false}
+                        onSelectDocument={setSelectedDocument}
+                        onDelete={handleDeleteDocument}
+                        onDownload={handleDownloadDocument}
+                      />
+                    </div>
+                  )
+                })()}
+
+                {/* Application Reviews */}
+                {(() => {
+                  const reviewDocs = documents.filter(d => d.category === 'application-review')
+                  return reviewDocs.length > 0 && (
+                    <div>
+                      <h3 className="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
+                        <span className="text-base">📋</span>
+                        Application Reviews ({reviewDocs.length})
+                      </h3>
+                      <DocumentGrid
+                        documents={reviewDocs}
+                        isLoading={false}
+                        onSelectDocument={setSelectedDocument}
+                        onDelete={handleDeleteDocument}
+                        onDownload={handleDownloadDocument}
+                      />
+                    </div>
+                  )
+                })()}
+
+                {/* Receipts */}
+                {(() => {
+                  const receiptDocs = documents.filter(d => d.category === 'receipt')
+                  return receiptDocs.length > 0 && (
+                    <div>
+                      <h3 className="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
+                        <span className="text-base">🧾</span>
+                        Receipts ({receiptDocs.length})
+                      </h3>
+                      <DocumentGrid
+                        documents={receiptDocs}
+                        isLoading={false}
+                        onSelectDocument={setSelectedDocument}
+                        onDelete={handleDeleteDocument}
+                        onDownload={handleDownloadDocument}
+                      />
+                    </div>
+                  )
+                })()}
+
+                {/* Empty state */}
+                {documents.length === 0 && (
+                  <div className="text-center py-12 text-slate-500">
+                    <p className="text-lg mb-2">📂</p>
+                    <p>No documents yet. Upload files using the sections above.</p>
+                  </div>
+                )}
+              </div>
             )}
           </div>
         </div>
