@@ -190,7 +190,7 @@ export function DocumentHub({
       {/* Main Content (2-column layout on desktop) */}
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-4 min-h-0">
         {/* Left column: Upload + Grid */}
-        <div className="lg:col-span-2 flex flex-col gap-4">
+        <div className="lg:col-span-2 flex flex-col gap-4 min-h-0">
           {/* Upload Sections - Pyramid Structure */}
           <div className="flex-shrink-0 space-y-3">
             {/* Top: Main Documents (Full Width) */}
@@ -234,9 +234,9 @@ export function DocumentHub({
             </div>
           </div>
 
-          {/* Categorized Grid Section - No scrolling */}
-          <div className="flex-shrink-0">
-            <h2 className="text-xl font-semibold text-slate-800 mb-4">Your Documents</h2>
+          {/* Categorized Grid Section - Scrollable */}
+          <div className="flex-1 min-h-0 overflow-auto">
+            <h2 className="text-xl font-semibold text-slate-800 mb-4 sticky top-0 bg-slate-50 py-2 z-10">Your Documents</h2>
 
             {isLoading ? (
               <div className="flex items-center justify-center py-12">
@@ -246,7 +246,7 @@ export function DocumentHub({
                 </div>
               </div>
             ) : (
-              <div className="space-y-6">
+              <div className="space-y-6 pb-4">
                 {/* Main Documents */}
                 {(() => {
                   const mainDocs = documents.filter(d => !d.category || d.category === 'general')
