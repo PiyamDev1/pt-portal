@@ -188,6 +188,14 @@ export default function PakPassportClient({ initialApplications, currentUserId }
     }
   }
 
+  const handleManageDocuments = (applicationId: string, trackingNumber?: string) => {
+    if (!applicationId) {
+      toast.error('Cannot manage documents for this application')
+      return
+    }
+    router.push(`/dashboard/applications/passports/documents/${applicationId}`)
+  }
+
   const getCreatedAt = (item: any) => {
     const pp = getPassportRecord(item)
     return item?.created_at || item?.applications?.created_at || pp?.created_at || 0
@@ -348,6 +356,7 @@ export default function PakPassportClient({ initialApplications, currentUserId }
                     onUpdateRecord={handleUpdateRecord}
                     onViewHistory={handleViewHistory}
                     onOpenArrival={handleOpenArrival}
+                    onManageDocuments={handleManageDocuments}
                   />
                 ))
              )}

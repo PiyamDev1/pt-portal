@@ -30,6 +30,11 @@ export interface DocumentHubProps {
   familyHeadName?: string
 
   /**
+   * Optional custom subtitle under title
+   */
+  customSubtitle?: string
+
+  /**
    * Show file server status bar
    */
   showStatus?: boolean
@@ -47,6 +52,7 @@ export interface DocumentHubProps {
 export function DocumentHub({
   familyHeadId,
   familyHeadName = 'Family',
+  customSubtitle,
   showStatus = true,
   className = '',
 }: DocumentHubProps) {
@@ -183,7 +189,11 @@ export function DocumentHub({
       <div>
         <h1 className="text-2xl font-bold text-slate-800">Document Management</h1>
         <p className="text-slate-600 text-sm mt-1">
-          Manage documents shared by <span className="font-medium">{familyHeadName}</span> family
+          {customSubtitle || (
+            <>
+              Manage documents shared by <span className="font-medium">{familyHeadName}</span> family
+            </>
+          )}
         </p>
       </div>
 

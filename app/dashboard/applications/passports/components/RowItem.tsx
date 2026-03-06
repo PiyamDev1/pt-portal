@@ -4,7 +4,7 @@ import { MoreHorizontal, User } from 'lucide-react'
 import { toast } from 'sonner'
 import { getPassportRecord } from './utils'
 
-export default function RowItem({ item, onOpenEdit, onUpdateRecord, onViewHistory, onOpenArrival }: any) {
+export default function RowItem({ item, onOpenEdit, onUpdateRecord, onViewHistory, onOpenArrival, onManageDocuments }: any) {
   const pp = getPassportRecord(item)
   if (!pp) return null
 
@@ -203,14 +203,26 @@ export default function RowItem({ item, onOpenEdit, onUpdateRecord, onViewHistor
 
       {/* Actions */}
       <td className="p-4 text-right">
-        <button 
-          onClick={() => onOpenEdit(item)}
-          className="p-2 text-slate-400 hover:text-blue-600 hover:bg-slate-100 rounded-lg transition"
-          type="button"
-          aria-label="Edit passport application"
-        >
-          <MoreHorizontal className="w-4 h-4" />
-        </button>
+        <div className="flex items-center justify-end gap-2">
+          <button
+            onClick={() => onManageDocuments?.(item.id, item.tracking_number)}
+            className="h-8 w-8 flex items-center justify-center rounded-full bg-sky-50 hover:bg-sky-100 text-sky-600 transition"
+            type="button"
+            aria-label="Manage documents"
+            title="Manage documents"
+          >
+            📄
+          </button>
+
+          <button 
+            onClick={() => onOpenEdit(item)}
+            className="p-2 text-slate-400 hover:text-blue-600 hover:bg-slate-100 rounded-lg transition"
+            type="button"
+            aria-label="Edit passport application"
+          >
+            <MoreHorizontal className="w-4 h-4" />
+          </button>
+        </div>
       </td>
     </tr>
   )
