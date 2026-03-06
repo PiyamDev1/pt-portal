@@ -22,4 +22,6 @@ export enum PakStatus {
   Processing = 'Processing',
   PassportArrived = 'Passport Arrived',
   Collected = 'Collected',
+  Cancelled = 'Cancelled',
+  Rejected = 'Rejected',
 }

@@ -14,7 +14,9 @@ export default function RowItem({ item, onOpenEdit, onUpdateRecord, onViewHistor
     'Biometrics Taken': 'bg-blue-100 text-blue-700',
     'Processing': 'bg-yellow-100 text-yellow-700',
     'Passport Arrived': 'bg-indigo-100 text-indigo-700',
-    'Collected': 'bg-green-100 text-green-700'
+    'Collected': 'bg-green-100 text-green-700',
+    'Cancelled': 'bg-orange-100 text-orange-700',
+    'Rejected': 'bg-red-100 text-red-700'
   }
   
   const handleStatusChange = (newStatus: string) => {
@@ -196,6 +198,8 @@ export default function RowItem({ item, onOpenEdit, onUpdateRecord, onViewHistor
               <option value="Processing">Processing</option>
               <option value="Passport Arrived">Passport Arrived</option>
               <option value="Collected" disabled>Collected (set via button)</option>
+              <option value="Cancelled">Cancelled</option>
+              <option value="Rejected">Rejected</option>
             </select>
           </div>
         </div>
