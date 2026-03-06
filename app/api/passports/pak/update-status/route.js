@@ -8,7 +8,9 @@ const DB_STATUS_MAP = {
   'Biometrics Taken': 'Biometrics Taken',
   'Processing': 'Processing', // If DB error persists, change this to: 'In Progress'
   'Passport Arrived': 'Passport Arrived',
-  'Collected': 'Collected'
+  'Collected': 'Collected',
+  'Cancelled': 'Cancelled',
+  'Rejected': 'Rejected'
 }
 
 export async function POST(request) {
