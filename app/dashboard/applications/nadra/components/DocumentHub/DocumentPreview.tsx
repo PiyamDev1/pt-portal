@@ -20,7 +20,6 @@ import {
   ZoomIn,
   ZoomOut,
 } from 'lucide-react'
-import Image from 'next/image'
 
 export interface DocumentPreviewProps {
   /**
@@ -62,11 +61,59 @@ export function DocumentPreview({
 }: DocumentPreviewProps) {
   const [zoom, setZoom] = useState(100)
   const [isLoading, setIsLoading] = useState(true)
+  const [previewSrc, setPreviewSrc] = useState<string | null>(null)
 
   // Reset zoom when document changes
   useEffect(() => {
     setZoom(100)
   }, [document?.id])
+
+  // Resolve preview source in browser to avoid protected-link failures from optimizer/proxy flows
+  useEffect(() => {
+    let objectUrl: string | null = null
+    let cancelled = false
+
+    const loadPreview = async () => {
+      if (!document) {
+        setPreviewSrc(null)
+        setIsLoading(false)
+        return
+      }
+
+      const sourceUrl = document.preview?.previewUrl || document.minio.key
+      setIsLoading(true)
+
+      try {
+        const response = await fetch(sourceUrl, { credentials: 'include' })
+        if (!response.ok) {
+          throw new Error('Failed to fetch protected preview')
+        }
+
+        const blob = await response.blob()
+        objectUrl = URL.createObjectURL(blob)
+
+        if (!cancelled) {
+          setPreviewSrc(objectUrl)
+          setIsLoading(false)
+        }
+      } catch {
+        if (!cancelled) {
+          // Fallback to direct source URL when blob fetch is blocked by CORS or unavailable
+          setPreviewSrc(sourceUrl)
+          setIsLoading(false)
+        }
+      }
+    }
+
+    loadPreview()
+
+    return () => {
+      cancelled = true
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl)
+      }
+    }
+  }, [document])
 
   // Format file size
   const formatFileSize = (bytes: number): string => {
@@ -132,35 +179,27 @@ export function DocumentPreview({
         {isImage ? (
           // Image Preview
           <div className="flex items-center justify-center w-full h-full">
-            <Image
-              src={document.preview?.previewUrl || document.minio.key}
+            <img
+              src={previewSrc || ''}
               alt={document.fileName}
-              width={500}
-              height={500}
               className="max-w-full max-h-full rounded-md"
               style={{
                 transform: `scale(${zoom / 100})`,
                 transition: 'transform 0.2s ease-out',
               }}
-              onLoadingComplete={() => setIsLoading(false)}
+              onLoad={() => setIsLoading(false)}
               onError={() => setIsLoading(false)}
             />
           </div>
         ) : isPDF ? (
-          // PDF Preview (Placeholder)
-          <div className="flex flex-col items-center justify-center text-slate-500">
-            <FileText className="w-16 h-16 mx-auto mb-3 opacity-30" />
-            <p className="font-medium mb-2">PDF Preview</p>
-            <p className="text-sm text-slate-400 mb-4">
-              PDF preview rendering will be available on full page
-            </p>
-            <button
-              onClick={() => onDownload(document.id)}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-colors"
-            >
-              <Download className="w-4 h-4" />
-              Download PDF
-            </button>
+          // PDF Preview
+          <div className="w-full h-full min-h-[360px] bg-white rounded-md border border-slate-200 overflow-hidden">
+            <iframe
+              src={previewSrc || ''}
+              title={document.fileName}
+              className="w-full h-full"
+              onLoad={() => setIsLoading(false)}
+            />
           </div>
         ) : (
           // Other file types

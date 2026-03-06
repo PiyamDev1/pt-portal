@@ -85,12 +85,6 @@ export function DocumentUpload({
     if (fileType.includes('pdf')) {
       return '📄'
     }
-    if (fileType.includes('word')) {
-      return '📝'
-    }
-    if (fileType.includes('sheet') || fileType.includes('excel')) {
-      return '📊'
-    }
     return '📎'
   }
 
@@ -207,7 +201,7 @@ export function DocumentUpload({
         fileInputRef.current.value = ''
       }
     },
-    [familyHeadId, onSuccess, onError]
+    [familyHeadId, category, onSuccess, onError]
   )
 
   /**
@@ -284,7 +278,7 @@ export function DocumentUpload({
           onChange={e => handleFileUpload(e.target.files)}
           disabled={disabled}
           className="hidden"
-          accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.xls,.xlsx"
+          accept=".pdf,.jpg,.jpeg,.png,.webp,image/*,application/pdf"
         />
 
         <div className={`flex flex-col items-center text-center ${compact ? 'gap-2' : 'gap-3'}`}>
@@ -309,7 +303,7 @@ export function DocumentUpload({
           </div>
 
           <p className="text-xs text-slate-500 mt-2">
-            Max file size: 1.5 MB • Supported: PDF, JPG, PNG, WEBP, DOCX, XLSX
+            Max file size: 1.5 MB • Supported: PDF, JPG, PNG, WEBP
           </p>
         </div>
       </div>

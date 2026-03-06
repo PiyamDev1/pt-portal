@@ -11,7 +11,6 @@
 import React, { useState } from 'react'
 import { Document } from './types'
 import { FileText, Trash2, Download, Eye, File } from 'lucide-react'
-import Image from 'next/image'
 
 export interface DocumentGridProps {
   /**
@@ -115,12 +114,10 @@ function DocumentGridItem({
         {isImage ? (
           // Image preview
           <div className="relative w-full h-full">
-            <Image
+            <img
               src={document.preview?.thumbnail || document.minio.key}
               alt={document.fileName}
-              fill
-              className="object-cover group-hover:scale-105 transition-transform duration-300"
-              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
               onError={(e) => {
                 // Fallback to icon if image fails to load
                 const target = e.target as HTMLImageElement
