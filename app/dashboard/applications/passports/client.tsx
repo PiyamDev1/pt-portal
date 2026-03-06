@@ -7,6 +7,7 @@ import RowItem from './components/RowItem'
 import EditModal from './components/EditModal'
 import HistoryModal from './components/HistoryModal'
 import ArrivalModal from './components/ArrivalModal'
+import NotesModal from './components/NotesModal'
 import NewApplicationForm from './components/NewApplicationForm'
 import { formatCNIC, getPassportRecord } from './components/utils'
 import type { PakApplicationFormData } from './components/types'
@@ -28,7 +29,11 @@ export default function PakPassportClient({ initialApplications, currentUserId }
   const [historyModal, setHistoryModal] = useState<any>(null)
   const [editModal, setEditModal] = useState<any>(null)
   const [arrivalModal, setArrivalModal] = useState<any>(null)
+  const [notesModal, setNotesModal] = useState<any>(null)
   const [newPassportNum, setNewPassportNum] = useState('')
+  const [notesText, setNotesText] = useState('')
+  const [isNotesLoading, setIsNotesLoading] = useState(false)
+  const [isNotesSaving, setIsNotesSaving] = useState(false)
   const [statusHistory, setStatusHistory] = useState<any[]>([])
   
   // Form Data
@@ -196,6 +201,39 @@ export default function PakPassportClient({ initialApplications, currentUserId }
     router.push(`/dashboard/applications/passports/documents/${applicationId}`)
   }
 
+  const handleOpenNotes = async (applicationId: string, trackingNumber?: string) => {
+    setNotesModal({ applicationId, trackingNumber })
+    setNotesText('')
+    setIsNotesLoading(true)
+
+    const data = await pakPassportApi.getNotes(applicationId)
+    if (data && typeof data.notes === 'string') {
+      setNotesText(data.notes)
+    }
+
+    setIsNotesLoading(false)
+  }
+
+  const handleSaveNotes = async () => {
+    if (!notesModal?.applicationId) {
+      toast.error('No application selected for notes')
+      return
+    }
+
+    setIsNotesSaving(true)
+    const result = await pakPassportApi.saveNotes(notesModal.applicationId, notesText, currentUserId)
+    setIsNotesSaving(false)
+
+    if (result.ok) {
+      toast.success('Notes saved')
+      setNotesModal(null)
+      router.refresh()
+      return
+    }
+
+    toast.error(result.error || 'Failed to save notes')
+  }
+
   const getCreatedAt = (item: any) => {
     const pp = getPassportRecord(item)
     return item?.created_at || item?.applications?.created_at || pp?.created_at || 0
@@ -357,6 +395,7 @@ export default function PakPassportClient({ initialApplications, currentUserId }
                     onViewHistory={handleViewHistory}
                     onOpenArrival={handleOpenArrival}
                     onManageDocuments={handleManageDocuments}
+                    onOpenNotes={handleOpenNotes}
                   />
                 ))
              )}
@@ -416,6 +455,17 @@ export default function PakPassportClient({ initialApplications, currentUserId }
         newPassportNum={newPassportNum}
         setNewPassportNum={setNewPassportNum}
         onSave={handleSaveArrival}
+      />
+
+      <NotesModal
+        open={!!notesModal}
+        onClose={() => setNotesModal(null)}
+        trackingNumber={notesModal?.trackingNumber}
+        notes={notesText}
+        setNotes={setNotesText}
+        onSave={handleSaveNotes}
+        isSaving={isNotesSaving}
+        isLoading={isNotesLoading}
       />
     </div>
   )

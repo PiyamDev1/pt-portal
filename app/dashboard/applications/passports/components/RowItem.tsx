@@ -1,10 +1,10 @@
 'use client'
 
-import { MoreHorizontal, User } from 'lucide-react'
+import { MoreHorizontal, StickyNote, User } from 'lucide-react'
 import { toast } from 'sonner'
 import { getPassportRecord } from './utils'
 
-export default function RowItem({ item, onOpenEdit, onUpdateRecord, onViewHistory, onOpenArrival, onManageDocuments }: any) {
+export default function RowItem({ item, onOpenEdit, onUpdateRecord, onViewHistory, onOpenArrival, onManageDocuments, onOpenNotes }: any) {
   const pp = getPassportRecord(item)
   if (!pp) return null
 
@@ -223,6 +223,16 @@ export default function RowItem({ item, onOpenEdit, onUpdateRecord, onViewHistor
             title="Manage documents"
           >
             📄
+          </button>
+
+          <button
+            onClick={() => onOpenNotes?.(item.id, item.tracking_number)}
+            className="h-8 w-8 flex items-center justify-center rounded-full bg-amber-50 hover:bg-amber-100 text-amber-600 transition"
+            type="button"
+            aria-label="Application notes"
+            title="Application notes"
+          >
+            <StickyNote className="w-4 h-4" />
           </button>
         </div>
       </td>

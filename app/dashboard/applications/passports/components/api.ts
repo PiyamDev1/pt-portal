@@ -64,4 +64,15 @@ export const pakPassportApi = {
     const res = await apiRequest(`/api/passports/pak/status-history?applicationId=${applicationId}`)
     return res.ok ? res.data : null
   },
+
+  getNotes: async (applicationId: string) => {
+    const res = await apiRequest(`/api/passports/pak/notes?applicationId=${applicationId}`)
+    return res.ok ? res.data : null
+  },
+
+  saveNotes: (applicationId: string, notes: string, userId: string | number) =>
+    apiRequest('/api/passports/pak/notes', {
+      method: 'POST',
+      body: JSON.stringify({ applicationId, notes, userId }),
+    }),
 }
