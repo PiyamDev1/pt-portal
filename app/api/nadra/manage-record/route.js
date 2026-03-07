@@ -231,14 +231,11 @@ export async function POST(request) {
           }
 
           if (!isMasterAdmin) {
-            const managesCurrent = nadraRecord?.employee_id
-              ? isManagerOf(userId, nadraRecord.employee_id)
-              : true
             const managesTarget = isManagerOf(userId, data.employeeId)
 
-            if (!managesCurrent || !managesTarget) {
+            if (!managesTarget) {
               return NextResponse.json({
-                error: 'Only the manager in the hierarchy or a master admin can reassign this agent.'
+                error: 'Only the manager in the hierarchy of the selected agent or a master admin can reassign this agent.'
               }, { status: 403 })
             }
           }
