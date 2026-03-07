@@ -10,12 +10,25 @@ import ArrivalModal from './components/ArrivalModal'
 import NotesModal from './components/NotesModal'
 import NewApplicationForm from './components/NewApplicationForm'
 import { formatCNIC, getPassportRecord } from './components/utils'
-import type { PakApplicationFormData } from './components/types'
+import type { PakApplicationFormData, Application, ModalState, Metadata } from './components/types'
 import { PakApplicationFormSchema } from './components/schemas'
 import type { PakApplicationFormErrors } from './components/schemas'
 import { pakPassportApi } from './components/api'
 
-export default function PakPassportClient({ initialApplications, currentUserId }: any) {
+type StatusHistoryEntry = {
+  id: string
+  status: string
+  description?: string
+  changed_by?: string
+  date?: string
+}
+
+type PakPassportClientProps = {
+  initialApplications: Application[]
+  currentUserId: string
+}
+
+export default function PakPassportClient({ initialApplications, currentUserId }: PakPassportClientProps) {
   const router = useRouter()
   const [showForm, setShowForm] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -26,19 +39,19 @@ export default function PakPassportClient({ initialApplications, currentUserId }
   const pageSize = 25
   
   // Modals
-  const [historyModal, setHistoryModal] = useState<any>(null)
-  const [editModal, setEditModal] = useState<any>(null)
-  const [arrivalModal, setArrivalModal] = useState<any>(null)
-  const [notesModal, setNotesModal] = useState<any>(null)
+  const [historyModal, setHistoryModal] = useState<ModalState | null>(null)
+  const [editModal, setEditModal] = useState<boolean>(false)
+  const [arrivalModal, setArrivalModal] = useState<ModalState | null>(null)
+  const [notesModal, setNotesModal] = useState<ModalState | null>(null)
   const [newPassportNum, setNewPassportNum] = useState('')
   const [notesText, setNotesText] = useState('')
   const [isNotesLoading, setIsNotesLoading] = useState(false)
   const [isNotesSaving, setIsNotesSaving] = useState(false)
-  const [statusHistory, setStatusHistory] = useState<any[]>([])
+  const [statusHistory, setStatusHistory] = useState<StatusHistoryEntry[]>([])
   
   // Form Data
   const [formErrors, setFormErrors] = useState<PakApplicationFormErrors>({})
-  const [editFormData, setEditFormData] = useState<any>({})
+  const [editFormData, setEditFormData] = useState<Record<string, any>>({})
   const [deleteAuthCode, setDeleteAuthCode] = useState('')
 
   const [formData, setFormData] = useState<PakApplicationFormData>({
@@ -49,7 +62,7 @@ export default function PakPassportClient({ initialApplications, currentUserId }
     trackingNumber: '', oldPassportNumber: '', fingerprintsCompleted: false
   })
 
-  const [metadata, setMetadata] = useState({
+  const [metadata, setMetadata] = useState<Metadata>({
     categories: ['Adult 10 Year', 'Adult 5 Year', 'Child 5 Year'],
     speeds: ['Normal', 'Executive'],
     applicationTypes: ['First Time', 'Renewal', 'Modification', 'Lost'],
@@ -57,7 +70,7 @@ export default function PakPassportClient({ initialApplications, currentUserId }
   })
 
   // --- HANDLERS ---
-  const handleInputChange = (e: any) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     let { name, value, type, checked } = e.target
     if (type === 'checkbox') {
       setFormData({ ...formData, [name]: checked })
@@ -99,7 +112,7 @@ export default function PakPassportClient({ initialApplications, currentUserId }
   }
 
   // --- ACTIONS ---
-  const handleUpdateRecord = async (id: string, data: any) => {
+  const handleUpdateRecord = async (id: string, data: Record<string, any>) => {
     // This is used by RowItem to save Passport #, Collection status, etc.
     const result = await pakPassportApi.updateStatus(id, data.status, currentUserId, data)
     if (result.ok) {
@@ -110,7 +123,7 @@ export default function PakPassportClient({ initialApplications, currentUserId }
     }
   }
 
-  const openEditModal = (item: any) => {
+  const openEditModal = (item: Application) => {
     const pp = getPassportRecord(item)
     setEditFormData({
       id: item.id, // Application id
@@ -166,7 +179,7 @@ export default function PakPassportClient({ initialApplications, currentUserId }
      }
   }
 
-  const handleOpenArrival = (item: any) => {
+  const handleOpenArrival = (item: Application) => {
     const pp = getPassportRecord(item)
     setNewPassportNum(pp?.new_passport_number || '')
     setArrivalModal({ passportId: pp?.id, trackingNumber: item.tracking_number })
@@ -234,18 +247,18 @@ export default function PakPassportClient({ initialApplications, currentUserId }
     toast.error(result.error || 'Failed to save notes')
   }
 
-  const getCreatedAt = (item: any) => {
+  const getCreatedAt = (item: Application) => {
     const pp = getPassportRecord(item)
     return item?.created_at || item?.applications?.created_at || pp?.created_at || 0
   }
 
-  const sortedApps = [...initialApplications].sort((a: any, b: any) => {
+  const sortedApps = [...initialApplications].sort((a: Application, b: Application) => {
     const ad = new Date(getCreatedAt(a) || 0).getTime()
     const bd = new Date(getCreatedAt(b) || 0).getTime()
     return bd - ad // newest first
   })
 
-  const filteredApps = sortedApps.filter((item: any) => {
+  const filteredApps = sortedApps.filter((item: Application) => {
     const matchesSearch = JSON.stringify(item).toLowerCase().includes(searchQuery.toLowerCase())
     
     if (!matchesSearch) return false

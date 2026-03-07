@@ -3,10 +3,31 @@
 import { MoreHorizontal, StickyNote, User } from 'lucide-react'
 import { toast } from 'sonner'
 import { getPassportRecord } from './utils'
+import type { Application } from './types'
 
-export default function RowItem({ item, onOpenEdit, onUpdateRecord, onViewHistory, onOpenArrival, onManageDocuments, onOpenNotes }: any) {
+type RowItemProps = {
+  item: Application
+  onOpenEdit: (item: Application) => void
+  onUpdateRecord: (id: string, data: Record<string, any>) => void
+  onViewHistory: (appId: string, trackingNo: string) => void
+  onOpenArrival: (item: Application) => void
+  onManageDocuments?: (appId: string, trackingNo?: string) => void
+  onOpenNotes?: (appId: string, trackingNo?: string) => void
+}
+
+export default function RowItem({ 
+  item, 
+  onOpenEdit, 
+  onUpdateRecord, 
+  onViewHistory, 
+  onOpenArrival, 
+  onManageDocuments, 
+  onOpenNotes 
+}: RowItemProps) {
   const pp = getPassportRecord(item)
   if (!pp) return null
+
+  const hasNotes = pp.notes && pp.notes.trim().length > 0
 
   // Status Colors
   const statusColors: any = {
@@ -227,12 +248,15 @@ export default function RowItem({ item, onOpenEdit, onUpdateRecord, onViewHistor
 
           <button
             onClick={() => onOpenNotes?.(item.id, item.tracking_number)}
-            className="h-8 w-8 flex items-center justify-center rounded-full bg-amber-50 hover:bg-amber-100 text-amber-600 transition"
+            className="h-8 w-8 flex items-center justify-center rounded-full bg-amber-50 hover:bg-amber-100 text-amber-600 transition relative"
             type="button"
             aria-label="Application notes"
-            title="Application notes"
+            title={hasNotes ? "Application notes (has notes)" : "Application notes"}
           >
             <StickyNote className="w-4 h-4" />
+            {hasNotes && (
+              <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-amber-500 rounded-full border-2 border-white" aria-hidden="true"></span>
+            )}
           </button>
         </div>
       </td>

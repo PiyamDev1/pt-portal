@@ -24,3 +24,51 @@ export enum PakStatus {
   Collected = 'Collected',
   Cancelled = 'Cancelled',
 }
+
+export type PassportRecord = {
+  id: string
+  application_id: string
+  application_type: string
+  category: string
+  page_count: string
+  speed: string
+  status: string
+  old_passport_number?: string
+  new_passport_number?: string
+  family_head_email?: string
+  is_old_passport_returned: boolean
+  old_passport_returned_at?: string
+  fingerprints_completed: boolean
+  notes?: string
+  created_at: string
+}
+
+export type Applicant = {
+  id: string
+  first_name: string
+  last_name: string
+  citizen_number: string
+  email?: string
+  phone_number?: string
+}
+
+export type Application = {
+  id: string
+  tracking_number: string
+  created_at?: string
+  applicants?: Applicant
+  pakistani_passport_applications?: PassportRecord | PassportRecord[]
+}
+
+export type ModalState = {
+  trackingNumber?: string
+  applicationId?: string
+  passportId?: string
+}
+
+export type Metadata = {
+  categories: string[]
+  speeds: string[]
+  applicationTypes: string[]
+  pageCounts: string[]
+}

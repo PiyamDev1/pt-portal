@@ -45,6 +45,7 @@ export default async function PakPassportPage() {
           is_old_passport_returned,
           old_passport_returned_at,
           fingerprints_completed,
+          notes,
           created_at
         )
       `)
