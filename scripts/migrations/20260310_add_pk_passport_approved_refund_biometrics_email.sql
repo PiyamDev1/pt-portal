@@ -16,6 +16,5 @@ end
 $$;
 
 alter table if exists public.pakistani_passport_applications
-  add column if not exists biometrics_email text,
   add column if not exists is_refunded boolean not null default false,
   add column if not exists refunded_at timestamp with time zone;

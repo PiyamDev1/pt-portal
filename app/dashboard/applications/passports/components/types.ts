@@ -2,7 +2,6 @@ export type PakApplicationFormData = {
   applicantName: string
   applicantCnic: string
   applicantEmail: string
-  biometricsEmail: string
   applicantPhone: string
   familyHeadEmail: string
   applicationType: string
@@ -39,7 +38,6 @@ export type PassportRecord = {
   old_passport_number?: string
   new_passport_number?: string
   family_head_email?: string
-  biometrics_email?: string
   is_old_passport_returned: boolean
   is_refunded?: boolean
   refunded_at?: string

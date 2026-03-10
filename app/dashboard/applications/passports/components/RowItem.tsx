@@ -109,11 +109,6 @@ export default function RowItem({
                 FH Email: {pp.family_head_email}
               </div>
             )}
-            {pp.biometrics_email && (
-              <div className="text-[11px] text-indigo-700 font-semibold leading-tight">
-                Biometrics Email: {pp.biometrics_email}
-              </div>
-            )}
             {item.applicants?.phone_number && (
               <div className="text-[11px] text-slate-600 font-semibold leading-tight">
                 Phone: {item.applicants.phone_number}

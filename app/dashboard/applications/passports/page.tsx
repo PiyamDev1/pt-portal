@@ -42,7 +42,6 @@ export default async function PakPassportPage() {
           old_passport_number,
           new_passport_number,
           family_head_email,
-          biometrics_email,
           is_old_passport_returned,
           is_refunded,
           refunded_at,

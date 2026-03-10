@@ -78,7 +78,6 @@ export async function POST(request) {
           page_count: data.pageCount,
           speed: data.speed,
           old_passport_number: data.oldPassportNumber || null,
-          biometrics_email: data.biometricsEmail || null,
           fingerprints_completed: data.fingerprintsCompleted,
           family_head_email: data.familyHeadEmail || null
         })
