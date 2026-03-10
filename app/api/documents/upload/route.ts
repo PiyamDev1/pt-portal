@@ -34,11 +34,11 @@ export async function POST(request: NextRequest) {
     const documentId = `doc-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const minioKey = `family-${familyHeadId}/${safeCategory}/${Date.now()}-${fileName.replace(/\s+/g, '-')}`;
 
-    // 3. Create the AWS Upload Command
+    // 3. Create the AWS Upload Command (no ContentType in signature so the
+    // browser PUT doesn't require Content-Type as a CORS-allowed signed header)
     const command = new PutObjectCommand({
       Bucket: MINIO_BUCKET,
       Key: minioKey,
-      ContentType: fileType, 
     });
 
     // 4. Cryptographically sign the URL to self-destruct in exactly 10 minutes (600 seconds)
