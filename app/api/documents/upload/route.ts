@@ -36,12 +36,12 @@ export async function POST(request: NextRequest) {
     const documentId = `doc-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const minioKey = `family-${familyHeadId}/${safeCategory}/${Date.now()}-${fileName.replace(/\s+/g, '-')}`;
 
-    // 3. Create the AWS Upload Command — include ContentType so it's signed
-    // and the browser PUT can send the matching Content-Type header
+    // 3. Create the AWS Upload Command — no ContentType here because AWS SDK v3
+    // presigner does not add it to X-Amz-SignedHeaders; the XHR must not send
+    // Content-Type either, otherwise MinIO will reject with a signature mismatch.
     const command = new PutObjectCommand({
       Bucket: MINIO_BUCKET,
       Key: minioKey,
-      ContentType: fileType || 'application/octet-stream',
     });
 
     // 4. Cryptographically sign the URL to self-destruct in exactly 10 minutes (600 seconds)

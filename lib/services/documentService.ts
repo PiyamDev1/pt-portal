@@ -195,7 +195,8 @@ class PlaceholderDocumentService implements DocumentService {
       const etag = await new Promise<string>((resolve, reject) => {
         const xhr = new XMLHttpRequest()
         xhr.open('PUT', uploadUrl)
-        xhr.setRequestHeader('Content-Type', file.type)
+        // Do NOT set Content-Type — the signed URL only signs 'host';
+        // sending any extra header causes a MinIO 403 signature mismatch.
 
         xhr.upload.onprogress = (event) => {
           if (event.lengthComputable && onProgress) {
