@@ -93,21 +93,22 @@ class PlaceholderDocumentService implements DocumentService {
   async checkMinioStatus(): Promise<MinioStatus> {
     try {
       const startTime = performance.now()
-      
-      // PLACEHOLDER: Simulate ping to MinIO endpoint
-      const response = await fetch(`${MINIO_ENDPOINT}/minio/health/live`, {
+      const response = await fetch(`${API_BASE}/documents/status`, {
         method: 'GET',
-        mode: 'no-cors',
-      }).catch(() => null)
+      })
+      const ping = Math.round(performance.now() - startTime)
+      const data = await response.json()
 
-      const endTime = performance.now()
-      const ping = Math.round(endTime - startTime)
+      if (data.success && data.status) {
+        return { ...data.status, ping }
+      }
 
       return {
-        connected: response?.ok ?? false,
+        connected: false,
         ping,
         timestamp: new Date().toISOString(),
         endpoint: MINIO_ENDPOINT,
+        error: data.error || 'Status check failed',
       }
     } catch (error) {
       return {
