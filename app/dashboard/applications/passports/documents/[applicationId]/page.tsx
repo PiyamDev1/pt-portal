@@ -114,7 +114,7 @@ export default async function PassportDocumentsPage({ params }: PassportDocument
             <DocumentHub
               familyHeadId={applicationId}
               familyHeadName={applicantName}
-              customSubtitle={`Manage documents for application ${application.tracking_number || applicationId}`}
+              customSubtitle={`Manage documents for ${applicantName}`}
               showStatus={true}
             />
           </div>

@@ -57,7 +57,8 @@ export interface DocumentService {
   uploadDocument(
     file: File,
     familyHeadId: string,
-    category?: 'receipt' | 'application-review' | 'general'
+    category?: 'receipt' | 'application-review' | 'general',
+    onProgress?: (percent: number) => void
   ): Promise<Document>
   uploadMultipleDocuments(
     files: File[],
@@ -158,7 +159,8 @@ class PlaceholderDocumentService implements DocumentService {
   async uploadDocument(
     file: File,
     familyHeadId: string,
-    category: 'receipt' | 'application-review' | 'general' = 'general'
+    category: 'receipt' | 'application-review' | 'general' = 'general',
+    onProgress?: (percent: number) => void
   ): Promise<Document> {
 
     // 1. Validate file size and type first
@@ -187,19 +189,30 @@ class PlaceholderDocumentService implements DocumentService {
 
       const { uploadUrl, documentId, minioKey } = urlData.data
 
-      // 3. Upload DIRECTLY to MinIO using the secure link.
-      // This bypasses Vercel completely, allowing lightning-fast, unlimited uploads.
-      const minioResponse = await fetch(uploadUrl, {
-        method: 'PUT',
-        body: file,
-        headers: {
-          'Content-Type': file.type,
-        },
-      })
+      // 3. Upload DIRECTLY to MinIO using XHR so we get real byte-level progress.
+      const etag = await new Promise<string>((resolve, reject) => {
+        const xhr = new XMLHttpRequest()
+        xhr.open('PUT', uploadUrl)
+        xhr.setRequestHeader('Content-Type', file.type)
 
-      if (!minioResponse.ok) {
-        throw new Error('MinIO Vault rejected the upload. Link may have expired.')
-      }
+        xhr.upload.onprogress = (event) => {
+          if (event.lengthComputable && onProgress) {
+            onProgress(Math.round((event.loaded / event.total) * 100))
+          }
+        }
+
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            resolve(xhr.getResponseHeader('ETag') || `unknown-${documentId}`)
+          } else {
+            reject(new Error(`MinIO rejected the upload (HTTP ${xhr.status})`))  
+          }
+        }
+
+        xhr.onerror = () => reject(new Error('Network error during upload'))
+        xhr.ontimeout = () => reject(new Error('Upload timed out'))
+        xhr.send(file)
+      })
 
       // 4. Return the formatted Document object back to the UI
       return {
@@ -214,7 +227,7 @@ class PlaceholderDocumentService implements DocumentService {
         minio: {
           bucket: MINIO_BUCKET,
           key: minioKey,
-          etag: minioResponse.headers.get('ETag') || `unknown-${documentId}`,
+          etag,
         },
       } as Document
     } catch (error) {

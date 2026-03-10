@@ -143,23 +143,21 @@ export function DocumentUpload({
             )
           )
 
-          // Simulate upload progress (in production, would track actual progress)
-          const progressInterval = setInterval(() => {
-            setUploads(prev =>
-              prev.map(u => {
-                if (u.fileId === fileId && u.status === 'uploading') {
-                  const newProgress = Math.min(u.progress + Math.random() * 30, 95)
-                  return { ...u, progress: newProgress }
-                }
-                return u
-              })
-            )
-          }, 200)
-
-          // Upload document
-          const doc = await documentService.uploadDocument(file, familyHeadId, category)
-
-          clearInterval(progressInterval)
+          // Upload document with real XHR progress
+          const doc = await documentService.uploadDocument(
+            file,
+            familyHeadId,
+            category,
+            (percent) => {
+              setUploads(prev =>
+                prev.map(u =>
+                  u.fileId === fileId && u.status === 'uploading'
+                    ? { ...u, progress: percent }
+                    : u
+                )
+              )
+            }
+          )
 
           // Update to success
           setUploads(prev =>
