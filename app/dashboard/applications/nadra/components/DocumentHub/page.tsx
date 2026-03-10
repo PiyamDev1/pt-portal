@@ -132,28 +132,13 @@ export function DocumentHub({
   )
 
   /**
-   * Download document
+   * Download document via presigned URL redirect
    */
-  const handleDownloadDocument = useCallback(async (documentId: string) => {
-    try {
-      const blob = await documentService.downloadDocument(documentId)
-      const doc = documents.find(d => d.id === documentId)
-
-      if (!doc) return
-
-      // Create download link
-      const url = window.URL.createObjectURL(blob)
-      const link = window.document.createElement('a')
-      link.href = url
-      link.download = doc.fileName
-      window.document.body.appendChild(link)
-      link.click()
-      window.document.body.removeChild(link)
-      window.URL.revokeObjectURL(url)
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to download document'
-      setError(errorMessage)
-    }
+  const handleDownloadDocument = useCallback((documentId: string) => {
+    const doc = documents.find(d => d.id === documentId)
+    if (!doc) return
+    const encodedKey = encodeURIComponent(doc.minio.key)
+    window.open(`/api/documents/${encodedKey}/download`, '_blank')
   }, [documents])
 
   /**

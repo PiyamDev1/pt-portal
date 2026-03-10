@@ -9,7 +9,7 @@
  */
 
 import React, { useCallback, useState, useRef } from 'react'
-import { Upload, X, AlertCircle, CheckCircle2, File, FileText } from 'lucide-react'
+import { Upload, X, AlertCircle, CheckCircle2, File, FileText, RotateCcw } from 'lucide-react'
 import { documentService } from '@/lib/services/documentService'
 import { UploadProgress, Document } from './types'
 
@@ -74,6 +74,8 @@ export function DocumentUpload({
   const [uploads, setUploads] = useState<UploadProgress[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [uploadedFiles, setUploadedFiles] = useState<Document[]>([])
+  // Retain file references so failed uploads can be retried
+  const fileMapRef = useRef<Map<string, File>>(new Map())
 
   /**
    * Get file icon based on type
@@ -113,6 +115,7 @@ export function DocumentUpload({
           })
           if (onError) onError(`${file.name}: ${validation.error}`)
         } else {
+          fileMapRef.current.set(fileId, file)
           newUploads.push({
             fileId,
             fileName: file.name,
@@ -132,6 +135,11 @@ export function DocumentUpload({
       for (const file of fileArray) {
         const fileId = newUploads.find(u => u.fileName === file.name)?.fileId
         if (!fileId) continue
+
+        // Ensure file is stored for potential retry
+        if (!fileMapRef.current.has(fileId)) {
+          fileMapRef.current.set(fileId, file)
+        }
 
         try {
           // Update status to uploading
@@ -173,6 +181,7 @@ export function DocumentUpload({
           // Auto remove successful uploads after 2 seconds
           setTimeout(() => {
             setUploads(prev => prev.filter(u => u.fileId !== fileId))
+            fileMapRef.current.delete(fileId)
           }, 2000)
         } catch (error) {
           setUploads(prev =>
@@ -237,7 +246,56 @@ export function DocumentUpload({
    */
   const removeUpload = (fileId: string) => {
     setUploads(prev => prev.filter(u => u.fileId !== fileId))
+    fileMapRef.current.delete(fileId)
   }
+
+  const retryUpload = useCallback(
+    async (fileId: string) => {
+      const file = fileMapRef.current.get(fileId)
+      if (!file) return
+
+      setUploads(prev =>
+        prev.map(u =>
+          u.fileId === fileId ? { ...u, status: 'uploading', progress: 0, error: undefined } : u
+        )
+      )
+
+      try {
+        const doc = await documentService.uploadDocument(
+          file,
+          familyHeadId,
+          category,
+          (percent) => {
+            setUploads(prev =>
+              prev.map(u =>
+                u.fileId === fileId && u.status === 'uploading' ? { ...u, progress: percent } : u
+              )
+            )
+          }
+        )
+
+        setUploads(prev =>
+          prev.map(u => (u.fileId === fileId ? { ...u, status: 'success', progress: 100 } : u))
+        )
+        setUploadedFiles(prev => [...prev, doc])
+        if (onSuccess) onSuccess([doc])
+
+        setTimeout(() => {
+          setUploads(prev => prev.filter(u => u.fileId !== fileId))
+          fileMapRef.current.delete(fileId)
+        }, 2000)
+      } catch (error) {
+        setUploads(prev =>
+          prev.map(u =>
+            u.fileId === fileId
+              ? { ...u, status: 'error', error: error instanceof Error ? error.message : 'Upload failed' }
+              : u
+          )
+        )
+      }
+    },
+    [familyHeadId, category, onSuccess]
+  )
 
   const sectionText =
     category === 'receipt'
@@ -348,7 +406,18 @@ export function DocumentUpload({
                 )}
 
                 {upload.status === 'error' && (
-                  <p className="text-xs text-red-600 mt-0.5">{upload.error}</p>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <p className="text-xs text-red-600 flex-1">{upload.error}</p>
+                    {fileMapRef.current.has(upload.fileId) && (
+                      <button
+                        onClick={() => retryUpload(upload.fileId)}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium text-blue-600 border border-blue-300 rounded hover:bg-blue-50 transition-colors"
+                      >
+                        <RotateCcw className="w-3 h-3" />
+                        Retry
+                      </button>
+                    )}
+                  </div>
                 )}
 
                 {upload.status === 'success' && (

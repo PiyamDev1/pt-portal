@@ -68,9 +68,8 @@ export function DocumentPreview({
     setZoom(100)
   }, [document?.id])
 
-  // Resolve preview source in browser to avoid protected-link failures from optimizer/proxy flows
+  // Fetch a 10-minute presigned URL from the API, then use it directly
   useEffect(() => {
-    let objectUrl: string | null = null
     let cancelled = false
 
     const loadPreview = async () => {
@@ -80,26 +79,21 @@ export function DocumentPreview({
         return
       }
 
-      const sourceUrl = document.preview?.previewUrl || document.minio.key
       setIsLoading(true)
 
       try {
-        const response = await fetch(sourceUrl, { credentials: 'include' })
-        if (!response.ok) {
-          throw new Error('Failed to fetch protected preview')
-        }
-
-        const blob = await response.blob()
-        objectUrl = URL.createObjectURL(blob)
+        const encodedKey = encodeURIComponent(document.minio.key)
+        const response = await fetch(`/api/documents/${encodedKey}/preview`)
+        if (!response.ok) throw new Error('Failed to fetch preview URL')
+        const { url } = await response.json()
 
         if (!cancelled) {
-          setPreviewSrc(objectUrl)
+          setPreviewSrc(url)
           setIsLoading(false)
         }
       } catch {
         if (!cancelled) {
-          // Fallback to direct source URL when blob fetch is blocked by CORS or unavailable
-          setPreviewSrc(sourceUrl)
+          setPreviewSrc(null)
           setIsLoading(false)
         }
       }
@@ -109,9 +103,6 @@ export function DocumentPreview({
 
     return () => {
       cancelled = true
-      if (objectUrl) {
-        URL.revokeObjectURL(objectUrl)
-      }
     }
   }, [document])
 

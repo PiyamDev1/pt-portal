@@ -1,115 +1,94 @@
-/**
- * API Route: Document Management Endpoints
- * Placeholder implementations for MinIO integration
- * 
- * Endpoints:
- * - GET /api/documents - List documents for family
- * - DELETE /api/documents - Delete document
- * 
- * @module api/documents/route
- */
-
 import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
 
 /**
- * PLACEHOLDER: GET /api/documents
- * Query params:
- * - familyHeadId: string (required) - Filter documents by family
- * 
- * Response: { success: boolean, data: Document[] }
+ * GET /api/documents?familyHeadId=ID
+ * Returns all non-deleted documents for a family.
  */
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const familyHeadId = searchParams.get('familyHeadId')
 
-    // Validation
     if (!familyHeadId) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'familyHeadId query parameter is required',
-        },
-        { status: 400 }
-      )
+      return NextResponse.json({ success: false, error: 'familyHeadId is required' }, { status: 400 })
     }
 
-    // PLACEHOLDER: Query database for documents
-    // In production:
-    // 1. Authenticate request (check session)
-    // 2. Verify user has access to this family's documents
-    // 3. Query Supabase documents table where family_head_id = familyHeadId
-    // 4. Return documents with MinIO metadata
+    const { data, error } = await supabase
+      .from('documents')
+      .select('*')
+      .eq('family_head_id', familyHeadId)
+      .eq('deleted', false)
+      .order('uploaded_at', { ascending: false })
 
-    console.log(`[PLACEHOLDER] Fetching documents for family: ${familyHeadId}`)
+    if (error) throw error
 
-    // Mock response - return empty array for now
-    return NextResponse.json(
-      {
-        success: true,
-        data: [],
-        message: '[PLACEHOLDER] No documents yet. Backend implementation pending.',
+    const documents = (data || []).map((row: any) => ({
+      id: row.id,
+      fileName: row.file_name,
+      fileSize: row.file_size,
+      fileType: row.file_type,
+      category: row.category,
+      uploadedAt: row.uploaded_at,
+      uploadedBy: row.uploaded_by,
+      familyHeadId: row.family_head_id,
+      minio: {
+        bucket: row.minio_bucket,
+        key: row.minio_key,
+        etag: row.minio_etag,
       },
-      { status: 200 }
-    )
+    }))
+
+    return NextResponse.json({ success: true, data: documents })
   } catch (error) {
-    console.error('Error in GET /api/documents:', error)
     return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed to fetch documents',
-      },
+      { success: false, error: error instanceof Error ? error.message : 'Failed to fetch documents' },
       { status: 500 }
     )
   }
 }
 
 /**
- * PLACEHOLDER: DELETE /api/documents
- * Query params:
- * - documentId: string (required) - Document to delete
- * 
- * Response: { success: boolean }
+ * POST /api/documents
+ * Saves document metadata to Supabase after a successful MinIO upload.
  */
-export async function DELETE(request: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url)
-    const documentId = searchParams.get('documentId')
+    const body = await request.json()
+    const { documentId, fileName, fileSize, fileType, category, familyHeadId, minioKey, minioEtag } = body
 
-    // Validation
-    if (!documentId) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'documentId query parameter is required',
-        },
-        { status: 400 }
-      )
+    if (!documentId || !fileName || !familyHeadId || !minioKey) {
+      return NextResponse.json({ success: false, error: 'Missing required fields' }, { status: 400 })
     }
 
-    // PLACEHOLDER: Delete document from family storage
-    // In production:
-    // 1. Authenticate request
-    // 2. Verify document exists and get family_head_id
-    // 3. Delete from MinIO (key: family-{familyHeadId}/...)
-    // 4. Mark as deleted in database (soft delete recommended)
+    const bucket = process.env.MINIO_BUCKET_NAME || 'portal-documents'
 
-    console.log(`[PLACEHOLDER] Deleting document: ${documentId}`)
+    const { error } = await supabase.from('documents').insert({
+      id: documentId,
+      file_name: fileName,
+      file_size: fileSize || 0,
+      file_type: fileType || 'application/octet-stream',
+      category: category || 'general',
+      uploaded_at: new Date().toISOString(),
+      uploaded_by: 'staff',
+      family_head_id: familyHeadId,
+      minio_bucket: bucket,
+      minio_key: minioKey,
+      minio_etag: minioEtag || '',
+      deleted: false,
+    })
 
-    return NextResponse.json(
-      {
-        success: true,
-        message: '[PLACEHOLDER] Document deletion placeholder. Backend implementation pending.',
-      },
-      { status: 200 }
-    )
+    if (error) throw error
+
+    return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('Error in DELETE /api/documents:', error)
     return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed to delete document',
-      },
+      { success: false, error: error instanceof Error ? error.message : 'Failed to save document' },
       { status: 500 }
     )
   }

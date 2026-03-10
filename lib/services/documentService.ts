@@ -216,7 +216,23 @@ class PlaceholderDocumentService implements DocumentService {
         xhr.send(file)
       })
 
-      // 4. Return the formatted Document object back to the UI
+      // 4. Persist metadata to Supabase
+      await fetch(`${API_BASE}/documents`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          documentId,
+          fileName: file.name,
+          fileSize: file.size,
+          fileType: file.type,
+          category,
+          familyHeadId,
+          minioKey,
+          minioEtag: etag,
+        }),
+      })
+
+      // 5. Return the formatted Document object back to the UI
       return {
         id: documentId,
         fileName: file.name,
@@ -224,7 +240,7 @@ class PlaceholderDocumentService implements DocumentService {
         fileType: file.type,
         category,
         uploadedAt: new Date().toISOString(),
-        uploadedBy: 'Current User',
+        uploadedBy: 'staff',
         familyHeadId,
         minio: {
           bucket: MINIO_BUCKET,
