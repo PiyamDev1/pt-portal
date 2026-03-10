@@ -31,17 +31,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Missing required fields' }, { status: 400 });
     }
 
+    const normalizedFileType = fileType || 'application/octet-stream';
+
     // 2. Generate a secure path in the vault
     const safeCategory = category || 'general';
     const documentId = `doc-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const minioKey = `family-${familyHeadId}/${safeCategory}/${Date.now()}-${fileName.replace(/\s+/g, '-')}`;
 
-    // 3. Create the AWS Upload Command — no ContentType here because AWS SDK v3
-    // presigner does not add it to X-Amz-SignedHeaders; the XHR must not send
-    // Content-Type either, otherwise MinIO will reject with a signature mismatch.
+    // 3. Create the AWS Upload Command
+    // We include ContentType so the signature matches the browser upload header.
     const command = new PutObjectCommand({
       Bucket: MINIO_BUCKET,
       Key: minioKey,
+      ContentType: normalizedFileType,
     });
 
     // 4. Cryptographically sign the URL to self-destruct in exactly 10 minutes (600 seconds)
@@ -55,7 +57,7 @@ export async function POST(request: NextRequest) {
           documentId,
           minioKey,
           fileName,
-          fileType,
+          fileType: normalizedFileType,
           category: safeCategory,
           familyHeadId
         },
