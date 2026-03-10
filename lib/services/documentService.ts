@@ -172,13 +172,15 @@ class PlaceholderDocumentService implements DocumentService {
     }
 
     try {
+      const normalizedFileType = file.type || 'application/octet-stream'
+
       // 2. Ask our Next.js API for a 10-minute secure upload link
       const urlResponse = await fetch(`${API_BASE}/documents/upload`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           fileName: file.name,
-          fileType: file.type,
+          fileType: normalizedFileType,
           familyHeadId,
           category,
         }),
@@ -195,8 +197,8 @@ class PlaceholderDocumentService implements DocumentService {
       const etag = await new Promise<string>((resolve, reject) => {
         const xhr = new XMLHttpRequest()
         xhr.open('PUT', uploadUrl)
-        // Do NOT set Content-Type — the signed URL only signs 'host';
-        // sending any extra header causes a MinIO 403 signature mismatch.
+        // FORCE the browser to use the exact Content-Type we signed in the backend.
+        xhr.setRequestHeader('Content-Type', file.type)
 
         xhr.upload.onprogress = (event) => {
           if (event.lengthComputable && onProgress) {
@@ -225,7 +227,7 @@ class PlaceholderDocumentService implements DocumentService {
           documentId,
           fileName: file.name,
           fileSize: file.size,
-          fileType: file.type,
+          fileType: normalizedFileType,
           category,
           familyHeadId,
           minioKey,
@@ -238,7 +240,7 @@ class PlaceholderDocumentService implements DocumentService {
         id: documentId,
         fileName: file.name,
         fileSize: file.size,
-        fileType: file.type,
+        fileType: normalizedFileType,
         category,
         uploadedAt: new Date().toISOString(),
         uploadedBy: 'staff',
