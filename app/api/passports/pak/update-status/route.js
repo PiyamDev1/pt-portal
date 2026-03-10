@@ -7,6 +7,7 @@ const DB_STATUS_MAP = {
   'Pending Submission': 'Pending Submission',
   'Biometrics Taken': 'Biometrics Taken',
   'Processing': 'Processing', // If DB error persists, change this to: 'In Progress'
+  'Approved': 'Approved',
   'Passport Arrived': 'Passport Arrived',
   'Collected': 'Collected',
   'Cancelled': 'Cancelled'
@@ -22,7 +23,7 @@ export async function POST(request) {
     )
 
     const body = await request.json()
-    const { passportId, status, userId, newPassportNo, isCollected, oldPassportReturned } = body
+    const { passportId, status, userId, newPassportNo, isCollected, oldPassportReturned, isRefunded } = body
 
     if (!passportId || !status) {
       return NextResponse.json({ error: 'Missing passportId or status' }, { status: 400 })
@@ -44,6 +45,10 @@ export async function POST(request) {
     // Add optional fields if they exist
     if (newPassportNo !== undefined) updateData.new_passport_number = newPassportNo
     if (oldPassportReturned !== undefined) updateData.is_old_passport_returned = oldPassportReturned
+    if (isRefunded !== undefined) {
+      updateData.is_refunded = !!isRefunded
+      updateData.refunded_at = isRefunded ? new Date().toISOString() : null
+    }
     
     // 3. Validation for Collection
     if (status === 'Collected') {

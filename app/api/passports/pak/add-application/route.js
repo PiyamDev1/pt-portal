@@ -16,6 +16,7 @@ export async function POST(request) {
     const body = await request.json()
     const { 
       applicantCnic, applicantName, applicantEmail,
+      biometricsEmail,
       applicantPhone,
       familyHeadEmail,
       applicationType, category, pageCount, speed, 
@@ -61,7 +62,9 @@ export async function POST(request) {
       page_count: pageCount,
       speed: speed,
       old_passport_number: oldPassportNumber || null,
+      biometrics_email: biometricsEmail || null,
       is_old_passport_returned: false,
+      is_refunded: false,
       fingerprints_completed: fingerprintsCompleted || false,
       status: 'Pending Submission' // Matches new workflow
     })

@@ -63,6 +63,19 @@ export default function NewApplicationForm({ formData, isSubmitting, onChange, o
              {errors.applicantEmail && (<p id="applicantEmail-error" className="text-red-600 text-xs mt-1" role="alert">{errors.applicantEmail}</p>)}
            </div>
            <div>
+             <input
+               name="biometricsEmail"
+               onChange={onChange}
+               onBlur={onBlur}
+               value={formData.biometricsEmail}
+               placeholder="Biometrics Email (separate from applicant email)"
+               className="w-full p-2 bg-white border border-green-100 rounded-lg text-sm focus:ring-2 focus:ring-green-500"
+               aria-invalid={!!errors.biometricsEmail}
+               aria-describedby={errors.biometricsEmail ? 'biometricsEmail-error' : undefined}
+             />
+             {errors.biometricsEmail && (<p id="biometricsEmail-error" className="text-red-600 text-xs mt-1" role="alert">{errors.biometricsEmail}</p>)}
+           </div>
+           <div>
              <input 
                name="applicantPhone" 
                onChange={onChange} 
