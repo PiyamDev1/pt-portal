@@ -19,7 +19,7 @@ import {
 } from '@/app/dashboard/applications/nadra/components/DocumentHub/types'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || '/api'
-const MINIO_ENDPOINT = process.env.NEXT_PUBLIC_MINIO_ENDPOINT || 'https://eu49v2.piyamtravel.com'
+const MINIO_ENDPOINT = process.env.NEXT_PUBLIC_MINIO_ENDPOINT || 'http://localhost:9000'
 const MINIO_BUCKET = process.env.NEXT_PUBLIC_MINIO_BUCKET || 'nadra-documents'
 
 // Constants

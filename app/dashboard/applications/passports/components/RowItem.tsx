@@ -34,7 +34,6 @@ export default function RowItem({
     'Pending Submission': 'bg-gray-100 text-gray-600',
     'Biometrics Taken': 'bg-blue-100 text-blue-700',
     'Processing': 'bg-yellow-100 text-yellow-700',
-    'Approved': 'bg-emerald-100 text-emerald-700',
     'Passport Arrived': 'bg-indigo-100 text-indigo-700',
     'Collected': 'bg-green-100 text-green-700',
     'Cancelled': 'bg-orange-100 text-orange-700'
@@ -64,19 +63,11 @@ export default function RowItem({
     onUpdateRecord(pp.id, { status: 'Collected' })
   }
 
-  const confirmRefund = () => {
-    if (pp.is_refunded) return
-    const ok = window.confirm('Mark this application as refunded? This cannot be undone.')
-    if (!ok) return
-    onUpdateRecord(pp.id, { status: pp.status || 'Pending Submission', isRefunded: true })
-  }
-
   // Workflow progress
   const workflow = [
     'Pending Submission',
     'Biometrics Taken',
     'Processing',
-    'Approved',
     'Passport Arrived',
     'Collected'
   ]
@@ -107,11 +98,6 @@ export default function RowItem({
             {pp.family_head_email && (
               <div className="text-[11px] text-sky-700 font-semibold leading-tight">
                 FH Email: {pp.family_head_email}
-              </div>
-            )}
-            {pp.biometrics_email && (
-              <div className="text-[11px] text-indigo-700 font-semibold leading-tight">
-                Biometrics Email: {pp.biometrics_email}
               </div>
             )}
             {item.applicants?.phone_number && (
@@ -218,9 +204,6 @@ export default function RowItem({
           ) : (
             <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">NORMAL</span>
           )}
-          {pp.is_refunded && (
-            <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-700 border border-rose-200">REFUNDED</span>
-          )}
           <div>
             <label className="text-[10px] uppercase font-bold text-slate-500">Status</label>
             <select 
@@ -233,7 +216,6 @@ export default function RowItem({
               <option value="Pending Submission">Pending Submission</option>
               <option value="Biometrics Taken">Biometrics Taken</option>
               <option value="Processing">Processing</option>
-              <option value="Approved">Approved</option>
               <option value="Passport Arrived">Passport Arrived</option>
               <option value="Collected" disabled>Collected (set via button)</option>
               <option value="Cancelled">Cancelled</option>
@@ -275,17 +257,6 @@ export default function RowItem({
             {hasNotes && (
               <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-amber-500 rounded-full border-2 border-white" aria-hidden="true"></span>
             )}
-          </button>
-
-          <button
-            onClick={confirmRefund}
-            disabled={!!pp.is_refunded}
-            className={`h-8 w-8 flex items-center justify-center rounded-full transition ${pp.is_refunded ? 'bg-rose-100 text-rose-500 cursor-not-allowed' : 'bg-rose-50 hover:bg-rose-100 text-rose-600'}`}
-            type="button"
-            aria-label="Mark refunded"
-            title={pp.is_refunded ? 'Already refunded' : 'Mark refunded'}
-          >
-            $ 
           </button>
         </div>
       </td>

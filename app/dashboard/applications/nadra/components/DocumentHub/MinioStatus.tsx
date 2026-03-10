@@ -50,7 +50,6 @@ export function MinioStatus({
     true
   )
   const [isRefreshing, setIsRefreshing] = useState(false)
-  const endpointLabel = 'EU server 49v2'
 
   // Notify parent of status changes
   React.useEffect(() => {
@@ -90,12 +89,12 @@ export function MinioStatus({
         {connected ? (
           <>
             <div className="w-2 h-2 bg-green-500 rounded-full" />
-            <span className="text-xs text-slate-600">EU server 49v2 Connected</span>
+            <span className="text-xs text-slate-600">File Server Connected</span>
           </>
         ) : (
           <>
             <div className="w-2 h-2 bg-red-500 rounded-full" />
-            <span className="text-xs text-slate-600">EU server 49v2 Offline</span>
+            <span className="text-xs text-slate-600">File Server Offline</span>
           </>
         )}
       </div>
@@ -128,7 +127,7 @@ export function MinioStatus({
             <div className="mt-1 space-y-1 text-sm text-slate-600">
               {status?.endpoint && (
                 <p>
-                  <span className="font-medium">Endpoint:</span> {endpointLabel} ({status.endpoint})
+                  <span className="font-medium">Endpoint:</span> {status.endpoint}
                 </p>
               )}
 

@@ -56,7 +56,6 @@ export default function PakPassportClient({ initialApplications, currentUserId }
 
   const [formData, setFormData] = useState<PakApplicationFormData>({
     applicantName: '', applicantCnic: '', applicantEmail: '',
-    biometricsEmail: '',
     applicantPhone: '',
     familyHeadEmail: '',
     applicationType: 'Renewal', category: 'Adult 10 Year', pageCount: '34 pages', speed: 'Normal',
@@ -72,8 +71,7 @@ export default function PakPassportClient({ initialApplications, currentUserId }
 
   // --- HANDLERS ---
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    let { name, value, type } = e.target
-    const checked = (e.target as HTMLInputElement).checked
+    let { name, value, type, checked } = e.target
     if (type === 'checkbox') {
       setFormData({ ...formData, [name]: checked })
       return
@@ -134,7 +132,6 @@ export default function PakPassportClient({ initialApplications, currentUserId }
       applicantName: `${item.applicants?.first_name} ${item.applicants?.last_name}`,
       applicantCnic: item.applicants?.citizen_number,
       applicantEmail: item.applicants?.email || '',
-      biometricsEmail: pp?.biometrics_email || '',
       applicantPhone: item.applicants?.phone_number || '',
       familyHeadEmail: pp?.family_head_email || '',
       trackingNumber: item.tracking_number,

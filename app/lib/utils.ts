@@ -100,8 +100,6 @@ export function getStatusColor(status: string, context: 'nadra' | 'passport' | '
         return 'bg-indigo-100 text-indigo-800 border-indigo-200'
       case 'processing':
         return 'bg-yellow-100 text-yellow-800 border-yellow-200'
-      case 'approved':
-        return 'bg-emerald-100 text-emerald-800 border-emerald-200'
       case 'biometrics taken':
         return 'bg-blue-100 text-blue-800 border-blue-200'
       case 'pending submission':
