@@ -1,134 +1,68 @@
 /**
- * API Route: Upload Document
- * Placeholder implementation for MinIO integration
- * 
+ * API Route: Generate Secure Upload Link
  * Endpoint: POST /api/documents/upload
- * 
- * @module api/documents/upload/route
  */
 
 import { NextRequest, NextResponse } from 'next/server'
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3"
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
 
-const MAX_FILE_SIZE = 1500000 // 1.5 MB
-const ALLOWED_MIME_TYPES = [
-  'application/pdf',
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-]
+// Initialize the MinIO Client
+const s3Client = new S3Client({
+  region: "auto",
+  endpoint: process.env.MINIO_ENDPOINT,
+  credentials: {
+    accessKeyId: process.env.MINIO_ACCESS_KEY!,
+    secretAccessKey: process.env.MINIO_SECRET_KEY!,
+  },
+  forcePathStyle: true,
+});
 
-/**
- * PLACEHOLDER: POST /api/documents/upload
- * Upload a document to MinIO (family-level storage)
- * 
- * Form Data:
- * - file: File (required)
- * - familyHeadId: string (required)
- * - category: 'receipt' | 'application-review' | 'general' (optional)
- * 
- * Response: { success: boolean, document?: Document, error?: string }
- */
+const MINIO_BUCKET = process.env.MINIO_BUCKET_NAME || 'portal-documents';
+
 export async function POST(request: NextRequest) {
   try {
-    // Parse form data
-    const formData = await request.formData()
-    const file = formData.get('file') as File | null
-    const familyHeadId = formData.get('familyHeadId') as string | null
-    const rawCategory = formData.get('category') as string | null
-    const category =
-      rawCategory === 'receipt' || rawCategory === 'application-review'
-        ? rawCategory
-        : 'general'
+    // 1. We don't take the file here anymore! Just the metadata.
+    const { fileName, fileType, familyHeadId, category } = await request.json();
 
-    // Validation: Check required fields
-    if (!file) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'file is required',
-        },
-        { status: 400 }
-      )
+    if (!fileName || !familyHeadId) {
+      return NextResponse.json({ success: false, error: 'Missing required fields' }, { status: 400 });
     }
 
-    if (!familyHeadId) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'familyHeadId is required',
-        },
-        { status: 400 }
-      )
-    }
+    // 2. Generate a secure path in the vault
+    const safeCategory = category || 'general';
+    const documentId = `doc-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const minioKey = `family-${familyHeadId}/${safeCategory}/${Date.now()}-${fileName.replace(/\s+/g, '-')}`;
 
-    // Validation: File size
-    if (file.size > MAX_FILE_SIZE) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: `File size exceeds maximum of ${MAX_FILE_SIZE / 1024 / 1024} MB`,
-        },
-        { status: 400 }
-      )
-    }
+    // 3. Create the AWS Upload Command
+    const command = new PutObjectCommand({
+      Bucket: MINIO_BUCKET,
+      Key: minioKey,
+      ContentType: fileType, 
+    });
 
-    // Validation: File type
-    if (!ALLOWED_MIME_TYPES.includes(file.type)) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: `File type "${file.type}" is not supported`,
-        },
-        { status: 400 }
-      )
-    }
-
-    // PLACEHOLDER: Upload to MinIO
-    // In production:
-    // 1. Authenticate request (check session)
-    // 2. Verify family exists and user has access
-    // 3. Upload file to MinIO bucket under family path
-    // 4. Generate MinIO metadata (bucket, key, etag)
-    // 5. Store document metadata in Supabase (family_head_id)
-    // 6. Generate thumbnail for preview
-    // 7. Return Document object with MinIO location
-
-    console.log(`[PLACEHOLDER] Uploading file: ${file.name} for family: ${familyHeadId}`)
-    console.log(`File size: ${file.size} bytes, type: ${file.type}`)
-
-    // Mock response - return a placeholder document
-    const documentId = `doc-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-    const minioKey = `family-${familyHeadId}/${category}/${Date.now()}-${file.name}`
+    // 4. Cryptographically sign the URL to self-destruct in exactly 10 minutes (600 seconds)
+    const signedUrl = await getSignedUrl(s3Client, command, { expiresIn: 600 });
 
     return NextResponse.json(
       {
         success: true,
         data: {
-          id: documentId,
-          fileName: file.name,
-          fileSize: file.size,
-          fileType: file.type,
-          category,
-          uploadedAt: new Date().toISOString(),
-          uploadedBy: '[PLACEHOLDER] Session User',
-          familyHeadId,
-          minio: {
-            bucket: 'nadra-documents',
-            key: minioKey,
-            etag: `[PLACEHOLDER-ETAG-${documentId}]`,
-          },
+          uploadUrl: signedUrl,
+          documentId,
+          minioKey,
+          fileName,
+          fileType,
+          category: safeCategory,
+          familyHeadId
         },
-        message: '[PLACEHOLDER] Document uploaded successfully. Backend MinIO integration pending.',
       },
       { status: 200 }
     )
   } catch (error) {
-    console.error('Error in POST /api/documents/upload:', error)
+    console.error('Error generating secure upload link:', error)
     return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed to upload document',
-      },
+      { success: false, error: 'Failed to generate secure upload link' },
       { status: 500 }
     )
   }

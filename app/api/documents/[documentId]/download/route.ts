@@ -1,19 +1,10 @@
-/**
- * API Route: Download Document
- * Placeholder implementation for MinIO integration
- * 
- * Endpoint: GET /api/documents/[documentId]/download
- * 
- * @module api/documents/[documentId]/download/route
- */
-
 import { NextRequest, NextResponse } from 'next/server'
+import { documentService } from '@/lib/services/documentService'
 
 /**
- * PLACEHOLDER: GET /api/documents/[documentId]/download
- * Download a document from MinIO
- * 
- * Response: Blob (file stream)
+ * GET /api/documents/[documentId]/download
+ * Redirects the browser to a 10-minute presigned download URL from MinIO.
+ * The file is streamed directly from MinIO — zero bandwidth on this server.
  */
 export async function GET(
   request: NextRequest,
@@ -22,42 +13,13 @@ export async function GET(
   try {
     const { documentId } = await params
 
-    // Validation
     if (!documentId) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'documentId is required',
-        },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'documentId is required' }, { status: 400 })
     }
 
-    // PLACEHOLDER: Download from MinIO
-    // In production:
-    // 1. Authenticate request
-    // 2. Query database for document metadata
-    // 3. Verify user has access to document
-    // 4. Download file from MinIO bucket
-    // 5. Return file with correct headers (Content-Type, Content-Disposition, etc.)
-
-    console.log(`[PLACEHOLDER] Downloading document: ${documentId}`)
-
-    return NextResponse.json(
-      {
-        success: false,
-        error: '[PLACEHOLDER] Download not yet implemented. Backend MinIO integration pending.',
-      },
-      { status: 501 }
-    )
+    const url = await documentService.getPreviewUrl(documentId)
+    return NextResponse.redirect(url)
   } catch (error) {
-    console.error('Error in GET /api/documents/[documentId]/download:', error)
-    return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed to download document',
-      },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Failed to generate download link' }, { status: 500 })
   }
 }

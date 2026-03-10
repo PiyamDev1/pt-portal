@@ -6,6 +6,8 @@
  * @module lib/services/documentService
  */
 
+import { S3Client, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3'
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import {
   Document,
   DocumentResponse,
@@ -20,7 +22,17 @@ import {
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || '/api'
 const MINIO_ENDPOINT = process.env.NEXT_PUBLIC_MINIO_ENDPOINT || 'https://eu49v2.piyamtravel.com'
-const MINIO_BUCKET = process.env.NEXT_PUBLIC_MINIO_BUCKET || 'nadra-documents'
+const MINIO_BUCKET = process.env.MINIO_BUCKET_NAME || process.env.NEXT_PUBLIC_MINIO_BUCKET || 'portal-documents'
+
+const s3Client = new S3Client({
+  region: 'auto',
+  endpoint: process.env.MINIO_ENDPOINT || MINIO_ENDPOINT,
+  credentials: {
+    accessKeyId: process.env.MINIO_ACCESS_KEY!,
+    secretAccessKey: process.env.MINIO_SECRET_KEY!,
+  },
+  forcePathStyle: true,
+})
 
 // Constants
 const MAX_FILE_SIZE = 1500000 // 1.5 MB in bytes
@@ -58,7 +70,8 @@ export interface DocumentService {
 
   // Preview & Thumbnails
   generateThumbnail(document: Document): Promise<string>
-  getPreviewUrl(document: Document): Promise<string>
+  getPreviewUrl(fileName: string): Promise<string>
+  getUploadUrl(fileName: string): Promise<string>
 
   // Validation
   validateFile(file: File): ValidationResult
@@ -139,43 +152,70 @@ class PlaceholderDocumentService implements DocumentService {
   }
 
   /**
-   * PLACEHOLDER: Upload single document
-   * In production: Will send file to backend API endpoint
-   * Documents are stored at family level and shared by all applicants in the family
+   * Secure Direct-to-MinIO Upload
    */
   async uploadDocument(
     file: File,
     familyHeadId: string,
     category: 'receipt' | 'application-review' | 'general' = 'general'
   ): Promise<Document> {
-    // Validate file first
+
+    // 1. Validate file size and type first
     const validation = this.validateFile(file)
     if (!validation.valid) {
       throw new Error(validation.error || 'File validation failed')
     }
 
     try {
-      const formData = new FormData()
-      formData.append('file', file)
-      formData.append('familyHeadId', familyHeadId)
-      formData.append('category', category)
-
-      // PLACEHOLDER: Call our API endpoint which will handle MinIO upload
-      const response = await fetch(`${API_BASE}/documents/upload`, {
+      // 2. Ask our Next.js API for a 10-minute secure upload link
+      const urlResponse = await fetch(`${API_BASE}/documents/upload`, {
         method: 'POST',
-        body: formData,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fileName: file.name,
+          fileType: file.type,
+          familyHeadId,
+          category,
+        }),
       })
 
-      if (!response.ok) {
-        throw new Error(`Upload failed: ${response.statusText}`)
+      const urlData = await urlResponse.json()
+      if (!urlData.success || !urlData.data) {
+        throw new Error(urlData.error || 'Failed to get secure upload link')
       }
 
-      const data: DocumentResponse = await response.json()
-      if (!data.success || !data.data) {
-        throw new Error(data.error || 'Upload failed')
+      const { uploadUrl, documentId, minioKey } = urlData.data
+
+      // 3. Upload DIRECTLY to MinIO using the secure link.
+      // This bypasses Vercel completely, allowing lightning-fast, unlimited uploads.
+      const minioResponse = await fetch(uploadUrl, {
+        method: 'PUT',
+        body: file,
+        headers: {
+          'Content-Type': file.type,
+        },
+      })
+
+      if (!minioResponse.ok) {
+        throw new Error('MinIO Vault rejected the upload. Link may have expired.')
       }
 
-      return data.data as Document
+      // 4. Return the formatted Document object back to the UI
+      return {
+        id: documentId,
+        fileName: file.name,
+        fileSize: file.size,
+        fileType: file.type,
+        category,
+        uploadedAt: new Date().toISOString(),
+        uploadedBy: 'Current User',
+        familyHeadId,
+        minio: {
+          bucket: MINIO_BUCKET,
+          key: minioKey,
+          etag: minioResponse.headers.get('ETag') || `unknown-${documentId}`,
+        },
+      } as Document
     } catch (error) {
       throw new Error(
         error instanceof Error ? error.message : 'Failed to upload document'
@@ -321,31 +361,25 @@ class PlaceholderDocumentService implements DocumentService {
   }
 
   /**
-   * PLACEHOLDER: Get preview URL for document
+   * Generate a 10-minute presigned URL to VIEW a document from MinIO/S3
    */
-  async getPreviewUrl(document: Document): Promise<string> {
-    if (document.preview?.previewUrl) {
-      return document.preview.previewUrl
-    }
+  async getPreviewUrl(fileName: string): Promise<string> {
+    const command = new GetObjectCommand({
+      Bucket: MINIO_BUCKET,
+      Key: fileName,
+    })
+    return await getSignedUrl(s3Client, command, { expiresIn: 600 })
+  }
 
-    try {
-      const response = await fetch(
-        `${API_BASE}/documents/${document.id}/preview`,
-        {
-          method: 'GET',
-        }
-      )
-
-      if (!response.ok) {
-        throw new Error('Failed to get preview URL')
-      }
-
-      const data = await response.json()
-      return data.previewUrl || ''
-    } catch (error) {
-      console.error('Error getting preview URL:', error)
-      return ''
-    }
+  /**
+   * Generate a 10-minute presigned URL to UPLOAD a document to MinIO/S3
+   */
+  async getUploadUrl(fileName: string): Promise<string> {
+    const command = new PutObjectCommand({
+      Bucket: MINIO_BUCKET,
+      Key: fileName,
+    })
+    return await getSignedUrl(s3Client, command, { expiresIn: 600 })
   }
 
   /**
