@@ -9,6 +9,8 @@ const s3Client = new S3Client({
     secretAccessKey: process.env.MINIO_SECRET_KEY!,
   },
   forcePathStyle: true,
+  requestChecksumCalculation: 'WHEN_REQUIRED',
+  responseChecksumValidation: 'WHEN_REQUIRED',
 })
 
 const MINIO_ENDPOINT = process.env.MINIO_ENDPOINT || 'https://eu49v2.piyamtravel.com'
