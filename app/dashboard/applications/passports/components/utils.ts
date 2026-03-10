@@ -13,6 +13,11 @@ export const getPassportRecord = (item: any) => {
   return Array.isArray(value) ? value[0] : value
 }
 
+export const getApplicantRecord = (item: any) => {
+  const value = item?.applicants
+  return Array.isArray(value) ? value[0] : value
+}
+
 export const getTrackingSteps = (pp: any) => {
   return [
     { status: 'Pending', completed: pp?.status !== 'Pending Submission' },

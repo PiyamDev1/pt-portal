@@ -9,7 +9,7 @@ import HistoryModal from './components/HistoryModal'
 import ArrivalModal from './components/ArrivalModal'
 import NotesModal from './components/NotesModal'
 import NewApplicationForm from './components/NewApplicationForm'
-import { formatCNIC, getPassportRecord } from './components/utils'
+import { formatCNIC, getApplicantRecord, getPassportRecord } from './components/utils'
 import type { PakApplicationFormData, Application, ModalState, Metadata } from './components/types'
 import { PakApplicationFormSchema } from './components/schemas'
 import type { PakApplicationFormErrors } from './components/schemas'
@@ -126,14 +126,15 @@ export default function PakPassportClient({ initialApplications, currentUserId }
 
   const openEditModal = (item: Application) => {
     const pp = getPassportRecord(item)
+    const applicant = getApplicantRecord(item)
     setEditFormData({
       id: item.id, // Application id
       passportId: pp?.id,
-      applicantId: item.applicants?.id,
-      applicantName: `${item.applicants?.first_name} ${item.applicants?.last_name}`,
-      applicantCnic: item.applicants?.citizen_number,
-      applicantEmail: item.applicants?.email || '',
-      applicantPhone: item.applicants?.phone_number || '',
+      applicantId: applicant?.id,
+      applicantName: `${applicant?.first_name || ''} ${applicant?.last_name || ''}`.trim(),
+      applicantCnic: applicant?.citizen_number,
+      applicantEmail: applicant?.email || '',
+      applicantPhone: applicant?.phone_number || '',
       familyHeadEmail: pp?.family_head_email || '',
       trackingNumber: item.tracking_number,
       oldPassportNumber: pp?.old_passport_number || '',
@@ -187,10 +188,16 @@ export default function PakPassportClient({ initialApplications, currentUserId }
   }
 
   const handleSaveArrival = async () => {
+    if (!arrivalModal?.passportId) {
+      toast.error('No passport record selected')
+      return
+    }
+
     if (!newPassportNum.trim()) {
       toast.error('Please enter a passport number')
       return
     }
+
     const result = await pakPassportApi.updateStatus(
       arrivalModal.passportId,
       'Passport Arrived',
@@ -250,7 +257,7 @@ export default function PakPassportClient({ initialApplications, currentUserId }
 
   const getCreatedAt = (item: Application) => {
     const pp = getPassportRecord(item)
-    return item?.created_at || item?.applications?.created_at || pp?.created_at || 0
+    return item?.created_at || pp?.created_at || 0
   }
 
   const sortedApps = [...initialApplications].sort((a: Application, b: Application) => {

@@ -2,7 +2,7 @@
 
 import { MoreHorizontal, StickyNote, User } from 'lucide-react'
 import { toast } from 'sonner'
-import { getPassportRecord } from './utils'
+import { getApplicantRecord, getPassportRecord } from './utils'
 import type { Application } from './types'
 
 type RowItemProps = {
@@ -25,6 +25,7 @@ export default function RowItem({
   onOpenNotes 
 }: RowItemProps) {
   const pp = getPassportRecord(item)
+  const applicant = getApplicantRecord(item)
   if (!pp) return null
 
   const hasNotes = pp.notes && pp.notes.trim().length > 0
@@ -82,7 +83,7 @@ export default function RowItem({
   ]
   const currentStepIdx = workflow.indexOf(pp.status || 'Pending Submission')
 
-  const createdAt = item?.created_at || item?.applications?.created_at || pp?.created_at
+  const createdAt = item?.created_at || pp?.created_at
   const formatDate = (d: any) => {
     try {
       const dt = new Date(d)
@@ -102,16 +103,16 @@ export default function RowItem({
             <User className="w-4 h-4" />
           </div>
           <div className="space-y-1">
-            <div className="font-semibold text-slate-800 text-sm leading-tight">{item.applicants?.first_name} {item.applicants?.last_name}</div>
-            <div className="text-xs text-slate-500 font-mono leading-tight">{item.applicants?.citizen_number}</div>
+            <div className="font-semibold text-slate-800 text-sm leading-tight">{applicant?.first_name} {applicant?.last_name}</div>
+            <div className="text-xs text-slate-500 font-mono leading-tight">{applicant?.citizen_number}</div>
             {pp.family_head_email && (
               <div className="text-[11px] text-sky-700 font-semibold leading-tight">
                 FH Email: {pp.family_head_email}
               </div>
             )}
-            {item.applicants?.phone_number && (
+            {applicant?.phone_number && (
               <div className="text-[11px] text-slate-600 font-semibold leading-tight">
-                Phone: {item.applicants.phone_number}
+                Phone: {applicant.phone_number}
               </div>
             )}
             {createdAt && (

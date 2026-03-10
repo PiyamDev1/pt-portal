@@ -60,7 +60,7 @@ export type Application = {
   id: string
   tracking_number: string
   created_at?: string
-  applicants?: Applicant
+  applicants?: Applicant | Applicant[]
   pakistani_passport_applications?: PassportRecord | PassportRecord[]
 }
 
