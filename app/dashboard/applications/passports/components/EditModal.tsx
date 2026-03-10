@@ -55,6 +55,10 @@ export default function EditModal({
               <input id="edit-email" className="w-full p-2 border rounded text-sm" value={editFormData.applicantEmail || ''} onChange={(e) => setEditFormData({ ...editFormData, applicantEmail: e.target.value })} />
             </div>
             <div>
+              <label htmlFor="edit-biometrics-email" className="text-[10px] uppercase font-bold text-slate-400">Biometrics Email</label>
+              <input id="edit-biometrics-email" className="w-full p-2 border rounded text-sm" value={editFormData.biometricsEmail || ''} onChange={(e) => setEditFormData({ ...editFormData, biometricsEmail: e.target.value })} />
+            </div>
+            <div>
               <label htmlFor="edit-phone" className="text-[10px] uppercase font-bold text-slate-400">Phone Number</label>
               <input id="edit-phone" className="w-full p-2 border rounded text-sm" value={editFormData.applicantPhone || ''} onChange={(e) => setEditFormData({ ...editFormData, applicantPhone: e.target.value })} />
             </div>
