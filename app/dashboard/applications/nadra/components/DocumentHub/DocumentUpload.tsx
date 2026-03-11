@@ -395,12 +395,16 @@ export function DocumentUpload({
                   <>
                     <div className="mt-1 w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
                       <div
-                        className="bg-blue-500 h-full transition-all duration-300"
+                        className={`h-full transition-all duration-300 ${
+                          upload.progress >= 95 ? 'bg-amber-500 animate-pulse' : 'bg-blue-500'
+                        }`}
                         style={{ width: `${upload.progress}%` }}
                       />
                     </div>
                     <p className="text-xs text-slate-500 mt-0.5">
-                      {Math.round(upload.progress)}%
+                      {upload.progress >= 95
+                        ? 'Finalizing upload. Primary check and fallback storage can add a short delay...'
+                        : `${Math.round(upload.progress)}%`}
                     </p>
                   </>
                 )}

@@ -1,48 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3'
+import { GetObjectCommand } from '@aws-sdk/client-s3'
 import { Readable } from 'stream'
 import { getS3Client } from '@/lib/s3Client'
 import { getR2Client, isR2Configured } from '@/lib/r2Client'
+import { migrateObjectFromR2ToMinio } from '@/lib/r2Migration'
 
 const MINIO_BUCKET = process.env.MINIO_BUCKET_NAME || 'portal-documents'
 const R2_BUCKET = process.env.R2_BUCKET_NAME || 'portal-fallback'
-
-async function migrateFromR2ToMinio(key: string): Promise<void> {
-  if (!isR2Configured()) return
-
-  try {
-    const r2Client = getR2Client()
-    const minioClient = getS3Client()
-
-    const r2Object = await r2Client.send(
-      new GetObjectCommand({
-        Bucket: R2_BUCKET,
-        Key: key,
-      })
-    )
-
-    if (!r2Object.Body) return
-
-    const bytes = await r2Object.Body.transformToByteArray()
-    await minioClient.send(
-      new PutObjectCommand({
-        Bucket: MINIO_BUCKET,
-        Key: key,
-        Body: Buffer.from(bytes),
-        ContentType: r2Object.ContentType || 'application/octet-stream',
-      })
-    )
-
-    await r2Client.send(
-      new DeleteObjectCommand({
-        Bucket: R2_BUCKET,
-        Key: key,
-      })
-    )
-  } catch {
-    // Non-fatal best effort migration
-  }
-}
 
 /**
  * GET /api/documents/preview?key=<minio-object-key>
@@ -82,7 +46,7 @@ export async function GET(request: NextRequest) {
       )
 
       // Try to move object back to MinIO for future reads
-      void migrateFromR2ToMinio(key)
+      void migrateObjectFromR2ToMinio(key)
     }
 
     if (!result.Body) {

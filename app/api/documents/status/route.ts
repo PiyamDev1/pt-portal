@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { HeadBucketCommand, PutBucketCorsCommand } from '@aws-sdk/client-s3'
 import { getS3Client } from '@/lib/s3Client'
 import { getR2Client, isR2Configured } from '@/lib/r2Client'
+import { migrateFallbackBatch } from '@/lib/r2Migration'
 
 const MINIO_ENDPOINT = process.env.MINIO_ENDPOINT || 'https://eu49v2.piyamtravel.com'
 const MINIO_BUCKET = process.env.MINIO_BUCKET_NAME || 'portal-documents'
@@ -108,6 +109,12 @@ export async function GET(request: NextRequest) {
   // Keep this non-blocking so status remains fast even if CORS update is slow.
   if (minio.connected) {
     void ensureCorsPolicy()
+  }
+
+  // When primary returns, opportunistically migrate a small fallback batch.
+  // This is non-blocking to keep status checks fast.
+  if (minio.connected && r2.connected) {
+    void migrateFallbackBatch(5)
   }
 
   const uploadAvailable = minio.connected || r2.connected
