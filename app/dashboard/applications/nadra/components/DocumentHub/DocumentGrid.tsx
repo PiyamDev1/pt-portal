@@ -100,6 +100,29 @@ function DocumentGridItem({
     return '📎'
   }
 
+  const getThumbnailSrc = () => {
+    const thumbnail = document.preview?.thumbnail
+
+    // Use valid URLs as-is.
+    if (
+      thumbnail &&
+      (thumbnail.startsWith('http://') ||
+        thumbnail.startsWith('https://') ||
+        thumbnail.startsWith('data:') ||
+        thumbnail.startsWith('/'))
+    ) {
+      return thumbnail
+    }
+
+    // If thumbnail is actually a raw object key, proxy it through the download route.
+    if (thumbnail) {
+      return `/api/documents/download?key=${encodeURIComponent(thumbnail)}`
+    }
+
+    // Default to the document object key.
+    return `/api/documents/download?key=${encodeURIComponent(document.minio.key)}`
+  }
+
   return (
     <div
       className="group relative rounded-lg overflow-hidden border border-slate-200 hover:border-blue-300 transition-all duration-200 hover:shadow-md bg-white cursor-pointer"
@@ -115,10 +138,7 @@ function DocumentGridItem({
           // Image preview
           <div className="relative w-full h-full">
             <img
-              src={
-                document.preview?.thumbnail ||
-                `/api/documents/download?key=${encodeURIComponent(document.minio.key)}`
-              }
+              src={getThumbnailSrc()}
               alt={document.fileName}
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
               onError={(e) => {
