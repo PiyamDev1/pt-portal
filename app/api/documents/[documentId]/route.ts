@@ -1,23 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-import { S3Client, DeleteObjectCommand } from '@aws-sdk/client-s3'
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
-
-const s3Client = new S3Client({
-  region: 'auto',
-  endpoint: process.env.MINIO_ENDPOINT,
-  credentials: {
-    accessKeyId: process.env.MINIO_ACCESS_KEY!,
-    secretAccessKey: process.env.MINIO_SECRET_KEY!,
-  },
-  forcePathStyle: true,
-  requestChecksumCalculation: 'WHEN_REQUIRED',
-  responseChecksumValidation: 'WHEN_REQUIRED',
-})
+import { DeleteObjectCommand } from '@aws-sdk/client-s3'
+import { getSupabaseClient } from '@/lib/supabaseClient'
+import { getS3Client } from '@/lib/s3Client'
 
 /**
  * DELETE /api/documents/[documentId]
@@ -29,14 +13,16 @@ export async function DELETE(
 ) {
   try {
     const { documentId } = await params
+    const supabase = getSupabaseClient()
+    const s3Client = getS3Client()
 
-    const { data: doc, error: fetchError } = await supabase
-      .from('documents')
-      .select('minio_key, minio_bucket')
-      .eq('id', documentId)
-      .single()
+     const { data: doc, error: fetchError } = await (supabase
+       .from('documents') as any)
+       .select('minio_key, minio_bucket')
+       .eq('id', documentId)
+       .single()
 
-    if (fetchError || !doc) {
+    if (fetchError || !doc || !doc.minio_key || !doc.minio_bucket) {
       return NextResponse.json({ success: false, error: 'Document not found' }, { status: 404 })
     }
 
@@ -47,10 +33,10 @@ export async function DELETE(
       })
     )
 
-    const { error: deleteError } = await supabase
-      .from('documents')
-      .update({ deleted: true })
-      .eq('id', documentId)
+     const { error: deleteError } = await (supabase
+       .from('documents') as any)
+       .update({ deleted: true })
+       .eq('id', documentId)
 
     if (deleteError) throw deleteError
 

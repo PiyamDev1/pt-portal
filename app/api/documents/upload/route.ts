@@ -4,21 +4,9 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3"
+import { PutObjectCommand } from "@aws-sdk/client-s3"
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
-
-// 1. Explicitly match your MinIO server region!
-const s3Client = new S3Client({
-  region: "eu-west-1",
-  endpoint: process.env.MINIO_ENDPOINT,
-  credentials: {
-    accessKeyId: process.env.MINIO_ACCESS_KEY!,
-    secretAccessKey: process.env.MINIO_SECRET_KEY!,
-  },
-  forcePathStyle: true,
-  requestChecksumCalculation: 'WHEN_REQUIRED',
-  responseChecksumValidation: 'WHEN_REQUIRED',
-});
+import { getS3Client } from '@/lib/s3Client'
 
 const MINIO_BUCKET = process.env.MINIO_BUCKET_NAME || 'portal-documents';
 
@@ -43,6 +31,7 @@ export async function POST(request: NextRequest) {
     });
 
     // 4. Sign the URL
+    const s3Client = getS3Client()
     const signedUrl = await getSignedUrl(s3Client, command, { expiresIn: 600 });
 
     return NextResponse.json({

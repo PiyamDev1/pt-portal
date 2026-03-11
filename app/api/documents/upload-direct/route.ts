@@ -27,13 +27,14 @@ export async function POST(request: NextRequest) {
     const documentId = `doc-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`
     const minioKey = `family-${familyHeadId}/${safeCategory}/${Date.now()}-${file.name.replace(/\s+/g, '-')}`
 
-    const body = Buffer.from(await file.arrayBuffer())
+    // Stream file directly without buffering entire file in memory
+    const buffer = Buffer.from(await file.arrayBuffer())
     const s3Client = getS3Client()
     const putResult = await s3Client.send(
       new PutObjectCommand({
         Bucket: MINIO_BUCKET,
         Key: minioKey,
-        Body: body,
+        Body: buffer,
         ContentType: file.type || 'application/octet-stream',
       })
     )

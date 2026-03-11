@@ -1,14 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+import { getSupabaseClient } from '@/lib/supabaseClient'
 
 /**
- * GET /api/documents?familyHeadId=ID&page=1&limit=20
+ * GET /api/documents?familyHeadId=ID&page=1&limit=20&category=general
  * Returns paginated non-deleted documents for a family.
+ * Optional category filter to reduce response size.
  * Only fetches necessary fields to reduce bandwidth.
  */
 export async function GET(request: NextRequest) {
@@ -17,17 +13,26 @@ export async function GET(request: NextRequest) {
     const familyHeadId = searchParams.get('familyHeadId')
     const page = Math.max(1, parseInt(searchParams.get('page') || '1'))
     const limit = Math.min(100, Math.max(5, parseInt(searchParams.get('limit') || '20')))
+    const category = searchParams.get('category')
     const offset = (page - 1) * limit
 
     if (!familyHeadId) {
       return NextResponse.json({ success: false, error: 'familyHeadId is required' }, { status: 400 })
     }
 
-    const { data, error, count } = await supabase
-      .from('documents')
+    const supabase = getSupabaseClient()
+    let query = supabase
+      .from('documents' as any)
       .select('id, file_name, file_size, file_type, category, uploaded_at, uploaded_by, family_head_id, minio_bucket, minio_key, minio_etag', { count: 'exact' })
       .eq('family_head_id', familyHeadId)
       .eq('deleted', false)
+
+    // Optional category filter for smaller responses
+    if (category) {
+      query = query.eq('category', category)
+    }
+
+    const { data, error, count } = await query
       .order('uploaded_at', { ascending: false })
       .range(offset, offset + limit - 1)
 
@@ -81,8 +86,9 @@ export async function POST(request: NextRequest) {
     }
 
     const bucket = process.env.MINIO_BUCKET_NAME || 'portal-documents'
+    const supabase = getSupabaseClient()
 
-    const { error } = await supabase.from('documents').insert({
+    const { error } = await (supabase.from('documents') as any).insert({
       id: documentId,
       file_name: fileName,
       file_size: fileSize || 0,

@@ -67,7 +67,7 @@ export interface DocumentService {
     familyHeadId: string,
     category?: 'receipt' | 'application-review' | 'general'
   ): Promise<BatchUploadResponse>
-  getDocuments(familyHeadId: string): Promise<Document[]>
+  getDocuments(familyHeadId: string, page?: number, limit?: number, category?: string): Promise<Document[]>
   deleteDocument(documentId: string): Promise<{ success: boolean }>
   downloadDocument(documentId: string): Promise<Blob>
 
@@ -304,17 +304,18 @@ class PlaceholderDocumentService implements DocumentService {
   }
 
   /**
-   * Get documents for a family with optional pagination
+   * Get documents for a family with optional pagination and category filtering
    * Supports both paginated and unpaginated responses
    */
-  async getDocuments(familyHeadId: string, page: number = 1, limit: number = 100): Promise<Document[]> {
+  async getDocuments(familyHeadId: string, page: number = 1, limit: number = 100, category?: string): Promise<Document[]> {
     try {
-      const response = await fetch(
-        `${API_BASE}/documents?familyHeadId=${familyHeadId}&page=${page}&limit=${limit}`,
-        {
-          method: 'GET',
-        }
-      )
+      let url = `${API_BASE}/documents?familyHeadId=${familyHeadId}&page=${page}&limit=${limit}`
+      if (category) {
+        url += `&category=${encodeURIComponent(category)}`
+      }
+      const response = await fetch(url, {
+        method: 'GET',
+      })
 
       if (!response.ok) {
         throw new Error(`Failed to fetch documents: ${response.statusText}`)

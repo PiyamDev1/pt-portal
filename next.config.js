@@ -24,6 +24,9 @@ const nextConfig = {
     formats: ['image/avif', 'image/webp'],
   },
 
+  // Enable compression for API responses (gzip + brotli on Vercel)
+  compress: true,
+
   // Headers for caching and security
   async headers() {
     return [
