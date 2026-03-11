@@ -175,31 +175,14 @@ class PlaceholderDocumentService implements DocumentService {
       // Guarantee we have a type to send
       const safeFileType = file.type || 'application/octet-stream'
 
-      // 2. Ask our Next.js API for a 10-minute secure upload link
-      const urlResponse = await fetch(`${API_BASE}/documents/upload`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fileName: file.name,
-          fileType: safeFileType,
-          familyHeadId,
-          category,
-        }),
-      })
-
-      const urlData = await urlResponse.json()
-      if (!urlData.success || !urlData.data) {
-        throw new Error(urlData.error || 'Failed to get secure upload link')
-      }
-
-      const { uploadUrl, documentId, minioKey } = urlData.data
-
-      // 3. Upload DIRECTLY to MinIO using XHR so we get real byte-level progress!
-      const etag = await new Promise<string>((resolve, reject) => {
+      // 2. Upload through our server as a reliable fallback when presigned PUT is unstable.
+      const uploadResult = await new Promise<{
+        documentId: string
+        minioKey: string
+        etag: string
+      }>((resolve, reject) => {
         const xhr = new XMLHttpRequest()
-        xhr.open('PUT', uploadUrl)
-
-        // NO ContentType overrides! We let S3 and the browser negotiate it naturally.
+        xhr.open('POST', `${API_BASE}/documents/upload-direct`)
 
         xhr.upload.onprogress = (event) => {
           if (event.lengthComputable && onProgress) {
@@ -208,19 +191,40 @@ class PlaceholderDocumentService implements DocumentService {
         }
 
         xhr.onload = () => {
-          if (xhr.status >= 200 && xhr.status < 300) {
-            resolve(xhr.getResponseHeader('ETag') || `unknown-${documentId}`)
-          } else {
-            reject(new Error(`MinIO rejected the upload (HTTP ${xhr.status})`))
+          if (xhr.status < 200 || xhr.status >= 300) {
+            reject(new Error(`Upload failed (HTTP ${xhr.status})`))
+            return
+          }
+
+          try {
+            const payload = JSON.parse(xhr.responseText)
+            if (!payload.success || !payload.data) {
+              reject(new Error(payload.error || 'Upload failed'))
+              return
+            }
+
+            resolve({
+              documentId: payload.data.documentId,
+              minioKey: payload.data.minioKey,
+              etag: payload.data.etag || `unknown-${payload.data.documentId}`,
+            })
+          } catch {
+            reject(new Error('Invalid upload response'))
           }
         }
 
         xhr.onerror = () => reject(new Error('Network error during upload'))
         xhr.ontimeout = () => reject(new Error('Upload timed out'))
+        xhr.timeout = 120000
 
-        // Send the raw, untouched file
-        xhr.send(file)
+        const formData = new FormData()
+        formData.append('file', file)
+        formData.append('familyHeadId', familyHeadId)
+        formData.append('category', category)
+        xhr.send(formData)
       })
+
+      const { documentId, minioKey, etag } = uploadResult
 
       // 4. Persist metadata to Supabase
       await fetch(`${API_BASE}/documents`, {

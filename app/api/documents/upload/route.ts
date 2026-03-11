@@ -16,6 +16,8 @@ const s3Client = new S3Client({
     secretAccessKey: process.env.MINIO_SECRET_KEY!,
   },
   forcePathStyle: true,
+  requestChecksumCalculation: 'WHEN_REQUIRED',
+  responseChecksumValidation: 'WHEN_REQUIRED',
 });
 
 const MINIO_BUCKET = process.env.MINIO_BUCKET_NAME || 'portal-documents';
