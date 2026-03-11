@@ -103,13 +103,21 @@ function DocumentGridItem({
   const getThumbnailSrc = () => {
     const thumbnail = document.preview?.thumbnail
 
-    // Use valid URLs as-is.
+    // Use only fully-qualified URLs (or data URLs) as-is.
     if (
       thumbnail &&
       (thumbnail.startsWith('http://') ||
         thumbnail.startsWith('https://') ||
-        thumbnail.startsWith('data:') ||
-        thumbnail.startsWith('/'))
+        thumbnail.startsWith('data:'))
+    ) {
+      return thumbnail
+    }
+
+    // Allow our own API thumbnail/preview endpoints if already present.
+    if (
+      thumbnail &&
+      (thumbnail.startsWith('/api/documents/preview?') ||
+        thumbnail.startsWith('/api/documents/download?'))
     ) {
       return thumbnail
     }
