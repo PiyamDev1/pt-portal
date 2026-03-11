@@ -194,24 +194,33 @@ class PlaceholderDocumentService implements DocumentService {
 
       const { uploadUrl, documentId, minioKey } = urlData.data
 
-      // 1. Read the file as raw bytes so fetch does not auto-attach a MIME type.
-      const safePayload = await file.arrayBuffer()
+      // 3. Upload DIRECTLY to MinIO using XHR so we get real byte-level progress!
+      const etag = await new Promise<string>((resolve, reject) => {
+        const xhr = new XMLHttpRequest()
+        xhr.open('PUT', uploadUrl)
 
-      // 2. Upload DIRECTLY using fetch
-      const minioResponse = await fetch(uploadUrl, {
-        method: 'PUT',
-        body: safePayload,
+        // NO ContentType overrides! We let S3 and the browser negotiate it naturally.
+
+        xhr.upload.onprogress = (event) => {
+          if (event.lengthComputable && onProgress) {
+            onProgress(Math.round((event.loaded / event.total) * 100))
+          }
+        }
+
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            resolve(xhr.getResponseHeader('ETag') || `unknown-${documentId}`)
+          } else {
+            reject(new Error(`MinIO rejected the upload (HTTP ${xhr.status})`))
+          }
+        }
+
+        xhr.onerror = () => reject(new Error('Network error during upload'))
+        xhr.ontimeout = () => reject(new Error('Upload timed out'))
+
+        // Send the raw, untouched file
+        xhr.send(file)
       })
-
-      if (!minioResponse.ok) {
-        const errText = await minioResponse.text()
-        throw new Error(`MinIO rejected the upload: ${minioResponse.status} - ${errText}`)
-      }
-
-      // Simulate 100% progress since fetch succeeded
-      if (onProgress) onProgress(100)
-
-      const etag = minioResponse.headers.get('ETag') || `unknown-${documentId}`
 
       // 4. Persist metadata to Supabase
       await fetch(`${API_BASE}/documents`, {

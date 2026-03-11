@@ -7,17 +7,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3"
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
 
-// Initialize the MinIO Client
+// 1. Explicitly match your MinIO server region!
 const s3Client = new S3Client({
-  region: "auto",
+  region: "eu-west-1",
   endpoint: process.env.MINIO_ENDPOINT,
   credentials: {
     accessKeyId: process.env.MINIO_ACCESS_KEY!,
     secretAccessKey: process.env.MINIO_SECRET_KEY!,
   },
   forcePathStyle: true,
-  requestChecksumCalculation: 'WHEN_REQUIRED',
-  responseChecksumValidation: 'WHEN_REQUIRED',
 });
 
 const MINIO_BUCKET = process.env.MINIO_BUCKET_NAME || 'portal-documents';
@@ -31,16 +29,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Missing required fields' }, { status: 400 });
     }
 
-    const normalizedFileType = fileType || 'application/octet-stream';
-
     // 2. Generate a secure path in the vault
     const safeCategory = category || 'general';
     const documentId = `doc-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const minioKey = `family-${familyHeadId}/${safeCategory}/${Date.now()}-${fileName.replace(/\s+/g, '-')}`;
 
-    // 3. Create the AWS Upload Command
-    // Do not sign ContentType. Browser header behavior can vary and cause
-    // signature mismatches; host-only signature is more robust for MinIO.
+    // 2. Clean Command (No ContentType hacks, let the browser send it natively)
     const command = new PutObjectCommand({
       Bucket: MINIO_BUCKET,
       Key: minioKey,
@@ -49,26 +43,12 @@ export async function POST(request: NextRequest) {
     // 4. Sign the URL
     const signedUrl = await getSignedUrl(s3Client, command, { expiresIn: 600 });
 
-    return NextResponse.json(
-      {
+    return NextResponse.json({
         success: true,
-        data: {
-          uploadUrl: signedUrl,
-          documentId,
-          minioKey,
-          fileName,
-          fileType: normalizedFileType,
-          category: safeCategory,
-          familyHeadId
-        },
-      },
-      { status: 200 }
-    )
+        data: { uploadUrl: signedUrl, documentId, minioKey, fileName, fileType, category: safeCategory, familyHeadId },
+    }, { status: 200 });
   } catch (error) {
     console.error('Error generating secure upload link:', error)
-    return NextResponse.json(
-      { success: false, error: 'Failed to generate secure upload link' },
-      { status: 500 }
-    )
+    return NextResponse.json({ success: false, error: 'Failed to generate secure upload link' }, { status: 500 });
   }
 }
