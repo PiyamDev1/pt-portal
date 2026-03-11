@@ -68,42 +68,16 @@ export function DocumentPreview({
     setZoom(100)
   }, [document?.id])
 
-  // Fetch a 10-minute presigned URL from the API, then use it directly
+  // Build a stable preview URL that streams bytes from our API.
   useEffect(() => {
-    let cancelled = false
-
-    const loadPreview = async () => {
-      if (!document) {
-        setPreviewSrc(null)
-        setIsLoading(false)
-        return
-      }
-
-      setIsLoading(true)
-
-      try {
-        const encodedKey = encodeURIComponent(document.minio.key)
-        const response = await fetch(`/api/documents/preview?key=${encodedKey}`)
-        if (!response.ok) throw new Error('Failed to fetch preview URL')
-        const { url } = await response.json()
-
-        if (!cancelled) {
-          setPreviewSrc(url)
-          setIsLoading(false)
-        }
-      } catch {
-        if (!cancelled) {
-          setPreviewSrc(null)
-          setIsLoading(false)
-        }
-      }
+    if (!document) {
+      setPreviewSrc(null)
+      setIsLoading(false)
+      return
     }
 
-    loadPreview()
-
-    return () => {
-      cancelled = true
-    }
+    setIsLoading(true)
+    setPreviewSrc(`/api/documents/preview?key=${encodeURIComponent(document.minio.key)}`)
   }, [document])
 
   // Format file size

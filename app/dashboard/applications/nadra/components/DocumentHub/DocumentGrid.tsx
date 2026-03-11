@@ -116,11 +116,11 @@ function DocumentGridItem({
 
     // If thumbnail is actually a raw object key, proxy it through the download route.
     if (thumbnail) {
-      return `/api/documents/download?key=${encodeURIComponent(thumbnail)}`
+      return `/api/documents/preview?key=${encodeURIComponent(thumbnail)}`
     }
 
     // Default to the document object key.
-    return `/api/documents/download?key=${encodeURIComponent(document.minio.key)}`
+    return `/api/documents/preview?key=${encodeURIComponent(document.minio.key)}`
   }
 
   return (
