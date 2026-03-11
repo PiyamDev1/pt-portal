@@ -194,16 +194,13 @@ class PlaceholderDocumentService implements DocumentService {
 
       const { uploadUrl, documentId, minioKey } = urlData.data
 
-      // 1. Wrap the file in a generic Blob so the browser CANNOT guess its MIME type
-      const safePayload = new Blob([file], { type: 'application/octet-stream' })
+      // 1. Read the file as raw bytes so fetch does not auto-attach a MIME type.
+      const safePayload = await file.arrayBuffer()
 
       // 2. Upload DIRECTLY using fetch
       const minioResponse = await fetch(uploadUrl, {
         method: 'PUT',
         body: safePayload,
-        headers: {
-          'Content-Type': 'application/octet-stream'
-        },
       })
 
       if (!minioResponse.ok) {

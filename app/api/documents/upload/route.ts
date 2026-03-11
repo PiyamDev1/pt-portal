@@ -39,11 +39,11 @@ export async function POST(request: NextRequest) {
     const minioKey = `family-${familyHeadId}/${safeCategory}/${Date.now()}-${fileName.replace(/\s+/g, '-')}`;
 
     // 3. Create the AWS Upload Command
+    // Do not sign ContentType. Browser header behavior can vary and cause
+    // signature mismatches; host-only signature is more robust for MinIO.
     const command = new PutObjectCommand({
       Bucket: MINIO_BUCKET,
       Key: minioKey,
-      // Hardcode this exact string. Do not use the dynamic fileType!
-      ContentType: 'application/octet-stream',
     });
 
     // 4. Sign the URL
