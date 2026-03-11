@@ -172,7 +172,8 @@ class PlaceholderDocumentService implements DocumentService {
     }
 
     try {
-      const normalizedFileType = file.type || 'application/octet-stream'
+      // Guarantee we have a type to send
+      const safeFileType = file.type || 'application/octet-stream'
 
       // 2. Ask our Next.js API for a 10-minute secure upload link
       const urlResponse = await fetch(`${API_BASE}/documents/upload`, {
@@ -180,7 +181,7 @@ class PlaceholderDocumentService implements DocumentService {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           fileName: file.name,
-          fileType: normalizedFileType,
+          fileType: safeFileType,
           familyHeadId,
           category,
         }),
@@ -193,10 +194,13 @@ class PlaceholderDocumentService implements DocumentService {
 
       const { uploadUrl, documentId, minioKey } = urlData.data
 
-      // 3. Upload DIRECTLY to MinIO using modern fetch instead of legacy XHR
+      // 2. Upload DIRECTLY using fetch, forcing the EXACT same Content-Type in the headers
       const minioResponse = await fetch(uploadUrl, {
         method: 'PUT',
-        body: file
+        body: file,
+        headers: {
+          'Content-Type': safeFileType
+        }
       })
 
       if (!minioResponse.ok) {
@@ -217,7 +221,7 @@ class PlaceholderDocumentService implements DocumentService {
           documentId,
           fileName: file.name,
           fileSize: file.size,
-          fileType: normalizedFileType,
+          fileType: safeFileType,
           category,
           familyHeadId,
           minioKey,
@@ -230,7 +234,7 @@ class PlaceholderDocumentService implements DocumentService {
         id: documentId,
         fileName: file.name,
         fileSize: file.size,
-        fileType: normalizedFileType,
+        fileType: safeFileType,
         category,
         uploadedAt: new Date().toISOString(),
         uploadedBy: 'staff',

@@ -38,13 +38,15 @@ export async function POST(request: NextRequest) {
     const documentId = `doc-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const minioKey = `family-${familyHeadId}/${safeCategory}/${Date.now()}-${fileName.replace(/\s+/g, '-')}`;
 
-    // 3. Create the AWS Upload Command (No ContentType!)
+    // 3. Create the AWS Upload Command
+    // We MUST include ContentType so the math expects the browser's header
     const command = new PutObjectCommand({
       Bucket: MINIO_BUCKET,
       Key: minioKey,
+      ContentType: fileType || 'application/octet-stream',
     });
 
-    // 4. Sign the URL natively
+    // 4. Sign the URL natively (Do NOT use signableHeaders overrides!)
     const signedUrl = await getSignedUrl(s3Client, command, { expiresIn: 600 });
 
     return NextResponse.json(
