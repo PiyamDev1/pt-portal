@@ -79,13 +79,23 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { documentId, fileName, fileSize, fileType, category, familyHeadId, minioKey, minioEtag } = body
+    const {
+      documentId,
+      fileName,
+      fileSize,
+      fileType,
+      category,
+      familyHeadId,
+      minioKey,
+      minioEtag,
+      storageBucket,
+    } = body
 
     if (!documentId || !fileName || !familyHeadId || !minioKey) {
       return NextResponse.json({ success: false, error: 'Missing required fields' }, { status: 400 })
     }
 
-    const bucket = process.env.MINIO_BUCKET_NAME || 'portal-documents'
+    const bucket = storageBucket || process.env.MINIO_BUCKET_NAME || 'portal-documents'
     const supabase = getSupabaseClient()
 
     const { error } = await (supabase.from('documents') as any).insert({

@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { DeleteObjectCommand } from '@aws-sdk/client-s3'
 import { getSupabaseClient } from '@/lib/supabaseClient'
 import { getS3Client } from '@/lib/s3Client'
+import { getR2Client, isR2Configured } from '@/lib/r2Client'
+
+const MINIO_BUCKET = process.env.MINIO_BUCKET_NAME || 'portal-documents'
+const R2_BUCKET = process.env.R2_BUCKET_NAME || 'portal-fallback'
 
 /**
  * DELETE /api/documents/[documentId]
@@ -26,12 +30,39 @@ export async function DELETE(
       return NextResponse.json({ success: false, error: 'Document not found' }, { status: 404 })
     }
 
-    await s3Client.send(
-      new DeleteObjectCommand({
-        Bucket: doc.minio_bucket,
-        Key: doc.minio_key,
-      })
-    )
+    const storedBucket = String(doc.minio_bucket || '')
+
+    if (storedBucket === R2_BUCKET && isR2Configured()) {
+      const r2Client = getR2Client()
+      await r2Client.send(
+        new DeleteObjectCommand({
+          Bucket: R2_BUCKET,
+          Key: doc.minio_key,
+        })
+      )
+    } else {
+      await s3Client.send(
+        new DeleteObjectCommand({
+          Bucket: storedBucket || MINIO_BUCKET,
+          Key: doc.minio_key,
+        })
+      )
+
+      // Best-effort cleanup in R2 too, if object was already migrated or duplicated
+      if (isR2Configured()) {
+        try {
+          const r2Client = getR2Client()
+          await r2Client.send(
+            new DeleteObjectCommand({
+              Bucket: R2_BUCKET,
+              Key: doc.minio_key,
+            })
+          )
+        } catch {
+          // Ignore cleanup failures
+        }
+      }
+    }
 
      const { error: deleteError } = await (supabase
        .from('documents') as any)

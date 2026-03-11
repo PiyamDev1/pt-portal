@@ -180,6 +180,7 @@ class PlaceholderDocumentService implements DocumentService {
         documentId: string
         minioKey: string
         etag: string
+        storageBucket?: string
       }>((resolve, reject) => {
         const xhr = new XMLHttpRequest()
         xhr.open('POST', `${API_BASE}/documents/upload-direct`)
@@ -209,6 +210,7 @@ class PlaceholderDocumentService implements DocumentService {
               documentId: payload.data.documentId,
               minioKey: payload.data.minioKey,
               etag: payload.data.etag || `unknown-${payload.data.documentId}`,
+              storageBucket: payload.data.storageBucket,
             })
           } catch {
             reject(new Error('Invalid upload response'))
@@ -226,7 +228,7 @@ class PlaceholderDocumentService implements DocumentService {
         xhr.send(formData)
       })
 
-      const { documentId, minioKey, etag } = uploadResult
+      const { documentId, minioKey, etag, storageBucket } = uploadResult
 
       if (onProgress) onProgress(98)
 
@@ -243,6 +245,7 @@ class PlaceholderDocumentService implements DocumentService {
           familyHeadId,
           minioKey,
           minioEtag: etag,
+          storageBucket,
         }),
       })
 
@@ -259,7 +262,7 @@ class PlaceholderDocumentService implements DocumentService {
         uploadedBy: 'staff',
         familyHeadId,
         minio: {
-          bucket: MINIO_BUCKET,
+          bucket: storageBucket || MINIO_BUCKET,
           key: minioKey,
           etag,
         },

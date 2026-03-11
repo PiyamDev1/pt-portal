@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { PutObjectCommand } from '@aws-sdk/client-s3'
 import { getS3Client } from '@/lib/s3Client'
+import { getR2Client, isR2Configured } from '@/lib/r2Client'
 
 const MINIO_BUCKET = process.env.MINIO_BUCKET_NAME || 'portal-documents'
+const R2_BUCKET = process.env.R2_BUCKET_NAME || 'portal-fallback'
 
 /**
  * POST /api/documents/upload-direct
@@ -29,22 +31,48 @@ export async function POST(request: NextRequest) {
 
     // Stream file directly without buffering entire file in memory
     const buffer = Buffer.from(await file.arrayBuffer())
-    const s3Client = getS3Client()
-    const putResult = await s3Client.send(
-      new PutObjectCommand({
-        Bucket: MINIO_BUCKET,
-        Key: minioKey,
-        Body: buffer,
-        ContentType: file.type || 'application/octet-stream',
-      })
-    )
+    let etag = `unknown-${documentId}`
+    let storageProvider: 'minio' | 'r2' = 'minio'
+    let storageBucket = MINIO_BUCKET
+
+    try {
+      const s3Client = getS3Client()
+      const putResult = await s3Client.send(
+        new PutObjectCommand({
+          Bucket: MINIO_BUCKET,
+          Key: minioKey,
+          Body: buffer,
+          ContentType: file.type || 'application/octet-stream',
+        })
+      )
+      etag = putResult.ETag || etag
+    } catch (minioError) {
+      if (!isR2Configured()) {
+        throw minioError
+      }
+
+      const r2Client = getR2Client()
+      const fallbackResult = await r2Client.send(
+        new PutObjectCommand({
+          Bucket: R2_BUCKET,
+          Key: minioKey,
+          Body: buffer,
+          ContentType: file.type || 'application/octet-stream',
+        })
+      )
+      storageProvider = 'r2'
+      storageBucket = R2_BUCKET
+      etag = fallbackResult.ETag || etag
+    }
 
     return NextResponse.json({
       success: true,
       data: {
         documentId,
         minioKey,
-        etag: putResult.ETag || `unknown-${documentId}`,
+        etag,
+        storageProvider,
+        storageBucket,
         fileName: file.name,
         fileType: file.type || 'application/octet-stream',
         category: safeCategory,
