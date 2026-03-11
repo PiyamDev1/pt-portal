@@ -186,7 +186,9 @@ class PlaceholderDocumentService implements DocumentService {
 
         xhr.upload.onprogress = (event) => {
           if (event.lengthComputable && onProgress) {
-            onProgress(Math.round((event.loaded / event.total) * 100))
+            const percent = Math.round((event.loaded / event.total) * 100)
+            // Keep room for server-side MinIO write + metadata persistence.
+            onProgress(Math.min(percent, 95))
           }
         }
 
@@ -226,6 +228,8 @@ class PlaceholderDocumentService implements DocumentService {
 
       const { documentId, minioKey, etag } = uploadResult
 
+      if (onProgress) onProgress(98)
+
       // 4. Persist metadata to Supabase
       await fetch(`${API_BASE}/documents`, {
         method: 'POST',
@@ -241,6 +245,8 @@ class PlaceholderDocumentService implements DocumentService {
           minioEtag: etag,
         }),
       })
+
+      if (onProgress) onProgress(100)
 
       // 5. Return the formatted Document object back to the UI
       return {

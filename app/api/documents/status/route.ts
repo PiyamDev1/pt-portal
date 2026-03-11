@@ -2,15 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { S3Client, HeadBucketCommand, PutBucketCorsCommand } from '@aws-sdk/client-s3'
 
 const s3Client = new S3Client({
-  region: 'auto',
+  region: 'eu-west-1',
   endpoint: process.env.MINIO_ENDPOINT,
   credentials: {
     accessKeyId: process.env.MINIO_ACCESS_KEY!,
     secretAccessKey: process.env.MINIO_SECRET_KEY!,
   },
   forcePathStyle: true,
-  requestChecksumCalculation: 'WHEN_REQUIRED',
-  responseChecksumValidation: 'WHEN_REQUIRED',
 })
 
 const MINIO_ENDPOINT = process.env.MINIO_ENDPOINT || 'https://eu49v2.piyamtravel.com'
@@ -69,6 +67,11 @@ export async function GET(request: NextRequest) {
     })
   } catch (error) {
     const ping = Math.round(performance.now() - startTime)
+    const errorMessage =
+      error && typeof error === 'object' && 'name' in error && 'message' in error
+        ? `${String((error as { name?: string }).name || 'Error')}: ${String((error as { message?: string }).message || 'Connection failed')}`
+        : 'Connection failed'
+
     return NextResponse.json({
       success: true,
       status: {
@@ -76,7 +79,7 @@ export async function GET(request: NextRequest) {
         ping,
         timestamp: new Date().toISOString(),
         endpoint: MINIO_ENDPOINT,
-        error: error instanceof Error ? error.message : 'Connection failed',
+        error: errorMessage,
       },
     })
   }
