@@ -115,7 +115,10 @@ function DocumentGridItem({
           // Image preview
           <div className="relative w-full h-full">
             <img
-              src={document.preview?.thumbnail || document.minio.key}
+              src={
+                document.preview?.thumbnail ||
+                `/api/documents/download?key=${encodeURIComponent(document.minio.key)}`
+              }
               alt={document.fileName}
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
               onError={(e) => {
