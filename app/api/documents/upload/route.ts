@@ -47,7 +47,12 @@ export async function POST(request: NextRequest) {
     });
 
     // 4. Cryptographically sign the URL to self-destruct in exactly 10 minutes (600 seconds)
-    const signedUrl = await getSignedUrl(s3Client, command, { expiresIn: 600 });
+    const signedUrl = await getSignedUrl(s3Client, command, {
+      expiresIn: 600,
+      // CRITICAL FIX: Force AWS SDK to only sign these two headers.
+      // This stops it from expecting headers that the browser won't send.
+      signableHeaders: new Set(['host', 'content-type']),
+    });
 
     return NextResponse.json(
       {
