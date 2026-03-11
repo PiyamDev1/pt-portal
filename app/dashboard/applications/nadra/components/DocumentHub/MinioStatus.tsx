@@ -51,6 +51,9 @@ export function MinioStatus({
   )
   const [isRefreshing, setIsRefreshing] = useState(false)
   const endpointLabel = 'EU server 49v2'
+  const uploadOnlyFallback = Boolean(status?.capabilities?.uploadOnlyFallback)
+  const canUpload = Boolean(status?.capabilities?.upload)
+  const previewDownloadAvailable = Boolean(status?.capabilities?.previewDownload)
 
   // Notify parent of status changes
   React.useEffect(() => {
@@ -92,6 +95,11 @@ export function MinioStatus({
             <div className="w-2 h-2 bg-green-500 rounded-full" />
             <span className="text-xs text-slate-600">EU server 49v2 Connected</span>
           </>
+        ) : uploadOnlyFallback ? (
+          <>
+            <div className="w-2 h-2 bg-amber-500 rounded-full" />
+            <span className="text-xs text-slate-600">Primary Offline • Fallback Upload Available</span>
+          </>
         ) : (
           <>
             <div className="w-2 h-2 bg-red-500 rounded-full" />
@@ -106,7 +114,11 @@ export function MinioStatus({
   return (
     <div
       className={`border rounded-lg p-4 bg-white ${
-        connected ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'
+        connected
+          ? 'border-green-200 bg-green-50'
+          : uploadOnlyFallback
+            ? 'border-amber-200 bg-amber-50'
+            : 'border-red-200 bg-red-50'
       } ${className}`}
     >
       <div className="flex items-start justify-between gap-4">
@@ -114,6 +126,8 @@ export function MinioStatus({
         <div className="flex items-start gap-3 flex-1">
           {connected ? (
             <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+          ) : uploadOnlyFallback ? (
+            <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
           ) : (
             <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
           )}
@@ -121,7 +135,11 @@ export function MinioStatus({
           <div className="flex-1 min-w-0">
             {/* Status Title */}
             <h3 className="font-semibold text-slate-800">
-              {connected ? 'Document Storage Connected' : 'Document Storage Offline'}
+              {connected
+                ? 'Document Storage Connected'
+                : uploadOnlyFallback
+                  ? 'Primary Storage Offline • Fallback Active'
+                  : 'Document Storage Offline'}
             </h3>
 
             {/* Status Details */}
@@ -135,6 +153,27 @@ export function MinioStatus({
               {connected && ping !== null && (
                 <p>
                   <span className="font-medium">Latency:</span> {ping}ms
+                </p>
+              )}
+
+              {!connected && status?.fallback?.connected && (
+                <p className="text-amber-700">
+                  <span className="font-medium">Fallback:</span> Cloudflare connected
+                  {status?.fallback?.ping !== null && status?.fallback?.ping !== undefined
+                    ? ` (${status.fallback.ping}ms)`
+                    : ''}
+                </p>
+              )}
+
+              {!connected && canUpload && (
+                <p className="text-amber-700 font-medium">
+                  Upload is available via fallback storage only.
+                </p>
+              )}
+
+              {!connected && !previewDownloadAvailable && (
+                <p className="text-slate-700">
+                  Preview and download are unavailable until primary storage reconnects.
                 </p>
               )}
 
@@ -170,11 +209,17 @@ export function MinioStatus({
           className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
             connected
               ? 'bg-green-100 text-green-700'
-              : 'bg-red-100 text-red-700'
+              : uploadOnlyFallback
+                ? 'bg-amber-100 text-amber-700'
+                : 'bg-red-100 text-red-700'
           }`}
         >
-          <span className={`w-1.5 h-1.5 rounded-full ${connected ? 'bg-green-600' : 'bg-red-600'}`} />
-          {connected ? 'Ready' : 'Unavailable'}
+          <span
+            className={`w-1.5 h-1.5 rounded-full ${
+              connected ? 'bg-green-600' : uploadOnlyFallback ? 'bg-amber-600' : 'bg-red-600'
+            }`}
+          />
+          {connected ? 'Ready' : uploadOnlyFallback ? 'Upload-Only Fallback' : 'Unavailable'}
         </span>
       </div>
     </div>

@@ -61,6 +61,20 @@ export interface MinioStatus {
   ping?: number; // latency in milliseconds
   timestamp: string;
   endpoint: string;
+  mode?: 'primary' | 'fallback-upload-only' | 'offline';
+  fallback?: {
+    configured: boolean;
+    connected: boolean;
+    endpoint?: string | null;
+    bucket?: string;
+    ping?: number | null;
+    error?: string;
+  };
+  capabilities?: {
+    upload: boolean;
+    previewDownload: boolean;
+    uploadOnlyFallback: boolean;
+  };
   error?: string;
 }
 
