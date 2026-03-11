@@ -194,13 +194,16 @@ class PlaceholderDocumentService implements DocumentService {
 
       const { uploadUrl, documentId, minioKey } = urlData.data
 
-      // 2. Upload DIRECTLY using fetch, forcing the EXACT same Content-Type in the headers
+      // 1. Wrap the file in a generic Blob so the browser CANNOT guess its MIME type
+      const safePayload = new Blob([file], { type: 'application/octet-stream' })
+
+      // 2. Upload DIRECTLY using fetch
       const minioResponse = await fetch(uploadUrl, {
         method: 'PUT',
-        body: file,
+        body: safePayload,
         headers: {
-          'Content-Type': safeFileType
-        }
+          'Content-Type': 'application/octet-stream'
+        },
       })
 
       if (!minioResponse.ok) {
@@ -208,7 +211,7 @@ class PlaceholderDocumentService implements DocumentService {
         throw new Error(`MinIO rejected the upload: ${minioResponse.status} - ${errText}`)
       }
 
-      // Simulate 100% progress since fetch succeeded instantly
+      // Simulate 100% progress since fetch succeeded
       if (onProgress) onProgress(100)
 
       const etag = minioResponse.headers.get('ETag') || `unknown-${documentId}`
