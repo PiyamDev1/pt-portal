@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getDocumentMigrationMetrics } from '@/lib/documentMigrationMetrics'
-import { requireAdminSession } from '@/lib/adminSessionAuth'
+import { requireMaintenanceSession } from '@/lib/adminSessionAuth'
 import { getPersistentMigrationEvents } from '@/lib/documentMigrationStore'
 import { getDocumentStorageConstants, getDocumentStorageStatus } from '@/lib/documentStorageStatus'
 import { migrateFallbackBatch } from '@/lib/r2Migration'
@@ -123,7 +123,7 @@ async function getOverview() {
 }
 
 export async function GET() {
-  const access = await requireAdminSession()
+  const access = await requireMaintenanceSession()
   if (!access.authorized) {
     return access.response
   }
@@ -140,7 +140,7 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const access = await requireAdminSession()
+  const access = await requireMaintenanceSession()
   if (!access.authorized) {
     return access.response
   }

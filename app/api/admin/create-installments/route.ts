@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
+import { requireMaintenanceSession } from '@/lib/adminSessionAuth'
 
 const createTableSQL = `
   CREATE TABLE IF NOT EXISTS public.loan_installments (
@@ -22,6 +23,11 @@ const createTableSQL = `
 
 export async function POST(request: Request) {
   try {
+    const access = await requireMaintenanceSession()
+    if (!access.authorized) {
+      return access.response
+    }
+
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY
     

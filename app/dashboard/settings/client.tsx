@@ -25,8 +25,10 @@ export default function SettingsClient({
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
 
-  // Only Master Admin and Admin roles can edit organization settings
-  const isAdmin = ['Admin', 'Master Admin'].includes(userRole)
+  // Organization admins can manage hierarchy/staff/branches.
+  const isOrgAdmin = ['Admin', 'Master Admin'].includes(userRole)
+  // Maintenance admins can access maintenance and document migration tooling.
+  const canAccessMaintenance = ['Maintenance Admin', 'Admin', 'Master Admin'].includes(userRole)
 
   return (
     <div className="flex flex-col md:flex-row gap-8 min-h-screen">
@@ -48,70 +50,87 @@ export default function SettingsClient({
             Security & Password
           </button>
 
-          {isAdmin && (
+          {(isOrgAdmin || canAccessMaintenance) && (
             <>
-              <div className="px-4 py-3 bg-slate-100 border-b border-slate-200 text-xs font-bold text-slate-500 uppercase tracking-wider border-t">
-                Organization
-              </div>
-              <button 
-                onClick={() => setActiveTab('branches')}
-                className={`w-full text-left px-4 py-3 border-l-4 transition-colors ${
-                  activeTab === 'branches' 
-                    ? 'border-blue-900 bg-blue-50 font-medium text-blue-900' 
-                    : 'border-transparent hover:bg-slate-50 text-slate-600'
-                }`}
-              >
-                Branches & Locations
-              </button>
-              <button 
-                onClick={() => setActiveTab('staff')}
-                className={`w-full text-left px-4 py-3 border-l-4 transition-colors ${
-                  activeTab === 'staff' 
-                    ? 'border-blue-900 bg-blue-50 font-medium text-blue-900' 
-                    : 'border-transparent hover:bg-slate-50 text-slate-600'
-                }`}
-              >
-                Staff Management
-              </button>
-              <button 
-                onClick={() => setActiveTab('hierarchy')}
-                className={`w-full text-left px-4 py-3 border-l-4 transition-colors ${
-                  activeTab === 'hierarchy' 
-                    ? 'border-blue-900 bg-blue-50 font-medium text-blue-900' 
-                    : 'border-transparent hover:bg-slate-50 text-slate-600'
-                }`}
-              >
-                Hierarchy Tree
-              </button>
-              <button 
-                onClick={() => setActiveTab('document-storage')}
-                className={`w-full text-left px-4 py-3 border-l-4 transition-colors ${
-                  activeTab === 'document-storage' 
-                    ? 'border-blue-900 bg-blue-50 font-medium text-blue-900' 
-                    : 'border-transparent hover:bg-slate-50 text-slate-600'
-                }`}
-              >
-                Document Storage
-              </button>
-              <button 
-                onClick={() => setActiveTab('maintenance')}
-                className={`w-full text-left px-4 py-3 border-l-4 transition-colors ${
-                  activeTab === 'maintenance' 
-                    ? 'border-blue-900 bg-blue-50 font-medium text-blue-900' 
-                    : 'border-transparent hover:bg-slate-50 text-slate-600'
-                }`}
-              >
-                Data Maintenance
-              </button>
-              <div className="px-4 py-3 bg-slate-100 border-b border-slate-200 text-xs font-bold text-slate-500 uppercase tracking-wider border-t">
-                Others
-              </div>
-              <Link
-                href="/dashboard/pricing"
-                className="w-full text-left px-4 py-3 border-l-4 border-transparent hover:bg-slate-50 text-slate-600 block"
-              >
-                Pricing Management
-              </Link>
+              {isOrgAdmin && (
+                <>
+                  <div className="px-4 py-3 bg-slate-100 border-b border-slate-200 text-xs font-bold text-slate-500 uppercase tracking-wider border-t">
+                    Organization
+                  </div>
+                  <button 
+                    onClick={() => setActiveTab('branches')}
+                    className={`w-full text-left px-4 py-3 border-l-4 transition-colors ${
+                      activeTab === 'branches' 
+                        ? 'border-blue-900 bg-blue-50 font-medium text-blue-900' 
+                        : 'border-transparent hover:bg-slate-50 text-slate-600'
+                    }`}
+                  >
+                    Branches & Locations
+                  </button>
+                  <button 
+                    onClick={() => setActiveTab('staff')}
+                    className={`w-full text-left px-4 py-3 border-l-4 transition-colors ${
+                      activeTab === 'staff' 
+                        ? 'border-blue-900 bg-blue-50 font-medium text-blue-900' 
+                        : 'border-transparent hover:bg-slate-50 text-slate-600'
+                    }`}
+                  >
+                    Staff Management
+                  </button>
+                  <button 
+                    onClick={() => setActiveTab('hierarchy')}
+                    className={`w-full text-left px-4 py-3 border-l-4 transition-colors ${
+                      activeTab === 'hierarchy' 
+                        ? 'border-blue-900 bg-blue-50 font-medium text-blue-900' 
+                        : 'border-transparent hover:bg-slate-50 text-slate-600'
+                    }`}
+                  >
+                    Hierarchy Tree
+                  </button>
+                </>
+              )}
+
+              {canAccessMaintenance && (
+                <>
+                  <div className="px-4 py-3 bg-slate-100 border-b border-slate-200 text-xs font-bold text-slate-500 uppercase tracking-wider border-t">
+                    Maintenance
+                  </div>
+                  <button 
+                    onClick={() => setActiveTab('document-storage')}
+                    className={`w-full text-left px-4 py-3 border-l-4 transition-colors ${
+                      activeTab === 'document-storage' 
+                        ? 'border-blue-900 bg-blue-50 font-medium text-blue-900' 
+                        : 'border-transparent hover:bg-slate-50 text-slate-600'
+                    }`}
+                  >
+                    Document Storage
+                  </button>
+                  <button 
+                    onClick={() => setActiveTab('maintenance')}
+                    className={`w-full text-left px-4 py-3 border-l-4 transition-colors ${
+                      activeTab === 'maintenance' 
+                        ? 'border-blue-900 bg-blue-50 font-medium text-blue-900' 
+                        : 'border-transparent hover:bg-slate-50 text-slate-600'
+                    }`}
+                  >
+                    Data Maintenance
+                  </button>
+                </>
+              )}
+
+              {isOrgAdmin && (
+                <>
+                  <div className="px-4 py-3 bg-slate-100 border-b border-slate-200 text-xs font-bold text-slate-500 uppercase tracking-wider border-t">
+                    Others
+                  </div>
+                  <Link
+                    href="/dashboard/pricing"
+                    className="w-full text-left px-4 py-3 border-l-4 border-transparent hover:bg-slate-50 text-slate-600 block"
+                  >
+                    Pricing Management
+                  </Link>
+                </>
+              )}
             </>
           )}
         </div>
@@ -128,7 +147,7 @@ export default function SettingsClient({
           />
         )}
 
-        {activeTab === 'branches' && isAdmin && (
+        {activeTab === 'branches' && isOrgAdmin && (
           <BranchesTab 
             initialLocations={initialLocations}
             supabase={supabase}
@@ -137,7 +156,7 @@ export default function SettingsClient({
           />
         )}
 
-        {activeTab === 'staff' && isAdmin && (
+        {activeTab === 'staff' && isOrgAdmin && (
           <StaffTab 
             initialEmployees={initialEmployees}
             initialRoles={initialRoles}
@@ -150,7 +169,7 @@ export default function SettingsClient({
           />
         )}
 
-        {activeTab === 'hierarchy' && isAdmin && (
+        {activeTab === 'hierarchy' && isOrgAdmin && (
           <HierarchyTab 
             initialEmployees={initialEmployees}
             initialRoles={initialRoles}
@@ -159,11 +178,11 @@ export default function SettingsClient({
           />
         )}
 
-        {activeTab === 'document-storage' && isAdmin && (
+        {activeTab === 'document-storage' && canAccessMaintenance && (
           <DocumentMigrationOverviewTab />
         )}
 
-        {activeTab === 'maintenance' && isAdmin && (
+        {activeTab === 'maintenance' && canAccessMaintenance && (
           <MaintenanceTab />
         )}
 

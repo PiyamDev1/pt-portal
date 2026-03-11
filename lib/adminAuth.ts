@@ -12,13 +12,17 @@ interface VerifyResult {
   }
 }
 
+interface VerifyOptions {
+  allowMaintenanceRole?: boolean
+}
+
 /**
  * Utility to verify admin access for protected endpoints
  * Uses Google authentication - only allows users who:
  * 1. Are logged in via Google
  * 2. Have admin role in profiles table
  */
-export async function verifyAdminAccess(request: Request): Promise<VerifyResult> {
+export async function verifyAdminAccess(request: Request, options?: VerifyOptions): Promise<VerifyResult> {
   try {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -88,8 +92,10 @@ export async function verifyAdminAccess(request: Request): Promise<VerifyResult>
       }
     }
 
-    // Check if user has admin or master admin role
-    const isAdmin = ['Admin', 'Master Admin'].includes(roleData.name)
+    const allowedRoles = options?.allowMaintenanceRole
+      ? ['Admin', 'Master Admin', 'Maintenance Admin']
+      : ['Admin', 'Master Admin']
+    const isAdmin = allowedRoles.includes(roleData.name)
     
     if (!isAdmin) {
       console.warn(`⚠️  Access denied for ${user.email} - insufficient permissions (role: ${roleData.name})`)
