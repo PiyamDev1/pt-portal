@@ -13,7 +13,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "sync:pdf-worker": "node scripts/sync-pdf-worker.mjs",
+    "postinstall": "npm run sync:pdf-worker"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1006.0",

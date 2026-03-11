@@ -1,4 +1,10 @@
 import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3'
+import {
+  recordMigrationAttempt,
+  recordMigrationBatch,
+  recordMigrationFailure,
+  recordMigrationSuccess,
+} from '@/lib/documentMigrationMetrics'
 import { getR2Client, isR2Configured } from '@/lib/r2Client'
 import { getS3Client } from '@/lib/s3Client'
 import { getSupabaseClient } from '@/lib/supabaseClient'
@@ -14,6 +20,7 @@ export async function migrateObjectFromR2ToMinio(key: string): Promise<boolean> 
   if (!isR2Configured()) return false
 
   try {
+    recordMigrationAttempt()
     const r2Client = getR2Client()
     const minioClient = getS3Client()
 
@@ -53,8 +60,10 @@ export async function migrateObjectFromR2ToMinio(key: string): Promise<boolean> 
       .eq('minio_key', key)
       .eq('deleted', false)
 
+    recordMigrationSuccess(key)
     return true
-  } catch {
+  } catch (error) {
+    recordMigrationFailure(key, error instanceof Error ? error.message : 'Migration failed')
     return false
   }
 }
@@ -84,5 +93,6 @@ export async function migrateFallbackBatch(limit: number = 5): Promise<{ attempt
     if (ok) migrated += 1
   }
 
+  recordMigrationBatch(data.length, migrated)
   return { attempted: data.length, migrated }
 }

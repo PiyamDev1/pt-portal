@@ -5,6 +5,7 @@ import SecurityTab from './components/SecurityTab'
 import BranchesTab from './components/BranchesTab'
 import StaffTab from './components/StaffTab'
 import HierarchyTab from './components/HierarchyTab'
+import { DocumentMigrationOverviewTab } from './components/DocumentMigrationOverviewTab'
 import { MaintenanceTab } from './components/MaintenanceTab'
 import Link from 'next/link'
 
@@ -83,6 +84,16 @@ export default function SettingsClient({
                 Hierarchy Tree
               </button>
               <button 
+                onClick={() => setActiveTab('document-storage')}
+                className={`w-full text-left px-4 py-3 border-l-4 transition-colors ${
+                  activeTab === 'document-storage' 
+                    ? 'border-blue-900 bg-blue-50 font-medium text-blue-900' 
+                    : 'border-transparent hover:bg-slate-50 text-slate-600'
+                }`}
+              >
+                Document Storage
+              </button>
+              <button 
                 onClick={() => setActiveTab('maintenance')}
                 className={`w-full text-left px-4 py-3 border-l-4 transition-colors ${
                   activeTab === 'maintenance' 
@@ -146,6 +157,10 @@ export default function SettingsClient({
             initialLocations={initialLocations}
             supabase={supabase}
           />
+        )}
+
+        {activeTab === 'document-storage' && isAdmin && (
+          <DocumentMigrationOverviewTab />
         )}
 
         {activeTab === 'maintenance' && isAdmin && (
