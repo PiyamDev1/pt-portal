@@ -67,7 +67,7 @@ function PdfThumbnail({ src, alt }: { src: string; alt: string }) {
         const pdfjs = (await import('pdfjs-dist')) as PdfJsModule
 
         if (!pdfjs.GlobalWorkerOptions.workerSrc) {
-          pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.mjs`
+          pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs'
         }
 
         const loadingTask = pdfjs.getDocument(src)
@@ -96,7 +96,8 @@ function PdfThumbnail({ src, alt }: { src: string; alt: string }) {
         }
 
         await pdf.destroy()
-      } catch {
+      } catch (err) {
+        console.error('[PdfThumbnail] render failed:', err)
         if (!isCancelled) {
           setFailed(true)
         }
