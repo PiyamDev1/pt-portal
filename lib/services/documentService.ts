@@ -193,29 +193,21 @@ class PlaceholderDocumentService implements DocumentService {
 
       const { uploadUrl, documentId, minioKey } = urlData.data
 
-      // 3. Upload DIRECTLY to MinIO using XHR so we get real byte-level progress.
-      const etag = await new Promise<string>((resolve, reject) => {
-        const xhr = new XMLHttpRequest()
-        xhr.open('PUT', uploadUrl)
-
-        xhr.upload.onprogress = (event) => {
-          if (event.lengthComputable && onProgress) {
-            onProgress(Math.round((event.loaded / event.total) * 100))
-          }
-        }
-
-        xhr.onload = () => {
-          if (xhr.status >= 200 && xhr.status < 300) {
-            resolve(xhr.getResponseHeader('ETag') || `unknown-${documentId}`)
-          } else {
-            reject(new Error(`MinIO rejected the upload (HTTP ${xhr.status})`))  
-          }
-        }
-
-        xhr.onerror = () => reject(new Error('Network error during upload'))
-        xhr.ontimeout = () => reject(new Error('Upload timed out'))
-        xhr.send(file)
+      // 3. Upload DIRECTLY to MinIO using modern fetch instead of legacy XHR
+      const minioResponse = await fetch(uploadUrl, {
+        method: 'PUT',
+        body: file
       })
+
+      if (!minioResponse.ok) {
+        const errText = await minioResponse.text()
+        throw new Error(`MinIO rejected the upload: ${minioResponse.status} - ${errText}`)
+      }
+
+      // Simulate 100% progress since fetch succeeded instantly
+      if (onProgress) onProgress(100)
+
+      const etag = minioResponse.headers.get('ETag') || `unknown-${documentId}`
 
       // 4. Persist metadata to Supabase
       await fetch(`${API_BASE}/documents`, {
