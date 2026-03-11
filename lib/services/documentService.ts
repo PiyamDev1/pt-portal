@@ -304,13 +304,13 @@ class PlaceholderDocumentService implements DocumentService {
   }
 
   /**
-   * PLACEHOLDER: Get all documents for a family
-   * Returns all documents shared by the family
+   * Get documents for a family with optional pagination
+   * Supports both paginated and unpaginated responses
    */
-  async getDocuments(familyHeadId: string): Promise<Document[]> {
+  async getDocuments(familyHeadId: string, page: number = 1, limit: number = 100): Promise<Document[]> {
     try {
       const response = await fetch(
-        `${API_BASE}/documents?familyHeadId=${familyHeadId}`,
+        `${API_BASE}/documents?familyHeadId=${familyHeadId}&page=${page}&limit=${limit}`,
         {
           method: 'GET',
         }
@@ -320,7 +320,7 @@ class PlaceholderDocumentService implements DocumentService {
         throw new Error(`Failed to fetch documents: ${response.statusText}`)
       }
 
-      const data: DocumentResponse = await response.json()
+      const data: any = await response.json()
       if (!data.success) {
         throw new Error(data.error || 'Failed to fetch documents')
       }

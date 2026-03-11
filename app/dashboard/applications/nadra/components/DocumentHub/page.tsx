@@ -59,33 +59,54 @@ export function DocumentHub({
   // State management
   const [documents, setDocuments] = useState<Document[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const DOCS_PER_PAGE = 20
 
   /**
    * Load documents on mount
    */
   useEffect(() => {
-    loadDocuments()
+    loadDocuments(1)
   }, [familyHeadId])
 
   /**
-   * Load documents from service
+   * Load documents from service with pagination support
    */
-  const loadDocuments = useCallback(async () => {
-    setIsLoading(true)
+  const loadDocuments = useCallback(async (page: number = 1) => {
+    if (page === 1) {
+      setIsLoading(true)
+    } else {
+      setIsLoadingMore(true)
+    }
     setError(null)
 
     try {
-      const docs = await documentService.getDocuments(familyHeadId)
-      setDocuments(docs)
+      const docs = await documentService.getDocuments(familyHeadId, page, DOCS_PER_PAGE)
+      if (page === 1) {
+        setDocuments(docs)
+      } else {
+        setDocuments(prev => [...prev, ...docs])
+      }
+      setCurrentPage(page)
+      // Calculate total pages based on response length
+      // If we get fewer docs than DOCS_PER_PAGE, we're on the last page
+      const isLastPage = docs.length < DOCS_PER_PAGE
+      setTotalPages(isLastPage ? page : page + 1)
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load documents'
       setError(errorMessage)
       console.error('Error loading documents:', err)
     } finally {
-      setIsLoading(false)
+      if (page === 1) {
+        setIsLoading(false)
+      } else {
+        setIsLoadingMore(false)
+      }
     }
   }, [familyHeadId])
 
@@ -307,6 +328,19 @@ export function DocumentHub({
                   <div className="text-center py-12 text-slate-500">
                     <p className="text-lg mb-2">📂</p>
                     <p>No documents yet. Upload files using the sections above.</p>
+                  </div>
+                )}
+
+                {/* Load More Button */}
+                {documents.length > 0 && currentPage < totalPages && (
+                  <div className="flex justify-center mt-6 pb-4">
+                    <button
+                      onClick={() => loadDocuments(currentPage + 1)}
+                      disabled={isLoadingMore}
+                      className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-slate-400 transition-colors"
+                    >
+                      {isLoadingMore ? 'Loading...' : 'Load More Documents'}
+                    </button>
                   </div>
                 )}
               </div>

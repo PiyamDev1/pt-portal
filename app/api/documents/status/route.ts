@@ -1,15 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { S3Client, HeadBucketCommand, PutBucketCorsCommand } from '@aws-sdk/client-s3'
-
-const s3Client = new S3Client({
-  region: 'eu-west-1',
-  endpoint: process.env.MINIO_ENDPOINT,
-  credentials: {
-    accessKeyId: process.env.MINIO_ACCESS_KEY!,
-    secretAccessKey: process.env.MINIO_SECRET_KEY!,
-  },
-  forcePathStyle: true,
-})
+import { HeadBucketCommand, PutBucketCorsCommand } from '@aws-sdk/client-s3'
+import { getS3Client } from '@/lib/s3Client'
 
 const MINIO_ENDPOINT = process.env.MINIO_ENDPOINT || 'https://eu49v2.piyamtravel.com'
 const MINIO_BUCKET = process.env.MINIO_BUCKET_NAME || 'portal-documents'
@@ -20,6 +11,7 @@ const MINIO_BUCKET = process.env.MINIO_BUCKET_NAME || 'portal-documents'
  */
 async function ensureCorsPolicy() {
   try {
+    const s3Client = getS3Client()
     await s3Client.send(
       new PutBucketCorsCommand({
         Bucket: MINIO_BUCKET,
@@ -50,6 +42,7 @@ export async function GET(request: NextRequest) {
   const startTime = performance.now()
 
   try {
+    const s3Client = getS3Client()
     await s3Client.send(new HeadBucketCommand({ Bucket: MINIO_BUCKET }))
 
     // Best-effort CORS setup on every status check — fast and idempotent

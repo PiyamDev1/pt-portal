@@ -1,23 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3'
-
-const s3Client = new S3Client({
-  region: 'eu-west-1',
-  endpoint: process.env.MINIO_ENDPOINT,
-  credentials: {
-    accessKeyId: process.env.MINIO_ACCESS_KEY!,
-    secretAccessKey: process.env.MINIO_SECRET_KEY!,
-  },
-  forcePathStyle: true,
-  requestChecksumCalculation: 'WHEN_REQUIRED',
-  responseChecksumValidation: 'WHEN_REQUIRED',
-})
+import { GetObjectCommand } from '@aws-sdk/client-s3'
+import { Readable } from 'stream'
+import { getS3Client } from '@/lib/s3Client'
 
 const MINIO_BUCKET = process.env.MINIO_BUCKET_NAME || 'portal-documents'
 
 /**
  * GET /api/documents/preview?key=<minio-object-key>
- * Streams the object directly from MinIO to the browser.
+ * Streams the object directly from MinIO to the browser without buffering.
+ * Uses 1-year cache for immutable content-addressed objects.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -28,6 +19,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'key is required' }, { status: 400 })
     }
 
+    const s3Client = getS3Client()
     const result = await s3Client.send(
       new GetObjectCommand({
         Bucket: MINIO_BUCKET,
@@ -39,12 +31,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'File body is empty' }, { status: 404 })
     }
 
-    const bytes = await result.Body.transformToByteArray()
-    const body = Buffer.from(bytes)
-    return new NextResponse(body, {
+    // Convert AWS SDK stream to Node.js Readable stream for efficient streaming
+    const stream = Readable.from(result.Body as AsyncIterable<Uint8Array>)
+    
+    return new NextResponse(stream as any, {
       headers: {
         'Content-Type': result.ContentType || 'application/octet-stream',
-        'Cache-Control': 'private, max-age=300',
+        'Cache-Control': 'public, max-age=31536000, immutable',
       },
     })
   } catch {

@@ -7,24 +7,29 @@ const supabase = createClient(
 )
 
 /**
- * GET /api/documents?familyHeadId=ID
- * Returns all non-deleted documents for a family.
+ * GET /api/documents?familyHeadId=ID&page=1&limit=20
+ * Returns paginated non-deleted documents for a family.
+ * Only fetches necessary fields to reduce bandwidth.
  */
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const familyHeadId = searchParams.get('familyHeadId')
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1'))
+    const limit = Math.min(100, Math.max(5, parseInt(searchParams.get('limit') || '20')))
+    const offset = (page - 1) * limit
 
     if (!familyHeadId) {
       return NextResponse.json({ success: false, error: 'familyHeadId is required' }, { status: 400 })
     }
 
-    const { data, error } = await supabase
+    const { data, error, count } = await supabase
       .from('documents')
-      .select('*')
+      .select('id, file_name, file_size, file_type, category, uploaded_at, uploaded_by, family_head_id, minio_bucket, minio_key, minio_etag', { count: 'exact' })
       .eq('family_head_id', familyHeadId)
       .eq('deleted', false)
       .order('uploaded_at', { ascending: false })
+      .range(offset, offset + limit - 1)
 
     if (error) throw error
 
@@ -44,7 +49,16 @@ export async function GET(request: NextRequest) {
       },
     }))
 
-    return NextResponse.json({ success: true, data: documents })
+    return NextResponse.json({ 
+      success: true, 
+      data: documents,
+      pagination: {
+        page,
+        limit,
+        total: count || 0,
+        pages: Math.ceil((count || 0) / limit),
+      }
+    })
   } catch (error) {
     return NextResponse.json(
       { success: false, error: error instanceof Error ? error.message : 'Failed to fetch documents' },

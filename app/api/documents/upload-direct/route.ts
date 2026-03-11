@@ -1,23 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3'
-
-const s3Client = new S3Client({
-  region: 'eu-west-1',
-  endpoint: process.env.MINIO_ENDPOINT,
-  credentials: {
-    accessKeyId: process.env.MINIO_ACCESS_KEY!,
-    secretAccessKey: process.env.MINIO_SECRET_KEY!,
-  },
-  forcePathStyle: true,
-  requestChecksumCalculation: 'WHEN_REQUIRED',
-  responseChecksumValidation: 'WHEN_REQUIRED',
-})
+import { PutObjectCommand } from '@aws-sdk/client-s3'
+import { getS3Client } from '@/lib/s3Client'
 
 const MINIO_BUCKET = process.env.MINIO_BUCKET_NAME || 'portal-documents'
 
 /**
  * POST /api/documents/upload-direct
  * Reliable server-side upload fallback when presigned browser PUT is unstable.
+ * Uses singleton S3 client for efficiency.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -38,6 +28,7 @@ export async function POST(request: NextRequest) {
     const minioKey = `family-${familyHeadId}/${safeCategory}/${Date.now()}-${file.name.replace(/\s+/g, '-')}`
 
     const body = Buffer.from(await file.arrayBuffer())
+    const s3Client = getS3Client()
     const putResult = await s3Client.send(
       new PutObjectCommand({
         Bucket: MINIO_BUCKET,
