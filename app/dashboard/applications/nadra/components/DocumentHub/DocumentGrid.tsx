@@ -68,6 +68,7 @@ function DocumentGridItem({
   onDownload: (id: string) => void
 }) {
   const [showActions, setShowActions] = useState(false)
+  const [thumbnailFailed, setThumbnailFailed] = useState(false)
 
   // Determine if preview image should be shown
   const isImage = document.fileType?.startsWith('image/')
@@ -149,16 +150,16 @@ function DocumentGridItem({
               src={getThumbnailSrc()}
               alt={document.fileName}
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-              onError={(e) => {
-                // Fallback to icon if image fails to load
-                const target = e.target as HTMLImageElement
-                target.style.display = 'none'
-              }}
+              onLoad={() => setThumbnailFailed(false)}
+              onError={() => setThumbnailFailed(true)}
+              style={{ display: thumbnailFailed ? 'none' : 'block' }}
             />
             {/* Fallback icon */}
-            <div className="absolute inset-0 flex items-center justify-center text-4xl bg-slate-100">
-              {getFileTypeIcon()}
-            </div>
+            {thumbnailFailed && (
+              <div className="absolute inset-0 flex items-center justify-center text-4xl bg-slate-100">
+                {getFileTypeIcon()}
+              </div>
+            )}
           </div>
         ) : (
           // File type icon for non-images
