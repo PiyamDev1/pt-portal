@@ -83,7 +83,7 @@ export function DocumentPreview({
 
       try {
         const encodedKey = encodeURIComponent(document.minio.key)
-        const response = await fetch(`/api/documents/${encodedKey}/preview`)
+        const response = await fetch(`/api/documents/preview?key=${encodedKey}`)
         if (!response.ok) throw new Error('Failed to fetch preview URL')
         const { url } = await response.json()
 

@@ -138,7 +138,7 @@ export function DocumentHub({
     const doc = documents.find(d => d.id === documentId)
     if (!doc) return
     const encodedKey = encodeURIComponent(doc.minio.key)
-    window.open(`/api/documents/${encodedKey}/download`, '_blank')
+    window.open(`/api/documents/download?key=${encodedKey}`, '_blank')
   }, [documents])
 
   /**
