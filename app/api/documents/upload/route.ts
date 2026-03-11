@@ -38,21 +38,14 @@ export async function POST(request: NextRequest) {
     const documentId = `doc-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const minioKey = `family-${familyHeadId}/${safeCategory}/${Date.now()}-${fileName.replace(/\s+/g, '-')}`;
 
-    // 3. Create the AWS Upload Command
-    // We include ContentType so the signature matches the browser upload header.
+    // 3. Create the AWS Upload Command (No ContentType!)
     const command = new PutObjectCommand({
       Bucket: MINIO_BUCKET,
       Key: minioKey,
-      ContentType: normalizedFileType,
     });
 
-    // 4. Cryptographically sign the URL to self-destruct in exactly 10 minutes (600 seconds)
-    const signedUrl = await getSignedUrl(s3Client, command, {
-      expiresIn: 600,
-      // CRITICAL FIX: Force AWS SDK to only sign these two headers.
-      // This stops it from expecting headers that the browser won't send.
-      signableHeaders: new Set(['host', 'content-type']),
-    });
+    // 4. Sign the URL natively
+    const signedUrl = await getSignedUrl(s3Client, command, { expiresIn: 600 });
 
     return NextResponse.json(
       {

@@ -197,8 +197,6 @@ class PlaceholderDocumentService implements DocumentService {
       const etag = await new Promise<string>((resolve, reject) => {
         const xhr = new XMLHttpRequest()
         xhr.open('PUT', uploadUrl)
-        // FORCE the browser to use the exact Content-Type we signed in the backend.
-        xhr.setRequestHeader('Content-Type', normalizedFileType)
 
         xhr.upload.onprogress = (event) => {
           if (event.lengthComputable && onProgress) {
