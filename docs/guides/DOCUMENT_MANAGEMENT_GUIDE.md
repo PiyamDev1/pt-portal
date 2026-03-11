@@ -1,61 +1,292 @@
 # Document Management System Guide
 
 ## Overview
+> Last updated: March 2026
 
-The Document Management System provides a comprehensive solution for managing documents across different application types in the PT Portal. The system supports categorized uploads, document preview, and contextual organization based on application type.
-
-**Current Status**: Frontend implementation complete with placeholder MinIO integration. Backend storage server to be connected in future updates.
+The Document Management System is a fully operational document storage, preview and management module for PT-Portal. It supports categorised uploads, PDF/image thumbnail previews, streaming downloads, and dual-storage redundancy (MinIO primary + R2 fallback).
 
 ---
 
 ## Table of Contents
 
-1. [System Architecture](#system-architecture)
-2. [Features](#features)
-3. [Implementation Contexts](#implementation-contexts)
-4. [User Interface Design](#user-interface-design)
-5. [File Restrictions](#file-restrictions)
-6. [Component Architecture](#component-architecture)
-7. [API Endpoints](#api-endpoints)
-8. [Database Schema](#database-schema)
-9. [Future Enhancements](#future-enhancements)
-10. [Development Notes](#development-notes)
+1. [Overview](#overview)
+2. [Storage Architecture](#storage-architecture)
+3. [Upload Flow](#upload-flow)
+4. [Preview & Download Flow](#preview--download-flow)
+5. [Fallback & Migration](#fallback--migration)
+6. [Status & Health Check](#status--health-check)
+7. [Document Categories](#document-categories)
+8. [PDF Thumbnails](#pdf-thumbnails)
+9. [UI Components](#ui-components)
+10. [API Endpoints](#api-endpoints)
+11. [Database Schema](#database-schema)
+12. [File Restrictions](#file-restrictions)
+13. [Configuration](#configuration)
 
 ---
 
-## System Architecture
+## Overview
 
-### Two-Tier Document Organization
+Documents are scoped to families (via `family_head_id`) in the NADRA module. Access is via:
 
-The document management system operates in two distinct contexts:
-
-#### 1. Family-Level Documents (NADRA Applications)
-- **Scope**: Documents shared across a family group
 - **Route**: `/dashboard/applications/nadra/documents/[familyHeadId]`
-- **Use Case**: Family-wide documents like shared receipts, application reviews
-- **Access Point**: "Manage Documents" button in family header row of NADRA ledger
+- **Entry**: "Manage Documents" button on each family row in the NADRA ledger
 
-#### 2. Per-Application Documents (Pakistani Passports)
-- **Scope**: Documents specific to individual applications
-- **Route**: `/dashboard/applications/passports/documents/[applicationId]`
-- **Use Case**: Application-specific documents, individual receipts
-- **Access Point**: Document icon button in actions column of passport applications table
+---
 
-### Storage Architecture (Placeholder)
+## Storage Architecture
+
+The system uses two S3-compatible object stores:
 
 ```
-MinIO S3-Compatible Storage
-├── family-{familyHeadId}/
-│   ├── general/
-│   │   └── {timestamp}-{filename}
-│   ├── receipt/
-│   │   └── {timestamp}-{filename}
-│   └── application-review/
-│       └── {timestamp}-{filename}
-└── application-{applicationId}/
-    ├── general/
-    ├── receipt/
-    └── application-review/
+EU Server 49v2 (MinIO) — PRIMARY
+Bucket: portal-documents
+Object key format: family-{id}/{timestamp}-{filename}
+
+EU Server 45v5 (R2) — FALLBACK
+Bucket: portal-fallback
+Object key format: family-{id}/{timestamp}-{filename}  (same key schema)
+```
+
+Both stores use identical key schemas so that migrating an object from R2 to MinIO only requires a copy + delete — no key rename needed.
+
+The Supabase `documents` table tracks which bucket each file lives in via the `minio_bucket` column.
+
+---
+
+## Upload Flow
+
+Uploads go through `lib/services/documentService.ts` on the client, which calls `POST /api/documents/upload-direct`.
+
+```
+1. Client selects file (drag-drop or file picker)
+2. File sent via XHR multipart/form-data to /api/documents/upload-direct
+   → XHR onprogress events → progress bar 0%→95%
+3. Server attempts MinIO PutObjectCommand
+   ✓ Success:
+     - Metadata POST to /api/documents with storageProvider='minio'
+     - Progress bar → 100%
+   ✗ Fail (MinIO offline/timeout):
+     - Server attempts R2 PutObjectCommand
+     ✓ Success:
+       - Metadata POST to /api/documents with minio_bucket='portal-fallback'
+       - Progress bar → 100%
+     ✗ Fail: client receives 503, shows error
+4. Progress bar at 95%+ shows "Finalizing upload. Server routing checks can add a short delay..."
+```
+
+---
+
+## Preview & Download Flow
+
+Both preview and download use streaming responses for memory efficiency.
+
+```
+GET /api/documents/preview?key=<object-key>
+GET /api/documents/download?key=<object-key>  (triggers browser save)
+
+Server flow:
+1. Try GetObjectCommand on MinIO
+   ✓ Success → stream body to browser
+   ✗ Fail → try GetObjectCommand on R2
+     ✓ Success → stream body to browser
+                → trigger background migration (non-blocking):
+                  migrateObjectFromR2ToMinio(key)
+     ✗ Fail → 404
+```
+
+Preview responses include `Cache-Control: public, max-age=31536000, immutable` for long-term browser caching of the same key.
+
+---
+
+## Fallback & Migration
+
+When MinIO is offline, files are uploaded to R2 fallback. The system automatically migrates them back when MinIO recovers.
+
+### Migration triggers
+
+| Trigger | Where | What happens |
+|---|---|---|
+| File is previewed/downloaded | `preview/route.ts`, `download/route.ts` | Non-blocking `migrateObjectFromR2ToMinio(key)` called in background |
+| Status check when both online | `status/route.ts` | `migrateFallbackBatch(5)` runs in background — up to 5 files per check |
+
+### Migration guarantee (in `lib/r2Migration.ts`)
+
+```
+1. Read object from R2
+2. Write object to MinIO (PutObjectCommand)
+3. Only if step 2 succeeds: delete from R2
+4. Only if step 3 succeeds: update Supabase minio_bucket to 'portal-documents'
+```
+
+This ensures no data loss — the R2 copy is never removed until MinIO confirms receipt.
+
+---
+
+## Status & Health Check
+
+`GET /api/documents/status`
+
+Runs parallel probes of both servers with a **2,500 ms timeout** each:
+
+```json
+{
+  "status": {
+    "connected": true,
+    "ping": 45,
+    "mode": "primary",
+    "fallback": {
+      "configured": true,
+      "connected": true,
+      "endpoint": "https://eu45v5.piyamtravel.com",
+      "ping": 120
+    },
+    "capabilities": {
+      "upload": true,
+      "previewDownload": true,
+      "uploadOnlyFallback": false
+    }
+  }
+}
+```
+
+### `mode` values
+
+| Mode | Meaning | UI |
+|---|---|---|
+| `primary` | MinIO online | Green banner |
+| `fallback-upload-only` | MinIO offline, R2 online | Amber banner |
+| `offline` | Both offline | Red banner |
+
+The client polls this endpoint every **5 minutes** via `useMinioConnection` hook.
+
+---
+
+## Document Categories
+
+Each family can have documents in three categories, shown as separate upload zones:
+
+| Category key | Display name | Purpose |
+|---|---|---|
+| `main` | Main Documents | General supporting documents |
+| `receipts` | Receipts | Payment and receipt records |
+| `application-review` | Application Review | Documents needed for application review |
+
+The category is stored in the `category` column in Supabase and sent as `?category=<key>` on list queries.
+
+---
+
+## PDF Thumbnails
+
+PDFs are rendered client-side using `pdfjs-dist` (v5.5.207).
+
+- Worker file is served locally at `/pdf.worker.min.mjs` (in `public/`) — no CDN dependency.
+- Only the first page is rendered, at 380px target width.
+- Output is encoded as WebP at 82% quality for efficient display.
+- While rendering: placeholder "Generating preview..." is shown.
+- On failure: falls back to the document icon.
+- Images show direct `<img>` previews; other file types show an emoji icon.
+
+To update the worker after upgrading `pdfjs-dist`:
+```bash
+cp node_modules/pdfjs-dist/build/pdf.worker.min.mjs public/pdf.worker.min.mjs
+```
+
+---
+
+## UI Components
+
+All DocumentHub components live in:
+`app/dashboard/applications/nadra/components/DocumentHub/`
+
+| Component | File | Purpose |
+|---|---|---|
+| `DocumentHub` | `page.tsx` | Main page — composes all sub-components |
+| `DocumentUpload` | `DocumentUpload.tsx` | Drag-drop zones, upload progress bars |
+| `DocumentGrid` | `DocumentGrid.tsx` | Thumbnail grid with hover actions |
+| `DocumentPreview` | `DocumentPreview.tsx` | Full-screen preview modal |
+| `MinioStatus` | `MinioStatus.tsx` | Storage status banner (green/amber/red) |
+| Types | `types.ts` | TypeScript interfaces |
+
+### MinioStatus banner states
+
+| State | Condition | Message |
+|---|---|---|
+| Green | MinIO connected | "Document Storage Connected · Xms" |
+| Amber | MinIO offline, R2 online | "Primary Storage Offline • EU Server 45v5 Active" |
+| Red | Both offline | "Document Storage Offline" |
+
+---
+
+## API Endpoints
+
+See **[../technical/API_REFERENCE.md](../technical/API_REFERENCE.md)** for full details.
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/api/documents?familyHeadId=&category=&page=&limit=` | List documents |
+| `POST` | `/api/documents` | Save document metadata |
+| `POST` | `/api/documents/upload-direct` | Upload file (MinIO → R2 fallback) |
+| `GET` | `/api/documents/status` | Storage health check |
+| `GET` | `/api/documents/preview?key=` | Stream file for preview |
+| `GET` | `/api/documents/download?key=` | Stream file for download |
+| `DELETE` | `/api/documents/[documentId]` | Soft-delete document |
+
+---
+
+## Database Schema
+
+```sql
+documents (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  family_head_id  text NOT NULL,
+  file_name       text NOT NULL,
+  file_type       text,
+  file_size       bigint,
+  minio_key       text NOT NULL,   -- Object storage key (same in MinIO and R2)
+  minio_bucket    text NOT NULL,   -- 'portal-documents' or 'portal-fallback'
+  minio_etag      text,
+  category        text,            -- 'main' | 'receipts' | 'application-review'
+  uploaded_at     timestamptz DEFAULT now(),
+  deleted         boolean DEFAULT false
+)
+
+-- Recommended indexes (see scripts/create-indexes.sql)
+CREATE INDEX ON documents (family_head_id, deleted);
+CREATE INDEX ON documents (family_head_id, category, deleted);
+CREATE INDEX ON documents (family_head_id, uploaded_at DESC);
+```
+
+---
+
+## File Restrictions
+
+| Restriction | Value |
+|---|---|
+| Max file size | 1.5 MB |
+| Allowed types | PDF, JPG, PNG, WEBP |
+| MIME types | `application/pdf`, `image/jpeg`, `image/png`, `image/webp` |
+
+These limits are enforced both client-side (UI message) and server-side (route validation).
+
+---
+
+## Configuration
+
+Relevant environment variables:
+
+```
+MINIO_ENDPOINT          Primary storage S3 endpoint
+MINIO_ACCESS_KEY
+MINIO_SECRET_KEY
+MINIO_BUCKET_NAME       portal-documents
+NEXT_PUBLIC_MINIO_ENDPOINT  Used for client display label
+
+R2_ENDPOINT             Cloudflare R2 S3 API endpoint (account-id URL)
+R2_PING_URL             Custom domain for display label only
+R2_ACCESS_KEY
+R2_SECRET_KEY
+R2_BUCKET_NAME          portal-fallback
 ```
 
 **Note**: Current implementation uses placeholder paths. Actual MinIO backend integration pending.

@@ -1,63 +1,54 @@
-# 📚 PT-Portal Documentation
+# PT-Portal Documentation
 
-> **By Rathobixz Inc.**
-
-Welcome to the PT-Portal documentation. This directory contains all project documentation organized by category.
+> **By Rathobixz Inc.** — Last updated March 2026
 
 ---
 
-## 📁 Documentation Structure
+## Documentation Structure
 
 ```
 docs/
-├── guides/              # User & developer guides
-│   ├── USAGE_GUIDE.md              # Complete user manual
-│   ├── WINDOWS_SETUP_GUIDE.md      # Windows development setup
-│   ├── ARCHITECTURE_GUIDE.md       # Technical architecture
-│   ├── QUICK_REFERENCE.md          # Command cheat sheet
-│   └── GETTING_STARTED.md          # Onboarding checklists
+├── guides/
+│   ├── ARCHITECTURE_GUIDE.md          ← System architecture & data flow
+│   ├── DOCUMENT_MANAGEMENT_GUIDE.md   ← Document system (upload, preview, storage)
+│   ├── GETTING_STARTED.md             ← Developer onboarding
+│   ├── QUICK_REFERENCE.md             ← Command cheat sheet
+│   ├── USAGE_GUIDE.md                 ← End-user manual
+│   └── WINDOWS_SETUP_GUIDE.md        ← Windows dev setup
 │
-├── technical/           # Technical documentation
-│   ├── PAYMENT_SERVICE_OPTIMIZATION.md
-│   ├── REFRESH_LOOP_FIX_SUMMARY.md
-│   ├── BUILD_PERFORMANCE.md
-│   ├── CODE_AUDIT.md
-│   ├── CODE_QUALITY_REPORT.md
-│   └── BUNDLE_ANALYSIS.md
-│
-├── archive/             # Historical documentation
-│   ├── IMPLEMENTATION_SUMMARY.md
-│   ├── MIGRATIONS.md
-│   ├── REFACTORING_SUMMARY.md
-│   └── ... (older docs)
-│
-└── database/            # Database documentation
-    ├── database-schema.sql
-    ├── PRICING-ARCHITECTURE-EXPLAINED.md
-    └── SERVICE-PRICING-ARCHITECTURE.md
+└── technical/
+    ├── STORAGE_SYSTEM.md              ← MinIO + R2 dual-storage deep dive
+    ├── SECURITY.md                    ← Auth, rate limiting, 2FA
+    ├── API_REFERENCE.md               ← All API route reference
+    ├── BUILD_PERFORMANCE.md
+    ├── BUNDLE_ANALYSIS.md
+    ├── CODE_AUDIT.md
+    ├── CODE_QUALITY_REPORT.md
+    ├── PAYMENT_SERVICE_OPTIMIZATION.md
+    └── REFRESH_LOOP_FIX_SUMMARY.md
 ```
 
 ---
 
-## 🎯 Quick Start by Role
+## Quick Start by Role
 
-### 👤 **For Users**
-Start with: **[guides/USAGE_GUIDE.md](guides/USAGE_GUIDE.md)**
-- Learn all features in 45 minutes
-- Complete step-by-step instructions
-- FAQ and troubleshooting
+### For End Users
+→ **[guides/USAGE_GUIDE.md](guides/USAGE_GUIDE.md)** — step-by-step feature guide
 
-### 👨‍💻 **For Developers**
-Start with: **[guides/GETTING_STARTED.md](guides/GETTING_STARTED.md)**
-1. Setup: [guides/WINDOWS_SETUP_GUIDE.md](guides/WINDOWS_SETUP_GUIDE.md)
-2. Architecture: [guides/ARCHITECTURE_GUIDE.md](guides/ARCHITECTURE_GUIDE.md)
-3. Quick Ref: [guides/QUICK_REFERENCE.md](guides/QUICK_REFERENCE.md)
+### For Developers
+1. **[guides/GETTING_STARTED.md](guides/GETTING_STARTED.md)** — environment setup
+2. **[guides/ARCHITECTURE_GUIDE.md](guides/ARCHITECTURE_GUIDE.md)** — how the system fits together
+3. **[technical/API_REFERENCE.md](technical/API_REFERENCE.md)** — all API endpoints
+4. **[guides/QUICK_REFERENCE.md](guides/QUICK_REFERENCE.md)** — common commands
 
-### 🏢 **For Team Leads**
-Start with: **[guides/GETTING_STARTED.md#team-lead](guides/GETTING_STARTED.md)**
-1. Team setup procedures
-2. Deployment checklists
-3. Code review guidelines
+### For Understanding Storage
+→ **[technical/STORAGE_SYSTEM.md](technical/STORAGE_SYSTEM.md)** — MinIO primary + R2 fallback, migration, status checks
+
+### For Security/Auth
+→ **[technical/SECURITY.md](technical/SECURITY.md)** — auth flow, 2FA, rate limiting, session handling
+
+### For Document Management
+→ **[guides/DOCUMENT_MANAGEMENT_GUIDE.md](guides/DOCUMENT_MANAGEMENT_GUIDE.md)** — upload, preview, PDF thumbnails, categorisation
 
 ---
 

@@ -1,63 +1,384 @@
-# 🏗️ Architecture & Development Guide
+# Architecture Guide
 
-## Technical Architecture of PT-Portal
-
-This guide explains the technical structure, how components work together, and how to develop new features.
-
----
-
-## 🏛️ Overall Architecture
-
-PT-Portal is built using **Next.js 14** with modern React patterns:
-
-```
-┌─────────────────────────────────────────────────────┐
-│              Client Browser Layer                   │
-│  (React Components, TypeScript, Tailwind CSS)       │
-└────────────┬────────────────────────────────────────┘
-             │
-             │ API Requests
-             │
-┌────────────▼────────────────────────────────────────┐
-│         Next.js API Routes Layer                    │
-│  (Backend endpoints, data processing)               │
-└────────────┬────────────────────────────────────────┘
-             │
-             │ Database Queries
-             │
-┌────────────▼────────────────────────────────────────┐
-│       Supabase Cloud Database                       │
-│  (PostgreSQL, Real-time, Auth)                      │
-└─────────────────────────────────────────────────────┘
-```
+> PT-Portal — Next.js 16 + Supabase + MinIO + Cloudflare R2  
+> Last updated: March 2026
 
 ---
 
-## 📁 Project Structure Explained
+## Table of Contents
 
-### `/app` - Next.js Application
+1. [System Overview](#system-overview)
+2. [Technology Stack](#technology-stack)
+3. [Request Flow](#request-flow)
+4. [Project Structure](#project-structure)
+5. [Authentication Architecture](#authentication-architecture)
+6. [Storage Architecture](#storage-architecture)
+7. [Database Architecture](#database-architecture)
+8. [Feature Modules](#feature-modules)
+9. [Shared Libraries](#shared-libraries)
+10. [Rate Limiting](#rate-limiting)
+11. [Deployment](#deployment)
+
+---
+
+## System Overview
+
+PT-Portal is an internal business portal for Piyam Travels, managing travel documents, NADRA applications, passport processing, visa tracking, loan management, commissions, timeclock, employee records and document storage.
+
 ```
-app/
-├── api/                          # API endpoints
-│   ├── admin/                    # Admin operations
-│   ├── auth/                     # Authentication
-│   ├── nadra/                    # NADRA services
-│   ├── passports/                # Passport services
-│   ├── visas/                    # Visa services
-│   └── lms/                      # Loan management
+┌────────────────────────────────────────────────────────────┐
+│                    Browser (Client)                        │
+│       React 18 · TypeScript · Tailwind CSS v3              │
+└─────────────────────┬──────────────────────────────────────┘
+                      │ HTTPS
+┌─────────────────────▼──────────────────────────────────────┐
+│              Next.js 16.1.6 (Vercel)                       │
+│   App Router · Turbopack · Middleware (rate limiting)      │
+│                                                            │
+│   /app/api/**        ← Server-side API routes              │
+│   /app/dashboard/**  ← Protected SSR/RSC pages             │
+│   /app/login/**      ← Auth pages                          │
+└──────┬──────────────────────────┬──────────────────────────┘
+       │                          │
+┌──────▼──────┐          ┌────────▼────────────────────────┐
+│  Supabase   │          │         Storage Layer           │
+│  (Postgres) │          │                                 │
+│  - Auth     │          │  EU Server 49v2 (MinIO)         │
+│  - Profiles │          │  Primary · S3-compatible        │
+│  - All app  │          │  Bucket: portal-documents       │
+│    data     │          │                                 │
+│  - Documents│          │  EU Server 45v5 (R2)            │
+│    metadata │          │  Fallback · Cloudflare R2       │
+└─────────────┘          │  Bucket: portal-fallback        │
+                         └─────────────────────────────────┘
+```
+
+---
+
+## Technology Stack
+
+| Layer | Technology | Version |
+|---|---|---|
+| Framework | Next.js | 16.1.6 |
+| UI Runtime | React | 18.3 |
+| Language | TypeScript | 5.3 |
+| Styling | Tailwind CSS | 3.4 |
+| Icons | Lucide React | 0.562 |
+| Database | Supabase (PostgreSQL) | 2.87 |
+| Primary Storage | MinIO (S3-compatible) | — |
+| Fallback Storage | Cloudflare R2 | — |
+| Storage SDK | AWS SDK v3 | 3.1006 |
+| PDF Rendering | pdfjs-dist | 5.5.207 |
+| Toast Notifications | Sonner | 2.0 |
+| Progress Bar | next-nprogress-bar | 2.4 |
+| QR Scanning | jsqr | 1.4 |
+| Deployment | Vercel | — |
+
+---
+
+## Request Flow
+
+### Authenticated Page Request
+
+```
+Browser → Next.js Middleware (rate check) → RSC/SSR Page
+→ Supabase session cookie validated
+→ Page renders with server data
+```
+
+### API Request (documents example)
+
+```
+Browser XHR → POST /api/documents/upload-direct
+→ Middleware: rate limit (60 req/min per IP)
+→ Route handler: parse multipart form
+→ Try MinIO PutObjectCommand (2.5s timeout)
+  ✓ Success → save metadata to Supabase → return { storageProvider: 'minio' }
+  ✗ Fail → Try R2 PutObjectCommand
+    ✓ Success → save metadata with minio_bucket=portal-fallback → return { storageProvider: 'r2' }
+    ✗ Fail → 503 Service Unavailable
+```
+
+---
+
+## Project Structure
+
+```
+pt-portal/
+├── app/
+│   ├── api/                    Server-side API routes
+│   │   ├── admin/              Admin utilities (employee, LMS seeding)
+│   │   ├── auth/               Auth (2FA, backup codes, sessions, passwords)
+│   │   ├── documents/          Document CRUD + storage operations
+│   │   ├── lms/                Loan Management System
+│   │   ├── nadra/              NADRA application management
+│   │   ├── passports/          Pakistani + GB passport management
+│   │   │   ├── pak/
+│   │   │   └── gb/
+│   │   ├── timeclock/          Clock-in/out, manual entry, QR scan
+│   │   ├── visas/              Visa application management
+│   │   └── vitals/             Web Vitals reporting
+│   │
+│   ├── auth/                   Auth pages (new-password)
+│   ├── components/             Shared layout components
+│   │   ├── GlobalFooter.tsx
+│   │   ├── PageHeader.client.tsx
+│   │   ├── ProgressBarProvider.tsx
+│   │   ├── RootErrorBoundary.tsx
+│   │   ├── SessionWarningHeader.tsx
+│   │   └── WebVitalsReporter.tsx
+│   │
+│   ├── dashboard/              All protected dashboard pages
+│   │   ├── page.tsx            Main dashboard
+│   │   ├── account/            User account & profile
+│   │   ├── applications/
+│   │   │   ├── nadra/          NADRA services + DocumentHub
+│   │   │   ├── passports/      Pakistani passports
+│   │   │   ├── passports-gb/   GB passports
+│   │   │   └── visa/           Visa applications
+│   │   ├── commissions/        Commission tracking
+│   │   ├── employee-record/    Employee HR records
+│   │   ├── lms/                Loan management & statements
+│   │   ├── pricing/            Pricing management
+│   │   ├── settings/           System settings
+│   │   ├── ticketing/          Support ticketing
+│   │   └── timeclock/          Time tracking (history, manual entry, team)
+│   │
+│   ├── hooks/                  App-specific hooks
+│   ├── lib/                    App-specific utilities
+│   ├── login/                  Login, 2FA setup, 2FA verify
+│   └── types/                  TypeScript type definitions
 │
-├── components/                   # Reusable React components
-│   ├── PageHeader.client.tsx
-│   ├── SessionWarningHeader.tsx
-│   └── ... other shared components
+├── components/                 Generic reusable UI components
+│   ├── ConfirmationDialog.tsx
+│   ├── ModalBase.tsx
+│   └── index.ts
 │
-├── dashboard/                    # Dashboard pages
-│   ├── page.tsx                  # Main dashboard
-│   ├── account/                  # User account settings
-│   ├── applications/             # Application management
-│   │   ├── nadra/
-│   │   ├── passports/
-│   │   └── visa/
+├── hooks/                      Generic reusable hooks
+│   ├── useAsync.ts
+│   ├── useFormState.ts
+│   ├── useModal.ts
+│   ├── usePagination.ts
+│   └── useTableFilters.ts
+│
+├── lib/                        Server-side singletons & utilities
+│   ├── adminAuth.ts            Admin Bearer-token verification
+│   ├── installmentsDb.ts       Installment DB helpers
+│   ├── r2Client.ts             Cloudflare R2 singleton client
+│   ├── r2Migration.ts          R2 → MinIO migration logic
+│   ├── s3Client.ts             MinIO singleton client
+│   ├── supabaseClient.ts       Supabase singleton clients
+│   ├── constants/              Shared constants (API, UI, validation)
+│   └── services/
+│       └── documentService.ts  Client-side document service layer
+│
+├── middleware.ts               Rate limiting (60 req/min per IP)
+├── next.config.js
+├── tailwind.config.js
+└── vercel.json
+```
+
+---
+
+## Authentication Architecture
+
+### Login Flow
+
+```
+1. User enters credentials → POST /api/auth (Supabase)
+2. Supabase validates → returns session JWT
+3. If 2FA enabled → redirect to /login/verify-2fa
+   - User enters TOTP code or backup code
+4. Session cookie set → redirect to /dashboard
+```
+
+### 2FA Implementation
+
+- TOTP-based (Time-based One-Time Password)
+- Setup via `/login/setup-2fa` — generates QR code
+- Verify via `/login/verify-2fa`
+- Backup codes available via `/api/auth/generate-backup-codes`
+- Consumed one-time via `/api/auth/consume-backup-code`
+- Admin reset via `/api/auth/reset-2fa`
+
+### Session Management
+
+- Session stored as Supabase JWT cookie (httpOnly)
+- `useSessionTimeout` hook warns user before expiry
+- `SessionWarningHeader` component shows countdown banner
+- Active sessions tracked: `GET /api/auth/sessions`
+
+### Admin Authorization
+
+Protected admin routes use `verifyAdminAccess()` from `lib/adminAuth.ts`:
+1. Reads `Authorization: Bearer <token>` header
+2. Validates JWT with Supabase service role
+3. Checks `role = 'admin'` in `profiles` table
+4. Returns 401/403 if unauthorized
+
+---
+
+## Storage Architecture
+
+See **[technical/STORAGE_SYSTEM.md](../technical/STORAGE_SYSTEM.md)** for the full deep dive.
+
+### Summary
+
+| Aspect | Primary (MinIO) | Fallback (R2) |
+|---|---|---|
+| Server label | EU Server 49v2 | EU Server 45v5 |
+| S3 Endpoint | eu49v2.piyamtravel.com | a09d97...r2.cloudflarestorage.com |
+| Display URL | — | eu45v5.piyamtravel.com |
+| Bucket | portal-documents | portal-fallback |
+| Probe timeout | 2,500 ms | 2,500 ms |
+| Status check interval | 5 minutes | — |
+| Auto-migration | — | On status check + on read |
+
+---
+
+## Database Architecture
+
+Supabase (PostgreSQL) hosts all application data.
+
+### Key Tables
+
+| Table | Purpose |
+|---|---|
+| `profiles` | User accounts, roles, employee data |
+| `documents` | Document metadata (key, bucket, size, category, family ref) |
+| `nadra_applications` | NADRA service applications |
+| `passports` | Pakistani passport applications |
+| `gb_passports` | GB passport applications |
+| `visa_applications` | Visa applications |
+| `lms_accounts` | Loan management accounts |
+| `installments` | Individual payment installments |
+| `timeclock_events` | Clock-in/out records |
+| `commissions` | Agent commission records |
+
+### Document Table (key columns)
+
+```sql
+documents (
+  id            uuid PRIMARY KEY,
+  family_head_id text,
+  file_name     text,
+  file_type     text,
+  file_size     bigint,
+  minio_key     text,          -- Object key used in both MinIO and R2
+  minio_bucket  text,          -- 'portal-documents' or 'portal-fallback'
+  minio_etag    text,
+  category      text,          -- 'main', 'receipts', 'application-review'
+  uploaded_at   timestamptz,
+  deleted       boolean DEFAULT false
+)
+```
+
+---
+
+## Feature Modules
+
+| Module | Routes | Description |
+|---|---|---|
+| Document Hub | `/dashboard/applications/nadra/documents/[id]` | Family document management with MinIO/R2 storage |
+| NADRA | `/dashboard/applications/nadra` | NADRA services ledger, status management |
+| Pakistani Passports | `/dashboard/applications/passports` | PAK passport applications |
+| GB Passports | `/dashboard/applications/passports-gb` | GB passport applications |
+| Visas | `/dashboard/applications/visa` | Visa applications |
+| LMS | `/dashboard/lms` | Loan management, installments, statements |
+| Timeclock | `/dashboard/timeclock` | QR clock-in/out, manual entry, team view |
+| Commissions | `/dashboard/commissions` | Agent commission tracking |
+| Employee Records | `/dashboard/employee-record` | HR records |
+| Pricing | `/dashboard/pricing` | Service pricing management |
+| Settings | `/dashboard/settings` | System configuration |
+| Ticketing | `/dashboard/ticketing` | Support tickets |
+
+---
+
+## Shared Libraries
+
+### Singleton Clients (server-side)
+
+All storage/database clients are module-level singletons — instantiated once per serverless worker lifecycle to maximise connection reuse.
+
+| File | Export | Purpose |
+|---|---|---|
+| `lib/s3Client.ts` | `getS3Client()` | MinIO AWS SDK v3 client |
+| `lib/r2Client.ts` | `getR2Client()`, `isR2Configured()` | Cloudflare R2 client |
+| `lib/supabaseClient.ts` | `getSupabaseClient()`, `getSupabaseAnonClient()` | Supabase service/anon clients |
+
+### Generic Hooks (`hooks/`)
+
+| Hook | Purpose |
+|---|---|
+| `useAsync` | Wrap async operations with loading/error state |
+| `useFormState` | Controlled form field management |
+| `useModal` | Open/close/data state for modals |
+| `usePagination` | Page index + page size management |
+| `useTableFilters` | Column filter state for data tables |
+
+### App Hooks (`app/hooks/`)
+
+| Hook | Purpose |
+|---|---|
+| `useMinioConnection` | Poll `/api/documents/status`, expose `connected`, `ping`, `status` |
+| `useSessionTimeout` | Track session expiry, trigger warning UI |
+| `useVisaFiltering` | Visa table filter/sort state |
+| `useVisaFormState` | Visa application form state |
+| `useStatementData` | LMS statement data loading |
+| `useStatementFilters` | LMS statement filter state |
+| `usePricingOptions` | Pricing option loading |
+| `useSecuritySessions` | Active security session listing |
+
+---
+
+## Rate Limiting
+
+Implemented in `middleware.ts` using a token-bucket algorithm:
+
+- **Window**: 60 seconds
+- **Limit**: 60 requests per IP + User-Agent combination
+- **Applies to**: All `/api/**` routes
+- **Response on breach**: `429 Too Many Requests` with `Retry-After: 60`
+- **Note**: Token buckets are in-memory — ephemeral across Vercel serverless worker restarts. Suitable for brute-force prevention, not strict quota enforcement.
+
+---
+
+## Deployment
+
+### Vercel
+
+The app is deployed on Vercel with:
+- Automatic deployments on push to `main`
+- Environment variables set in Vercel project settings
+- `vercel.json` for custom configuration
+
+### Required Environment Variables
+
+```
+NEXT_PUBLIC_SUPABASE_URL
+NEXT_PUBLIC_SUPABASE_ANON_KEY
+SUPABASE_SERVICE_ROLE_KEY
+
+MINIO_ENDPOINT            # https://eu49v2.piyamtravel.com
+MINIO_ACCESS_KEY
+MINIO_SECRET_KEY
+MINIO_BUCKET_NAME         # portal-documents
+NEXT_PUBLIC_MINIO_ENDPOINT
+
+R2_ENDPOINT               # https://<account-id>.r2.cloudflarestorage.com
+R2_PING_URL               # https://eu45v5.piyamtravel.com  (display only)
+R2_ACCESS_KEY
+R2_SECRET_KEY
+R2_BUCKET_NAME            # portal-fallback
+```
+
+### Build Command
+
+```bash
+npm run build   # next build (Turbopack)
+npm run dev     # next dev (local)
+npm run lint    # eslint
+```
 │   ├── lms/                      # Loan management system
 │   ├── pricing/                  # Pricing management
 │   └── settings/                 # Settings & admin
