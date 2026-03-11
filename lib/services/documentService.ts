@@ -6,35 +6,19 @@
  * @module lib/services/documentService
  */
 
-import { S3Client, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3'
+import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import {
   Document,
-  DocumentResponse,
-  StatusResponse,
   MinioStatus,
   MinioConfig,
   ValidationResult,
-  BatchUploadRequest,
   BatchUploadResponse,
-  UploadProgress,
 } from '@/app/dashboard/applications/nadra/components/DocumentHub/types'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || '/api'
 const MINIO_ENDPOINT = process.env.NEXT_PUBLIC_MINIO_ENDPOINT || 'https://eu49v2.piyamtravel.com'
 const MINIO_BUCKET = process.env.MINIO_BUCKET_NAME || process.env.NEXT_PUBLIC_MINIO_BUCKET || 'portal-documents'
-
-const s3Client = new S3Client({
-  region: 'auto',
-  endpoint: process.env.MINIO_ENDPOINT || MINIO_ENDPOINT,
-  credentials: {
-    accessKeyId: process.env.MINIO_ACCESS_KEY!,
-    secretAccessKey: process.env.MINIO_SECRET_KEY!,
-  },
-  forcePathStyle: true,
-  requestChecksumCalculation: 'WHEN_REQUIRED',
-  responseChecksumValidation: 'WHEN_REQUIRED',
-})
 
 // Constants
 const MAX_FILE_SIZE = 1500000 // 1.5 MB in bytes
@@ -74,7 +58,6 @@ export interface DocumentService {
   // Preview & Thumbnails
   generateThumbnail(document: Document): Promise<string>
   getPreviewUrl(fileName: string): Promise<string>
-  getUploadUrl(fileName: string): Promise<string>
 
   // Validation
   validateFile(file: File): ValidationResult
@@ -89,6 +72,30 @@ export interface DocumentService {
  * Replace with actual API calls when backend is ready
  */
 class PlaceholderDocumentService implements DocumentService {
+  private s3Client: S3Client | null = null
+
+  private getServerS3Client(): S3Client {
+    if (typeof window !== 'undefined') {
+      throw new Error('Signed URL generation is server-only')
+    }
+
+    if (!this.s3Client) {
+      this.s3Client = new S3Client({
+        region: 'auto',
+        endpoint: process.env.MINIO_ENDPOINT || MINIO_ENDPOINT,
+        credentials: {
+          accessKeyId: process.env.MINIO_ACCESS_KEY!,
+          secretAccessKey: process.env.MINIO_SECRET_KEY!,
+        },
+        forcePathStyle: true,
+        requestChecksumCalculation: 'WHEN_REQUIRED',
+        responseChecksumValidation: 'WHEN_REQUIRED',
+      })
+    }
+
+    return this.s3Client
+  }
+
   /**
    * PLACEHOLDER: Check MinIO server connection status
    * In production: Will ping the MinIO endpoint and return actual status
@@ -148,7 +155,7 @@ class PlaceholderDocumentService implements DocumentService {
     return {
       endpoint: MINIO_ENDPOINT,
       accessKey: process.env.NEXT_PUBLIC_MINIO_ACCESS_KEY || 'minioadmin',
-      secretKey: process.env.MINIO_SECRET_KEY || 'changeme',
+      secretKey: '***',
       bucket: MINIO_BUCKET,
       region: process.env.MINIO_REGION || 'us-east-1',
       useSSL: MINIO_ENDPOINT.startsWith('https'),
@@ -416,18 +423,8 @@ class PlaceholderDocumentService implements DocumentService {
    * Generate a 10-minute presigned URL to VIEW a document from MinIO/S3
    */
   async getPreviewUrl(fileName: string): Promise<string> {
+    const s3Client = this.getServerS3Client()
     const command = new GetObjectCommand({
-      Bucket: MINIO_BUCKET,
-      Key: fileName,
-    })
-    return await getSignedUrl(s3Client, command, { expiresIn: 600 })
-  }
-
-  /**
-   * Generate a 10-minute presigned URL to UPLOAD a document to MinIO/S3
-   */
-  async getUploadUrl(fileName: string): Promise<string> {
-    const command = new PutObjectCommand({
       Bucket: MINIO_BUCKET,
       Key: fileName,
     })

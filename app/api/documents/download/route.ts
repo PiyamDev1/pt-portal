@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
       )
 
       // Try to move object back to MinIO for future reads
-      void migrateObjectFromR2ToMinio(key)
+      void migrateObjectFromR2ToMinio(key, { trigger: 'read' })
     }
 
     if (!result.Body) {

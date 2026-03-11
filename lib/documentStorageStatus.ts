@@ -103,7 +103,7 @@ export async function getDocumentStorageStatus(options?: { runMaintenance?: bool
   }
 
   if (runMaintenance && minio.connected && r2.connected) {
-    void migrateFallbackBatch(5)
+    void migrateFallbackBatch(5, { trigger: 'status' })
   }
 
   const uploadAvailable = minio.connected || r2.connected

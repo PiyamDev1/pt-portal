@@ -1,66 +1,21 @@
-import { createServerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
 import { getDocumentMigrationMetrics } from '@/lib/documentMigrationMetrics'
+import { requireAdminSession } from '@/lib/adminSessionAuth'
+import { getPersistentMigrationEvents } from '@/lib/documentMigrationStore'
 import { getDocumentStorageConstants, getDocumentStorageStatus } from '@/lib/documentStorageStatus'
 import { migrateFallbackBatch } from '@/lib/r2Migration'
 import { getSupabaseClient } from '@/lib/supabaseClient'
 
-function normalizeRoleName(value: unknown) {
-  return String(value || '')
-    .trim()
-    .toLowerCase()
-    .replace(/[_-]+/g, ' ')
-}
-
-async function requireAdminAccess() {
-  const cookieStore = await cookies()
-  const authClient = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll()
-        },
-        setAll() {},
-      },
+function calculateConsecutiveFailures(events: Array<{ outcome?: string }>) {
+  let count = 0
+  for (const event of events) {
+    if (event.outcome === 'failure') {
+      count += 1
+      continue
     }
-  )
-
-  const {
-    data: { user },
-    error: authError,
-  } = await authClient.auth.getUser()
-
-  if (authError || !user) {
-    return {
-      authorized: false,
-      response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
-    }
+    break
   }
-
-  const supabase = getSupabaseClient()
-  const [{ data: employeeData }, { data: profileData }] = await Promise.all([
-    (supabase.from('employees') as any).select('roles(name)').eq('id', user.id).maybeSingle(),
-    (supabase.from('profiles') as any).select('role').eq('id', user.id).maybeSingle(),
-  ])
-
-  const employeeRole = Array.isArray(employeeData?.roles)
-    ? employeeData.roles[0]?.name
-    : employeeData?.roles?.name
-  const profileRole = profileData?.role
-  const normalizedRoles = [employeeRole, profileRole].map(normalizeRoleName)
-  const isAdmin = normalizedRoles.some((role) => ['admin', 'master admin', 'super admin'].includes(role))
-
-  if (!isAdmin) {
-    return {
-      authorized: false,
-      response: NextResponse.json({ error: 'Forbidden' }, { status: 403 }),
-    }
-  }
-
-  return { authorized: true, user }
+  return count
 }
 
 async function getOverview() {
@@ -74,6 +29,7 @@ async function getOverview() {
     recentFallbackResult,
     oldestFallbackResult,
     health,
+    persistentEvents,
   ] = await Promise.all([
     (supabase.from('documents') as any).select('id', { count: 'exact', head: true }).eq('deleted', false),
     (supabase.from('documents') as any)
@@ -99,12 +55,51 @@ async function getOverview() {
       .limit(1)
       .maybeSingle(),
     getDocumentStorageStatus({ runMaintenance: false }),
+    getPersistentMigrationEvents(30),
   ])
 
   const oldestFallbackAt = oldestFallbackResult?.data?.uploaded_at || null
   const backlogAgeHours = oldestFallbackAt
     ? Math.round(((Date.now() - new Date(oldestFallbackAt).getTime()) / 36e5) * 10) / 10
     : 0
+
+  const inMemoryMetrics = getDocumentMigrationMetrics()
+  const fallbackEvents = inMemoryMetrics.recentEvents.map((event, index) => ({
+    id: `memory-${index}`,
+    event_type: event.outcome === 'success' ? 'success' : 'failure',
+    outcome: event.outcome,
+    object_key: event.key,
+    attempted: null,
+    migrated: null,
+    trigger_source: 'memory',
+    error_message: event.error || null,
+    created_at: event.timestamp,
+  }))
+  const mergedEvents = persistentEvents.length > 0 ? persistentEvents : fallbackEvents
+  const consecutiveFailures = calculateConsecutiveFailures(mergedEvents)
+
+  const alerts: Array<{ severity: 'info' | 'warning' | 'critical'; title: string; message: string }> = []
+  if ((fallbackResult.count || 0) > 20) {
+    alerts.push({
+      severity: 'warning',
+      title: 'Fallback backlog is growing',
+      message: `${fallbackResult.count || 0} documents are still waiting to migrate back to primary storage.`,
+    })
+  }
+  if (backlogAgeHours > 6) {
+    alerts.push({
+      severity: 'warning',
+      title: 'Backlog age threshold exceeded',
+      message: `Oldest fallback document has been pending for ${backlogAgeHours} hours.`,
+    })
+  }
+  if (consecutiveFailures >= 3) {
+    alerts.push({
+      severity: 'critical',
+      title: 'Consecutive migration failures detected',
+      message: `${consecutiveFailures} failures in a row were recorded. Check storage credentials and connectivity.`,
+    })
+  }
 
   return {
     summary: {
@@ -116,13 +111,19 @@ async function getOverview() {
       backlogAgeHours,
     },
     health,
-    metrics: getDocumentMigrationMetrics(),
+    metrics: {
+      ...inMemoryMetrics,
+      consecutiveFailures,
+      source: persistentEvents.length > 0 ? 'database' : 'in-memory',
+    },
+    alerts,
+    recentMigrationEvents: mergedEvents.slice(0, 12),
     recentFallbackDocuments: recentFallbackResult.data || [],
   }
 }
 
 export async function GET() {
-  const access = await requireAdminAccess()
+  const access = await requireAdminSession()
   if (!access.authorized) {
     return access.response
   }
@@ -139,7 +140,7 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const access = await requireAdminAccess()
+  const access = await requireAdminSession()
   if (!access.authorized) {
     return access.response
   }
@@ -156,7 +157,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const result = await migrateFallbackBatch(limit)
+    const result = await migrateFallbackBatch(limit, { trigger: 'manual' })
     const overview = await getOverview()
     return NextResponse.json({ success: true, data: { result, overview } })
   } catch (error) {

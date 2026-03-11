@@ -31,7 +31,25 @@ type OverviewResponse = {
     lastBatchAttempted: number
     lastBatchMigrated: number
     lastError: string | null
+    consecutiveFailures: number
+    source: 'database' | 'in-memory'
   }
+  alerts: Array<{
+    severity: 'info' | 'warning' | 'critical'
+    title: string
+    message: string
+  }>
+  recentMigrationEvents: Array<{
+    id: string
+    event_type: 'attempt' | 'success' | 'failure' | 'batch'
+    outcome: 'success' | 'failure' | 'info'
+    object_key: string | null
+    attempted: number | null
+    migrated: number | null
+    trigger_source: string | null
+    error_message: string | null
+    created_at: string
+  }>
   recentFallbackDocuments: Array<{
     id: string
     file_name: string
@@ -190,6 +208,26 @@ export function DocumentMigrationOverviewTab() {
         </div>
       ) : overview ? (
         <>
+          {overview.alerts.length > 0 && (
+            <div className="space-y-3" data-testid="document-migration-alerts">
+              {overview.alerts.map((alert, index) => (
+                <div
+                  key={`${alert.title}-${index}`}
+                  className={`rounded-lg border p-4 text-sm ${
+                    alert.severity === 'critical'
+                      ? 'border-red-300 bg-red-50 text-red-900'
+                      : alert.severity === 'warning'
+                        ? 'border-amber-300 bg-amber-50 text-amber-900'
+                        : 'border-blue-300 bg-blue-50 text-blue-900'
+                  }`}
+                >
+                  <p className="font-semibold">{alert.title}</p>
+                  <p className="mt-1">{alert.message}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4" data-testid="document-migration-stats">
             <StatCard label="Active Documents" value={overview.summary.totalActiveDocuments} />
             <StatCard label="On Primary" value={overview.summary.primaryDocuments} tone="green" />
@@ -203,7 +241,9 @@ export function DocumentMigrationOverviewTab() {
                 <Database className="w-5 h-5 text-blue-600 mt-0.5" />
                 <div>
                   <h3 className="font-semibold text-slate-900">Migration Activity</h3>
-                  <p className="text-sm text-slate-600">Recent batch status captured by the running server instance.</p>
+                  <p className="text-sm text-slate-600">
+                    Recent migration telemetry source: {overview.metrics.source === 'database' ? 'Persistent database logs' : 'In-memory fallback logs'}.
+                  </p>
                 </div>
               </div>
 
@@ -223,6 +263,10 @@ export function DocumentMigrationOverviewTab() {
                 <div className="flex justify-between gap-4">
                   <dt className="text-slate-500">Last batch</dt>
                   <dd className="text-slate-900 font-medium text-right">{overview.metrics.lastBatchMigrated}/{overview.metrics.lastBatchAttempted} migrated</dd>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <dt className="text-slate-500">Consecutive failures</dt>
+                  <dd className="text-slate-900 font-medium text-right">{overview.metrics.consecutiveFailures}</dd>
                 </div>
               </dl>
 
@@ -255,6 +299,43 @@ export function DocumentMigrationOverviewTab() {
                 </div>
               )}
             </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow border border-slate-200 p-6">
+            <h3 className="font-semibold text-slate-900 mb-4">Recent Migration Events</h3>
+
+            {overview.recentMigrationEvents.length === 0 ? (
+              <p className="text-sm text-slate-500">No migration events have been recorded yet.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-slate-500 border-b border-slate-200">
+                      <th className="pb-3 pr-4 font-medium">Time</th>
+                      <th className="pb-3 pr-4 font-medium">Event</th>
+                      <th className="pb-3 pr-4 font-medium">Outcome</th>
+                      <th className="pb-3 pr-4 font-medium">Trigger</th>
+                      <th className="pb-3 pr-4 font-medium">Detail</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {overview.recentMigrationEvents.map((event) => (
+                      <tr key={event.id} className="border-b border-slate-100 last:border-b-0">
+                        <td className="py-3 pr-4 text-slate-600">{formatDateTime(event.created_at)}</td>
+                        <td className="py-3 pr-4 text-slate-900">{event.event_type}</td>
+                        <td className="py-3 pr-4 text-slate-600">{event.outcome}</td>
+                        <td className="py-3 pr-4 text-slate-600">{event.trigger_source || 'unknown'}</td>
+                        <td className="py-3 pr-4 text-slate-600">
+                          {event.event_type === 'batch'
+                            ? `${event.migrated || 0}/${event.attempted || 0}`
+                            : event.object_key || event.error_message || '-'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
 
           <div className="bg-white rounded-lg shadow border border-slate-200 p-6">

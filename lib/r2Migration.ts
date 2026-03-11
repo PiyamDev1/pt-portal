@@ -5,6 +5,13 @@ import {
   recordMigrationFailure,
   recordMigrationSuccess,
 } from '@/lib/documentMigrationMetrics'
+import {
+  MigrationTrigger,
+  recordPersistentMigrationAttempt,
+  recordPersistentMigrationBatch,
+  recordPersistentMigrationFailure,
+  recordPersistentMigrationSuccess,
+} from '@/lib/documentMigrationStore'
 import { getR2Client, isR2Configured } from '@/lib/r2Client'
 import { getS3Client } from '@/lib/s3Client'
 import { getSupabaseClient } from '@/lib/supabaseClient'
@@ -16,11 +23,16 @@ const R2_BUCKET = process.env.R2_BUCKET_NAME || 'portal-fallback'
  * Migrate a single object from R2 to MinIO, then delete from R2.
  * Database metadata is updated only after transfer + delete succeed.
  */
-export async function migrateObjectFromR2ToMinio(key: string): Promise<boolean> {
+export async function migrateObjectFromR2ToMinio(
+  key: string,
+  options?: { trigger?: MigrationTrigger }
+): Promise<boolean> {
   if (!isR2Configured()) return false
+  const trigger = options?.trigger || 'unknown'
 
   try {
     recordMigrationAttempt()
+    void recordPersistentMigrationAttempt(key, trigger)
     const r2Client = getR2Client()
     const minioClient = getS3Client()
 
@@ -33,12 +45,11 @@ export async function migrateObjectFromR2ToMinio(key: string): Promise<boolean> 
 
     if (!r2Object.Body) return false
 
-    const bytes = await r2Object.Body.transformToByteArray()
     const putResult = await minioClient.send(
       new PutObjectCommand({
         Bucket: MINIO_BUCKET,
         Key: key,
-        Body: Buffer.from(bytes),
+        Body: r2Object.Body as any,
         ContentType: r2Object.ContentType || 'application/octet-stream',
       })
     )
@@ -61,9 +72,12 @@ export async function migrateObjectFromR2ToMinio(key: string): Promise<boolean> 
       .eq('deleted', false)
 
     recordMigrationSuccess(key)
+    void recordPersistentMigrationSuccess(key, trigger)
     return true
   } catch (error) {
-    recordMigrationFailure(key, error instanceof Error ? error.message : 'Migration failed')
+    const message = error instanceof Error ? error.message : 'Migration failed'
+    recordMigrationFailure(key, message)
+    void recordPersistentMigrationFailure(key, trigger, message)
     return false
   }
 }
@@ -71,8 +85,12 @@ export async function migrateObjectFromR2ToMinio(key: string): Promise<boolean> 
 /**
  * Migrate a small batch of fallback objects back to MinIO.
  */
-export async function migrateFallbackBatch(limit: number = 5): Promise<{ attempted: number; migrated: number }> {
+export async function migrateFallbackBatch(
+  limit: number = 5,
+  options?: { trigger?: MigrationTrigger }
+): Promise<{ attempted: number; migrated: number }> {
   if (!isR2Configured()) return { attempted: 0, migrated: 0 }
+  const trigger = options?.trigger || 'unknown'
 
   const supabase = getSupabaseClient()
   const { data, error } = await (supabase.from('documents') as any)
@@ -89,10 +107,11 @@ export async function migrateFallbackBatch(limit: number = 5): Promise<{ attempt
   for (const row of data) {
     const key = String(row.minio_key || '')
     if (!key) continue
-    const ok = await migrateObjectFromR2ToMinio(key)
+    const ok = await migrateObjectFromR2ToMinio(key, { trigger })
     if (ok) migrated += 1
   }
 
   recordMigrationBatch(data.length, migrated)
+  void recordPersistentMigrationBatch(data.length, migrated, trigger)
   return { attempted: data.length, migrated }
 }
