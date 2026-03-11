@@ -170,7 +170,7 @@ export function DocumentHub({
   }, [])
 
   return (
-    <div className={`flex flex-col gap-4 ${className}`}>
+    <div className={`flex flex-col gap-4 ${className}`} data-testid="document-hub">
       {/* File Server Status (Optional) */}
       {showStatus && <MinioStatus />}
 

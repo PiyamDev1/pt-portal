@@ -129,7 +129,7 @@ export function DocumentMigrationOverviewTab() {
       : 'red'
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" data-testid="document-migration-overview">
       <div className="bg-white rounded-lg shadow border border-slate-200 p-6 space-y-4">
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
@@ -190,7 +190,7 @@ export function DocumentMigrationOverviewTab() {
         </div>
       ) : overview ? (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4" data-testid="document-migration-stats">
             <StatCard label="Active Documents" value={overview.summary.totalActiveDocuments} />
             <StatCard label="On Primary" value={overview.summary.primaryDocuments} tone="green" />
             <StatCard label="Awaiting Migration" value={overview.summary.fallbackDocuments} tone={overview.summary.fallbackDocuments > 0 ? 'amber' : 'green'} />

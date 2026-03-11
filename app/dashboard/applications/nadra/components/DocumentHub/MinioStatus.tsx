@@ -113,6 +113,7 @@ export function MinioStatus({
   // Full view
   return (
     <div
+      data-testid="document-storage-status"
       className={`border rounded-lg p-4 bg-white ${
         connected
           ? 'border-green-200 bg-green-50'

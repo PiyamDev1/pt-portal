@@ -15,7 +15,9 @@
     "lint": "next lint",
     "format": "prettier --write .",
     "sync:pdf-worker": "node scripts/sync-pdf-worker.mjs",
-    "postinstall": "npm run sync:pdf-worker"
+    "postinstall": "npm run sync:pdf-worker",
+    "test:smoke": "playwright test",
+    "test:smoke:headed": "playwright test --headed"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1006.0",
@@ -39,6 +41,7 @@
     "zod": "^4.2.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.2",
     "@types/bcryptjs": "^3.0.0",
     "@types/node": "^20.0.0",
     "@types/qrcode": "^1.5.6",
