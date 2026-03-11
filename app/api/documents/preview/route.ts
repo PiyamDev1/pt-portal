@@ -40,7 +40,8 @@ export async function GET(request: NextRequest) {
     }
 
     const bytes = await result.Body.transformToByteArray()
-    return new NextResponse(bytes, {
+    const body = Buffer.from(bytes)
+    return new NextResponse(body, {
       headers: {
         'Content-Type': result.ContentType || 'application/octet-stream',
         'Cache-Control': 'private, max-age=300',

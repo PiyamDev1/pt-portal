@@ -40,9 +40,10 @@ export async function GET(request: NextRequest) {
     }
 
     const bytes = await result.Body.transformToByteArray()
+    const body = Buffer.from(bytes)
     const safeName = key.split('/').pop() || 'download'
 
-    return new NextResponse(bytes, {
+    return new NextResponse(body, {
       headers: {
         'Content-Type': result.ContentType || 'application/octet-stream',
         'Content-Disposition': `attachment; filename="${safeName}"`,
