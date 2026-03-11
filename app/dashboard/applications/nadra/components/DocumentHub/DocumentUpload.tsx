@@ -403,7 +403,7 @@ export function DocumentUpload({
                     </div>
                     <p className="text-xs text-slate-500 mt-0.5">
                       {upload.progress >= 95
-                        ? 'Finalizing upload. Primary check and fallback storage can add a short delay...'
+                        ? 'Finalizing upload. Server routing checks can add a short delay...'
                         : `${Math.round(upload.progress)}%`}
                     </p>
                   </>

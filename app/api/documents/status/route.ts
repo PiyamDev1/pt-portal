@@ -7,6 +7,7 @@ import { migrateFallbackBatch } from '@/lib/r2Migration'
 const MINIO_ENDPOINT = process.env.MINIO_ENDPOINT || 'https://eu49v2.piyamtravel.com'
 const MINIO_BUCKET = process.env.MINIO_BUCKET_NAME || 'portal-documents'
 const R2_ENDPOINT = process.env.R2_ENDPOINT || ''
+const R2_DISPLAY_ENDPOINT = process.env.R2_PING_URL || process.env.R2_ENDPOINT || ''
 const R2_BUCKET = process.env.R2_BUCKET_NAME || 'portal-fallback'
 const STATUS_TIMEOUT_MS = 2500
 
@@ -136,7 +137,7 @@ export async function GET(request: NextRequest) {
       fallback: {
         configured: isR2Configured(),
         connected: r2.connected,
-        endpoint: R2_ENDPOINT || null,
+        endpoint: R2_DISPLAY_ENDPOINT || null,
         bucket: R2_BUCKET,
         ping: r2.ping,
         error: r2.error,

@@ -8,9 +8,11 @@
  * @component
  */
 
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Document } from './types'
 import { FileText, Trash2, Download, Eye, File } from 'lucide-react'
+
+type PdfJsModule = typeof import('pdfjs-dist')
 
 export interface DocumentGridProps {
   /**
@@ -50,6 +52,86 @@ export interface DocumentGridProps {
 function DocumentSkeleton() {
   return (
     <div className="rounded-lg overflow-hidden bg-slate-200 animate-pulse aspect-square" />
+  )
+}
+
+function PdfThumbnail({ src, alt }: { src: string; alt: string }) {
+  const [thumbnail, setThumbnail] = useState<string | null>(null)
+  const [failed, setFailed] = useState(false)
+
+  useEffect(() => {
+    let isCancelled = false
+
+    const renderFirstPage = async () => {
+      try {
+        const pdfjs = (await import('pdfjs-dist')) as PdfJsModule
+
+        if (!pdfjs.GlobalWorkerOptions.workerSrc) {
+          pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.mjs`
+        }
+
+        const loadingTask = pdfjs.getDocument(src)
+        const pdf = await loadingTask.promise
+        const page = await pdf.getPage(1)
+
+        const baseViewport = page.getViewport({ scale: 1 })
+        const targetWidth = 380
+        const scale = targetWidth / baseViewport.width
+        const viewport = page.getViewport({ scale })
+
+        const canvas = document.createElement('canvas')
+        const context = canvas.getContext('2d')
+        if (!context) {
+          throw new Error('Canvas rendering context not available')
+        }
+
+        canvas.width = Math.floor(viewport.width)
+        canvas.height = Math.floor(viewport.height)
+
+        await page.render({ canvasContext: context, viewport, canvas }).promise
+
+        if (!isCancelled) {
+          setThumbnail(canvas.toDataURL('image/webp', 0.82))
+          setFailed(false)
+        }
+
+        await pdf.destroy()
+      } catch {
+        if (!isCancelled) {
+          setFailed(true)
+        }
+      }
+    }
+
+    void renderFirstPage()
+
+    return () => {
+      isCancelled = true
+    }
+  }, [src])
+
+  if (thumbnail && !failed) {
+    return (
+      <img
+        src={thumbnail}
+        alt={alt}
+        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+      />
+    )
+  }
+
+  if (failed) {
+    return (
+      <div className="w-full h-full flex items-center justify-center text-4xl bg-slate-100">
+        📄
+      </div>
+    )
+  }
+
+  return (
+    <div className="w-full h-full bg-slate-100 animate-pulse flex items-center justify-center text-xs text-slate-500 px-2 text-center">
+      Generating preview...
+    </div>
   )
 }
 
@@ -161,6 +243,8 @@ function DocumentGridItem({
               </div>
             )}
           </div>
+        ) : isPDF ? (
+          <PdfThumbnail src={getThumbnailSrc()} alt={document.fileName} />
         ) : (
           // File type icon for non-images
           <div className="text-5xl opacity-50 group-hover:opacity-75 transition-opacity">

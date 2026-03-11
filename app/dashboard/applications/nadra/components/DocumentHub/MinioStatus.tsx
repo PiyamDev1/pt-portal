@@ -98,7 +98,7 @@ export function MinioStatus({
         ) : uploadOnlyFallback ? (
           <>
             <div className="w-2 h-2 bg-amber-500 rounded-full" />
-            <span className="text-xs text-slate-600">Primary Offline • Fallback Upload Available</span>
+            <span className="text-xs text-slate-600">EU server 49v2 Offline • EU server 45v5 Upload Available</span>
           </>
         ) : (
           <>
@@ -138,7 +138,7 @@ export function MinioStatus({
               {connected
                 ? 'Document Storage Connected'
                 : uploadOnlyFallback
-                  ? 'Primary Storage Offline • Fallback Active'
+                  ? 'Primary Storage Offline • EU Server 45v5 Active'
                   : 'Document Storage Offline'}
             </h3>
 
@@ -158,7 +158,7 @@ export function MinioStatus({
 
               {!connected && status?.fallback?.connected && (
                 <p className="text-amber-700">
-                  <span className="font-medium">Fallback:</span> Cloudflare connected
+                  <span className="font-medium">EU Server 45v5:</span> Connected
                   {status?.fallback?.ping !== null && status?.fallback?.ping !== undefined
                     ? ` (${status.fallback.ping}ms)`
                     : ''}
@@ -167,7 +167,7 @@ export function MinioStatus({
 
               {!connected && canUpload && (
                 <p className="text-amber-700 font-medium">
-                  Upload is available via fallback storage only.
+                  Upload is available via EU Server 45v5 only.
                 </p>
               )}
 
@@ -219,7 +219,7 @@ export function MinioStatus({
               connected ? 'bg-green-600' : uploadOnlyFallback ? 'bg-amber-600' : 'bg-red-600'
             }`}
           />
-          {connected ? 'Ready' : uploadOnlyFallback ? 'Upload-Only Fallback' : 'Unavailable'}
+          {connected ? 'Ready' : uploadOnlyFallback ? 'Upload-Only Mode' : 'Unavailable'}
         </span>
       </div>
     </div>

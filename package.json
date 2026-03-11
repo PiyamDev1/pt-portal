@@ -28,6 +28,7 @@
     "next": "^16.1.6",
     "next-nprogress-bar": "^2.4.7",
     "nprogress": "^0.2.0",
+    "pdfjs-dist": "^5.5.207",
     "qrcode": "^1.5.4",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
