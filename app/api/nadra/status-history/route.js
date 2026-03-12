@@ -21,7 +21,10 @@ export async function GET(request) {
       .from('nadra_status_history')
       .select(`
         id,
+        entry_type,
         new_status,
+        complaint_number,
+        details,
         changed_at,
         employees ( full_name )
       `)
@@ -33,7 +36,10 @@ export async function GET(request) {
     // Map 'new_status' to 'status' for easier frontend usage
     const history = data.map(item => ({
       id: item.id,
+      entryType: item.entry_type || 'status',
       status: item.new_status,
+      complaintNumber: item.complaint_number || null,
+      details: item.details || '',
       changed_by: item.employees?.full_name || 'System',
       date: item.changed_at
     }))

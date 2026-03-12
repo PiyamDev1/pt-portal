@@ -28,7 +28,8 @@ export async function POST(request) {
       .insert({
         nadra_service_id: nadraId,
         new_status: status,
-        changed_by: userId
+        changed_by: userId,
+        entry_type: 'status'
       })
 
     return NextResponse.json({ success: true })

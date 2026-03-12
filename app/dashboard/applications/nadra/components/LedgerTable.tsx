@@ -9,6 +9,7 @@ interface LedgerTableProps {
   onAddMember: (head: any) => void
   onViewHistory: (item: any) => void
   onOpenNotes: (item: any) => void
+  onOpenComplaint: (item: any) => void
   onManageDocuments?: (familyHeadId: string, familyHeadName: string) => void
 }
 
@@ -21,6 +22,7 @@ export default function LedgerTable({
   onAddMember,
   onViewHistory,
   onOpenNotes,
+  onOpenComplaint,
   onManageDocuments
 }: LedgerTableProps) {
   return (
@@ -108,6 +110,8 @@ export default function LedgerTable({
                 {group.members.map((item: any) => {
                   const nadraRecord = getNadraRecord(item)
                   const details = getDetails(nadraRecord)
+                  const status = nadraRecord?.status || 'Pending Submission'
+                  const canLaunchComplaint = ['in progress', 'under process'].includes(String(status).toLowerCase())
 
                   return (
                     <tr key={item.id || `${headCnic}-placeholder` } className="hover:bg-slate-50/50 transition-colors">
@@ -164,10 +168,10 @@ export default function LedgerTable({
                       <td className="p-4 align-top">
                         <select
                           disabled={isUpdating}
-                          value={nadraRecord?.status || 'Pending Submission'}
+                          value={status}
                           onChange={(e) => onStatusChange(nadraRecord?.id, e.target.value)}
                           className={`text-xs font-bold px-3 py-1.5 rounded-full border cursor-pointer focus:ring-0 ${getStatusColor(
-                            nadraRecord?.status || 'Pending Submission'
+                            status
                           )}`}
                         >
                           <option value="Pending Submission">Pending Submission</option>
@@ -180,6 +184,16 @@ export default function LedgerTable({
 
                       <td className="p-4 align-top w-20 text-right">
                         <div className="flex items-center justify-end gap-2">
+                          {canLaunchComplaint && (
+                            <button
+                              onClick={() => onOpenComplaint(item)}
+                              className="h-8 px-2 flex items-center justify-center rounded-full bg-amber-50 hover:bg-amber-100 text-amber-700 transition text-xs font-semibold"
+                              type="button"
+                              aria-label="Launch complaint"
+                            >
+                              Complaint
+                            </button>
+                          )}
                           <button
                             onClick={() => onOpenNotes(item)}
                             className="h-8 w-8 flex items-center justify-center rounded-full bg-blue-50 hover:bg-blue-100 text-blue-600 transition"

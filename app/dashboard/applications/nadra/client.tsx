@@ -84,6 +84,10 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
   const [notesModal, setNotesModal] = useState<{ nadraId: string; note: string } | null>(null)
   const [notesText, setNotesText] = useState('')
   const [notesSaving, setNotesSaving] = useState(false)
+  const [complaintModal, setComplaintModal] = useState<{ nadraId: string; trackingNumber: string } | null>(null)
+  const [complaintNumber, setComplaintNumber] = useState('')
+  const [complaintDetails, setComplaintDetails] = useState('')
+  const [complaintSaving, setComplaintSaving] = useState(false)
 
   // EDIT/DELETE STATES
   const [editingRecord, setEditingRecord] = useState<any>(null)
@@ -94,6 +98,17 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
   const [agentOptions, setAgentOptions] = useState<{ id: string; name: string }[]>([])
   const [canChangeAgent, setCanChangeAgent] = useState(false)
   const [agentLoadError, setAgentLoadError] = useState('')
+
+  const fetchHistory = useCallback(async (nadraId: string) => {
+    setLoadingHistory(true)
+    try {
+      const response = await fetch(`/api/nadra/status-history?nadraId=${nadraId}`)
+      const data = await response.json()
+      if (data.history) setHistoryLogs(data.history)
+    } finally {
+      setLoadingHistory(false)
+    }
+  }, [])
 
   // =====================================================================
   // FORM HANDLERS
@@ -306,20 +321,14 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
     if (nadraId) {
       setLoadingHistory(true)
       const timer = setTimeout(() => {
-        fetch(`/api/nadra/status-history?nadraId=${nadraId}`)
-          .then((res) => res.json())
-          .then((data) => {
-            if (data.history) setHistoryLogs(data.history)
-          })
-          .catch(() => {
-            // Error already shown via toast
-          })
-          .finally(() => setLoadingHistory(false))
+        fetchHistory(nadraId).catch(() => {
+          // Error already shown via toast
+        })
       }, 100)
       return () => clearTimeout(timer)
     }
     setHistoryLogs([])
-  }, [selectedHistory])
+  }, [selectedHistory, fetchHistory])
 
   useEffect(() => {
     const loadAgents = async () => {
@@ -398,6 +407,62 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
     }
     setNotesModal({ nadraId: nadra.id, note: nadra?.notes || '' })
     setNotesText(nadra?.notes || '')
+  }
+
+  const openComplaintModal = (record: any) => {
+    const nadra = getNadraRecord(record)
+    if (!nadra?.id) {
+      toast.error('Complaints are only available for saved applications')
+      return
+    }
+
+    setComplaintModal({
+      nadraId: nadra.id,
+      trackingNumber: nadra?.tracking_number || record?.tracking_number || 'N/A'
+    })
+    setComplaintNumber('')
+    setComplaintDetails('')
+  }
+
+  const handleSaveComplaint = async () => {
+    if (!complaintModal?.nadraId) return
+    if (!complaintNumber.trim()) {
+      toast.error('Complaint number is required')
+      return
+    }
+    if (!complaintDetails.trim()) {
+      toast.error('Complaint details are required')
+      return
+    }
+
+    setComplaintSaving(true)
+    try {
+      const res = await fetch('/api/nadra/complaint', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nadraId: complaintModal.nadraId,
+          complaintNumber,
+          details: complaintDetails,
+          userId: currentUserId,
+        })
+      })
+
+      if (res.ok) {
+        toast.success('Complaint recorded')
+        setComplaintModal(null)
+        if (selectedHistory) {
+          await fetchHistory(complaintModal.nadraId)
+        }
+      } else {
+        const payload = await res.json()
+        toast.error(payload?.error || 'Failed to record complaint')
+      }
+    } catch (e) {
+      toast.error('Error recording complaint')
+    } finally {
+      setComplaintSaving(false)
+    }
   }
 
   const handleSaveNotes = async () => {
@@ -556,6 +621,7 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
         onAddMember={handleAddMember}
         onViewHistory={setSelectedHistory}
         onOpenNotes={openNotesModal}
+        onOpenComplaint={openComplaintModal}
         onManageDocuments={handleManageDocuments}
       />
 
@@ -613,6 +679,69 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
         onClose={() => setNotesModal(null)}
         isSaving={notesSaving}
       />
+
+      {complaintModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col" role="dialog" aria-modal="true" aria-label="Launch complaint">
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+              <div>
+                <h3 className="font-bold text-slate-800">Launch Complaint</h3>
+                <p className="text-xs text-slate-500 font-mono mt-1">Tracking: {complaintModal.trackingNumber}</p>
+              </div>
+              <button
+                onClick={() => setComplaintModal(null)}
+                className="h-8 w-8 flex items-center justify-center rounded-full hover:bg-slate-200 transition text-slate-400"
+                type="button"
+                aria-label="Close complaint modal"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div>
+                <label htmlFor="nadra-complaint-number" className="block text-xs font-bold uppercase text-slate-400 mb-2">Complaint Number</label>
+                <input
+                  id="nadra-complaint-number"
+                  value={complaintNumber}
+                  onChange={(e) => setComplaintNumber(e.target.value.toUpperCase())}
+                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm font-mono text-slate-800"
+                  placeholder="Enter complaint reference"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="nadra-complaint-details" className="block text-xs font-bold uppercase text-slate-400 mb-2">Complaint Details</label>
+                <textarea
+                  id="nadra-complaint-details"
+                  value={complaintDetails}
+                  onChange={(e) => setComplaintDetails(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm text-slate-800 min-h-[140px]"
+                  placeholder="Describe the complaint raised for this application"
+                />
+              </div>
+            </div>
+
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setComplaintModal(null)}
+                className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 font-medium hover:bg-white"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveComplaint}
+                disabled={complaintSaving}
+                className="px-4 py-2 rounded-lg bg-amber-600 text-white font-bold hover:bg-amber-700 disabled:bg-slate-400"
+              >
+                {complaintSaving ? 'Saving...' : 'Record Complaint'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

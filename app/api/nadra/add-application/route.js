@@ -168,7 +168,8 @@ export async function POST(request) {
       .insert({
         nadra_service_id: nadraRecord.id,
         new_status: 'Pending Submission',
-        changed_by: currentUserId
+        changed_by: currentUserId,
+        entry_type: 'status'
       })
 
     return NextResponse.json({ success: true, data: nadraRecord }, { 

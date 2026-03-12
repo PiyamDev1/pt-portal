@@ -67,14 +67,27 @@ export default function HistoryModal({
                 <div key={log.id} className="relative">
                   <div
                     className={`absolute -left-[23px] top-1 h-3 w-3 rounded-full border-2 border-white shadow-sm ${
-                      index === 0 ? 'bg-green-500 ring-4 ring-green-50' : 'bg-slate-300'
+                      log.entryType === 'complaint'
+                        ? 'bg-amber-500 ring-4 ring-amber-50'
+                        : index === 0
+                          ? 'bg-green-500 ring-4 ring-green-50'
+                          : 'bg-slate-300'
                     }`}
                   />
                   <div className="flex justify-between items-start">
                     <div>
                       <p className={`text-sm font-bold ${index === 0 ? 'text-slate-800' : 'text-slate-500'}`}>
-                        {log.status}
+                        {log.entryType === 'complaint' ? 'Complaint Launched' : log.status}
                       </p>
+                      {log.entryType === 'complaint' && (
+                        <>
+                          <p className="text-[11px] text-amber-700 mt-1 font-mono">Complaint No: {log.complaintNumber}</p>
+                          {log.details && <p className="text-[11px] text-slate-600 mt-1 whitespace-pre-wrap">{log.details}</p>}
+                        </>
+                      )}
+                      {log.entryType !== 'complaint' && log.details && (
+                        <p className="text-[11px] text-slate-600 mt-1 whitespace-pre-wrap">{log.details}</p>
+                      )}
                       <p className="text-[10px] text-slate-400 mt-0.5">by {log.changed_by}</p>
                     </div>
                     <div className="text-right">
