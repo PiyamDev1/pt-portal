@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
-import { formatCNIC, getNadraRecord, getDetails } from './components/helpers'
+import { formatCNIC, getNadraRecord, getDetails, normalizeStatus } from './components/helpers'
 import StatsOverview from './components/StatsOverview'
 import SearchAndFilter from './components/SearchAndFilter'
 import FormSection from './components/FormSection'
@@ -238,7 +238,7 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
   const filteredApplications = sortedApplications.filter((item: any) => {
     const query = searchQuery.toLowerCase()
     const nadra = getNadraRecord(item)
-    const status = nadra?.status || 'Pending Submission'
+    const status = normalizeStatus(nadra?.status || 'Pending Submission')
 
     const matchesSearch =
       item.applicants?.first_name?.toLowerCase().includes(query) ||
@@ -247,7 +247,7 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
       item.tracking_number?.toLowerCase().includes(query) ||
       item.family_heads?.citizen_number?.includes(query)
 
-    const matchesStatus = statusFilter === 'All' || status === statusFilter
+    const matchesStatus = statusFilter === 'All' || status === normalizeStatus(statusFilter)
     
     // Service type filter
     const serviceType = nadra?.service_type || ''
@@ -280,7 +280,7 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
   const startIdx = (currentPage - 1) * pageSize
   const pageItems = filteredApplications.slice(startIdx, startIdx + pageSize)
 
-  useEffect(() => { setCurrentPage(1) }, [searchQuery, statusFilter, startDate, endDate, showEmptyFamilies])
+  useEffect(() => { setCurrentPage(1) }, [searchQuery, statusFilter, serviceTypeFilter, serviceOptionFilter, startDate, endDate, showEmptyFamilies])
 
   const groupedData = pageItems.reduce((acc: any, item: any) => {
     const headCnic = item.family_heads?.citizen_number || 'Independent'

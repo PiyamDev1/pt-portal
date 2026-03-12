@@ -19,11 +19,35 @@ export const getDetails = (nadra: any) => {
     : nadra?.nicop_cnic_details
 }
 
-// Count applications by status
-export const countByStatus = (applications: any[], status: string): number => {
+export const normalizeStatus = (status: string): string => {
+  const value = String(status || '').trim().toLowerCase()
+
+  if (!value || value === 'pending') return 'Pending Submission'
+  if (value === 'pending submission') return 'Pending Submission'
+  if (value === 'submitted') return 'Submitted'
+  if (value === 'in progress') return 'In Progress'
+  if (value === 'under process') return 'Under Process'
+  if (value === 'completed') return 'Completed'
+  if (value === 'cancelled' || value === 'canceled') return 'Cancelled'
+
+  if (value.includes('process')) return 'Under Process'
+  if (value.includes('progress')) return 'In Progress'
+
+  return status || 'Pending Submission'
+}
+
+export const countByStatuses = (applications: any[], statuses: string[]): number => {
+  const normalized = new Set(statuses.map((status) => normalizeStatus(status)))
+
   return applications.filter((a: any) => {
     const nadra = getNadraRecord(a)
     if (!nadra) return false
-    return (nadra.status || 'Pending Submission') === status
+    const currentStatus = normalizeStatus(nadra.status || 'Pending Submission')
+    return normalized.has(currentStatus)
   }).length
+}
+
+// Count applications by status
+export const countByStatus = (applications: any[], status: string): number => {
+  return countByStatuses(applications, [status])
 }

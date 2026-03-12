@@ -33,24 +33,24 @@ export default function LedgerTable({
   return (
     <div className="space-y-4">
       {Object.entries(groupedData).length === 0 ? (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-12 text-center text-slate-400 italic" role="status" aria-live="polite">
+        <div className="rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 p-12 text-center text-slate-300 italic shadow-sm" role="status" aria-live="polite">
           No records found.
         </div>
       ) : (
         Object.entries(groupedData).map(([headCnic, group]: any) => (
-          <div key={headCnic} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <div key={headCnic} className="rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 shadow-sm overflow-hidden">
             {/* GROUP HEADER */}
-            <div className="bg-slate-50 px-6 py-3 border-b border-slate-200 flex justify-between items-center">
+            <div className="bg-black/20 px-6 py-3 border-b border-emerald-500/15 flex justify-between items-center backdrop-blur-sm">
               <div className="flex items-center gap-3">
                 <span className="text-xl">🏠</span>
                 <div>
-                  <h4 className="font-bold text-slate-800 text-sm">
+                  <h4 className="font-bold text-emerald-100 text-sm">
                     {group.head ? `${group.head.first_name} ${group.head.last_name}` : 'No Family Head'}
                   </h4>
-                  <div className="flex items-center gap-2 text-[10px] text-slate-500 font-mono uppercase">
+                  <div className="flex items-center gap-2 text-[10px] text-emerald-200/75 font-mono uppercase">
                     <span>{headCnic}</span>
                     {group.head?.phone_number && (
-                      <span className="text-slate-500 font-sans normal-case">• 📞 {group.head.phone_number}</span>
+                      <span className="text-emerald-200/75 font-sans normal-case">• 📞 {group.head.phone_number}</span>
                     )}
                   </div>
                 </div>
@@ -61,7 +61,7 @@ export default function LedgerTable({
                 {group.head && (
                   <button
                     onClick={() => onManageDocuments?.(group.head.id, `${group.head.first_name} ${group.head.last_name}`)}
-                    className="text-xs bg-sky-600 hover:bg-sky-700 text-white px-3 py-1.5 rounded-md font-bold transition flex items-center gap-1"
+                    className="text-xs bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-md font-bold transition flex items-center gap-1"
                     type="button"
                     aria-label="Manage family documents"
                   >
@@ -75,7 +75,7 @@ export default function LedgerTable({
                 {group.head && (
                   <button
                     onClick={() => onEditHead(group.head)}
-                    className="text-xs text-slate-600 underline hover:text-blue-600"
+                    className="text-xs text-emerald-200 underline hover:text-emerald-100"
                     type="button"
                     aria-label="Modify family head"
                   >
@@ -85,7 +85,7 @@ export default function LedgerTable({
                 {group.head && (
                   <button
                     onClick={() => onAddMember(group.head)}
-                    className="text-xs bg-white border border-slate-300 text-slate-700 px-3 py-1.5 rounded-md hover:bg-slate-50 font-bold transition flex items-center gap-1"
+                    className="text-xs bg-emerald-500/10 border border-emerald-400/30 text-emerald-100 px-3 py-1.5 rounded-md hover:bg-emerald-500/20 font-bold transition flex items-center gap-1"
                     type="button"
                     aria-label="Add member"
                   >
@@ -97,18 +97,18 @@ export default function LedgerTable({
 
             {/* Temp banner when family head has no applications */}
             {group.members.length === 0 && (
-              <div className="mx-6 mt-3 mb-0 bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-lg px-4 py-3">
+              <div className="mx-6 mt-3 mb-0 bg-amber-500/10 border border-amber-300/30 text-amber-100 text-sm rounded-lg px-4 py-3">
                 No applications yet for this family head email. Add the first application to link the account and this banner will disappear.
               </div>
             )}
 
             {/* ROWS */}
             <table className="w-full text-left text-sm">
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-emerald-500/10">
                 {group.members.length === 0 && (
                   <tr>
-                    <td className="p-6 text-slate-500 italic" colSpan={5}>
-                      No members yet. <button onClick={() => onAddMember(group.head)} className="underline text-blue-600 hover:text-blue-800 font-semibold" type="button" aria-label="Add family member">Add a member to this family head</button>.
+                    <td className="p-6 text-slate-300 italic" colSpan={5}>
+                      No members yet. <button onClick={() => onAddMember(group.head)} className="underline text-emerald-300 hover:text-emerald-200 font-semibold" type="button" aria-label="Add family member">Add a member to this family head</button>.
                     </td>
                   </tr>
                 )}
@@ -119,29 +119,29 @@ export default function LedgerTable({
                   const canLaunchComplaint = canOpenComplaintForStatus(status)
 
                   return (
-                    <tr key={item.id || `${headCnic}-placeholder` } className="hover:bg-slate-50/50 transition-colors">
+                    <tr key={item.id || `${headCnic}-placeholder` } className="hover:bg-emerald-500/5 transition-colors">
                       <td className="p-4 pl-12 align-top">
                         <div className="flex items-start gap-3">
-                          <span className="text-slate-400 font-light">¬</span>
+                          <span className="text-emerald-300/60 font-light">¬</span>
                           <div>
-                            <div className="font-bold text-slate-800 text-base">
+                            <div className="font-bold text-emerald-50 text-base">
                               {item.applicants?.first_name} {item.applicants?.last_name}
                             </div>
-                            <div className="text-sm text-slate-600 font-mono mt-0.5 tracking-wide">
+                            <div className="text-sm text-emerald-100/80 font-mono mt-0.5 tracking-wide">
                               {item.applicants?.citizen_number}
                             </div>
-                            <div className="text-xs text-blue-500 mt-1">{item.applicants?.email}</div>
+                            <div className="text-xs text-emerald-300 mt-1">{item.applicants?.email}</div>
                           </div>
                         </div>
                       </td>
 
                       <td className="p-4 align-top">
-                        <div className="font-bold text-slate-700">{nadraRecord?.service_type}</div>
-                        <div className="text-xs text-slate-500 font-medium mt-1">
+                        <div className="font-bold text-emerald-100">{nadraRecord?.service_type}</div>
+                        <div className="text-xs text-emerald-200/80 font-medium mt-1">
                           {details?.service_option || 'Standard Processing'}
                         </div>
                         {nadraRecord?.employees?.full_name && (
-                          <div className="mt-2 inline-flex items-center gap-1 bg-blue-50 border border-blue-100 px-2 py-1 rounded text-xs text-blue-700">
+                          <div className="mt-2 inline-flex items-center gap-1 bg-emerald-500/10 border border-emerald-400/25 px-2 py-1 rounded text-xs text-emerald-200">
                             <span>👤</span>
                             <span className="font-medium">{nadraRecord.employees.full_name}</span>
                           </div>
@@ -151,20 +151,20 @@ export default function LedgerTable({
                       <td className="p-4 align-top">
                         <button
                           onClick={() => onViewHistory(item)}
-                          className="font-mono text-slate-800 font-bold tracking-wide text-sm hover:underline block"
+                          className="font-mono text-emerald-50 font-bold tracking-wide text-sm hover:underline block"
                           type="button"
                           aria-label="View application history"
                         >
                           {nadraRecord?.tracking_number || item.tracking_number}
                         </button>
                         <div className="flex items-center gap-2 mt-1">
-                          <span className="text-xs text-slate-400 font-bold uppercase">PIN:</span>
-                          <span className="bg-slate-100 px-2 py-0.5 rounded text-sm font-mono font-bold text-slate-700 border border-slate-200">
+                          <span className="text-xs text-emerald-200/70 font-bold uppercase">PIN:</span>
+                          <span className="bg-emerald-500/10 px-2 py-0.5 rounded text-sm font-mono font-bold text-emerald-100 border border-emerald-400/20">
                             {nadraRecord?.application_pin || 'N/A'}
                           </span>
                         </div>
                         {nadraRecord?.created_at && (
-                          <div className="text-xs text-slate-500 mt-2">
+                          <div className="text-xs text-emerald-200/75 mt-2">
                             {new Date(nadraRecord.created_at).toLocaleDateString('en-GB')}
                           </div>
                         )}
@@ -193,7 +193,7 @@ export default function LedgerTable({
                           {canLaunchComplaint && (
                             <button
                               onClick={() => onOpenComplaint(item)}
-                              className="h-8 px-3 flex items-center justify-center rounded-full bg-amber-50 hover:bg-amber-100 text-amber-700 transition text-xs font-semibold border border-amber-200 whitespace-nowrap"
+                              className="h-8 px-3 flex items-center justify-center rounded-full bg-amber-500/10 hover:bg-amber-500/20 text-amber-100 transition text-xs font-semibold border border-amber-300/30 whitespace-nowrap"
                               type="button"
                               aria-label="Launch complaint"
                             >
@@ -202,7 +202,7 @@ export default function LedgerTable({
                           )}
                           <button
                             onClick={() => onOpenNotes(item)}
-                            className="h-8 w-8 flex items-center justify-center rounded-full bg-blue-50 hover:bg-blue-100 text-blue-600 transition"
+                            className="h-8 w-8 flex items-center justify-center rounded-full bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-200 transition border border-emerald-400/20"
                             type="button"
                             aria-label="Open notes"
                           >
@@ -210,7 +210,7 @@ export default function LedgerTable({
                           </button>
                           <button
                             onClick={() => onEditApplication(item)}
-                            className="h-8 w-8 flex items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 transition"
+                            className="h-8 w-8 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-slate-200 transition border border-white/15"
                             type="button"
                             aria-label="Edit application"
                           >
