@@ -45,6 +45,7 @@ export default async function SettingsPage() {
   const location = Array.isArray(employeeData?.data?.locations) ? employeeData.data.locations[0] : employeeData?.data?.locations
   const role = Array.isArray(employeeData?.data?.roles) ? employeeData.data.roles[0] : employeeData?.data?.roles
   const userRole = role?.name || 'Employee'
+  const hasAdminConsole = ['Admin', 'Master Admin', 'Maintenance Admin'].includes(userRole)
 
   // 3. Pass data to the Client Component (The Dashboard UI)
   return (
@@ -59,8 +60,12 @@ export default async function SettingsPage() {
         />
       
       <main className="max-w-7xl mx-auto p-6">
-        <h1 className="text-3xl font-bold text-slate-800 mb-2">Settings</h1>
-        <p className="text-slate-500 mb-8">Manage your personal account and organization structure.</p>
+        <h1 className="text-3xl font-bold text-slate-800 mb-2">{hasAdminConsole ? 'Admin & Settings' : 'Settings'}</h1>
+        <p className="text-slate-500 mb-8">
+          {hasAdminConsole
+            ? 'Manage account security, organization controls, and operational maintenance from one workspace.'
+            : 'Manage your personal account and security settings.'}
+        </p>
       
       <SettingsClient 
         currentUser={session.user}

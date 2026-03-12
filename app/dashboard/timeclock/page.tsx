@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import PageHeader from '@/app/components/PageHeader.client'
 import DashboardClientWrapper from '@/app/dashboard/client-wrapper'
 import TimeclockClient from './client'
+import { getRoleName, hasMaintenanceTimeclockAccess, hasManagerTimeclockAccess, pickRoleName } from '@/lib/timeclockAccess'
 
 export const metadata = {
   title: 'Timeclock - PT Portal',
@@ -32,28 +33,37 @@ export default async function TimeclockPage() {
   const { data: { session } } = await supabase.auth.getSession()
   if (!session) redirect('/login')
 
-  const { data: employee } = await supabase
-    .from('employees')
-    .select('full_name, roles(name), locations(name, branch_code)')
-    .eq('id', session.user.id)
-    .single()
-
-  const { count: reportCount } = await supabase
-    .from('employees')
-    .select('id', { count: 'exact', head: true })
-    .eq('manager_id', session.user.id)
+  const [{ data: employee }, { count: reportCount }, { data: profile }] = await Promise.all([
+    supabase
+      .from('employees')
+      .select('full_name, roles(name), locations(name, branch_code)')
+      .eq('id', session.user.id)
+      .single(),
+    supabase
+      .from('employees')
+      .select('id', { count: 'exact', head: true })
+      .eq('manager_id', session.user.id),
+    supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', session.user.id)
+      .maybeSingle(),
+  ])
 
   const location = Array.isArray(employee?.locations) ? employee.locations[0] : employee?.locations
   const role = Array.isArray(employee?.roles) ? employee.roles[0] : employee?.roles
-  const isManager = role?.name === 'Master Admin' || (reportCount || 0) > 0
-  const canSeeTeam = role?.name === 'Master Admin' || (reportCount || 0) > 0
+  const roleName = pickRoleName(getRoleName(role), profile?.role)
+  const isManager = hasManagerTimeclockAccess(roleName, reportCount)
+  const canUseMaintenanceTools = hasMaintenanceTimeclockAccess(roleName)
+  const canSeeTeam = isManager || canUseMaintenanceTools
+  const canSeeManualEntry = isManager || canUseMaintenanceTools
 
   return (
     <DashboardClientWrapper>
       <div className="min-h-screen bg-slate-50 flex flex-col">
         <PageHeader
           employeeName={employee?.full_name}
-          role={role?.name}
+          role={roleName || role?.name}
           location={location}
           userId={session.user.id}
           showBack={true}
@@ -61,7 +71,7 @@ export default async function TimeclockPage() {
 
         <main className="max-w-4xl mx-auto p-6 w-full flex-grow">
           <h1 className="text-3xl font-bold text-slate-800 mb-2">Timeclock</h1>
-          <p className="text-slate-500 mb-6">Scan the QR code on the device to clock in or out.</p>
+          <p className="text-slate-500 mb-6">Scan the QR code on the device to clock in or out. Managers can also open manual entry for team access and self-punch fallback.</p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
             <a
               href="/dashboard/timeclock/history"
@@ -76,10 +86,10 @@ export default async function TimeclockPage() {
                 className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:border-blue-300 transition"
               >
                 <h2 className="text-lg font-semibold text-slate-800">Team punches</h2>
-                <p className="text-sm text-slate-500">See punches for your reporting team.</p>
+                <p className="text-sm text-slate-500">See punches for your reporting team, or across the site with maintenance access.</p>
               </a>
             )}
-            {isManager && (
+            {canSeeManualEntry && (
               <a
                 href="/dashboard/timeclock/manual-entry"
                 className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:border-green-300 transition"

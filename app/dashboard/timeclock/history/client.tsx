@@ -9,6 +9,10 @@ type TimeclockEvent = {
   punch_type?: string
   device_ts: string
   scanned_at: string
+  adjusted_device_ts?: string | null
+  adjusted_scanned_at?: string | null
+  adjusted_at?: string | null
+  adjustment_reason?: string | null
   geo?: { lat?: number; lng?: number; accuracy?: number } | null
   timeclock_devices?: { name?: string } | { name?: string }[] | null
 }
@@ -38,6 +42,9 @@ const extractDeviceName = (device?: TimeclockEvent['timeclock_devices']) => {
   if (!device) return 'Unknown'
   return Array.isArray(device) ? device[0]?.name || 'Unknown' : device?.name || 'Unknown'
 }
+
+const getEffectiveDeviceTime = (event: TimeclockEvent) => event.adjusted_device_ts || event.device_ts
+const getEffectiveRecordedTime = (event: TimeclockEvent) => event.adjusted_scanned_at || event.scanned_at
 
 export default function TimeclockHistoryClient() {
   const [events, setEvents] = useState<TimeclockEvent[]>([])
@@ -207,9 +214,18 @@ export default function TimeclockHistoryClient() {
                 return (
                   <tr key={event.id} className="border-b border-slate-100 last:border-b-0">
                     <td className="py-3 pr-4 font-medium">{extractDeviceName(event.timeclock_devices)}</td>
-                    <td className="py-3 pr-4">{event.punch_type || event.event_type}</td>
-                    <td className="py-3 pr-4">{formatDate(event.device_ts)}</td>
-                    <td className="py-3 pr-4">{formatDate(event.scanned_at)}</td>
+                    <td className="py-3 pr-4">
+                      <div>{event.punch_type || event.event_type}</div>
+                      {event.adjusted_at && <div className="text-xs text-amber-700">Adjusted once</div>}
+                    </td>
+                    <td className="py-3 pr-4">
+                      <div>{formatDate(getEffectiveDeviceTime(event))}</div>
+                      {event.adjusted_device_ts && <div className="text-xs text-slate-500">Original: {formatDate(event.device_ts)}</div>}
+                    </td>
+                    <td className="py-3 pr-4">
+                      <div>{formatDate(getEffectiveRecordedTime(event))}</div>
+                      {event.adjusted_scanned_at && <div className="text-xs text-slate-500">Original: {formatDate(event.scanned_at)}</div>}
+                    </td>
                     <td className="py-3 pr-4">{geoText}</td>
                   </tr>
                 )

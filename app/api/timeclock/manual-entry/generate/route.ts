@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies, headers } from 'next/headers'
 import { createClient } from '@supabase/supabase-js'
 import crypto from 'crypto'
+import { getRoleName, hasMaintenanceTimeclockAccess, hasManagerTimeclockAccess, pickRoleName } from '@/lib/timeclockAccess'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -70,22 +71,29 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Check if user has Master Admin role or is a manager (has direct reports)
-    const { data: user } = await supabase
-      .from('employees')
-      .select('roles(name)')
-      .eq('id', session.user.id)
-      .single()
+    // Check if user has manager-level or maintenance-level timeclock access.
+    const [{ data: user }, { count: reportCount }, { data: profile }] = await Promise.all([
+      supabase
+        .from('employees')
+        .select('roles(name)')
+        .eq('id', session.user.id)
+        .single(),
+      supabase
+        .from('employees')
+        .select('id', { count: 'exact', head: true })
+        .eq('manager_id', session.user.id),
+      supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', session.user.id)
+        .maybeSingle(),
+    ])
 
-    const { count: reportCount } = await supabase
-      .from('employees')
-      .select('id', { count: 'exact', head: true })
-      .eq('manager_id', session.user.id)
+    const roleName = pickRoleName(getRoleName(user?.roles), profile?.role)
+    const canAccessManualEntry =
+      hasManagerTimeclockAccess(roleName, reportCount) || hasMaintenanceTimeclockAccess(roleName)
 
-    const role = Array.isArray(user?.roles) ? user.roles[0] : user?.roles
-    const isManager = role?.name === 'Master Admin' || (reportCount || 0) > 0
-
-    if (!isManager) {
+    if (!canAccessManualEntry) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 

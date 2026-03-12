@@ -5,6 +5,7 @@ import SecurityTab from './components/SecurityTab'
 import BranchesTab from './components/BranchesTab'
 import StaffTab from './components/StaffTab'
 import HierarchyTab from './components/HierarchyTab'
+import { AdminOverviewTab } from './components/AdminOverviewTab'
 import { DocumentMigrationOverviewTab } from './components/DocumentMigrationOverviewTab'
 import { MaintenanceTab } from './components/MaintenanceTab'
 import Link from 'next/link'
@@ -17,7 +18,13 @@ export default function SettingsClient({
   initialRoles, 
   initialEmployees 
 }: any) {
-  const [activeTab, setActiveTab] = useState('security')
+  // Organization admins can manage hierarchy/staff/branches.
+  const isOrgAdmin = ['Admin', 'Master Admin'].includes(userRole)
+  // Maintenance admins can access maintenance and document migration tooling.
+  const canAccessMaintenance = ['Maintenance Admin', 'Admin', 'Master Admin'].includes(userRole)
+  const hasAdminConsole = isOrgAdmin || canAccessMaintenance
+
+  const [activeTab, setActiveTab] = useState(hasAdminConsole ? 'admin-overview' : 'security')
   const [loading, setLoading] = useState(false)
   
   const supabase = createBrowserClient(
@@ -25,10 +32,13 @@ export default function SettingsClient({
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
 
-  // Organization admins can manage hierarchy/staff/branches.
-  const isOrgAdmin = ['Admin', 'Master Admin'].includes(userRole)
-  // Maintenance admins can access maintenance and document migration tooling.
-  const canAccessMaintenance = ['Maintenance Admin', 'Admin', 'Master Admin'].includes(userRole)
+  const employeeCount = Array.isArray(initialEmployees) ? initialEmployees.length : 0
+  const activeEmployeeCount = Array.isArray(initialEmployees)
+    ? initialEmployees.filter((employee: any) => employee.is_active !== false).length
+    : 0
+  const inactiveEmployeeCount = Math.max(employeeCount - activeEmployeeCount, 0)
+  const branchCount = Array.isArray(initialLocations) ? initialLocations.length : 0
+  const roleCount = Array.isArray(initialRoles) ? initialRoles.length : 0
 
   return (
     <div className="flex flex-col md:flex-row gap-8 min-h-screen">
@@ -50,8 +60,22 @@ export default function SettingsClient({
             Security & Password
           </button>
 
-          {(isOrgAdmin || canAccessMaintenance) && (
+          {hasAdminConsole && (
             <>
+              <div className="px-4 py-3 bg-slate-100 border-b border-slate-200 text-xs font-bold text-slate-500 uppercase tracking-wider border-t">
+                Admin Console
+              </div>
+              <button 
+                onClick={() => setActiveTab('admin-overview')}
+                className={`w-full text-left px-4 py-3 border-l-4 transition-colors ${
+                  activeTab === 'admin-overview' 
+                    ? 'border-blue-900 bg-blue-50 font-medium text-blue-900' 
+                    : 'border-transparent hover:bg-slate-50 text-slate-600'
+                }`}
+              >
+                Overview
+              </button>
+
               {isOrgAdmin && (
                 <>
                   <div className="px-4 py-3 bg-slate-100 border-b border-slate-200 text-xs font-bold text-slate-500 uppercase tracking-wider border-t">
@@ -138,6 +162,20 @@ export default function SettingsClient({
 
       {/* Main Content Area */}
       <div className="flex-1 space-y-6">
+        {activeTab === 'admin-overview' && hasAdminConsole && (
+          <AdminOverviewTab
+            userRole={userRole}
+            employeeCount={employeeCount}
+            activeEmployeeCount={activeEmployeeCount}
+            inactiveEmployeeCount={inactiveEmployeeCount}
+            branchCount={branchCount}
+            roleCount={roleCount}
+            canManageOrganization={isOrgAdmin}
+            canAccessMaintenance={canAccessMaintenance}
+            onSelectTab={setActiveTab}
+          />
+        )}
+
         {activeTab === 'security' && (
           <SecurityTab 
             currentUser={currentUser} 

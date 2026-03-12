@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 import { createClient } from '@supabase/supabase-js'
+import { hasMaintenanceTimeclockAccess, hasManagerTimeclockAccess, normalizeRoleName, pickRoleName } from '@/lib/timeclockAccess'
 
 export const dynamic = 'force-dynamic'
 
@@ -84,8 +85,18 @@ export async function GET(request: Request) {
 
     const employeeRows = (employees || []) as EmployeeRow[]
     const currentUser = employeeRows.find((emp) => emp.id === session.user.id) || null
-    const roleName = getRoleName(currentUser)
-    const isMasterAdmin = roleName === 'Master Admin'
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', session.user.id)
+      .maybeSingle()
+
+    const roleName = pickRoleName(getRoleName(currentUser), profile?.role)
+    const isMasterAdmin = normalizeRoleName(roleName) === 'master admin'
+    const subtreeIds = collectReports(session.user.id, employeeRows)
+    const hasManagerAccess = hasManagerTimeclockAccess(roleName, subtreeIds.length)
+    const hasMaintenanceAccess = hasMaintenanceTimeclockAccess(roleName)
+    const canAdjustTime = isMasterAdmin || hasMaintenanceAccess
 
     if (scope === 'self') {
       let query = adminSupabase
@@ -98,6 +109,10 @@ export async function GET(request: Request) {
           punch_type,
           device_ts,
           scanned_at,
+          adjusted_device_ts,
+          adjusted_scanned_at,
+          adjusted_at,
+          adjustment_reason,
           geo,
           device_id,
           timeclock_devices ( name )
@@ -126,16 +141,16 @@ export async function GET(request: Request) {
         page,
         pageSize: limit,
         role: roleName || null,
+        canAdjustTime,
       })
     }
 
     if (scope === 'team') {
-      const subtreeIds = collectReports(session.user.id, employeeRows)
       const allowedIds = new Set(
-        isMasterAdmin ? employeeRows.map((emp) => emp.id) : [session.user.id, ...subtreeIds]
+        hasMaintenanceAccess || isMasterAdmin ? employeeRows.map((emp) => emp.id) : [session.user.id, ...subtreeIds]
       )
 
-      if (!isMasterAdmin && subtreeIds.length === 0) {
+      if (!hasMaintenanceAccess && !isMasterAdmin && !hasManagerAccess) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
 
@@ -155,6 +170,10 @@ export async function GET(request: Request) {
           punch_type,
           device_ts,
           scanned_at,
+          adjusted_device_ts,
+          adjusted_scanned_at,
+          adjusted_at,
+          adjustment_reason,
           geo,
           device_id,
           employees ( full_name ),
@@ -193,6 +212,7 @@ export async function GET(request: Request) {
         pageSize: limit,
         employees: employeeOptions,
         role: roleName || null,
+        canAdjustTime,
       })
     }
 

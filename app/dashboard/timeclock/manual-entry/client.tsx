@@ -17,6 +17,8 @@ export default function ManualEntryClient({ userId }: { userId: string }) {
   const [timeLeft, setTimeLeft] = useState(30)
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
   const [isSuspended, setIsSuspended] = useState(false)
+  const [selfSubmitting, setSelfSubmitting] = useState(false)
+  const [selfPunchMessage, setSelfPunchMessage] = useState<string | null>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const suspendTimerRef = useRef<NodeJS.Timeout | null>(null)
@@ -42,6 +44,7 @@ export default function ManualEntryClient({ userId }: { userId: string }) {
         setPayload(data)
         setTimeLeft(30)
         setQrDataUrl(null)
+        setSelfPunchMessage(null)
       } catch (err) {
         console.error('Code generation error:', err)
         setError(err instanceof Error ? err.message : 'Unknown error')
@@ -110,10 +113,36 @@ export default function ManualEntryClient({ userId }: { userId: string }) {
     renderQr()
   }, [payload])
 
+  const handleSelfPunch = async () => {
+    if (!payload?.code) return
+
+    try {
+      setSelfSubmitting(true)
+      setSelfPunchMessage(null)
+
+      const response = await fetch('/api/timeclock/manual-entry/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: payload.code }),
+      })
+
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data?.error || 'Failed to record punch')
+      }
+
+      setSelfPunchMessage(data?.message || 'Punch recorded for your account.')
+    } catch (err) {
+      setSelfPunchMessage(err instanceof Error ? err.message : 'Failed to record punch')
+    } finally {
+      setSelfSubmitting(false)
+    }
+  }
+
   return (
     <div className="max-w-md mx-auto p-6">
       <h1 className="text-2xl font-bold mb-2">Manual Punch Entry</h1>
-      <p className="text-gray-600 mb-6">Display this code for staff to scan or enter manually</p>
+      <p className="text-gray-600 mb-6">Display this code for staff to scan or enter manually. You can also use the current code to punch yourself in or out.</p>
 
       {loading && <div className="text-center py-8">Generating code...</div>}
       {error && <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 text-red-800">{error}</div>}
@@ -172,6 +201,19 @@ export default function ManualEntryClient({ userId }: { userId: string }) {
             <p className="text-xs text-gray-600 text-center">
               Staff can enter this code on their timeclock portal
             </p>
+            <button
+              type="button"
+              onClick={handleSelfPunch}
+              disabled={selfSubmitting}
+              className="mt-4 w-full rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:bg-slate-400"
+            >
+              {selfSubmitting ? 'Recording punch...' : 'Punch myself with this code'}
+            </button>
+            {selfPunchMessage && (
+              <p className={`mt-3 text-center text-sm ${selfPunchMessage.toLowerCase().includes('failed') || selfPunchMessage.toLowerCase().includes('error') || selfPunchMessage.toLowerCase().includes('expired') ? 'text-red-600' : 'text-green-700'}`}>
+                {selfPunchMessage}
+              </p>
+            )}
           </div>
 
           <p className="text-xs text-gray-500 text-center mt-6">

@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import ManualEntryClient from './client'
 import PageHeader from '@/app/components/PageHeader.client'
 import DashboardClientWrapper from '@/app/dashboard/client-wrapper'
+import { getRoleName, hasMaintenanceTimeclockAccess, hasManagerTimeclockAccess, pickRoleName } from '@/lib/timeclockAccess'
 
 export default async function ManualEntryPage() {
   const cookieStore = await cookies()
@@ -26,21 +27,29 @@ export default async function ManualEntryPage() {
   }
 
   // Check if user is a manager (has reports) or has Master Admin role
-  const { data: employee } = await supabase
-    .from('employees')
-    .select('full_name, roles(name), locations(name, branch_code)')
-    .eq('id', session.user.id)
-    .single()
-
-  const { count: reportCount } = await supabase
-    .from('employees')
-    .select('id', { count: 'exact', head: true })
-    .eq('manager_id', session.user.id)
+  const [{ data: employee }, { count: reportCount }, { data: profile }] = await Promise.all([
+    supabase
+      .from('employees')
+      .select('full_name, roles(name), locations(name, branch_code)')
+      .eq('id', session.user.id)
+      .single(),
+    supabase
+      .from('employees')
+      .select('id', { count: 'exact', head: true })
+      .eq('manager_id', session.user.id),
+    supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', session.user.id)
+      .maybeSingle(),
+  ])
 
   const role = Array.isArray(employee?.roles) ? employee.roles[0] : employee?.roles
-  const isManager = role?.name === 'Master Admin' || (reportCount || 0) > 0
+  const roleName = pickRoleName(getRoleName(role), profile?.role)
+  const canAccessManualEntry =
+    hasManagerTimeclockAccess(roleName, reportCount) || hasMaintenanceTimeclockAccess(roleName)
   
-  if (!isManager) {
+  if (!canAccessManualEntry) {
     redirect('/dashboard/timeclock')
   }
 
