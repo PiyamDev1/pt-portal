@@ -46,6 +46,7 @@ interface EditFormData {
 
 export default function NadraClient({ initialApplications, currentUserId }: any) {
   const router = useRouter()
+  const [applications, setApplications] = useState(initialApplications)
 
   // FORM STATES
   const [showForm, setShowForm] = useState(false)
@@ -98,6 +99,18 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
   const [agentOptions, setAgentOptions] = useState<{ id: string; name: string }[]>([])
   const [canChangeAgent, setCanChangeAgent] = useState(false)
   const [agentLoadError, setAgentLoadError] = useState('')
+
+  useEffect(() => {
+    setApplications(initialApplications)
+  }, [initialApplications])
+
+  const updateApplicationRecord = useCallback((nadraId: string, updater: (item: any, nadra: any) => any) => {
+    setApplications((prev: any[]) => prev.map((item: any) => {
+      const nadra = getNadraRecord(item)
+      if (!nadra?.id || nadra.id !== nadraId) return item
+      return updater(item, nadra)
+    }))
+  }, [])
 
   const fetchHistory = useCallback(async (nadraId: string) => {
     setLoadingHistory(true)
@@ -216,7 +229,7 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
     return nadra?.created_at || item?.created_at || 0
   }
 
-  const sortedApplications = [...initialApplications].sort((a: any, b: any) => {
+  const sortedApplications = [...applications].sort((a: any, b: any) => {
     const ad = new Date(getCreatedAt(a) || 0).getTime()
     const bd = new Date(getCreatedAt(b) || 0).getTime()
     return bd - ad // newest first
@@ -293,6 +306,12 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
         body: JSON.stringify({ nadraId, status: newStatus, userId: currentUserId })
       })
       if (res.ok) {
+        updateApplicationRecord(nadraId, (item, nadra) => ({
+          ...item,
+          nadra_services: Array.isArray(item.nadra_services)
+            ? [{ ...nadra, status: newStatus }]
+            : { ...nadra, status: newStatus }
+        }))
         toast.success('Status updated')
         router.refresh()
       } else {
@@ -523,6 +542,59 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
         })
       })
       if (res.ok) {
+        if (editType === 'application') {
+          const selectedAgentName = editFormData.employeeId
+            ? agentOptions.find((agent) => agent.id === editFormData.employeeId)?.name || editFormData.employeeName || ''
+            : editFormData.employeeName || ''
+
+          updateApplicationRecord(editFormData.id, (item, nadra) => ({
+            ...item,
+            tracking_number: editFormData.trackingNumber ?? item.tracking_number,
+            applicants: item.applicants
+              ? {
+                  ...item.applicants,
+                  first_name: editFormData.firstName ?? item.applicants.first_name,
+                  last_name: editFormData.lastName ?? item.applicants.last_name,
+                  citizen_number: editFormData.newBorn ? null : (editFormData.cnic ?? item.applicants.citizen_number),
+                  email: editFormData.email ?? item.applicants.email,
+                }
+              : item.applicants,
+            nadra_services: Array.isArray(item.nadra_services)
+              ? [{
+                  ...nadra,
+                  service_type: editFormData.serviceType ?? nadra.service_type,
+                  tracking_number: editFormData.trackingNumber ?? nadra.tracking_number,
+                  application_pin: editFormData.pin ?? nadra.application_pin,
+                  employee_id: editFormData.employeeId ?? nadra.employee_id,
+                  notes: editFormData.notes ?? nadra.notes,
+                  nicop_cnic_details: Array.isArray(nadra.nicop_cnic_details)
+                    ? [{ ...(nadra.nicop_cnic_details[0] || {}), service_option: editFormData.serviceOption ?? nadra.nicop_cnic_details[0]?.service_option }]
+                    : nadra.nicop_cnic_details
+                      ? { ...nadra.nicop_cnic_details, service_option: editFormData.serviceOption ?? nadra.nicop_cnic_details.service_option }
+                      : { service_option: editFormData.serviceOption || 'Normal' },
+                  employees: editFormData.employeeId
+                    ? { ...(nadra.employees || {}), id: editFormData.employeeId, full_name: selectedAgentName }
+                    : nadra.employees,
+                }]
+              : {
+                  ...nadra,
+                  service_type: editFormData.serviceType ?? nadra.service_type,
+                  tracking_number: editFormData.trackingNumber ?? nadra.tracking_number,
+                  application_pin: editFormData.pin ?? nadra.application_pin,
+                  employee_id: editFormData.employeeId ?? nadra.employee_id,
+                  notes: editFormData.notes ?? nadra.notes,
+                  nicop_cnic_details: Array.isArray(nadra.nicop_cnic_details)
+                    ? [{ ...(nadra.nicop_cnic_details[0] || {}), service_option: editFormData.serviceOption ?? nadra.nicop_cnic_details[0]?.service_option }]
+                    : nadra.nicop_cnic_details
+                      ? { ...nadra.nicop_cnic_details, service_option: editFormData.serviceOption ?? nadra.nicop_cnic_details.service_option }
+                      : { service_option: editFormData.serviceOption || 'Normal' },
+                  employees: editFormData.employeeId
+                    ? { ...(nadra.employees || {}), id: editFormData.employeeId, full_name: selectedAgentName }
+                    : nadra.employees,
+                }
+          }))
+        }
+
         toast.success('Record updated')
         setEditingRecord(null)
         setEditType(null)
@@ -536,7 +608,7 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
     } catch (e) {
       toast.error('Error updating')
     }
-  }, [editType, editFormData?.id, currentUserId, router])
+  }, [agentOptions, currentUserId, editFormData, editType, router, updateApplicationRecord])
 
   const handleDelete = useCallback(async () => {
     if (!deleteAuthCode) {
@@ -584,7 +656,7 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
 
   return (
     <div className="space-y-6">
-      <StatsOverview applications={initialApplications} />
+      <StatsOverview applications={applications} />
 
       <SearchAndFilter
         searchQuery={searchQuery}

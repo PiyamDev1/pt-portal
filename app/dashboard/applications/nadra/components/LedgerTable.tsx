@@ -25,6 +25,11 @@ export default function LedgerTable({
   onOpenComplaint,
   onManageDocuments
 }: LedgerTableProps) {
+  const canOpenComplaintForStatus = (status: string) => {
+    const normalizedStatus = String(status || '').trim().toLowerCase()
+    return normalizedStatus.includes('progress') || normalizedStatus.includes('process')
+  }
+
   return (
     <div className="space-y-4">
       {Object.entries(groupedData).length === 0 ? (
@@ -111,7 +116,7 @@ export default function LedgerTable({
                   const nadraRecord = getNadraRecord(item)
                   const details = getDetails(nadraRecord)
                   const status = nadraRecord?.status || 'Pending Submission'
-                  const canLaunchComplaint = ['in progress', 'under process'].includes(String(status).toLowerCase())
+                  const canLaunchComplaint = canOpenComplaintForStatus(status)
 
                   return (
                     <tr key={item.id || `${headCnic}-placeholder` } className="hover:bg-slate-50/50 transition-colors">
@@ -177,17 +182,18 @@ export default function LedgerTable({
                           <option value="Pending Submission">Pending Submission</option>
                           <option value="Submitted">Submitted</option>
                           <option value="In Progress">In Progress</option>
+                          <option value="Under Process">Under Process</option>
                           <option value="Completed">Completed</option>
                           <option value="Cancelled">Cancelled</option>
                         </select>
                       </td>
 
-                      <td className="p-4 align-top w-20 text-right">
-                        <div className="flex items-center justify-end gap-2">
+                      <td className="p-4 align-top w-48 text-right">
+                        <div className="flex items-center justify-end gap-2 flex-wrap">
                           {canLaunchComplaint && (
                             <button
                               onClick={() => onOpenComplaint(item)}
-                              className="h-8 px-2 flex items-center justify-center rounded-full bg-amber-50 hover:bg-amber-100 text-amber-700 transition text-xs font-semibold"
+                              className="h-8 px-3 flex items-center justify-center rounded-full bg-amber-50 hover:bg-amber-100 text-amber-700 transition text-xs font-semibold border border-amber-200 whitespace-nowrap"
                               type="button"
                               aria-label="Launch complaint"
                             >
