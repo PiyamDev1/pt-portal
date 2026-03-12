@@ -1,0 +1,60 @@
+name: Document Migration Cron
+
+'on':
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  migrate-fallback-documents:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Trigger scheduled migration endpoint
+        env:
+          APP_BASE_URL: ${{ secrets.APP_BASE_URL }}
+          DOCUMENT_MIGRATION_CRON_TOKEN: ${{ secrets.DOCUMENT_MIGRATION_CRON_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${APP_BASE_URL:-}" ]]; then
+            echo "APP_BASE_URL secret is missing"
+            exit 1
+          fi
+
+          if [[ -z "${DOCUMENT_MIGRATION_CRON_TOKEN:-}" ]]; then
+            echo "DOCUMENT_MIGRATION_CRON_TOKEN secret is missing"
+            exit 1
+          fi
+
+          endpoint="${APP_BASE_URL%/}/api/documents/migrate-scheduled?limit=30"
+          response_file="migration-response.json"
+
+          http_code=$(curl \
+            --silent \
+            --show-error \
+            --location \
+            --retry 2 \
+            --retry-delay 5 \
+            --max-time 45 \
+            --output "$response_file" \
+            --write-out "%{http_code}" \
+            --request POST \
+            --header "Content-Type: application/json" \
+            --header "x-migration-token: ${DOCUMENT_MIGRATION_CRON_TOKEN}" \
+            --data '{"limit":30}' \
+            "$endpoint")
+
+          echo "HTTP status: ${http_code}"
+          cat "$response_file"
+
+          if [[ "$http_code" -ge 400 ]]; then
+            echo "Migration endpoint returned HTTP ${http_code}"
+            exit 1
+          fi
+
+          if grep -q '"success":false' "$response_file"; then
+            echo "Migration endpoint reported success=false"
+            exit 1
+          fi

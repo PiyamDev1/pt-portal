@@ -1,10 +1,4 @@
 {
-  "crons": [
-    {
-      "path": "/api/documents/migrate-scheduled",
-      "schedule": "*/10 * * * *"
-    }
-  ],
   "functions": {
     "app/api/**/*.js": {
       "maxDuration": 10
