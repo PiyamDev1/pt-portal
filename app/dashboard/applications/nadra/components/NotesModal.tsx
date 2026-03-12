@@ -19,12 +19,13 @@ export default function NotesModal({
   onClose
 }: NotesModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
     if (!isOpen) return
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
-    dialogRef.current?.focus()
+    textareaRef.current?.focus()
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -37,7 +38,7 @@ export default function NotesModal({
       document.body.style.overflow = previousOverflow
       document.removeEventListener('keydown', handleKeyDown)
     }
-  }, [isOpen, onClose])
+  }, [isOpen])
 
   if (!isOpen) return null
 
@@ -63,6 +64,7 @@ export default function NotesModal({
             Internal Notes (Visible to agents only)
           </label>
           <textarea
+            ref={textareaRef}
             id="nadra-notes"
             rows={6}
             value={note}

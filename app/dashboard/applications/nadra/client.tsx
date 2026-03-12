@@ -428,6 +428,10 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
     setNotesText(nadra?.notes || '')
   }
 
+  const closeNotesModal = useCallback(() => {
+    setNotesModal(null)
+  }, [])
+
   const openComplaintModal = (record: any) => {
     const nadra = getNadraRecord(record)
     if (!nadra?.id) {
@@ -748,7 +752,7 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
         note={notesText}
         onChange={setNotesText}
         onSave={handleSaveNotes}
-        onClose={() => setNotesModal(null)}
+        onClose={closeNotesModal}
         isSaving={notesSaving}
       />
 

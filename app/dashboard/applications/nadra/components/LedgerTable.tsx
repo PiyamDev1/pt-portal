@@ -27,7 +27,7 @@ export default function LedgerTable({
 }: LedgerTableProps) {
   const canOpenComplaintForStatus = (status: string) => {
     const normalizedStatus = String(status || '').trim().toLowerCase()
-    return normalizedStatus.includes('progress') || normalizedStatus.includes('process')
+    return normalizedStatus === 'submitted' || normalizedStatus.includes('progress') || normalizedStatus.includes('process')
   }
 
   return (
