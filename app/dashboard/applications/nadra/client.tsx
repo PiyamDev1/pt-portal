@@ -292,6 +292,26 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
     return acc
   }, {})
 
+  const filteredFamilyCount = new Set(
+    filteredApplications
+      .map((item: any) => item.family_heads?.citizen_number)
+      .filter((value: string | undefined) => Boolean(value))
+  ).size
+
+  const complaintEligibleCount = filteredApplications.filter((item: any) => {
+    const status = normalizeStatus(getNadraRecord(item)?.status || 'Pending Submission')
+    return ['Submitted', 'In Progress', 'Under Process'].includes(status)
+  }).length
+
+  const activeFilterCount = [
+    statusFilter !== 'All',
+    serviceTypeFilter !== 'All',
+    serviceOptionFilter !== 'All',
+    Boolean(startDate),
+    Boolean(endDate),
+    showEmptyFamilies,
+  ].filter(Boolean).length
+
   // =====================================================================
   // STATUS UPDATE
   // =====================================================================
@@ -660,24 +680,63 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
 
   return (
     <div className="space-y-6">
-      <StatsOverview applications={applications} />
+      <section className="relative overflow-hidden rounded-3xl border border-emerald-500/25 bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 p-6 shadow-xl">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_18%,rgba(16,185,129,0.2),transparent_36%),radial-gradient(circle_at_88%_14%,rgba(34,197,94,0.14),transparent_40%)]" />
 
-      <SearchAndFilter
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-        statusFilter={statusFilter}
-        onStatusChange={setStatusFilter}
-        serviceTypeFilter={serviceTypeFilter}
-        onServiceTypeChange={setServiceTypeFilter}
-        serviceOptionFilter={serviceOptionFilter}
-        onServiceOptionChange={setServiceOptionFilter}
-        startDate={startDate}
-        onStartDateChange={setStartDate}
-        endDate={endDate}
-        onEndDateChange={setEndDate}
-        showEmptyFamilies={showEmptyFamilies}
-        onToggleEmptyFamilies={setShowEmptyFamilies}
-      />
+        <div className="relative space-y-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div className="max-w-3xl">
+              <span className="inline-flex items-center rounded-full border border-emerald-400/30 bg-emerald-500/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-200">
+                NADRA Command Deck
+              </span>
+              <h2 className="mt-3 text-2xl font-black tracking-tight text-white md:text-3xl">
+                Application operations, polished for speed
+              </h2>
+              <p className="mt-2 text-sm text-emerald-100/80">
+                Monitor queues, narrow high-volume records quickly, and launch complaints from one focused control surface.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+              <div className="rounded-xl border border-emerald-400/20 bg-black/25 px-3 py-2 text-emerald-100">
+                <p className="text-[10px] uppercase tracking-[0.14em] text-emerald-300/80">Visible Apps</p>
+                <p className="mt-1 text-lg font-bold">{filteredApplications.length}</p>
+              </div>
+              <div className="rounded-xl border border-emerald-400/20 bg-black/25 px-3 py-2 text-emerald-100">
+                <p className="text-[10px] uppercase tracking-[0.14em] text-emerald-300/80">Families</p>
+                <p className="mt-1 text-lg font-bold">{filteredFamilyCount}</p>
+              </div>
+              <div className="rounded-xl border border-emerald-400/20 bg-black/25 px-3 py-2 text-emerald-100">
+                <p className="text-[10px] uppercase tracking-[0.14em] text-emerald-300/80">Complaint Ready</p>
+                <p className="mt-1 text-lg font-bold">{complaintEligibleCount}</p>
+              </div>
+              <div className="rounded-xl border border-emerald-400/20 bg-black/25 px-3 py-2 text-emerald-100">
+                <p className="text-[10px] uppercase tracking-[0.14em] text-emerald-300/80">Active Filters</p>
+                <p className="mt-1 text-lg font-bold">{activeFilterCount}</p>
+              </div>
+            </div>
+          </div>
+
+          <StatsOverview applications={applications} />
+
+          <SearchAndFilter
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            statusFilter={statusFilter}
+            onStatusChange={setStatusFilter}
+            serviceTypeFilter={serviceTypeFilter}
+            onServiceTypeChange={setServiceTypeFilter}
+            serviceOptionFilter={serviceOptionFilter}
+            onServiceOptionChange={setServiceOptionFilter}
+            startDate={startDate}
+            onStartDateChange={setStartDate}
+            endDate={endDate}
+            onEndDateChange={setEndDate}
+            showEmptyFamilies={showEmptyFamilies}
+            onToggleEmptyFamilies={setShowEmptyFamilies}
+          />
+        </div>
+      </section>
 
       <FormSection
         showForm={showForm}

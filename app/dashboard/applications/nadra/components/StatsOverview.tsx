@@ -45,7 +45,7 @@ export default function StatsOverview({ applications }: { applications: any[] })
   ]
 
   return (
-    <div className="grid grid-cols-2 xl:grid-cols-5 gap-4 mb-6">
+    <div className="grid grid-cols-2 xl:grid-cols-5 gap-4">
       {stats.map((stat, idx) => (
         <div key={idx} className={`${stat.color} p-4 rounded-2xl border shadow-sm backdrop-blur-sm`}>
           <div className="text-2xl font-black tracking-tight">{stat.count}</div>
