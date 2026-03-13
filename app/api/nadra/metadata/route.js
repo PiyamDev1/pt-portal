@@ -14,27 +14,21 @@ export async function GET() {
     // nadra_pricing is the source of truth for which types/options actually exist.
     // nadra_service_types gives us the full canonical type list (including types
     // that may not have pricing rows yet).
-    const [pricingRows, serviceTypesRows] = await Promise.all([
-      supabase
-        .from('nadra_pricing')
-        .select('id, service_type, service_option, cost_price, sale_price')
-        .eq('is_active', true)
-        .order('service_type')
-        .order('service_option'),
-      supabase
-        .from('nadra_service_types')
-        .select('name')
-        .eq('is_active', true)
-        .order('name')
-    ])
+    const { data: pricingRows, error: pricingError } = await supabase
+      .from('nadra_pricing')
+      .select('id, service_type, service_option, cost_price, sale_price')
+      .eq('is_active', true)
+      .order('service_type')
+      .order('service_option')
 
-    const rows = pricingRows.data || []
+    if (pricingError) throw pricingError
 
-    // Derive unique service types from pricing rows (preserves order) and
-    // supplement with any types from the lookup table that aren't in pricing yet.
-    const typesFromPricing = [...new Set(rows.map(r => r.service_type).filter(Boolean))]
-    const typesFromLookup = (serviceTypesRows.data || []).map(t => t.name)
-    const allTypeNames = [...new Set([...typesFromPricing, ...typesFromLookup])].sort()
+    const rows = pricingRows || []
+
+    // Only show types that have at least one active pricing row.
+    // Types in the lookup table with no pricing (e.g. POLICE VERIFICATION, FAMILY REGISTRATION)
+    // are intentionally excluded — they are not operational yet.
+    const allTypeNames = [...new Set(rows.map(r => r.service_type).filter(Boolean))].sort()
 
     // Build serviceTypes array — use name as id since nadra_services stores plain text
     const serviceTypes = allTypeNames.map(name => ({ id: name, name }))

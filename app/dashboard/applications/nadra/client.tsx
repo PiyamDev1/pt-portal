@@ -148,12 +148,14 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
   const currentFilterServiceTypeId = serviceTypes.find(
     (serviceType) => normalizeLookupValue(serviceType.name) === normalizeLookupValue(serviceTypeFilter)
   )?.id
-  const filterServiceOptionOptions = serviceOptions
-    .filter((serviceOption) => {
-      if (serviceTypeFilter === 'All') return true
-      return serviceOption.service_type_id === currentFilterServiceTypeId
-    })
-    .map((serviceOption) => serviceOption.name)
+  const filterServiceOptionOptions = [...new Set(
+    serviceOptions
+      .filter((serviceOption) => {
+        if (serviceTypeFilter === 'All') return true
+        return serviceOption.service_type_id === currentFilterServiceTypeId
+      })
+      .map((serviceOption) => serviceOption.name)
+  )]
 
   const currentFormServiceTypeId = serviceTypes.find(
     (serviceType) => normalizeLookupValue(serviceType.name) === normalizeLookupValue(formData.serviceType)
