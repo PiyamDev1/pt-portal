@@ -813,39 +813,39 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
 
   return (
     <div className="space-y-6">
-      <section className="relative overflow-hidden rounded-3xl border border-emerald-300/35 bg-gradient-to-br from-[#effcf5] via-[#dff6ea] to-[#c7ecd8] p-6 shadow-xl shadow-emerald-950/10">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_18%,rgba(16,185,129,0.12),transparent_36%),radial-gradient(circle_at_88%_14%,rgba(21,128,61,0.08),transparent_40%)]" />
+      <section className="relative overflow-hidden rounded-3xl border border-emerald-800/40 bg-gradient-to-br from-[#01300D] via-[#01411C] to-[#011508] p-6 shadow-xl shadow-[#01411C]/40">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_18%,rgba(74,222,128,0.08),transparent_36%),radial-gradient(circle_at_88%_14%,rgba(34,197,94,0.05),transparent_40%)]" />
 
         <div className="relative space-y-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-3xl">
-              <span className="inline-flex items-center rounded-full border border-emerald-500/20 bg-white/70 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-800 backdrop-blur-sm">
+              <span className="inline-flex items-center rounded-full border border-emerald-500/40 bg-emerald-900/60 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-300 backdrop-blur-sm">
                 NADRA Command Deck
               </span>
-              <h2 className="mt-3 text-2xl font-black tracking-tight text-slate-950 md:text-3xl">
+              <h2 className="mt-3 text-2xl font-black tracking-tight text-white md:text-3xl">
                 Application operations, polished for speed
               </h2>
-              <p className="mt-2 text-sm text-slate-700">
+              <p className="mt-2 text-sm text-emerald-200/75">
                 Monitor queues, narrow high-volume records quickly, and launch complaints from one focused control surface.
               </p>
             </div>
 
             <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
-              <div className="rounded-xl border border-white/70 bg-white/72 px-3 py-2 text-slate-900 shadow-sm backdrop-blur-sm">
-                <p className="text-[10px] uppercase tracking-[0.14em] text-emerald-700/80">Visible Apps</p>
-                <p className="mt-1 text-lg font-bold">{filteredApplications.length}</p>
+              <div className="rounded-xl border border-emerald-400/40 bg-emerald-800/60 px-3 py-2.5 text-white shadow-md shadow-black/20 backdrop-blur-sm">
+                <p className="text-[10px] uppercase tracking-[0.14em] text-emerald-300/80 font-semibold">Visible Apps</p>
+                <p className="mt-1 text-lg font-black">{filteredApplications.length}</p>
               </div>
-              <div className="rounded-xl border border-white/70 bg-white/72 px-3 py-2 text-slate-900 shadow-sm backdrop-blur-sm">
-                <p className="text-[10px] uppercase tracking-[0.14em] text-emerald-700/80">Families</p>
-                <p className="mt-1 text-lg font-bold">{filteredFamilyCount}</p>
+              <div className="rounded-xl border border-emerald-400/40 bg-emerald-800/60 px-3 py-2.5 text-white shadow-md shadow-black/20 backdrop-blur-sm">
+                <p className="text-[10px] uppercase tracking-[0.14em] text-emerald-300/80 font-semibold">Families</p>
+                <p className="mt-1 text-lg font-black">{filteredFamilyCount}</p>
               </div>
-              <div className="rounded-xl border border-white/70 bg-white/72 px-3 py-2 text-slate-900 shadow-sm backdrop-blur-sm">
-                <p className="text-[10px] uppercase tracking-[0.14em] text-emerald-700/80">Complaint Ready</p>
-                <p className="mt-1 text-lg font-bold">{complaintEligibleCount}</p>
+              <div className="rounded-xl border border-emerald-400/40 bg-emerald-800/60 px-3 py-2.5 text-white shadow-md shadow-black/20 backdrop-blur-sm">
+                <p className="text-[10px] uppercase tracking-[0.14em] text-emerald-300/80 font-semibold">Complaint Ready</p>
+                <p className="mt-1 text-lg font-black">{complaintEligibleCount}</p>
               </div>
-              <div className="rounded-xl border border-white/70 bg-white/72 px-3 py-2 text-slate-900 shadow-sm backdrop-blur-sm">
-                <p className="text-[10px] uppercase tracking-[0.14em] text-emerald-700/80">Active Filters</p>
-                <p className="mt-1 text-lg font-bold">{activeFilterCount}</p>
+              <div className="rounded-xl border border-emerald-400/40 bg-emerald-800/60 px-3 py-2.5 text-white shadow-md shadow-black/20 backdrop-blur-sm">
+                <p className="text-[10px] uppercase tracking-[0.14em] text-emerald-300/80 font-semibold">Active Filters</p>
+                <p className="mt-1 text-lg font-black">{activeFilterCount}</p>
               </div>
             </div>
           </div>
@@ -933,6 +933,7 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
         onClose={closeEditModal}
         agentOptions={agentOptions}
         canChangeAgent={canChangeAgent}
+        serviceOptionOptions={serviceOptions.map((o) => o.name)}
       />
 
       <HistoryModal

@@ -7,6 +7,7 @@ interface EditModalProps {
   deleteAuthCode: string
   agentOptions: { id: string; name: string }[]
   canChangeAgent: boolean
+  serviceOptionOptions: string[]
   onInputChange: (name: string, value: any) => void
   onAuthCodeChange: (code: string) => void
   onSave: () => void
@@ -21,6 +22,7 @@ function EditModalContent({
   deleteAuthCode,
   agentOptions,
   canChangeAgent,
+  serviceOptionOptions,
   onInputChange,
   onAuthCodeChange,
   onSave,
@@ -186,15 +188,16 @@ function EditModalContent({
                   <label className="text-[10px] font-bold uppercase text-slate-400">Service Option</label>
                   <select
                     className="w-full border rounded p-2 text-sm bg-white"
-                    value={editFormData.serviceOption || 'Normal'}
+                    value={editFormData.serviceOption || ''}
                     onChange={(e) => onInputChange('serviceOption', e.target.value)}
                   >
-                    <option value="Normal">Normal</option>
-                    <option value="Executive">Executive</option>
-                    <option value="Upgrade to Fast">Upgrade to Fast</option>
-                    <option value="Modification">Modification</option>
-                    <option value="Reprint">Reprint</option>
-                    <option value="Cancellation">Cancellation</option>
+                    {serviceOptionOptions.length === 0 ? (
+                      <option value="">Loading options...</option>
+                    ) : (
+                      serviceOptionOptions.map((opt) => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))
+                    )}
                   </select>
                 </div>
                 <div>
