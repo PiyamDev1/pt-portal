@@ -98,7 +98,7 @@ export default function LedgerTable({
             {/* Temp banner when family head has no applications */}
             {group.members.length === 0 && (
               <div className="mx-6 mt-3 mb-0 bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-lg px-4 py-3">
-                No applications yet for this family head email. Add the first application to link the account and this banner will disappear.
+                No applications yet for this family head. Add the first application to link the account and this banner will disappear.
               </div>
             )}
 

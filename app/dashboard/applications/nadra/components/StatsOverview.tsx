@@ -45,13 +45,15 @@ export default function StatsOverview({ applications }: { applications: any[] })
   ]
 
   return (
-    <div className="grid grid-cols-5 gap-2">
-      {stats.map((stat, idx) => (
-        <div key={idx} className={`${stat.color} px-3 py-2 rounded-xl border shadow-md backdrop-blur-sm flex flex-col items-center justify-center text-center`}>
-          <div className="text-xl font-black tracking-tight leading-none">{stat.count}</div>
-          <div className="mt-1 text-[9px] uppercase font-bold tracking-[0.12em] opacity-90 leading-tight">{stat.label}</div>
-        </div>
-      ))}
+    <div className="overflow-x-auto pb-1">
+      <div className="grid min-w-[640px] grid-cols-5 gap-2">
+        {stats.map((stat, idx) => (
+          <div key={idx} className={`${stat.color} px-3 py-2 rounded-xl border shadow-md backdrop-blur-sm flex flex-col items-center justify-center text-center`}>
+            <div className="text-xl font-black tracking-tight leading-none">{stat.count}</div>
+            <div className="mt-1 text-[9px] uppercase font-bold tracking-[0.12em] opacity-90 leading-tight">{stat.label}</div>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }

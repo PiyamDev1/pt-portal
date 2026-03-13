@@ -54,6 +54,13 @@ export default async function NadraPage() {
     `)
     .order('created_at', { ascending: false })
 
+  const { data: complaintRows } = await supabase
+    .from('nadra_status_history')
+    .select('nadra_service_id')
+    .eq('entry_type', 'complaint')
+
+  const complainedNadraIds = [...new Set((complaintRows || []).map((row) => row.nadra_service_id).filter(Boolean))]
+
   // Merge: create entries for family heads with no applications
   const familyHeadIds = new Set(applications?.map(app => app.family_head_id) || [])
   const headsWithNoMembers = familyHeads?.filter(head => !familyHeadIds.has(head.id)) || []
@@ -90,7 +97,11 @@ export default async function NadraPage() {
             <p className="text-slate-500">Manage Family Head records and track application credentials.</p>
           </div>
 
-          <NadraClient initialApplications={allRecords} currentUserId={session.user.id} />
+          <NadraClient
+            initialApplications={allRecords}
+            currentUserId={session.user.id}
+            initialComplainedNadraIds={complainedNadraIds}
+          />
         </main>
       </div>
     </DashboardClientWrapper>

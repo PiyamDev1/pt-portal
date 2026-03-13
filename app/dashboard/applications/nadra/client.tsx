@@ -55,7 +55,7 @@ interface EditFormData {
   notes?: string
 }
 
-export default function NadraClient({ initialApplications, currentUserId }: any) {
+export default function NadraClient({ initialApplications, currentUserId, initialComplainedNadraIds = [] }: any) {
   const router = useRouter()
   const [applications, setApplications] = useState(initialApplications)
   const [serviceTypes, setServiceTypes] = useState<ServiceTypeMetadata[]>([])
@@ -112,13 +112,17 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
   const [agentOptions, setAgentOptions] = useState<{ id: string; name: string }[]>([])
   const [canChangeAgent, setCanChangeAgent] = useState(false)
   const [agentLoadError, setAgentLoadError] = useState('')
-  const [complainedNadraIds, setComplainedNadraIds] = useState<Set<string>>(new Set())
+  const [complainedNadraIds, setComplainedNadraIds] = useState<Set<string>>(new Set(initialComplainedNadraIds))
 
   const normalizeLookupValue = useCallback((value: string | null | undefined) => String(value || '').trim().toLowerCase(), [])
 
   useEffect(() => {
     setApplications(initialApplications)
   }, [initialApplications])
+
+  useEffect(() => {
+    setComplainedNadraIds(new Set(initialComplainedNadraIds))
+  }, [initialComplainedNadraIds])
 
   useEffect(() => {
     const loadMetadata = async () => {
@@ -137,19 +141,7 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
       }
     }
 
-    const loadComplainedIds = async () => {
-      try {
-        const res = await fetch('/api/nadra/complained-ids')
-        if (!res.ok) return
-        const { ids } = await res.json()
-        setComplainedNadraIds(new Set(ids || []))
-      } catch {
-        // non-critical — silently ignore
-      }
-    }
-
     loadMetadata()
-    loadComplainedIds()
   }, [])
 
   const serviceTypeNameById = serviceTypes.reduce<Record<string, string>>((acc, serviceType) => {
@@ -381,6 +373,29 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
     return bd - ad // newest first
   })
 
+  const parseDdMmYyyy = (value: string) => {
+    const text = String(value || '').trim()
+    if (!text) return null
+
+    const match = text.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
+    if (!match) return null
+
+    const day = Number(match[1])
+    const month = Number(match[2])
+    const year = Number(match[3])
+    const parsed = new Date(year, month - 1, day)
+
+    if (
+      parsed.getFullYear() !== year ||
+      parsed.getMonth() !== month - 1 ||
+      parsed.getDate() !== day
+    ) {
+      return null
+    }
+
+    return parsed
+  }
+
   const filteredApplications = sortedApplications.filter((item: any) => {
     const query = searchQuery.toLowerCase()
     const nadra = getNadraRecord(item)
@@ -409,11 +424,16 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
     // Date range filter
     if (startDate || endDate) {
       const itemDate = new Date(getCreatedAt(item))
-      if (startDate && itemDate < new Date(startDate)) return false
-      if (endDate) {
-        const endDateTime = new Date(endDate)
-        endDateTime.setHours(23, 59, 59, 999)
-        if (itemDate > endDateTime) return false
+      const itemTime = itemDate.getTime()
+      if (!Number.isFinite(itemTime)) return false
+
+      const start = parseDdMmYyyy(startDate)
+      const end = parseDdMmYyyy(endDate)
+
+      if (start && itemTime < start.getTime()) return false
+      if (end) {
+        end.setHours(23, 59, 59, 999)
+        if (itemTime > end.getTime()) return false
       }
     }
     
@@ -424,7 +444,7 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
     return matchesSearch && matchesStatus && matchesServiceType && matchesServiceOption
   })
 
-  const groupedEntries = Object.entries(filteredApplications.reduce((acc: any, item: any) => {
+  const groupedMap = filteredApplications.reduce((acc: any, item: any) => {
     const headCnic = item.family_heads?.citizen_number || 'Independent'
     if (!acc[headCnic]) {
       acc[headCnic] = { head: item.family_heads, members: [] }
@@ -432,7 +452,30 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
     const hasRealMember = !!(item.applicants || item.nadra_services)
     if (hasRealMember) acc[headCnic].members.push(item)
     return acc
-  }, {}))
+  }, {})
+
+  const groupedEntries = Object.entries(groupedMap).sort((a: any, b: any) => {
+    const aGroup = a[1]
+    const bGroup = b[1]
+    const aHasMembers = aGroup.members.length > 0
+    const bHasMembers = bGroup.members.length > 0
+
+    if (aHasMembers !== bHasMembers) return aHasMembers ? -1 : 1
+
+    if (aHasMembers && bHasMembers) {
+      const aLatest = Math.max(...aGroup.members.map((member: any) => new Date(getCreatedAt(member) || 0).getTime()))
+      const bLatest = Math.max(...bGroup.members.map((member: any) => new Date(getCreatedAt(member) || 0).getTime()))
+      return bLatest - aLatest
+    }
+
+    const aName = `${aGroup.head?.first_name || ''} ${aGroup.head?.last_name || ''}`.trim().toLowerCase()
+    const bName = `${bGroup.head?.first_name || ''} ${bGroup.head?.last_name || ''}`.trim().toLowerCase()
+    if (aName !== bName) return aName.localeCompare(bName)
+
+    const aCnic = String(a[0] || '').toLowerCase()
+    const bCnic = String(b[0] || '').toLowerCase()
+    return aCnic.localeCompare(bCnic)
+  })
 
   const totalPages = Math.ceil(groupedEntries.length / pageSize) || 1
   const startIdx = (currentPage - 1) * pageSize
@@ -643,6 +686,11 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
 
       if (res.ok) {
         toast.success('Complaint recorded')
+        setComplainedNadraIds((prev) => {
+          const next = new Set(prev)
+          next.add(complaintModal.nadraId)
+          return next
+        })
         setComplaintModal(null)
         if (selectedHistory) {
           await fetchHistory(complaintModal.nadraId)
