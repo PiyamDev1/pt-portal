@@ -424,13 +424,7 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
     return matchesSearch && matchesStatus && matchesServiceType && matchesServiceOption
   })
 
-  const totalPages = Math.ceil(filteredApplications.length / pageSize) || 1
-  const startIdx = (currentPage - 1) * pageSize
-  const pageItems = filteredApplications.slice(startIdx, startIdx + pageSize)
-
-  useEffect(() => { setCurrentPage(1) }, [searchQuery, statusFilter, serviceTypeFilter, serviceOptionFilter, startDate, endDate, showEmptyFamilies])
-
-  const groupedData = pageItems.reduce((acc: any, item: any) => {
+  const groupedEntries = Object.entries(filteredApplications.reduce((acc: any, item: any) => {
     const headCnic = item.family_heads?.citizen_number || 'Independent'
     if (!acc[headCnic]) {
       acc[headCnic] = { head: item.family_heads, members: [] }
@@ -438,7 +432,15 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
     const hasRealMember = !!(item.applicants || item.nadra_services)
     if (hasRealMember) acc[headCnic].members.push(item)
     return acc
-  }, {})
+  }, {}))
+
+  const totalPages = Math.ceil(groupedEntries.length / pageSize) || 1
+  const startIdx = (currentPage - 1) * pageSize
+  const pagedGroupedEntries = groupedEntries.slice(startIdx, startIdx + pageSize)
+
+  useEffect(() => { setCurrentPage(1) }, [searchQuery, statusFilter, serviceTypeFilter, serviceOptionFilter, startDate, endDate, showEmptyFamilies])
+
+  const groupedData = Object.fromEntries(pagedGroupedEntries)
 
   const filteredFamilyCount = new Set(
     filteredApplications
@@ -907,7 +909,7 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
       {/* Pagination */}
       <div className="flex items-center justify-between mt-4">
         <div className="text-xs text-slate-500">
-          Showing {filteredApplications.length === 0 ? 0 : startIdx + 1}-{Math.min(startIdx + pageSize, filteredApplications.length)} of {filteredApplications.length}
+          Showing {groupedEntries.length === 0 ? 0 : startIdx + 1}-{Math.min(startIdx + pageSize, groupedEntries.length)} of {groupedEntries.length} families
         </div>
         <div className="flex items-center gap-2">
           <button
