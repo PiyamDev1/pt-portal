@@ -813,7 +813,7 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
 
   return (
     <div className="space-y-6">
-      <section className="relative overflow-hidden rounded-2xl border border-emerald-800/40 bg-gradient-to-br from-[#01300D] via-[#01411C] to-[#011508] px-4 py-3 shadow-xl shadow-[#01411C]/40">
+      <section className="relative overflow-hidden rounded-2xl border border-emerald-700/40 bg-gradient-to-br from-[#014d20] via-[#016630] to-[#013d18] px-4 py-3 shadow-xl shadow-[#016630]/40">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_18%,rgba(74,222,128,0.08),transparent_36%),radial-gradient(circle_at_88%_14%,rgba(34,197,94,0.05),transparent_40%)]" />
 
         <div className="relative space-y-3">
