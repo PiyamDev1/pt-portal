@@ -16,6 +16,8 @@ interface FormSectionProps {
   showForm: boolean
   formData: FormData
   isSubmitting: boolean
+  serviceTypeOptions: string[]
+  serviceOptionOptions: string[]
   onInputChange: (e: any) => void
   onSubmit: () => void
   onToggle: () => void
@@ -25,6 +27,8 @@ export default function FormSection({
   showForm,
   formData,
   isSubmitting,
+  serviceTypeOptions,
+  serviceOptionOptions,
   onInputChange,
   onSubmit,
   onToggle
@@ -122,11 +126,9 @@ export default function FormSection({
                     onChange={onInputChange}
                     className="w-full p-2 border rounded text-sm bg-white"
                   >
-                    <option value="NICOP/CNIC">NICOP / CNIC</option>
-                    <option value="POC">POC</option>
-                    <option value="FRC">FRC</option>
-                    <option value="CRC">CRC</option>
-                    <option value="POA">POA</option>
+                    {serviceTypeOptions.map((serviceType) => (
+                      <option key={serviceType} value={serviceType}>{serviceType}</option>
+                    ))}
                   </select>
                 </div>
                 <div>
@@ -137,12 +139,9 @@ export default function FormSection({
                     onChange={onInputChange}
                     className="w-full p-2 border rounded text-sm bg-white font-medium"
                   >
-                    <option value="Normal">Normal</option>
-                    <option value="Executive">Executive</option>
-                    <option value="Upgrade to Fast">Upgrade to Fast</option>
-                    <option value="Modification">Modification</option>
-                    <option value="Reprint">Reprint</option>
-                    <option value="Cancellation">Cancellation</option>
+                    {serviceOptionOptions.map((serviceOption) => (
+                      <option key={serviceOption} value={serviceOption}>{serviceOption}</option>
+                    ))}
                   </select>
                 </div>
               </div>

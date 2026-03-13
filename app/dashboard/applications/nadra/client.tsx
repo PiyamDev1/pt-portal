@@ -11,6 +11,17 @@ import EditModal from './components/EditModal'
 import HistoryModal from './components/HistoryModal'
 import NotesModal from './components/NotesModal'
 
+type ServiceTypeMetadata = {
+  id: string
+  name: string
+}
+
+type ServiceOptionMetadata = {
+  id: string
+  name: string
+  service_type_id: string | null
+}
+
 interface FormData {
   familyHeadName: string
   familyHeadCnic: string
@@ -47,6 +58,8 @@ interface EditFormData {
 export default function NadraClient({ initialApplications, currentUserId }: any) {
   const router = useRouter()
   const [applications, setApplications] = useState(initialApplications)
+  const [serviceTypes, setServiceTypes] = useState<ServiceTypeMetadata[]>([])
+  const [serviceOptions, setServiceOptions] = useState<ServiceOptionMetadata[]>([])
 
   // FORM STATES
   const [showForm, setShowForm] = useState(false)
@@ -100,9 +113,112 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
   const [canChangeAgent, setCanChangeAgent] = useState(false)
   const [agentLoadError, setAgentLoadError] = useState('')
 
+  const normalizeLookupValue = useCallback((value: string | null | undefined) => String(value || '').trim().toLowerCase(), [])
+
   useEffect(() => {
     setApplications(initialApplications)
   }, [initialApplications])
+
+  useEffect(() => {
+    const loadMetadata = async () => {
+      try {
+        const response = await fetch('/api/nadra/metadata')
+        if (!response.ok) {
+          const payload = await response.json().catch(() => ({}))
+          throw new Error(payload?.error || 'Unable to load service metadata')
+        }
+
+        const payload = await response.json()
+        setServiceTypes(payload.serviceTypes || [])
+        setServiceOptions(payload.serviceOptions || [])
+      } catch (error: any) {
+        toast.error(error?.message || 'Failed to load NADRA metadata')
+      }
+    }
+
+    loadMetadata()
+  }, [])
+
+  const serviceTypeNameById = serviceTypes.reduce<Record<string, string>>((acc, serviceType) => {
+    acc[serviceType.id] = serviceType.name
+    return acc
+  }, {})
+
+  const filterServiceTypeOptions = serviceTypes.map((serviceType) => serviceType.name)
+  const currentFilterServiceTypeId = serviceTypes.find(
+    (serviceType) => normalizeLookupValue(serviceType.name) === normalizeLookupValue(serviceTypeFilter)
+  )?.id
+  const filterServiceOptionOptions = serviceOptions
+    .filter((serviceOption) => {
+      if (serviceTypeFilter === 'All') return true
+      return serviceOption.service_type_id === currentFilterServiceTypeId
+    })
+    .map((serviceOption) => serviceOption.name)
+
+  const currentFormServiceTypeId = serviceTypes.find(
+    (serviceType) => normalizeLookupValue(serviceType.name) === normalizeLookupValue(formData.serviceType)
+  )?.id
+  const formServiceTypeOptions = filterServiceTypeOptions.length > 0 ? filterServiceTypeOptions : ['NICOP/CNIC']
+  const formServiceOptionOptions = serviceOptions
+    .filter((serviceOption) => {
+      if (!currentFormServiceTypeId) return true
+      return serviceOption.service_type_id === currentFormServiceTypeId
+    })
+    .map((serviceOption) => serviceOption.name)
+
+  useEffect(() => {
+    if (filterServiceTypeOptions.length === 0) return
+    if (serviceTypeFilter === 'All') return
+
+    const exists = filterServiceTypeOptions.some(
+      (serviceType) => normalizeLookupValue(serviceType) === normalizeLookupValue(serviceTypeFilter)
+    )
+
+    if (!exists) {
+      setServiceTypeFilter('All')
+    }
+  }, [filterServiceTypeOptions, normalizeLookupValue, serviceTypeFilter])
+
+  useEffect(() => {
+    if (filterServiceOptionOptions.length === 0) {
+      if (serviceOptionFilter !== 'All') setServiceOptionFilter('All')
+      return
+    }
+
+    if (serviceOptionFilter === 'All') return
+
+    const exists = filterServiceOptionOptions.some(
+      (serviceOption) => normalizeLookupValue(serviceOption) === normalizeLookupValue(serviceOptionFilter)
+    )
+
+    if (!exists) {
+      setServiceOptionFilter('All')
+    }
+  }, [filterServiceOptionOptions, normalizeLookupValue, serviceOptionFilter])
+
+  useEffect(() => {
+    if (formServiceTypeOptions.length === 0) return
+
+    const exists = formServiceTypeOptions.some(
+      (serviceType) => normalizeLookupValue(serviceType) === normalizeLookupValue(formData.serviceType)
+    )
+
+    if (!exists) {
+      setFormData((prev) => ({ ...prev, serviceType: formServiceTypeOptions[0] }))
+    }
+  }, [formData.serviceType, formServiceTypeOptions, normalizeLookupValue])
+
+  useEffect(() => {
+    if (formServiceOptionOptions.length === 0) return
+
+    const exists = formServiceOptionOptions.some(
+      (serviceOption) => normalizeLookupValue(serviceOption) === normalizeLookupValue(formData.serviceOption)
+    )
+
+    if (!exists) {
+      setFormData((prev) => ({ ...prev, serviceOption: formServiceOptionOptions[0] }))
+    }
+  }, [formData.serviceOption, formServiceOptionOptions, normalizeLookupValue])
 
   const updateApplicationRecord = useCallback((nadraId: string, updater: (item: any, nadra: any) => any) => {
     setApplications((prev: any[]) => prev.map((item: any) => {
@@ -146,6 +262,21 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
 
     if (name === 'trackingNumber') {
       value = value.toUpperCase()
+    }
+
+    if (name === 'serviceType') {
+      const selectedTypeId = serviceTypes.find(
+        (serviceType) => normalizeLookupValue(serviceType.name) === normalizeLookupValue(value)
+      )?.id
+      const nextServiceOptions = serviceOptions.filter((serviceOption) => serviceOption.service_type_id === selectedTypeId)
+      const nextServiceOption = nextServiceOptions[0]?.name || ''
+
+      setFormData((prev) => ({
+        ...prev,
+        serviceType: value,
+        serviceOption: nextServiceOption || prev.serviceOption,
+      }))
+      return
     }
 
     setFormData((prev) => ({ ...prev, [name]: value }))
@@ -251,12 +382,14 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
     
     // Service type filter
     const serviceType = nadra?.service_type || ''
-    const matchesServiceType = serviceTypeFilter === 'All' || serviceType === serviceTypeFilter
+    const matchesServiceType = serviceTypeFilter === 'All'
+      || normalizeLookupValue(serviceType) === normalizeLookupValue(serviceTypeFilter)
     
     // Service option filter
     const details = getDetails(nadra)
-    const serviceOption = details?.service_option || 'Normal'
-    const matchesServiceOption = serviceOptionFilter === 'All' || serviceOption === serviceOptionFilter
+    const serviceOption = details?.service_option || ''
+    const matchesServiceOption = serviceOptionFilter === 'All'
+      || normalizeLookupValue(serviceOption) === normalizeLookupValue(serviceOptionFilter)
     
     // Date range filter
     if (startDate || endDate) {
@@ -680,38 +813,38 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
 
   return (
     <div className="space-y-6">
-      <section className="relative overflow-hidden rounded-3xl border border-emerald-500/25 bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 p-6 shadow-xl">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_18%,rgba(16,185,129,0.2),transparent_36%),radial-gradient(circle_at_88%_14%,rgba(34,197,94,0.14),transparent_40%)]" />
+      <section className="relative overflow-hidden rounded-3xl border border-emerald-300/35 bg-gradient-to-br from-[#effcf5] via-[#dff6ea] to-[#c7ecd8] p-6 shadow-xl shadow-emerald-950/10">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_18%,rgba(16,185,129,0.12),transparent_36%),radial-gradient(circle_at_88%_14%,rgba(21,128,61,0.08),transparent_40%)]" />
 
         <div className="relative space-y-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-3xl">
-              <span className="inline-flex items-center rounded-full border border-emerald-400/30 bg-emerald-500/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-200">
+              <span className="inline-flex items-center rounded-full border border-emerald-500/20 bg-white/70 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-800 backdrop-blur-sm">
                 NADRA Command Deck
               </span>
-              <h2 className="mt-3 text-2xl font-black tracking-tight text-white md:text-3xl">
+              <h2 className="mt-3 text-2xl font-black tracking-tight text-slate-950 md:text-3xl">
                 Application operations, polished for speed
               </h2>
-              <p className="mt-2 text-sm text-emerald-100/80">
+              <p className="mt-2 text-sm text-slate-700">
                 Monitor queues, narrow high-volume records quickly, and launch complaints from one focused control surface.
               </p>
             </div>
 
             <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
-              <div className="rounded-xl border border-emerald-400/20 bg-black/25 px-3 py-2 text-emerald-100">
-                <p className="text-[10px] uppercase tracking-[0.14em] text-emerald-300/80">Visible Apps</p>
+              <div className="rounded-xl border border-white/70 bg-white/72 px-3 py-2 text-slate-900 shadow-sm backdrop-blur-sm">
+                <p className="text-[10px] uppercase tracking-[0.14em] text-emerald-700/80">Visible Apps</p>
                 <p className="mt-1 text-lg font-bold">{filteredApplications.length}</p>
               </div>
-              <div className="rounded-xl border border-emerald-400/20 bg-black/25 px-3 py-2 text-emerald-100">
-                <p className="text-[10px] uppercase tracking-[0.14em] text-emerald-300/80">Families</p>
+              <div className="rounded-xl border border-white/70 bg-white/72 px-3 py-2 text-slate-900 shadow-sm backdrop-blur-sm">
+                <p className="text-[10px] uppercase tracking-[0.14em] text-emerald-700/80">Families</p>
                 <p className="mt-1 text-lg font-bold">{filteredFamilyCount}</p>
               </div>
-              <div className="rounded-xl border border-emerald-400/20 bg-black/25 px-3 py-2 text-emerald-100">
-                <p className="text-[10px] uppercase tracking-[0.14em] text-emerald-300/80">Complaint Ready</p>
+              <div className="rounded-xl border border-white/70 bg-white/72 px-3 py-2 text-slate-900 shadow-sm backdrop-blur-sm">
+                <p className="text-[10px] uppercase tracking-[0.14em] text-emerald-700/80">Complaint Ready</p>
                 <p className="mt-1 text-lg font-bold">{complaintEligibleCount}</p>
               </div>
-              <div className="rounded-xl border border-emerald-400/20 bg-black/25 px-3 py-2 text-emerald-100">
-                <p className="text-[10px] uppercase tracking-[0.14em] text-emerald-300/80">Active Filters</p>
+              <div className="rounded-xl border border-white/70 bg-white/72 px-3 py-2 text-slate-900 shadow-sm backdrop-blur-sm">
+                <p className="text-[10px] uppercase tracking-[0.14em] text-emerald-700/80">Active Filters</p>
                 <p className="mt-1 text-lg font-bold">{activeFilterCount}</p>
               </div>
             </div>
@@ -728,6 +861,8 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
             onServiceTypeChange={setServiceTypeFilter}
             serviceOptionFilter={serviceOptionFilter}
             onServiceOptionChange={setServiceOptionFilter}
+            serviceTypeOptions={filterServiceTypeOptions}
+            serviceOptionOptions={filterServiceOptionOptions}
             startDate={startDate}
             onStartDateChange={setStartDate}
             endDate={endDate}
@@ -742,6 +877,8 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
         showForm={showForm}
         formData={formData}
         isSubmitting={isSubmitting}
+        serviceTypeOptions={formServiceTypeOptions}
+        serviceOptionOptions={formServiceOptionOptions}
         onInputChange={handleInputChange}
         onSubmit={handleSubmit}
         onToggle={() => setShowForm(!showForm)}
