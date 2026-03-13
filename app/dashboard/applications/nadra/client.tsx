@@ -112,6 +112,7 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
   const [agentOptions, setAgentOptions] = useState<{ id: string; name: string }[]>([])
   const [canChangeAgent, setCanChangeAgent] = useState(false)
   const [agentLoadError, setAgentLoadError] = useState('')
+  const [complainedNadraIds, setComplainedNadraIds] = useState<Set<string>>(new Set())
 
   const normalizeLookupValue = useCallback((value: string | null | undefined) => String(value || '').trim().toLowerCase(), [])
 
@@ -136,7 +137,19 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
       }
     }
 
+    const loadComplainedIds = async () => {
+      try {
+        const res = await fetch('/api/nadra/complained-ids')
+        if (!res.ok) return
+        const { ids } = await res.json()
+        setComplainedNadraIds(new Set(ids || []))
+      } catch {
+        // non-critical — silently ignore
+      }
+    }
+
     loadMetadata()
+    loadComplainedIds()
   }, [])
 
   const serviceTypeNameById = serviceTypes.reduce<Record<string, string>>((acc, serviceType) => {
@@ -433,9 +446,9 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
       .filter((value: string | undefined) => Boolean(value))
   ).size
 
-  const complaintEligibleCount = filteredApplications.filter((item: any) => {
-    const status = normalizeStatus(getNadraRecord(item)?.status || 'Pending Submission')
-    return ['Submitted', 'In Progress', 'Under Process'].includes(status)
+  const complaintsSubmittedCount = filteredApplications.filter((item: any) => {
+    const nadraId = getNadraRecord(item)?.id
+    return nadraId && complainedNadraIds.has(nadraId)
   }).length
 
   const activeFilterCount = [
@@ -835,7 +848,7 @@ export default function NadraClient({ initialApplications, currentUserId }: any)
               </div>
               <div className="rounded-lg border border-emerald-400/40 bg-emerald-800/60 px-3 py-1.5 text-white shadow-md shadow-black/20 backdrop-blur-sm flex items-center gap-2">
                 <span className="text-[10px] uppercase tracking-[0.12em] text-emerald-300/80 font-semibold">Complaints</span>
-                <span className="font-black text-sm">{complaintEligibleCount}</span>
+                <span className="font-black text-sm">{complaintsSubmittedCount}</span>
               </div>
               <div className="rounded-lg border border-emerald-400/40 bg-emerald-800/60 px-3 py-1.5 text-white shadow-md shadow-black/20 backdrop-blur-sm flex items-center gap-2">
                 <span className="text-[10px] uppercase tracking-[0.12em] text-emerald-300/80 font-semibold">Filters</span>
