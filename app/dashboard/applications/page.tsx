@@ -5,6 +5,44 @@ import PageHeader from '@/app/components/PageHeader.client'
 import ApplicationsClient from './client'
 import DashboardClientWrapper from '@/app/dashboard/client-wrapper'
 
+type QueryResult<T> = {
+  label: string
+  data: T
+}
+
+type QueryWarning = {
+  label: string
+  message: string
+}
+
+async function runLabeledQuery<T>(
+  label: string,
+  query: PromiseLike<{ data: T | null; error: { message?: string } | null }>
+): Promise<QueryResult<T>> {
+  const { data, error } = await query
+  if (error) throw new Error(`${label}: ${error.message || 'query failed'}`)
+  return { label, data: (data || []) as T }
+}
+
+function getSuccessfulData<T>(
+  settled: PromiseSettledResult<QueryResult<T>>[],
+  label: string,
+  warnings: QueryWarning[]
+): T {
+  const hit = settled.find((entry) => entry.status === 'fulfilled' && entry.value.label === label)
+  if (hit && hit.status === 'fulfilled') {
+    return hit.value.data
+  }
+
+  const failed = settled.find((entry) => entry.status === 'rejected' && String(entry.reason || '').toLowerCase().includes(label.toLowerCase()))
+  if (failed && failed.status === 'rejected') {
+    warnings.push({ label, message: String(failed.reason) })
+  } else {
+    warnings.push({ label, message: `${label} unavailable` })
+  }
+  return [] as T
+}
+
 export default async function ApplicationsHubPage() {
   const cookieStore = await cookies()
   const supabase = createServerClient(
@@ -25,46 +63,77 @@ export default async function ApplicationsHubPage() {
   const location = Array.isArray(employee?.locations) ? employee.locations[0] : employee?.locations
   const role = Array.isArray(employee?.roles) ? employee.roles[0] : employee?.roles
 
-  // Parallel fetch: status-only arrays for accurate counts + recent activity rows for the feed
-  const [
-    { data: nadraStatuses },
-    { data: pakStatuses },
-    { data: gbStatuses },
-    { data: visaStatuses },
-    { data: nadraRecent },
-    { data: pakRecent },
-    { data: gbRecent },
-    { data: visaRecent },
-  ] = await Promise.all([
-    supabase.from('nadra_services').select('id, status, created_at'),
-    supabase.from('pakistani_passport_applications').select('id, status, created_at'),
-    supabase.from('british_passport_applications').select('id, status, created_at'),
-    supabase.from('visa_applications').select('id, status, created_at'),
+  // All-settled loading keeps the dashboard operational even when one module query fails.
+  const settled = await Promise.allSettled([
+    runLabeledQuery('nadraStatuses', supabase.from('nadra_services').select('id, status, created_at')),
+    runLabeledQuery('pakStatuses', supabase.from('pakistani_passport_applications').select('id, status, created_at')),
+    runLabeledQuery('gbStatuses', supabase.from('british_passport_applications').select('id, status, created_at')),
+    runLabeledQuery('visaStatuses', supabase.from('visa_applications').select('id, status, created_at')),
 
-    supabase.from('applications').select(`
+    runLabeledQuery('nadraRecent', supabase.from('applications').select(`
       id, tracking_number, created_at,
       applicants:applicants!applications_applicant_id_fkey(first_name, last_name),
       nadra_services!inner(id, status, service_type, created_at, tracking_number)
-    `).order('created_at', { ascending: false }).limit(12),
+    `).order('created_at', { ascending: false }).limit(16)),
 
-    supabase.from('applications').select(`
+    runLabeledQuery('pakRecent', supabase.from('applications').select(`
       id, tracking_number, created_at,
       applicants:applicants!applications_applicant_id_fkey(first_name, last_name),
       pakistani_passport_applications!inner(id, status, application_type, created_at)
-    `).order('created_at', { ascending: false }).limit(12),
+    `).order('created_at', { ascending: false }).limit(16)),
 
-    supabase.from('british_passport_applications').select(`
+    runLabeledQuery('gbRecent', supabase.from('british_passport_applications').select(`
       id, status, created_at,
       applicants(first_name, last_name),
       applications(id, tracking_number)
-    `).order('created_at', { ascending: false }).limit(12),
+    `).order('created_at', { ascending: false }).limit(16)),
 
-    supabase.from('visa_applications').select(`
+    runLabeledQuery('visaRecent', supabase.from('visa_applications').select(`
       id, status, created_at,
       applicants(first_name, last_name),
       visa_countries(name)
-    `).order('created_at', { ascending: false }).limit(12),
+    `).order('created_at', { ascending: false }).limit(16)),
+
+    runLabeledQuery('nadraAttention', supabase.from('applications').select(`
+      id, tracking_number, created_at,
+      applicants:applicants!applications_applicant_id_fkey(first_name, last_name),
+      nadra_services!inner(id, status, service_type, created_at, tracking_number)
+    `).eq('nadra_services.status', 'Pending Submission').order('created_at', { ascending: false }).limit(8)),
+
+    runLabeledQuery('pakAttention', supabase.from('applications').select(`
+      id, tracking_number, created_at,
+      applicants:applicants!applications_applicant_id_fkey(first_name, last_name),
+      pakistani_passport_applications!inner(id, status, application_type, created_at)
+    `).eq('pakistani_passport_applications.status', 'Passport Arrived').order('created_at', { ascending: false }).limit(8)),
+
+    runLabeledQuery('gbAttention', supabase.from('british_passport_applications').select(`
+      id, status, created_at,
+      applicants(first_name, last_name),
+      applications(id, tracking_number)
+    `).eq('status', 'Pending Submission').order('created_at', { ascending: false }).limit(8)),
+
+    runLabeledQuery('visaAttention', supabase.from('visa_applications').select(`
+      id, status, created_at,
+      applicants(first_name, last_name),
+      visa_countries(name)
+    `).eq('status', 'Pending').order('created_at', { ascending: false }).limit(8)),
   ])
+
+  const warnings: QueryWarning[] = []
+  const nadraStatuses = getSuccessfulData<any[]>(settled, 'nadraStatuses', warnings)
+  const pakStatuses = getSuccessfulData<any[]>(settled, 'pakStatuses', warnings)
+  const gbStatuses = getSuccessfulData<any[]>(settled, 'gbStatuses', warnings)
+  const visaStatuses = getSuccessfulData<any[]>(settled, 'visaStatuses', warnings)
+
+  const nadraRecent = getSuccessfulData<any[]>(settled, 'nadraRecent', warnings)
+  const pakRecent = getSuccessfulData<any[]>(settled, 'pakRecent', warnings)
+  const gbRecent = getSuccessfulData<any[]>(settled, 'gbRecent', warnings)
+  const visaRecent = getSuccessfulData<any[]>(settled, 'visaRecent', warnings)
+
+  const nadraAttention = getSuccessfulData<any[]>(settled, 'nadraAttention', warnings)
+  const pakAttention = getSuccessfulData<any[]>(settled, 'pakAttention', warnings)
+  const gbAttention = getSuccessfulData<any[]>(settled, 'gbAttention', warnings)
+  const visaAttention = getSuccessfulData<any[]>(settled, 'visaAttention', warnings)
 
   return (
     <DashboardClientWrapper>
@@ -86,6 +155,13 @@ export default async function ApplicationsHubPage() {
             pakRecent={pakRecent || []}
             gbRecent={gbRecent || []}
             visaRecent={visaRecent || []}
+            nadraAttention={nadraAttention || []}
+            pakAttention={pakAttention || []}
+            gbAttention={gbAttention || []}
+            visaAttention={visaAttention || []}
+            roleName={role?.name || ''}
+            locationName={location?.name || ''}
+            dataWarnings={warnings}
           />
         </main>
       </div>
