@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
 import { toast } from 'sonner'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { formatCNIC, getNadraRecord, getDetails, normalizeStatus } from './components/helpers'
 import StatsOverview from './components/StatsOverview'
 import SearchAndFilter from './components/SearchAndFilter'
@@ -57,6 +57,7 @@ interface EditFormData {
 
 export default function NadraClient({ initialApplications, currentUserId, initialComplainedNadraIds = [] }: any) {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [applications, setApplications] = useState(initialApplications)
   const [serviceTypes, setServiceTypes] = useState<ServiceTypeMetadata[]>([])
   const [serviceOptions, setServiceOptions] = useState<ServiceOptionMetadata[]>([])
@@ -123,6 +124,12 @@ export default function NadraClient({ initialApplications, currentUserId, initia
   useEffect(() => {
     setComplainedNadraIds(new Set(initialComplainedNadraIds))
   }, [initialComplainedNadraIds])
+
+  useEffect(() => {
+    if (searchParams.get('focus') === 'attention') {
+      setStatusFilter('Pending Submission')
+    }
+  }, [searchParams])
 
   useEffect(() => {
     const loadMetadata = async () => {
@@ -878,6 +885,12 @@ export default function NadraClient({ initialApplications, currentUserId, initia
 
   return (
     <div className="space-y-6">
+      {searchParams.get('focus') === 'attention' && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-800">
+          Attention mode is active: status filter set to Pending Submission.
+        </div>
+      )}
+
       <section className="relative overflow-hidden rounded-2xl border border-emerald-600/30 bg-gradient-to-br from-[#1a4a2e] via-[#1f5c38] to-[#162e20] px-4 py-3 shadow-xl shadow-[#1f5c38]/30">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_18%,rgba(74,222,128,0.08),transparent_36%),radial-gradient(circle_at_88%_14%,rgba(34,197,94,0.05),transparent_40%)]" />
 

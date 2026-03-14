@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import RowItem from './components/RowItem'
 import EditModal from './components/EditModal'
 import HistoryModal from './components/HistoryModal'
@@ -30,6 +30,8 @@ type PakPassportClientProps = {
 
 export default function PakPassportClient({ initialApplications, currentUserId }: PakPassportClientProps) {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const attentionMode = searchParams.get('focus') === 'attention'
   const [showForm, setShowForm] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -268,8 +270,10 @@ export default function PakPassportClient({ initialApplications, currentUserId }
 
   const filteredApps = sortedApps.filter((item: Application) => {
     const matchesSearch = JSON.stringify(item).toLowerCase().includes(searchQuery.toLowerCase())
+    const status = getPassportRecord(item)?.status || 'Pending Submission'
+    const matchesAttention = !attentionMode || status === 'Passport Arrived'
     
-    if (!matchesSearch) return false
+    if (!matchesSearch || !matchesAttention) return false
     
     // Date range filter
     if (startDate || endDate) {
@@ -332,6 +336,12 @@ export default function PakPassportClient({ initialApplications, currentUserId }
 
   return (
     <div className="space-y-6">
+      {attentionMode && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-800">
+          Attention mode is active: showing only records with status Passport Arrived.
+        </div>
+      )}
+
       {/* HEADER & SEARCH */}
       <div className="flex flex-col md:flex-row justify-between items-center gap-4">
         <div className="flex-grow w-full flex flex-col md:flex-row gap-3">

@@ -3,13 +3,15 @@
 import { useState, useEffect } from 'react'
 import { Plus, ChevronDown } from 'lucide-react'
 import { toast } from 'sonner'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import VisaForm from './components/VisaForm'
 import { loadVisaMetadata, saveVisaApplication } from '@/app/lib/visaApi'
 import { VISA_TABLE_COLUMNS } from '@/app/lib/visaTableConfig'
 
 export default function VisaApplicationsClient({ initialData, currentUserId }: any) {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const attentionMode = searchParams.get('focus') === 'attention'
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [editingItem, setEditingItem] = useState(null)
   const [metadata, setMetadata] = useState<any>({ countries: [], types: [] })
@@ -57,8 +59,19 @@ export default function VisaApplicationsClient({ initialData, currentUserId }: a
     }
   }
 
+  const rows = (initialData || []).filter((item: any) => {
+    if (!attentionMode) return true
+    return (item?.status || 'Pending') === 'Pending'
+  })
+
   return (
     <div className="space-y-6">
+      {attentionMode && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-800">
+          Attention mode is active: showing only records with status Pending.
+        </div>
+      )}
+
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Visa Applications</h1>
@@ -95,14 +108,14 @@ export default function VisaApplicationsClient({ initialData, currentUserId }: a
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {initialData.length === 0 ? (
+              {rows.length === 0 ? (
                 <tr>
                   <td colSpan={VISA_TABLE_COLUMNS.length + 1} className="p-12 text-center text-slate-400 italic">
                     No visa applications yet. Click &quot;New Application&quot; to create one.
                   </td>
                 </tr>
               ) : (
-                initialData.map((item: any) => (
+                rows.map((item: any) => (
                   <tr key={item.id} className="hover:bg-slate-50 transition-colors group">
                     {/* Applicant */}
                     <td className="p-4">

@@ -7,7 +7,7 @@ import EditModal from './components/EditModal'
 import HistoryModal from './components/HistoryModal'
 import LedgerTable from './components/LedgerTable'
 import SearchHeader from './components/SearchHeader'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 
 interface FormData {
   applicantName: string
@@ -22,6 +22,8 @@ interface FormData {
 
 export default function GbPassportsClient({ initialData, currentUserId }: any) {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const attentionMode = searchParams.get('focus') === 'attention'
   const [searchTerm, setSearchTerm] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -216,12 +218,20 @@ export default function GbPassportsClient({ initialData, currentUserId }: any) {
     }
   }
 
-  const filtered = initialData.filter((item: any) =>
-    JSON.stringify(item).toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  const filtered = initialData.filter((item: any) => {
+    const matchesSearch = JSON.stringify(item).toLowerCase().includes(searchTerm.toLowerCase())
+    const matchesAttention = !attentionMode || (item.status || 'Pending Submission') === 'Pending Submission'
+    return matchesSearch && matchesAttention
+  })
 
   return (
     <div className="space-y-6">
+      {attentionMode && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-800">
+          Attention mode is active: showing only records with status Pending Submission.
+        </div>
+      )}
+
       {/* Page Title */}
       <div>
         <h1 className="text-3xl font-bold text-slate-900">British Passport Applications</h1>
