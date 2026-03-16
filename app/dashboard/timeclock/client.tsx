@@ -33,6 +33,7 @@ export default function TimeclockClient() {
   const [cameraPermission, setCameraPermission] = useState<'granted' | 'denied' | 'prompt' | 'unknown'>('unknown')
   const [scanCooldownUntil, setScanCooldownUntil] = useState(0)
   const [cooldownNow, setCooldownNow] = useState(Date.now())
+    const [showSuccessPopup, setShowSuccessPopup] = useState(false)
 
   const cooldownSeconds = Math.max(0, Math.ceil((scanCooldownUntil - cooldownNow) / 1000))
   const isCooldownActive = scanCooldownUntil > cooldownNow
@@ -333,8 +334,9 @@ export default function TimeclockClient() {
       setStatus('success')
       setScanCooldownUntil(Date.now() + 8000)
       setCooldownNow(Date.now())
-      setMessage(`${data?.message || 'Clock-in recorded.'} Please wait 8s before next scan.`)
-      setResult({
+        setMessage(data?.message || 'Clock-in recorded.')
+        setShowSuccessPopup(true)
+        setResult({
         ok: true,
         message: data?.message || 'Clock-in recorded.',
         eventId: data?.eventId,
@@ -351,6 +353,38 @@ export default function TimeclockClient() {
 
   return (
     <div className="space-y-6">
+        {showSuccessPopup && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-8 space-y-5 text-center">
+              <div className="mx-auto flex items-center justify-center w-20 h-20 rounded-full bg-emerald-100">
+                <svg className="w-10 h-10 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-slate-900">
+                  {result?.eventType === 'CLOCK_OUT' ? 'Clocked Out' : 'Clocked In'}
+                </h2>
+                <p className="mt-1 text-slate-600 text-sm">{result?.message || message}</p>
+              </div>
+              {result?.scannedAt && (
+                <p className="text-xs text-slate-400">Recorded at {result.scannedAt}</p>
+              )}
+              {isCooldownActive && (
+                <p className="text-xs font-medium text-amber-600">
+                  Scan locked for {cooldownSeconds}s to prevent duplicates
+                </p>
+              )}
+              <button
+                type="button"
+                onClick={() => setShowSuccessPopup(false)}
+                className="w-full py-3 rounded-xl bg-emerald-600 text-white font-semibold text-sm hover:bg-emerald-700 active:bg-emerald-800"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        )}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
@@ -461,16 +495,6 @@ export default function TimeclockClient() {
             <p>Event ID: {result.eventId}</p>
             <p>Event: {result.eventType || 'PUNCH'}</p>
             <p>Recorded: {result.scannedAt}</p>
-          </div>
-        )}
-        {status === 'success' && (
-          <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-800">
-            <p className="text-sm font-semibold">Scan Recorded Successfully</p>
-            <p className="text-xs mt-1">
-              {isCooldownActive
-                ? `To avoid duplicate punches, scanning is locked for ${cooldownSeconds}s.`
-                : 'You can scan again when ready.'}
-            </p>
           </div>
         )}
       </div>
