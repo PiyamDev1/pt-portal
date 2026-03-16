@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
+import { ConfirmationDialog } from '@/components/ConfirmationDialog'
 import { resizeImage, getPasswordStrengthIndicator } from './utils'
 import { AvatarCard } from './AvatarCard'
 import { PasswordChangeForm } from './PasswordChangeForm'
@@ -16,6 +17,12 @@ interface SecurityTabProps {
   setLoading: (loading: boolean) => void
 }
 
+type SecurityConfirmAction =
+  | { type: 'reset-2fa' }
+  | { type: 'backup-codes' }
+  | { type: 'revoke-session'; sessionId: string }
+  | { type: 'signout-all' }
+
 export default function SecurityTab({ currentUser, supabase, loading, setLoading }: SecurityTabProps) {
   const router = useRouter()
   
@@ -23,6 +30,7 @@ export default function SecurityTab({ currentUser, supabase, loading, setLoading
   const [newPass, setNewPass] = useState('')
   const [confirmPass, setConfirmPass] = useState('')
   const [showCodes, setShowCodes] = useState<string[] | null>(null)
+  const [confirmAction, setConfirmAction] = useState<SecurityConfirmAction | null>(null)
   const {
     sessions,
     setSessions,
@@ -66,8 +74,12 @@ export default function SecurityTab({ currentUser, supabase, loading, setLoading
     setLoading(false)
   }
 
-  const handleReset2FA = async () => {
-    if (!confirm("Are you sure? This will disable your current Authenticator codes and require you to setup 2FA again.")) return
+  const handleReset2FA = async (confirmed = false) => {
+    if (!confirmed) {
+      setConfirmAction({ type: 'reset-2fa' })
+      return
+    }
+
     setLoading(true)
     const res = await fetch('/api/auth/reset-2fa', {
       method: 'POST',
@@ -84,8 +96,12 @@ export default function SecurityTab({ currentUser, supabase, loading, setLoading
     setLoading(false)
   }
 
-  const handleGenerateBackupCodes = async () => {
-    if (!confirm('Generate new backup codes? Previous codes will be invalidated.')) return
+  const handleGenerateBackupCodes = async (confirmed = false) => {
+    if (!confirmed) {
+      setConfirmAction({ type: 'backup-codes' })
+      return
+    }
+
     setLoading(true)
     const res = await fetch('/api/auth/generate-backup-codes', {
       method: 'POST',
@@ -120,8 +136,12 @@ export default function SecurityTab({ currentUser, supabase, loading, setLoading
     a.click()
   }
 
-  const handleRevokeSession = async (sessionId: string) => {
-    if (!confirm("Are you sure you want to log out this device?")) return
+  const handleRevokeSession = async (sessionId: string, confirmed = false) => {
+    if (!confirmed) {
+      setConfirmAction({ type: 'revoke-session', sessionId })
+      return
+    }
+
     setLoading(true)
     try {
       const res = await fetch('/api/auth/sessions', {
@@ -139,8 +159,12 @@ export default function SecurityTab({ currentUser, supabase, loading, setLoading
     setLoading(false)
   }
 
-  const handleSignOutAll = async () => {
-    if (!confirm("This will log you out of ALL devices (including this one). Continue?")) return
+  const handleSignOutAll = async (confirmed = false) => {
+    if (!confirmed) {
+      setConfirmAction({ type: 'signout-all' })
+      return
+    }
+
     setLoading(true)
     try {
       const res = await fetch('/api/auth/sessions', {
@@ -157,6 +181,43 @@ export default function SecurityTab({ currentUser, supabase, loading, setLoading
     } catch (err) { toast.error("Network error") }
     setLoading(false)
   }
+
+  const handleConfirmAction = async () => {
+    if (!confirmAction) return
+
+    if (confirmAction.type === 'reset-2fa') {
+      await handleReset2FA(true)
+    }
+    if (confirmAction.type === 'backup-codes') {
+      await handleGenerateBackupCodes(true)
+    }
+    if (confirmAction.type === 'revoke-session') {
+      await handleRevokeSession(confirmAction.sessionId, true)
+    }
+    if (confirmAction.type === 'signout-all') {
+      await handleSignOutAll(true)
+    }
+
+    setConfirmAction(null)
+  }
+
+  const confirmTitle =
+    confirmAction?.type === 'reset-2fa'
+      ? 'Reset 2FA'
+      : confirmAction?.type === 'backup-codes'
+        ? 'Generate New Backup Codes'
+        : confirmAction?.type === 'revoke-session'
+          ? 'Log Out Device'
+          : 'Sign Out All Devices'
+
+  const confirmMessage =
+    confirmAction?.type === 'reset-2fa'
+      ? 'This will disable your current Authenticator codes and require 2FA setup again.'
+      : confirmAction?.type === 'backup-codes'
+        ? 'Generate new backup codes? Previous codes will be invalidated.'
+        : confirmAction?.type === 'revoke-session'
+          ? 'Are you sure you want to log out this device?'
+          : 'This will log you out of all devices, including this one. Continue?'
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return
@@ -209,6 +270,7 @@ export default function SecurityTab({ currentUser, supabase, loading, setLoading
   }
 
   return (
+    <>
     <div className="space-y-6 animate-fade-in">
       <h2 className="text-xl font-bold text-slate-800">Profile & Security</h2>
 
@@ -243,6 +305,20 @@ export default function SecurityTab({ currentUser, supabase, loading, setLoading
         sessionsError={sessionsError}
         onSignOutAll={handleSignOutAll}
         onRevokeSession={handleRevokeSession}
-      />    </div>
+      />
+    </div>
+
+    <ConfirmationDialog
+      isOpen={!!confirmAction}
+      onClose={() => setConfirmAction(null)}
+      onConfirm={handleConfirmAction}
+      title={confirmTitle}
+      message={confirmMessage}
+      confirmLabel="Confirm"
+      cancelLabel="Cancel"
+      type={confirmAction?.type === 'backup-codes' ? 'warning' : 'danger'}
+      isLoading={loading}
+    />
+    </>
   )
 }

@@ -3,16 +3,14 @@
 import { useState } from 'react'
 import { Database, AlertCircle, CheckCircle } from 'lucide-react'
 import { toast } from 'sonner'
+import { ConfirmationDialog } from '@/components/ConfirmationDialog'
 
 export function MaintenanceTab() {
   const [migrating, setMigrating] = useState(false)
   const [result, setResult] = useState<any>(null)
+  const [showMigrationConfirm, setShowMigrationConfirm] = useState(false)
 
   const migrateInstallments = async () => {
-    if (!confirm('This will create installment records for all existing service transactions that don\'t have them. Continue?')) {
-      return
-    }
-
     setMigrating(true)
     setResult(null)
 
@@ -62,7 +60,7 @@ export function MaintenanceTab() {
               </p>
               
               <button
-                onClick={migrateInstallments}
+                onClick={() => setShowMigrationConfirm(true)}
                 disabled={migrating}
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-bold rounded-lg transition-colors text-sm"
               >
@@ -134,6 +132,21 @@ export function MaintenanceTab() {
           </div>
         </div>
       </div>
+
+      <ConfirmationDialog
+        isOpen={showMigrationConfirm}
+        onClose={() => setShowMigrationConfirm(false)}
+        onConfirm={async () => {
+          setShowMigrationConfirm(false)
+          await migrateInstallments()
+        }}
+        title="Run Installment Migration"
+        message="This will create installment records for all existing service transactions that do not have them. Continue?"
+        confirmLabel="Run Migration"
+        cancelLabel="Cancel"
+        type="warning"
+        isLoading={migrating}
+      />
     </div>
   )
 }

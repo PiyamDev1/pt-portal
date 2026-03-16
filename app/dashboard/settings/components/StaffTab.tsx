@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
+import { ConfirmationDialog } from '@/components/ConfirmationDialog'
 
 interface StaffTabProps {
   initialEmployees: any[]
@@ -33,6 +34,7 @@ export default function StaffTab({
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
   const [deleteConfirmEmail, setDeleteConfirmEmail] = useState('')
+  const [confirmAction, setConfirmAction] = useState<{ type: 'disable' | 'reset'; emp: any } | null>(null)
   const [newEmployee, setNewEmployee] = useState({
     firstName: '',
     lastName: '',
@@ -99,10 +101,7 @@ export default function StaffTab({
     return data
   }
 
-  const handleDisableEnable = async (emp: any) => {
-    const newStatus = !emp.is_active
-    if (!newStatus && !confirm(`Disable ${emp.full_name}? They will not be able to log in.`)) return
-
+  const performDisableEnable = async (emp: any, newStatus: boolean) => {
     try {
       setTogglingId(emp.id)
       const res = await fetch('/api/admin/disable-enable-employee', {
@@ -128,6 +127,42 @@ export default function StaffTab({
     } finally {
       setTogglingId(null)
     }
+  }
+
+  const handleDisableEnable = async (emp: any) => {
+    const newStatus = !emp.is_active
+    if (!newStatus) {
+      setConfirmAction({ type: 'disable', emp })
+      return
+    }
+
+    await performDisableEnable(emp, newStatus)
+  }
+
+  const handleSendTempPassword = async (emp: any) => {
+    try {
+      setResettingId(emp.id)
+      const resp = await adminResetPassword({ employee_id: emp.id })
+      toast.success(resp.message || 'Temporary password emailed')
+    } catch (err: any) {
+      toast.error('Error: ' + (err.message || err))
+    } finally {
+      setResettingId(null)
+    }
+  }
+
+  const handleConfirmAction = async () => {
+    if (!confirmAction) return
+
+    if (confirmAction.type === 'disable') {
+      await performDisableEnable(confirmAction.emp, false)
+    }
+
+    if (confirmAction.type === 'reset') {
+      await handleSendTempPassword(confirmAction.emp)
+    }
+
+    setConfirmAction(null)
   }
 
   const handleDeleteEmployee = async (emp: any) => {
@@ -342,18 +377,7 @@ export default function StaffTab({
                           Edit
                         </button>
                         <button
-                          onClick={async () => {
-                            if (!confirm(`Send a temporary password to ${emp.email}?`)) return
-                            try {
-                              setResettingId(emp.id)
-                              const resp = await adminResetPassword({ employee_id: emp.id })
-                              toast.success(resp.message || 'Temporary password emailed')
-                            } catch (err: any) {
-                              toast.error('Error: ' + (err.message || err))
-                            } finally {
-                              setResettingId(null)
-                            }
-                          }}
+                          onClick={() => setConfirmAction({ type: 'reset', emp })}
                           disabled={loading || resettingId === emp.id}
                           className="text-orange-600 hover:text-orange-800 font-medium disabled:opacity-50"
                         >
@@ -427,6 +451,21 @@ export default function StaffTab({
           </tbody>
         </table>
       </div>
+      <ConfirmationDialog
+        isOpen={!!confirmAction}
+        onClose={() => setConfirmAction(null)}
+        onConfirm={handleConfirmAction}
+        title={confirmAction?.type === 'disable' ? 'Disable Employee' : 'Send Temporary Password'}
+        message={
+          confirmAction?.type === 'disable'
+            ? `Disable ${confirmAction?.emp?.full_name}? They will not be able to log in.`
+            : `Send a temporary password to ${confirmAction?.emp?.email}?`
+        }
+        confirmLabel={confirmAction?.type === 'disable' ? 'Disable' : 'Send'}
+        cancelLabel="Cancel"
+        type={confirmAction?.type === 'disable' ? 'danger' : 'warning'}
+        isLoading={!!resettingId || !!togglingId || loading}
+      />
     </div>
   )
 }

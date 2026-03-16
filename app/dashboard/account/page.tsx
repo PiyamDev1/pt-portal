@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import { ConfirmationDialog } from '@/components/ConfirmationDialog'
 
 export default function MyAccountPage() {
   const [user, setUser] = useState<any>(null)
@@ -17,6 +18,7 @@ export default function MyAccountPage() {
   const [currentPass, setCurrentPass] = useState('')
   const [newPass, setNewPass] = useState('')
   const [confirmPass, setConfirmPass] = useState('')
+  const [confirmAction, setConfirmAction] = useState<'reset-2fa' | 'backup-codes' | null>(null)
 
   useEffect(() => {
     async function getUser() {
@@ -76,9 +78,11 @@ export default function MyAccountPage() {
   }
 
   // --- ACTION: RESET 2FA ---
-  const handleReset2FA = async () => {
-    const confirmed = window.confirm("Are you sure? This will disable your current Authenticator codes and require you to setup 2FA again.")
-    if (!confirmed) return
+  const handleReset2FA = async (confirmed = false) => {
+    if (!confirmed) {
+      setConfirmAction('reset-2fa')
+      return
+    }
     
     setLoading(true)
     
@@ -114,9 +118,11 @@ export default function MyAccountPage() {
     fetchBackupCodeCount()
   }, [user])
   
-  const handleGenerateBackupCodes = async () => {
-    const confirmed = window.confirm('Generate new backup codes? Previous codes will be invalidated.')
-    if (!confirmed) return
+  const handleGenerateBackupCodes = async (confirmed = false) => {
+    if (!confirmed) {
+      setConfirmAction('backup-codes')
+      return
+    }
     
     setLoading(true)
     const res = await fetch('/api/auth/generate-backup-codes', {
@@ -133,6 +139,16 @@ export default function MyAccountPage() {
       toast.error('Failed to generate backup codes: ' + (data?.error || 'Unknown'))
     }
     setLoading(false)
+  }
+
+  const handleConfirmAction = async () => {
+    if (confirmAction === 'reset-2fa') {
+      await handleReset2FA(true)
+    }
+    if (confirmAction === 'backup-codes') {
+      await handleGenerateBackupCodes(true)
+    }
+    setConfirmAction(null)
   }
 
   const handleDownloadBackupCodes = () => {
@@ -169,6 +185,7 @@ export default function MyAccountPage() {
   if (!user) return <div className="p-8">Loading...</div>
 
   return (
+    <>
     <div className="max-w-4xl mx-auto p-6 space-y-8">
       <h1 className="text-2xl font-bold text-slate-800">My Account Settings</h1>
 
@@ -235,14 +252,14 @@ export default function MyAccountPage() {
           <p className="text-sm text-slate-600 mb-3">Lost your phone or need to re-configure?</p>
           <div className="flex gap-3 items-center flex-wrap">
             <button 
-              onClick={handleReset2FA}
+              onClick={() => handleReset2FA()}
               disabled={loading}
               className="border border-red-200 text-red-600 bg-red-50 px-4 py-2 rounded hover:bg-red-100 font-medium transition text-sm"
             >
               Re-install 2FA Keys
             </button>
             <button
-              onClick={handleGenerateBackupCodes}
+              onClick={() => handleGenerateBackupCodes()}
               disabled={loading}
               className="border border-slate-200 text-slate-700 bg-white px-4 py-2 rounded hover:bg-slate-50 font-medium transition text-sm"
             >
@@ -283,5 +300,22 @@ export default function MyAccountPage() {
         </div>
       </div>
     </div>
+
+    <ConfirmationDialog
+      isOpen={!!confirmAction}
+      onClose={() => setConfirmAction(null)}
+      onConfirm={handleConfirmAction}
+      title={confirmAction === 'reset-2fa' ? 'Reset 2FA' : 'Generate Backup Codes'}
+      message={
+        confirmAction === 'reset-2fa'
+          ? 'This will disable your current Authenticator codes and require setup again.'
+          : 'Generate new backup codes? Previous codes will be invalidated.'
+      }
+      confirmLabel={confirmAction === 'reset-2fa' ? 'Reset 2FA' : 'Generate'}
+      cancelLabel="Cancel"
+      type={confirmAction === 'reset-2fa' ? 'danger' : 'warning'}
+      isLoading={loading}
+    />
+    </>
   )
 }
