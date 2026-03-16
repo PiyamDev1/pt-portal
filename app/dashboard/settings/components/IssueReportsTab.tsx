@@ -72,6 +72,7 @@ export function IssueReportsTab() {
   const [loading, setLoading] = useState(false)
   const [detailLoading, setDetailLoading] = useState(false)
   const [statusUpdating, setStatusUpdating] = useState(false)
+  const [expandedScreenshotUrl, setExpandedScreenshotUrl] = useState<string | null>(null)
 
   const modules = useMemo(() => ['all', ...Array.from(new Set(reports.map((report) => report.module_key)))], [reports])
 
@@ -151,6 +152,7 @@ export function IssueReportsTab() {
       fetchDetail(selectedReportId)
     } else {
       setDetail(null)
+      setExpandedScreenshotUrl(null)
     }
   }, [selectedReportId])
 
@@ -338,7 +340,18 @@ export function IssueReportsTab() {
                     {!detail.screenshotUrl && <span className="text-xs text-slate-500">Not attached or already purged</span>}
                   </div>
                   {detail.screenshotUrl ? (
-                    <img src={detail.screenshotUrl} alt="Issue report screenshot" className="mt-3 w-full rounded-xl border border-slate-200" />
+                    <button
+                      type="button"
+                      onClick={() => setExpandedScreenshotUrl(detail.screenshotUrl)}
+                      className="mt-3 block w-full"
+                    >
+                      <img
+                        src={detail.screenshotUrl}
+                        alt="Issue report screenshot"
+                        className="w-full rounded-xl border border-slate-200 cursor-zoom-in"
+                      />
+                      <span className="mt-2 block text-xs text-slate-500">Click to enlarge</span>
+                    </button>
                   ) : (
                     <div className="mt-3 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
                       Screenshot unavailable.
@@ -396,6 +409,32 @@ export function IssueReportsTab() {
           )}
         </div>
       </section>
+
+      {expandedScreenshotUrl && (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 p-4"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) {
+              setExpandedScreenshotUrl(null)
+            }
+          }}
+        >
+          <div className="relative max-h-[92vh] max-w-[95vw]">
+            <button
+              type="button"
+              onClick={() => setExpandedScreenshotUrl(null)}
+              className="absolute right-2 top-2 rounded-full bg-slate-950/70 px-3 py-1 text-xs font-semibold text-white hover:bg-slate-900"
+            >
+              Close
+            </button>
+            <img
+              src={expandedScreenshotUrl}
+              alt="Expanded issue report screenshot"
+              className="max-h-[92vh] max-w-[95vw] rounded-xl border border-white/20 bg-slate-900 object-contain"
+            />
+          </div>
+        </div>
+      )}
     </div>
   )
 }
