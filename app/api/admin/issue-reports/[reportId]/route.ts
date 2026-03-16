@@ -79,8 +79,16 @@ export async function PATCH(request: Request, context: { params: Promise<{ repor
 
   const { reportId } = await context.params
   const body = await request.json()
-  const status = normalizeStatus(body?.status)
+  const hasStatus = typeof body?.status === 'string' && body.status.trim().length > 0
+  const status = hasStatus ? normalizeStatus(body?.status) : null
+  const hasAssignment = Object.prototype.hasOwnProperty.call(body || {}, 'assignedToUserId')
+  const assignedToUserId = hasAssignment ? (body?.assignedToUserId || null) : undefined
   const adminNote = String(body?.adminNote || '').trim().slice(0, 2000)
+
+  if (!hasStatus && !hasAssignment) {
+    return NextResponse.json({ error: 'No status or assignment update was provided.' }, { status: 400 })
+  }
+
   const now = new Date()
   const solvedAt = status === 'solved' ? now.toISOString() : null
   const artifactPurgeAfter = status === 'solved'
@@ -89,21 +97,27 @@ export async function PATCH(request: Request, context: { params: Promise<{ repor
   const closedAt = status === 'closed' ? now.toISOString() : null
 
   const updates: Record<string, unknown> = {
-    status,
     updated_at: now.toISOString(),
     last_status_changed_by: auth.user?.id || null,
   }
 
-  if (status === 'solved') {
-    updates.solved_at = solvedAt
-    updates.artifact_purge_after = artifactPurgeAfter
-    updates.closed_at = null
-  } else if (status === 'closed') {
-    updates.closed_at = closedAt
-  } else {
-    updates.closed_at = null
-    updates.artifact_purge_after = null
-    updates.solved_at = null
+  if (hasAssignment) {
+    updates.assigned_to_user_id = assignedToUserId
+  }
+
+  if (status) {
+    updates.status = status
+    if (status === 'solved') {
+      updates.solved_at = solvedAt
+      updates.artifact_purge_after = artifactPurgeAfter
+      updates.closed_at = null
+    } else if (status === 'closed') {
+      updates.closed_at = closedAt
+    } else {
+      updates.closed_at = null
+      updates.artifact_purge_after = null
+      updates.solved_at = null
+    }
   }
 
   const supabase = getSupabaseClient()
@@ -123,9 +137,10 @@ export async function PATCH(request: Request, context: { params: Promise<{ repor
   await issueReportEventsTable.insert({
     ticket_id: reportId,
     actor_user_id: auth.user?.id || null,
-    action: 'status_changed',
+    action: hasStatus && hasAssignment ? 'status_and_assignment_changed' : hasStatus ? 'status_changed' : 'assignment_changed',
     details: {
       status,
+      assignedToUserId: hasAssignment ? assignedToUserId : undefined,
       adminNote,
       artifactPurgeAfter,
     },

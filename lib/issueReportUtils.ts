@@ -86,3 +86,24 @@ export function sanitizeConsoleEntries(input: unknown) {
     })
     .filter((entry) => entry.message)
 }
+
+export function sanitizeFailedRequests(input: unknown) {
+  if (!Array.isArray(input)) return []
+
+  return input
+    .slice(-20)
+    .map((item) => {
+      const entry = typeof item === 'object' && item !== null ? item as Record<string, unknown> : {}
+      return {
+        url: redactSensitiveText(String(entry.url || '')).slice(0, 1500),
+        method: String(entry.method || 'GET').toUpperCase().slice(0, 10),
+        status: Number(entry.status || 0),
+        statusText: redactSensitiveText(String(entry.statusText || '')).slice(0, 200),
+        durationMs: Number(entry.durationMs || 0),
+        timestamp: String(entry.timestamp || new Date().toISOString()),
+        source: String(entry.source || 'fetch').slice(0, 20),
+        responsePreview: redactSensitiveText(String(entry.responsePreview || '')).slice(0, 1000),
+      }
+    })
+    .filter((entry) => entry.url)
+}

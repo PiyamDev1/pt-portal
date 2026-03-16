@@ -19,6 +19,12 @@ type IssueReport = {
   has_screenshot: boolean
   has_console_log: boolean
   solved_at: string | null
+  assigned_to_user_id?: string | null
+}
+
+type Assignee = {
+  id: string
+  name: string
 }
 
 type IssueReportDetail = {
@@ -65,13 +71,18 @@ function getSeverityClasses(severity: string) {
 export function IssueReportsTab() {
   const [statusFilter, setStatusFilter] = useState<(typeof statusOptions)[number]>('all')
   const [moduleFilter, setModuleFilter] = useState('all')
+  const [assigneeFilter, setAssigneeFilter] = useState('all')
   const [search, setSearch] = useState('')
   const [reports, setReports] = useState<IssueReport[]>([])
+  const [assignees, setAssignees] = useState<Assignee[]>([])
+  const [currentAdminId, setCurrentAdminId] = useState<string | null>(null)
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null)
   const [detail, setDetail] = useState<IssueReportDetail | null>(null)
   const [loading, setLoading] = useState(false)
   const [detailLoading, setDetailLoading] = useState(false)
   const [statusUpdating, setStatusUpdating] = useState(false)
+  const [assignmentUpdating, setAssignmentUpdating] = useState(false)
+  const [selectedAssigneeId, setSelectedAssigneeId] = useState<string>('')
   const [expandedScreenshotUrl, setExpandedScreenshotUrl] = useState<string | null>(null)
 
   const modules = useMemo(() => ['all', ...Array.from(new Set(reports.map((report) => report.module_key)))], [reports])
@@ -82,6 +93,7 @@ export function IssueReportsTab() {
       const params = new URLSearchParams()
       params.set('status', statusFilter)
       params.set('module', moduleFilter)
+      params.set('assignedTo', assigneeFilter)
       if (search.trim()) params.set('search', search.trim())
 
       const response = await fetch(`/api/admin/issue-reports?${params.toString()}`)
@@ -91,6 +103,8 @@ export function IssueReportsTab() {
       }
 
       setReports(data.reports || [])
+      setAssignees(data.assignees || [])
+      setCurrentAdminId(data.currentAdminId || null)
       if (!selectedReportId && data.reports?.length) {
         setSelectedReportId(data.reports[0].id)
       }
@@ -113,11 +127,34 @@ export function IssueReportsTab() {
         throw new Error(data?.error || 'Failed to load issue report detail')
       }
       setDetail(data)
+      setSelectedAssigneeId(data?.report?.assigned_to_user_id || '')
     } catch (error: any) {
       toast.error(error?.message || 'Failed to load issue report detail')
       setDetail(null)
     } finally {
       setDetailLoading(false)
+    }
+  }
+
+  const updateAssignment = async () => {
+    if (!selectedReportId) return
+    setAssignmentUpdating(true)
+    try {
+      const response = await fetch(`/api/admin/issue-reports/${selectedReportId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ assignedToUserId: selectedAssigneeId || null }),
+      })
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data?.error || 'Failed to update assignment')
+      }
+      toast.success('Assignee updated')
+      await Promise.all([fetchReports(), fetchDetail(selectedReportId)])
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to update assignment')
+    } finally {
+      setAssignmentUpdating(false)
     }
   }
 
@@ -145,7 +182,7 @@ export function IssueReportsTab() {
 
   useEffect(() => {
     fetchReports()
-  }, [statusFilter, moduleFilter])
+  }, [statusFilter, moduleFilter, assigneeFilter])
 
   useEffect(() => {
     if (selectedReportId) {
@@ -158,6 +195,32 @@ export function IssueReportsTab() {
 
   const openCount = reports.filter((report) => report.status === 'new' || report.status === 'investigating').length
   const solvedCount = reports.filter((report) => report.status === 'solved' || report.status === 'closed').length
+
+  const getAgeMeta = (report: IssueReport) => {
+    const now = Date.now()
+    const created = new Date(report.created_at).getTime()
+    const hours = Math.max(0, Math.floor((now - created) / (1000 * 60 * 60)))
+    const days = Math.floor(hours / 24)
+    const label = days > 0 ? `${days}d ${hours % 24}h` : `${hours}h`
+    const isOpen = report.status === 'new' || report.status === 'investigating'
+
+    if (!isOpen) {
+      return { label: `Resolved (${label})`, className: 'bg-slate-100 text-slate-600' }
+    }
+    if (hours >= 72) {
+      return { label: `Stale ${label}`, className: 'bg-red-100 text-red-700' }
+    }
+    if (hours >= 24) {
+      return { label: `Aging ${label}`, className: 'bg-amber-100 text-amber-700' }
+    }
+    return { label: `New ${label}`, className: 'bg-emerald-100 text-emerald-700' }
+  }
+
+  const assigneeNameById = useMemo(() => {
+    const map = new Map<string, string>()
+    assignees.forEach((assignee) => map.set(assignee.id, assignee.name))
+    return map
+  }, [assignees])
 
   return (
     <div className="space-y-6">
@@ -188,7 +251,7 @@ export function IssueReportsTab() {
       </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="grid gap-3 lg:grid-cols-[180px_180px_1fr_auto]">
+        <div className="grid gap-3 lg:grid-cols-[160px_170px_180px_1fr_auto]">
           <select
             value={statusFilter}
             onChange={(event) => setStatusFilter(event.target.value as (typeof statusOptions)[number])}
@@ -206,6 +269,19 @@ export function IssueReportsTab() {
           >
             {modules.map((module) => (
               <option key={module} value={module}>{module === 'all' ? 'All modules' : module}</option>
+            ))}
+          </select>
+
+          <select
+            value={assigneeFilter}
+            onChange={(event) => setAssigneeFilter(event.target.value)}
+            className="rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700"
+          >
+            <option value="all">All owners</option>
+            <option value="unassigned">Unassigned</option>
+            <option value="me">My queue</option>
+            {assignees.map((assignee) => (
+              <option key={assignee.id} value={assignee.id}>{assignee.name}</option>
             ))}
           </select>
 
@@ -240,6 +316,10 @@ export function IssueReportsTab() {
               <div className="px-5 py-10 text-center text-sm text-slate-500">No issue reports found.</div>
             ) : (
               reports.map((report) => (
+                (() => {
+                  const ageMeta = getAgeMeta(report)
+                  const assigneeLabel = report.assigned_to_user_id ? assigneeNameById.get(report.assigned_to_user_id) || 'Assigned' : 'Unassigned'
+                  return (
                 <button
                   key={report.id}
                   type="button"
@@ -258,10 +338,14 @@ export function IssueReportsTab() {
                   <p className="mt-3 line-clamp-2 text-sm text-slate-700">{report.notes}</p>
                   <div className="mt-3 flex items-center gap-2 text-xs text-slate-500">
                     <span className="rounded-full bg-slate-100 px-2 py-1 uppercase tracking-wide text-slate-700">{report.status}</span>
+                    <span className={`rounded-full px-2 py-1 font-semibold ${ageMeta.className}`}>{ageMeta.label}</span>
+                    <span className="rounded-full bg-indigo-50 px-2 py-1 text-indigo-700">{assigneeLabel}</span>
                     {report.has_screenshot && <span>Screenshot</span>}
                     {report.has_console_log && <span>Console</span>}
                   </div>
                 </button>
+                  )
+                })()
               ))
             )}
           </div>
@@ -278,6 +362,10 @@ export function IssueReportsTab() {
             <div className="space-y-6">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div>
+                  {(() => {
+                    const ageMeta = detail ? getAgeMeta(detail.report) : null
+                    return ageMeta ? <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${ageMeta.className}`}>{ageMeta.label}</span> : null
+                  })()}
                   <div className="flex flex-wrap items-center gap-2">
                     <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide ${getSeverityClasses(detail.report.severity)}`}>
                       {detail.report.severity}
@@ -305,6 +393,32 @@ export function IssueReportsTab() {
                       {status}
                     </button>
                   ))}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                  <div className="flex-1">
+                    <label className="mb-2 block text-sm font-semibold text-slate-900">Ticket Owner</label>
+                    <select
+                      value={selectedAssigneeId}
+                      onChange={(event) => setSelectedAssigneeId(event.target.value)}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+                    >
+                      <option value="">Unassigned</option>
+                      {assignees.map((assignee) => (
+                        <option key={assignee.id} value={assignee.id}>{assignee.name}{currentAdminId === assignee.id ? ' (You)' : ''}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={updateAssignment}
+                    disabled={assignmentUpdating}
+                    className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
+                  >
+                    {assignmentUpdating ? 'Saving...' : 'Save Owner'}
+                  </button>
                 </div>
               </div>
 

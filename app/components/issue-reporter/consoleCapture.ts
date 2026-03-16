@@ -10,8 +10,21 @@ export type CapturedConsoleEntry = {
   source: 'console' | 'window-error' | 'unhandled-rejection'
 }
 
+export type CapturedFailedRequest = {
+  url: string
+  method: string
+  status: number
+  statusText: string
+  durationMs: number
+  timestamp: string
+  source: 'fetch'
+  responsePreview?: string
+}
+
 const MAX_ENTRIES = 200
 const entries: CapturedConsoleEntry[] = []
+const MAX_FAILED_REQUESTS = 20
+const failedRequests: CapturedFailedRequest[] = []
 
 function safeStringify(value: unknown): string {
   if (value instanceof Error) {
@@ -40,9 +53,65 @@ function pushEntry(entry: CapturedConsoleEntry) {
   }
 }
 
+function pushFailedRequest(entry: CapturedFailedRequest) {
+  failedRequests.push(entry)
+  if (failedRequests.length > MAX_FAILED_REQUESTS) {
+    failedRequests.splice(0, failedRequests.length - MAX_FAILED_REQUESTS)
+  }
+}
+
 export function startConsoleCapture() {
   if (typeof window === 'undefined' || (window as any).__issueReporterConsolePatched) {
     return
+  }
+
+  const originalFetch = window.fetch.bind(window)
+  window.fetch = async (...args: Parameters<typeof fetch>) => {
+    const startedAt = performance.now()
+    const timestamp = new Date().toISOString()
+    const request = args[0]
+    const init = args[1]
+    const method = (init?.method || (request instanceof Request ? request.method : 'GET') || 'GET').toUpperCase()
+    const url = typeof request === 'string'
+      ? request
+      : request instanceof URL
+        ? request.toString()
+        : request.url
+
+    try {
+      const response = await originalFetch(...args)
+      if (!response.ok) {
+        let preview = ''
+        try {
+          preview = (await response.clone().text()).slice(0, 600)
+        } catch {
+          preview = ''
+        }
+
+        pushFailedRequest({
+          url,
+          method,
+          status: response.status,
+          statusText: response.statusText || 'Request failed',
+          durationMs: Math.round(performance.now() - startedAt),
+          timestamp,
+          source: 'fetch',
+          responsePreview: preview,
+        })
+      }
+      return response
+    } catch (error: any) {
+      pushFailedRequest({
+        url,
+        method,
+        status: 0,
+        statusText: error?.message || 'Network error',
+        durationMs: Math.round(performance.now() - startedAt),
+        timestamp,
+        source: 'fetch',
+      })
+      throw error
+    }
   }
 
   ;(['log', 'info', 'warn', 'error'] as ConsoleLevel[]).forEach((level) => {
@@ -85,4 +154,8 @@ export function startConsoleCapture() {
 
 export function getRecentConsoleEntries() {
   return entries.slice(-MAX_ENTRIES)
+}
+
+export function getRecentFailedRequests() {
+  return failedRequests.slice(-MAX_FAILED_REQUESTS)
 }

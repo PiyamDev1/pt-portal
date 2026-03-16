@@ -9,6 +9,7 @@ import {
   parseDataUrl,
   redactSensitiveText,
   sanitizeConsoleEntries,
+  sanitizeFailedRequests,
 } from '@/lib/issueReportUtils'
 
 export async function POST(request: Request) {
@@ -30,6 +31,8 @@ export async function POST(request: Request) {
     const severity = normalizeSeverity(body?.severity)
     const includeScreenshot = Boolean(body?.includeScreenshot)
     const includeConsoleLog = Boolean(body?.includeConsoleLog)
+    const includeFailedRequests = Boolean(body?.includeFailedRequests)
+    const failedRequests = includeFailedRequests ? sanitizeFailedRequests(body?.failedRequests) : []
     const browserContext = {
       viewport: body?.browserContext?.viewport || null,
       userAgent: redactSensitiveText(String(body?.browserContext?.userAgent || '')).slice(0, 1000),
@@ -37,6 +40,8 @@ export async function POST(request: Request) {
       platform: String(body?.browserContext?.platform || '').slice(0, 100),
       appVersion: String(body?.browserContext?.appVersion || '').slice(0, 100),
       consoleEntryCount: Array.isArray(body?.consoleEntries) ? Math.min(body.consoleEntries.length, 200) : 0,
+      failedRequestCount: failedRequests.length,
+      failedRequests,
       capturedAt: new Date().toISOString(),
     }
 
@@ -142,6 +147,7 @@ export async function POST(request: Request) {
         severity,
         routePath,
         moduleKey,
+        failedRequestCount: failedRequests.length,
         includedArtifacts: artifactRows.map((artifact) => artifact.artifact_type),
       },
     })

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { AlertTriangle, Bug, Camera, Loader2, Send, TerminalSquare, X } from 'lucide-react'
 import { toast } from 'sonner'
-import { getRecentConsoleEntries, startConsoleCapture } from './issue-reporter/consoleCapture'
+import { getRecentConsoleEntries, getRecentFailedRequests, startConsoleCapture } from './issue-reporter/consoleCapture'
 
 type Severity = 'low' | 'medium' | 'high' | 'critical'
 
@@ -18,6 +18,7 @@ export function IssueReporterWidget() {
   const [severity, setSeverity] = useState<Severity>('medium')
   const [includeScreenshot, setIncludeScreenshot] = useState(true)
   const [includeConsoleLog, setIncludeConsoleLog] = useState(true)
+  const [includeFailedRequests, setIncludeFailedRequests] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [submittedTicketId, setSubmittedTicketId] = useState<string | null>(null)
 
@@ -26,6 +27,7 @@ export function IssueReporterWidget() {
   }, [])
 
   const consoleCount = useMemo(() => getRecentConsoleEntries().length, [isOpen])
+  const failedRequestCount = useMemo(() => getRecentFailedRequests().length, [isOpen])
 
   const captureScreenshot = async () => {
     const { default: html2canvas } = await import('html2canvas')
@@ -87,8 +89,10 @@ export function IssueReporterWidget() {
           severity,
           includeScreenshot,
           includeConsoleLog,
+          includeFailedRequests,
           screenshotDataUrl,
           consoleEntries: includeConsoleLog ? getRecentConsoleEntries() : [],
+          failedRequests: includeFailedRequests ? getRecentFailedRequests() : [],
           pageUrl: window.location.href,
           routePath: pathname || window.location.pathname,
           browserContext: {
@@ -206,7 +210,7 @@ export function IssueReporterWidget() {
                 </div>
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-3">
                 <label className="flex items-start gap-3 rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-700">
                   <input
                     type="checkbox"
@@ -230,6 +234,19 @@ export function IssueReporterWidget() {
                   <span>
                     <span className="flex items-center gap-2 font-semibold text-slate-900"><TerminalSquare className="h-4 w-4" /> Include browser console</span>
                     <span className="mt-1 block text-xs text-slate-500">Recent entries queued: {consoleCount}</span>
+                  </span>
+                </label>
+
+                <label className="flex items-start gap-3 rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={includeFailedRequests}
+                    onChange={(event) => setIncludeFailedRequests(event.target.checked)}
+                    className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span>
+                    <span className="flex items-center gap-2 font-semibold text-slate-900"><Bug className="h-4 w-4" /> Include failed API requests</span>
+                    <span className="mt-1 block text-xs text-slate-500">Recent failed requests queued: {failedRequestCount}</span>
                   </span>
                 </label>
               </div>
