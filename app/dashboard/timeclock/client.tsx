@@ -14,6 +14,7 @@ type ScanResponse = {
   message: string
   eventId?: string
   eventType?: string
+  punchType?: string
   scannedAt?: string
 }
 
@@ -33,7 +34,19 @@ export default function TimeclockClient() {
   const [cameraPermission, setCameraPermission] = useState<'granted' | 'denied' | 'prompt' | 'unknown'>('unknown')
   const [scanCooldownUntil, setScanCooldownUntil] = useState(0)
   const [cooldownNow, setCooldownNow] = useState(Date.now())
-    const [showSuccessPopup, setShowSuccessPopup] = useState(false)
+  const [showSuccessPopup, setShowSuccessPopup] = useState(false)
+
+  const getPunchDirection = (value?: string, fallbackText?: string) => {
+    const normalized = (value || '').toString().trim().toUpperCase().replace(/[\s-]+/g, '_')
+    if (['OUT', 'CLOCK_OUT', 'PUNCH_OUT', 'CHECK_OUT'].includes(normalized)) return 'OUT'
+    if (['IN', 'CLOCK_IN', 'PUNCH_IN', 'CHECK_IN'].includes(normalized)) return 'IN'
+
+    const text = (fallbackText || '').toUpperCase()
+    if (text.includes('OUT')) return 'OUT'
+    if (text.includes('IN')) return 'IN'
+
+    return null
+  }
 
   const cooldownSeconds = Math.max(0, Math.ceil((scanCooldownUntil - cooldownNow) / 1000))
   const isCooldownActive = scanCooldownUntil > cooldownNow
@@ -341,6 +354,7 @@ export default function TimeclockClient() {
         message: data?.message || 'Clock-in recorded.',
         eventId: data?.eventId,
         eventType: data?.eventType || 'PUNCH',
+          punchType: data?.punchType,
         scannedAt: data?.scannedAt,
       })
     } catch (error: any) {
@@ -363,7 +377,7 @@ export default function TimeclockClient() {
               </div>
               <div>
                 <h2 className="text-xl font-bold text-slate-900">
-                  {result?.eventType === 'CLOCK_OUT' ? 'Clocked Out' : 'Clocked In'}
+                  {getPunchDirection(result?.punchType || result?.eventType, result?.message) === 'OUT' ? 'Clocked Out' : 'Clocked In'}
                 </h2>
                 <p className="mt-1 text-slate-600 text-sm">{result?.message || message}</p>
               </div>

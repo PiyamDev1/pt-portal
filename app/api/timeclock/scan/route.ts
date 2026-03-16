@@ -239,6 +239,7 @@ export async function POST(request: Request) {
       message: 'Clock event recorded.',
       eventId: inserted?.id,
       eventType: inserted?.event_type,
+      punchType,
       scannedAt: inserted?.scanned_at,
     })
   } catch (error: any) {
