@@ -8,6 +8,7 @@ import HierarchyTab from './components/HierarchyTab'
 import { AdminOverviewTab } from './components/AdminOverviewTab'
 import { DocumentMigrationOverviewTab } from './components/DocumentMigrationOverviewTab'
 import { MaintenanceTab } from './components/MaintenanceTab'
+import { IssueReportsTab } from './components/IssueReportsTab'
 import Link from 'next/link'
 
 export default function SettingsClient({ 
@@ -22,6 +23,7 @@ export default function SettingsClient({
   const isOrgAdmin = ['Admin', 'Master Admin'].includes(userRole)
   // Maintenance admins can access maintenance and document migration tooling.
   const canAccessMaintenance = ['Maintenance Admin', 'Admin', 'Master Admin'].includes(userRole)
+  const canManageIssueReports = userRole === 'Master Admin'
   const hasAdminConsole = isOrgAdmin || canAccessMaintenance
 
   const [activeTab, setActiveTab] = useState(hasAdminConsole ? 'admin-overview' : 'security')
@@ -75,6 +77,19 @@ export default function SettingsClient({
               >
                 Overview
               </button>
+
+              {canManageIssueReports && (
+                <button 
+                  onClick={() => setActiveTab('issue-reports')}
+                  className={`w-full text-left px-4 py-3 border-l-4 transition-colors ${
+                    activeTab === 'issue-reports' 
+                      ? 'border-blue-900 bg-blue-50 font-medium text-blue-900' 
+                      : 'border-transparent hover:bg-slate-50 text-slate-600'
+                  }`}
+                >
+                  Issue Reports
+                </button>
+              )}
 
               {isOrgAdmin && (
                 <>
@@ -172,8 +187,13 @@ export default function SettingsClient({
             roleCount={roleCount}
             canManageOrganization={isOrgAdmin}
             canAccessMaintenance={canAccessMaintenance}
+            canManageIssueReports={canManageIssueReports}
             onSelectTab={setActiveTab}
           />
+        )}
+
+        {activeTab === 'issue-reports' && canManageIssueReports && (
+          <IssueReportsTab />
         )}
 
         {activeTab === 'security' && (

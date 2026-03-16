@@ -11,6 +11,7 @@ type AdminOverviewTabProps = {
   roleCount: number
   canManageOrganization: boolean
   canAccessMaintenance: boolean
+  canManageIssueReports: boolean
   onSelectTab: (tab: string) => void
 }
 
@@ -55,6 +56,7 @@ export function AdminOverviewTab({
   roleCount,
   canManageOrganization,
   canAccessMaintenance,
+  canManageIssueReports,
   onSelectTab,
 }: AdminOverviewTabProps) {
   const quickActions: QuickAction[] = [
@@ -78,6 +80,13 @@ export function AdminOverviewTab({
       description: 'Review reporting lines and move employees to the correct manager.',
       icon: Network,
       visible: canManageOrganization,
+    },
+    {
+      id: 'issue-reports',
+      title: 'Issue Reports',
+      description: 'Review user-submitted faults, screenshots, and browser console logs.',
+      icon: ShieldCheck,
+      visible: canManageIssueReports,
     },
     {
       id: 'document-storage',

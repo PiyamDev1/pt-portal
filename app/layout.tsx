@@ -3,6 +3,7 @@ import { Toaster } from 'sonner'
 import { ProgressBarProvider } from './components/ProgressBarProvider'
 import { WebVitalsReporter } from './components/WebVitalsReporter'
 import { GlobalFooter } from './components/GlobalFooter'
+import { IssueReporterWidget } from './components/IssueReporterWidget'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -47,6 +48,7 @@ export default function RootLayout({
         </div>
         <GlobalFooter />
         <Toaster position="top-center" richColors />
+        <IssueReporterWidget />
         <WebVitalsReporter />
       </body>
     </html>

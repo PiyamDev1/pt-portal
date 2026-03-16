@@ -1,0 +1,88 @@
+const REDACTION_PATTERNS: Array<[RegExp, string]> = [
+  [/(authorization\s*[=:]\s*bearer\s+)[^\s,"]+/gi, '$1[REDACTED]'],
+  [/(bearer\s+)[a-z0-9\-._~+/]+=*/gi, '$1[REDACTED]'],
+  [/((?:access|refresh)?_?token\s*[=:]\s*["'])[^"']+(["'])/gi, '$1[REDACTED]$2'],
+  [/((?:password|secret|cookie|set-cookie)\s*[=:]\s*["'])[^"']+(["'])/gi, '$1[REDACTED]$2'],
+]
+
+export type IssueSeverity = 'low' | 'medium' | 'high' | 'critical'
+export type IssueStatus = 'new' | 'investigating' | 'solved' | 'closed'
+
+export function redactSensitiveText(value: string) {
+  return REDACTION_PATTERNS.reduce((output, [pattern, replacement]) => output.replace(pattern, replacement), value)
+}
+
+export function normalizeIssueNotes(value: unknown) {
+  return redactSensitiveText(String(value || '')).trim().slice(0, 4000)
+}
+
+export function normalizeSeverity(value: unknown): IssueSeverity {
+  const normalized = String(value || '').toLowerCase()
+  if (normalized === 'low' || normalized === 'high' || normalized === 'critical') {
+    return normalized
+  }
+  return 'medium'
+}
+
+export function normalizeStatus(value: unknown): IssueStatus {
+  const normalized = String(value || '').toLowerCase()
+  if (normalized === 'investigating' || normalized === 'solved' || normalized === 'closed') {
+    return normalized
+  }
+  return 'new'
+}
+
+export function deriveModuleFromPath(pathname: string) {
+  if (!pathname) return 'unknown'
+
+  const checks: Array<[string, string]> = [
+    ['/dashboard/timeclock', 'timeclock'],
+    ['/dashboard/applications/nadra', 'nadra'],
+    ['/dashboard/applications/passports-gb', 'passports-gb'],
+    ['/dashboard/applications/passports', 'passports'],
+    ['/dashboard/applications/visa', 'visa'],
+    ['/dashboard/lms', 'lms'],
+    ['/dashboard/settings', 'settings'],
+    ['/dashboard/account', 'account'],
+    ['/dashboard/pricing', 'pricing'],
+    ['/login', 'login'],
+  ]
+
+  const matched = checks.find(([prefix]) => pathname.startsWith(prefix))
+  if (matched) {
+    return matched[1]
+  }
+
+  const segments = pathname.split('/').filter(Boolean)
+  return segments[1] || segments[0] || 'unknown'
+}
+
+export function parseDataUrl(input: string) {
+  const match = /^data:(.+);base64,(.+)$/u.exec(input)
+  if (!match) {
+    throw new Error('Invalid data URL payload')
+  }
+
+  return {
+    contentType: match[1],
+    buffer: Buffer.from(match[2], 'base64'),
+  }
+}
+
+export function sanitizeConsoleEntries(input: unknown) {
+  if (!Array.isArray(input)) return []
+
+  return input
+    .slice(-200)
+    .map((entry) => {
+      const item = typeof entry === 'object' && entry !== null ? entry as Record<string, unknown> : {}
+      return {
+        level: String(item.level || 'log').slice(0, 20),
+        message: redactSensitiveText(String(item.message || '')).slice(0, 4000),
+        stack: redactSensitiveText(String(item.stack || '')).slice(0, 8000),
+        timestamp: String(item.timestamp || new Date().toISOString()),
+        source: String(item.source || 'console').slice(0, 50),
+      }
+    })
+    .filter((entry) => entry.message)
+}
