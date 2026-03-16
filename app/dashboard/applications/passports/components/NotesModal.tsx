@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
+import { ConfirmationDialog } from '@/components/ConfirmationDialog'
 
 type NotesModalProps = {
   open: boolean
@@ -24,6 +25,7 @@ export default function NotesModal({
   const dialogRef = useRef<HTMLDivElement>(null)
   const [originalNotes, setOriginalNotes] = useState('')
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false)
 
   // Track original notes when modal opens
   useEffect(() => {
@@ -42,8 +44,8 @@ export default function NotesModal({
 
   const handleClose = () => {
     if (hasUnsavedChanges) {
-      const confirmed = window.confirm('You have unsaved notes. Discard changes?')
-      if (!confirmed) return
+      setShowDiscardConfirm(true)
+      return
     }
     onClose()
   }
@@ -90,6 +92,7 @@ export default function NotesModal({
   if (!open) return null
 
   return (
+    <>
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
       <div
         ref={dialogRef}
@@ -165,5 +168,19 @@ export default function NotesModal({
         </div>
       </div>
     </div>
+    <ConfirmationDialog
+      isOpen={showDiscardConfirm}
+      onClose={() => setShowDiscardConfirm(false)}
+      onConfirm={() => {
+        setShowDiscardConfirm(false)
+        onClose()
+      }}
+      title="Discard Changes?"
+      message="You have unsaved notes. Do you want to discard them?"
+      confirmLabel="Discard"
+      cancelLabel="Keep Editing"
+      type="warning"
+    />
+    </>
   )
 }

@@ -22,6 +22,7 @@ export default function TimeclockClient() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const scanTimerRef = useRef<number | null>(null)
+  const submitLockRef = useRef(false)
 
   const [isScanning, setIsScanning] = useState(false)
   const [status, setStatus] = useState<'idle' | 'scanning' | 'submitting' | 'success' | 'error'>('idle')
@@ -30,6 +31,21 @@ export default function TimeclockClient() {
   const [result, setResult] = useState<ScanResponse | null>(null)
   const [cameraError, setCameraError] = useState('')
   const [cameraPermission, setCameraPermission] = useState<'granted' | 'denied' | 'prompt' | 'unknown'>('unknown')
+  const [scanCooldownUntil, setScanCooldownUntil] = useState(0)
+  const [cooldownNow, setCooldownNow] = useState(Date.now())
+
+  const cooldownSeconds = Math.max(0, Math.ceil((scanCooldownUntil - cooldownNow) / 1000))
+  const isCooldownActive = scanCooldownUntil > cooldownNow
+
+  useEffect(() => {
+    if (!isCooldownActive) return
+
+    const timer = window.setInterval(() => {
+      setCooldownNow(Date.now())
+    }, 250)
+
+    return () => window.clearInterval(timer)
+  }, [isCooldownActive])
 
   const detectorSupported = typeof window !== 'undefined' && 'BarcodeDetector' in window
   const isIOS = typeof window !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent)
@@ -266,6 +282,14 @@ export default function TimeclockClient() {
   }
 
   const handleSubmit = async (rawValue?: string) => {
+    if (submitLockRef.current) return
+
+    if (isCooldownActive) {
+      setStatus('success')
+      setMessage(`Already scanned. Please wait ${cooldownSeconds}s before scanning again.`)
+      return
+    }
+
     const payload = rawValue ?? qrText.trim()
     if (!payload) {
       setMessage('Enter a manual code or scan a QR code first.')
@@ -273,6 +297,7 @@ export default function TimeclockClient() {
       return
     }
 
+    submitLockRef.current = true
     setIsScanning(false)
     stopStream()
     setStatus('submitting')
@@ -306,7 +331,9 @@ export default function TimeclockClient() {
       }
 
       setStatus('success')
-      setMessage(data?.message || 'Clock-in recorded.')
+      setScanCooldownUntil(Date.now() + 8000)
+      setCooldownNow(Date.now())
+      setMessage(`${data?.message || 'Clock-in recorded.'} Please wait 8s before next scan.`)
       setResult({
         ok: true,
         message: data?.message || 'Clock-in recorded.',
@@ -317,6 +344,8 @@ export default function TimeclockClient() {
     } catch (error: any) {
       setStatus('error')
       setMessage(error?.message || 'Clock-in failed.')
+    } finally {
+      submitLockRef.current = false
     }
   }
 
@@ -336,9 +365,10 @@ export default function TimeclockClient() {
             <button
               type="button"
               onClick={() => setIsScanning(true)}
-              className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700"
+              disabled={isCooldownActive || status === 'submitting'}
+              className={`px-4 py-2 rounded-lg text-white text-sm font-semibold ${isCooldownActive || status === 'submitting' ? 'bg-slate-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
             >
-              Start Camera
+              {isCooldownActive ? `Scanned (${cooldownSeconds}s)` : 'Start Camera'}
             </button>
             <button
               type="button"
@@ -414,9 +444,10 @@ export default function TimeclockClient() {
         <button
           type="button"
           onClick={() => handleSubmit()}
-          className="px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800"
+          disabled={isCooldownActive || status === 'submitting'}
+          className={`px-4 py-2 rounded-lg text-white text-sm font-semibold ${isCooldownActive || status === 'submitting' ? 'bg-slate-400 cursor-not-allowed' : 'bg-slate-900 hover:bg-slate-800'}`}
         >
-          Submit Code
+          {isCooldownActive ? `Wait ${cooldownSeconds}s` : 'Submit Code'}
         </button>
       </div>
 
@@ -430,6 +461,16 @@ export default function TimeclockClient() {
             <p>Event ID: {result.eventId}</p>
             <p>Event: {result.eventType || 'PUNCH'}</p>
             <p>Recorded: {result.scannedAt}</p>
+          </div>
+        )}
+        {status === 'success' && (
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-800">
+            <p className="text-sm font-semibold">Scan Recorded Successfully</p>
+            <p className="text-xs mt-1">
+              {isCooldownActive
+                ? `To avoid duplicate punches, scanning is locked for ${cooldownSeconds}s.`
+                : 'You can scan again when ready.'}
+            </p>
           </div>
         )}
       </div>

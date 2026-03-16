@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { toast } from 'sonner'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { formatCNIC, getNadraRecord, getDetails, normalizeStatus } from './components/helpers'
+import { ConfirmationDialog } from '@/components/ConfirmationDialog'
 import StatsOverview from './components/StatsOverview'
 import SearchAndFilter from './components/SearchAndFilter'
 import FormSection from './components/FormSection'
@@ -103,6 +104,7 @@ export default function NadraClient({ initialApplications, currentUserId, initia
   const [complaintNumber, setComplaintNumber] = useState('')
   const [complaintDetails, setComplaintDetails] = useState('')
   const [complaintSaving, setComplaintSaving] = useState(false)
+  const [refundTargetId, setRefundTargetId] = useState<string | null>(null)
 
   // EDIT/DELETE STATES
   const [editingRecord, setEditingRecord] = useState<any>(null)
@@ -546,16 +548,18 @@ export default function NadraClient({ initialApplications, currentUserId, initia
 
   const handleMarkRefund = async (nadraId: string) => {
     if (!nadraId) return
+    setRefundTargetId(nadraId)
+  }
 
-    const confirmed = window.confirm('Mark this cancelled application as refunded? This cannot be undone.')
-    if (!confirmed) return
+  const confirmMarkRefund = async () => {
+    if (!refundTargetId) return
 
     setIsUpdating(true)
     try {
       const res = await fetch('/api/nadra/refund', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nadraId, userId: currentUserId })
+        body: JSON.stringify({ nadraId: refundTargetId, userId: currentUserId })
       })
 
       const payload = await res.json().catch(() => ({}))
@@ -564,7 +568,7 @@ export default function NadraClient({ initialApplications, currentUserId, initia
         return
       }
 
-      updateApplicationRecord(nadraId, (item, nadra) => ({
+      updateApplicationRecord(refundTargetId, (item, nadra) => ({
         ...item,
         nadra_services: Array.isArray(item.nadra_services)
           ? [{ ...nadra, is_refunded: true, refunded_at: payload?.refundedAt || new Date().toISOString() }]
@@ -577,6 +581,7 @@ export default function NadraClient({ initialApplications, currentUserId, initia
       toast.error('Error processing refund')
     } finally {
       setIsUpdating(false)
+      setRefundTargetId(null)
     }
   }
 
@@ -1058,6 +1063,18 @@ export default function NadraClient({ initialApplications, currentUserId, initia
         onSave={handleSaveNotes}
         onClose={closeNotesModal}
         isSaving={notesSaving}
+      />
+
+      <ConfirmationDialog
+        isOpen={!!refundTargetId}
+        onClose={() => setRefundTargetId(null)}
+        onConfirm={confirmMarkRefund}
+        isLoading={isUpdating}
+        type="warning"
+        title="Confirm Refund"
+        message="Mark this cancelled NADRA application as refunded? This action cannot be undone."
+        confirmLabel="Mark Refunded"
+        cancelLabel="Cancel"
       />
 
       {complaintModal && (

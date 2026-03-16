@@ -1,9 +1,11 @@
 'use client'
 
+import { useState } from 'react'
 import { MoreHorizontal, StickyNote, User } from 'lucide-react'
 import { toast } from 'sonner'
 import { getApplicantRecord, getPassportRecord } from './utils'
 import type { Application } from './types'
+import { ConfirmationDialog } from '@/components/ConfirmationDialog'
 
 type RowItemProps = {
   item: Application
@@ -24,6 +26,7 @@ export default function RowItem({
   onManageDocuments, 
   onOpenNotes 
 }: RowItemProps) {
+  const [confirmAction, setConfirmAction] = useState<null | 'return' | 'collect' | 'refund'>(null)
   const pp = getPassportRecord(item)
   const applicant = getApplicantRecord(item)
   if (!pp) return null
@@ -49,9 +52,7 @@ export default function RowItem({
 
   const confirmReturn = () => {
     if (pp.is_old_passport_returned) return
-    const ok = window.confirm('Mark old passport as returned? This cannot be undone.')
-    if (!ok) return
-    onUpdateRecord(pp.id, { status: pp.status, oldPassportReturned: true })
+    setConfirmAction('return')
   }
 
   const confirmCollected = () => {
@@ -60,16 +61,25 @@ export default function RowItem({
       toast.error('Enter new passport number before marking collected')
       return
     }
-    const ok = window.confirm('Mark as collected? This cannot be undone.')
-    if (!ok) return
-    onUpdateRecord(pp.id, { status: 'Collected' })
+    setConfirmAction('collect')
   }
 
   const confirmRefund = () => {
     if (pp.is_refunded) return
-    const ok = window.confirm('Mark this application as refunded? This cannot be undone.')
-    if (!ok) return
-    onUpdateRecord(pp.id, { status: pp.status || 'Pending Submission', isRefunded: true })
+    setConfirmAction('refund')
+  }
+
+  const handleConfirmAction = () => {
+    if (confirmAction === 'return') {
+      onUpdateRecord(pp.id, { status: pp.status, oldPassportReturned: true })
+    }
+    if (confirmAction === 'collect') {
+      onUpdateRecord(pp.id, { status: 'Collected' })
+    }
+    if (confirmAction === 'refund') {
+      onUpdateRecord(pp.id, { status: pp.status || 'Pending Submission', isRefunded: true })
+    }
+    setConfirmAction(null)
   }
 
   // Workflow progress
@@ -94,7 +104,29 @@ export default function RowItem({
     }
   }
 
+  const confirmConfig = {
+    return: {
+      title: 'Confirm Return',
+      message: 'Mark old passport as returned? This cannot be undone.',
+      confirmLabel: 'Mark Returned',
+      type: 'warning' as const,
+    },
+    collect: {
+      title: 'Confirm Collection',
+      message: 'Mark this passport as collected? This cannot be undone.',
+      confirmLabel: 'Mark Collected',
+      type: 'warning' as const,
+    },
+    refund: {
+      title: 'Confirm Refund',
+      message: 'Mark this application as refunded? This cannot be undone.',
+      confirmLabel: 'Mark Refunded',
+      type: 'danger' as const,
+    },
+  }
+
   return (
+    <>
     <tr className="hover:bg-slate-50 transition-colors">
       {/* Applicant */}
       <td className="p-4 align-top">
@@ -286,5 +318,16 @@ export default function RowItem({
         </div>
       </td>
     </tr>
+    <ConfirmationDialog
+      isOpen={!!confirmAction}
+      onClose={() => setConfirmAction(null)}
+      onConfirm={handleConfirmAction}
+      title={confirmAction ? confirmConfig[confirmAction].title : 'Confirm Action'}
+      message={confirmAction ? confirmConfig[confirmAction].message : ''}
+      confirmLabel={confirmAction ? confirmConfig[confirmAction].confirmLabel : 'Confirm'}
+      cancelLabel="Cancel"
+      type={confirmAction ? confirmConfig[confirmAction].type : 'warning'}
+    />
+    </>
   )
 }
