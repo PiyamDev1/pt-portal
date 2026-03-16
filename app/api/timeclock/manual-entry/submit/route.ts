@@ -7,6 +7,7 @@ import crypto from 'crypto'
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 const adminSupabase = createClient(supabaseUrl, serviceKey)
+const DUPLICATE_WINDOW_MS = 8_000
 
 function computeHash(material: string) {
   return crypto.createHash('sha256').update(material).digest('hex')
@@ -88,6 +89,21 @@ export async function POST(request: Request) {
       .maybeSingle()
 
     const punchType = lastPunch?.punch_type === 'IN' ? 'OUT' : 'IN'
+
+    const duplicateThresholdIso = new Date(Date.now() - DUPLICATE_WINDOW_MS).toISOString()
+    const { data: recentEvent } = await adminSupabase
+      .from('timeclock_events')
+      .select('id, scanned_at')
+      .eq('employee_id', session.user.id)
+      .eq('device_id', deviceId)
+      .gte('scanned_at', duplicateThresholdIso)
+      .order('scanned_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (recentEvent) {
+      return NextResponse.json({ error: 'Duplicate scan blocked. Please wait a few seconds and try again.' }, { status: 409 })
+    }
 
     // Get location info from headers
     const headerStore = await headers()

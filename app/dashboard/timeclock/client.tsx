@@ -35,6 +35,8 @@ export default function TimeclockClient() {
   const [scanCooldownUntil, setScanCooldownUntil] = useState(0)
   const [cooldownNow, setCooldownNow] = useState(Date.now())
   const [showSuccessPopup, setShowSuccessPopup] = useState(false)
+  const [popupClosesAt, setPopupClosesAt] = useState(0)
+  const [popupNow, setPopupNow] = useState(Date.now())
 
   const getPunchDirection = (value?: string, fallbackText?: string) => {
     const normalized = (value || '').toString().trim().toUpperCase().replace(/[\s-]+/g, '_')
@@ -50,6 +52,11 @@ export default function TimeclockClient() {
 
   const cooldownSeconds = Math.max(0, Math.ceil((scanCooldownUntil - cooldownNow) / 1000))
   const isCooldownActive = scanCooldownUntil > cooldownNow
+  const popupRemainingMs = Math.max(0, popupClosesAt - popupNow)
+  const popupRemainingSeconds = Math.max(0, Math.ceil(popupRemainingMs / 1000))
+  const popupProgressPercent = popupClosesAt
+    ? Math.min(100, Math.max(0, (popupRemainingMs / 3000) * 100))
+    : 0
 
   useEffect(() => {
     if (!isCooldownActive) return
@@ -60,6 +67,26 @@ export default function TimeclockClient() {
 
     return () => window.clearInterval(timer)
   }, [isCooldownActive])
+
+  useEffect(() => {
+    if (!showSuccessPopup) return
+
+    const tick = window.setInterval(() => {
+      const now = Date.now()
+      setPopupNow(now)
+      if (now >= popupClosesAt) {
+        setShowSuccessPopup(false)
+      }
+    }, 100)
+
+    return () => window.clearInterval(tick)
+  }, [showSuccessPopup, popupClosesAt])
+
+  useEffect(() => {
+    if (!showSuccessPopup) return
+    setIsScanning(false)
+    stopStream()
+  }, [showSuccessPopup])
 
   const detectorSupported = typeof window !== 'undefined' && 'BarcodeDetector' in window
   const isIOS = typeof window !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent)
@@ -296,7 +323,7 @@ export default function TimeclockClient() {
   }
 
   const handleSubmit = async (rawValue?: string) => {
-    if (submitLockRef.current) return
+    if (submitLockRef.current || showSuccessPopup) return
 
     if (isCooldownActive) {
       setStatus('success')
@@ -347,14 +374,16 @@ export default function TimeclockClient() {
       setStatus('success')
       setScanCooldownUntil(Date.now() + 8000)
       setCooldownNow(Date.now())
-        setMessage(data?.message || 'Clock-in recorded.')
-        setShowSuccessPopup(true)
-        setResult({
+      setMessage(data?.message || 'Clock-in recorded.')
+      setPopupNow(Date.now())
+      setPopupClosesAt(Date.now() + 3000)
+      setShowSuccessPopup(true)
+      setResult({
         ok: true,
         message: data?.message || 'Clock-in recorded.',
         eventId: data?.eventId,
         eventType: data?.eventType || 'PUNCH',
-          punchType: data?.punchType,
+        punchType: data?.punchType,
         scannedAt: data?.scannedAt,
       })
     } catch (error: any) {
@@ -367,38 +396,47 @@ export default function TimeclockClient() {
 
   return (
     <div className="space-y-6">
-        {showSuccessPopup && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
-            <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-8 space-y-5 text-center">
-              <div className="mx-auto flex items-center justify-center w-20 h-20 rounded-full bg-emerald-100">
-                <svg className="w-10 h-10 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                </svg>
-              </div>
-              <div>
-                <h2 className="text-xl font-bold text-slate-900">
-                  {getPunchDirection(result?.punchType || result?.eventType, result?.message) === 'OUT' ? 'Clocked Out' : 'Clocked In'}
-                </h2>
-                <p className="mt-1 text-slate-600 text-sm">{result?.message || message}</p>
-              </div>
-              {result?.scannedAt && (
-                <p className="text-xs text-slate-400">Recorded at {result.scannedAt}</p>
-              )}
-              {isCooldownActive && (
-                <p className="text-xs font-medium text-amber-600">
-                  Scan locked for {cooldownSeconds}s to prevent duplicates
-                </p>
-              )}
-              <button
-                type="button"
-                onClick={() => setShowSuccessPopup(false)}
-                className="w-full py-3 rounded-xl bg-emerald-600 text-white font-semibold text-sm hover:bg-emerald-700 active:bg-emerald-800"
-              >
-                Done
-              </button>
+      {showSuccessPopup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-8 space-y-5 text-center">
+            <div className="mx-auto flex items-center justify-center w-20 h-20 rounded-full bg-emerald-100">
+              <svg className="w-10 h-10 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
             </div>
+            <div>
+              <h2 className="text-xl font-bold text-slate-900">
+                {getPunchDirection(result?.punchType || result?.eventType, result?.message) === 'OUT' ? 'Clocked Out' : 'Clocked In'}
+              </h2>
+              <p className="mt-1 text-slate-600 text-sm">{result?.message || message}</p>
+            </div>
+            {result?.scannedAt && (
+              <p className="text-xs text-slate-400">Recorded at {result.scannedAt}</p>
+            )}
+            {isCooldownActive && (
+              <p className="text-xs font-medium text-amber-600">
+                Scan locked for {cooldownSeconds}s to prevent duplicates
+              </p>
+            )}
+            <div className="space-y-2">
+              <div className="h-2 rounded-full bg-slate-200 overflow-hidden">
+                <div
+                  className="h-full bg-emerald-500 transition-[width] duration-100"
+                  style={{ width: `${popupProgressPercent}%` }}
+                />
+              </div>
+              <p className="text-xs text-slate-500">Closing in {popupRemainingSeconds}s...</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowSuccessPopup(false)}
+              className="w-full py-3 rounded-xl bg-emerald-600 text-white font-semibold text-sm hover:bg-emerald-700 active:bg-emerald-800"
+            >
+              Done
+            </button>
           </div>
-        )}
+        </div>
+      )}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
@@ -413,8 +451,8 @@ export default function TimeclockClient() {
             <button
               type="button"
               onClick={() => setIsScanning(true)}
-              disabled={isCooldownActive || status === 'submitting'}
-              className={`px-4 py-2 rounded-lg text-white text-sm font-semibold ${isCooldownActive || status === 'submitting' ? 'bg-slate-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
+              disabled={showSuccessPopup || isCooldownActive || status === 'submitting'}
+              className={`px-4 py-2 rounded-lg text-white text-sm font-semibold ${showSuccessPopup || isCooldownActive || status === 'submitting' ? 'bg-slate-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
             >
               {isCooldownActive ? `Scanned (${cooldownSeconds}s)` : 'Start Camera'}
             </button>
@@ -492,8 +530,8 @@ export default function TimeclockClient() {
         <button
           type="button"
           onClick={() => handleSubmit()}
-          disabled={isCooldownActive || status === 'submitting'}
-          className={`px-4 py-2 rounded-lg text-white text-sm font-semibold ${isCooldownActive || status === 'submitting' ? 'bg-slate-400 cursor-not-allowed' : 'bg-slate-900 hover:bg-slate-800'}`}
+          disabled={showSuccessPopup || isCooldownActive || status === 'submitting'}
+          className={`px-4 py-2 rounded-lg text-white text-sm font-semibold ${showSuccessPopup || isCooldownActive || status === 'submitting' ? 'bg-slate-400 cursor-not-allowed' : 'bg-slate-900 hover:bg-slate-800'}`}
         >
           {isCooldownActive ? `Wait ${cooldownSeconds}s` : 'Submit Code'}
         </button>

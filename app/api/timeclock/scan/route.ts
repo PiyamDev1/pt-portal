@@ -24,6 +24,7 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 const adminSupabase = createClient(supabaseUrl, serviceKey)
 const PAYLOAD_NAMESPACE = 'ptc1:'
+const DUPLICATE_WINDOW_MS = 8_000
 
 function base64UrlDecode(input: string) {
   const padded = input.replace(/-/g, '+').replace(/_/g, '/')
@@ -181,6 +182,21 @@ export async function POST(request: Request) {
       .maybeSingle()
 
     const punchType = lastPunch?.punch_type === 'IN' ? 'OUT' : 'IN'
+
+    const duplicateThresholdIso = new Date(Date.now() - DUPLICATE_WINDOW_MS).toISOString()
+    const { data: recentEvent } = await adminSupabase
+      .from('timeclock_events')
+      .select('id, scanned_at')
+      .eq('employee_id', session.user.id)
+      .eq('device_id', payload.device_id)
+      .gte('scanned_at', duplicateThresholdIso)
+      .order('scanned_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (recentEvent) {
+      return NextResponse.json({ error: 'Duplicate scan blocked. Please wait a few seconds and try again.' }, { status: 409 })
+    }
 
     const prevHash = lastEvent?.hash || null
     const deviceTsIso = new Date(normalizedTs * 1000).toISOString()
