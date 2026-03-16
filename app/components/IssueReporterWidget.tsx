@@ -127,17 +127,17 @@ export function IssueReporterWidget() {
   }
 
   return (
-    <div ref={rootRef} className="fixed right-0 top-1/2 z-50 -translate-y-1/2" data-issue-report-ignore="true">
+    <div ref={rootRef} className="fixed right-0 top-1/2 z-50" data-issue-report-ignore="true">
       {isOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/55 p-4 sm:items-center"
+          className="fixed inset-0 z-[70] flex items-end justify-center bg-slate-950/60 p-2 sm:items-center sm:p-4"
           onClick={(event) => {
             if (event.target === event.currentTarget) {
               handleClose()
             }
           }}
         >
-          <div className="w-[min(92vw,30rem)] rounded-3xl border border-slate-200 bg-white p-5 shadow-2xl">
+          <div className="max-h-[94vh] w-[min(95vw,24rem)] overflow-y-auto rounded-3xl border border-slate-200 bg-white p-5 shadow-2xl">
           <div className="flex items-start justify-between gap-4">
             <div>
               <div className="inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-amber-800">
@@ -252,10 +252,9 @@ export function IssueReporterWidget() {
       <button
         type="button"
         onClick={() => setIsOpen((current) => !current)}
-        className="inline-flex items-center gap-2 rounded-l-xl border border-r-0 border-emerald-700 bg-emerald-600 px-2 py-3 text-xs font-semibold text-white shadow-xl transition hover:bg-emerald-700"
+        className="-translate-y-1/2 inline-flex items-center rounded-l-lg border border-r-0 border-slate-700 bg-slate-900 px-1.5 py-2.5 text-[11px] font-semibold text-white shadow-xl transition hover:bg-slate-800"
       >
-        <Bug className="h-4 w-4" />
-        <span className="[writing-mode:vertical-rl] rotate-180 tracking-wide">Report Issue</span>
+        <span className="[writing-mode:vertical-rl] rotate-180 tracking-[0.08em]">Report Issue</span>
       </button>
     </div>
   )
