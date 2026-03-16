@@ -544,6 +544,42 @@ export default function NadraClient({ initialApplications, currentUserId, initia
     }
   }
 
+  const handleMarkRefund = async (nadraId: string) => {
+    if (!nadraId) return
+
+    const confirmed = window.confirm('Mark this cancelled application as refunded? This cannot be undone.')
+    if (!confirmed) return
+
+    setIsUpdating(true)
+    try {
+      const res = await fetch('/api/nadra/refund', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nadraId, userId: currentUserId })
+      })
+
+      const payload = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        toast.error(payload?.error || 'Failed to mark refund')
+        return
+      }
+
+      updateApplicationRecord(nadraId, (item, nadra) => ({
+        ...item,
+        nadra_services: Array.isArray(item.nadra_services)
+          ? [{ ...nadra, is_refunded: true, refunded_at: payload?.refundedAt || new Date().toISOString() }]
+          : { ...nadra, is_refunded: true, refunded_at: payload?.refundedAt || new Date().toISOString() }
+      }))
+
+      toast.success(payload?.alreadyRefunded ? 'Already marked as refunded' : 'Refund recorded')
+      router.refresh()
+    } catch (error) {
+      toast.error('Error processing refund')
+    } finally {
+      setIsUpdating(false)
+    }
+  }
+
   // =====================================================================
   // HISTORY FETCHING
   // =====================================================================
@@ -958,6 +994,7 @@ export default function NadraClient({ initialApplications, currentUserId, initia
         groupedData={groupedData}
         isUpdating={isUpdating}
         onStatusChange={handleStatusChange}
+        onMarkRefund={handleMarkRefund}
         onEditApplication={(item) => openEditModal(item, 'application')}
         onEditHead={(head) => openEditModal(head, 'family_head')}
         onAddMember={handleAddMember}

@@ -43,6 +43,8 @@ export default async function NadraPage() {
         id,
         service_type,
         status,
+        is_refunded,
+        refunded_at,
         application_pin,
         tracking_number,
         created_at,

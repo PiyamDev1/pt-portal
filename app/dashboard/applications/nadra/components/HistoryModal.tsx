@@ -69,6 +69,8 @@ export default function HistoryModal({
                     className={`absolute -left-[23px] top-1 h-3 w-3 rounded-full border-2 border-white shadow-sm ${
                       log.entryType === 'complaint'
                         ? 'bg-amber-500 ring-4 ring-amber-50'
+                        : log.entryType === 'refund'
+                          ? 'bg-rose-500 ring-4 ring-rose-50'
                         : index === 0
                           ? 'bg-green-500 ring-4 ring-green-50'
                           : 'bg-slate-300'
@@ -77,7 +79,11 @@ export default function HistoryModal({
                   <div className="flex justify-between items-start">
                     <div>
                       <p className={`text-sm font-bold ${index === 0 ? 'text-slate-800' : 'text-slate-500'}`}>
-                        {log.entryType === 'complaint' ? 'Complaint Launched' : log.status}
+                        {log.entryType === 'complaint'
+                          ? 'Complaint Launched'
+                          : log.entryType === 'refund'
+                            ? 'Refund Completed'
+                            : log.status}
                       </p>
                       {log.entryType === 'complaint' && (
                         <>

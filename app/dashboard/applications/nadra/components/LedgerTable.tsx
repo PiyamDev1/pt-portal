@@ -4,6 +4,7 @@ interface LedgerTableProps {
   groupedData: Record<string, any>
   isUpdating: boolean
   onStatusChange: (nadraId: string, newStatus: string) => void
+  onMarkRefund: (nadraId: string) => void
   onEditApplication: (item: any) => void
   onEditHead: (head: any) => void
   onAddMember: (head: any) => void
@@ -17,6 +18,7 @@ export default function LedgerTable({
   groupedData,
   isUpdating,
   onStatusChange,
+  onMarkRefund,
   onEditApplication,
   onEditHead,
   onAddMember,
@@ -116,6 +118,8 @@ export default function LedgerTable({
                   const nadraRecord = getNadraRecord(item)
                   const details = getDetails(nadraRecord)
                   const status = nadraRecord?.status || 'Pending Submission'
+                  const isCancelled = String(status).trim().toLowerCase() === 'cancelled'
+                  const isRefunded = !!nadraRecord?.is_refunded
                   const canLaunchComplaint = canOpenComplaintForStatus(status)
 
                   return (
@@ -186,6 +190,11 @@ export default function LedgerTable({
                           <option value="Completed">Completed</option>
                           <option value="Cancelled">Cancelled</option>
                         </select>
+                        {isRefunded && (
+                          <div className="mt-2 inline-flex items-center rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-rose-700">
+                            Refunded
+                          </div>
+                        )}
                       </td>
 
                       <td className="p-4 align-top w-48 text-right">
@@ -198,6 +207,22 @@ export default function LedgerTable({
                               aria-label="Launch complaint"
                             >
                               Complaint
+                            </button>
+                          )}
+                          {isCancelled && (
+                            <button
+                              onClick={() => onMarkRefund(nadraRecord?.id)}
+                              disabled={isUpdating || isRefunded}
+                              className={`h-8 px-3 flex items-center justify-center rounded-full transition text-xs font-semibold border whitespace-nowrap ${
+                                isRefunded
+                                  ? 'bg-rose-100 text-rose-500 border-rose-200 cursor-not-allowed'
+                                  : 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200'
+                              }`}
+                              type="button"
+                              aria-label="Mark refunded"
+                              title={isRefunded ? 'Already refunded' : 'Mark refunded'}
+                            >
+                              {isRefunded ? 'Refunded' : 'Refund'}
                             </button>
                           )}
                           <button
