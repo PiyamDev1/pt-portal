@@ -127,9 +127,17 @@ export function IssueReporterWidget() {
   }
 
   return (
-    <div ref={rootRef} className="fixed bottom-5 right-5 z-50" data-issue-report-ignore="true">
+    <div ref={rootRef} className="fixed right-0 top-1/2 z-50 -translate-y-1/2" data-issue-report-ignore="true">
       {isOpen && (
-        <div className="mb-3 w-[min(92vw,30rem)] rounded-3xl border border-slate-200 bg-white p-5 shadow-2xl">
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/55 p-4 sm:items-center"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) {
+              handleClose()
+            }
+          }}
+        >
+          <div className="w-[min(92vw,30rem)] rounded-3xl border border-slate-200 bg-white p-5 shadow-2xl">
           <div className="flex items-start justify-between gap-4">
             <div>
               <div className="inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-amber-800">
@@ -237,16 +245,17 @@ export function IssueReporterWidget() {
               </button>
             </div>
           )}
+          </div>
         </div>
       )}
 
       <button
         type="button"
         onClick={() => setIsOpen((current) => !current)}
-        className="inline-flex items-center gap-2 rounded-full border border-slate-900 bg-slate-950 px-4 py-3 text-sm font-semibold text-white shadow-xl transition hover:bg-slate-800"
+        className="inline-flex items-center gap-2 rounded-l-xl border border-r-0 border-emerald-700 bg-emerald-600 px-2 py-3 text-xs font-semibold text-white shadow-xl transition hover:bg-emerald-700"
       >
         <Bug className="h-4 w-4" />
-        Report Issue
+        <span className="[writing-mode:vertical-rl] rotate-180 tracking-wide">Report Issue</span>
       </button>
     </div>
   )
