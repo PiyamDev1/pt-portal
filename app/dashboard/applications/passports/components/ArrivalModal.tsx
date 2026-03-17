@@ -2,6 +2,11 @@ import React, { useEffect, useRef } from 'react'
 
 export default function ArrivalModal({ open, onClose, newPassportNum, setNewPassportNum, onSave }: any) {
   const dialogRef = useRef<HTMLDivElement>(null)
+  const onCloseRef = useRef(onClose)
+
+  useEffect(() => {
+    onCloseRef.current = onClose
+  }, [onClose])
 
   useEffect(() => {
     if (!open) return
@@ -11,7 +16,7 @@ export default function ArrivalModal({ open, onClose, newPassportNum, setNewPass
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        onClose()
+        onCloseRef.current()
       }
     }
 
@@ -20,7 +25,7 @@ export default function ArrivalModal({ open, onClose, newPassportNum, setNewPass
       document.body.style.overflow = previousOverflow
       document.removeEventListener('keydown', handleKeyDown)
     }
-  }, [open, onClose])
+  }, [open])
 
   if (!open) return null
   return (

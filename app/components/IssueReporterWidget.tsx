@@ -13,6 +13,7 @@ const severityOptions: Severity[] = ['low', 'medium', 'high', 'critical']
 export function IssueReporterWidget() {
   const pathname = usePathname()
   const rootRef = useRef<HTMLDivElement | null>(null)
+  const notesRef = useRef<HTMLTextAreaElement | null>(null)
   const [isOpen, setIsOpen] = useState(false)
   const [notes, setNotes] = useState('')
   const [severity, setSeverity] = useState<Severity>('medium')
@@ -25,6 +26,14 @@ export function IssueReporterWidget() {
   useEffect(() => {
     startConsoleCapture()
   }, [])
+
+  useEffect(() => {
+    if (!isOpen) return
+    const timer = window.setTimeout(() => {
+      notesRef.current?.focus()
+    }, 0)
+    return () => window.clearTimeout(timer)
+  }, [isOpen])
 
   const consoleCount = useMemo(() => getRecentConsoleEntries().length, [isOpen])
   const failedRequestCount = useMemo(() => getRecentFailedRequests().length, [isOpen])
@@ -180,6 +189,7 @@ export function IssueReporterWidget() {
               <div>
                 <label className="mb-2 block text-sm font-semibold text-slate-800">What went wrong?</label>
                 <textarea
+                  ref={notesRef}
                   value={notes}
                   onChange={(event) => setNotes(event.target.value)}
                   rows={5}
@@ -269,6 +279,7 @@ export function IssueReporterWidget() {
       <button
         type="button"
         onClick={() => setIsOpen((current) => !current)}
+        onMouseDown={(event) => event.preventDefault()}
         className="-translate-y-1/2 inline-flex items-center rounded-l-lg border border-r-0 border-slate-700 bg-slate-900 px-1.5 py-2.5 text-[11px] font-semibold text-white shadow-xl transition hover:bg-slate-800"
       >
         <span className="[writing-mode:vertical-rl] rotate-180 tracking-[0.08em]">Report Issue</span>

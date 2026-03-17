@@ -28,6 +28,11 @@ export function ConfirmationModal({
   const titleId = useId()
   const messageId = useId()
   const dialogRef = useRef<HTMLDivElement>(null)
+  const onCancelRef = useRef(onCancel)
+
+  useEffect(() => {
+    onCancelRef.current = onCancel
+  }, [onCancel])
 
   useEffect(() => {
     if (!isOpen) return
@@ -37,7 +42,7 @@ export function ConfirmationModal({
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        onCancel()
+        onCancelRef.current()
       }
     }
 
@@ -46,7 +51,7 @@ export function ConfirmationModal({
       document.body.style.overflow = previousOverflow
       document.removeEventListener('keydown', handleKeyDown)
     }
-  }, [isOpen, onCancel])
+  }, [isOpen])
 
   const handleConfirm = async () => {
     setLoading(true)

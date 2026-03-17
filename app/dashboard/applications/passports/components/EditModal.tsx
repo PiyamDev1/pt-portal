@@ -11,6 +11,11 @@ export default function EditModal({
   onDelete
 }: any) {
   const dialogRef = useRef<HTMLDivElement>(null)
+  const onCloseRef = useRef(onClose)
+
+  useEffect(() => {
+    onCloseRef.current = onClose
+  }, [onClose])
 
   useEffect(() => {
     if (!open) return
@@ -20,7 +25,7 @@ export default function EditModal({
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        onClose()
+        onCloseRef.current()
       }
     }
 
@@ -29,7 +34,7 @@ export default function EditModal({
       document.body.style.overflow = previousOverflow
       document.removeEventListener('keydown', handleKeyDown)
     }
-  }, [open, onClose])
+  }, [open])
 
   if (!open) return null
   return (

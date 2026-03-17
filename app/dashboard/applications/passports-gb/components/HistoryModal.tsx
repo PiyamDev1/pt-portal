@@ -12,6 +12,11 @@ interface HistoryModalProps {
 
 export default function HistoryModal({ isOpen, onClose, data, isLoading, title }: HistoryModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null)
+  const onCloseRef = useRef(onClose)
+
+  useEffect(() => {
+    onCloseRef.current = onClose
+  }, [onClose])
 
   useEffect(() => {
     if (!isOpen) return
@@ -21,7 +26,7 @@ export default function HistoryModal({ isOpen, onClose, data, isLoading, title }
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        onClose()
+        onCloseRef.current()
       }
     }
 
@@ -30,7 +35,7 @@ export default function HistoryModal({ isOpen, onClose, data, isLoading, title }
       document.body.style.overflow = previousOverflow
       document.removeEventListener('keydown', handleKeyDown)
     }
-  }, [isOpen, onClose])
+  }, [isOpen])
 
   if (!isOpen) return null
 

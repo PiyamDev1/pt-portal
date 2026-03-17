@@ -15,6 +15,11 @@ interface ModalWrapperProps {
 export function ModalWrapper({ children, onClose, title }: ModalWrapperProps) {
   const titleId = useId()
   const dialogRef = useRef<HTMLDivElement>(null)
+  const onCloseRef = useRef(onClose)
+
+  useEffect(() => {
+    onCloseRef.current = onClose
+  }, [onClose])
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow
@@ -23,7 +28,7 @@ export function ModalWrapper({ children, onClose, title }: ModalWrapperProps) {
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        onClose()
+        onCloseRef.current()
       }
     }
 
@@ -32,7 +37,7 @@ export function ModalWrapper({ children, onClose, title }: ModalWrapperProps) {
       document.body.style.overflow = previousOverflow
       document.removeEventListener('keydown', handleKeyDown)
     }
-  }, [onClose])
+  }, [])
 
   return (
     <div
