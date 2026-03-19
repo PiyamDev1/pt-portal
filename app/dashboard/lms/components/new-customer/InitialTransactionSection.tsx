@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/lms/components/new-customer/InitialTransactionSection.tsx
+ * Dashboard module for lms/components/new-customer/InitialTransactionSection.tsx.
+ */
+
 'use client'
 
 import type { PaymentMethod } from '../../types'

@@ -1,3 +1,15 @@
+/**
+ * API Route: NADRA Application Status History
+ *
+ * GET /api/nadra/status-history?applicationId=<id>
+ *
+ * Returns the chronological status change history for a NADRA application.
+ * Each row includes the status, notes, timestamp, and the acting agent/user.
+ *
+ * Authentication: Service role key
+ * Response Success (200): { history: StatusHistoryRow[] }
+ * Response Errors: 400 Missing applicationId | 500 DB error
+ */
 import { createClient } from '@supabase/supabase-js'
 import { toErrorMessage } from '@/lib/api/error'
 import { apiError, apiOk } from '@/lib/api/http'

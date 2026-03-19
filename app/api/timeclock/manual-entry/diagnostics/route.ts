@@ -1,3 +1,23 @@
+/**
+ * API Route: Timeclock Manual Entry Diagnostics
+ *
+ * GET /api/timeclock/manual-entry/diagnostics
+ *
+ * Internal health-check endpoint for the manual entry subsystem.
+ * Runs a series of checks:
+ *   - timeclock_devices table accessible and returns rows
+ *   - timeclock_manual_codes table accessible
+ *   - HMAC secret configured
+ *   - Crypto functions operational
+ *
+ * Returns a structured diagnostics report with pass/fail for each check.
+ * Intended for developers and maintenance staff to debug device pairing
+ * and code generation issues.
+ *
+ * Authentication: Service role key (no user session required)
+ * Response Success (200): { diagnostics: { checks: CheckResult[] } }
+ * Response Errors: 500 Unexpected failure
+ */
 import { createClient } from '@supabase/supabase-js'
 import crypto from 'crypto'
 import { apiOk, apiError } from '@/lib/api/http'

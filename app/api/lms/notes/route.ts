@@ -1,3 +1,21 @@
+/**
+ * API Route: Loan Account Notes
+ *
+ * GET  /api/lms/notes?accountId=<id>
+ *   Returns all notes for a loan account, with the creator's name resolved
+ *   from the employees table.
+ *
+ * POST /api/lms/notes
+ *   Adds a new note to a loan account.
+ *   Body: { accountId, note, createdBy }
+ *
+ * DELETE /api/lms/notes
+ *   Removes a specific note.
+ *   Body: { noteId }
+ *
+ * Authentication: Service role key
+ * Response Errors: 400 Missing required fields | 500 DB error
+ */
 import { createClient } from '@supabase/supabase-js'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'

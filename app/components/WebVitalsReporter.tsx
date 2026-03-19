@@ -1,3 +1,7 @@
+/**
+ * Web Vitals Reporter
+ * Captures browser performance metrics and forwards them to the vitals API.
+ */
 'use client'
 
 import { useEffect } from 'react'

@@ -1,3 +1,20 @@
+/**
+ * Pakistani Passport Applications Page
+ * 
+ * Pakistani passport application management:
+ * - View passport application status and progress
+ * - Submit application documents and forms
+ * - Track passport printing and delivery
+ * - Manage passport renewals and reissues
+ * - Download passport e-documents when available
+ * 
+ * Server component that:
+ * - Authenticates user access to passport records
+ * - Loads Pakistani passport applications
+ * - Renders application status dashboard
+ * 
+ * @module app/dashboard/applications/passports/page
+ */
 import { createServerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'

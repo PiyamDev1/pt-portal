@@ -175,7 +175,11 @@ export function useMinioConnectionWithRetry(maxRetries: number = 3, baseDelay: n
    */
   useEffect(() => {
     if (error && !isRetrying && retryCount < maxRetries) {
-      attemptReconnect()
+      const retryTask = window.setTimeout(() => {
+        void attemptReconnect()
+      }, 0)
+
+      return () => window.clearTimeout(retryTask)
     }
   }, [error, isRetrying, retryCount, maxRetries, attemptReconnect])
 
@@ -184,7 +188,11 @@ export function useMinioConnectionWithRetry(maxRetries: number = 3, baseDelay: n
    */
   useEffect(() => {
     if (status?.connected) {
-      resetRetries()
+      const resetTask = window.setTimeout(() => {
+        resetRetries()
+      }, 0)
+
+      return () => window.clearTimeout(resetTask)
     }
   }, [status?.connected, resetRetries])
 

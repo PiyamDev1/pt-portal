@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/lms/hooks/useNewCustomer.ts
+ * Dashboard module for lms/hooks/useNewCustomer.ts.
+ */
+
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'

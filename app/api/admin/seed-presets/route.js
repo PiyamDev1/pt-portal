@@ -1,3 +1,10 @@
+/**
+ * POST /api/admin/seed-presets
+ * Seeds baseline visa/service presets used by pricing and application workflows.
+ *
+ * @module app/api/admin/seed-presets
+ */
+
 import { createClient } from '@supabase/supabase-js'
 import { toErrorMessage } from '@/lib/api/error'
 import { apiError, apiOk } from '@/lib/api/http'

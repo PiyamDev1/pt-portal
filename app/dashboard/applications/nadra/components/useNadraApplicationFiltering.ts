@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/applications/nadra/components/useNadraApplicationFiltering.ts
+ * Dashboard module for applications/nadra/components/useNadraApplicationFiltering.ts.
+ */
+
 import { useEffect, useMemo } from 'react'
 import { getDetails, getNadraRecord, normalizeStatus } from './helpers'
 import type { NadraApplication, NadraFamilyGroup } from '@/app/types/nadra'

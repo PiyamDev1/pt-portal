@@ -1,3 +1,7 @@
+/**
+ * Page Header
+ * Common top navigation header with branding, user context, and logout controls.
+ */
 'use client'
 import Link from 'next/link'
 import Image from 'next/image'

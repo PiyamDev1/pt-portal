@@ -1,3 +1,8 @@
+/**
+ * Module: app/robots.ts
+ * Application module.
+ */
+
 import type { MetadataRoute } from 'next'
 
 export default function robots(): MetadataRoute.Robots {

@@ -77,7 +77,7 @@ export const usePricingOptions = (supabase: SupabaseClient) => {
       setEditValues({
         cost_price: item.cost_price,
         sale_price: item.sale_price,
-        is_active: item.is_active,
+        is_active: item.is_active ? 1 : 0,
         notes: item.notes || '',
       })
     },
@@ -99,7 +99,7 @@ export const usePricingOptions = (supabase: SupabaseClient) => {
           .update({
             cost_price: Number(editValues.cost_price) || 0,
             sale_price: Number(editValues.sale_price) || 0,
-            is_active: editValues.is_active,
+            is_active: Boolean(editValues.is_active),
             notes: editValues.notes || null,
           })
           .eq('id', editingId)

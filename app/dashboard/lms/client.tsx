@@ -1,3 +1,8 @@
+/**
+ * LMS Client
+ * Interactive loan management workspace for account search,
+ * transaction workflows, statements, and operational modals.
+ */
 'use client'
 
 import { useState, useEffect, useCallback, useMemo, memo } from 'react'
@@ -89,7 +94,7 @@ function LMSClientInner({ currentUserId }: LMSClientProps) {
     if (updated.balance !== showStatementPopup.balance) {
       setShowStatementPopup(updated)
     }
-  }, [showStatementPopup?.id, data.accounts]) // Only depend on the ID and accounts list
+  }, [showStatementPopup, data.accounts])
 
   const { filtered } = useLmsFilters(data.accounts, debouncedSearchTerm, searchFilters)
 

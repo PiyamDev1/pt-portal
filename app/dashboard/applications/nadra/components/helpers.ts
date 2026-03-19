@@ -1,4 +1,10 @@
-// Helper Functions for NADRA Ledger
+/**
+ * NADRA Ledger Helpers
+ * Utility functions for extracting and normalizing NADRA service/application data.
+ *
+ * @module app/dashboard/applications/nadra/components/helpers
+ */
+
 // Core formatting functions moved to app/lib/utils.ts
 
 import { formatCNIC as coreFormatCNIC, getStatusColor as coreGetStatusColor } from '@/lib/utils'

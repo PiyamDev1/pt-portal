@@ -1,3 +1,27 @@
+/**
+ * API Route: Timeclock Events
+ *
+ * GET  /api/timeclock/events
+ *   Returns timeclock punch events visible to the current user.
+ *   Access is role-scoped:
+ *     - Maintenance / org-admin: full access to all employees
+ *     - Manager: own punches + all direct reports (recursive)
+ *     - Employee: own punches only
+ *   Query params:
+ *     employeeId  string  - Filter events for a specific employee
+ *     date        string  - Filter by YYYY-MM-DD date (UTC day bounds)
+ *     startDate   string  - Range start (inclusive)
+ *     endDate     string  - Range end (inclusive)
+ *     limit       number  - Max rows (default 100)
+ *     offset      number  - Pagination offset
+ *
+ * PATCH /api/timeclock/events
+ *   Creates a manual punch event for an employee.
+ *   Body: { employeeId, punchType, timestamp, deviceId? }
+ *
+ * Authentication: Session cookie (role-based access control enforced)
+ * Response Errors: 401 Unauthorized | 403 Forbidden | 500 DB error
+ */
 import { createServerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 import { createClient } from '@supabase/supabase-js'

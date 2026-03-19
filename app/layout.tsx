@@ -1,3 +1,10 @@
+/**
+ * Root Application Layout
+ * Defines global metadata, providers, and shared UI wrappers used by all routes.
+ *
+ * @module app/layout
+ */
+
 import type { Metadata } from 'next'
 import { Toaster } from 'sonner'
 import { ProgressBarProvider } from './components/ProgressBarProvider'

@@ -1,3 +1,8 @@
+/**
+ * Module: lib/installmentsDb.ts
+ * Shared utility module for domain and infrastructure logic.
+ */
+
 import { createClient } from '@supabase/supabase-js'
 
 const SQL_CREATE_TABLE = `

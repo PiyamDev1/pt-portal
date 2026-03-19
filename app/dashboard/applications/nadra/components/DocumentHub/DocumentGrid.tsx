@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/applications/nadra/components/DocumentHub/DocumentGrid.tsx
+ * Dashboard module for applications/nadra/components/DocumentHub/DocumentGrid.tsx.
+ */
+
 'use client'
 
 /**
@@ -8,6 +13,7 @@
  * @component
  */
 
+import Image from 'next/image'
 import React, { useEffect, useState } from 'react'
 import { Document } from './types'
 import { FileText, Trash2, Download, Eye, File } from 'lucide-react'
@@ -111,11 +117,16 @@ function PdfThumbnail({ src, alt }: { src: string; alt: string }) {
 
   if (thumbnail && !failed) {
     return (
-      <img
-        src={thumbnail}
-        alt={alt}
-        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-      />
+      <div className="relative h-full w-full">
+        <Image
+          src={thumbnail}
+          alt={alt}
+          fill
+          unoptimized
+          sizes="(max-width: 768px) 50vw, 25vw"
+          className="object-cover group-hover:scale-105 transition-transform duration-300"
+        />
+      </div>
     )
   }
 
@@ -225,14 +236,18 @@ function DocumentGridItem({
         {isImage ? (
           // Image preview
           <div className="relative w-full h-full">
-            <img
-              src={getThumbnailSrc()}
-              alt={document.fileName}
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-              onLoad={() => setThumbnailFailed(false)}
-              onError={() => setThumbnailFailed(true)}
-              style={{ display: thumbnailFailed ? 'none' : 'block' }}
-            />
+            {!thumbnailFailed && (
+              <Image
+                src={getThumbnailSrc()}
+                alt={document.fileName}
+                fill
+                unoptimized
+                sizes="(max-width: 768px) 50vw, 25vw"
+                className="object-cover group-hover:scale-105 transition-transform duration-300"
+                onLoad={() => setThumbnailFailed(false)}
+                onError={() => setThumbnailFailed(true)}
+              />
+            )}
             {/* Fallback icon */}
             {thumbnailFailed && (
               <div className="absolute inset-0 flex items-center justify-center text-4xl bg-slate-100">

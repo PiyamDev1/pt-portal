@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/applications/passports/components/PassportsToolbar.tsx
+ * Dashboard module for applications/passports/components/PassportsToolbar.tsx.
+ */
+
 import type { Dispatch, SetStateAction } from 'react'
 
 type PassportsToolbarProps = {

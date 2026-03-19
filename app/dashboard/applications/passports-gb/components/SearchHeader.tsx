@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/applications/passports-gb/components/SearchHeader.tsx
+ * Dashboard module for applications/passports-gb/components/SearchHeader.tsx.
+ */
+
 'use client'
 
 import { Plus, Search } from 'lucide-react'

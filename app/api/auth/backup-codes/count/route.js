@@ -1,3 +1,15 @@
+/**
+ * API Route: Backup Code Count
+ *
+ * GET /api/auth/backup-codes/count?userId=<id>
+ *
+ * Returns the number of unused backup codes for a given user.
+ * Returns { count: 0 } gracefully if the backup_codes table does not
+ * exist yet (code 42P01), preventing crashes before migration is run.
+ *
+ * Authentication: Service role key
+ * Response Errors: 400 Missing userId | 500 DB error
+ */
 import { createClient } from '@supabase/supabase-js'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'

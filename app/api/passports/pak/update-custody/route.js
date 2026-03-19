@@ -1,3 +1,10 @@
+/**
+ * POST /api/passports/pak/update-custody
+ * Handles custody transitions and passport number updates for PAK records.
+ *
+ * @module app/api/passports/pak/update-custody
+ */
+
 import { createClient } from '@supabase/supabase-js'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'

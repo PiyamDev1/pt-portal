@@ -1,3 +1,10 @@
+/**
+ * POST /api/admin/clear-lms
+ * Clears LMS entities (customers, loans, transactions, installments) for reset scenarios.
+ *
+ * @module app/api/admin/clear-lms
+ */
+
 import { createClient } from '@supabase/supabase-js'
 import { toErrorMessage } from '@/lib/api/error'
 import { apiError, apiOk } from '@/lib/api/http'

@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/applications/nadra/components/SearchAndFilter.tsx
+ * Dashboard module for applications/nadra/components/SearchAndFilter.tsx.
+ */
+
 interface SearchAndFilterProps {
   searchQuery: string
   onSearchChange: (query: string) => void

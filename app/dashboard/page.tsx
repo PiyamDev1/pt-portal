@@ -1,3 +1,21 @@
+/**
+ * Dashboard Hub Page
+ * 
+ * Main entry point after login. Shows module cards for all application features:
+ * - Applications Hub (NADRA, Passports, Visas)
+ * - Finance (LMS, Commissions, Pricing)
+ * - Operations (Timeclock, Ticketing, Settings)
+ * - Admin (Employee Management)
+ * 
+ * Server component that:
+ * - Verifies user authentication
+ * - Loads user role and permissions
+ * - Renders role-based module cards
+ * - Shows backup code reminder if needed
+ * 
+ * @module app/dashboard/page
+ */
+
 import { createServerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'

@@ -1,3 +1,10 @@
+/**
+ * POST /api/visas/add-application
+ * Creates a new visa application with applicant and pricing fields.
+ *
+ * @module app/api/visas/add-application
+ */
+
 import { createClient } from '@supabase/supabase-js'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'

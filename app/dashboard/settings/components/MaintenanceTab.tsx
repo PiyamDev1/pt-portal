@@ -1,3 +1,10 @@
+/**
+ * Maintenance Tab
+ * Administrative maintenance console for migrations, data repair, and setup tasks.
+ *
+ * @module app/dashboard/settings/components/MaintenanceTab
+ */
+
 'use client'
 
 import { useState } from 'react'
@@ -119,7 +126,7 @@ export function MaintenanceTab() {
                             <div className="text-xs text-green-700 space-y-1">
                               <p>✓ Created: {result.created} installments</p>
                               <p>✓ Skipped: {result.skipped} (already had installments)</p>
-                              {result.errors > 0 && (
+                              {(result.errors ?? 0) > 0 && (
                                 <p className="text-red-700">✗ Errors: {result.errors}</p>
                               )}
                               <p>✓ Total transactions processed: {result.total}</p>

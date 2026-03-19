@@ -1,3 +1,7 @@
+/**
+ * Root Error Boundary
+ * Final client-side fallback UI for unhandled rendering/runtime errors.
+ */
 'use client'
 
 import { useEffect } from 'react'

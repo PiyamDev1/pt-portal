@@ -1,3 +1,18 @@
+/**
+ * API Route: Delete Installment Plan
+ *
+ * POST /api/lms/delete-installment-plan
+ *
+ * Removes all installment records associated with a given loan transaction,
+ * effectively cancelling the repayment schedule. The parent transaction itself
+ * is not deleted — only the installment rows.
+ *
+ * Request Body: { transactionId: string }
+ * Response Success (200): { deletedCount }
+ * Response Errors: 400 Missing transactionId | 500 DB delete failed
+ *
+ * Authentication: Service role key
+ */
 import { createClient } from '@supabase/supabase-js'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'

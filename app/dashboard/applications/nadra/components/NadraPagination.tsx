@@ -1,3 +1,10 @@
+/**
+ * NADRA Pagination
+ * Pager controls for grouped NADRA family ledger results.
+ *
+ * @module app/dashboard/applications/nadra/components/NadraPagination
+ */
+
 type NadraPaginationProps = {
   groupedEntriesLength: number
   startIdx: number

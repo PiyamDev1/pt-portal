@@ -1,3 +1,17 @@
+/**
+ * API Route: LMS Audit Logs
+ *
+ * GET  /api/lms/audit-logs?accountId=<id>&limit=50&offset=0
+ *   Returns a paginated list of audit log entries for a loan account.
+ *   Logs record who made changes and what changed (stored as JSON diff).
+ *
+ * POST /api/lms/audit-logs
+ *   Appends a new audit log entry for an action on a loan entity.
+ *   Body: { user_id, action, entity_type, entity_id, changes? }
+ *
+ * Authentication: Service role key
+ * Response Errors: 400 Missing accountId | 500 DB error
+ */
 import { apiOk, apiError } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
 import { createClient } from '@supabase/supabase-js'

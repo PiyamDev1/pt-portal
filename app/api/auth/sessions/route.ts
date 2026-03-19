@@ -1,3 +1,19 @@
+/**
+ * API Routes: Active Session Management
+ *
+ * GET  /api/auth/sessions
+ *   Returns up to 6 deduplicated active sessions for the authenticated user.
+ *   Deduplication is based on device fingerprint (user-agent + IP).
+ *   Sessions inactive for more than 1 hour are flagged as is_active: false.
+ *   Falls back to get_my_sessions() RPC if direct table access is denied.
+ *
+ * DELETE /api/auth/sessions
+ *   type: 'all'    — Signs out all devices via admin.signOut (service role required)
+ *   type: 'single' — Revokes a specific session via revoke_my_session() RPC
+ *
+ * Authentication: Session cookie (user must be logged in)
+ * Response Errors: 400 Invalid request | 401 Unauthorized | 500 Server error
+ */
 import { createServerClient } from '@supabase/auth-helpers-nextjs'
 import { createClient } from '@supabase/supabase-js'
 import { apiOk, apiError } from '@/lib/api/http'

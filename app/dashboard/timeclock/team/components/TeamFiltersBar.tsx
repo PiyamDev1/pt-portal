@@ -1,3 +1,10 @@
+/**
+ * Team Filters Bar
+ * Filter toolbar for team timeclock history queries and exports.
+ *
+ * @module app/dashboard/timeclock/team/components/TeamFiltersBar
+ */
+
 type EmployeeOption = {
   id: string
   name: string

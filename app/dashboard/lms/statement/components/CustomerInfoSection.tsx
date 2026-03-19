@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/lms/statement/components/CustomerInfoSection.tsx
+ * Dashboard module for lms/statement/components/CustomerInfoSection.tsx.
+ */
+
 import Image from 'next/image'
 import { Account } from '@/app/types/lms'
 import { memo } from 'react'

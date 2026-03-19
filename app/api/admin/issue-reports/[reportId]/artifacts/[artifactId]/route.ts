@@ -1,3 +1,10 @@
+/**
+ * GET /api/admin/issue-reports/[reportId]/artifacts/[artifactId]
+ * Streams a stored issue-report artifact (screenshot/console log) to admins.
+ *
+ * @module app/api/admin/issue-reports/[reportId]/artifacts/[artifactId]
+ */
+
 import { verifyMasterAdminSession } from '@/lib/issueReportAuth'
 import { getSupabaseClient } from '@/lib/supabaseClient'
 import { readIssueArtifact } from '@/lib/issueReportStorage'

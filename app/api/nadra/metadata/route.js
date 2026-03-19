@@ -1,3 +1,16 @@
+/**
+ * API Route: NADRA Metadata
+ *
+ * GET /api/nadra/metadata
+ *
+ * Returns the reference data needed to render the NADRA application form:
+ * available service types, application statuses, and the list of agents.
+ * Used to populate dropdowns in the Add/Edit Application modals.
+ *
+ * Authentication: Service role key
+ * Response Success (200): { serviceTypes, statuses, agents }
+ * Response Errors: 500 DB error
+ */
 import { createClient } from '@supabase/supabase-js'
 import { toErrorMessage } from '@/lib/api/error'
 import { apiError, apiOk } from '@/lib/api/http'

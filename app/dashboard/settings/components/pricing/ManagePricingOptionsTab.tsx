@@ -1,3 +1,10 @@
+/**
+ * Manage Pricing Options Tab
+ * Shared option-list editor for service categories, speeds, age groups, and related pricing metadata.
+ *
+ * @module app/dashboard/settings/components/pricing/ManagePricingOptionsTab
+ */
+
 'use client'
 
 import { useCallback, useMemo } from 'react'

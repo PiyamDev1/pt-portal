@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/applications/nadra/components/DocumentHub/DocumentPreview.tsx
+ * Dashboard module for applications/nadra/components/DocumentHub/DocumentPreview.tsx.
+ */
+
 'use client'
 
 /**
@@ -8,6 +13,7 @@
  * @component
  */
 
+import Image from 'next/image'
 import React, { useState, useEffect } from 'react'
 import { ConfirmationDialog } from '@/components/ConfirmationDialog'
 import { Document } from './types'
@@ -176,19 +182,20 @@ export function DocumentPreview({
         <div className="flex-1 overflow-auto flex items-center justify-center bg-slate-50 p-4 relative">
           {isImage ? (
             // Image Preview
-            <div className="flex items-center justify-center w-full h-full">
-              <img
-                src={previewSrc || ''}
-                alt={document.fileName}
-                className="max-w-full max-h-full rounded-md"
-                style={{
-                  transform: `scale(${zoom / 100})`,
-                  transition: 'transform 0.2s ease-out',
-                }}
-                onLoad={() => setIsLoading(false)}
-                onError={() => setIsLoading(false)}
-              />
-            </div>
+              <div className="flex items-center justify-center w-full h-full">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={previewSrc || ''}
+                  alt={document.fileName}
+                  className="max-w-full max-h-full rounded-md"
+                  style={{
+                    transform: `scale(${zoom / 100})`,
+                    transition: 'transform 0.2s ease-out',
+                  }}
+                  onLoad={() => setIsLoading(false)}
+                  onError={() => setIsLoading(false)}
+                />
+              </div>
           ) : isPDF ? (
             // PDF Preview
             <div className="w-full h-full min-h-[360px] bg-white rounded-md border border-slate-200 overflow-hidden">

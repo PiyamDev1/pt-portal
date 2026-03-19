@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/lms/components/EditCustomerModal.tsx
+ * Dashboard module for lms/components/EditCustomerModal.tsx.
+ */
+
 'use client'
 
 import { memo } from 'react'

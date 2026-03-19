@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/applications/nadra/components/EditModal.tsx
+ * Dashboard module for applications/nadra/components/EditModal.tsx.
+ */
+
 import { useEffect, useRef, memo } from 'react'
 import type { NadraEditFormData, NadraEditType } from '@/app/types/nadra'
 

@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/applications/nadra/components/NotesModal.tsx
+ * Dashboard module for applications/nadra/components/NotesModal.tsx.
+ */
+
 'use client'
 import { useEffect, useRef } from 'react'
 
@@ -38,7 +43,7 @@ export default function NotesModal({
       document.body.style.overflow = previousOverflow
       document.removeEventListener('keydown', handleKeyDown)
     }
-  }, [isOpen])
+  }, [isOpen, onClose])
 
   if (!isOpen) return null
 

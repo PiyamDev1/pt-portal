@@ -1,3 +1,11 @@
+/**
+ * Issue Report Artifact Storage
+ * Handles uploading and retrieving issue report screenshots/logs
+ * Supports both R2 and MinIO backends with automatic fallback
+ * 
+ * @module lib/issueReportStorage
+ */
+
 import {
   DeleteObjectCommand,
   GetObjectCommand,

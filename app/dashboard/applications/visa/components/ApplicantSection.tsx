@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/applications/visa/components/ApplicantSection.tsx
+ * Dashboard module for applications/visa/components/ApplicantSection.tsx.
+ */
+
 import { Globe } from 'lucide-react'
 import { FormInputField } from './FormInputField'
 import { FormSelectField } from './FormSelectField'

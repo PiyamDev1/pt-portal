@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/applications/passports/components/schemas.ts
+ * Dashboard module for applications/passports/components/schemas.ts.
+ */
+
 import { z } from 'zod'
 import type { PakApplicationFormData } from './types'
 

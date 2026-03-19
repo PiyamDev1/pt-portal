@@ -1,3 +1,18 @@
+/**
+ * API Route: Add Pakistani Passport Application
+ *
+ * POST /api/passports/pak/add-application
+ *
+ * Creates a new Pakistani passport application record. Supports both
+ * renewal and fresh applications. Sets initial status to 'New' and
+ * records the submitting agent.
+ *
+ * Request Body: { familyHeadId, applicants: Person[], agentId?, notes? }
+ * Response Success (200): { applicationId }
+ * Response Errors: 400 Missing required fields | 500 DB insert failed
+ *
+ * Authentication: Service role key
+ */
 import { createClient } from '@supabase/supabase-js'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'

@@ -1,3 +1,8 @@
+/**
+ * Module: app/api/documents/[documentId]/download/route.ts
+ * API route or server helper for documents/[documentId]/download/route.ts.
+ */
+
 import { NextRequest, NextResponse } from 'next/server'
 import { apiError } from '@/lib/api/http'
 import { getSignedDocumentPreviewUrl } from '@/lib/services/documentServer'

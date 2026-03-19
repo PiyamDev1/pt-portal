@@ -1,3 +1,10 @@
+/**
+ * NADRA Command Deck
+ * Summary and action shell for NADRA list filters, stats, and auxiliary controls.
+ *
+ * @module app/dashboard/applications/nadra/components/NadraCommandDeck
+ */
+
 import type { ReactNode } from 'react'
 import type { NadraApplication } from '@/app/types/nadra'
 import StatsOverview from './StatsOverview'

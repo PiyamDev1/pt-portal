@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/lms/statement/components/TransactionTable.tsx
+ * Dashboard module for lms/statement/components/TransactionTable.tsx.
+ */
+
 import { generateInstallmentSchedule } from '../utils/statementUtils'
 import { Account, InstallmentPayment } from '@/app/types/lms'
 import { memo } from 'react'
@@ -10,7 +15,8 @@ interface TransactionTableProps {
 
 interface Transaction {
   id: string
-  transaction_timestamp: string
+  transaction_timestamp?: string
+  created_at?: string
   transaction_type: string
   amount: string | number
   remark?: string
@@ -100,13 +106,14 @@ function TransactionTableComponent({
               const isService = (tx.transaction_type || '').toLowerCase() === 'service'
 
               // Find the associated loan to get installment plan info
+              const txTs = tx.transaction_timestamp || tx.created_at || ''
               const serviceLoan =
                 isService && account.loans
                   ? account.loans.find(
                       (l: ServiceLoan) =>
                         l.created_at &&
                         new Date(l.created_at).toDateString() ===
-                          new Date(tx.transaction_timestamp).toDateString(),
+                          new Date(txTs).toDateString(),
                     )
                   : null
 
@@ -119,7 +126,7 @@ function TransactionTableComponent({
                   className="border-b border-slate-200 hover:bg-slate-50 print:hover:bg-white"
                 >
                   <td className="p-3 text-slate-600 print:p-2 print:text-xs">
-                    {new Date(tx.transaction_timestamp).toLocaleDateString()}
+                    {new Date(tx.transaction_timestamp || tx.created_at || '').toLocaleDateString()}
                   </td>
                   <td className="p-3 print:p-2">
                     <span
@@ -216,17 +223,18 @@ function TransactionTableComponent({
                 } else {
                   // Fallback to generated schedule if no DB installments
                   if (serviceLoan && serviceLoan.term_months) {
-                    const sameDay = new Date(tx.transaction_timestamp).toDateString()
+                    const txTsFallback = tx.transaction_timestamp || tx.created_at || ''
+                    const sameDay = new Date(txTsFallback).toDateString()
                     const depositAmount = filteredTransactions
                       .filter(
                         (t: Transaction) =>
                           (t.transaction_type || '').toLowerCase() === 'payment' &&
-                          new Date(t.transaction_timestamp).toDateString() === sameDay,
+                          new Date(t.transaction_timestamp || t.created_at || '').toDateString() === sameDay,
                       )
                       .reduce((sum: number, t: Transaction) => sum + parseAmount(t.amount), 0)
 
                     const scheduleRows = generateInstallmentSchedule(
-                      tx.transaction_timestamp,
+                      txTsFallback,
                       txAmount,
                       depositAmount || txAmount * 0.17,
                       Number(serviceLoan.term_months),

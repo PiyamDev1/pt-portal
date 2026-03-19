@@ -1,3 +1,21 @@
+/**
+ * API Route: Manage NADRA Record
+ *
+ * PUT    /api/nadra/manage-record  - Update an existing application record
+ * DELETE /api/nadra/manage-record  - Soft-delete / cancel an application
+ *
+ * The PUT handler accepts a partial payload and updates only the provided
+ * fields (cleanPayload strips undefined values). Supports full record edits
+ * including agent, service type, fees, and person details.
+ *
+ * The DELETE handler marks the record as cancelled rather than hard-deleting.
+ *
+ * Request Body: { applicationId: string, ...fields }
+ * Response Success (200): { updatedApplicationId } or { cancelledApplicationId }
+ * Response Errors: 400 Missing applicationId | 500 DB error
+ *
+ * Authentication: Service role key
+ */
 import { createClient } from '@supabase/supabase-js'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'

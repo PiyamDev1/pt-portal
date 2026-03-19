@@ -1,5 +1,9 @@
+/**
+ * Session Warning Header
+ * Displays an expiring-session banner and countdown while inactivity timeout is pending.
+ */
 'use client'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 
 interface SessionWarningHeaderProps {
   showWarning: boolean
@@ -7,11 +11,7 @@ interface SessionWarningHeaderProps {
 }
 
 export function SessionWarningHeader({ showWarning, secondsRemaining }: SessionWarningHeaderProps) {
-  const [mounted, setMounted] = useState(false)
-
-  useEffect(() => {
-    setMounted(true)
-  }, [])
+  const [mounted] = useState(true)
 
   if (!mounted || !showWarning) {
     return null

@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/lms/components/TransactionModal.tsx
+ * Dashboard module for lms/components/TransactionModal.tsx.
+ */
+
 'use client'
 
 import { useReducer, useEffect, useCallback } from 'react'
@@ -163,7 +168,7 @@ export function TransactionModal({
       type: 'setForm',
       payload: { installmentTerms: options[options.length - 1].value },
     })
-  }, [form.paymentFrequency])
+  }, [form.installmentTerms, form.paymentFrequency])
 
   // Auto-generate installment plan
   useEffect(() => {

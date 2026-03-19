@@ -1,3 +1,10 @@
+/**
+ * Transaction Summary
+ * Lightweight financial summary block for service, payment, and fee transactions.
+ *
+ * @module app/dashboard/lms/components/TransactionSummary
+ */
+
 type TransactionSummaryProps = {
   isService: boolean
   isPayment: boolean

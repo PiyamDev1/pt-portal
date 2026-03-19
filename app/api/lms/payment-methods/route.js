@@ -1,3 +1,14 @@
+/**
+ * API Route: Loan Payment Methods
+ *
+ * GET /api/lms/payment-methods
+ *   Returns all active payment methods from the loan_payment_methods table
+ *   (e.g. Cash, Bank Transfer, Stripe). Returns an empty array gracefully
+ *   if table access fails, so the UI can still render with a fallback list.
+ *
+ * Authentication: Service role key
+ * Response Success (200): { methods: PaymentMethod[] }
+ */
 import { apiOk } from '@/lib/api/http'
 import { createClient } from '@supabase/supabase-js'
 

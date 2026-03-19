@@ -1,3 +1,30 @@
+/**
+ * API Route: Generate Manual Entry Code
+ *
+ * POST /api/timeclock/manual-entry/generate
+ *
+ * Generates a short-lived manual punch code for employees who cannot
+ * use the QR scanner (e.g. field workers without camera access).
+ *
+ * The generated code is a signed payload stored in timeclock_manual_codes
+ * with a 5-minute expiry and a single-use nonce. A 6-digit numeric code
+ * is also produced for human-readable display.
+ *
+ * Access control:
+ *   - Maintenance / org-admin: can generate for any employee
+ *   - Manager: can generate for direct reports only
+ *   - Others: forbidden
+ *
+ * Request Body: { employeeId: string, deviceId?: string }
+ * Response Success (200): { code, numericCode, expiresAt, payload }
+ * Response Errors:
+ *   400 - Missing employeeId
+ *   401 - Not authenticated
+ *   403 - Insufficient role
+ *   500 - DB or crypto error
+ *
+ * Authentication: Session cookie (manager or maintenance role)
+ */
 import { createServerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies, headers } from 'next/headers'
 import { createClient } from '@supabase/supabase-js'

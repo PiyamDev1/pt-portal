@@ -1,3 +1,19 @@
+/**
+ * Commissions Dashboard Page
+ * 
+ * Displays commission tracking and analytics for sales operations:
+ * - View sales and earnings information
+ * - Track commission statements
+ * - Filter by date range and sales type
+ * - Export commission reports
+ * 
+ * Server component that:
+ * - Verifies user authentication and authorization
+ * - Fetches commission data from database
+ * - Renders role-based commission information
+ * 
+ * @module app/dashboard/commissions/page
+ */
 import PageHeader from '@/app/components/PageHeader.client'
 import { createServerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'

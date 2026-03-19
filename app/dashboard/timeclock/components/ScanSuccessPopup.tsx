@@ -1,3 +1,10 @@
+/**
+ * Scan Success Popup
+ * Transient feedback popup shown after a successful timeclock scan.
+ *
+ * @module app/dashboard/timeclock/components/ScanSuccessPopup
+ */
+
 type ScanResult = {
   message?: string
   eventType?: string

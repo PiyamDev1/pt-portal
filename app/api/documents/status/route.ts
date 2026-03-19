@@ -1,3 +1,8 @@
+/**
+ * Module: app/api/documents/status/route.ts
+ * API route or server helper for documents/status/route.ts.
+ */
+
 import { NextRequest } from 'next/server'
 import { getDocumentStorageStatus } from '@/lib/documentStorageStatus'
 import { apiOk } from '@/lib/api/http'

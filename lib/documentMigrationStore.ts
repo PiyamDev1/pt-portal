@@ -1,5 +1,16 @@
+/**
+ * Document Migration Event Store
+ * Persistent logging of document migration operations (R2 -> MinIO)
+ * Records attempts, successes, failures, and batch operations for auditing and recovery
+ * 
+ * @module lib/documentMigrationStore
+ */
+
 import { getSupabaseClient } from '@/lib/supabaseClient'
 
+/**
+ * What triggered the migration operation
+ */
 export type MigrationTrigger = 'status' | 'read' | 'manual' | 'cron' | 'unknown'
 
 export type StoredMigrationEvent = {

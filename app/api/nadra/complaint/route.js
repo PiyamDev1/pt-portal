@@ -1,3 +1,17 @@
+/**
+ * API Route: File NADRA Complaint
+ *
+ * POST /api/nadra/complaint
+ *
+ * Records a complaint or escalation against a NADRA application.
+ * Stores the complaint text and updates the application's has_complaint flag.
+ *
+ * Request Body: { applicationId: string, complaint: string }
+ * Response Success (200): { complaintId }
+ * Response Errors: 400 Missing fields | 500 DB error
+ *
+ * Authentication: Service role key
+ */
 import { createClient } from '@supabase/supabase-js'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'

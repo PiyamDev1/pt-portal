@@ -1,3 +1,10 @@
+/**
+ * Installment Payment Modal
+ * Captures and submits installment payment actions for LMS accounts.
+ *
+ * @module app/dashboard/lms/components/InstallmentPaymentModal
+ */
+
 'use client'
 
 import { useState, useEffect, memo } from 'react'

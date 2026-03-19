@@ -1,3 +1,16 @@
+/**
+ * API Route: NADRA Agent Options
+ *
+ * GET /api/nadra/agent-options?managerId=<id>
+ *
+ * Returns the list of employees available as agents for NADRA applications.
+ * If managerId is provided, returns only direct reports (recursive via tree
+ * traversal). Otherwise returns all active employees who can act as agents.
+ *
+ * Authentication: Service role key
+ * Response Success (200): { agents: { id, name }[] }
+ * Response Errors: 500 DB error
+ */
 import { createClient } from '@supabase/supabase-js'
 import { toErrorMessage } from '@/lib/api/error'
 import { apiError, apiOk } from '@/lib/api/http'

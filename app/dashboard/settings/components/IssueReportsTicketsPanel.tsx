@@ -1,3 +1,10 @@
+/**
+ * Issue Reports Tickets Panel
+ * Left-hand ticket list and summary surface for the issue reports admin workspace.
+ *
+ * @module app/dashboard/settings/components/IssueReportsTicketsPanel
+ */
+
 type IssueReport = {
   id: string
   created_at: string

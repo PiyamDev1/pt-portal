@@ -1,3 +1,10 @@
+/**
+ * Verify 2FA Page
+ * Verifies TOTP codes or backup codes to complete sign-in.
+ *
+ * @module app/login/verify-2fa/page
+ */
+
 'use client'
 import { useState } from 'react'
 import { createBrowserClient } from '@supabase/auth-helpers-nextjs'

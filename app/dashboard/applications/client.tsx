@@ -1,10 +1,15 @@
+/**
+ * Applications Hub Client
+ * Aggregates status snapshots and recent records across NADRA,
+ * Pakistani passports, British passports, and visa services.
+ */
 'use client'
 
 import { useMemo } from 'react'
 
 import { ApplicationsHubBody } from './components/ApplicationsHubBody'
 
-interface StatusRecord {
+export interface StatusRecord {
   id: string
   status: string
   created_at: string
@@ -36,17 +41,17 @@ interface BaseAppJoin {
   created_at?: string | null
 }
 
-interface NadraJoinRecord extends BaseAppJoin {
+export interface NadraJoinRecord extends BaseAppJoin {
   applicants?: PersonName | PersonName[] | null
   nadra_services?: NadraServiceRecord | NadraServiceRecord[] | null
 }
 
-interface PakJoinRecord extends BaseAppJoin {
+export interface PakJoinRecord extends BaseAppJoin {
   applicants?: PersonName | PersonName[] | null
   pakistani_passport_applications?: PakPassportRecord | PakPassportRecord[] | null
 }
 
-interface GbRecord {
+export interface GbRecord {
   id: string
   status?: string | null
   created_at?: string | null
@@ -61,7 +66,7 @@ interface VisaCountry {
   name?: string | null
 }
 
-interface VisaRecord {
+export interface VisaRecord {
   id: string
   status?: string | null
   created_at?: string | null

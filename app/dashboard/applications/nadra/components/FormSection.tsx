@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/applications/nadra/components/FormSection.tsx
+ * Dashboard module for applications/nadra/components/FormSection.tsx.
+ */
+
 import type { ChangeEvent } from 'react'
 
 interface FormData {

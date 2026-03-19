@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/applications/nadra/components/DocumentHub/page.tsx
+ * Dashboard module for applications/nadra/components/DocumentHub/page.tsx.
+ */
+
 'use client'
 
 /**
@@ -98,13 +103,6 @@ export function DocumentHub({
   )
 
   /**
-   * Load documents on mount
-   */
-  useEffect(() => {
-    loadDocuments(1)
-  }, [familyHeadId])
-
-  /**
    * Load documents from service with pagination support
    */
   const loadDocuments = useCallback(
@@ -142,6 +140,13 @@ export function DocumentHub({
     },
     [familyHeadId],
   )
+
+  /**
+   * Load documents on mount
+   */
+  useEffect(() => {
+    void loadDocuments(1)
+  }, [loadDocuments])
 
   /**
    * Handle successful upload

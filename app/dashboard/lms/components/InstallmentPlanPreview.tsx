@@ -1,3 +1,10 @@
+/**
+ * Installment Plan Preview
+ * Displays computed installment schedule preview before submission.
+ *
+ * @module app/dashboard/lms/components/InstallmentPlanPreview
+ */
+
 import { useId } from 'react'
 import type { InstallmentPayment } from '../types'
 

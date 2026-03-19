@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/applications/nadra/components/DocumentHub/MinioStatus.tsx
+ * Dashboard module for applications/nadra/components/DocumentHub/MinioStatus.tsx.
+ */
+
 'use client'
 
 /**

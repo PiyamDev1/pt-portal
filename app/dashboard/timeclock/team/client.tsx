@@ -1,6 +1,11 @@
+/**
+ * Team Timeclock Client
+ * Manager-facing attendance operations: scoped event listing,
+ * filtering, pagination, and one-time timestamp adjustments.
+ */
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { TeamAdjustmentModal } from './components/TeamAdjustmentModal'
 import { TeamEventsTable } from './components/TeamEventsTable'
 import { TeamFiltersBar } from './components/TeamFiltersBar'
@@ -62,10 +67,14 @@ const extractEmployeeName = (employee?: TimeclockEvent['employees']) => {
     : employee?.full_name || 'Unknown'
 }
 
-const getEffectiveDeviceTime = (event: TimeclockEvent) =>
-  event.adjusted_device_ts || event.device_ts
-const getEffectiveRecordedTime = (event: TimeclockEvent) =>
-  event.adjusted_scanned_at || event.scanned_at
+const getEffectiveDeviceTime = (event: {
+  adjusted_device_ts?: string | null
+  device_ts?: string | null
+}) => event.adjusted_device_ts || event.device_ts || ''
+const getEffectiveRecordedTime = (event: {
+  adjusted_scanned_at?: string | null
+  scanned_at?: string | null
+}) => event.adjusted_scanned_at || event.scanned_at || ''
 
 const toLocalDateTimeInput = (value?: string | null) => {
   if (!value) return ''
@@ -122,7 +131,7 @@ export default function TimeclockTeamClient() {
     return params.toString()
   }, [selectedEmployee, dateFrom, dateTo, page, pageSize])
 
-  const loadEvents = async (nextPage = page) => {
+  const loadEvents = useCallback(async (nextPage = page) => {
     setLoading(true)
     setError('')
     try {
@@ -158,7 +167,7 @@ export default function TimeclockTeamClient() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [dateFrom, dateTo, page, pageSize, selectedEmployee])
 
   const openAdjustmentDialog = (event: TimeclockEvent) => {
     setEditingEvent(event)
@@ -228,8 +237,8 @@ export default function TimeclockTeamClient() {
   }
 
   useEffect(() => {
-    loadEvents()
-  }, [queryString])
+    void loadEvents()
+  }, [loadEvents, queryString])
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
 

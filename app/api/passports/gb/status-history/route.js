@@ -1,3 +1,10 @@
+/**
+ * GET /api/passports/gb/status-history
+ * Returns GB passport status transition history by passport record id.
+ *
+ * @module app/api/passports/gb/status-history
+ */
+
 import { createClient } from '@supabase/supabase-js'
 import { apiOk, apiError } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'

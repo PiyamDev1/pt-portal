@@ -1,3 +1,10 @@
+/**
+ * POST /api/admin/seed-countries
+ * Seeds visa destination countries used by visa metadata and forms.
+ *
+ * @module app/api/admin/seed-countries
+ */
+
 import { createClient } from '@supabase/supabase-js'
 import { toErrorMessage } from '@/lib/api/error'
 import { apiError, apiOk } from '@/lib/api/http'

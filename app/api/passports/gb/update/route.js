@@ -1,3 +1,10 @@
+/**
+ * POST /api/passports/gb/update
+ * Updates an existing GB passport application and appends status history changes.
+ *
+ * @module app/api/passports/gb/update
+ */
+
 import { createClient } from '@supabase/supabase-js'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'

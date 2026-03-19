@@ -1,3 +1,19 @@
+/**
+ * Employee Record Page
+ * 
+ * Employee personal and professional information management:
+ * - View personal document library (ID, certificates, etc.)
+ * - Access payslips and salary information
+ * - Track leave records and balances
+ * - Manage employment-related documents
+ * 
+ * Server component that:
+ * - Authenticates employee access
+ * - Retrieves personal employment records
+ * - Enforces document access controls
+ * 
+ * @module app/dashboard/employee-record/page
+ */
 import PageHeader from '@/app/components/PageHeader.client'
 import { createServerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'

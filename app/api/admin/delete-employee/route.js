@@ -1,3 +1,10 @@
+/**
+ * POST /api/admin/delete-employee
+ * Permanently deletes an employee record with strict role checks and auth cleanup.
+ *
+ * @module app/api/admin/delete-employee
+ */
+
 import { createClient } from '@supabase/supabase-js'
 import { createServerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'

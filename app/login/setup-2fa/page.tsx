@@ -1,3 +1,10 @@
+/**
+ * Setup 2FA Page
+ * Enrolls users into TOTP-based two-factor authentication during onboarding.
+ *
+ * @module app/login/setup-2fa/page
+ */
+
 'use client'
 import { useState, useEffect } from 'react'
 import { createBrowserClient } from '@supabase/auth-helpers-nextjs'

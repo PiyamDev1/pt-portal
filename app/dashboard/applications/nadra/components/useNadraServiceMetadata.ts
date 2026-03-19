@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/applications/nadra/components/useNadraServiceMetadata.ts
+ * Dashboard module for applications/nadra/components/useNadraServiceMetadata.ts.
+ */
+
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
@@ -115,8 +120,10 @@ export default function useNadraServiceMetadata({
     [formServiceType, normalizeLookupValue, serviceTypes],
   )
 
-  const formServiceTypeOptions =
-    filterServiceTypeOptions.length > 0 ? filterServiceTypeOptions : ['NICOP/CNIC']
+  const formServiceTypeOptions = useMemo(
+    () => (filterServiceTypeOptions.length > 0 ? filterServiceTypeOptions : ['NICOP/CNIC']),
+    [filterServiceTypeOptions],
+  )
 
   const formServiceOptionOptions = useMemo(
     () =>

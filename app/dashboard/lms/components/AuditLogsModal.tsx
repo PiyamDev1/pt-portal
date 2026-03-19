@@ -1,3 +1,10 @@
+/**
+ * Audit Logs Modal
+ * Displays LMS audit log history and filter controls.
+ *
+ * @module app/dashboard/lms/components/AuditLogsModal
+ */
+
 'use client'
 
 import { useState, useEffect } from 'react'

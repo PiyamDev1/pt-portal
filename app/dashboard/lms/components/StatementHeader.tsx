@@ -1,3 +1,10 @@
+/**
+ * Statement Header
+ * Displays account identity and current balance summary for LMS statements.
+ *
+ * @module app/dashboard/lms/components/StatementHeader
+ */
+
 import type { Account } from '../types'
 
 interface StatementHeaderProps {

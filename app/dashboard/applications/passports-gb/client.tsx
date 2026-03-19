@@ -1,3 +1,8 @@
+/**
+ * British Passports Client
+ * Provides search, add/edit operations, ledger rendering,
+ * and history workflows for GB passport applications.
+ */
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'

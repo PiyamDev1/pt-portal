@@ -1,3 +1,8 @@
+/**
+ * Module: lib/services/documentServer.ts
+ * Shared utility module for domain and infrastructure logic.
+ */
+
 import { documentService } from './documentService'
 
 export async function getSignedDocumentPreviewUrl(key: string): Promise<string> {

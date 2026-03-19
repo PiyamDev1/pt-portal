@@ -1,3 +1,10 @@
+/**
+ * Transaction Type Selector
+ * Select control for choosing LMS transaction categories.
+ *
+ * @module app/dashboard/lms/components/TransactionTypeSelector
+ */
+
 import { TRANSACTION_TYPES } from '../constants'
 
 interface TransactionTypeSelectorProps {

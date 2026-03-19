@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/applications/passports/components/RowItem.tsx
+ * Dashboard module for applications/passports/components/RowItem.tsx.
+ */
+
 'use client'
 
 import { useState } from 'react'
@@ -94,7 +99,8 @@ export default function RowItem({
   const currentStepIdx = workflow.indexOf(pp.status || 'Pending Submission')
 
   const createdAt = item?.created_at || pp?.created_at
-  const formatDate = (d: string | undefined) => {
+  const formatDate = (d?: string | null) => {
+    if (!d) return ''
     try {
       const dt = new Date(d)
       if (isNaN(dt.getTime())) return ''

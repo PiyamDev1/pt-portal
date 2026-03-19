@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/applications/passports-gb/components/types.ts
+ * Dashboard module for applications/passports-gb/components/types.ts.
+ */
+
 export interface GbApplicant {
   first_name?: string
   last_name?: string

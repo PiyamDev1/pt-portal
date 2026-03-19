@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/settings/components/pricing/OptionListComponents.tsx
+ * Dashboard module for settings/components/pricing/OptionListComponents.tsx.
+ */
+
 'use client'
 
 interface OptionListItemProps {

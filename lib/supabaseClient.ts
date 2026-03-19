@@ -8,7 +8,6 @@
 import { createClient } from '@supabase/supabase-js'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 let supabaseClient: SupabaseClient<any, any, any> | null = null
 
 /**

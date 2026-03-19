@@ -1,6 +1,19 @@
+/**
+ * Statement Data Hook
+ * Loads LMS account data and associated installment payment schedules
+ * Handles parallel fetching of account and installment records
+ * 
+ * @module hooks/useStatementData
+ */
+
 import { useEffect, useState } from 'react'
 import type { Account, Transaction, InstallmentPayment } from '@/app/types/lms'
 
+/**
+ * Hook to load account statement data with installment details
+ * @param accountId The account ID to load data for
+ * @returns Object with account data, installments map, and loading state
+ */
 export const useStatementData = (accountId: string) => {
   const [loading, setLoading] = useState(true)
   const [account, setAccount] = useState<Account | null>(null)

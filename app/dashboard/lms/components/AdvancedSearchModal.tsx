@@ -1,3 +1,10 @@
+/**
+ * Advanced Search Modal
+ * Provides detailed filtering and search controls for LMS account queries.
+ *
+ * @module app/dashboard/lms/components/AdvancedSearchModal
+ */
+
 'use client'
 
 import { useState } from 'react'

@@ -1,3 +1,10 @@
+/**
+ * POST /api/visas/update-status
+ * Updates status for a visa application by ID.
+ *
+ * @module app/api/visas/update-status
+ */
+
 import { createClient } from '@supabase/supabase-js'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'

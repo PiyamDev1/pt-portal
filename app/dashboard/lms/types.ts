@@ -1,3 +1,10 @@
+/**
+ * LMS Dashboard Types
+ * Local component-level types used by LMS dashboard UI.
+ *
+ * @module app/dashboard/lms/types
+ */
+
 // TypeScript Interfaces for LMS Module
 
 export interface PaymentMethod {

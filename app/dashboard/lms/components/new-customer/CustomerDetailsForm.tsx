@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/lms/components/new-customer/CustomerDetailsForm.tsx
+ * Dashboard module for lms/components/new-customer/CustomerDetailsForm.tsx.
+ */
+
 'use client'
 
 import { Phone, Mail, MapPin } from 'lucide-react'

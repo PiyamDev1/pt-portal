@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/applications/passports/components/api.ts
+ * Dashboard module for applications/passports/components/api.ts.
+ */
+
 import type { PakApplicationCreatePayload, PakEditFormData, PakUpdateRecordPayload } from './types'
 
 type ApiResponse<T = unknown> = {

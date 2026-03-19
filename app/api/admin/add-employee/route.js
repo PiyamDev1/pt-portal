@@ -1,3 +1,10 @@
+/**
+ * GET/POST /api/admin/add-employee
+ * Healthcheck and employee onboarding endpoint with auth and notification email.
+ *
+ * @module app/api/admin/add-employee
+ */
+
 import { createClient } from '@supabase/supabase-js'
 import { createServerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'

@@ -1,3 +1,10 @@
+/**
+ * Password Change Form
+ * Reusable settings form for updating user passwords with strength guidance.
+ *
+ * @module app/dashboard/settings/components/PasswordChangeForm
+ */
+
 import { getPasswordStrengthIndicator } from './utils'
 
 interface PasswordChangeFormProps {

@@ -1,3 +1,10 @@
+/**
+ * Service Pricing Tab
+ * Settings workspace for viewing and maintaining service pricing across modules.
+ *
+ * @module app/dashboard/settings/components/ServicePricingTab
+ */
+
 'use client'
 
 import { useEffect, useState, memo, useCallback } from 'react'
@@ -58,6 +65,11 @@ function ServicePricingTabCore({
   const [gbPages, setGBPages] = useState(PRICING_OPTIONS.GB_PASSPORT.pages)
   const [gbServiceTypes, setGBServiceTypes] = useState(PRICING_OPTIONS.GB_PASSPORT.serviceTypes)
 
+  const handleSectionChange = useCallback((section: PricingSection) => {
+    setActiveSection(section)
+    setActivePanel('pricing')
+  }, [])
+
   const fetchGbLookupOptions = useCallback(async () => {
     const [agesRes, pagesRes, servicesRes] = await Promise.all([
       supabase.from('gb_passport_ages').select('name').order('name'),
@@ -104,17 +116,19 @@ function ServicePricingTabCore({
   }, [supabase])
 
   useEffect(() => {
-    setLoading(true)
-    setLoadingState(true)
-    Promise.all([fetchPricing(), fetchGbLookupOptions(), fetchPkLookupOptions()]).finally(() => {
-      setLoading(false)
-      setLoadingState(false)
-    })
-  }, [fetchPricing, fetchGbLookupOptions, fetchPkLookupOptions, setLoading])
+    const loadAll = async () => {
+      setLoading(true)
+      setLoadingState(true)
+      try {
+        await Promise.all([fetchPricing(), fetchGbLookupOptions(), fetchPkLookupOptions()])
+      } finally {
+        setLoading(false)
+        setLoadingState(false)
+      }
+    }
 
-  useEffect(() => {
-    setActivePanel('pricing')
-  }, [activeSection])
+    void loadAll()
+  }, [fetchPricing, fetchGbLookupOptions, fetchPkLookupOptions, setLoading])
 
   // Handler wrappers for database operations
   const handleAddNadraEntry = async (entry: {
@@ -259,7 +273,7 @@ function ServicePricingTabCore({
             {(Object.keys(SECTION_LABELS) as PricingSection[]).map((section) => (
               <button
                 key={section}
-                onClick={() => setActiveSection(section)}
+                onClick={() => handleSectionChange(section)}
                 className={`w-full text-left px-3 py-2 rounded-md text-sm font-medium transition-colors ${
                   activeSection === section
                     ? 'bg-slate-900 text-white'

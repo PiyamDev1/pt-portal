@@ -1,3 +1,19 @@
+/**
+ * Ticketing System Page
+ * 
+ * Travel ticketing and PNR management interface:
+ * - Create and manage flight reservations (PNR)
+ * - Track ticket issuance and refunds
+ * - Manage booking modifications and cancellations
+ * - Generate travel documents and itineraries
+ * 
+ * Server component that:
+ * - Authenticates user access to ticketing services
+ * - Loads PNR and ticket records from database
+ * - Renders booking management interface
+ * 
+ * @module app/dashboard/ticketing/page
+ */
 import PageHeader from '@/app/components/PageHeader.client'
 import { createServerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'

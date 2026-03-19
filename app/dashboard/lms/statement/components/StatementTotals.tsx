@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/lms/statement/components/StatementTotals.tsx
+ * Dashboard module for lms/statement/components/StatementTotals.tsx.
+ */
+
 import { Account } from '@/app/types/lms'
 import { memo } from 'react'
 

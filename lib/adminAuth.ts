@@ -1,3 +1,8 @@
+/**
+ * Module: lib/adminAuth.ts
+ * Shared utility module for domain and infrastructure logic.
+ */
+
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 

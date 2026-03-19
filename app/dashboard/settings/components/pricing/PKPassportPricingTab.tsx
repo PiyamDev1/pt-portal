@@ -1,3 +1,10 @@
+/**
+ * PK Passport Pricing Tab
+ * Pricing editor for Pakistani passport pricing combinations and entry management.
+ *
+ * @module app/dashboard/settings/components/pricing/PKPassportPricingTab
+ */
+
 'use client'
 
 import { useState, memo } from 'react'

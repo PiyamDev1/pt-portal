@@ -1,11 +1,26 @@
+/**
+ * Session Timeout Hook
+ * Monitors user inactivity and logs out after timeout period
+ * Shows warning with countdown before automatic logout
+ * 
+ * @module hooks/useSessionTimeout
+ */
+
 'use client'
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
 
-const INACTIVITY_TIMEOUT = 5 * 60 * 1000 // 5 minutes in milliseconds
-const WARNING_TIME = 30 * 1000 // 30 seconds warning before logout
+/** Time before session expires (milliseconds) */
+const INACTIVITY_TIMEOUT = 5 * 60 * 1000 // 5 minutes
+/** Time to show warning before logout */
+const WARNING_TIME = 30 * 1000 // 30 seconds
 
+/**
+ * Hook to handle automatic session timeout after inactivity
+ * @param onWarningChange Optional callback when warning state changes
+ * @returns Hook for using in components
+ */
 export function useSessionTimeout(
   onWarningChange?: (showWarning: boolean, secondsRemaining?: number) => void,
 ) {

@@ -1,3 +1,10 @@
+/**
+ * POST /api/admin/create-installments-table
+ * Creates or verifies the LMS installment table schema in the connected database.
+ *
+ * @module app/api/admin/create-installments-table
+ */
+
 import { createClient } from '@supabase/supabase-js'
 import { toErrorMessage } from '@/lib/api/error'
 import { apiError, apiOk } from '@/lib/api/http'

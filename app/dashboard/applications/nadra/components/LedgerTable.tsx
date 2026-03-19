@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/applications/nadra/components/LedgerTable.tsx
+ * Dashboard module for applications/nadra/components/LedgerTable.tsx.
+ */
+
 import { getStatusColor, getNadraRecord, getDetails } from './helpers'
 import type { NadraApplication, NadraFamilyGroup, NadraPerson } from '@/app/types/nadra'
 
@@ -84,8 +89,8 @@ export default function LedgerTable({
                   <button
                     onClick={() =>
                       onManageDocuments?.(
-                        group.head.id,
-                        `${group.head.first_name} ${group.head.last_name}`,
+                        group.head!.id,
+                        `${group.head!.first_name} ${group.head!.last_name}`,
                       )
                     }
                     className="text-xs bg-sky-600 hover:bg-sky-700 text-white px-3 py-1.5 rounded-md font-bold transition flex items-center gap-1"
@@ -101,7 +106,7 @@ export default function LedgerTable({
               <div className="flex items-center gap-3">
                 {group.head && (
                   <button
-                    onClick={() => onEditHead(group.head)}
+                    onClick={() => onEditHead(group.head!)}
                     className="text-xs text-slate-600 underline hover:text-blue-600"
                     type="button"
                     aria-label="Modify family head"
@@ -111,7 +116,7 @@ export default function LedgerTable({
                 )}
                 {group.head && (
                   <button
-                    onClick={() => onAddMember(group.head)}
+                    onClick={() => onAddMember(group.head!)}
                     className="text-xs bg-white border border-slate-300 text-slate-700 px-3 py-1.5 rounded-md hover:bg-slate-50 font-bold transition flex items-center gap-1"
                     type="button"
                     aria-label="Add member"
@@ -136,21 +141,29 @@ export default function LedgerTable({
                 {group.members.length === 0 && (
                   <tr>
                     <td className="p-6 text-slate-500 italic" colSpan={5}>
-                      No members yet.{' '}
-                      <button
-                        onClick={() => onAddMember(group.head)}
-                        className="underline text-blue-600 hover:text-blue-800 font-semibold"
-                        type="button"
-                        aria-label="Add family member"
-                      >
-                        Add a member to this family head
-                      </button>
-                      .
+                      No members yet.
+                      {group.head && (
+                        <>
+                          {' '}
+                          <button
+                            onClick={() => onAddMember(group.head as NadraPerson)}
+                            className="underline text-blue-600 hover:text-blue-800 font-semibold"
+                            type="button"
+                            aria-label="Add family member"
+                          >
+                            Add a member to this family head
+                          </button>
+                          .
+                        </>
+                      )}
                     </td>
                   </tr>
                 )}
                 {group.members.map((item) => {
                   const nadraRecord = getNadraRecord(item)
+                  const assignedEmployee = Array.isArray(nadraRecord?.employees)
+                    ? nadraRecord?.employees[0]
+                    : nadraRecord?.employees
                   const details = getDetails(nadraRecord)
                   const status = nadraRecord?.status || 'Pending Submission'
                   const isCancelled = String(status).trim().toLowerCase() === 'cancelled'
@@ -184,10 +197,10 @@ export default function LedgerTable({
                         <div className="text-xs text-slate-500 font-medium mt-1">
                           {details?.service_option || 'Standard Processing'}
                         </div>
-                        {nadraRecord?.employees?.full_name && (
+                        {assignedEmployee?.full_name && (
                           <div className="mt-2 inline-flex items-center gap-1 bg-blue-50 border border-blue-100 px-2 py-1 rounded text-xs text-blue-700">
                             <span>👤</span>
-                            <span className="font-medium">{nadraRecord.employees.full_name}</span>
+                            <span className="font-medium">{assignedEmployee.full_name}</span>
                           </div>
                         )}
                       </td>
@@ -218,7 +231,10 @@ export default function LedgerTable({
                         <select
                           disabled={isUpdating}
                           value={status}
-                          onChange={(e) => onStatusChange(nadraRecord?.id, e.target.value)}
+                          onChange={(e) => {
+                            if (!nadraRecord?.id) return
+                            onStatusChange(nadraRecord.id, e.target.value)
+                          }}
                           className={`text-xs font-bold px-3 py-1.5 rounded-full border cursor-pointer focus:ring-0 ${getStatusColor(
                             status,
                           )}`}
@@ -251,7 +267,10 @@ export default function LedgerTable({
                           )}
                           {isCancelled && (
                             <button
-                              onClick={() => onMarkRefund(nadraRecord?.id)}
+                              onClick={() => {
+                                if (!nadraRecord?.id) return
+                                onMarkRefund(nadraRecord.id)
+                              }}
                               disabled={isUpdating || isRefunded}
                               className={`h-8 px-3 flex items-center justify-center rounded-full transition text-xs font-semibold border whitespace-nowrap ${
                                 isRefunded

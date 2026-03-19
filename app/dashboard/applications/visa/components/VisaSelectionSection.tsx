@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/applications/visa/components/VisaSelectionSection.tsx
+ * Dashboard module for applications/visa/components/VisaSelectionSection.tsx.
+ */
+
 import { FormSelectField } from './FormSelectField'
 import { FormInputField } from './FormInputField'
 

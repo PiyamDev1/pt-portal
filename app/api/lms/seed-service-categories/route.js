@@ -1,3 +1,16 @@
+/**
+ * API Route: Seed Service Categories
+ *
+ * POST /api/lms/seed-service-categories
+ *
+ * One-time setup route that inserts the default set of loan/service categories
+ * (e.g. Travel Loan, Emergency Advance) into the loan_service_categories table.
+ * Skips existing entries to allow safe re-runs. Should be called once after
+ * initial database migration.
+ *
+ * Authentication: Service role key (internal admin use only)
+ * Response Errors: 500 Supabase not configured | 500 DB insert failed
+ */
 import { createClient } from '@supabase/supabase-js'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'

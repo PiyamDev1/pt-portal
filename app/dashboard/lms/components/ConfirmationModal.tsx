@@ -1,3 +1,10 @@
+/**
+ * Confirmation Modal
+ * Generic LMS confirmation dialog for destructive or critical actions.
+ *
+ * @module app/dashboard/lms/components/ConfirmationModal
+ */
+
 'use client'
 
 import { useEffect, useId, useRef, useState } from 'react'

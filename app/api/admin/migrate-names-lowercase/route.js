@@ -1,3 +1,10 @@
+/**
+ * POST /api/admin/migrate-names-lowercase
+ * One-time normalization endpoint to convert selected applicant name fields to lowercase.
+ *
+ * @module app/api/admin/migrate-names-lowercase
+ */
+
 import { createClient } from '@supabase/supabase-js'
 import { toErrorMessage } from '@/lib/api/error'
 import { apiError, apiOk } from '@/lib/api/http'

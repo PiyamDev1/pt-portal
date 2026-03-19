@@ -1,3 +1,10 @@
+/**
+ * Scan Section Card
+ * Main QR scanning surface for live timeclock camera scanning and status controls.
+ *
+ * @module app/dashboard/timeclock/components/ScanSectionCard
+ */
+
 type CameraPermission = 'granted' | 'denied' | 'prompt' | 'unknown'
 
 type ScanSectionCardProps = {

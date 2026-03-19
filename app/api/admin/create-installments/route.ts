@@ -1,3 +1,10 @@
+/**
+ * POST /api/admin/create-installments
+ * Ensures LMS installment table schema exists for maintenance/admin operations.
+ *
+ * @module app/api/admin/create-installments
+ */
+
 import { createClient } from '@supabase/supabase-js'
 import { toErrorMessage } from '@/lib/api/error'
 import { apiError, apiOk } from '@/lib/api/http'

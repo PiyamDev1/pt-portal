@@ -1,3 +1,11 @@
+/**
+ * Storage System Status Probes
+ * Health checks for MinIO and R2 object storage backends
+ * Includes connection tests, latency measurement, and CORS configuration
+ * 
+ * @module lib/documentStorageStatus
+ */
+
 import { HeadBucketCommand, PutBucketCorsCommand } from '@aws-sdk/client-s3'
 import { migrateFallbackBatch } from '@/lib/r2Migration'
 import { getR2Client, isR2Configured } from '@/lib/r2Client'

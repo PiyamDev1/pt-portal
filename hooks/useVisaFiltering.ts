@@ -1,13 +1,29 @@
+/**
+ * Visa Filtering Hook
+ * Filters visa destinations and visa types based on applicant nationality and selections
+ * Handles complex filtering logic for visa metadata availability rules
+ * 
+ * @module hooks/useVisaFiltering
+ */
+
 import { useMemo } from 'react'
 import { COMMON_NATIONALITIES } from '@/lib/visaConstants'
 import type { VisaCountryOption, VisaMetadata, VisaTypeOption } from '@/app/types/visa'
 
 interface FilteringHookProps {
+  /** Selected applicant nationality */
   applicantNationality: string
+  /** Selected destination country ID */
   countryId: string
+  /** Visa metadata (countries, types, pricing) */
   metadata: VisaMetadata
 }
 
+/**
+ * Hook to filter visa countries and types based on applicant nationality and selections
+ * @param params Object with applicant nationality, country ID, and visa metadata
+ * @returns Object with filtered nationality options, destinations, and visa types
+ */
 export function useVisaFiltering({
   applicantNationality,
   countryId,

@@ -1,3 +1,20 @@
+/**
+ * Admin Settings Page
+ * 
+ * Comprehensive admin configuration interface (Admin only):
+ * - Manage organization branches and staff hierarchy
+ * - Configure LMS pricing tables and charges
+ * - Set maintenance windows and notifications
+ * - Manage active security sessions
+ * - View device and access logs
+ * 
+ * Server component that:
+ * - Verifies admin authorization
+ * - Loads organizational structure and settings
+ * - Renders configuration tabs for different admin functions
+ * 
+ * @module app/dashboard/settings/page
+ */
 import { createServerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
@@ -79,7 +96,11 @@ export default async function SettingsPage() {
           </p>
 
           <SettingsClient
-            currentUser={session.user}
+            currentUser={{
+              id: session.user.id,
+              email: session.user.email || '',
+              user_metadata: session.user.user_metadata,
+            }}
             userRole={userRole}
             initialLocations={locations.data || []}
             initialDepts={departments.data || []}

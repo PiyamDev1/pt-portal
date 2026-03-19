@@ -1,3 +1,8 @@
+/**
+ * Pricing Client
+ * Client-side gate for service pricing management UI.
+ * Enforces role-based access before rendering pricing controls.
+ */
 'use client'
 
 import { useState } from 'react'

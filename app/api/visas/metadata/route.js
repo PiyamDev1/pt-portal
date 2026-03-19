@@ -1,3 +1,10 @@
+/**
+ * GET /api/visas/metadata
+ * Returns visa countries and visa type metadata for form dropdowns.
+ *
+ * @module app/api/visas/metadata
+ */
+
 import { createClient } from '@supabase/supabase-js'
 import { toErrorMessage } from '@/lib/api/error'
 import { apiError, apiOk } from '@/lib/api/http'

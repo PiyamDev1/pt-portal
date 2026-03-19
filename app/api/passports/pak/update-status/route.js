@@ -1,3 +1,10 @@
+/**
+ * POST /api/passports/pak/update-status
+ * Updates Pakistani passport status and writes status-history records.
+ *
+ * @module app/api/passports/pak/update-status
+ */
+
 import { createClient } from '@supabase/supabase-js'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'

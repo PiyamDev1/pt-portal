@@ -1,3 +1,7 @@
+/**
+ * Next.js Configuration
+ * Build/runtime optimizations, security headers, and image/compression tuning.
+ */
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,

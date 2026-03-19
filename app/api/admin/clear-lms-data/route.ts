@@ -1,3 +1,10 @@
+/**
+ * POST /api/admin/clear-lms-data
+ * Clears LMS tables in FK-safe order for full environment reset.
+ *
+ * @module app/api/admin/clear-lms-data
+ */
+
 import { createClient } from '@supabase/supabase-js'
 import { toErrorMessage } from '@/lib/api/error'
 import { apiError, apiOk } from '@/lib/api/http'

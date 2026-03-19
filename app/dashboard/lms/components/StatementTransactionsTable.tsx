@@ -1,3 +1,10 @@
+/**
+ * Statement Transactions Table
+ * Renders LMS statement rows, related installments, and inline management actions.
+ *
+ * @module app/dashboard/lms/components/StatementTransactionsTable
+ */
+
 import type { Account, Transaction } from '../types'
 
 const formatTransactionType = (type?: string) => {
@@ -194,8 +201,8 @@ export function StatementTransactionsTable({
                           onSelectInstallment({
                             id: installment.id,
                             date: installment.due_date,
-                            amount: parseFloat(installment.amount),
-                            amountPaid: parseFloat(installment.amount_paid || 0),
+                            amount: parseFloat(String(installment.amount)),
+                            amountPaid: parseFloat(String(installment.amount_paid || 0)),
                             status: installment.status,
                             installmentNumber: installment.installment_number,
                             totalInstallments: totalInstallments,
@@ -223,11 +230,11 @@ export function StatementTransactionsTable({
                           </div>
                         </td>
                         <td className="p-2 text-right font-mono text-blue-700 font-bold">
-                          £{parseFloat(installment.amount).toFixed(2)}
+                          £{parseFloat(String(installment.amount)).toFixed(2)}
                         </td>
                         <td className="p-2 text-right text-slate-400">
-                          {installment.amount_paid > 0
-                            ? `£${parseFloat(installment.amount_paid).toFixed(2)}`
+                          {Number(installment.amount_paid) > 0
+                            ? `£${parseFloat(String(installment.amount_paid)).toFixed(2)}`
                             : '-'}
                         </td>
                         <td className="p-2 text-center">

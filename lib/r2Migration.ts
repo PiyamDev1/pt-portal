@@ -1,3 +1,12 @@
+/**
+ * R2 to MinIO Document Migration
+ * Transfers documents from Cloudflare R2 to local MinIO storage
+ * Handles single file and batch migrations with event logging
+ * Used for storage failover and capacity management
+ * 
+ * @module lib/r2Migration
+ */
+
 import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3'
 import {
   recordMigrationAttempt,

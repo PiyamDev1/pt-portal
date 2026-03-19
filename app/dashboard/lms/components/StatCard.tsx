@@ -1,3 +1,10 @@
+/**
+ * Stat Card
+ * Reusable metric card used across LMS dashboard summaries.
+ *
+ * @module app/dashboard/lms/components/StatCard
+ */
+
 'use client'
 
 import React from 'react'

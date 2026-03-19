@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/applications/nadra/components/DocumentHub/DocumentUpload.tsx
+ * Dashboard module for applications/nadra/components/DocumentHub/DocumentUpload.tsx.
+ */
+
 'use client'
 
 /**

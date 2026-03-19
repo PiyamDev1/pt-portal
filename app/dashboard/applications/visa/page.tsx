@@ -1,3 +1,20 @@
+/**
+ * Visa Applications Page
+ * 
+ * Visa application tracking and management:
+ * - View all visa applications (UK, Canada, USA, Saudi Arabia, etc.)
+ * - Track visa status and progress
+ * - Submit visa documentation and supporting papers
+ * - Track visa approval and collection dates
+ * - Export visa documents and approvals
+ * 
+ * Server component that:
+ * - Authenticates user access to visa records
+ * - Loads visa applications from database
+ * - Filters by visa type and status
+ * 
+ * @module app/dashboard/applications/visa/page
+ */
 import { createServerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'

@@ -1,3 +1,10 @@
+/**
+ * Branches Tab
+ * CRUD interface for branch and location records used across employee and module assignment.
+ *
+ * @module app/dashboard/settings/components/BranchesTab
+ */
+
 'use client'
 import { useState } from 'react'
 import { toast } from 'sonner'
@@ -137,7 +144,7 @@ export default function BranchesTab({
                     <td className="px-6 py-3">
                       <input
                         className="border p-1 rounded w-24 uppercase"
-                        value={editingBranch.branch_code}
+                        value={editingBranch.branch_code ?? ''}
                         onChange={(e) =>
                           setEditingBranch({
                             ...editingBranch,

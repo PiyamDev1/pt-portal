@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/lms/statement/components/StatementPrintStyles.tsx
+ * Dashboard module for lms/statement/components/StatementPrintStyles.tsx.
+ */
+
 import React from 'react'
 
 export function StatementPrintStyles() {

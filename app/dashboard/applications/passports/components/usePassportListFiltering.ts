@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/applications/passports/components/usePassportListFiltering.ts
+ * Dashboard module for applications/passports/components/usePassportListFiltering.ts.
+ */
+
 import { useEffect, useMemo } from 'react'
 import { getPassportRecord } from './utils'
 import type { Application } from './types'

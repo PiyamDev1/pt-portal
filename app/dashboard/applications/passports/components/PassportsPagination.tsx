@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/applications/passports/components/PassportsPagination.tsx
+ * Dashboard module for applications/passports/components/PassportsPagination.tsx.
+ */
+
 type PassportsPaginationProps = {
   filteredCount: number
   startIdx: number

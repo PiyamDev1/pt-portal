@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/applications/nadra/components/HistoryModal.tsx
+ * Dashboard module for applications/nadra/components/HistoryModal.tsx.
+ */
+
 import { useEffect, useRef } from 'react'
 import type { NadraApplication, NadraHistoryEntry } from '@/app/types/nadra'
 

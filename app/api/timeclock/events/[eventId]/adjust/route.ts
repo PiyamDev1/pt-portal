@@ -1,3 +1,23 @@
+/**
+ * API Route: Adjust a Timeclock Event
+ *
+ * PATCH /api/timeclock/events/[eventId]/adjust
+ *
+ * Allows maintenance-role staff to correct the timestamp of a specific
+ * timeclock punch event. Updates adjusted_scanned_at and adjusted_device_ts
+ * fields while preserving the original scan values for audit purposes.
+ *
+ * URL Params: eventId - UUID of the timeclock event to adjust
+ * Request Body: { adjustedAt: string (ISO), note?: string }
+ * Response Success (200): { updatedEvent }
+ * Response Errors:
+ *   401 - Not authenticated
+ *   403 - Not a maintenance-role user
+ *   404 - Event not found
+ *   500 - DB update failed
+ *
+ * Authentication: Session cookie, maintenance role required
+ */
 import { NextResponse } from 'next/server'
 import { requireMaintenanceSession } from '@/lib/adminSessionAuth'
 import { getSupabaseClient } from '@/lib/supabaseClient'

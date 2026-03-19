@@ -1,3 +1,36 @@
+/**
+ * API Route: Submit Issue Report
+ *
+ * POST /api/issue-reports
+ *
+ * Accepts a bug or UX issue report from any logged-in or anonymous user.
+ * Stores the report in the issue_reports table, optionally uploads a
+ * screenshot and/or console log to object storage (MinIO/R2), and records
+ * an audit event in issue_report_events.
+ *
+ * Sensitive values are redacted before storage (see redactSensitiveText).
+ * The reporter identity is attached when a valid session cookie is present.
+ *
+ * Request Body:
+ *   notes              string          - Description of the issue (required)
+ *   pageUrl            string          - Full URL where the issue occurred
+ *   routePath          string          - Next.js route path
+ *   severity           string          - 'low' | 'medium' | 'high' | 'critical'
+ *   includeScreenshot  boolean         - Whether screenshotDataUrl is included
+ *   includeConsoleLog  boolean         - Whether consoleEntries are included
+ *   includeFailedRequests boolean      - Whether failedRequests are included
+ *   screenshotDataUrl  string          - base64 data-URL of screen capture
+ *   consoleEntries     unknown         - Array of captured console log entries
+ *   failedRequests     unknown         - Array of captured XHR/fetch errors
+ *   browserContext     object          - viewport, userAgent, language, etc.
+ *
+ * Response Success (200): { ticketId: string }
+ * Response Errors:
+ *   400 - Validation failed or missing required fields
+ *   500 - DB insert or artifact upload failed
+ *
+ * Authentication: Optional session cookie (anonymous reports allowed)
+ */
 import { z } from 'zod'
 import { getSupabaseClient } from '@/lib/supabaseClient'
 import { getOptionalIssueReporter } from '@/lib/issueReportAuth'

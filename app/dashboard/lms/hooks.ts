@@ -1,4 +1,8 @@
-/* eslint-disable import/prefer-default-export */
+/**
+ * Module: app/dashboard/lms/hooks.ts
+ * Dashboard module for lms/hooks.ts.
+ */
+
 'use client'
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
@@ -151,19 +155,38 @@ export function useLmsFilters(
  * Installments Hook - Fetches installments per transaction for an account
  */
 export function useInstallmentsByTransaction(account: Account) {
-  const [localAccount, setLocalAccount] = useState(account)
   const [installmentsByTransaction, setInstallmentsByTransaction] = useState<
-    Record<string, InstallmentPayment[]>
+    Record<
+      string,
+      {
+        id: string
+        due_date: string
+        amount: number | string
+        amount_paid: number | string
+        status: string
+        installment_number: number
+      }[]
+    >
   >({})
 
   const fetchInstallments = useCallback(async () => {
-    if (!localAccount.transactions) return
+    if (!account.transactions) return
 
-    const serviceTransactions = localAccount.transactions.filter(
+    const serviceTransactions = account.transactions.filter(
       (tx: Transaction) => tx.transaction_type?.toLowerCase() === 'service',
     )
 
-    const installmentsMap: Record<string, InstallmentPayment[]> = {}
+    const installmentsMap: Record<
+      string,
+      {
+        id: string
+        due_date: string
+        amount: number | string
+        amount_paid: number | string
+        status: string
+        installment_number: number
+      }[]
+    > = {}
 
     for (const tx of serviceTransactions) {
       try {
@@ -178,18 +201,21 @@ export function useInstallmentsByTransaction(account: Account) {
     }
 
     setInstallmentsByTransaction(installmentsMap)
-  }, [localAccount])
+  }, [account])
 
   useEffect(() => {
-    setLocalAccount(account)
     if (account.transactions) {
-      fetchInstallments()
+      const loadTask = window.setTimeout(() => {
+        void fetchInstallments()
+      }, 0)
+
+      return () => window.clearTimeout(loadTask)
     }
   }, [account, fetchInstallments])
 
   return {
-    localAccount,
-    setLocalAccount,
+    localAccount: account,
+    setLocalAccount: () => {},
     installmentsByTransaction,
     fetchInstallments,
   }

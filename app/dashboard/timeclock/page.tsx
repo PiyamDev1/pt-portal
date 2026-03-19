@@ -1,3 +1,20 @@
+/**
+ * Timeclock Dashboard Page
+ * 
+ * Employee time tracking system with QR code scanning:
+ * - Real-time clock in/out with QR code scanning
+ * - Geolocation-based punch tracking
+ * - Time adjustment requests
+ * - Daily attendance summary
+ * - Role-based features (employee vs manager vs admin)
+ * 
+ * Server component that:
+ * - Authenticates user access to timeclock
+ * - Checks user role and timeclock permissions
+ * - Renders appropriate timeclock interface
+ * 
+ * @module app/dashboard/timeclock/page
+ */
 import { createServerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'

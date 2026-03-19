@@ -1,3 +1,8 @@
+/**
+ * Dashboard Client Wrapper
+ * Provides shared client-side shell behavior for dashboard pages,
+ * including session warning UI and future timeout orchestration.
+ */
 'use client'
 import { useState } from 'react'
 // import { useSessionTimeout } from '@/hooks/useSessionTimeout'

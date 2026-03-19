@@ -1,9 +1,33 @@
+/**
+ * Applications Hub Page
+ * 
+ * Central dashboard for tracking all immigration and travel applications:
+ * - NADRA family registration and verification
+ * - Pakistani passport applications and status
+ * - British passport applications and status
+ * - Visa applications with real-time status updates
+ * - Application status aggregation and filtering
+ * 
+ * Server component that:
+ * - Loads all user application records from database
+ * - Aggregates status across different application types
+ * - Renders filterable application dashboard
+ * 
+ * @module app/dashboard/applications/page
+ */
 import { createServerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import PageHeader from '@/app/components/PageHeader.client'
 import ApplicationsClient from './client'
 import DashboardClientWrapper from '@/app/dashboard/client-wrapper'
+import type {
+  StatusRecord,
+  NadraJoinRecord,
+  PakJoinRecord,
+  GbRecord,
+  VisaRecord,
+} from './client'
 
 type QueryResult<T> = {
   label: string
@@ -25,7 +49,7 @@ async function runLabeledQuery<T>(
 }
 
 function getSuccessfulData<T>(
-  settled: PromiseSettledResult<QueryResult<T>>[],
+  settled: PromiseSettledResult<any>[],
   label: string,
   warnings: QueryWarning[],
 ): T {
@@ -223,20 +247,20 @@ export default async function ApplicationsHubPage() {
   ])
 
   const warnings: QueryWarning[] = []
-  const nadraStatuses = getSuccessfulData<unknown[]>(settled, 'nadraStatuses', warnings)
-  const pakStatuses = getSuccessfulData<unknown[]>(settled, 'pakStatuses', warnings)
-  const gbStatuses = getSuccessfulData<unknown[]>(settled, 'gbStatuses', warnings)
-  const visaStatuses = getSuccessfulData<unknown[]>(settled, 'visaStatuses', warnings)
+  const nadraStatuses = getSuccessfulData<StatusRecord[]>(settled, 'nadraStatuses', warnings)
+  const pakStatuses = getSuccessfulData<StatusRecord[]>(settled, 'pakStatuses', warnings)
+  const gbStatuses = getSuccessfulData<StatusRecord[]>(settled, 'gbStatuses', warnings)
+  const visaStatuses = getSuccessfulData<StatusRecord[]>(settled, 'visaStatuses', warnings)
 
-  const nadraRecent = getSuccessfulData<unknown[]>(settled, 'nadraRecent', warnings)
-  const pakRecent = getSuccessfulData<unknown[]>(settled, 'pakRecent', warnings)
-  const gbRecent = getSuccessfulData<unknown[]>(settled, 'gbRecent', warnings)
-  const visaRecent = getSuccessfulData<unknown[]>(settled, 'visaRecent', warnings)
+  const nadraRecent = getSuccessfulData<NadraJoinRecord[]>(settled, 'nadraRecent', warnings)
+  const pakRecent = getSuccessfulData<PakJoinRecord[]>(settled, 'pakRecent', warnings)
+  const gbRecent = getSuccessfulData<GbRecord[]>(settled, 'gbRecent', warnings)
+  const visaRecent = getSuccessfulData<VisaRecord[]>(settled, 'visaRecent', warnings)
 
-  const nadraAttention = getSuccessfulData<unknown[]>(settled, 'nadraAttention', warnings)
-  const pakAttention = getSuccessfulData<unknown[]>(settled, 'pakAttention', warnings)
-  const gbAttention = getSuccessfulData<unknown[]>(settled, 'gbAttention', warnings)
-  const visaAttention = getSuccessfulData<unknown[]>(settled, 'visaAttention', warnings)
+  const nadraAttention = getSuccessfulData<NadraJoinRecord[]>(settled, 'nadraAttention', warnings)
+  const pakAttention = getSuccessfulData<PakJoinRecord[]>(settled, 'pakAttention', warnings)
+  const gbAttention = getSuccessfulData<GbRecord[]>(settled, 'gbAttention', warnings)
+  const visaAttention = getSuccessfulData<VisaRecord[]>(settled, 'visaAttention', warnings)
 
   return (
     <DashboardClientWrapper>

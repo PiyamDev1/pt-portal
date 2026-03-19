@@ -1,3 +1,10 @@
+/**
+ * Security Tab
+ * Account security management panel for password, avatar, 2FA, and active sessions.
+ *
+ * @module app/dashboard/settings/components/SecurityTab
+ */
+
 'use client'
 import { useState } from 'react'
 import { toast } from 'sonner'

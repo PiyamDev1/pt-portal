@@ -1,3 +1,17 @@
+/**
+ * My Account Page
+ * 
+ * User account management interface with features:
+ * - View and update user profile information
+ * - Change password with verification
+ * - Manage 2FA settings (enable/disable)
+ * - View and regenerate backup codes
+ * - Reset authentication credentials
+ * 
+ * Client component that authenticates the user and manages account security settings.
+ * 
+ * @module app/dashboard/account/page
+ */
 'use client'
 import { useState, useEffect } from 'react'
 import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
@@ -34,6 +48,10 @@ export default function MyAccountPage() {
   // --- ACTION: CHANGE PASSWORD ---
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!user?.email) {
+      toast.error('User session not ready')
+      return
+    }
     if (newPass !== confirmPass) {
       toast.error('New passwords do not match')
       return
@@ -82,6 +100,10 @@ export default function MyAccountPage() {
 
   // --- ACTION: RESET 2FA ---
   const handleReset2FA = async (confirmed = false) => {
+    if (!user?.id) {
+      toast.error('User session not ready')
+      return
+    }
     if (!confirmed) {
       setConfirmAction('reset-2fa')
       return
@@ -122,6 +144,10 @@ export default function MyAccountPage() {
   }, [user])
 
   const handleGenerateBackupCodes = async (confirmed = false) => {
+    if (!user?.id) {
+      toast.error('User session not ready')
+      return
+    }
     if (!confirmed) {
       setConfirmAction('backup-codes')
       return

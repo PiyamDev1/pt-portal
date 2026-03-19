@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/lms/components/edit-customer/DeleteCustomerSection.tsx
+ * Dashboard module for lms/components/edit-customer/DeleteCustomerSection.tsx.
+ */
+
 'use client'
 
 import { AlertTriangle, Trash2 } from 'lucide-react'

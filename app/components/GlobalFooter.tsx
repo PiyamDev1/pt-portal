@@ -1,3 +1,7 @@
+/**
+ * Global Footer
+ * Shared footer rendered across dashboard pages except print-oriented views.
+ */
 'use client'
 
 import { usePathname } from 'next/navigation'

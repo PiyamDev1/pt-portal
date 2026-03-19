@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/logout-button.client.tsx
+ * Dashboard module for logout-button.client.tsx.
+ */
+
 'use client'
 import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
 import { useRouter } from 'next/navigation'

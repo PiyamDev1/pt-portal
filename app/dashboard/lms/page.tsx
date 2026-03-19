@@ -1,3 +1,19 @@
+/**
+ * Loan Management System (LMS) Page
+ * 
+ * Financial statement and loan management interface:
+ * - View loan account statements and transaction history
+ * - Track installment payments and schedules
+ * - Generate and export financial reports
+ * - Manage loan documentation
+ * 
+ * Server component that:
+ * - Authenticates user access to LMS
+ * - Loads loan and installment accounts
+ * - Renders financial statements and transaction data
+ * 
+ * @module app/dashboard/lms/page
+ */
 import { createServerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 import PageHeader from '@/app/components/PageHeader.client'

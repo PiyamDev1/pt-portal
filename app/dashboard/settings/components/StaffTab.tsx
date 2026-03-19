@@ -1,3 +1,10 @@
+/**
+ * Staff Tab
+ * Employee directory management surface for creating, editing, disabling, and deleting staff.
+ *
+ * @module app/dashboard/settings/components/StaffTab
+ */
+
 'use client'
 import { useMemo, useReducer, useState } from 'react'
 import { toast } from 'sonner'

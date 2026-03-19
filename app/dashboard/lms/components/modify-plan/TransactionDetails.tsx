@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/lms/components/modify-plan/TransactionDetails.tsx
+ * Dashboard module for lms/components/modify-plan/TransactionDetails.tsx.
+ */
+
 'use client'
 
 interface Transaction {

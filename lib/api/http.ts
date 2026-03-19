@@ -1,3 +1,8 @@
+/**
+ * Module: lib/api/http.ts
+ * Shared utility module for domain and infrastructure logic.
+ */
+
 import { NextResponse } from 'next/server'
 
 /**

@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/lms/statement/components/StatementActions.tsx
+ * Dashboard module for lms/statement/components/StatementActions.tsx.
+ */
+
 import { Download, Printer } from 'lucide-react'
 import { generateCSV, downloadCSV } from '../utils/statementUtils'
 import { memo } from 'react'

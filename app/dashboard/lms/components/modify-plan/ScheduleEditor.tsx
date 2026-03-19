@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/lms/components/modify-plan/ScheduleEditor.tsx
+ * Dashboard module for lms/components/modify-plan/ScheduleEditor.tsx.
+ */
+
 'use client'
 
 interface Installment {

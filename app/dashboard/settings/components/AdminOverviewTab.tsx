@@ -1,3 +1,10 @@
+/**
+ * Admin Overview Tab
+ * Landing overview for settings administrators with counts and shortcut actions.
+ *
+ * @module app/dashboard/settings/components/AdminOverviewTab
+ */
+
 'use client'
 
 import { ArrowRight, Database, GitBranch, Network, ShieldCheck, Users } from 'lucide-react'

@@ -1,3 +1,10 @@
+/**
+ * New Customer Modal
+ * Modal wrapper for creating new LMS customer records.
+ *
+ * @module app/dashboard/lms/components/NewCustomerModal
+ */
+
 'use client'
 
 import { memo } from 'react'

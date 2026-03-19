@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/applications/passports-gb/components/FormSection.tsx
+ * Dashboard module for applications/passports-gb/components/FormSection.tsx.
+ */
+
 'use client'
 
 import { Save } from 'lucide-react'
@@ -35,6 +40,12 @@ export default function FormSection({
   onToggle,
   metadata,
 }: FormSectionProps) {
+  const emitInputChange = (name: string, value: string) => {
+    onInputChange({ target: { name, value } } as unknown as ChangeEvent<
+      HTMLInputElement | HTMLSelectElement
+    >)
+  }
+
   // Real-time price lookup from Metadata
   const pricing = useMemo(() => {
     if (!formData.ageGroup || !formData.pages || !formData.serviceType) return { cost: 0, price: 0 }
@@ -135,9 +146,7 @@ export default function FormSection({
                   {metadata.ages?.map((age) => (
                     <button
                       key={age.id}
-                      onClick={() =>
-                        onInputChange({ target: { name: 'ageGroup', value: age.name } })
-                      }
+                      onClick={() => emitInputChange('ageGroup', age.name)}
                       className={`p-2 rounded text-sm font-medium border ${
                         formData.ageGroup === age.name
                           ? 'bg-slate-900 text-white border-slate-900'
@@ -161,9 +170,7 @@ export default function FormSection({
                     {metadata.pages?.map((pg) => (
                       <button
                         key={pg.id}
-                        onClick={() =>
-                          onInputChange({ target: { name: 'pages', value: pg.option_label } })
-                        }
+                        onClick={() => emitInputChange('pages', pg.option_label)}
                         className={`w-full p-2 rounded text-xs font-medium border ${
                           formData.pages === pg.option_label
                             ? 'bg-slate-900 text-white border-slate-900'

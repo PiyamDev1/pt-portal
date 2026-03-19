@@ -1,3 +1,7 @@
+/**
+ * Issue Reporter Widget
+ * Floating in-app reporter for screenshots, console traces, and request failures.
+ */
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -39,8 +43,8 @@ export function IssueReporterWidget() {
     return () => window.clearTimeout(timer)
   }, [isOpen])
 
-  const consoleCount = useMemo(() => getRecentConsoleEntries().length, [isOpen])
-  const failedRequestCount = useMemo(() => getRecentFailedRequests().length, [isOpen])
+  const consoleCount = getRecentConsoleEntries().length
+  const failedRequestCount = getRecentFailedRequests().length
 
   const captureScreenshot = async () => {
     const { default: html2canvas } = await import('html2canvas')

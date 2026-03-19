@@ -1,3 +1,10 @@
+/**
+ * Visa Domain Types
+ * Shared type definitions for visa metadata, forms, and application payloads.
+ *
+ * @module app/types/visa
+ */
+
 export interface VisaCountryOption {
   id: string
   name: string

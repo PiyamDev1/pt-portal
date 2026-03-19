@@ -1,3 +1,10 @@
+/**
+ * Settings Component Utilities
+ * Shared helpers for settings UI formatting and derived labels.
+ *
+ * @module app/dashboard/settings/components/utils
+ */
+
 // Helper: Parse User Agent with Icons
 export const getDeviceInfo = (ua: string) => {
   if (!ua) return { name: 'Unknown Device', icon: '💻' }

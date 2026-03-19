@@ -1,4 +1,9 @@
-import React, { useEffect, useRef, useState } from 'react'
+/**
+ * Module: app/dashboard/applications/passports/components/NotesModal.tsx
+ * Dashboard module for applications/passports/components/NotesModal.tsx.
+ */
+
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ConfirmationDialog } from '@/components/ConfirmationDialog'
 
 type NotesModalProps = {
@@ -24,37 +29,34 @@ export default function NotesModal({
 }: NotesModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null)
   const [originalNotes, setOriginalNotes] = useState('')
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false)
+  const hasUnsavedChanges = useMemo(() => !isLoading && notes !== originalNotes, [
+    isLoading,
+    notes,
+    originalNotes,
+  ])
 
   // Track original notes when modal opens
   useEffect(() => {
     if (open && !isLoading) {
-      setOriginalNotes(notes)
-      setHasUnsavedChanges(false)
+      Promise.resolve().then(() => {
+        setOriginalNotes(notes)
+      })
     }
   }, [open, isLoading, notes])
 
-  // Track if notes have changed
-  useEffect(() => {
-    if (!isLoading) {
-      setHasUnsavedChanges(notes !== originalNotes)
-    }
-  }, [notes, originalNotes, isLoading])
-
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     if (hasUnsavedChanges) {
       setShowDiscardConfirm(true)
       return
     }
     onClose()
-  }
+  }, [hasUnsavedChanges, onClose])
 
-  const handleSave = async () => {
+  const handleSave = useCallback(async () => {
     await onSave()
     setOriginalNotes(notes)
-    setHasUnsavedChanges(false)
-  }
+  }, [notes, onSave])
 
   // Keyboard shortcut: Ctrl/Cmd + S to save
   useEffect(() => {
@@ -76,7 +78,7 @@ export default function NotesModal({
     return () => {
       document.removeEventListener('keydown', handleKeyDown)
     }
-  }, [open, isSaving, isLoading, hasUnsavedChanges, notes])
+  }, [open, isSaving, isLoading, hasUnsavedChanges, handleClose, handleSave])
 
   useEffect(() => {
     if (!open) return

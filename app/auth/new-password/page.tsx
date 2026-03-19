@@ -1,3 +1,10 @@
+/**
+ * New Password Page
+ * Handles first-login or reset-password flow and then returns users to login.
+ *
+ * @module app/auth/new-password/page
+ */
+
 'use client'
 import { useState, useEffect } from 'react'
 import { createBrowserClient } from '@supabase/auth-helpers-nextjs'

@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/applications/passports/components/NewApplicationForm.tsx
+ * Dashboard module for applications/passports/components/NewApplicationForm.tsx.
+ */
+
 import React from 'react'
 import { PakApplicationFormData } from './types'
 import type { PakApplicationFormErrors } from './schemas'

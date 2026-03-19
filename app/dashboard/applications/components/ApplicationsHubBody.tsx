@@ -1,3 +1,10 @@
+/**
+ * Applications Hub Body
+ * Renders the normalized overview cards, recent activity, and attention lists for the applications dashboard.
+ *
+ * @module app/dashboard/applications/components/ApplicationsHubBody
+ */
+
 import Link from 'next/link'
 
 type ServiceKey = 'nadra' | 'pak-passport' | 'gb-passport' | 'visa'

@@ -1,3 +1,18 @@
+/**
+ * API Route: Add NADRA Application
+ *
+ * POST /api/nadra/add-application
+ *
+ * Creates a new NADRA/identity document application record, supporting both
+ * single-person submissions and family group (head + family members) entries.
+ * Sets initial status to 'New' and records the submitting agent.
+ *
+ * Request Body: { familyHeadId, persons: NadraPerson[], agentId?, notes? }
+ * Response Success (200): { applicationId }
+ * Response Errors: 400 Missing required fields | 500 DB insert failed
+ *
+ * Authentication: Service role key
+ */
 import { createClient } from '@supabase/supabase-js'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'

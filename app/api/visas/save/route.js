@@ -1,3 +1,10 @@
+/**
+ * POST /api/visas/save
+ * Creates or updates a visa application record.
+ *
+ * @module app/api/visas/save
+ */
+
 import { createClient } from '@supabase/supabase-js'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'

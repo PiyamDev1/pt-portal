@@ -1,6 +1,11 @@
+/**
+ * Visa Applications Client
+ * Manages visa table interactions, attention-mode filtering,
+ * metadata-driven form behavior, and save/update flows.
+ */
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Plus, ChevronDown } from 'lucide-react'
 import { toast } from 'sonner'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -26,25 +31,25 @@ export default function VisaApplicationsClient({
   const [editingItem, setEditingItem] = useState<VisaApplicationRecord | null>(null)
   const [metadata, setMetadata] = useState<VisaMetadata>({ countries: [], types: [] })
 
-  const loadMetadata = async () => {
+  const loadMetadata = useCallback(async () => {
     try {
       const data = await loadVisaMetadata()
       setMetadata(data)
     } catch (err) {
       console.error('Failed to load metadata')
     }
-  }
+  }, [])
 
   useEffect(() => {
-    loadMetadata()
-  }, [])
+    void Promise.resolve().then(loadMetadata)
+  }, [loadMetadata])
 
   // Refresh metadata whenever the form is opened (e.g., after seeding)
   useEffect(() => {
     if (isFormOpen) {
-      loadMetadata()
+      void Promise.resolve().then(loadMetadata)
     }
-  }, [isFormOpen])
+  }, [isFormOpen, loadMetadata])
 
   const handleSave = async (data: VisaFormState) => {
     try {

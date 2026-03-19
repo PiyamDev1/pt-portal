@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/lms/components/modify-plan/DeleteSection.tsx
+ * Dashboard module for lms/components/modify-plan/DeleteSection.tsx.
+ */
+
 'use client'
 
 import { ConfirmationModal } from '../ConfirmationModal'

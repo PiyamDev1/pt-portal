@@ -1,3 +1,10 @@
+/**
+ * LMS Statement Utilities
+ * Helpers for installment schedule generation and statement calculations.
+ *
+ * @module app/dashboard/lms/statement/utils/statementUtils
+ */
+
 export interface GeneratedInstallment {
   date: string
   amount: number
@@ -5,7 +12,8 @@ export interface GeneratedInstallment {
 }
 
 interface StatementTransaction {
-  transaction_timestamp: string
+  transaction_timestamp?: string
+  created_at?: string
   transaction_type?: string
   amount: string | number
   remark?: string
@@ -45,14 +53,16 @@ export function generateInstallmentSchedule(
 export function generateCSV(transactions: StatementTransaction[]): string {
   const headers = ['Date', 'Type', 'Description', 'Debit', 'Credit']
   const rows = transactions.map((tx) => [
-    new Date(tx.transaction_timestamp).toLocaleDateString(),
+    new Date(tx.transaction_timestamp || tx.created_at || '').toLocaleDateString(),
     (tx.transaction_type || '').toLowerCase(),
     tx.remark || '',
     (tx.transaction_type || '').toLowerCase() === 'service' ||
     (tx.transaction_type || '').toLowerCase() === 'fee'
-      ? parseFloat(tx.amount).toFixed(2)
+      ? parseFloat(String(tx.amount)).toFixed(2)
       : '',
-    (tx.transaction_type || '').toLowerCase() === 'payment' ? parseFloat(tx.amount).toFixed(2) : '',
+    (tx.transaction_type || '').toLowerCase() === 'payment'
+      ? parseFloat(String(tx.amount)).toFixed(2)
+      : '',
   ])
 
   const csv = [headers, ...rows].map((row) => row.map((cell) => `"${cell}"`).join(',')).join('\n')

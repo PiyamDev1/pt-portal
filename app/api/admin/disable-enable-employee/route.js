@@ -1,3 +1,10 @@
+/**
+ * POST /api/admin/disable-enable-employee
+ * Toggles employee active state based on manager/admin authorization scope.
+ *
+ * @module app/api/admin/disable-enable-employee
+ */
+
 import { createClient } from '@supabase/supabase-js'
 import { createServerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'

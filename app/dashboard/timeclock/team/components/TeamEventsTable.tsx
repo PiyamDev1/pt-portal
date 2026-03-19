@@ -1,3 +1,10 @@
+/**
+ * Team Events Table
+ * Tabular display of team punch events including adjustment controls and geo/device context.
+ *
+ * @module app/dashboard/timeclock/team/components/TeamEventsTable
+ */
+
 type TimeclockEvent = {
   id: string
   event_type: string

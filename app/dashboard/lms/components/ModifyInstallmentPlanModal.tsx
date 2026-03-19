@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/lms/components/ModifyInstallmentPlanModal.tsx
+ * Dashboard module for lms/components/ModifyInstallmentPlanModal.tsx.
+ */
+
 'use client'
 
 import { useState } from 'react'

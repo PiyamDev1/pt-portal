@@ -1,3 +1,19 @@
+/**
+ * Pricing Management Page
+ * 
+ * Service pricing configuration and management interface (Admin only):
+ * - View and edit service fee pricing
+ * - Manage pricing tiers and discounts
+ * - Configure surcharges and additional fees
+ * - Set pricing effective dates
+ * 
+ * Server component that:
+ * - Verifies admin authorization
+ * - Loads current pricing configuration from database
+ * - Renders pricing table for editing
+ * 
+ * @module app/dashboard/pricing/page
+ */
 import { createServerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'

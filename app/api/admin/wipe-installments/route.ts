@@ -1,3 +1,10 @@
+/**
+ * POST /api/admin/wipe-installments
+ * Maintenance endpoint to clear all rows from loan_installments.
+ *
+ * @module app/api/admin/wipe-installments
+ */
+
 import { createClient } from '@supabase/supabase-js'
 import { toErrorMessage } from '@/lib/api/error'
 import { apiError, apiOk } from '@/lib/api/http'

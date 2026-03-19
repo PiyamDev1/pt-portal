@@ -1,3 +1,10 @@
+/**
+ * GET /api/passports/gb/metadata
+ * Returns GB passport lookup data and pricing matrix for form dropdowns.
+ *
+ * @module app/api/passports/gb/metadata
+ */
+
 import { createClient } from '@supabase/supabase-js'
 import { apiOk, apiError } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'

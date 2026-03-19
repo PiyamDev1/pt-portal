@@ -1,3 +1,8 @@
+/**
+ * Module: app/api/documents/upload-direct/route.ts
+ * API route or server helper for documents/upload-direct/route.ts.
+ */
+
 import { NextRequest } from 'next/server'
 import { PutObjectCommand } from '@aws-sdk/client-s3'
 import { getS3Client } from '@/lib/s3Client'

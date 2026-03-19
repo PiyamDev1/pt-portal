@@ -1,3 +1,44 @@
+/**
+ * POST /api/timeclock/scan
+ * 
+ * Timeclock QR Code Scan Handler
+ * Processes QR code scans from timeclock devices for employee punch-in/out
+ * Handles signature verification, device authentication, and event recording
+ * 
+ * Authentication: Session cookie (user must be logged in)
+ * 
+ * Request Body:
+ * {
+ *   qrText: string         // QR code payload (JSON or base64url encoded)
+ *   geo?: GeoPoint         // Optional geolocation {lat, lng, accuracy}
+ * }
+ * 
+ * QR Payload Format:
+ * {
+ *   v: 1                   // Protocol version
+ *   device_id: string      // Device identifier
+ *   ts: number             // Unix timestamp (seconds or milliseconds)
+ *   nonce: string          // Random nonce for signature
+ *   sig: string            // HMAC-SHA256 signature of payload
+ * }
+ * 
+ * Response Success (200):
+ * {
+ *   event_id: string       // Created timeclock event ID
+ *   punch_type: string     // 'in' or 'out'
+ *   timestamp: string      // ISO timestamp of the punch
+ * }
+ * 
+ * Response Errors:
+ * 400 - Invalid QR payload, invalid timestamp, device not found
+ * 401 - User not authenticated
+ * 403 - Device inactive or signature verification failed
+ * 409 - Duplicate scan (within 8 second window)
+ * 500 - Database error
+ * 
+ * @module app/api/timeclock/scan
+ */
+
 import { NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies, headers } from 'next/headers'
@@ -35,6 +76,10 @@ function base64UrlDecode(input: string) {
   return Buffer.from(normalized, 'base64').toString('utf8')
 }
 
+/**
+ * Parse QR code payload from text (raw JSON, base64url, or with namespace prefix)
+ * Handles multiple QR encoding formats for device compatibility
+ */
 function parseQrPayload(qrText: string): QrPayload | null {
   const trimmed = qrText.trim()
   if (!trimmed) return null
@@ -68,12 +113,19 @@ function parseQrPayload(qrText: string): QrPayload | null {
   }
 }
 
+/**
+ * Normalize timestamp to unix seconds
+ * Handles both millisecond and second timestamps
+ */
 function normalizeTimestamp(ts: number) {
   if (!Number.isFinite(ts)) return null
   if (ts > 1_000_000_000_000) return Math.floor(ts / 1000)
   return Math.floor(ts)
 }
 
+/**
+ * Constant-time string equality check to prevent timing attacks
+ */
 function safeEqual(a: string, b: string) {
   const aBuf = Buffer.from(a)
   const bBuf = Buffer.from(b)
@@ -81,10 +133,16 @@ function safeEqual(a: string, b: string) {
   return crypto.timingSafeEqual(aBuf, bBuf)
 }
 
+/**
+ * Compute HMAC-SHA256 hash for signature verification
+ */
 function computeHash(material: string) {
   return crypto.createHash('sha256').update(material).digest('hex')
 }
 
+/**
+ * Get UTC day start and end times for deduplication window
+ */
 function getUtcDayBounds(date: Date) {
   const start = new Date(
     Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 0, 0, 0, 0),

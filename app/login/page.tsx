@@ -1,3 +1,10 @@
+/**
+ * Login Page
+ * Primary authentication entrypoint with branch and credential validation.
+ *
+ * @module app/login/page
+ */
+
 'use client'
 import { useState } from 'react'
 import { createBrowserClient } from '@supabase/auth-helpers-nextjs'

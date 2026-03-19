@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/applications/nadra/components/StatsOverview.tsx
+ * Dashboard module for applications/nadra/components/StatsOverview.tsx.
+ */
+
 import { countByStatus, countByStatuses, getNadraRecord } from './helpers'
 import type { NadraApplication } from '@/app/types/nadra'
 

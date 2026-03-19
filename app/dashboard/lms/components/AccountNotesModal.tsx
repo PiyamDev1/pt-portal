@@ -1,3 +1,10 @@
+/**
+ * Account Notes Modal
+ * Modal UI for viewing and editing LMS account notes.
+ *
+ * @module app/dashboard/lms/components/AccountNotesModal
+ */
+
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'

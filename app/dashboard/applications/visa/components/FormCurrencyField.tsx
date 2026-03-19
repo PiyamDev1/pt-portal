@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/applications/visa/components/FormCurrencyField.tsx
+ * Dashboard module for applications/visa/components/FormCurrencyField.tsx.
+ */
+
 interface FormCurrencyFieldProps {
   label: string
   value: number

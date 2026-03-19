@@ -1,3 +1,10 @@
+/**
+ * Staff Add Employee Form
+ * Local form component for creating a new employee profile within settings.
+ *
+ * @module app/dashboard/settings/components/StaffAddEmployeeForm
+ */
+
 type Role = {
   id: string
   name: string

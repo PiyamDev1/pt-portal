@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/lms/components/Skeletons.tsx
+ * Dashboard module for lms/components/Skeletons.tsx.
+ */
+
 'use client'
 
 /**

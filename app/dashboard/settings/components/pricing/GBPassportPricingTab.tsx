@@ -1,3 +1,10 @@
+/**
+ * GB Passport Pricing Tab
+ * Pricing editor for Great Britain passport pricing entries and variants.
+ *
+ * @module app/dashboard/settings/components/pricing/GBPassportPricingTab
+ */
+
 'use client'
 
 import { useState, memo } from 'react'

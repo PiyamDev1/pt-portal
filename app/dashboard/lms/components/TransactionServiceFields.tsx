@@ -1,3 +1,10 @@
+/**
+ * Transaction Service Fields
+ * Form section for installment-plan-specific inputs such as deposit, terms, and schedule preview.
+ *
+ * @module app/dashboard/lms/components/TransactionServiceFields
+ */
+
 import { Calendar } from 'lucide-react'
 import { InstallmentPlanPreview } from './InstallmentPlanPreview'
 import { PAYMENT_FREQUENCIES } from '../constants'

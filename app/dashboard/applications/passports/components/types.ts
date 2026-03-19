@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/applications/passports/components/types.ts
+ * Dashboard module for applications/passports/components/types.ts.
+ */
+
 export type PakApplicationFormData = {
   applicantName: string
   applicantCnic: string

@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/lms/statement/components/TransactionFilters.tsx
+ * Dashboard module for lms/statement/components/TransactionFilters.tsx.
+ */
+
 interface StatementFilter {
   type: string
   dateFrom: string

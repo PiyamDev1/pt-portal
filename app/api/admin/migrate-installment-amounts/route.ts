@@ -1,3 +1,10 @@
+/**
+ * POST /api/admin/migrate-installment-amounts
+ * Backfills installment amount fields and derived payment totals for legacy LMS rows.
+ *
+ * @module app/api/admin/migrate-installment-amounts
+ */
+
 import { createClient } from '@supabase/supabase-js'
 import { toErrorMessage } from '@/lib/api/error'
 import { apiError, apiOk } from '@/lib/api/http'

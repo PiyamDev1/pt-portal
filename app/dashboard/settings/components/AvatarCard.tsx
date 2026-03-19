@@ -1,3 +1,10 @@
+/**
+ * Avatar Card
+ * Displays current user avatar and exposes image upload control.
+ *
+ * @module app/dashboard/settings/components/AvatarCard
+ */
+
 import Image from 'next/image'
 import type { AuthUser } from '@/app/types/auth'
 

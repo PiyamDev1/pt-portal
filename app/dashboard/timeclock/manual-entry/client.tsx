@@ -1,5 +1,11 @@
+/**
+ * Manual Entry Client
+ * Generates and displays temporary manual punch codes/QR payloads,
+ * with countdown, refresh, and self-submit helper actions.
+ */
 'use client'
 
+import Image from 'next/image'
 import { useState, useEffect, useRef } from 'react'
 import QRCode from 'qrcode'
 
@@ -173,12 +179,13 @@ export default function ManualEntryClient({ userId }: { userId: string }) {
             <div className="flex flex-col items-center">
               <p className="text-sm font-semibold text-gray-700 mb-4">Scan QR Code</p>
               {qrDataUrl ? (
-                <img
+                <Image
                   src={qrDataUrl}
                   alt="Manual entry QR code"
-                  className="border-2 border-gray-200 rounded-lg"
+                  unoptimized
                   width={256}
                   height={256}
+                  className="border-2 border-gray-200 rounded-lg"
                 />
               ) : (
                 <div className="h-64 w-64 border-2 border-dashed border-gray-200 rounded-lg flex items-center justify-center text-sm text-gray-500">

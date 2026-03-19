@@ -1,3 +1,8 @@
+/**
+ * Module: lib/services/documentClient.ts
+ * Shared utility module for domain and infrastructure logic.
+ */
+
 import { documentService } from './documentService'
 
 export const documentClient = {

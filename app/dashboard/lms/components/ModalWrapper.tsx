@@ -1,3 +1,10 @@
+/**
+ * Modal Wrapper
+ * Shared shell component for LMS modal layout and accessibility framing.
+ *
+ * @module app/dashboard/lms/components/ModalWrapper
+ */
+
 'use client'
 
 import React, { useEffect, useId, useRef } from 'react'

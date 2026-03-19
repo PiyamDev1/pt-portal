@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/applications/passports-gb/components/LedgerTable.tsx
+ * Dashboard module for applications/passports-gb/components/LedgerTable.tsx.
+ */
+
 'use client'
 
 import { MoreHorizontal, User, Clock } from 'lucide-react'

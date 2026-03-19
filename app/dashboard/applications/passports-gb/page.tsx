@@ -1,4 +1,20 @@
-import { createServerClient } from '@supabase/auth-helpers-nextjs'
+/**
+ * British Passport Applications Page
+ * 
+ * British passport application management:
+ * - View British passport application status
+ * - Submit passport application forms and documents
+ * - Track passport printing and delivery from UK Home Office
+ * - Manage passport renewals and emergency replacements
+ * - Download passport documents when issued
+ * 
+ * Server component that:
+ * - Authenticates user access to GB passport records
+ * - Loads British passport applications
+ * - Integrates with UK Home Office status tracking
+ * 
+ * @module app/dashboard/applications/passports-gb/page
+ */import { createServerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import PageHeader from '@/app/components/PageHeader.client'

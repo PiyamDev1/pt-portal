@@ -1,3 +1,12 @@
+/**
+ * Issue Report Detail Panel
+ * Displays the selected issue report, assignment controls, and artifact actions.
+ *
+ * @module app/dashboard/settings/components/IssueReportDetailPanel
+ */
+
+import Image from 'next/image'
+
 type IssueReport = {
   id: string
   created_at: string
@@ -218,11 +227,16 @@ export function IssueReportDetailPanel({
                   onClick={() => setExpandedScreenshotUrl(detail.screenshotUrl)}
                   className="mt-3 block w-full"
                 >
-                  <img
-                    src={detail.screenshotUrl}
-                    alt="Issue report screenshot"
-                    className="w-full rounded-xl border border-slate-200 cursor-zoom-in"
-                  />
+                  <span className="relative block aspect-[16/10] w-full overflow-hidden rounded-xl border border-slate-200">
+                    <Image
+                      src={detail.screenshotUrl}
+                      alt="Issue report screenshot"
+                      fill
+                      unoptimized
+                      sizes="(max-width: 1280px) 100vw, 60vw"
+                      className="cursor-zoom-in object-contain bg-slate-50"
+                    />
+                  </span>
                   <span className="mt-2 block text-xs text-slate-500">Click to enlarge</span>
                 </button>
               ) : (

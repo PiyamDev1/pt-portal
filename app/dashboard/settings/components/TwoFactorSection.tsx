@@ -1,3 +1,10 @@
+/**
+ * Two Factor Section
+ * Security panel UI for backup codes and 2FA reset actions.
+ *
+ * @module app/dashboard/settings/components/TwoFactorSection
+ */
+
 interface TwoFactorSectionProps {
   loading: boolean
   showCodes: string[] | null

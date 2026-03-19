@@ -1,3 +1,10 @@
+/**
+ * Statement Footer
+ * Action area for statement modal (add payment/debt and close).
+ *
+ * @module app/dashboard/lms/components/StatementFooter
+ */
+
 import { Receipt } from 'lucide-react'
 import type { Account } from '../types'
 

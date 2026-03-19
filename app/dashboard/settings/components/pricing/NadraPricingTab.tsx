@@ -1,3 +1,10 @@
+/**
+ * NADRA Pricing Tab
+ * Pricing editor UI for NADRA service pricing rows and inline CRUD actions.
+ *
+ * @module app/dashboard/settings/components/pricing/NadraPricingTab
+ */
+
 'use client'
 
 import { useState, memo } from 'react'

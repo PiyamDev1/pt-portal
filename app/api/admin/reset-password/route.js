@@ -1,3 +1,10 @@
+/**
+ * POST /api/admin/reset-password
+ * Admin-only password reset flow with temporary credential email delivery.
+ *
+ * @module app/api/admin/reset-password
+ */
+
 import { createClient } from '@supabase/supabase-js'
 import formData from 'form-data'
 import Mailgun from 'mailgun.js'

@@ -1,3 +1,17 @@
+/**
+ * API Route: Manage Pakistani Passport Record
+ *
+ * POST /api/passports/pak/manage-record
+ *   Handles multiple sub-actions for an existing passport application:
+ *   - update: edit mutable fields (MRP number, agent, fees, etc.)
+ *   - delete: soft-delete / cancel the record
+ *
+ * Request Body: { action: 'update' | 'delete', applicationId, ...fields }
+ * Response Success (200): { result }
+ * Response Errors: 400 Invalid action | 404 Record not found | 500 DB error
+ *
+ * Authentication: Service role key
+ */
 import { createClient } from '@supabase/supabase-js'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'

@@ -1,3 +1,10 @@
+/**
+ * POST /api/passports/gb/delete
+ * Deletes a GB passport application with authorization code and audit logging.
+ *
+ * @module app/api/passports/gb/delete
+ */
+
 import { createClient } from '@supabase/supabase-js'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'

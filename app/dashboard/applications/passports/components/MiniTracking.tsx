@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/applications/passports/components/MiniTracking.tsx
+ * Dashboard module for applications/passports/components/MiniTracking.tsx.
+ */
+
 import React from 'react'
 import type { TrackingStep } from './types'
 

@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/lms/hooks/useInstallmentManagement.ts
+ * Dashboard module for lms/hooks/useInstallmentManagement.ts.
+ */
+
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'

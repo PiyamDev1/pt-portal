@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/settings/components/DocumentMigrationOverviewTab.tsx
+ * Dashboard module for settings/components/DocumentMigrationOverviewTab.tsx.
+ */
+
 'use client'
 
 import { useEffect, useState } from 'react'

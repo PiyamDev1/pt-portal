@@ -1,3 +1,25 @@
+/**
+ * API Route: Loan Management System (LMS) - Account Listing
+ *
+ * GET  /api/lms
+ *   Returns paginated loan accounts with their latest transaction details.
+ *   Query params:
+ *     filter     string  - 'active' | 'overdue' | 'all' | 'settled' (default: 'active')
+ *     accountId  string  - Return a single account regardless of filter
+ *     page       number  - Page number (default: 1)
+ *     limit      number  - Page size (max: 100, default: 50)
+ *
+ * POST /api/lms
+ *   Creates a new loan account with optional installment plan.
+ *   Body: { employeeId, amount, serviceType, startDate, installmentCount?, ... }
+ *
+ * DELETE /api/lms
+ *   Marks a loan account as settled/deleted.
+ *   Body: { accountId }
+ *
+ * Authentication: Service role key
+ * Response Errors: 500 Supabase not configured | 400 Validation | 500 DB error
+ */
 import { createClient } from '@supabase/supabase-js'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'

@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/lms/statement/[accountId]/page.tsx
+ * Dashboard module for lms/statement/[accountId]/page.tsx.
+ */
+
 'use client'
 
 import { useParams } from 'next/navigation'

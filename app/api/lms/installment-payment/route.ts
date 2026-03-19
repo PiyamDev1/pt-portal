@@ -1,3 +1,21 @@
+/**
+ * API Route: Record / Update Installment Payment
+ *
+ * POST /api/lms/installment-payment
+ *   Records a payment against a specific installment or loan.
+ *   Body: { installmentId?, employeeId?, paymentAmount, paymentMethod?,
+ *           paymentDate?, loanId?, serviceTransactionId? }
+ *
+ * GET  /api/lms/installment-payment?transactionId=<id>
+ *   Returns the payment status summary for a loan transaction.
+ *
+ * PATCH /api/lms/installment-payment
+ *   Corrects an existing payment record (amount/date/method).
+ *   Body: { transactionId?, paymentAmount?, paymentDate?, paymentMethod? }
+ *
+ * Authentication: Session cookie (Supabase user auth)
+ * Response Errors: 400 Validation failed | 401 Not authenticated | 500 DB error
+ */
 import { z } from 'zod'
 import { ensureInstallmentsTableExists } from '@/lib/installmentsDb'
 import { apiError, apiOk } from '@/lib/api/http'

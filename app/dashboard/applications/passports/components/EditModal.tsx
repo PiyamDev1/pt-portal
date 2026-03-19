@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/applications/passports/components/EditModal.tsx
+ * Dashboard module for applications/passports/components/EditModal.tsx.
+ */
+
 import React, { useEffect, useRef } from 'react'
 import type { PakEditFormData } from './types'
 

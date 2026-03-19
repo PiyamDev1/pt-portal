@@ -1,3 +1,10 @@
+/**
+ * POST /api/admin/seed-payment-methods
+ * Seeds default loan payment methods for LMS setup environments.
+ *
+ * @module app/api/admin/seed-payment-methods
+ */
+
 import { createClient } from '@supabase/supabase-js'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'

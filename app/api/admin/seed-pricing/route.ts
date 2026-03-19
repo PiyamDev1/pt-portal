@@ -1,3 +1,10 @@
+/**
+ * POST /api/admin/seed-pricing
+ * Seeds default pricing catalog entries across supported service modules.
+ *
+ * @module app/api/admin/seed-pricing
+ */
+
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest } from 'next/server'
 import { toErrorMessage } from '@/lib/api/error'

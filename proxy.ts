@@ -1,3 +1,7 @@
+/**
+ * Request Proxy Middleware
+ * Applies lightweight in-memory token-bucket rate limiting for API routes.
+ */
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 

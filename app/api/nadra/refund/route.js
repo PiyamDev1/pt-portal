@@ -1,3 +1,18 @@
+/**
+ * API Route: NADRA Application Refund
+ *
+ * POST /api/nadra/refund
+ *
+ * Records a refund against a NADRA application and updates the refund
+ * amount/date fields. Also appends a 'Refunded' status event to the
+ * status history table.
+ *
+ * Request Body: { applicationId: string, refundAmount: number, refundDate: string }
+ * Response Success (200): { refundedApplicationId }
+ * Response Errors: 400 Missing fields | 500 DB error
+ *
+ * Authentication: Service role key
+ */
 import { createClient } from '@supabase/supabase-js'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'

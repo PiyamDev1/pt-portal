@@ -1,3 +1,10 @@
+/**
+ * POST /api/passports/gb/add
+ * Creates a new GB passport application and related applicant/application rows.
+ *
+ * @module app/api/passports/gb/add
+ */
+
 import { createClient } from '@supabase/supabase-js'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'

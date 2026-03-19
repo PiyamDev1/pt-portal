@@ -1,3 +1,10 @@
+/**
+ * GET /api/admin/issue-reports
+ * Lists issue reports for master-admin review with filtering and search options.
+ *
+ * @module app/api/admin/issue-reports
+ */
+
 import { z } from 'zod'
 import { verifyMasterAdminSession } from '@/lib/issueReportAuth'
 import { getSupabaseClient } from '@/lib/supabaseClient'

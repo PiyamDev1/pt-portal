@@ -1,3 +1,8 @@
+/**
+ * Module: app/api/lms/installment-payment/helpers.ts
+ * API route or server helper for lms/installment-payment/helpers.ts.
+ */
+
 import { createServerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 import { apiError, apiOk } from '@/lib/api/http'

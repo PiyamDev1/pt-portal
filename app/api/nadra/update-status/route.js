@@ -1,3 +1,18 @@
+/**
+ * API Route: Update NADRA Application Status
+ *
+ * POST /api/nadra/update-status
+ *
+ * Updates the processing status of a NADRA application and appends a row
+ * to nadra_status_history. Valid statuses include: New, Processing,
+ * Ready for Collection, Collected, Rejected, Cancelled.
+ *
+ * Request Body: { applicationId: string, status: string, notes?: string }
+ * Response Success (200): { updatedApplicationId }
+ * Response Errors: 400 Missing fields | 500 DB error
+ *
+ * Authentication: Service role key
+ */
 import { createClient } from '@supabase/supabase-js'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'

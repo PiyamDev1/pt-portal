@@ -1,3 +1,17 @@
+/**
+ * API Route: Batch Update Installments
+ *
+ * POST /api/lms/update-installments
+ *
+ * Updates one or more installment records in bulk (due dates, amounts,
+ * or status). Used by the admin panel to reschedule or modify a payment plan.
+ *
+ * Request Body: { installments: Array<{ id, due_date?, amount?, status? }> }
+ * Response Success (200): { updatedCount }
+ * Response Errors: 400 Missing/empty installments | 500 DB update failed
+ *
+ * Authentication: Service role key
+ */
 import { createClient } from '@supabase/supabase-js'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'

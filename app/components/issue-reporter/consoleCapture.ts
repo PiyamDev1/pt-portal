@@ -1,3 +1,7 @@
+/**
+ * Console Capture Utilities
+ * Patches console and request channels to retain recent diagnostics for issue reports.
+ */
 'use client'
 
 type ConsoleLevel = 'log' | 'info' | 'warn' | 'error'

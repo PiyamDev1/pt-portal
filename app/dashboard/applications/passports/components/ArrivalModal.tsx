@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/applications/passports/components/ArrivalModal.tsx
+ * Dashboard module for applications/passports/components/ArrivalModal.tsx.
+ */
+
 import React, { useEffect, useRef } from 'react'
 
 type ArrivalModalProps = {

@@ -1,7 +1,18 @@
+/**
+ * Team Adjustment Modal
+ * Modal for one-time manager/admin corrections to recorded team timeclock punches.
+ *
+ * @module app/dashboard/timeclock/team/components/TeamAdjustmentModal
+ */
+
 type TimeclockEvent = {
   event_type: string
   punch_type?: string
   adjusted_at?: string | null
+  adjusted_scanned_at?: string | null
+  adjusted_device_ts?: string | null
+  scanned_at?: string | null
+  device_ts?: string | null
   adjustment_reason?: string | null
   employees?: { full_name?: string } | { full_name?: string }[] | null
 }

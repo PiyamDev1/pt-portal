@@ -1,3 +1,20 @@
+/**
+ * Manual Attendance Entry Page
+ * 
+ * Manual time clock entry for exceptional cases:
+ * - Enter historical time records for employees
+ * - Create punch records for missing scans
+ * - Bulk manual entry for multiple records
+ * - Audit trail of manual entries
+ * - Request approval for manual entries
+ * 
+ * Server component with authorization:
+ * - Verifies manager-level access
+ * - Loads manual entry templates
+ * - Renders manual entry form
+ * 
+ * @module app/dashboard/timeclock/manual-entry/page
+ */
 import { createServerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'

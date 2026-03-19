@@ -1,3 +1,10 @@
+/**
+ * GET/POST /api/passports/pak/notes
+ * Reads and updates notes attached to Pakistani passport applications.
+ *
+ * @module app/api/passports/pak/notes
+ */
+
 import { createClient } from '@supabase/supabase-js'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'

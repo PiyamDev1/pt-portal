@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/applications/passports-gb/components/HistoryModal.tsx
+ * Dashboard module for applications/passports-gb/components/HistoryModal.tsx.
+ */
+
 'use client'
 import { useEffect, useRef } from 'react'
 import { X, Clock, FileText, User } from 'lucide-react'

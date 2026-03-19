@@ -1,3 +1,10 @@
+/**
+ * Passports Loading Skeleton
+ * Route-level placeholder UI shown while passports dashboard data is loading.
+ *
+ * @module app/dashboard/applications/passports/loading
+ */
+
 export default function Loading() {
   return (
     <div className="min-h-screen bg-slate-50 animate-pulse">

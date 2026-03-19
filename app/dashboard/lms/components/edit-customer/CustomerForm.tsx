@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/lms/components/edit-customer/CustomerForm.tsx
+ * Dashboard module for lms/components/edit-customer/CustomerForm.tsx.
+ */
+
 'use client'
 
 import { Phone } from 'lucide-react'

@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/applications/visa/components/OfficeUseSection.tsx
+ * Dashboard module for applications/visa/components/OfficeUseSection.tsx.
+ */
+
 import { Box } from 'lucide-react'
 import { FormInputField } from './FormInputField'
 import { FormCurrencyField } from './FormCurrencyField'

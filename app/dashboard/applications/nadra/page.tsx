@@ -1,9 +1,27 @@
+/**
+ * NADRA Applications Page
+ * 
+ * National Database and Registration Authority (NADRA) operations:
+ * - Family registration and head of family procedures
+ * - NADRA B-Form issuance tracking
+ * - Relationship and identity verification
+ * - NADRA record updates and corrections
+ * - Family tree and member documentation
+ * 
+ * Server component that:
+ * - Authenticates user access to NADRA records
+ * - Loads family registration data from NADRA system
+ * - Renders family tree and status dashboard
+ * 
+ * @module app/dashboard/applications/nadra/page
+ */
 import { createServerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import PageHeader from '@/app/components/PageHeader.client'
 import NadraClient from './client'
 import DashboardClientWrapper from '@/app/dashboard/client-wrapper'
+import type { NadraApplication } from '@/app/types/nadra'
 
 export default async function NadraPage() {
   const cookieStore = await cookies()
@@ -78,8 +96,17 @@ export default async function NadraPage() {
   const familyHeadIds = new Set(applications?.map((app) => app.family_head_id) || [])
   const headsWithNoMembers = familyHeads?.filter((head) => !familyHeadIds.has(head.id)) || []
 
-  const allRecords = [
-    ...(applications || []),
+  const normalizedApplications: NadraApplication[] = (applications || []).map((app) => ({
+    id: app.id,
+    tracking_number: app.tracking_number,
+    family_head_id: app.family_head_id,
+    family_heads: Array.isArray(app.family_heads) ? (app.family_heads[0] ?? null) : app.family_heads,
+    applicants: Array.isArray(app.applicants) ? (app.applicants[0] ?? null) : app.applicants,
+    nadra_services: app.nadra_services ?? null,
+  }))
+
+  const allRecords: NadraApplication[] = [
+    ...normalizedApplications,
     ...headsWithNoMembers.map((head) => ({
       id: null,
       tracking_number: null,
@@ -87,6 +114,7 @@ export default async function NadraPage() {
       family_heads: head,
       applicants: null,
       nadra_services: null,
+      created_at: null,
     })),
   ]
 

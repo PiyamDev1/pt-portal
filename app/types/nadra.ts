@@ -1,3 +1,14 @@
+/**
+ * NADRA Service Type Definitions
+ * Comprehensive types for NADRA (National Database & Registration Authority) applications
+ * Includes persons, applications, services, history entries, and family groups
+ * 
+ * @module app/types/nadra
+ */
+
+/**
+ * NADRA person (applicant or family head)
+ */
 export interface NadraPerson {
   id: string
   first_name: string | null
@@ -31,6 +42,9 @@ export interface NadraServiceRecord {
   employees?: NadraEmployee | NadraEmployee[] | null
 }
 
+/**
+ * NADRA application document with applicant and services
+ */
 export interface NadraApplication {
   id: string | null
   tracking_number: string | null
@@ -51,6 +65,10 @@ export interface NadraHistoryEntry {
   date: string
 }
 
+/**
+ * NADRA family processing group
+ * Contains a family head and all their related applications
+ */
 export interface NadraFamilyGroup {
   head: NadraPerson | null | undefined
   members: NadraApplication[]

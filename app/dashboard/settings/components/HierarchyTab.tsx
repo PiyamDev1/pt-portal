@@ -1,3 +1,10 @@
+/**
+ * Hierarchy Tab
+ * Manager-reporting structure editor for staff relationships and reporting lines.
+ *
+ * @module app/dashboard/settings/components/HierarchyTab
+ */
+
 'use client'
 import { useMemo, useState } from 'react'
 import { toast } from 'sonner'

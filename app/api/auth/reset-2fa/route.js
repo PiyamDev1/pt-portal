@@ -1,3 +1,18 @@
+/**
+ * API Route: Reset Two-Factor Authentication
+ *
+ * POST /api/auth/reset-2fa
+ *
+ * Removes all MFA factors for a user via the Supabase Admin API and resets
+ * the two_factor_enabled flag in the employees table. The user will be
+ * forced to set up 2FA again on their next login.
+ *
+ * Request Body: { userId: string }
+ * Response Success (200): { resetUserId, removedFactors: number }
+ * Response Errors: 400 Missing userId | 500 MFA API or DB error
+ *
+ * Authentication: Service role key (called by admin panel)
+ */
 import { createClient } from '@supabase/supabase-js'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'

@@ -1,3 +1,8 @@
+/**
+ * Module: app/api/documents/signed-url/route.ts
+ * API route or server helper for documents/signed-url/route.ts.
+ */
+
 import { getSignedDocumentPreviewUrl } from '@/lib/services/documentServer'
 import { apiError, apiOk } from '@/lib/api/http'
 

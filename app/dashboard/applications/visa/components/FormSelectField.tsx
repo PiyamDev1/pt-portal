@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/applications/visa/components/FormSelectField.tsx
+ * Dashboard module for applications/visa/components/FormSelectField.tsx.
+ */
+
 interface FormSelectFieldProps {
   label: string
   value: string | number

@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/applications/nadra/components/useNadraAuxiliaryManagement.ts
+ * Dashboard module for applications/nadra/components/useNadraAuxiliaryManagement.ts.
+ */
+
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { getNadraRecord } from './helpers'

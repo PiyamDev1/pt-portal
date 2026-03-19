@@ -1,3 +1,10 @@
+/**
+ * Visa Pricing Tab
+ * Pricing editor for visa country/type price combinations.
+ *
+ * @module app/dashboard/settings/components/pricing/VisaPricingTab
+ */
+
 'use client'
 
 import { useState, memo } from 'react'

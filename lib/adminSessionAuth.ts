@@ -1,8 +1,19 @@
+/**
+ * Admin Session Verification Utilities
+ * Validates user session and checks for admin/maintenance permissions
+ * Used to protect sensitive admin endpoints and features
+ * 
+ * @module lib/adminSessionAuth
+ */
+
 import { createServerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import { getSupabaseClient } from '@/lib/supabaseClient'
 
+/**
+ * Common role prefixes that denote admin or maintenance access
+ */
 const ORG_ADMIN_ROLES = ['admin', 'master admin', 'super admin']
 const MAINTENANCE_ROLES = ['maintenance admin', ...ORG_ADMIN_ROLES]
 
@@ -14,6 +25,10 @@ type ProfileRoleRow = {
   role?: string | null
 }
 
+/**
+ * Normalize role name for consistent comparison
+ * Converts to lowercase, trims whitespace, replaces underscores/hyphens with spaces
+ */
 function normalizeRoleName(value: unknown) {
   return String(value || '')
     .trim()
@@ -21,6 +36,12 @@ function normalizeRoleName(value: unknown) {
     .replace(/[_-]+/g, ' ')
 }
 
+/**
+ * Verify user has an active admin session
+ * Checks authentication and validates admin/maintenance role from database
+ * Returns 401 if not authenticated, 403 if not authorized
+ * @returns Object with authorized flag and NextResponse for error cases
+ */
 export async function requireAdminSession() {
   const cookieStore = await cookies()
   const authClient = createServerClient(

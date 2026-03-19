@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/lms/components/StatementPopup.tsx
+ * Dashboard module for lms/components/StatementPopup.tsx.
+ */
+
 'use client'
 
 import { useState } from 'react'
@@ -25,7 +30,7 @@ interface SelectedInstallment {
 
 interface ModifyingTransaction {
   id: string
-  amount: number | string
+  amount: number
 }
 
 interface StatementPopupProps {

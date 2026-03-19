@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/applications/passports/components/HistoryModal.tsx
+ * Dashboard module for applications/passports/components/HistoryModal.tsx.
+ */
+
 import React, { useEffect, useRef } from 'react'
 
 type StatusHistoryEntry = {

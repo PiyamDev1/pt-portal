@@ -1,3 +1,26 @@
+/**
+ * Cron Job: Issue Report Artifact Cleanup
+ *
+ * GET /api/cron/issue-reports/cleanup
+ *
+ * Scheduled maintenance job that purges old issue report data to control
+ * storage growth. Runs in two phases:
+ *
+ *   Phase 1 — Artifact purge:
+ *     Deletes stored files (screenshots, console logs) older than
+ *     ARTIFACT_RETENTION_DAYS (30 days) from object storage and removes
+ *     the corresponding rows from issue_report_artifacts.
+ *
+ *   Phase 2 — Ticket purge:
+ *     Deletes entire issue report tickets (and cascade-deletes their
+ *     related rows) older than TICKET_RETENTION_DAYS (60 days).
+ *
+ * Authorization: Bearer token in Authorization header must match CRON_SECRET
+ *   env var. If CRON_SECRET is not set, the route is open (dev convenience).
+ *
+ * Response Success (200): { deletedArtifacts, deletedTickets, errors[] }
+ * Response Errors: 401 Unauthorized | 500 DB or storage error
+ */
 import { toErrorMessage } from '@/lib/api/error'
 import { apiError, apiOk } from '@/lib/api/http'
 import { deleteIssueArtifact } from '@/lib/issueReportStorage'

@@ -1,3 +1,10 @@
+/**
+ * NADRA Complaint Modal
+ * Collects complaint identifiers and notes when escalating NADRA cases.
+ *
+ * @module app/dashboard/applications/nadra/components/NadraComplaintModal
+ */
+
 type NadraComplaintModalProps = {
   isOpen: boolean
   trackingNumber: string

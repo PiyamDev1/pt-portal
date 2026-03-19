@@ -1,3 +1,10 @@
+/**
+ * GET/PATCH /api/admin/issue-reports/[reportId]
+ * Fetches full issue detail and updates assignment/status lifecycle fields.
+ *
+ * @module app/api/admin/issue-reports/[reportId]
+ */
+
 import { verifyMasterAdminSession } from '@/lib/issueReportAuth'
 import { getSupabaseClient } from '@/lib/supabaseClient'
 import { normalizeStatus } from '@/lib/issueReportUtils'

@@ -1,3 +1,10 @@
+/**
+ * GET /api/passports/pak/status-history
+ * Returns status transition history for Pakistani passport applications.
+ *
+ * @module app/api/passports/pak/status-history
+ */
+
 import { createClient } from '@supabase/supabase-js'
 import { apiOk, apiError } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'

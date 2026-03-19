@@ -1,3 +1,14 @@
+/**
+ * Issue Report Utilities
+ * Helper functions for issue report processing, validation, and enrichment
+ * 
+ * @module lib/issueReportUtils
+ */
+
+/**
+ * Regex patterns to redact sensitive data from console logs and stack traces
+ * Matches authorization headers, tokens, passwords, secrets, cookies, etc.
+ */
 const REDACTION_PATTERNS: Array<[RegExp, string]> = [
   [/(authorization\s*[=:]\s*bearer\s+)[^\s,"]+/gi, '$1[REDACTED]'],
   [/(bearer\s+)[a-z0-9\-._~+/]+=*/gi, '$1[REDACTED]'],
@@ -5,9 +16,20 @@ const REDACTION_PATTERNS: Array<[RegExp, string]> = [
   [/((?:password|secret|cookie|set-cookie)\s*[=:]\s*["'])[^"']+(["'])/gi, '$1[REDACTED]$2'],
 ]
 
+/**
+ * Issue severity levels (low to critical)
+ */
 export type IssueSeverity = 'low' | 'medium' | 'high' | 'critical'
+/**
+ * Issue lifecycle statuses
+ */
 export type IssueStatus = 'new' | 'investigating' | 'solved' | 'closed'
 
+/**
+ * Redact sensitive text (auth tokens, passwords, secrets)
+ * @param value The text to redact
+ * @returns The text with sensitive values replaced with [REDACTED]
+ */
 export function redactSensitiveText(value: string) {
   return REDACTION_PATTERNS.reduce(
     (output, [pattern, replacement]) => output.replace(pattern, replacement),

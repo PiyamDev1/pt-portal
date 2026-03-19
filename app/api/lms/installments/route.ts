@@ -1,3 +1,14 @@
+/**
+ * API Route: Loan Installments
+ *
+ * GET /api/lms/installments?transactionId=<id>
+ *   Returns all installment records for a given loan transaction.
+ *   Auto-creates the loan_installments table if it does not yet exist.
+ *   Falls back to an empty array if the table is missing or the query fails.
+ *
+ * Authentication: Service role key
+ * Response Errors: 400 Missing transactionId | 500 Supabase not configured
+ */
 import { createClient } from '@supabase/supabase-js'
 import { apiOk, apiError } from '@/lib/api/http'
 import { ensureInstallmentsTableExists } from '@/lib/installmentsDb'

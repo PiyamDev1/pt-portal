@@ -1,6 +1,14 @@
+/**
+ * Issue Reports Tab
+ * Main admin dashboard for triaging, assigning, and resolving internal issue reports.
+ *
+ * @module app/dashboard/settings/components/IssueReportsTab
+ */
+
 'use client'
 
-import { useEffect, useMemo, useReducer } from 'react'
+import Image from 'next/image'
+import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react'
 import { AlertTriangle, RefreshCw, ShieldCheck } from 'lucide-react'
 import { toast } from 'sonner'
 import { IssueReportsTicketsPanel } from './IssueReportsTicketsPanel'
@@ -171,19 +179,24 @@ export function IssueReportsTab() {
     loading, detailLoading, statusUpdating, assignmentUpdating,
   } = state
 
+  // Use a ref so fetchReports always reads the latest search value without
+  // recreating on every keystroke (which would cause an API call per character).
+  const searchRef = useRef(search)
+  searchRef.current = search
+
   const modules = useMemo(
     () => ['all', ...Array.from(new Set(reports.map((report) => report.module_key)))],
     [reports],
   )
 
-  const fetchReports = async () => {
+  const fetchReports = useCallback(async () => {
     dispatch({ type: 'setLoading', payload: true })
     try {
       const params = new URLSearchParams()
       params.set('status', statusFilter)
       params.set('module', moduleFilter)
       params.set('assignedTo', assigneeFilter)
-      if (search.trim()) params.set('search', search.trim())
+      if (searchRef.current.trim()) params.set('search', searchRef.current.trim())
 
       const response = await fetch(`/api/admin/issue-reports?${params.toString()}`)
       const data = await response.json()
@@ -204,9 +217,9 @@ export function IssueReportsTab() {
     } finally {
       dispatch({ type: 'setLoading', payload: false })
     }
-  }
+  }, [assigneeFilter, moduleFilter, statusFilter])
 
-  const fetchDetail = async (reportId: string) => {
+  const fetchDetail = useCallback(async (reportId: string) => {
     dispatch({ type: 'setDetailLoading', payload: true })
     try {
       const response = await fetch(`/api/admin/issue-reports/${reportId}`)
@@ -224,7 +237,7 @@ export function IssueReportsTab() {
     } finally {
       dispatch({ type: 'setDetailLoading', payload: false })
     }
-  }
+  }, [])
 
   const updateAssignment = async () => {
     if (!selectedReportId) return
@@ -271,16 +284,16 @@ export function IssueReportsTab() {
   }
 
   useEffect(() => {
-    fetchReports()
-  }, [statusFilter, moduleFilter, assigneeFilter])
+    void fetchReports()
+  }, [fetchReports])
 
   useEffect(() => {
     if (selectedReportId) {
-      fetchDetail(selectedReportId)
+      void fetchDetail(selectedReportId)
     } else {
       dispatch({ type: 'clearDetail' })
     }
-  }, [selectedReportId])
+  }, [fetchDetail, selectedReportId])
 
   const { openCount, solvedCount } = useMemo(
     () =>
@@ -463,11 +476,16 @@ export function IssueReportsTab() {
             >
               Close
             </button>
-            <img
-              src={expandedScreenshotUrl}
-              alt="Expanded issue report screenshot"
-              className="max-h-[92vh] max-w-[95vw] rounded-xl border border-white/20 bg-slate-900 object-contain"
-            />
+            <div className="relative h-[92vh] w-[95vw] max-h-[92vh] max-w-[95vw] overflow-hidden rounded-xl border border-white/20 bg-slate-900">
+              <Image
+                src={expandedScreenshotUrl}
+                alt="Expanded issue report screenshot"
+                fill
+                unoptimized
+                sizes="95vw"
+                className="object-contain"
+              />
+            </div>
           </div>
         </div>
       )}

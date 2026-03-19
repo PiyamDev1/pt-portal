@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/lms/components/modify-plan/ModificationOptions.tsx
+ * Dashboard module for lms/components/modify-plan/ModificationOptions.tsx.
+ */
+
 'use client'
 
 interface ModificationOptionsProps {

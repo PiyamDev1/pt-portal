@@ -1,3 +1,8 @@
+/**
+ * Pakistani Passports Client
+ * Handles list filtering, create/edit/status workflows,
+ * notes/history modals, and passport arrival tracking.
+ */
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -205,7 +210,9 @@ export default function PakPassportClient({
   }
 
   const handleViewHistory = async (appId: string, trackingNo: string) => {
-    const data = await pakPassportApi.getStatusHistory(appId)
+    const data = (await pakPassportApi.getStatusHistory(appId)) as
+      | { history?: StatusHistoryEntry[] }
+      | null
     if (data) {
       setStatusHistory(data.history || [])
       setHistoryModal({ trackingNumber: trackingNo })
@@ -258,7 +265,9 @@ export default function PakPassportClient({
     setNotesText('')
     setIsNotesLoading(true)
 
-    const data = await pakPassportApi.getNotes(applicationId)
+    const data = (await pakPassportApi.getNotes(applicationId)) as
+      | { notes?: string }
+      | null
     if (data && typeof data.notes === 'string') {
       setNotesText(data.notes)
     }
@@ -329,19 +338,23 @@ export default function PakPassportClient({
   }, [])
 
   useEffect(() => {
-    setFormData((prev) => ({
-      ...prev,
-      category: metadata.categories.includes(prev.category)
-        ? prev.category
-        : metadata.categories[0] || prev.category,
-      speed: metadata.speeds.includes(prev.speed) ? prev.speed : metadata.speeds[0] || prev.speed,
-      applicationType: metadata.applicationTypes.includes(prev.applicationType)
-        ? prev.applicationType
-        : metadata.applicationTypes[0] || prev.applicationType,
-      pageCount: metadata.pageCounts.includes(prev.pageCount)
-        ? prev.pageCount
-        : metadata.pageCounts[0] || prev.pageCount,
-    }))
+    Promise.resolve().then(() => {
+      setFormData((prev) => ({
+        ...prev,
+        category: metadata.categories.includes(prev.category)
+          ? prev.category
+          : metadata.categories[0] || prev.category,
+        speed: metadata.speeds.includes(prev.speed)
+          ? prev.speed
+          : metadata.speeds[0] || prev.speed,
+        applicationType: metadata.applicationTypes.includes(prev.applicationType)
+          ? prev.applicationType
+          : metadata.applicationTypes[0] || prev.applicationType,
+        pageCount: metadata.pageCounts.includes(prev.pageCount)
+          ? prev.pageCount
+          : metadata.pageCounts[0] || prev.pageCount,
+      }))
+    })
   }, [metadata])
 
   return (

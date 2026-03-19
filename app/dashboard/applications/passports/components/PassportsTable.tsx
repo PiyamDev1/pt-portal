@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/applications/passports/components/PassportsTable.tsx
+ * Dashboard module for applications/passports/components/PassportsTable.tsx.
+ */
+
 import RowItem from './RowItem'
 import type { Application, PakUpdateRecordPayload } from './types'
 

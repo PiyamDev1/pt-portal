@@ -1,3 +1,8 @@
+/**
+ * Module: app/api/documents/[documentId]/preview/route.ts
+ * API route or server helper for documents/[documentId]/preview/route.ts.
+ */
+
 import { NextRequest, NextResponse } from 'next/server'
 import { getSignedDocumentPreviewUrl } from '@/lib/services/documentServer'
 import { apiOk, apiError } from '@/lib/api/http'

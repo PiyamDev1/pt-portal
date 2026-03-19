@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/applications/nadra/client.tsx
+ * Dashboard module for applications/nadra/client.tsx.
+ */
+
 'use client'
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { toast } from 'sonner'
@@ -127,6 +132,25 @@ export default function NadraClient({
   )
 
   const {
+    serviceTypes,
+    serviceOptions,
+    filterServiceTypeOptions,
+    filterServiceOptionOptions,
+    formServiceTypeOptions,
+    formServiceOptionOptions,
+  } = useNadraServiceMetadata({
+    serviceTypeFilter,
+    serviceOptionFilter,
+    formServiceType: 'NICOP/CNIC',
+    formServiceOption: 'Normal',
+    normalizeLookupValue,
+    setServiceTypeFilter,
+    setServiceOptionFilter,
+    setFormServiceType: () => {},
+    setFormServiceOption: () => {},
+  })
+
+  const {
     showForm,
     setShowForm,
     formData,
@@ -142,26 +166,6 @@ export default function NadraClient({
     serviceOptions,
     normalizeLookupValue,
     onRefresh: refreshData,
-  })
-
-  const {
-    serviceTypes,
-    serviceOptions,
-    serviceTypeNameById,
-    filterServiceTypeOptions,
-    filterServiceOptionOptions,
-    formServiceTypeOptions,
-    formServiceOptionOptions,
-  } = useNadraServiceMetadata({
-    serviceTypeFilter,
-    serviceOptionFilter,
-    formServiceType: formData.serviceType,
-    formServiceOption: formData.serviceOption,
-    normalizeLookupValue,
-    setServiceTypeFilter,
-    setServiceOptionFilter,
-    setFormServiceType,
-    setFormServiceOption,
   })
 
   const updateApplicationRecord = useCallback(

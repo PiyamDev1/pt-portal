@@ -1,3 +1,8 @@
+/**
+ * Settings Client
+ * Tabbed admin settings interface for security, staffing, hierarchy,
+ * branches, maintenance, and issue-report administration.
+ */
 'use client'
 import { useState } from 'react'
 import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
@@ -218,7 +223,7 @@ export default function SettingsClient({
 
         {activeTab === 'branches' && isOrgAdmin && (
           <BranchesTab
-            initialLocations={initialLocations}
+            initialLocations={initialLocations as { id: string; name: string; branch_code: string | null; type: string }[]}
             supabase={supabase}
             loading={loading}
             setLoading={setLoading}
@@ -227,10 +232,10 @@ export default function SettingsClient({
 
         {activeTab === 'staff' && isOrgAdmin && (
           <StaffTab
-            initialEmployees={initialEmployees}
-            initialRoles={initialRoles}
-            initialDepts={initialDepts}
-            initialLocations={initialLocations}
+            initialEmployees={initialEmployees as unknown as { id: string; full_name: string; email: string; role_id: string | null; department_id: string | null; location_id: string | null; manager_id?: string | null; is_active?: boolean }[]}
+            initialRoles={initialRoles as { id: string; name: string }[]}
+            initialDepts={initialDepts as { id: string; name: string }[]}
+            initialLocations={initialLocations as { id: string; name: string }[]}
             supabase={supabase}
             userRole={userRole}
             loading={loading}
@@ -240,9 +245,9 @@ export default function SettingsClient({
 
         {activeTab === 'hierarchy' && isOrgAdmin && (
           <HierarchyTab
-            initialEmployees={initialEmployees}
-            initialRoles={initialRoles}
-            initialLocations={initialLocations}
+            initialEmployees={initialEmployees as unknown as { id: string; full_name: string; manager_id: string | null; role_id: string | null; location_id: string | null }[]}
+            initialRoles={initialRoles as { id: string; name: string }[]}
+            initialLocations={initialLocations as { id: string; name: string }[]}
             supabase={supabase}
           />
         )}

@@ -1,3 +1,10 @@
+/**
+ * Issue Report Authorization Utilities
+ * Verifies user permissions for accessing and creating issue reports
+ * 
+ * @module lib/issueReportAuth
+ */
+
 import { createServerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 import { getSupabaseClient } from '@/lib/supabaseClient'

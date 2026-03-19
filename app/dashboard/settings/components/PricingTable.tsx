@@ -48,11 +48,23 @@ export const PricingTable: React.FC<PricingTableProps> = ({
 }) => {
   const getColumnValue = (item: PricingRow, key: string): unknown => {
     const keys = key.split('.')
-    let value = item
+    let value: unknown = item
     for (const k of keys) {
-      value = value?.[k]
+      if (value && typeof value === 'object') {
+        value = (value as Record<string, unknown>)[k]
+      } else {
+        return undefined
+      }
     }
     return value
+  }
+
+  const renderValue = (value: unknown): React.ReactNode => {
+    if (value === null || value === undefined) return '-'
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+      return String(value)
+    }
+    return JSON.stringify(value)
   }
 
   return (
@@ -103,7 +115,7 @@ export const PricingTable: React.FC<PricingTableProps> = ({
                       <span>
                         {col.format
                           ? col.format(getColumnValue(item, col.key))
-                          : getColumnValue(item, col.key)}
+                          : renderValue(getColumnValue(item, col.key))}
                       </span>
                     ) : editingId === item.id && col.key === 'cost_price' ? (
                       <input
@@ -133,7 +145,7 @@ export const PricingTable: React.FC<PricingTableProps> = ({
                       <span>
                         {col.format
                           ? col.format(getColumnValue(item, col.key))
-                          : getColumnValue(item, col.key)}
+                          : renderValue(getColumnValue(item, col.key))}
                       </span>
                     )}
                   </td>

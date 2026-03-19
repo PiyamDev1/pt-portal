@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/applications/visa/components/FormInputField.tsx
+ * Dashboard module for applications/visa/components/FormInputField.tsx.
+ */
+
 interface FormInputFieldProps {
   label: string
   value: string | number

@@ -1,3 +1,10 @@
+/**
+ * LMS Backup Codes Reminder
+ * Displays backup code reminders in LMS-related user flows.
+ *
+ * @module app/dashboard/lms/components/BackupCodesReminder
+ */
+
 'use client'
 
 import { useState, useEffect } from 'react'

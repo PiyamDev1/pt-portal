@@ -1,3 +1,20 @@
+/**
+ * API Route: Generate Backup Codes
+ *
+ * POST /api/auth/generate-backup-codes
+ *
+ * Generates a fresh set of one-time backup codes for a user (default 10).
+ * Each code is 8-char format: XXXX-XXXX using uppercase alphanumeric chars.
+ * All previous unused codes are deleted before inserting the new set.
+ * Plaintext codes are returned once — the caller must present them to the
+ * user immediately; only bcrypt hashes are stored in the database.
+ *
+ * Request Body: { userId: string, count?: number }
+ * Response Success (200): { codes: string[], generatedCount: number }
+ * Response Errors: 400 Missing userId | 500 DB insert failed
+ *
+ * Authentication: Service role key (internal admin call)
+ */
 import { createClient } from '@supabase/supabase-js'
 import bcrypt from 'bcryptjs'
 import { apiError, apiOk } from '@/lib/api/http'

@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/lms/ErrorBoundary.tsx
+ * Dashboard module for lms/ErrorBoundary.tsx.
+ */
+
 'use client'
 
 import React, { ReactNode } from 'react'

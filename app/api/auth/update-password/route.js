@@ -1,3 +1,20 @@
+/**
+ * API Route: Update Password
+ *
+ * POST /api/auth/update-password
+ *
+ * Resets a user's password via the Supabase admin API with server-side
+ * strength validation. Also clears the is_temporary_password flag in the
+ * employees table and records a bcrypt hash in password_history (keeps last 5).
+ *
+ * Request Body: { userId: string, newPassword: string }
+ * Response Success (200): { updatedUserId, message }
+ * Response Errors:
+ *   400 - Missing fields or password fails strength requirements
+ *   500 - Supabase auth update failed or DB flag update failed
+ *
+ * Authentication: Service role key (internal admin call)
+ */
 import { createClient } from '@supabase/supabase-js'
 import bcrypt from 'bcryptjs'
 import { apiError, apiOk } from '@/lib/api/http'

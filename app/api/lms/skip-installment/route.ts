@@ -1,3 +1,18 @@
+/**
+ * API Route: Skip Installment
+ *
+ * POST /api/lms/skip-installment
+ *
+ * Marks a scheduled installment as skipped (status = 'skipped'), recording
+ * the reason. The outstanding balance is redistributed or carried forward
+ * to the next installment depending on loan configuration.
+ *
+ * Request Body: { installmentId: string, reason?: string }
+ * Response Success (200): { skippedInstallmentId }
+ * Response Errors: 400 Missing installmentId | 401 Not authenticated | 500 DB error
+ *
+ * Authentication: Session cookie
+ */
 import { createServerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 import { apiError, apiOk } from '@/lib/api/http'

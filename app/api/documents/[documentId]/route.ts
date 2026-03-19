@@ -1,3 +1,8 @@
+/**
+ * Module: app/api/documents/[documentId]/route.ts
+ * API route or server helper for documents/[documentId]/route.ts.
+ */
+
 import { NextRequest } from 'next/server'
 import { DeleteObjectCommand } from '@aws-sdk/client-s3'
 import { getSupabaseClient } from '@/lib/supabaseClient'

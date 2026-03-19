@@ -1,3 +1,10 @@
+/**
+ * Sitemap Generator
+ * Produces static route metadata for search engine discovery.
+ *
+ * @module app/sitemap
+ */
+
 import type { MetadataRoute } from 'next'
 
 export default function sitemap(): MetadataRoute.Sitemap {

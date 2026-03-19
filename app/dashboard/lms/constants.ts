@@ -1,3 +1,10 @@
+/**
+ * LMS UI Constants
+ * Shared constants for modal sizes, date rules, and status styling.
+ *
+ * @module app/dashboard/lms/constants
+ */
+
 // LMS Module Constants
 
 // Modal sizes

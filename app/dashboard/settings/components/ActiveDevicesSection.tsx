@@ -1,3 +1,10 @@
+/**
+ * Active Devices Section
+ * Renders and manages active authenticated device sessions.
+ *
+ * @module app/dashboard/settings/components/ActiveDevicesSection
+ */
+
 import { getDeviceInfo } from './utils'
 
 interface SessionViewModel {
@@ -63,8 +70,11 @@ export function ActiveDevicesSection({
         )}
 
         {sessions.map((session) => {
-          const { name, icon } = getDeviceInfo(session.user_agent)
+          const { name, icon } = getDeviceInfo(session.user_agent || '')
           const isActive = session.is_active !== false
+          const lastActiveLabel = session.last_active
+            ? `${new Date(session.last_active).toLocaleDateString()} ${new Date(session.last_active).toLocaleTimeString()}`
+            : '-'
           return (
             <div
               key={session.id}
@@ -110,10 +120,7 @@ export function ActiveDevicesSection({
                   <div className="flex items-center gap-2 text-xs text-slate-500 mt-0.5">
                     <span>📍 {session.ip}</span>
                     <span>•</span>
-                    <span>
-                      🕒 Last used: {new Date(session.last_active).toLocaleDateString()}{' '}
-                      {new Date(session.last_active).toLocaleTimeString()}
-                    </span>
+                    <span>🕒 Last used: {lastActiveLabel}</span>
                   </div>
                 </div>
               </div>

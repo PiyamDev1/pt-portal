@@ -1,3 +1,16 @@
+/**
+ * API Route: Pakistani Passport Metadata
+ *
+ * GET /api/passports/pak/metadata
+ *
+ * Returns reference data for the Pakistani passport application form:
+ * valid service types, processing categories, and assigned agents.
+ * Response is cached for 1 hour (revalidate = 3600).
+ *
+ * Authentication: Service role key
+ * Response Success (200): { serviceTypes, categories, agents }
+ * Response Errors: 500 DB error
+ */
 import { createClient } from '@supabase/supabase-js'
 import { apiOk, apiError } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'

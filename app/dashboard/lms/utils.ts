@@ -1,3 +1,10 @@
+/**
+ * LMS Utility Helpers
+ * Provides payment method normalization and transaction label formatting.
+ *
+ * @module app/dashboard/lms/utils
+ */
+
 import type { PaymentMethod } from './types'
 
 export const DEFAULT_PAYMENT_METHODS = [

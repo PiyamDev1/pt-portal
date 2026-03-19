@@ -1,6 +1,11 @@
+/**
+ * Timeclock History Client
+ * Loads and displays historical punch activity with filters,
+ * status context, and chronological attendance visibility.
+ */
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 type TimeclockEvent = {
   id: string
@@ -59,7 +64,7 @@ export default function TimeclockHistoryClient() {
   const [pageSize, setPageSize] = useState(25)
   const [total, setTotal] = useState(0)
 
-  const loadEvents = async (nextPage = page) => {
+  const loadEvents = useCallback(async (nextPage = page) => {
     setLoading(true)
     setError('')
     try {
@@ -92,11 +97,11 @@ export default function TimeclockHistoryClient() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [dateFrom, dateTo, page, pageSize])
 
   useEffect(() => {
-    loadEvents()
-  }, [dateFrom, dateTo, pageSize])
+    void loadEvents()
+  }, [loadEvents])
 
   const applyPreset = (preset: 'today' | 'last7' | 'last30' | 'clear') => {
     setPage(1)

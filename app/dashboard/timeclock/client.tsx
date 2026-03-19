@@ -1,6 +1,11 @@
+/**
+ * Timeclock Client
+ * Camera-driven QR scanning interface for employee punch events,
+ * with geolocation support and scanner fallback behavior.
+ */
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import jsQR from 'jsqr'
 import { ScanSuccessPopup } from './components/ScanSuccessPopup'
 import { ScanSectionCard } from './components/ScanSectionCard'
@@ -73,182 +78,8 @@ export default function TimeclockClient() {
     ? Math.min(100, Math.max(0, (popupRemainingMs / 3000) * 100))
     : 0
 
-  useEffect(() => {
-    if (!isCooldownActive) return
-
-    const timer = window.setInterval(() => {
-      setCooldownNow(Date.now())
-    }, 250)
-
-    return () => window.clearInterval(timer)
-  }, [isCooldownActive])
-
-  useEffect(() => {
-    if (!showSuccessPopup) return
-
-    const tick = window.setInterval(() => {
-      const now = Date.now()
-      setPopupNow(now)
-      if (now >= popupClosesAt) {
-        setShowSuccessPopup(false)
-      }
-    }, 100)
-
-    return () => window.clearInterval(tick)
-  }, [showSuccessPopup, popupClosesAt])
-
-  useEffect(() => {
-    if (!showSuccessPopup) return
-    setIsScanning(false)
-    stopStream()
-  }, [showSuccessPopup])
-
   const detectorSupported = typeof window !== 'undefined' && 'BarcodeDetector' in window
   const isIOS = typeof window !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent)
-
-  useEffect(() => {
-    let isMounted = true
-
-    const checkPermission = async () => {
-      if (!navigator.permissions) return
-      try {
-        const status = await navigator.permissions.query({ name: 'camera' as PermissionName })
-        if (!isMounted) return
-        setCameraPermission(status.state)
-        status.onchange = () => {
-          setCameraPermission(status.state)
-        }
-      } catch {
-        setCameraPermission('unknown')
-      }
-    }
-
-    checkPermission()
-
-    if (!isScanning) {
-      stopStream()
-      return
-    }
-
-    let isActive = true
-    const startCamera = async () => {
-      setCameraError('')
-      setStatus('scanning')
-      setMessage('Point your camera at the QR code.')
-
-      try {
-        // Use iOS-optimized constraints for better compatibility
-        const constraints = isIOS
-          ? {
-              video: {
-                facingMode: { ideal: 'environment' },
-                width: { ideal: 1280 },
-                height: { ideal: 720 },
-              },
-              audio: false,
-            }
-          : {
-              video: { facingMode: 'environment' },
-              audio: false,
-            }
-
-        const stream = await navigator.mediaDevices.getUserMedia(constraints)
-
-        if (!isActive) return
-
-        streamRef.current = stream
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream
-          videoRef.current.playsInline = true
-          videoRef.current.setAttribute('playsinline', 'true')
-          videoRef.current.setAttribute('webkit-playsinline', 'true')
-          await videoRef.current.play()
-        }
-
-        // Use BarcodeDetector if supported, otherwise use jsQR (for iOS)
-        if (detectorSupported) {
-          const detectorWindow = window as Window & { BarcodeDetector: BarcodeDetectorCtor }
-          const detector = new detectorWindow.BarcodeDetector({ formats: ['qr_code'] })
-
-          const scanLoop = async () => {
-            if (!isActive || !videoRef.current) return
-
-            try {
-              const barcodes = await detector.detect(videoRef.current)
-              if (barcodes?.length) {
-                const rawValue = barcodes[0]?.rawValue || ''
-                if (rawValue) {
-                  await handleSubmit(rawValue)
-                  return
-                }
-              }
-            } catch (error: unknown) {
-              setCameraError(error instanceof Error ? error.message : 'Unable to read QR code.')
-            }
-
-            scanTimerRef.current = window.setTimeout(scanLoop, 350)
-          }
-
-          scanLoop()
-        } else {
-          // Fallback for iOS and browsers without BarcodeDetector
-          if (!canvasRef.current) {
-            canvasRef.current = document.createElement('canvas')
-          }
-
-          const canvas = canvasRef.current
-          const context = canvas.getContext('2d', { willReadFrequently: true })
-
-          const scanLoopJsQR = () => {
-            if (!isActive || !videoRef.current || !context) return
-
-            const video = videoRef.current
-
-            // Wait for video to be ready
-            if (video.readyState !== video.HAVE_ENOUGH_DATA) {
-              scanTimerRef.current = window.setTimeout(scanLoopJsQR, 100)
-              return
-            }
-
-            canvas.width = video.videoWidth
-            canvas.height = video.videoHeight
-
-            if (canvas.width === 0 || canvas.height === 0) {
-              scanTimerRef.current = window.setTimeout(scanLoopJsQR, 100)
-              return
-            }
-
-            context.drawImage(video, 0, 0, canvas.width, canvas.height)
-            const imageData = context.getImageData(0, 0, canvas.width, canvas.height)
-
-            const code = jsQR(imageData.data, imageData.width, imageData.height, {
-              inversionAttempts: 'dontInvert',
-            })
-
-            if (code?.data) {
-              handleSubmit(code.data)
-              return
-            }
-
-            scanTimerRef.current = window.setTimeout(scanLoopJsQR, 350)
-          }
-
-          scanLoopJsQR()
-        }
-      } catch (error: unknown) {
-        setCameraError(error instanceof Error ? error.message : 'Camera access denied.')
-        setStatus('error')
-      }
-    }
-
-    startCamera()
-
-    return () => {
-      isMounted = false
-      isActive = false
-      stopStream()
-    }
-  }, [isScanning, detectorSupported])
 
   const requestCameraPermission = async () => {
     setCameraError('')
@@ -276,7 +107,7 @@ export default function TimeclockClient() {
     }
   }
 
-  const stopStream = () => {
+  const stopStream = useCallback(() => {
     if (scanTimerRef.current) {
       window.clearTimeout(scanTimerRef.current)
       scanTimerRef.current = null
@@ -286,7 +117,7 @@ export default function TimeclockClient() {
       streamRef.current.getTracks().forEach((track) => track.stop())
       streamRef.current = null
     }
-  }
+  }, [])
 
   const getGeo = async (): Promise<GeoPoint | null> => {
     if (!navigator.geolocation) return null
@@ -339,7 +170,7 @@ export default function TimeclockClient() {
     setQrText(value)
   }
 
-  const handleSubmit = async (rawValue?: string) => {
+  const handleSubmit = useCallback(async (rawValue?: string) => {
     if (submitLockRef.current || showSuccessPopup) return
 
     if (isCooldownActive) {
@@ -412,7 +243,177 @@ export default function TimeclockClient() {
     } finally {
       submitLockRef.current = false
     }
-  }
+  }, [cooldownSeconds, isCooldownActive, qrText, showSuccessPopup, stopStream])
+
+  useEffect(() => {
+    if (!isCooldownActive) return
+
+    const timer = window.setInterval(() => {
+      setCooldownNow(Date.now())
+    }, 250)
+
+    return () => window.clearInterval(timer)
+  }, [isCooldownActive])
+
+  useEffect(() => {
+    if (!showSuccessPopup) return
+
+    const tick = window.setInterval(() => {
+      const now = Date.now()
+      setPopupNow(now)
+      if (now >= popupClosesAt) {
+        setShowSuccessPopup(false)
+      }
+    }, 100)
+
+    return () => window.clearInterval(tick)
+  }, [showSuccessPopup, popupClosesAt])
+
+  useEffect(() => {
+    if (!showSuccessPopup) return
+    setIsScanning(false)
+    stopStream()
+  }, [showSuccessPopup, stopStream])
+
+  useEffect(() => {
+    let isMounted = true
+
+    const checkPermission = async () => {
+      if (!navigator.permissions) return
+      try {
+        const status = await navigator.permissions.query({ name: 'camera' as PermissionName })
+        if (!isMounted) return
+        setCameraPermission(status.state)
+        status.onchange = () => {
+          setCameraPermission(status.state)
+        }
+      } catch {
+        setCameraPermission('unknown')
+      }
+    }
+
+    checkPermission()
+
+    if (!isScanning) {
+      stopStream()
+      return
+    }
+
+    let isActive = true
+    const startCamera = async () => {
+      setCameraError('')
+      setStatus('scanning')
+      setMessage('Point your camera at the QR code.')
+
+      try {
+        const constraints = isIOS
+          ? {
+              video: {
+                facingMode: { ideal: 'environment' },
+                width: { ideal: 1280 },
+                height: { ideal: 720 },
+              },
+              audio: false,
+            }
+          : {
+              video: { facingMode: 'environment' },
+              audio: false,
+            }
+
+        const stream = await navigator.mediaDevices.getUserMedia(constraints)
+
+        if (!isActive) return
+
+        streamRef.current = stream
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream
+          videoRef.current.playsInline = true
+          videoRef.current.setAttribute('playsinline', 'true')
+          videoRef.current.setAttribute('webkit-playsinline', 'true')
+          await videoRef.current.play()
+        }
+
+        if (detectorSupported) {
+          const detectorWindow = window as unknown as Window & { BarcodeDetector: BarcodeDetectorCtor }
+          const detector = new detectorWindow.BarcodeDetector({ formats: ['qr_code'] })
+
+          const scanLoop = async () => {
+            if (!isActive || !videoRef.current) return
+
+            try {
+              const barcodes = await detector.detect(videoRef.current)
+              if (barcodes?.length) {
+                const rawValue = barcodes[0]?.rawValue || ''
+                if (rawValue) {
+                  await handleSubmit(rawValue)
+                  return
+                }
+              }
+            } catch (error: unknown) {
+              setCameraError(error instanceof Error ? error.message : 'Unable to read QR code.')
+            }
+
+            scanTimerRef.current = window.setTimeout(scanLoop, 350)
+          }
+
+          scanLoop()
+        } else {
+          if (!canvasRef.current) {
+            canvasRef.current = document.createElement('canvas')
+          }
+
+          const canvas = canvasRef.current
+          const context = canvas.getContext('2d', { willReadFrequently: true })
+
+          const scanLoopJsQR = () => {
+            if (!isActive || !videoRef.current || !context) return
+
+            const video = videoRef.current
+
+            if (video.readyState !== video.HAVE_ENOUGH_DATA) {
+              scanTimerRef.current = window.setTimeout(scanLoopJsQR, 100)
+              return
+            }
+
+            canvas.width = video.videoWidth
+            canvas.height = video.videoHeight
+
+            if (canvas.width === 0 || canvas.height === 0) {
+              scanTimerRef.current = window.setTimeout(scanLoopJsQR, 100)
+              return
+            }
+
+            context.drawImage(video, 0, 0, canvas.width, canvas.height)
+            const imageData = context.getImageData(0, 0, canvas.width, canvas.height)
+
+            const code = jsQR(imageData.data, imageData.width, imageData.height, {
+              inversionAttempts: 'dontInvert',
+            })
+
+            if (code?.data) {
+              void handleSubmit(code.data)
+              return
+            }
+
+            scanTimerRef.current = window.setTimeout(scanLoopJsQR, 350)
+          }
+
+          scanLoopJsQR()
+        }
+      } catch (error: unknown) {
+        setCameraError(error instanceof Error ? error.message : 'Camera access denied.')
+        setStatus('error')
+      }
+    }
+
+    void startCamera()
+
+    return () => {
+      isMounted = false
+      isActive = false
+      stopStream()
+    }
+  }, [detectorSupported, handleSubmit, isIOS, isScanning, stopStream])
 
   return (
     <div className="space-y-6">

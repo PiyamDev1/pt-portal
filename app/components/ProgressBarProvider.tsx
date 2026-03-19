@@ -1,3 +1,7 @@
+/**
+ * Progress Bar Provider
+ * Wraps route transitions with a lightweight top loading indicator.
+ */
 'use client'
 
 import { Suspense } from 'react'

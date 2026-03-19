@@ -1,3 +1,10 @@
+/**
+ * Account Row
+ * Renders one account row in LMS account listing tables.
+ *
+ * @module app/dashboard/lms/components/AccountRow
+ */
+
 'use client'
 
 import React from 'react'

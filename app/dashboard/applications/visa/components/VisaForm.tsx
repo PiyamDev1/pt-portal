@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/applications/visa/components/VisaForm.tsx
+ * Dashboard module for applications/visa/components/VisaForm.tsx.
+ */
+
 'use client'
 import { useState } from 'react'
 import { Save, ChevronUp } from 'lucide-react'

@@ -1,3 +1,8 @@
+/**
+ * Module: app/api/documents/preview/route.ts
+ * API route or server helper for documents/preview/route.ts.
+ */
+
 import { NextRequest, NextResponse } from 'next/server'
 import { GetObjectCommand } from '@aws-sdk/client-s3'
 import { Readable } from 'stream'

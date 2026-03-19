@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/applications/nadra/components/useNadraFormManagement.ts
+ * Dashboard module for applications/nadra/components/useNadraFormManagement.ts.
+ */
+
 import { useCallback, useState } from 'react'
 import type { ChangeEvent } from 'react'
 import { toast } from 'sonner'

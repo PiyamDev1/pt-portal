@@ -1,3 +1,8 @@
+/**
+ * Module: app/api/documents/route.ts
+ * API route or server helper for documents/route.ts.
+ */
+
 import { NextRequest } from 'next/server'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'

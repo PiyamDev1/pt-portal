@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/lms/statement/components/StatementHeader.tsx
+ * Dashboard module for lms/statement/components/StatementHeader.tsx.
+ */
+
 import { ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
 import { memo } from 'react'

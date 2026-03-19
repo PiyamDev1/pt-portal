@@ -1,3 +1,8 @@
+/**
+ * Module: app/dashboard/applications/passports-gb/components/EditModal.tsx
+ * Dashboard module for applications/passports-gb/components/EditModal.tsx.
+ */
+
 'use client'
 
 import React, { useState, useEffect, useRef } from 'react'
