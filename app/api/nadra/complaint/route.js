@@ -1,25 +1,28 @@
 import { createClient } from '@supabase/supabase-js'
-import { NextResponse } from 'next/server'
+import { apiError, apiOk } from '@/lib/api/http'
+import { toErrorMessage } from '@/lib/api/error'
 
 export async function POST(request) {
   try {
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
+      process.env.SUPABASE_SERVICE_ROLE_KEY,
     )
 
     const { nadraId, complaintNumber, details, userId } = await request.json()
+    const normalizedComplaintNumber = String(complaintNumber || '').trim()
+    const normalizedDetails = String(details || '').trim()
 
     if (!nadraId) {
-      return NextResponse.json({ error: 'Missing Nadra ID' }, { status: 400 })
+      return apiError('Missing Nadra ID', 400)
     }
 
-    if (!complaintNumber || !String(complaintNumber).trim()) {
-      return NextResponse.json({ error: 'Complaint number is required' }, { status: 400 })
+    if (!normalizedComplaintNumber) {
+      return apiError('Complaint number is required', 400)
     }
 
-    if (!details || !String(details).trim()) {
-      return NextResponse.json({ error: 'Complaint details are required' }, { status: 400 })
+    if (!normalizedDetails) {
+      return apiError('Complaint details are required', 400)
     }
 
     const { data: nadraService, error: nadraError } = await supabase
@@ -29,25 +32,28 @@ export async function POST(request) {
       .single()
 
     if (nadraError || !nadraService) {
-      return NextResponse.json({ error: 'NADRA service not found' }, { status: 404 })
+      return apiError('NADRA service not found', 404)
     }
 
-    const { error: historyError } = await supabase
-      .from('nadra_status_history')
-      .insert({
-        nadra_service_id: nadraId,
-        new_status: nadraService.status || 'In Progress',
-        changed_by: userId,
-        entry_type: 'complaint',
-        complaint_number: String(complaintNumber).trim(),
-        details: String(details).trim(),
-      })
+    const { error: historyError } = await supabase.from('nadra_status_history').insert({
+      nadra_service_id: nadraId,
+      new_status: nadraService.status || 'In Progress',
+      changed_by: userId,
+      entry_type: 'complaint',
+      complaint_number: normalizedComplaintNumber,
+      details: normalizedDetails,
+    })
 
-    if (historyError) throw historyError
+    if (historyError) {
+      throw new Error(historyError.message || 'Failed to insert complaint history')
+    }
 
-    return NextResponse.json({ success: true })
+    return apiOk({
+      complaintRecordedForNadraId: nadraId,
+      complaintNumber: normalizedComplaintNumber,
+    })
   } catch (error) {
-    console.error('Complaint Record Error:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    const errorMessage = toErrorMessage(error, 'Failed to record complaint')
+    return apiError(errorMessage, 500)
   }
 }

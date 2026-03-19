@@ -1,7 +1,7 @@
 /**
  * Shared UI Components - Barrel Export
  * New reusable components created during refactoring
- * 
+ *
  * Note: App-specific components remain in app/components/
  * (GlobalFooter, PageHeader, ProgressBarProvider, RootErrorBoundary, etc.)
  */

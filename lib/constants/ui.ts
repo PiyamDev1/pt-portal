@@ -60,14 +60,21 @@ export const UI_SHADOWS = {
 } as const
 
 export const COMMON_CLASSES = {
-  BUTTON_PRIMARY: 'bg-blue-900 text-white px-4 py-2 rounded font-medium hover:bg-blue-800 transition disabled:opacity-50',
-  BUTTON_SECONDARY: 'bg-slate-200 text-slate-700 px-4 py-2 rounded font-medium hover:bg-slate-300 transition disabled:opacity-50',
-  BUTTON_DANGER: 'bg-red-600 text-white px-4 py-2 rounded font-medium hover:bg-red-700 transition disabled:opacity-50',
+  BUTTON_PRIMARY:
+    'bg-blue-900 text-white px-4 py-2 rounded font-medium hover:bg-blue-800 transition disabled:opacity-50',
+  BUTTON_SECONDARY:
+    'bg-slate-200 text-slate-700 px-4 py-2 rounded font-medium hover:bg-slate-300 transition disabled:opacity-50',
+  BUTTON_DANGER:
+    'bg-red-600 text-white px-4 py-2 rounded font-medium hover:bg-red-700 transition disabled:opacity-50',
   BUTTON_SMALL: 'text-sm px-3 py-1',
-  INPUT: 'p-2 border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none',
-  INPUT_ERROR: 'p-2 border border-red-300 rounded focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none bg-red-50',
-  SELECT: 'p-2 border border-slate-300 rounded bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none',
-  TABLE_HEADER: 'bg-slate-50 text-slate-500 font-semibold border-b border-slate-200 px-4 py-3 text-left',
+  INPUT:
+    'p-2 border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none',
+  INPUT_ERROR:
+    'p-2 border border-red-300 rounded focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none bg-red-50',
+  SELECT:
+    'p-2 border border-slate-300 rounded bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none',
+  TABLE_HEADER:
+    'bg-slate-50 text-slate-500 font-semibold border-b border-slate-200 px-4 py-3 text-left',
   TABLE_CELL: 'px-4 py-3 border-b border-slate-100',
   TABLE_ROW: 'hover:bg-slate-50 transition',
   MODAL_HEADER: 'text-xl font-bold text-slate-800',

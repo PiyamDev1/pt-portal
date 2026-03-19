@@ -18,19 +18,19 @@ export function useModal(initialOpen = false) {
   })
 
   const open = useCallback(() => {
-    setState(prev => ({ ...prev, isOpen: true, error: null }))
+    setState((prev) => ({ ...prev, isOpen: true, error: null }))
   }, [])
 
   const close = useCallback(() => {
-    setState(prev => ({ ...prev, isOpen: false }))
+    setState((prev) => ({ ...prev, isOpen: false }))
   }, [])
 
   const setLoading = useCallback((loading: boolean) => {
-    setState(prev => ({ ...prev, isLoading: loading }))
+    setState((prev) => ({ ...prev, isLoading: loading }))
   }, [])
 
   const setError = useCallback((error: string | null) => {
-    setState(prev => ({ ...prev, error }))
+    setState((prev) => ({ ...prev, error }))
   }, [])
 
   const reset = useCallback(() => {

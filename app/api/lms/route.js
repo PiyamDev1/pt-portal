@@ -1,6 +1,11 @@
 import { createClient } from '@supabase/supabase-js'
-import { NextResponse } from 'next/server'
-import { ensureInstallmentsTableExists, createInstallmentRecords, createDetailedInstallmentRecords } from '@/lib/installmentsDb'
+import { apiError, apiOk } from '@/lib/api/http'
+import { toErrorMessage } from '@/lib/api/error'
+import {
+  ensureInstallmentsTableExists,
+  createInstallmentRecords,
+  createDetailedInstallmentRecords,
+} from '@/lib/installmentsDb'
 
 export const dynamic = 'force-dynamic'
 
@@ -9,7 +14,10 @@ export async function GET(request) {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY
     if (!url || !key) {
-      return NextResponse.json({ error: 'Supabase not configured: set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in .env.local' }, { status: 500 })
+      return apiError(
+        'Supabase not configured: set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in .env.local',
+        500,
+      )
     }
     const supabase = createClient(url, key)
 
@@ -21,9 +29,14 @@ export async function GET(request) {
     const offset = (page - 1) * limit
 
     // Fetch customers with pagination
-    const { data: customers, error: custError, count: totalCount } = await supabase
+    const {
+      data: customers,
+      error: custError,
+      count: totalCount,
+    } = await supabase
       .from('loan_customers')
-      .select(`
+      .select(
+        `
         id,
         first_name,
         last_name,
@@ -31,13 +44,15 @@ export async function GET(request) {
         email,
         address,
         created_at
-      `, { count: 'exact' })
+      `,
+        { count: 'exact' },
+      )
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1)
 
     if (custError) throw custError
 
-    const customerIds = customers.map(c => c.id)
+    const customerIds = customers.map((c) => c.id)
 
     // Only fetch loans/transactions/installments for the customers on this page
     const { data: allLoans, error: loansError } = await supabase
@@ -47,25 +62,30 @@ export async function GET(request) {
 
     if (loansError) throw loansError
 
-    const loanIds = allLoans.map(l => l.id)
+    const loanIds = allLoans.map((l) => l.id)
 
     // Fetch transactions only for loans on this page
     const { data: allTransactions, error: txError } = await supabase
       .from('loan_transactions')
-      .select(`
+      .select(
+        `
         *,
         loan_payment_methods (name)
-      `)
+      `,
+      )
       .in('loan_id', loanIds.length > 0 ? loanIds : ['00000000-0000-0000-0000-000000000000'])
 
     if (txError) throw txError
 
     // Fetch installments only for transactions on this page
-    const transactionIds = allTransactions.map(t => t.id)
+    const transactionIds = allTransactions.map((t) => t.id)
     const { data: allInstallments, error: installmentsError } = await supabase
       .from('loan_installments')
       .select('*')
-      .in('loan_transaction_id', transactionIds.length > 0 ? transactionIds : ['00000000-0000-0000-0000-000000000000'])
+      .in(
+        'loan_transaction_id',
+        transactionIds.length > 0 ? transactionIds : ['00000000-0000-0000-0000-000000000000'],
+      )
 
     if (installmentsError) throw installmentsError
 
@@ -75,7 +95,7 @@ export async function GET(request) {
     const installmentsMap = new Map()
 
     // Map loans by customer ID for fast lookup
-    allLoans.forEach(loan => {
+    allLoans.forEach((loan) => {
       if (!loansMap.has(loan.loan_customer_id)) {
         loansMap.set(loan.loan_customer_id, [])
       }
@@ -83,7 +103,7 @@ export async function GET(request) {
     })
 
     // Map transactions by loan ID for fast lookup
-    allTransactions.forEach(tx => {
+    allTransactions.forEach((tx) => {
       if (!transactionsMap.has(tx.loan_id)) {
         transactionsMap.set(tx.loan_id, [])
       }
@@ -91,7 +111,7 @@ export async function GET(request) {
     })
 
     // Map installments by transaction ID for fast lookup
-    allInstallments.forEach(inst => {
+    allInstallments.forEach((inst) => {
       if (!installmentsMap.has(inst.loan_transaction_id)) {
         installmentsMap.set(inst.loan_transaction_id, [])
       }
@@ -99,13 +119,13 @@ export async function GET(request) {
     })
 
     // Build enriched customer accounts
-    const accounts = customers.map(customer => {
+    const accounts = customers.map((customer) => {
       const customerLoans = loansMap.get(customer.id) || []
-      const loanIds = customerLoans.map(l => l.id)
-      
+      const loanIds = customerLoans.map((l) => l.id)
+
       // Collect all transactions for this customer's loans
       const transactions = []
-      loanIds.forEach(loanId => {
+      loanIds.forEach((loanId) => {
         const loanTxs = transactionsMap.get(loanId) || []
         transactions.push(...loanTxs)
       })
@@ -118,10 +138,10 @@ export async function GET(request) {
       const payments = []
       const fees = []
 
-      transactions.forEach(t => {
+      transactions.forEach((t) => {
         const txType = (t.transaction_type || '').toLowerCase()
         const amount = parseFloat(t.amount || 0)
-        
+
         if (txType === 'service') {
           totalServices += amount
           services.push(t)
@@ -138,17 +158,17 @@ export async function GET(request) {
 
       // Calculate next due date
       let nextDue = null
-      
+
       if (balance > 0) {
         const dueDates = []
-        
+
         // Get service transaction dates and their installments
-        services.forEach(service => {
+        services.forEach((service) => {
           const serviceInstallments = installmentsMap.get(service.id) || []
-          
+
           if (serviceInstallments.length > 0) {
             // Has installment plan - use installment due dates
-            serviceInstallments.forEach(inst => {
+            serviceInstallments.forEach((inst) => {
               if (inst.status !== 'paid' && inst.status !== 'skipped') {
                 dueDates.push(new Date(inst.due_date))
               }
@@ -158,38 +178,43 @@ export async function GET(request) {
             dueDates.push(new Date(service.transaction_timestamp))
           }
         })
-        
+
         // Add fee dates (fees are due immediately)
-        fees.forEach(fee => {
+        fees.forEach((fee) => {
           dueDates.push(new Date(fee.transaction_timestamp))
         })
-        
+
         // Get earliest date
         if (dueDates.length > 0) {
-          nextDue = new Date(Math.min(...dueDates.map(d => d.getTime())))
+          nextDue = new Date(Math.min(...dueDates.map((d) => d.getTime())))
         }
       }
 
       const now = new Date()
       const isOverdue = nextDue && nextDue < now && balance > 0
-      const isDueSoon = nextDue && !isOverdue && 
-        (nextDue - now) / (1000 * 60 * 60 * 24) <= 7 && balance > 0
+      const isDueSoon =
+        nextDue && !isOverdue && (nextDue - now) / (1000 * 60 * 60 * 24) <= 7 && balance > 0
 
       // Count active services
       let activeServicesCount = 0
-      services.forEach(service => {
+      services.forEach((service) => {
         const serviceInstallments = installmentsMap.get(service.id) || []
-        
+
         if (serviceInstallments.length > 0) {
           // Has installments - check if any are unpaid
-          if (serviceInstallments.some(inst => inst.status !== 'paid' && inst.status !== 'skipped')) {
+          if (
+            serviceInstallments.some((inst) => inst.status !== 'paid' && inst.status !== 'skipped')
+          ) {
             activeServicesCount++
           }
         } else {
           // No installments - check if service amount hasn't been fully paid
           const servicePaid = payments.reduce((sum, p) => {
             // Match payments by date proximity (within 1 day of service)
-            const dayDiff = Math.abs((new Date(service.transaction_timestamp) - new Date(p.transaction_timestamp)) / (1000 * 60 * 60 * 24))
+            const dayDiff = Math.abs(
+              (new Date(service.transaction_timestamp) - new Date(p.transaction_timestamp)) /
+                (1000 * 60 * 60 * 24),
+            )
             return dayDiff <= 1 ? sum + parseFloat(p.amount || 0) : sum
           }, 0)
           if (servicePaid < parseFloat(service.amount || 0)) {
@@ -201,13 +226,13 @@ export async function GET(request) {
       // Get last transaction date
       let lastTransaction = null
       if (transactions.length > 0) {
-        const timestamps = transactions.map(t => new Date(t.transaction_timestamp).getTime())
+        const timestamps = transactions.map((t) => new Date(t.transaction_timestamp).getTime())
         lastTransaction = new Date(Math.max(...timestamps))
       }
 
       // Sort transactions by date descending
-      const sortedTransactions = transactions.sort((a, b) => 
-        new Date(b.transaction_timestamp) - new Date(a.transaction_timestamp)
+      const sortedTransactions = transactions.sort(
+        (a, b) => new Date(b.transaction_timestamp) - new Date(a.transaction_timestamp),
       )
 
       return {
@@ -226,46 +251,46 @@ export async function GET(request) {
         isDueSoon,
         lastTransaction,
         transactions: sortedTransactions,
-        loans: customerLoans
+        loans: customerLoans,
       }
     })
 
     // Calculate stats only from current page for quick response
     const stats = {
       totalOutstanding: accounts.reduce((sum, a) => sum + a.balance, 0),
-      activeAccounts: accounts.filter(a => a.balance > 0).length,
-      overdueAccounts: accounts.filter(a => a.isOverdue).length,
-      dueSoonAccounts: accounts.filter(a => a.isDueSoon).length,
-      totalAccounts: accounts.filter(a => a.totalLoans > 0).length
+      activeAccounts: accounts.filter((a) => a.balance > 0).length,
+      overdueAccounts: accounts.filter((a) => a.isOverdue).length,
+      dueSoonAccounts: accounts.filter((a) => a.isDueSoon).length,
+      totalAccounts: accounts.filter((a) => a.totalLoans > 0).length,
     }
 
     // Apply filters
     let filtered = accounts
-    
+
     // If accountId is provided, return that account regardless of filter status
     if (accountId) {
-      filtered = accounts.filter(a => a.id === accountId)
+      filtered = accounts.filter((a) => a.id === accountId)
     } else if (filter === 'active') {
-      filtered = accounts.filter(a => a.balance > 0)
+      filtered = accounts.filter((a) => a.balance > 0)
     } else if (filter === 'overdue') {
-      filtered = accounts.filter(a => a.isOverdue)
+      filtered = accounts.filter((a) => a.isOverdue)
     } else if (filter === 'settled') {
-      filtered = accounts.filter(a => a.balance <= 0 && a.totalLoans > 0)
+      filtered = accounts.filter((a) => a.balance <= 0 && a.totalLoans > 0)
     }
 
-    return NextResponse.json({ 
-      accounts: filtered, 
+    return apiOk({
+      accounts: filtered,
       stats,
       pagination: {
         page,
         limit,
         total: totalCount || 0,
-        pages: Math.ceil((totalCount || 0) / limit)
-      }
+        pages: Math.ceil((totalCount || 0) / limit),
+      },
     })
   } catch (error) {
     console.error('LMS API Error:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return apiError(toErrorMessage(error, 'LMS API failed'), 500)
   }
 }
 
@@ -275,29 +300,41 @@ export async function POST(request) {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY
     if (!url || !key) {
-      return NextResponse.json({ error: 'Supabase not configured: set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in .env.local' }, { status: 500 })
+      return apiError(
+        'Supabase not configured: set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in .env.local',
+        500,
+      )
     }
     const supabase = createClient(url, key)
 
     const body = await request.json()
-    const { action, customerId, loanId, amount, paymentMethodId, notes, employeeId, transactionDate } = body
+    const {
+      action,
+      customerId,
+      loanId,
+      amount,
+      paymentMethodId,
+      notes,
+      employeeId,
+      transactionDate,
+    } = body
 
     if (action === 'record_payment') {
       // Use provided transaction date or default to now
-      const txTimestamp = transactionDate ? new Date(transactionDate).toISOString() : new Date().toISOString()
+      const txTimestamp = transactionDate
+        ? new Date(transactionDate).toISOString()
+        : new Date().toISOString()
 
       // Record payment transaction
-      const { error } = await supabase
-        .from('loan_transactions')
-        .insert({
-          loan_id: loanId,
-          employee_id: employeeId,
-          transaction_type: 'payment',
-          amount: parseFloat(amount),
-          payment_method_id: paymentMethodId,
-          remark: notes,
-          transaction_timestamp: txTimestamp
-        })
+      const { error } = await supabase.from('loan_transactions').insert({
+        loan_id: loanId,
+        employee_id: employeeId,
+        transaction_type: 'payment',
+        amount: parseFloat(amount),
+        payment_method_id: paymentMethodId,
+        remark: notes,
+        transaction_timestamp: txTimestamp,
+      })
 
       if (error) throw error
 
@@ -310,16 +347,22 @@ export async function POST(request) {
 
       await supabase
         .from('loans')
-        .update({ 
+        .update({
           current_balance: Math.max(0, loan.current_balance - parseFloat(amount)),
-          status: (loan.current_balance - parseFloat(amount)) <= 0 ? 'Settled' : 'Active'
+          status: loan.current_balance - parseFloat(amount) <= 0 ? 'Settled' : 'Active',
         })
         .eq('id', loanId)
 
-      return NextResponse.json({ success: true })
-
+      return apiOk({ recordedPaymentLoanId: loanId })
     } else if (action === 'add_service') {
-      const { serviceAmount, initialDeposit, installmentTerms, installmentPlan, paymentFrequency, transactionDate } = body
+      const {
+        serviceAmount,
+        initialDeposit,
+        installmentTerms,
+        installmentPlan,
+        paymentFrequency,
+        transactionDate,
+      } = body
 
       // Ensure installments table exists
       await ensureInstallmentsTableExists()
@@ -327,11 +370,11 @@ export async function POST(request) {
       const totalAmount = parseFloat(serviceAmount)
       const deposit = parseFloat(initialDeposit) || 0
       const remainingAmount = totalAmount - deposit
-      
-      // Use provided transaction date or default to now
-      const txTimestamp = transactionDate ? new Date(transactionDate).toISOString() : new Date().toISOString()
 
-      console.log(`Adding service: total=${totalAmount}, deposit=${deposit}, remaining=${remainingAmount}, date=${txTimestamp}`)
+      // Use provided transaction date or default to now
+      const txTimestamp = transactionDate
+        ? new Date(transactionDate).toISOString()
+        : new Date().toISOString()
 
       // Create loan
       const { data: newLoan, error: loanError } = await supabase
@@ -343,7 +386,7 @@ export async function POST(request) {
           current_balance: remainingAmount, // Balance after deposit
           term_months: parseInt(installmentTerms),
           next_due_date: installmentPlan?.[0]?.dueDate || new Date().toISOString().split('T')[0],
-          status: 'Active'
+          status: 'Active',
         })
         .select()
         .single()
@@ -351,12 +394,12 @@ export async function POST(request) {
       if (loanError) throw loanError
 
       // Create initial service transaction (full amount) with installment plan summary
-      const planSummary = notes || (
-        installmentPlan && installmentPlan.length > 0
+      const planSummary =
+        notes ||
+        (installmentPlan && installmentPlan.length > 0
           ? `${installmentPlan.length} installments - ${paymentFrequency || 'monthly'}`
-          : `${installmentTerms} installments`
-      )
-      
+          : `${installmentTerms} installments`)
+
       const { data: serviceTransaction, error: serviceTxError } = await supabase
         .from('loan_transactions')
         .insert({
@@ -365,7 +408,7 @@ export async function POST(request) {
           transaction_type: 'service',
           amount: totalAmount,
           remark: notes || planSummary,
-          transaction_timestamp: txTimestamp
+          transaction_timestamp: txTimestamp,
         })
         .select()
         .single()
@@ -376,21 +419,19 @@ export async function POST(request) {
       try {
         if (installmentPlan && installmentPlan.length > 0) {
           // Use the detailed plan provided from frontend
-          console.log('Creating installment plan with', installmentPlan.length, 'installments')
           await createDetailedInstallmentRecords(
             serviceTransaction.id,
             installmentPlan,
-            paymentFrequency
+            paymentFrequency,
           )
         } else {
           // Fallback to simple generation
           const numberOfTerms = parseInt(installmentTerms) || 3
-          console.log('Creating fallback installment plan with', numberOfTerms, 'terms')
           await createInstallmentRecords(
             serviceTransaction.id,
             remainingAmount,
             new Date().toISOString(),
-            numberOfTerms
+            numberOfTerms,
           )
         }
       } catch (installmentError) {
@@ -408,7 +449,7 @@ export async function POST(request) {
             transaction_type: 'payment',
             amount: deposit,
             remark: `Initial deposit - Loan #${serviceTransaction.id.substring(0, 8)}`,
-            transaction_timestamp: txTimestamp
+            transaction_timestamp: txTimestamp,
           })
           .select()
           .single()
@@ -420,17 +461,18 @@ export async function POST(request) {
       // For now, we'll log them as remarks in transaction history
       // The UI will display the installment schedule separately
 
-      return NextResponse.json({ success: true, loanId: newLoan.id })
-
+      return apiOk({ createdLoanId: newLoan.id })
     } else if (action === 'add_fee') {
       const { loanId, amount, notes, customerId, transactionDate } = body
 
       // Use provided transaction date or default to now
-      const txTimestamp = transactionDate ? new Date(transactionDate).toISOString() : new Date().toISOString()
+      const txTimestamp = transactionDate
+        ? new Date(transactionDate).toISOString()
+        : new Date().toISOString()
 
       const feeAmount = parseFloat(amount)
       if (Number.isNaN(feeAmount) || feeAmount <= 0) {
-        return NextResponse.json({ error: 'Valid fee amount required' }, { status: 400 })
+        return apiError('Valid fee amount required', 400)
       }
 
       let targetLoanId = loanId || null
@@ -460,7 +502,7 @@ export async function POST(request) {
             current_balance: feeAmount,
             term_months: 12,
             status: 'Active',
-            next_due_date: new Date().toISOString().split('T')[0]
+            next_due_date: new Date().toISOString().split('T')[0],
           })
           .select()
           .single()
@@ -470,20 +512,18 @@ export async function POST(request) {
       }
 
       if (!targetLoanId) {
-        return NextResponse.json({ error: 'No loan found or created for fee' }, { status: 400 })
+        return apiError('No loan found or created for fee', 400)
       }
 
       // Add fee transaction
-      await supabase
-        .from('loan_transactions')
-        .insert({
-          loan_id: targetLoanId,
-          employee_id: employeeId,
-          transaction_type: 'fee',
-          amount: feeAmount,
-          remark: notes || 'Additional fee',
-          transaction_timestamp: txTimestamp
-        })
+      await supabase.from('loan_transactions').insert({
+        loan_id: targetLoanId,
+        employee_id: employeeId,
+        transaction_type: 'fee',
+        amount: feeAmount,
+        remark: notes || 'Additional fee',
+        transaction_timestamp: txTimestamp,
+      })
 
       // Update loan balance
       const { data: loan } = await supabase
@@ -494,14 +534,13 @@ export async function POST(request) {
 
       await supabase
         .from('loans')
-        .update({ 
+        .update({
           current_balance: (loan?.current_balance || 0) + feeAmount,
-          total_debt_amount: (loan?.total_debt_amount || 0) + feeAmount
+          total_debt_amount: (loan?.total_debt_amount || 0) + feeAmount,
         })
         .eq('id', targetLoanId)
 
-      return NextResponse.json({ success: true, loanId: targetLoanId })
-
+      return apiOk({ loanId: targetLoanId, feeAdded: feeAmount })
     } else if (action === 'create_customer') {
       const { firstName, lastName, phone, email, address, initialTransaction } = body
 
@@ -514,7 +553,7 @@ export async function POST(request) {
           email,
           address,
           created_by_employee_id: employeeId,
-          link_status: 'New Entry'
+          link_status: 'New Entry',
         })
         .select()
         .single()
@@ -536,7 +575,7 @@ export async function POST(request) {
               total_debt_amount: txAmount,
               current_balance: txAmount,
               term_months: 12, // Default
-              status: 'Active'
+              status: 'Active',
             })
             .select()
             .single()
@@ -544,16 +583,14 @@ export async function POST(request) {
           if (loanError) throw loanError
 
           // Create transaction
-          await supabase
-            .from('loan_transactions')
-            .insert({
-              loan_id: newLoan.id,
-              employee_id: employeeId,
-              transaction_type: txType === 'service' ? 'service' : 'fee',
-              amount: txAmount,
-              remark: initialTransaction.notes || 'Initial transaction',
-              transaction_timestamp: new Date().toISOString()
-            })
+          await supabase.from('loan_transactions').insert({
+            loan_id: newLoan.id,
+            employee_id: employeeId,
+            transaction_type: txType === 'service' ? 'service' : 'fee',
+            amount: txAmount,
+            remark: initialTransaction.notes || 'Initial transaction',
+            transaction_timestamp: new Date().toISOString(),
+          })
         } else if (txType === 'payment') {
           // Cannot add payment without a loan - need to create a dummy loan first
           // OR skip payment-only for initial transaction
@@ -561,8 +598,7 @@ export async function POST(request) {
         }
       }
 
-      return NextResponse.json({ success: true, customerId: newCustomer.id })
-    
+      return apiOk({ customerId: newCustomer.id })
     } else if (action === 'update_customer') {
       const { customerId, phone, email, address, dateOfBirth, notes } = body
 
@@ -573,19 +609,18 @@ export async function POST(request) {
           email,
           address,
           date_of_birth: dateOfBirth,
-          notes
+          notes,
         })
         .eq('id', customerId)
 
       if (error) throw error
 
-      return NextResponse.json({ success: true })
-    
+      return apiOk({ updatedCustomerId: customerId })
     } else if (action === 'delete_customer') {
       const { customerId, authCode, userId } = body
 
       if (!authCode) {
-        return NextResponse.json({ error: 'Auth code required' }, { status: 403 })
+        return apiError('Auth code required', 403)
       }
 
       // Get customer data for logging before deletion
@@ -596,7 +631,7 @@ export async function POST(request) {
         .single()
 
       if (!customerData) {
-        return NextResponse.json({ error: 'Customer not found' }, { status: 404 })
+        return apiError('Customer not found', 404)
       }
 
       // Log deletion (similar to NADRA)
@@ -604,7 +639,7 @@ export async function POST(request) {
         record_type: 'LMS Customer',
         deleted_record_data: customerData,
         deleted_by: userId || null,
-        auth_code_used: authCode
+        auth_code_used: authCode,
       })
 
       // First, delete all transactions associated with customer's loans
@@ -614,35 +649,25 @@ export async function POST(request) {
         .eq('loan_customer_id', customerId)
 
       if (customerLoans && customerLoans.length > 0) {
-        const loanIds = customerLoans.map(l => l.id)
-        
+        const loanIds = customerLoans.map((l) => l.id)
+
         // Delete transactions
-        await supabase
-          .from('loan_transactions')
-          .delete()
-          .in('loan_id', loanIds)
+        await supabase.from('loan_transactions').delete().in('loan_id', loanIds)
 
         // Delete loans
-        await supabase
-          .from('loans')
-          .delete()
-          .eq('loan_customer_id', customerId)
+        await supabase.from('loans').delete().eq('loan_customer_id', customerId)
       }
 
       // Finally delete customer
-      const { error } = await supabase
-        .from('loan_customers')
-        .delete()
-        .eq('id', customerId)
+      const { error } = await supabase.from('loan_customers').delete().eq('id', customerId)
 
       if (error) throw error
 
-      return NextResponse.json({ success: true })
+      return apiOk({ deletedCustomerId: customerId })
     }
 
-    return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
+    return apiError('Invalid action', 400)
   } catch (error) {
-    console.error('LMS Action Error:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return apiError(toErrorMessage(error, 'LMS action failed'), 500)
   }
 }

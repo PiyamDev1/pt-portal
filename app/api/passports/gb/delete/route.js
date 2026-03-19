@@ -1,17 +1,18 @@
 import { createClient } from '@supabase/supabase-js'
-import { NextResponse } from 'next/server'
+import { apiError, apiOk } from '@/lib/api/http'
+import { toErrorMessage } from '@/lib/api/error'
 
 export async function POST(request) {
   try {
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
+      process.env.SUPABASE_SERVICE_ROLE_KEY,
     )
 
     const { id, authCode, userId } = await request.json()
 
     if (!authCode) {
-      return NextResponse.json({ error: 'Auth code required' }, { status: 403 })
+      return apiError('Auth code required', 403)
     }
 
     // Get the record to be deleted
@@ -22,7 +23,7 @@ export async function POST(request) {
       .single()
 
     if (gbErr || !gbRecord) {
-      return NextResponse.json({ error: 'Record not found' }, { status: 404 })
+      return apiError('Record not found', 404)
     }
 
     // Log deletion
@@ -30,7 +31,7 @@ export async function POST(request) {
       record_type: 'GB Passport Application',
       deleted_record_data: gbRecord,
       deleted_by: userId || null,
-      auth_code_used: authCode
+      auth_code_used: authCode,
     })
 
     if (logError) throw logError
@@ -45,10 +46,7 @@ export async function POST(request) {
 
     // Delete parent application if exists
     if (gbRecord.application_id) {
-      await supabase
-        .from('applications')
-        .delete()
-        .eq('id', gbRecord.application_id)
+      await supabase.from('applications').delete().eq('id', gbRecord.application_id)
     }
 
     // Check if applicant has other applications, if not delete
@@ -73,20 +71,13 @@ export async function POST(request) {
 
         // Only delete applicant if they have no applications anywhere
         if ((!nadraApps || nadraApps.length === 0) && (!pakApps || pakApps.length === 0)) {
-          await supabase
-            .from('applicants')
-            .delete()
-            .eq('id', gbRecord.applicant_id)
+          await supabase.from('applicants').delete().eq('id', gbRecord.applicant_id)
         }
       }
     }
 
-    return NextResponse.json({ success: true })
+    return apiOk({ deletedPassportId: id })
   } catch (error) {
-    console.error('Delete error:', error)
-    return NextResponse.json(
-      { error: error.message || 'Failed to delete' },
-      { status: 500 }
-    )
+    return apiError(toErrorMessage(error, 'Failed to delete'), 500)
   }
 }

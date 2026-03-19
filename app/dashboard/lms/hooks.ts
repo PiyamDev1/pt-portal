@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { toast } from 'sonner'
-import type { Account, LMSData, PaymentMethod } from './types'
+import type { Account, InstallmentPayment, LMSData, PaymentMethod, Transaction } from './types'
 import { API_ENDPOINTS } from './constants'
 import type { SearchFilters } from './components/AdvancedSearchModal'
 
@@ -28,9 +28,9 @@ export function useDebounce<T>(value: T, delay: number): T {
 /**
  * Regular debounce function for callbacks
  */
-export function debounce<T extends (...args: any[]) => any>(
+export function debounce<T extends (...args: unknown[]) => unknown>(
   func: T,
-  wait: number
+  wait: number,
 ): (...args: Parameters<T>) => void {
   let timeout: NodeJS.Timeout | null = null
 
@@ -47,7 +47,7 @@ export function debounce<T extends (...args: any[]) => any>(
 
 /**
  * LMS Data Hook - Fetches LMS data and tracks loading state
- * 
+ *
  * IMPORTANT: This hook uses a ref-based approach to prevent infinite refresh loops.
  * The filter prop is tracked in a useRef and only triggers a fetch when it actually changes.
  * This prevents the cascade of re-renders that occurred with dependency arrays.
@@ -59,21 +59,24 @@ export function useLmsData(filter: string) {
   const [pageInfo, setPageInfo] = useState<{ total: number; pages: number }>({ total: 0, pages: 0 })
   const previousFilterRef = useRef<string>('')
 
-  const refresh = useCallback(async (pageNum = 1) => {
-    setLoading(true)
-    try {
-      const res = await fetch(`${API_ENDPOINTS.LMS}?filter=${filter}&page=${pageNum}&limit=50`)
-      const d = await res.json()
-      setData(d)
-      setPageInfo(d.pagination || { total: 0, pages: 0 })
-      setPage(pageNum)
-    } catch (err) {
-      console.error(err)
-      toast.error('Failed to load accounts')
-    } finally {
-      setLoading(false)
-    }
-  }, [filter])
+  const refresh = useCallback(
+    async (pageNum = 1) => {
+      setLoading(true)
+      try {
+        const res = await fetch(`${API_ENDPOINTS.LMS}?filter=${filter}&page=${pageNum}&limit=50`)
+        const d = await res.json()
+        setData(d)
+        setPageInfo(d.pagination || { total: 0, pages: 0 })
+        setPage(pageNum)
+      } catch (err) {
+        console.error(err)
+        toast.error('Failed to load accounts')
+      } finally {
+        setLoading(false)
+      }
+    },
+    [filter],
+  )
 
   // Only fetch when filter actually changes (not on every render)
   useEffect(() => {
@@ -92,16 +95,17 @@ export function useLmsData(filter: string) {
 export function useLmsFilters(
   accounts: Account[] | undefined,
   debouncedSearchTerm: string,
-  searchFilters: SearchFilters
+  searchFilters: SearchFilters,
 ) {
   const filtered = useMemo(() => {
     let results = accounts || []
 
     if (debouncedSearchTerm) {
-      results = results.filter((a: Account) =>
-        a.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
-        a.phone?.includes(debouncedSearchTerm) ||
-        a.email?.toLowerCase().includes(debouncedSearchTerm.toLowerCase())
+      results = results.filter(
+        (a: Account) =>
+          a.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+          a.phone?.includes(debouncedSearchTerm) ||
+          a.email?.toLowerCase().includes(debouncedSearchTerm.toLowerCase()),
       )
     }
 
@@ -148,16 +152,18 @@ export function useLmsFilters(
  */
 export function useInstallmentsByTransaction(account: Account) {
   const [localAccount, setLocalAccount] = useState(account)
-  const [installmentsByTransaction, setInstallmentsByTransaction] = useState<Record<string, any[]>>({})
+  const [installmentsByTransaction, setInstallmentsByTransaction] = useState<
+    Record<string, InstallmentPayment[]>
+  >({})
 
   const fetchInstallments = useCallback(async () => {
     if (!localAccount.transactions) return
 
     const serviceTransactions = localAccount.transactions.filter(
-      (tx: any) => tx.transaction_type?.toLowerCase() === 'service'
+      (tx: Transaction) => tx.transaction_type?.toLowerCase() === 'service',
     )
 
-    const installmentsMap: Record<string, any[]> = {}
+    const installmentsMap: Record<string, InstallmentPayment[]> = {}
 
     for (const tx of serviceTransactions) {
       try {
@@ -185,7 +191,7 @@ export function useInstallmentsByTransaction(account: Account) {
     localAccount,
     setLocalAccount,
     installmentsByTransaction,
-    fetchInstallments
+    fetchInstallments,
   }
 }
 

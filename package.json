@@ -12,12 +12,16 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint app lib hooks components --ext .ts,.tsx,.js",
+    "lint:fix": "eslint app lib hooks components --ext .ts,.tsx,.js --fix",
     "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "sync:pdf-worker": "node scripts/sync-pdf-worker.mjs",
     "postinstall": "npm run sync:pdf-worker",
     "test:smoke": "playwright test",
-    "test:smoke:headed": "playwright test --headed"
+    "test:smoke:headed": "playwright test --headed",
+    "test:unit": "vitest run",
+    "test:unit:watch": "vitest"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1006.0",
@@ -30,7 +34,7 @@
     "jsqr": "^1.4.0",
     "lucide-react": "^0.562.0",
     "mailgun.js": "^12.4.0",
-    "next": "^16.1.6",
+    "next": "^16.1.7",
     "next-nprogress-bar": "^2.4.7",
     "nprogress": "^0.2.0",
     "pdfjs-dist": "^5.5.207",
@@ -43,6 +47,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",
+    "@testing-library/react": "^16.3.2",
     "@types/bcryptjs": "^3.0.0",
     "@types/node": "^20.0.0",
     "@types/qrcode": "^1.5.6",
@@ -50,9 +55,12 @@
     "@types/react-dom": "^18.3.0",
     "autoprefixer": "^10.4.0",
     "eslint": "^9.39.2",
-    "eslint-config-next": "^16.1.6",
+    "eslint-config-next": "^16.1.7",
+    "jsdom": "^29.0.0",
     "postcss": "^8.4.0",
+    "prettier": "^3.8.1",
     "tailwindcss": "^3.4.0",
-    "typescript": "^5.3.0"
+    "typescript": "^5.3.0",
+    "vitest": "^4.1.0"
   }
 }

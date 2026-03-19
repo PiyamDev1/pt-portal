@@ -5,6 +5,7 @@ This document provides guidelines for maintaining a clean, organized codebase.
 ## Completed Cleanup Tasks ✅
 
 ### Phase 1: Refactoring Foundation (Completed)
+
 - [x] Extracted reusable hooks (`useAsync`, `useModal`, `usePagination`, `useFormState`, `useTableFilters`)
 - [x] Centralized constants (`api.ts`, `validation.ts`, `ui.ts`)
 - [x] Created reusable components (`ModalBase`, `ConfirmationDialog`)
@@ -12,12 +13,14 @@ This document provides guidelines for maintaining a clean, organized codebase.
 - [x] Created comprehensive documentation
 
 ### Phase 2: Code Organization (Completed)
+
 - [x] Organized hooks with clear categorization
 - [x] Organized constants by feature/purpose
 - [x] Organized components with reusable patterns
 - [x] Added README files with usage examples
 
 ### Phase 3: Documentation (Completed)
+
 - [x] Created `hooks/README.md` with hook documentation
 - [x] Created `components/README.md` with component patterns
 - [x] Created `lib/constants/README.md` with constant usage
@@ -29,7 +32,9 @@ This document provides guidelines for maintaining a clean, organized codebase.
 ## Current Code Quality Status 📊
 
 ### Strong Areas
+
 ✅ New modules have:
+
 - TypeScript with strict types
 - JSDoc documentation
 - Tree-shaking friendly exports
@@ -38,7 +43,9 @@ This document provides guidelines for maintaining a clean, organized codebase.
 - Proper error handling
 
 ### Areas for Future Improvement
+
 ⚠️ Legacy code has:
+
 - Some console.error statements (for debugging, acceptable)
 - Large component files (400+ lines)
 - Mixed concerns in some API routes
@@ -51,6 +58,7 @@ This document provides guidelines for maintaining a clean, organized codebase.
 ## File Organization Standards
 
 ### ✅ Correct Structure
+
 ```
 feature/
 ├── index.tsx         # Main export
@@ -64,6 +72,7 @@ feature/
 ```
 
 ### ✅ Correct Imports
+
 ```tsx
 // Good: Using barrel exports
 import { useAsync, useModal } from '@/hooks'
@@ -78,6 +87,7 @@ import { MyComponent } from '@/dashboard/my-feature'
 ```
 
 ### ✅ Correct Naming
+
 ```tsx
 // Components: PascalCase
 export function MyComponent() {}
@@ -99,6 +109,7 @@ export function myUtilFunction() {}
 Before committing code, verify:
 
 ### TypeScript
+
 - [ ] No `any` types (use `unknown` if needed)
 - [ ] All function parameters typed
 - [ ] Return types specified for hooks
@@ -106,18 +117,21 @@ Before committing code, verify:
 - [ ] No type assertion (`as Type`)
 
 ### Documentation
+
 - [ ] Function/component has JSDoc
 - [ ] Complex logic has comments
 - [ ] README updated if adding new directory
 - [ ] Usage examples provided
 
 ### Testing
+
 - [ ] Critical hooks have tests
 - [ ] Edge cases handled
 - [ ] Error states tested
 - [ ] Loading states work correctly
 
 ### Performance
+
 - [ ] No unnecessary re-renders
 - [ ] useMemo/useCallback used appropriately
 - [ ] No N+1 data fetching
@@ -125,6 +139,7 @@ Before committing code, verify:
 - [ ] Bundle size considered
 
 ### Accessibility
+
 - [ ] Proper semantic HTML
 - [ ] ARIA labels where needed
 - [ ] Keyboard navigation works
@@ -138,6 +153,7 @@ Before committing code, verify:
 ### Remove Unused Components
 
 **Before:**
+
 ```tsx
 // dashboard/old-component.tsx
 export function OldComponent() {
@@ -146,6 +162,7 @@ export function OldComponent() {
 ```
 
 **Action:**
+
 1. Search for usages: `grep -r "OldComponent" app`
 2. If no usages, rename with `.deprecated` suffix
 3. Add deprecation message in JSDoc
@@ -154,6 +171,7 @@ export function OldComponent() {
 ### Consolidate Duplicate Constants
 
 **Before:**
+
 ```tsx
 // Multiple files with same constant
 export const API_URL = 'https://api.example.com'
@@ -161,6 +179,7 @@ export const API_BASE_URL = 'https://api.example.com'
 ```
 
 **Action:**
+
 1. Add to `/lib/constants/api.ts`
 2. Replace imports in all files
 3. Delete from individual files
@@ -168,11 +187,13 @@ export const API_BASE_URL = 'https://api.example.com'
 ### Remove Unused Imports
 
 **TypeScript check:**
+
 ```bash
 npx tsc --noEmit
 ```
 
 **Editor check:**
+
 - VS Code: Right-click file → "Refactor" → "Organize Imports"
 
 ### Fix Import Organization
@@ -180,6 +201,7 @@ npx tsc --noEmit
 Use the new constants barrel export:
 
 **Before:**
+
 ```tsx
 import { useAsync } from '@/dashboard/lms/hooks/useAsync'
 import { COLORS } from '@/lib/colors'
@@ -187,6 +209,7 @@ import { API_ENDPOINTS } from '@/api/endpoints'
 ```
 
 **After:**
+
 ```tsx
 import { useAsync } from '@/hooks'
 import { COLORS, API_ENDPOINTS } from '@/lib/constants'
@@ -197,7 +220,9 @@ import { COLORS, API_ENDPOINTS } from '@/lib/constants'
 ## Refactoring Guidelines
 
 ### When to Refactor
+
 ✅ When:
+
 - File exceeds 300 lines
 - Same code appears 3+ times
 - Component has 10+ useState calls
@@ -205,12 +230,14 @@ import { COLORS, API_ENDPOINTS } from '@/lib/constants'
 - Test coverage is difficult
 
 ❌ Don't:
+
 - Refactor working code without tests
 - Refactor in same PR as feature
 - Break backward compatibility unnecessarily
 - Refactor code you don't understand
 
 ### Refactoring Workflow
+
 1. **Create branch:** `refactor/feature-name`
 2. **Write tests first:** Capture current behavior
 3. **Make small changes:** Commit often
@@ -223,6 +250,7 @@ import { COLORS, API_ENDPOINTS } from '@/lib/constants'
 Replace common patterns with hooks:
 
 **Before:**
+
 ```tsx
 const [items, setItems] = useState([])
 const [loading, setLoading] = useState(false)
@@ -246,6 +274,7 @@ const fetchItems = async () => {
 ```
 
 **After:**
+
 ```tsx
 const { data: items, loading, error } = useAsync(() => api.getItems(), true)
 ```
@@ -255,21 +284,25 @@ const { data: items, loading, error } = useAsync(() => api.getItems(), true)
 ## Maintenance Schedule
 
 ### Daily
+
 - Review for obvious issues
 - Fix TypeScript errors
 - Monitor console warnings
 
 ### Weekly
+
 - Check for unused code
 - Review PR feedback patterns
 - Update broken links in docs
 
 ### Monthly
+
 - Audit large files
 - Check for deprecated APIs
 - Update dependencies safely
 
 ### Quarterly
+
 - Major refactoring review
 - Performance audit
 - Security vulnerability check
@@ -279,18 +312,21 @@ const { data: items, loading, error } = useAsync(() => api.getItems(), true)
 ## Documentation Updates
 
 ### When Adding Features
+
 1. Update relevant README
 2. Add usage examples
 3. Document type definitions
 4. Add inline JSDoc comments
 
 ### When Removing Code
+
 1. Check if documented
 2. Update README if needed
 3. Note in git commit message
 4. Update migration guides if breaking
 
 ### When Adding Constants
+
 1. Organize by category
 2. Add to barrel export
 3. Document with examples
@@ -301,28 +337,30 @@ const { data: items, loading, error } = useAsync(() => api.getItems(), true)
 ## Performance Considerations
 
 ### Bundle Size
+
 Keep components small and focused:
+
 - Aim for <100 lines per component
 - Extract sub-components for large UI
 - Use dynamic imports for heavy features
 
 ### Runtime
+
 Optimize data fetching:
+
 - Use pagination for large lists
 - Debounce search/filter inputs
 - Memoize expensive calculations
 - Avoid deep re-renders
 
 ### Examples
+
 ```tsx
 // Good: Memoized sorting
-const filtered = useMemo(
-  () => items.filter(item => item.name.includes(search)),
-  [items, search]
-)
+const filtered = useMemo(() => items.filter((item) => item.name.includes(search)), [items, search])
 
 // Bad: Recreates on every render
-const filtered = items.filter(item => item.name.includes(search))
+const filtered = items.filter((item) => item.name.includes(search))
 ```
 
 ---
@@ -330,22 +368,27 @@ const filtered = items.filter(item => item.name.includes(search))
 ## Common Issues & Fixes
 
 ### Issue: Import From Deep Path
+
 **Problem:** `import { useAsync } from '@/hooks/useAsync'`
 **Solution:** `import { useAsync } from '@/hooks'` (use barrel export)
 
 ### Issue: Magic Strings/Numbers
+
 **Problem:** `const API_URL = 'https://api.example.com'` in component
 **Solution:** Move to `/lib/constants/api.ts`
 
 ### Issue: Large Component File
+
 **Problem:** Component with 500+ lines and 15+ useState calls
 **Solution:** Extract into smaller components and custom hooks
 
 ### Issue: Duplicate Validation Rules
+
 **Problem:** Email regex defined in multiple components
 **Solution:** Move to `/lib/constants/validation.ts`
 
 ### Issue: Unused Imports
+
 **Problem:** `import { Component } from '@/components'` but not used
 **Solution:** Remove or use refactoring tool
 
@@ -354,6 +397,7 @@ const filtered = items.filter(item => item.name.includes(search))
 ## Contributing Standards
 
 ### Before Creating Pull Request
+
 - [ ] Code passes TypeScript: `npx tsc --noEmit`
 - [ ] Follows naming conventions
 - [ ] Updated documentation
@@ -362,11 +406,14 @@ const filtered = items.filter(item => item.name.includes(search))
 - [ ] Tests pass (if applicable)
 
 ### PR Template
+
 ```markdown
 ## Description
+
 What does this change do?
 
 ## Type
+
 - [ ] Cleanup
 - [ ] Refactoring
 - [ ] Documentation
@@ -374,12 +421,15 @@ What does this change do?
 - [ ] Feature
 
 ## Changes
+
 - List key changes
 
 ## Testing
+
 - How to verify the changes
 
 ## Related
+
 - Closes #123
 ```
 
@@ -397,9 +447,9 @@ What does this change do?
 ## Questions?
 
 Refer to:
+
 - `CODEBASE_STRUCTURE_GUIDE.md` - Architecture and patterns
 - `CODEBASE_REFACTORING_PLAN.md` - Refactoring strategy
 - `hooks/README.md` - Hook usage
 - `components/README.md` - Component patterns
 - `lib/constants/README.md` - Constants organization
-

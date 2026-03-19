@@ -11,16 +11,18 @@ export default function NewPasswordPage() {
   const [userEmail, setUserEmail] = useState('')
   const [userId, setUserId] = useState('')
   const router = useRouter()
-  
+
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
   )
 
   // Get the current user ID on load
   useEffect(() => {
     async function getUser() {
-      const { data: { user } } = await supabase.auth.getUser()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
       if (user) setUserId(user.id)
       if (user) {
         setUserId(user.id)
@@ -48,10 +50,10 @@ export default function NewPasswordPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (password !== confirm) return alert("Passwords do not match")
+    if (password !== confirm) return alert('Passwords do not match')
     const pwdErrors = validatePassword(password)
     if (pwdErrors.length > 0) return alert('Password must contain: ' + pwdErrors.join(', '))
-    
+
     setLoading(true)
 
     const res = await fetch('/api/auth/update-password', {
@@ -61,23 +63,23 @@ export default function NewPasswordPage() {
     })
 
     const data = await res.json()
-    
+
     if (res.ok) {
       // 2. CRITICAL FIX: Re-Login automatically to get a new Session
       const { error: loginError } = await supabase.auth.signInWithPassword({
         email: userEmail,
-        password: password
+        password: password,
       })
 
       if (loginError) {
-        alert("Password updated, but auto-login failed. Please sign in manually.")
+        alert('Password updated, but auto-login failed. Please sign in manually.')
         router.push('/login')
       } else {
         // 3. Now we have a valid session -> Go to 2FA
         router.push('/login/setup-2fa')
       }
     } else {
-      alert("Error: " + data.error)
+      alert('Error: ' + data.error)
     }
     setLoading(false)
   }
@@ -90,32 +92,42 @@ export default function NewPasswordPage() {
             🔒
           </div>
           <h1 className="text-2xl font-bold text-slate-900">Security Update Required</h1>
-          <p className="text-slate-500 text-sm mt-1">You are using a temporary password. Please set a secure password to continue.</p>
+          <p className="text-slate-500 text-sm mt-1">
+            You are using a temporary password. Please set a secure password to continue.
+          </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">New Password</label>
-            <input 
-              type="password" required minLength={6}
+            <input
+              type="password"
+              required
+              minLength={6}
               className="w-full p-3 border rounded focus:ring-2 focus:ring-blue-900 outline-none"
-              value={password} onChange={e => setPassword(e.target.value)}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
             />
             {password && (
               <div className="mt-3 p-3 bg-slate-50 rounded border border-slate-200">
                 <div className="flex items-center gap-2 mb-2">
                   <div className="flex-1 h-1.5 bg-slate-200 rounded overflow-hidden">
-                    <div 
+                    <div
                       className={`h-full transition-all ${
-                        getPasswordStrengthIndicator(password).strength === 5 ? 'bg-green-500 w-full' :
-                        getPasswordStrengthIndicator(password).strength >= 3 ? 'bg-yellow-500 w-3/4' :
-                        'bg-red-500 w-1/2'
+                        getPasswordStrengthIndicator(password).strength === 5
+                          ? 'bg-green-500 w-full'
+                          : getPasswordStrengthIndicator(password).strength >= 3
+                            ? 'bg-yellow-500 w-3/4'
+                            : 'bg-red-500 w-1/2'
                       }`}
                     />
                   </div>
                   <span className="text-xs font-bold">
-                    {getPasswordStrengthIndicator(password).strength === 5 ? '✓ Strong' :
-                     getPasswordStrengthIndicator(password).strength >= 3 ? 'Fair' : 'Weak'}
+                    {getPasswordStrengthIndicator(password).strength === 5
+                      ? '✓ Strong'
+                      : getPasswordStrengthIndicator(password).strength >= 3
+                        ? 'Fair'
+                        : 'Weak'}
                   </span>
                 </div>
                 {getPasswordStrengthIndicator(password).errors.length > 0 && (
@@ -132,16 +144,22 @@ export default function NewPasswordPage() {
             )}
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Confirm Password</label>
-            <input 
-              type="password" required minLength={6}
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              Confirm Password
+            </label>
+            <input
+              type="password"
+              required
+              minLength={6}
               className="w-full p-3 border rounded focus:ring-2 focus:ring-blue-900 outline-none"
-              value={confirm} onChange={e => setConfirm(e.target.value)}
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
             />
           </div>
 
-          <button 
-            type="submit" disabled={loading}
+          <button
+            type="submit"
+            disabled={loading}
             className="w-full bg-blue-900 text-white py-3 rounded-lg font-bold hover:bg-blue-800 transition"
           >
             {loading ? 'Updating...' : 'Set Password & Login'}

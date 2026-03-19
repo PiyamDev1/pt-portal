@@ -25,7 +25,7 @@ export const AccountRow = React.memo(function AccountRow({
   onEdit,
   onShowNotes,
   onShowAuditLogs,
-  getStatusBadge
+  getStatusBadge,
 }: AccountRowProps) {
   return (
     <>

@@ -1,26 +1,31 @@
 // Helper Functions for NADRA Ledger
 // Core formatting functions moved to app/lib/utils.ts
 
-import { formatCNIC as coreFormatCNIC, getStatusColor as coreGetStatusColor } from '@/app/lib/utils'
+import { formatCNIC as coreFormatCNIC, getStatusColor as coreGetStatusColor } from '@/lib/utils'
+import type { NadraApplication, NadraServiceDetails, NadraServiceRecord } from '@/app/types/nadra'
 
 // Re-export from central location for backward compatibility
 export const formatCNIC = coreFormatCNIC
 export const getStatusColor = coreGetStatusColor
 
 // Extract nadra service record (handle array/object)
-export const getNadraRecord = (item: any) => {
+export const getNadraRecord = (item: NadraApplication) => {
   return Array.isArray(item.nadra_services) ? item.nadra_services[0] : item.nadra_services
 }
 
 // Extract nicop_cnic_details (handle array/object)
-export const getDetails = (nadra: any) => {
+export const getDetails = (
+  nadra: NadraServiceRecord | null | undefined,
+): NadraServiceDetails | null | undefined => {
   return Array.isArray(nadra?.nicop_cnic_details)
     ? nadra?.nicop_cnic_details[0]
     : nadra?.nicop_cnic_details
 }
 
 export const normalizeStatus = (status: string): string => {
-  const value = String(status || '').trim().toLowerCase()
+  const value = String(status || '')
+    .trim()
+    .toLowerCase()
 
   if (!value || value === 'pending') return 'Pending Submission'
   if (value === 'pending submission') return 'Pending Submission'
@@ -36,10 +41,10 @@ export const normalizeStatus = (status: string): string => {
   return status || 'Pending Submission'
 }
 
-export const countByStatuses = (applications: any[], statuses: string[]): number => {
+export const countByStatuses = (applications: NadraApplication[], statuses: string[]): number => {
   const normalized = new Set(statuses.map((status) => normalizeStatus(status)))
 
-  return applications.filter((a: any) => {
+  return applications.filter((a) => {
     const nadra = getNadraRecord(a)
     if (!nadra) return false
     const currentStatus = normalizeStatus(nadra.status || 'Pending Submission')
@@ -48,6 +53,6 @@ export const countByStatuses = (applications: any[], statuses: string[]): number
 }
 
 // Count applications by status
-export const countByStatus = (applications: any[], status: string): number => {
+export const countByStatus = (applications: NadraApplication[], status: string): number => {
   return countByStatuses(applications, [status])
 }

@@ -1,11 +1,12 @@
 import { createClient } from '@supabase/supabase-js'
-import { NextResponse } from 'next/server'
+import { apiError, apiOk } from '@/lib/api/http'
+import { toErrorMessage } from '@/lib/api/error'
 
 export async function POST(request) {
   try {
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
+      process.env.SUPABASE_SERVICE_ROLE_KEY,
     )
 
     const body = await request.json()
@@ -19,7 +20,7 @@ export async function POST(request) {
       costCurrency,
       notes,
       internalTrackingNo,
-      currentUserId
+      currentUserId,
     } = body
 
     // 1. Find or Create Applicant
@@ -37,7 +38,7 @@ export async function POST(request) {
         .insert({
           first_name: nameParts[0],
           last_name: nameParts.slice(1).join(' ') || '.',
-          passport_number: applicantPassport
+          passport_number: applicantPassport,
         })
         .select('id')
         .single()
@@ -60,14 +61,17 @@ export async function POST(request) {
       cost_currency: costCurrency || 'GBP',
       notes: notes,
       status: 'Pending',
-      is_loyalty_claimed: false
+      is_loyalty_claimed: false,
     })
 
-    if (error) throw error
+    if (error) throw new Error(error.message || 'Failed to create visa application')
 
-    return NextResponse.json({ success: true })
+    return apiOk({
+      applicationCreatedForApplicantId: applicant.id,
+      internalTrackingNo,
+    })
   } catch (error) {
-    console.error('Visa Add Error:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    const errorMessage = toErrorMessage(error, 'Failed to add visa application')
+    return apiError(errorMessage, 500)
   }
 }

@@ -1,5 +1,7 @@
-import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import crypto from 'crypto'
+import { apiOk, apiError } from '@/lib/api/http'
+import { toErrorMessage } from '@/lib/api/error'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -9,7 +11,7 @@ export async function GET(request: Request) {
     const adminSupabase = createClient(supabaseUrl, serviceKey)
     const diagnostics: any = {
       timestamp: new Date().toISOString(),
-      checks: []
+      checks: [],
     }
 
     // Check 1: timeclock_devices table exists and is accessible
@@ -18,18 +20,18 @@ export async function GET(request: Request) {
         .from('timeclock_devices')
         .select('id, name')
         .limit(1)
-      
+
       diagnostics.checks.push({
         name: 'timeclock_devices table',
         status: devicesError ? 'FAIL' : 'PASS',
         error: devicesError?.message,
-        result: devices ? `Found ${devices.length} device(s)` : 'Empty table'
+        result: devices ? `Found ${devices.length} device(s)` : 'Empty table',
       })
     } catch (e: any) {
       diagnostics.checks.push({
         name: 'timeclock_devices table',
         status: 'ERROR',
-        error: e.message
+        error: e.message,
       })
     }
 
@@ -39,18 +41,18 @@ export async function GET(request: Request) {
         .from('timeclock_manual_codes')
         .select('id, code')
         .limit(1)
-      
+
       diagnostics.checks.push({
         name: 'timeclock_manual_codes table',
         status: codesError ? 'FAIL' : 'PASS',
         error: codesError?.message,
-        result: codes ? `Found ${codes.length} code(s)` : 'Empty table'
+        result: codes ? `Found ${codes.length} code(s)` : 'Empty table',
       })
     } catch (e: any) {
       diagnostics.checks.push({
         name: 'timeclock_manual_codes table',
         status: 'ERROR',
-        error: e.message
+        error: e.message,
       })
     }
 
@@ -64,30 +66,27 @@ export async function GET(request: Request) {
           name: `Test Device ${Date.now()}`,
           secret: 'test-secret-' + Date.now(),
           location: 'Test',
-          is_active: true
+          is_active: true,
         })
         .select()
-      
+
       diagnostics.checks.push({
         name: 'Insert test device',
         status: insertError ? 'FAIL' : 'PASS',
         error: insertError?.message,
         errorCode: insertError?.code,
-        errorHint: insertError?.hint
+        errorHint: insertError?.hint,
       })
 
       // Clean up test device
       if (!insertError && testDeviceId) {
-        await adminSupabase
-          .from('timeclock_devices')
-          .delete()
-          .eq('id', testDeviceId)
+        await adminSupabase.from('timeclock_devices').delete().eq('id', testDeviceId)
       }
     } catch (e: any) {
       diagnostics.checks.push({
         name: 'Insert test device',
         status: 'ERROR',
-        error: e.message
+        error: e.message,
       })
     }
 
@@ -96,14 +95,13 @@ export async function GET(request: Request) {
       name: 'Environment variables',
       status: 'INFO',
       supabaseUrl: supabaseUrl ? 'Set' : 'Missing',
-      serviceKey: serviceKey ? 'Set (length: ' + serviceKey.length + ')' : 'Missing'
+      serviceKey: serviceKey ? 'Set (length: ' + serviceKey.length + ')' : 'Missing',
     })
 
-    return NextResponse.json(diagnostics, { status: 200 })
+    return apiOk(diagnostics)
   } catch (error: any) {
-    return NextResponse.json({
-      error: 'Diagnostics failed',
-      message: error.message
-    }, { status: 500 })
+    return apiError('Diagnostics failed', 500, {
+      message: toErrorMessage(error, 'Unexpected error'),
+    })
   }
 }

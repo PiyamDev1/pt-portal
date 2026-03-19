@@ -1,4 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
+import { toErrorMessage } from '@/lib/api/error'
+import { apiError, apiOk } from '@/lib/api/http'
 import { getDocumentMigrationMetrics } from '@/lib/documentMigrationMetrics'
 import { requireMaintenanceSession } from '@/lib/adminSessionAuth'
 import { getPersistentMigrationEvents } from '@/lib/documentMigrationStore'
@@ -31,23 +33,27 @@ async function getOverview() {
     health,
     persistentEvents,
   ] = await Promise.all([
-    (supabase.from('documents') as any).select('id', { count: 'exact', head: true }).eq('deleted', false),
-    (supabase.from('documents') as any)
+    supabase.from('documents').select('id', { count: 'exact', head: true }).eq('deleted', false),
+    supabase
+      .from('documents')
       .select('id', { count: 'exact', head: true })
       .eq('deleted', false)
       .eq('minio_bucket', MINIO_BUCKET),
-    (supabase.from('documents') as any)
+    supabase
+      .from('documents')
       .select('id', { count: 'exact', head: true })
       .eq('deleted', false)
       .eq('minio_bucket', R2_BUCKET),
-    (supabase.from('documents') as any).select('id', { count: 'exact', head: true }).eq('deleted', true),
-    (supabase.from('documents') as any)
+    supabase.from('documents').select('id', { count: 'exact', head: true }).eq('deleted', true),
+    supabase
+      .from('documents')
       .select('id, file_name, file_size, category, uploaded_at, family_head_id, minio_key')
       .eq('deleted', false)
       .eq('minio_bucket', R2_BUCKET)
       .order('uploaded_at', { ascending: false })
       .limit(10),
-    (supabase.from('documents') as any)
+    supabase
+      .from('documents')
       .select('uploaded_at')
       .eq('deleted', false)
       .eq('minio_bucket', R2_BUCKET)
@@ -78,7 +84,11 @@ async function getOverview() {
   const mergedEvents = persistentEvents.length > 0 ? persistentEvents : fallbackEvents
   const consecutiveFailures = calculateConsecutiveFailures(mergedEvents)
 
-  const alerts: Array<{ severity: 'info' | 'warning' | 'critical'; title: string; message: string }> = []
+  const alerts: Array<{
+    severity: 'info' | 'warning' | 'critical'
+    title: string
+    message: string
+  }> = []
   if ((fallbackResult.count || 0) > 20) {
     alerts.push({
       severity: 'warning',
@@ -130,12 +140,9 @@ export async function GET() {
 
   try {
     const overview = await getOverview()
-    return NextResponse.json({ success: true, data: overview })
+    return apiOk(overview)
   } catch (error) {
-    return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : 'Failed to load overview' },
-      { status: 500 }
-    )
+    return apiError(toErrorMessage(error, 'Failed to load overview'), 500)
   }
 }
 
@@ -151,19 +158,13 @@ export async function POST(request: NextRequest) {
     const health = await getDocumentStorageStatus({ runMaintenance: false })
 
     if (!health.connected) {
-      return NextResponse.json(
-        { success: false, error: 'Primary storage is offline. Batch migration is unavailable.' },
-        { status: 409 }
-      )
+      return apiError('Primary storage is offline. Batch migration is unavailable.', 409)
     }
 
     const result = await migrateFallbackBatch(limit, { trigger: 'manual' })
     const overview = await getOverview()
-    return NextResponse.json({ success: true, data: { result, overview } })
+    return apiOk({ result, overview })
   } catch (error) {
-    return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : 'Batch migration failed' },
-      { status: 500 }
-    )
+    return apiError(toErrorMessage(error, 'Batch migration failed'), 500)
   }
 }

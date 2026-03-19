@@ -1,11 +1,24 @@
 import { NextResponse } from 'next/server'
 import { requireMaintenanceSession } from '@/lib/adminSessionAuth'
 import { getSupabaseClient } from '@/lib/supabaseClient'
+import { apiError, apiOk } from '@/lib/api/http'
+import { toErrorMessage } from '@/lib/api/error'
 
 type RouteContext = {
   params: Promise<{
     eventId: string
   }>
+}
+
+type TimeclockAdjustRow = {
+  id: string
+  adjusted_at: string | null
+  adjusted_device_ts: string | null
+  adjusted_scanned_at: string | null
+  scanned_at: string | null
+  device_ts: string | null
+  employee_id: string | null
+  punch_type: string | null
 }
 
 export async function PATCH(request: Request, context: RouteContext) {
@@ -21,44 +34,46 @@ export async function PATCH(request: Request, context: RouteContext) {
     const reason = typeof body?.reason === 'string' ? body.reason.trim() : ''
 
     if (!eventId) {
-      return NextResponse.json({ error: 'Missing event id' }, { status: 400 })
+      return apiError('Missing event id', 400)
     }
 
     if (!adjustedTime) {
-      return NextResponse.json({ error: 'Adjusted time is required' }, { status: 400 })
+      return apiError('Adjusted time is required', 400)
     }
 
     if (!reason || reason.length < 8) {
-      return NextResponse.json({ error: 'Provide a short reason for the adjustment' }, { status: 400 })
+      return apiError('Provide a short reason for the adjustment', 400)
     }
 
     const normalizedAdjustedTime = new Date(adjustedTime)
     if (Number.isNaN(normalizedAdjustedTime.getTime())) {
-      return NextResponse.json({ error: 'Invalid adjusted time' }, { status: 400 })
+      return apiError('Invalid adjusted time', 400)
     }
 
     const supabase = getSupabaseClient()
-    const { data: existingEvent, error: fetchError } = await (supabase.from('timeclock_events') as any)
+    const { data: existingEvent, error: fetchError } = await supabase
+      .from('timeclock_events')
       .select('id, adjusted_at, scanned_at, device_ts, employee_id, punch_type')
       .eq('id', eventId)
-      .maybeSingle()
+      .maybeSingle<TimeclockAdjustRow>()
 
     if (fetchError) {
-      throw fetchError
+      throw new Error(fetchError.message || 'Failed to fetch event')
     }
 
     if (!existingEvent) {
-      return NextResponse.json({ error: 'Timeclock event not found' }, { status: 404 })
+      return apiError('Timeclock event not found', 404)
     }
 
     if (existingEvent.adjusted_at) {
-      return NextResponse.json({ error: 'This punch has already been adjusted once' }, { status: 409 })
+      return apiError('This punch has already been adjusted once', 409)
     }
 
     const adjustedIso = normalizedAdjustedTime.toISOString()
     const nowIso = new Date().toISOString()
 
-    const { data: updatedEvent, error: updateError } = await (supabase.from('timeclock_events') as any)
+    const { data: updatedEvent, error: updateError } = await supabase
+      .from('timeclock_events')
       .update({
         adjusted_device_ts: adjustedIso,
         adjusted_scanned_at: adjustedIso,
@@ -68,24 +83,27 @@ export async function PATCH(request: Request, context: RouteContext) {
       })
       .eq('id', eventId)
       .is('adjusted_at', null)
-      .select('id, employee_id, punch_type, device_ts, scanned_at, adjusted_device_ts, adjusted_scanned_at, adjusted_at, adjustment_reason')
-      .maybeSingle()
+      .select(
+        'id, employee_id, punch_type, device_ts, scanned_at, adjusted_device_ts, adjusted_scanned_at, adjusted_at, adjustment_reason',
+      )
+      .maybeSingle<TimeclockAdjustRow>()
 
     if (updateError) {
-      throw updateError
+      throw new Error(updateError.message || 'Failed to update event')
     }
 
     if (!updatedEvent) {
-      return NextResponse.json({ error: 'This punch has already been adjusted once' }, { status: 409 })
+      return apiError('This punch has already been adjusted once', 409)
     }
 
-    return NextResponse.json({
-      success: true,
-      message: 'Recorded time adjusted successfully',
-      event: updatedEvent,
+    return apiOk({
+      adjustedEventId: updatedEvent.id,
+      punchType: updatedEvent.punch_type,
+      adjustedTime: updatedEvent.adjusted_device_ts,
+      reason,
     })
-  } catch (error: any) {
-    console.error('[TIMECLOCK ADJUST] Error:', error)
-    return NextResponse.json({ error: error?.message || 'Server error' }, { status: 500 })
+  } catch (error: unknown) {
+    const errorMessage = toErrorMessage(error, 'Failed to adjust time')
+    return apiError(errorMessage, 500)
   }
 }

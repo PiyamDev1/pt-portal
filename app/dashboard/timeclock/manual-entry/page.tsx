@@ -4,7 +4,12 @@ import { redirect } from 'next/navigation'
 import ManualEntryClient from './client'
 import PageHeader from '@/app/components/PageHeader.client'
 import DashboardClientWrapper from '@/app/dashboard/client-wrapper'
-import { getRoleName, hasMaintenanceTimeclockAccess, hasManagerTimeclockAccess, pickRoleName } from '@/lib/timeclockAccess'
+import {
+  getRoleName,
+  hasMaintenanceTimeclockAccess,
+  hasManagerTimeclockAccess,
+  pickRoleName,
+} from '@/lib/timeclockAccess'
 
 export default async function ManualEntryPage() {
   const cookieStore = await cookies()
@@ -18,10 +23,12 @@ export default async function ManualEntryPage() {
         },
         setAll() {},
       },
-    }
+    },
   )
 
-  const { data: { session } } = await supabase.auth.getSession()
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
   if (!session) {
     redirect('/login')
   }
@@ -37,18 +44,14 @@ export default async function ManualEntryPage() {
       .from('employees')
       .select('id', { count: 'exact', head: true })
       .eq('manager_id', session.user.id),
-    supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', session.user.id)
-      .maybeSingle(),
+    supabase.from('profiles').select('role').eq('id', session.user.id).maybeSingle(),
   ])
 
   const role = Array.isArray(employee?.roles) ? employee.roles[0] : employee?.roles
   const roleName = pickRoleName(getRoleName(role), profile?.role)
   const canAccessManualEntry =
     hasManagerTimeclockAccess(roleName, reportCount) || hasMaintenanceTimeclockAccess(roleName)
-  
+
   if (!canAccessManualEntry) {
     redirect('/dashboard/timeclock')
   }

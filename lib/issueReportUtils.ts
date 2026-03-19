@@ -9,11 +9,16 @@ export type IssueSeverity = 'low' | 'medium' | 'high' | 'critical'
 export type IssueStatus = 'new' | 'investigating' | 'solved' | 'closed'
 
 export function redactSensitiveText(value: string) {
-  return REDACTION_PATTERNS.reduce((output, [pattern, replacement]) => output.replace(pattern, replacement), value)
+  return REDACTION_PATTERNS.reduce(
+    (output, [pattern, replacement]) => output.replace(pattern, replacement),
+    value,
+  )
 }
 
 export function normalizeIssueNotes(value: unknown) {
-  return redactSensitiveText(String(value || '')).trim().slice(0, 4000)
+  return redactSensitiveText(String(value || ''))
+    .trim()
+    .slice(0, 4000)
 }
 
 export function normalizeSeverity(value: unknown): IssueSeverity {
@@ -75,7 +80,8 @@ export function sanitizeConsoleEntries(input: unknown) {
   return input
     .slice(-200)
     .map((entry) => {
-      const item = typeof entry === 'object' && entry !== null ? entry as Record<string, unknown> : {}
+      const item =
+        typeof entry === 'object' && entry !== null ? (entry as Record<string, unknown>) : {}
       return {
         level: String(item.level || 'log').slice(0, 20),
         message: redactSensitiveText(String(item.message || '')).slice(0, 4000),
@@ -93,10 +99,13 @@ export function sanitizeFailedRequests(input: unknown) {
   return input
     .slice(-20)
     .map((item) => {
-      const entry = typeof item === 'object' && item !== null ? item as Record<string, unknown> : {}
+      const entry =
+        typeof item === 'object' && item !== null ? (item as Record<string, unknown>) : {}
       return {
         url: redactSensitiveText(String(entry.url || '')).slice(0, 1500),
-        method: String(entry.method || 'GET').toUpperCase().slice(0, 10),
+        method: String(entry.method || 'GET')
+          .toUpperCase()
+          .slice(0, 10),
         status: Number(entry.status || 0),
         statusText: redactSensitiveText(String(entry.statusText || '')).slice(0, 200),
         durationMs: Number(entry.durationMs || 0),

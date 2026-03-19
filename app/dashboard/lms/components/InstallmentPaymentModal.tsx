@@ -4,7 +4,12 @@ import { useState, useEffect, memo } from 'react'
 import { ModalWrapper } from './ModalWrapper'
 import { ConfirmationModal } from './ConfirmationModal'
 import { toast } from 'sonner'
-import { formatToDisplayDate, formatToISODate, handleDateInput, isValidDateFormat } from '@/app/lib/dateFormatter'
+import {
+  formatToDisplayDate,
+  formatToISODate,
+  handleDateInput,
+  isValidDateFormat,
+} from '@/lib/dateFormatter'
 import { usePaymentMethods } from '../hooks'
 
 interface Installment {
@@ -21,6 +26,11 @@ interface Installment {
   loanId?: string
 }
 
+interface ExistingPayment {
+  id: string
+  amount: number | string
+  transaction_timestamp: string
+}
 
 interface InstallmentPaymentModalProps {
   installment: Installment
@@ -42,7 +52,7 @@ function InstallmentPaymentModalCore({
   const [paymentDate, setPaymentDate] = useState('')
   const [loading, setLoading] = useState(false)
   const { methods: paymentMethods } = usePaymentMethods()
-  const [existingPayments, setExistingPayments] = useState<any[]>([])
+  const [existingPayments, setExistingPayments] = useState<ExistingPayment[]>([])
   const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null)
   const [editingAmount, setEditingAmount] = useState('')
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
@@ -74,20 +84,23 @@ function InstallmentPaymentModalCore({
 
   const executeDeletePayment = async (paymentId: string) => {
     try {
-      const res = await fetch(`/api/lms/installment-payment?transactionId=${paymentId}&accountId=${installment.loanId || accountId}`, {
-        method: 'DELETE',
-      })
+      const res = await fetch(
+        `/api/lms/installment-payment?transactionId=${paymentId}&accountId=${installment.loanId || accountId}`,
+        {
+          method: 'DELETE',
+        },
+      )
 
       if (!res.ok) {
         const error = await res.json()
-        throw new Error(error.message || 'Failed to delete payment')
+        throw new Error(error.error || error.message || 'Failed to delete payment')
       }
 
-      setExistingPayments(existingPayments.filter(p => p.id !== paymentId))
+      setExistingPayments(existingPayments.filter((p) => p.id !== paymentId))
       toast.success('Payment deleted successfully')
       onSave()
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to delete payment')
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete payment')
     }
   }
 
@@ -121,7 +134,15 @@ function InstallmentPaymentModalCore({
     setLoading(true)
     try {
       const isTempId = installment.id.startsWith('temp__')
-      const body: any = {
+      const body: {
+        installmentId: string
+        employeeId: string
+        paymentAmount: number
+        paymentMethod: string
+        paymentDate: string
+        loanId?: string
+        serviceTransactionId?: string
+      } = {
         installmentId: installment.id,
         employeeId,
         paymentAmount: amountNum,
@@ -147,14 +168,14 @@ function InstallmentPaymentModalCore({
 
       if (!res.ok) {
         const error = await res.json()
-        throw new Error(error.message || 'Failed to record payment')
+        throw new Error(error.error || error.message || 'Failed to record payment')
       }
 
       toast.success(`Payment of £${amountNum.toFixed(2)} recorded successfully`)
       onSave()
       onClose()
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to record payment')
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to record payment')
     } finally {
       setLoading(false)
     }
@@ -170,7 +191,8 @@ function InstallmentPaymentModalCore({
             <p>
               <span className="text-slate-600">Installment:</span>{' '}
               <span className="font-mono text-xs font-bold">
-                {installment.installmentNumber}{installment.totalInstallments ? `/${installment.totalInstallments}` : ''}
+                {installment.installmentNumber}
+                {installment.totalInstallments ? `/${installment.totalInstallments}` : ''}
               </span>
             </p>
             <p>
@@ -184,7 +206,9 @@ function InstallmentPaymentModalCore({
             {installment.amountPaid && installment.amountPaid > 0 && (
               <p>
                 <span className="text-slate-600">Already Paid:</span>{' '}
-                <span className="font-bold text-green-600">£{installment.amountPaid.toFixed(2)}</span>
+                <span className="font-bold text-green-600">
+                  £{installment.amountPaid.toFixed(2)}
+                </span>
               </p>
             )}
             <p>
@@ -207,7 +231,9 @@ function InstallmentPaymentModalCore({
             disabled={loading}
           />
           {difference !== 0 && (
-            <p className={`mt-1 text-xs font-semibold ${difference > 0 ? 'text-green-600' : 'text-amber-600'}`}>
+            <p
+              className={`mt-1 text-xs font-semibold ${difference > 0 ? 'text-green-600' : 'text-amber-600'}`}
+            >
               {difference > 0
                 ? `Overpayment of £${difference.toFixed(2)} will be split across remaining installments`
                 : `Underpayment of £${Math.abs(difference).toFixed(2)} - this installment will be reduced`}
@@ -249,8 +275,14 @@ function InstallmentPaymentModalCore({
         <div>
           <label className="block text-sm font-bold text-slate-700 mb-2">
             Payment Date (DD/MM/YYYY)
-            {ALLOW_UNLIMITED_PAST && <span className="text-orange-500 text-xs font-normal ml-2">(Backdated: Unlimited)</span>}
-            {!ALLOW_UNLIMITED_PAST && <span className="text-slate-500 text-xs font-normal ml-2">(Last 7 days)</span>}
+            {ALLOW_UNLIMITED_PAST && (
+              <span className="text-orange-500 text-xs font-normal ml-2">
+                (Backdated: Unlimited)
+              </span>
+            )}
+            {!ALLOW_UNLIMITED_PAST && (
+              <span className="text-slate-500 text-xs font-normal ml-2">(Last 7 days)</span>
+            )}
           </label>
           <input
             type="text"
@@ -269,10 +301,16 @@ function InstallmentPaymentModalCore({
             <p className="text-xs font-bold text-slate-700 uppercase mb-2">Payment History</p>
             <div className="space-y-2 max-h-48 overflow-y-auto">
               {existingPayments.map((payment) => (
-                <div key={payment.id} className="flex items-center justify-between bg-white p-2 rounded border border-slate-200">
+                <div
+                  key={payment.id}
+                  className="flex items-center justify-between bg-white p-2 rounded border border-slate-200"
+                >
                   <div className="flex-1">
                     <p className="text-xs font-semibold text-slate-900">
-                      £{typeof payment.amount === 'number' ? payment.amount.toFixed(2) : parseFloat(payment.amount).toFixed(2)}
+                      £
+                      {typeof payment.amount === 'number'
+                        ? payment.amount.toFixed(2)
+                        : parseFloat(payment.amount).toFixed(2)}
                     </p>
                     <p className="text-[11px] text-slate-500">
                       {new Date(payment.transaction_timestamp).toLocaleDateString()}

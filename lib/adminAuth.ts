@@ -22,41 +22,47 @@ interface VerifyOptions {
  * 1. Are logged in via Google
  * 2. Have admin role in profiles table
  */
-export async function verifyAdminAccess(request: Request, options?: VerifyOptions): Promise<VerifyResult> {
+export async function verifyAdminAccess(
+  request: Request,
+  options?: VerifyOptions,
+): Promise<VerifyResult> {
   try {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY
-    
+
     if (!url || !key) {
       return {
         authorized: false,
         error: 'Server configuration error',
-        status: 500
+        status: 500,
       }
     }
 
     // Get authentication info from request
     const authHeader = request.headers.get('authorization')
-    
+
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return {
         authorized: false,
         error: 'Missing or invalid authorization header. Format: "Authorization: Bearer <token>"',
-        status: 401
+        status: 401,
       }
     }
 
     const token = authHeader.substring(7)
-    
+
     // Verify the token with Supabase
     const supabase = createClient(url, key)
-    const { data: { user }, error: userError } = await supabase.auth.getUser(token)
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser(token)
 
     if (userError || !user) {
       return {
         authorized: false,
         error: 'Invalid or expired token',
-        status: 401
+        status: 401,
       }
     }
 
@@ -72,7 +78,7 @@ export async function verifyAdminAccess(request: Request, options?: VerifyOption
       return {
         authorized: false,
         error: 'Unable to verify user role',
-        status: 403
+        status: 403,
       }
     }
 
@@ -88,7 +94,7 @@ export async function verifyAdminAccess(request: Request, options?: VerifyOption
       return {
         authorized: false,
         error: 'Unable to verify user role',
-        status: 403
+        status: 403,
       }
     }
 
@@ -96,33 +102,33 @@ export async function verifyAdminAccess(request: Request, options?: VerifyOption
       ? ['Admin', 'Master Admin', 'Maintenance Admin']
       : ['Admin', 'Master Admin']
     const isAdmin = allowedRoles.includes(roleData.name)
-    
+
     if (!isAdmin) {
-      console.warn(`⚠️  Access denied for ${user.email} - insufficient permissions (role: ${roleData.name})`)
+      console.warn(
+        `⚠️  Access denied for ${user.email} - insufficient permissions (role: ${roleData.name})`,
+      )
       return {
         authorized: false,
         error: 'Forbidden - Admin access required',
-        status: 403
+        status: 403,
       }
     }
 
     // User is authenticated and has admin role - allow access
-    console.log(`✅ Admin access granted for ${user.email} (${roleData.name})`)
-    
     return {
       authorized: true,
       user: {
         id: user.id,
         email: user.email || '',
-        provider: user.app_metadata?.provider || 'email'
-      }
+        provider: user.app_metadata?.provider || 'email',
+      },
     }
   } catch (error: any) {
     console.error('Error verifying admin access:', error)
     return {
       authorized: false,
       error: 'Internal server error',
-      status: 500
+      status: 500,
     }
   }
 }
@@ -130,12 +136,15 @@ export async function verifyAdminAccess(request: Request, options?: VerifyOption
 /**
  * Helper to create an unauthorized response with guidance
  */
-export function unauthorizedResponse(message: string | undefined, status: number | undefined = 401) {
+export function unauthorizedResponse(
+  message: string | undefined,
+  status: number | undefined = 401,
+) {
   return NextResponse.json(
-    { 
+    {
       error: message || 'Unauthorized',
-      hint: 'Get your token: Open browser DevTools → Network tab → Find any API call → Copy Authorization header value'
+      hint: 'Get your token: Open browser DevTools → Network tab → Find any API call → Copy Authorization header value',
     },
-    { status: status || 401 }
+    { status: status || 401 },
   )
 }

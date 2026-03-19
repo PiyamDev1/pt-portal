@@ -8,16 +8,16 @@ The codebase has grown significantly and contains several large monolithic compo
 
 ### Largest Files (Top Concerns)
 
-| File | Lines | Category | Issue |
-|------|-------|----------|-------|
-| `app/api/lms/route.js` | 648 | API Route | Data fetching logic + transformations |
-| `app/dashboard/applications/nadra/client.tsx` | 603 | Component | Multiple concerns mixed |
-| `app/dashboard/lms/components/TransactionModal.tsx` | 498 | Modal | Form logic + UI + calculations |
-| `app/dashboard/lms/client.tsx` | 421 | Component | List + filtering + API calls |
-| `app/dashboard/settings/components/StaffTab.tsx` | 425 | Component | Add form + list + delete confirmation |
-| `app/dashboard/applications/passports/client.tsx` | 413 | Component | Multiple concerns |
-| `app/dashboard/timeclock/team/client.tsx` | 400 | Component | Complex filtering + display logic |
-| `app/dashboard/settings/components/ServicePricingTab.tsx` | 370 | Tab | Multiple pricing sections |
+| File                                                      | Lines | Category  | Issue                                 |
+| --------------------------------------------------------- | ----- | --------- | ------------------------------------- |
+| `app/api/lms/route.js`                                    | 648   | API Route | Data fetching logic + transformations |
+| `app/dashboard/applications/nadra/client.tsx`             | 603   | Component | Multiple concerns mixed               |
+| `app/dashboard/lms/components/TransactionModal.tsx`       | 498   | Modal     | Form logic + UI + calculations        |
+| `app/dashboard/lms/client.tsx`                            | 421   | Component | List + filtering + API calls          |
+| `app/dashboard/settings/components/StaffTab.tsx`          | 425   | Component | Add form + list + delete confirmation |
+| `app/dashboard/applications/passports/client.tsx`         | 413   | Component | Multiple concerns                     |
+| `app/dashboard/timeclock/team/client.tsx`                 | 400   | Component | Complex filtering + display logic     |
+| `app/dashboard/settings/components/ServicePricingTab.tsx` | 370   | Tab       | Multiple pricing sections             |
 
 ### Code Smell Patterns
 
@@ -32,6 +32,7 @@ The codebase has grown significantly and contains several large monolithic compo
 ### Priority 1: High Impact, Medium Effort ⭐⭐⭐
 
 #### 1.1 Split Large Modals & Components
+
 **Files:** PassportModal (400+), PaymentModal (350+), others
 
 ```
@@ -46,6 +47,7 @@ Create:
 **Benefit:** Reusable forms, testable logic, cleaner modals
 
 #### 1.2 Modularize Settings Components (425 → 150 lines)
+
 **File:** `app/dashboard/settings/components/StaffTab.tsx` (425 → 200 lines)
 
 ```
@@ -60,6 +62,7 @@ Create:
 **Benefit:** 50% smaller main file, reusable pieces, testable handlers
 
 #### 1.3 Extract Pricing Utilities
+
 **Files:** `pricing/*.tsx` (5 files, similar patterns)
 
 ```
@@ -78,6 +81,7 @@ Create:
 ### Priority 2: Medium Impact, Low-Medium Effort ⭐⭐
 
 #### 2.1 Modularize StaffTab (425 → 200 lines)
+
 **File:** `app/dashboard/settings/components/StaffTab.tsx`
 
 ```
@@ -92,6 +96,7 @@ Create:
 ### Priority 2: Medium Impact, Quick Wins ⭐⭐
 
 #### 2.1 Extract Pricing Utilities (Already Identified)
+
 **Files:** `pricing/*.tsx` (5 files, similar patterns)
 
 ```
@@ -108,6 +113,7 @@ Create:
 **Benefit:** 30-40% code reduction, reusable across all pricing tabs
 
 #### 2.2 Modularize Additional Components
+
 **Targets:** TimeclockClient (400 lines), NADRA components, etc.
 
 Use established patterns with useFormState, useTableFilters, and ModalBase.
@@ -118,23 +124,27 @@ Use established patterns with useFormState, useTableFilters, and ModalBase.
 ### Priority 3: Already Completed (Phase 1) ✅
 
 ✅ **Extract Common Hooks**
+
 - hooks/useAsync.ts - Handle async operations
 - hooks/useTableFilters.ts - Table filtering/sorting
 - hooks/usePagination.ts - Pagination logic
 - hooks/useFormState.ts - Form state management
 
 ✅ **Organize Utilities & Constants**
+
 - lib/constants/api.ts - API endpoints
 - lib/constants/validation.ts - Validation messages
 - lib/constants/ui.ts - UI constants
 
 ✅ **Create Base Components**
+
 - components/ModalBase.tsx - Common modal wrapper
 - components/ConfirmationDialog.tsx - Reusable confirmation
 
 ### Priority 4: Lower Impact, Future Items ⭐
 
 #### 4.1 Organize Type Definitions
+
 **Consolidate:** Scattered type imports
 
 ```
@@ -149,6 +159,7 @@ Organize into: app/types/{feature}/index.ts
 **Benefit:** Better discoverability, cleaner imports
 
 #### 3.3 Standardize Component Structure
+
 **Apply consistent pattern:**
 
 ```
@@ -167,15 +178,18 @@ ComponentName/
 ## Recommended Implementation Order
 
 **Phase 1 (Completed)** ✅ - Foundation
+
 - [x] Extract common hooks → `hooks/` directory
 - [x] Organize constants → `lib/constants/` directory
 - [x] Create base components → `components/` directory
 
 **Phase 2 (Skipped)** ⏭️ - Component Modularization
+
 - Not planned at this time
 - Focus shifted to code cleanup and documentation
 
 **Phase 3** - Code Cleanup & Documentation
+
 1. Remove dead code, backup files, and unused imports
 2. Create comprehensive README files for new utilities
 3. Add documentation for setup and usage patterns
@@ -185,6 +199,7 @@ ComponentName/
 ## File Organization Recommendations
 
 ### Current Structure Issues
+
 ```
 app/
 ├── api/         # OK, but routes are too large
@@ -198,6 +213,7 @@ app/
 ```
 
 ### Proposed Structure
+
 ```
 app/
 ├── api/
@@ -254,25 +270,34 @@ app/
 ## Specific Code Examples to Improve
 
 ### Example 1: TransactionModal State
+
 **Before:** 10+ useState calls mixed with calculations
+
 ```tsx
-const [form, setForm] = useState({ /* 10+ fields */ })
+const [form, setForm] = useState({
+  /* 10+ fields */
+})
 const [installmentPlan, setInstallmentPlan] = useState([])
 const [loading, setLoading] = useState(false)
 // ... 50+ lines of manual state logic
 ```
 
 **After:** Custom hook handles all state
+
 ```tsx
 const form = useTransactionForm(data.transactionType)
 // Cleaner, testable, reusable
 ```
 
 ### Example 2: StaffTab Modularization
+
 **Before:** 425 lines, mixed concerns
+
 ```tsx
 export function StaffTab() {
-  const [form, setForm] = useState({ /* 8 fields */ })
+  const [form, setForm] = useState({
+    /* 8 fields */
+  })
   const [staff, setStaff] = useState([])
   const [loading, setLoading] = useState(false)
   // ... 50 lines of form handling
@@ -282,11 +307,14 @@ export function StaffTab() {
 ```
 
 **After:** Modularized, testable
+
 ```tsx
 export function StaffTab() {
-  const form = useFormState({ /* 8 fields */ })
+  const form = useFormState({
+    /* 8 fields */
+  })
   const { staff, loading, delete: deleteStaff } = useStaffList()
-  
+
   return (
     <>
       <StaffForm form={form} onSubmit={handleAdd} />
@@ -297,6 +325,7 @@ export function StaffTab() {
 ```
 
 ### Example 3: Repeated Modal Patterns
+
 **Issue:** 5+ modals with similar boilerplate
 
 ```tsx
@@ -308,6 +337,7 @@ export function InstallmentPaymentModal({ accountId, onClose, onSave })
 ```
 
 **Solution:** Reusable modal base
+
 ```tsx
 // hooks/useModalState.ts
 const { isOpen, isLoading, error, open, close, setError } = useModalState()
@@ -319,6 +349,7 @@ export function ModalBase({ children, title, onClose, isLoading })
 ## Estimated Impact
 
 ### Lines Saved
+
 - StaffTab: 200 lines
 - PaymentModal: 250 lines
 - PassportModal: 280 lines
@@ -327,12 +358,14 @@ export function ModalBase({ children, title, onClose, isLoading })
 - **Total: ~1230 lines** (5% reduction)
 
 ### Quality Improvements
+
 - Testability: ⬆️ 50%
 - Reusability: ⬆️ 40%
 - Maintainability: ⬆️ 60%
 - Discoverability: ⬆️ 70%
 
 ### Velocity Gains
+
 - 30% faster feature additions (less boilerplate)
 - 50% faster debugging (isolated concerns)
 - 40% fewer bugs in new modals (base component)
@@ -340,12 +373,14 @@ export function ModalBase({ children, title, onClose, isLoading })
 ## Risk Mitigation
 
 ### Testing Strategy
+
 1. Add tests for extracted utilities first
 2. Test modularized components with snapshot tests
 3. Run existing e2e tests to verify functionality
 4. No breaking changes to props (use `type Foo = Required<FooProps>`)
 
 ### Rollout Strategy
+
 1. Create feature branch for each refactoring
 2. Small PRs (one component at a time)
 3. Update affected tests immediately

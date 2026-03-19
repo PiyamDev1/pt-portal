@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
-import { NextResponse } from 'next/server'
+import { apiError, apiOk } from '@/lib/api/http'
+import { toErrorMessage } from '@/lib/api/error'
 
 export const dynamic = 'force-dynamic'
 
@@ -7,13 +8,13 @@ export async function POST(request) {
   try {
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
+      process.env.SUPABASE_SERVICE_ROLE_KEY,
     )
 
     const { nadraId, userId } = await request.json()
 
     if (!nadraId) {
-      return NextResponse.json({ error: 'Missing Nadra ID' }, { status: 400 })
+      return apiError('Missing Nadra ID', 400)
     }
 
     const { data: current, error: fetchError } = await supabase
@@ -23,15 +24,20 @@ export async function POST(request) {
       .single()
 
     if (fetchError || !current) {
-      return NextResponse.json({ error: 'NADRA service not found' }, { status: 404 })
+      return apiError('NADRA service not found', 404)
     }
 
-    if (String(current.status || '').trim().toLowerCase() !== 'cancelled') {
-      return NextResponse.json({ error: 'Only cancelled applications can be refunded' }, { status: 400 })
+    if (
+      String(current.status || '')
+        .trim()
+        .toLowerCase() !== 'cancelled'
+    ) {
+      return apiError('Only cancelled applications can be refunded', 400)
     }
 
     if (current.is_refunded) {
-      return NextResponse.json({ success: true, alreadyRefunded: true })
+      const refundedAt = new Date().toISOString()
+      return apiOk({ refundedAt, alreadyRefunded: true })
     }
 
     const refundedAt = new Date().toISOString()
@@ -41,23 +47,21 @@ export async function POST(request) {
       .update({ is_refunded: true, refunded_at: refundedAt })
       .eq('id', nadraId)
 
-    if (updateError) throw updateError
+    if (updateError) throw new Error(updateError.message || 'Failed to update refund status')
 
-    const { error: historyError } = await supabase
-      .from('nadra_status_history')
-      .insert({
-        nadra_service_id: nadraId,
-        new_status: current.status || 'Cancelled',
-        changed_by: userId || null,
-        entry_type: 'refund',
-        details: 'Refund completed for cancelled application'
-      })
+    const { error: historyError } = await supabase.from('nadra_status_history').insert({
+      nadra_service_id: nadraId,
+      new_status: current.status || 'Cancelled',
+      changed_by: userId || null,
+      entry_type: 'refund',
+      details: 'Refund completed for cancelled application',
+    })
 
-    if (historyError) throw historyError
+    if (historyError) throw new Error(historyError.message || 'Failed to insert refund history')
 
-    return NextResponse.json({ success: true, refundedAt })
+    return apiOk({ refundedAt })
   } catch (error) {
-    console.error('NADRA Refund Error:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    const errorMessage = toErrorMessage(error, 'Failed to process refund')
+    return apiError(errorMessage, 500)
   }
 }

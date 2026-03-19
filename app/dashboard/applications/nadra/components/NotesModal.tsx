@@ -16,7 +16,7 @@ export default function NotesModal({
   isSaving,
   onChange,
   onSave,
-  onClose
+  onClose,
 }: NotesModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -54,7 +54,12 @@ export default function NotesModal({
       >
         <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
           <h3 className="font-bold text-slate-800">Application Notes</h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600" type="button" aria-label="Close notes">
+          <button
+            onClick={onClose}
+            className="text-slate-400 hover:text-slate-600"
+            type="button"
+            aria-label="Close notes"
+          >
             ✕
           </button>
         </div>

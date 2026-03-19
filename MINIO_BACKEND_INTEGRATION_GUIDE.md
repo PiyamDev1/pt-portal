@@ -12,7 +12,7 @@ Quick reference for completing the MinIO integration when the VM is ready.
   - [ ] Region
   - [ ] SSL certificate status
   - [ ] Caddy reverse proxy configured
-    
+
 ## 🔧 Step 1: Update Environment Variables
 
 Create `.env.local` or update your deployment configuration:
@@ -39,6 +39,7 @@ npm install minio
 ```
 
 Add types:
+
 ```bash
 npm install --save-dev @types/minio
 ```
@@ -266,10 +267,7 @@ export async function GET(request: NextRequest) {
     const applicantId = searchParams.get('applicantId')
 
     if (!applicantId) {
-      return NextResponse.json(
-        { success: false, error: 'applicantId required' },
-        { status: 400 }
-      )
+      return NextResponse.json({ success: false, error: 'applicantId required' }, { status: 400 })
     }
 
     // Get documents from Supabase, sorted by date
@@ -280,14 +278,11 @@ export async function GET(request: NextRequest) {
       .eq('is_deleted', false)
       .order('created_at', { ascending: false })
 
-    return NextResponse.json(
-      { success: true, data: documents },
-      { status: 200 }
-    )
+    return NextResponse.json({ success: true, data: documents }, { status: 200 })
   } catch (error) {
     return NextResponse.json(
       { success: false, error: 'Failed to fetch documents' },
-      { status: 500 }
+      { status: 500 },
     )
   }
 }
@@ -304,22 +299,16 @@ export async function DELETE(request: NextRequest) {
     const documentId = searchParams.get('documentId')
 
     // Soft delete from database
-    await supabase
-      .from('documents')
-      .update({ is_deleted: true })
-      .eq('id', documentId)
+    await supabase.from('documents').update({ is_deleted: true }).eq('id', documentId)
 
     // Optionally delete from MinIO
     // await minioClient.removeObject(bucket, minioKey)
 
-    return NextResponse.json(
-      { success: true },
-      { status: 200 }
-    )
+    return NextResponse.json({ success: true }, { status: 200 })
   } catch (error) {
     return NextResponse.json(
       { success: false, error: 'Failed to delete document' },
-      { status: 500 }
+      { status: 500 },
     )
   }
 }
@@ -490,6 +479,7 @@ curl https://yourdomain.com/api/documents/doc-id/download
 ## 📊 Monitoring
 
 Monitor these metrics:
+
 - Document upload success rate
 - Average upload time
 - MinIO connection uptime
@@ -500,17 +490,20 @@ Monitor these metrics:
 ## 🆘 Troubleshooting
 
 **Uploads failing?**
+
 - Check MinIO credentials
 - Verify bucket exists and is accessible
 - Check file size limits
 - Review MinIO logs
 
 **Preview not working?**
+
 - Verify presigned URLs are generated correctly
 - Check CORS headers
 - Ensure file was uploaded correctly
 
 **Performance issues?**
+
 - Consider enabling caching
 - Optimize thumbnail generation
 - Add database indexes
@@ -520,6 +513,6 @@ Monitor these metrics:
 
 **Status**: Ready for Backend Implementation  
 **Estimated Time**: 2-4 hours  
-**Complexity**: Medium  
+**Complexity**: Medium
 
 Questions? Refer back to the frontend code comments for guidance.

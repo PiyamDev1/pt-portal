@@ -21,7 +21,12 @@ interface AccountNotesModalProps {
   onClose: () => void
 }
 
-export function AccountNotesModal({ accountId, accountName, employeeId, onClose }: AccountNotesModalProps) {
+export function AccountNotesModal({
+  accountId,
+  accountName,
+  employeeId,
+  onClose,
+}: AccountNotesModalProps) {
   const [notes, setNotes] = useState<AccountNote[]>([])
   const [loading, setLoading] = useState(true)
   const [newNote, setNewNote] = useState('')
@@ -61,8 +66,8 @@ export function AccountNotesModal({ accountId, accountName, employeeId, onClose 
         body: JSON.stringify({
           accountId,
           note: newNote.trim(),
-          employeeId
-        })
+          employeeId,
+        }),
       })
 
       if (!res.ok) throw new Error('Failed to save note')
@@ -71,8 +76,8 @@ export function AccountNotesModal({ accountId, accountName, employeeId, onClose 
       setNotes([data.note, ...notes])
       setNewNote('')
       toast.success('Note added')
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to save note')
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to save note')
     } finally {
       setSaving(false)
     }
@@ -81,16 +86,16 @@ export function AccountNotesModal({ accountId, accountName, employeeId, onClose 
   const handleDeleteNote = async (noteId: string) => {
     try {
       const res = await fetch(`/api/lms/notes?noteId=${noteId}`, {
-        method: 'DELETE'
+        method: 'DELETE',
       })
 
       if (!res.ok) throw new Error('Failed to delete note')
 
-      setNotes(notes.filter(n => n.id !== noteId))
+      setNotes(notes.filter((n) => n.id !== noteId))
       toast.success('Note deleted')
       setDeleteConfirmId(null)
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to delete note')
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete note')
     }
   }
 
@@ -99,7 +104,9 @@ export function AccountNotesModal({ accountId, accountName, employeeId, onClose 
       <div className="space-y-4">
         {/* Add New Note */}
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <label htmlFor="new-note" className="block text-sm font-semibold text-slate-700 mb-2">Add New Note</label>
+          <label htmlFor="new-note" className="block text-sm font-semibold text-slate-700 mb-2">
+            Add New Note
+          </label>
           <textarea
             id="new-note"
             value={newNote}
@@ -128,7 +135,9 @@ export function AccountNotesModal({ accountId, accountName, employeeId, onClose 
           </h3>
 
           {loading ? (
-            <div className="text-center py-8 text-slate-400" role="status" aria-live="polite">Loading notes...</div>
+            <div className="text-center py-8 text-slate-400" role="status" aria-live="polite">
+              Loading notes...
+            </div>
           ) : notes.length === 0 ? (
             <div className="text-center py-8 text-slate-400 text-sm">
               No notes yet. Add one above to get started.
@@ -146,7 +155,7 @@ export function AccountNotesModal({ accountId, accountName, employeeId, onClose 
                           month: '2-digit',
                           year: 'numeric',
                           hour: '2-digit',
-                          minute: '2-digit'
+                          minute: '2-digit',
                         })}
                       </p>
                     </div>

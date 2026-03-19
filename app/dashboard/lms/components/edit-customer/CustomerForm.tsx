@@ -36,11 +36,7 @@ interface EditFormFieldsProps {
   onDateInput: (value: string) => string
 }
 
-export function EditFormFields({
-  form,
-  onFormChange,
-  onDateInput
-}: EditFormFieldsProps) {
+export function EditFormFields({ form, onFormChange, onDateInput }: EditFormFieldsProps) {
   return (
     <>
       <div>
@@ -53,7 +49,7 @@ export function EditFormFields({
             type="tel"
             placeholder="Phone number"
             value={form.phone}
-            onChange={e => onFormChange({ phone: e.target.value })}
+            onChange={(e) => onFormChange({ phone: e.target.value })}
             className="w-full pl-10 p-3 border rounded-lg"
           />
         </div>
@@ -67,19 +63,17 @@ export function EditFormFields({
           type="email"
           placeholder="Email"
           value={form.email}
-          onChange={e => onFormChange({ email: e.target.value })}
+          onChange={(e) => onFormChange({ email: e.target.value })}
           className="w-full p-3 border rounded-lg"
         />
       </div>
 
       <div>
-        <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">
-          Address
-        </label>
+        <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Address</label>
         <textarea
           placeholder="Full address"
           value={form.address}
-          onChange={e => onFormChange({ address: e.target.value })}
+          onChange={(e) => onFormChange({ address: e.target.value })}
           className="w-full p-3 border rounded-lg"
           rows={2}
         />
@@ -93,20 +87,18 @@ export function EditFormFields({
           type="text"
           placeholder="DD/MM/YYYY"
           value={form.dateOfBirth}
-          onChange={e => onFormChange({ dateOfBirth: onDateInput(e.target.value) })}
+          onChange={(e) => onFormChange({ dateOfBirth: onDateInput(e.target.value) })}
           className="w-full p-3 border rounded-lg"
           maxLength={10}
         />
       </div>
 
       <div>
-        <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">
-          Key Notes
-        </label>
+        <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Key Notes</label>
         <textarea
           placeholder="Important notes about this customer..."
           value={form.notes}
-          onChange={e => onFormChange({ notes: e.target.value })}
+          onChange={(e) => onFormChange({ notes: e.target.value })}
           className="w-full p-3 border rounded-lg"
           rows={3}
         />

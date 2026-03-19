@@ -1,8 +1,10 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useReducer } from 'react'
 import { AlertTriangle, RefreshCw, ShieldCheck } from 'lucide-react'
 import { toast } from 'sonner'
+import { IssueReportsTicketsPanel } from './IssueReportsTicketsPanel'
+import { IssueReportDetailPanel } from './IssueReportDetailPanel'
 
 type IssueReport = {
   id: string
@@ -29,7 +31,7 @@ type Assignee = {
 
 type IssueReportDetail = {
   report: IssueReport & {
-    browser_context?: Record<string, any>
+    browser_context?: Record<string, unknown>
     artifact_purge_after?: string | null
   }
   artifacts: Array<{
@@ -41,7 +43,7 @@ type IssueReportDetail = {
   events: Array<{
     id: number
     action: string
-    details: Record<string, any>
+    details: Record<string, unknown>
     created_at: string
   }>
   screenshotUrl: string | null
@@ -68,27 +70,114 @@ function getSeverityClasses(severity: string) {
   return 'bg-blue-100 text-blue-800 border-blue-200'
 }
 
-export function IssueReportsTab() {
-  const [statusFilter, setStatusFilter] = useState<(typeof statusOptions)[number]>('all')
-  const [moduleFilter, setModuleFilter] = useState('all')
-  const [assigneeFilter, setAssigneeFilter] = useState('all')
-  const [search, setSearch] = useState('')
-  const [reports, setReports] = useState<IssueReport[]>([])
-  const [assignees, setAssignees] = useState<Assignee[]>([])
-  const [currentAdminId, setCurrentAdminId] = useState<string | null>(null)
-  const [selectedReportId, setSelectedReportId] = useState<string | null>(null)
-  const [detail, setDetail] = useState<IssueReportDetail | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [detailLoading, setDetailLoading] = useState(false)
-  const [statusUpdating, setStatusUpdating] = useState(false)
-  const [assignmentUpdating, setAssignmentUpdating] = useState(false)
-  const [selectedAssigneeId, setSelectedAssigneeId] = useState<string>('')
-  const [expandedScreenshotUrl, setExpandedScreenshotUrl] = useState<string | null>(null)
+type IssueReportsTabState = {
+  statusFilter: (typeof statusOptions)[number]
+  moduleFilter: string
+  assigneeFilter: string
+  search: string
+  reports: IssueReport[]
+  assignees: Assignee[]
+  currentAdminId: string | null
+  selectedReportId: string | null
+  detail: IssueReportDetail | null
+  selectedAssigneeId: string
+  expandedScreenshotUrl: string | null
+  loading: boolean
+  detailLoading: boolean
+  statusUpdating: boolean
+  assignmentUpdating: boolean
+}
 
-  const modules = useMemo(() => ['all', ...Array.from(new Set(reports.map((report) => report.module_key)))], [reports])
+type IssueReportsTabAction =
+  | { type: 'setFilter'; payload: Partial<Pick<IssueReportsTabState, 'statusFilter' | 'moduleFilter' | 'assigneeFilter' | 'search'>> }
+  | { type: 'setLoading'; payload: boolean }
+  | { type: 'setReportsData'; payload: { reports: IssueReport[]; assignees: Assignee[]; currentAdminId: string | null } }
+  | { type: 'selectReport'; payload: string | null }
+  | { type: 'setDetailLoading'; payload: boolean }
+  | { type: 'setDetail'; payload: { detail: IssueReportDetail | null; assigneeId?: string } }
+  | { type: 'clearDetail' }
+  | { type: 'setStatusUpdating'; payload: boolean }
+  | { type: 'setAssignmentUpdating'; payload: boolean }
+  | { type: 'setSelectedAssigneeId'; payload: string }
+  | { type: 'setExpandedScreenshotUrl'; payload: string | null }
+
+function issueReportsTabReducer(
+  state: IssueReportsTabState,
+  action: IssueReportsTabAction,
+): IssueReportsTabState {
+  switch (action.type) {
+    case 'setFilter':
+      return { ...state, ...action.payload }
+    case 'setLoading':
+      return { ...state, loading: action.payload }
+    case 'setReportsData': {
+      const { reports, assignees, currentAdminId } = action.payload
+      let selectedReportId = state.selectedReportId
+      if (!selectedReportId && reports.length) {
+        selectedReportId = reports[0].id
+      } else if (selectedReportId && !reports.some((r) => r.id === selectedReportId)) {
+        selectedReportId = reports[0]?.id || null
+      }
+      return { ...state, reports, assignees, currentAdminId, selectedReportId }
+    }
+    case 'selectReport':
+      return { ...state, selectedReportId: action.payload }
+    case 'setDetailLoading':
+      return { ...state, detailLoading: action.payload }
+    case 'setDetail':
+      return {
+        ...state,
+        detail: action.payload.detail,
+        selectedAssigneeId: action.payload.assigneeId ?? state.selectedAssigneeId,
+        detailLoading: false,
+      }
+    case 'clearDetail':
+      return { ...state, detail: null, expandedScreenshotUrl: null }
+    case 'setStatusUpdating':
+      return { ...state, statusUpdating: action.payload }
+    case 'setAssignmentUpdating':
+      return { ...state, assignmentUpdating: action.payload }
+    case 'setSelectedAssigneeId':
+      return { ...state, selectedAssigneeId: action.payload }
+    case 'setExpandedScreenshotUrl':
+      return { ...state, expandedScreenshotUrl: action.payload }
+    default:
+      return state
+  }
+}
+
+export function IssueReportsTab() {
+  const [state, dispatch] = useReducer(issueReportsTabReducer, {
+    statusFilter: 'all',
+    moduleFilter: 'all',
+    assigneeFilter: 'all',
+    search: '',
+    reports: [],
+    assignees: [],
+    currentAdminId: null,
+    selectedReportId: null,
+    detail: null,
+    loading: false,
+    detailLoading: false,
+    statusUpdating: false,
+    assignmentUpdating: false,
+    selectedAssigneeId: '',
+    expandedScreenshotUrl: null,
+  })
+  const {
+    statusFilter, moduleFilter, assigneeFilter, search,
+    reports, assignees, currentAdminId,
+    selectedReportId, detail, selectedAssigneeId, expandedScreenshotUrl,
+    loading, detailLoading, statusUpdating, assignmentUpdating,
+  } = state
+
+  const modules = useMemo(
+    () => ['all', ...Array.from(new Set(reports.map((report) => report.module_key)))],
+    [reports],
+  )
 
   const fetchReports = async () => {
-    setLoading(true)
+    dispatch({ type: 'setLoading', payload: true })
     try {
       const params = new URLSearchParams()
       params.set('status', statusFilter)
@@ -102,43 +191,44 @@ export function IssueReportsTab() {
         throw new Error(data?.error || 'Failed to load issue reports')
       }
 
-      setReports(data.reports || [])
-      setAssignees(data.assignees || [])
-      setCurrentAdminId(data.currentAdminId || null)
-      if (!selectedReportId && data.reports?.length) {
-        setSelectedReportId(data.reports[0].id)
-      }
-      if (selectedReportId && !(data.reports || []).some((report: IssueReport) => report.id === selectedReportId)) {
-        setSelectedReportId(data.reports?.[0]?.id || null)
-      }
-    } catch (error: any) {
-      toast.error(error?.message || 'Failed to load issue reports')
+      dispatch({
+        type: 'setReportsData',
+        payload: {
+          reports: data.reports || [],
+          assignees: data.assignees || [],
+          currentAdminId: data.currentAdminId || null,
+        },
+      })
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : 'Failed to load issue reports')
     } finally {
-      setLoading(false)
+      dispatch({ type: 'setLoading', payload: false })
     }
   }
 
   const fetchDetail = async (reportId: string) => {
-    setDetailLoading(true)
+    dispatch({ type: 'setDetailLoading', payload: true })
     try {
       const response = await fetch(`/api/admin/issue-reports/${reportId}`)
       const data = await response.json()
       if (!response.ok) {
         throw new Error(data?.error || 'Failed to load issue report detail')
       }
-      setDetail(data)
-      setSelectedAssigneeId(data?.report?.assigned_to_user_id || '')
-    } catch (error: any) {
-      toast.error(error?.message || 'Failed to load issue report detail')
-      setDetail(null)
+      dispatch({
+        type: 'setDetail',
+        payload: { detail: data, assigneeId: data?.report?.assigned_to_user_id || '' },
+      })
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : 'Failed to load issue report detail')
+      dispatch({ type: 'setDetail', payload: { detail: null } })
     } finally {
-      setDetailLoading(false)
+      dispatch({ type: 'setDetailLoading', payload: false })
     }
   }
 
   const updateAssignment = async () => {
     if (!selectedReportId) return
-    setAssignmentUpdating(true)
+    dispatch({ type: 'setAssignmentUpdating', payload: true })
     try {
       const response = await fetch(`/api/admin/issue-reports/${selectedReportId}`, {
         method: 'PATCH',
@@ -151,16 +241,16 @@ export function IssueReportsTab() {
       }
       toast.success('Assignee updated')
       await Promise.all([fetchReports(), fetchDetail(selectedReportId)])
-    } catch (error: any) {
-      toast.error(error?.message || 'Failed to update assignment')
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : 'Failed to update assignment')
     } finally {
-      setAssignmentUpdating(false)
+      dispatch({ type: 'setAssignmentUpdating', payload: false })
     }
   }
 
   const updateStatus = async (status: IssueReport['status']) => {
     if (!selectedReportId) return
-    setStatusUpdating(true)
+    dispatch({ type: 'setStatusUpdating', payload: true })
     try {
       const response = await fetch(`/api/admin/issue-reports/${selectedReportId}`, {
         method: 'PATCH',
@@ -173,10 +263,10 @@ export function IssueReportsTab() {
       }
       toast.success('Issue status updated')
       await Promise.all([fetchReports(), fetchDetail(selectedReportId)])
-    } catch (error: any) {
-      toast.error(error?.message || 'Failed to update issue status')
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : 'Failed to update issue status')
     } finally {
-      setStatusUpdating(false)
+      dispatch({ type: 'setStatusUpdating', payload: false })
     }
   }
 
@@ -188,15 +278,28 @@ export function IssueReportsTab() {
     if (selectedReportId) {
       fetchDetail(selectedReportId)
     } else {
-      setDetail(null)
-      setExpandedScreenshotUrl(null)
+      dispatch({ type: 'clearDetail' })
     }
   }, [selectedReportId])
 
-  const openCount = reports.filter((report) => report.status === 'new' || report.status === 'investigating').length
-  const solvedCount = reports.filter((report) => report.status === 'solved' || report.status === 'closed').length
+  const { openCount, solvedCount } = useMemo(
+    () =>
+      reports.reduce(
+        (counts, report) => {
+          if (report.status === 'new' || report.status === 'investigating') {
+            counts.openCount += 1
+          }
+          if (report.status === 'solved' || report.status === 'closed') {
+            counts.solvedCount += 1
+          }
+          return counts
+        },
+        { openCount: 0, solvedCount: 0 },
+      ),
+    [reports],
+  )
 
-  const getAgeMeta = (report: IssueReport) => {
+  const getAgeMeta = (report: Pick<IssueReport, 'created_at' | 'status'>) => {
     const now = Date.now()
     const created = new Date(report.created_at).getTime()
     const hours = Math.max(0, Math.floor((now - created) / (1000 * 60 * 60)))
@@ -233,7 +336,8 @@ export function IssueReportsTab() {
             </div>
             <h2 className="mt-4 text-3xl font-bold tracking-tight">Fault Reports</h2>
             <p className="mt-2 text-sm text-slate-200">
-              Review user-submitted faults from every page, keep artifacts for 30 days after solving, and rely on nightly cleanup for solved tickets after 60 days.
+              Review user-submitted faults from every page, keep artifacts for 30 days after
+              solving, and rely on nightly cleanup for solved tickets after 60 days.
             </p>
           </div>
 
@@ -254,41 +358,49 @@ export function IssueReportsTab() {
         <div className="grid gap-3 lg:grid-cols-[160px_170px_180px_1fr_auto]">
           <select
             value={statusFilter}
-            onChange={(event) => setStatusFilter(event.target.value as (typeof statusOptions)[number])}
+            onChange={(event) =>
+              dispatch({ type: 'setFilter', payload: { statusFilter: event.target.value as (typeof statusOptions)[number] } })
+            }
             className="rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700"
           >
             {statusOptions.map((option) => (
-              <option key={option} value={option}>{option === 'all' ? 'All statuses' : option}</option>
+              <option key={option} value={option}>
+                {option === 'all' ? 'All statuses' : option}
+              </option>
             ))}
           </select>
 
           <select
             value={moduleFilter}
-            onChange={(event) => setModuleFilter(event.target.value)}
+            onChange={(event) => dispatch({ type: 'setFilter', payload: { moduleFilter: event.target.value } })}
             className="rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700"
           >
             {modules.map((module) => (
-              <option key={module} value={module}>{module === 'all' ? 'All modules' : module}</option>
+              <option key={module} value={module}>
+                {module === 'all' ? 'All modules' : module}
+              </option>
             ))}
           </select>
 
           <select
             value={assigneeFilter}
-            onChange={(event) => setAssigneeFilter(event.target.value)}
+            onChange={(event) => dispatch({ type: 'setFilter', payload: { assigneeFilter: event.target.value } })}
             className="rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700"
           >
             <option value="all">All owners</option>
             <option value="unassigned">Unassigned</option>
             <option value="me">My queue</option>
             {assignees.map((assignee) => (
-              <option key={assignee.id} value={assignee.id}>{assignee.name}</option>
+              <option key={assignee.id} value={assignee.id}>
+                {assignee.name}
+              </option>
             ))}
           </select>
 
           <input
             type="text"
             value={search}
-            onChange={(event) => setSearch(event.target.value)}
+            onChange={(event) => dispatch({ type: 'setFilter', payload: { search: event.target.value } })}
             placeholder="Search notes, page URL, or reporter"
             className="rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700"
           />
@@ -305,222 +417,33 @@ export function IssueReportsTab() {
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[360px_1fr]">
-        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-slate-200 px-5 py-4">
-            <h3 className="text-lg font-bold text-slate-900">Tickets</h3>
-            <p className="text-sm text-slate-500">Latest issue reports across the portal.</p>
-          </div>
+        <IssueReportsTicketsPanel
+          reports={reports}
+          selectedReportId={selectedReportId}
+          onSelectReport={(id) => dispatch({ type: 'selectReport', payload: id })}
+          getAgeMeta={getAgeMeta}
+          getSeverityClasses={getSeverityClasses}
+          formatDate={formatDate}
+          assigneeNameById={assigneeNameById}
+        />
 
-          <div className="max-h-[70vh] overflow-y-auto">
-            {reports.length === 0 ? (
-              <div className="px-5 py-10 text-center text-sm text-slate-500">No issue reports found.</div>
-            ) : (
-              reports.map((report) => {
-                const ageMeta = getAgeMeta(report)
-                const assigneeLabel = report.assigned_to_user_id ? assigneeNameById.get(report.assigned_to_user_id) || 'Assigned' : 'Unassigned'
-
-                return (
-                  <button
-                    key={report.id}
-                    type="button"
-                    onClick={() => setSelectedReportId(report.id)}
-                    className={`w-full border-b border-slate-100 px-5 py-4 text-left transition hover:bg-slate-50 ${selectedReportId === report.id ? 'bg-blue-50' : 'bg-white'}`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="font-semibold text-slate-900">{report.reporter_name || report.reporter_email || 'Anonymous User'}</p>
-                        <p className="mt-1 text-xs text-slate-500">{report.module_key} • {formatDate(report.created_at)}</p>
-                      </div>
-                      <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide ${getSeverityClasses(report.severity)}`}>
-                        {report.severity}
-                      </span>
-                    </div>
-                    <p className="mt-3 line-clamp-2 text-sm text-slate-700">{report.notes}</p>
-                    <div className="mt-3 flex items-center gap-2 text-xs text-slate-500">
-                      <span className="rounded-full bg-slate-100 px-2 py-1 uppercase tracking-wide text-slate-700">{report.status}</span>
-                      <span className={`rounded-full px-2 py-1 font-semibold ${ageMeta.className}`}>{ageMeta.label}</span>
-                      <span className="rounded-full bg-indigo-50 px-2 py-1 text-indigo-700">{assigneeLabel}</span>
-                      {report.has_screenshot && <span>Screenshot</span>}
-                      {report.has_console_log && <span>Console</span>}
-                    </div>
-                  </button>
-                )
-              })
-            )}
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          {!selectedReportId ? (
-            <div className="flex h-full min-h-[24rem] items-center justify-center text-sm text-slate-500">
-              Select a ticket to review its screenshot, logs, and status history.
-            </div>
-          ) : detailLoading || !detail ? (
-            <div className="flex h-full min-h-[24rem] items-center justify-center text-sm text-slate-500">Loading ticket details...</div>
-          ) : (
-            <div className="space-y-6">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                <div>
-                  {(() => {
-                    const ageMeta = detail ? getAgeMeta(detail.report) : null
-                    return ageMeta ? <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${ageMeta.className}`}>{ageMeta.label}</span> : null
-                  })()}
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide ${getSeverityClasses(detail.report.severity)}`}>
-                      {detail.report.severity}
-                    </span>
-                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-700">
-                      {detail.report.status}
-                    </span>
-                    <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-emerald-700">
-                      {detail.report.module_key}
-                    </span>
-                  </div>
-                  <h3 className="mt-3 text-2xl font-bold text-slate-900">{detail.report.reporter_name || detail.report.reporter_email || 'Anonymous User'}</h3>
-                  <p className="mt-1 text-sm text-slate-500">Created {formatDate(detail.report.created_at)}</p>
-                </div>
-
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {(['new', 'investigating', 'solved', 'closed'] as const).map((status) => (
-                    <button
-                      key={status}
-                      type="button"
-                      onClick={() => updateStatus(status)}
-                      disabled={statusUpdating || detail.report.status === status}
-                      className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${detail.report.status === status ? 'bg-slate-900 text-white' : 'border border-slate-200 text-slate-700 hover:bg-slate-50'} disabled:cursor-not-allowed disabled:opacity-60`}
-                    >
-                      {status}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-                  <div className="flex-1">
-                    <label className="mb-2 block text-sm font-semibold text-slate-900">Ticket Owner</label>
-                    <select
-                      value={selectedAssigneeId}
-                      onChange={(event) => setSelectedAssigneeId(event.target.value)}
-                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
-                    >
-                      <option value="">Unassigned</option>
-                      {assignees.map((assignee) => (
-                        <option key={assignee.id} value={assignee.id}>{assignee.name}{currentAdminId === assignee.id ? ' (You)' : ''}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={updateAssignment}
-                    disabled={assignmentUpdating}
-                    className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
-                  >
-                    {assignmentUpdating ? 'Saving...' : 'Save Owner'}
-                  </button>
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <p className="text-sm font-semibold text-slate-900">Reporter Notes</p>
-                <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">{detail.report.notes}</p>
-              </div>
-
-              <div className="grid gap-4 lg:grid-cols-2">
-                <div className="rounded-2xl border border-slate-200 p-4">
-                  <p className="text-sm font-semibold text-slate-900">Context</p>
-                  <div className="mt-3 space-y-2 text-sm text-slate-600">
-                    <p><span className="font-semibold text-slate-800">Page:</span> {detail.report.route_path}</p>
-                    <p><span className="font-semibold text-slate-800">URL:</span> {detail.report.page_url}</p>
-                    <p><span className="font-semibold text-slate-800">Reporter:</span> {detail.report.reporter_email || 'Unknown'}</p>
-                    <p><span className="font-semibold text-slate-800">Solved At:</span> {formatDate(detail.report.solved_at)}</p>
-                    <p><span className="font-semibold text-slate-800">Artifact Purge:</span> {formatDate(detail.report.artifact_purge_after)}</p>
-                  </div>
-                </div>
-
-                <div className="rounded-2xl border border-slate-200 p-4">
-                  <p className="text-sm font-semibold text-slate-900">Browser Context</p>
-                  <pre className="mt-3 max-h-56 overflow-auto rounded-xl bg-slate-950 p-3 text-xs text-slate-100">
-                    {JSON.stringify(detail.report.browser_context || {}, null, 2)}
-                  </pre>
-                </div>
-              </div>
-
-              <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-                <div className="rounded-2xl border border-slate-200 p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-sm font-semibold text-slate-900">Screenshot</p>
-                    {!detail.screenshotUrl && <span className="text-xs text-slate-500">Not attached or already purged</span>}
-                  </div>
-                  {detail.screenshotUrl ? (
-                    <button
-                      type="button"
-                      onClick={() => setExpandedScreenshotUrl(detail.screenshotUrl)}
-                      className="mt-3 block w-full"
-                    >
-                      <img
-                        src={detail.screenshotUrl}
-                        alt="Issue report screenshot"
-                        className="w-full rounded-xl border border-slate-200 cursor-zoom-in"
-                      />
-                      <span className="mt-2 block text-xs text-slate-500">Click to enlarge</span>
-                    </button>
-                  ) : (
-                    <div className="mt-3 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
-                      Screenshot unavailable.
-                    </div>
-                  )}
-                </div>
-
-                <div className="rounded-2xl border border-slate-200 p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-sm font-semibold text-slate-900">Console Log</p>
-                    <span className="text-xs text-slate-500">{detail.consoleEntries.length} entries</span>
-                  </div>
-                  <div className="mt-3 max-h-[28rem] space-y-3 overflow-auto">
-                    {detail.consoleEntries.length === 0 ? (
-                      <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
-                        Console log unavailable.
-                      </div>
-                    ) : (
-                      detail.consoleEntries.map((entry, index) => (
-                        <div key={`${entry.timestamp}-${index}`} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                          <div className="flex items-center justify-between gap-3 text-xs text-slate-500">
-                            <span className="font-semibold uppercase tracking-wide text-slate-700">{entry.level}</span>
-                            <span>{formatDate(entry.timestamp)}</span>
-                          </div>
-                          <p className="mt-2 whitespace-pre-wrap break-words text-sm text-slate-800">{entry.message}</p>
-                          {entry.stack && (
-                            <pre className="mt-2 overflow-auto rounded-lg bg-slate-950 p-3 text-xs text-slate-100">{entry.stack}</pre>
-                          )}
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-slate-200 p-4">
-                <p className="text-sm font-semibold text-slate-900">Activity</p>
-                <div className="mt-4 space-y-3">
-                  {detail.events.length === 0 ? (
-                    <p className="text-sm text-slate-500">No activity recorded yet.</p>
-                  ) : (
-                    detail.events.map((event) => (
-                      <div key={event.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                        <div className="flex items-center justify-between gap-3">
-                          <p className="text-sm font-semibold text-slate-900">{event.action.replace(/_/g, ' ')}</p>
-                          <p className="text-xs text-slate-500">{formatDate(event.created_at)}</p>
-                        </div>
-                        <pre className="mt-2 overflow-auto whitespace-pre-wrap text-xs text-slate-600">{JSON.stringify(event.details || {}, null, 2)}</pre>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
+        <IssueReportDetailPanel
+          selectedReportId={selectedReportId}
+          detailLoading={detailLoading}
+          detail={detail}
+          assignees={assignees}
+          currentAdminId={currentAdminId}
+          selectedAssigneeId={selectedAssigneeId}
+          setSelectedAssigneeId={(id) => dispatch({ type: 'setSelectedAssigneeId', payload: id })}
+          assignmentUpdating={assignmentUpdating}
+          updateAssignment={updateAssignment}
+          statusUpdating={statusUpdating}
+          updateStatus={updateStatus}
+          getAgeMeta={getAgeMeta}
+          getSeverityClasses={getSeverityClasses}
+          formatDate={formatDate}
+          setExpandedScreenshotUrl={(url) => dispatch({ type: 'setExpandedScreenshotUrl', payload: url })}
+        />
       </section>
 
       {expandedScreenshotUrl && (
@@ -528,14 +451,14 @@ export function IssueReportsTab() {
           className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 p-4"
           onClick={(event) => {
             if (event.target === event.currentTarget) {
-              setExpandedScreenshotUrl(null)
+              dispatch({ type: 'setExpandedScreenshotUrl', payload: null })
             }
           }}
         >
           <div className="relative max-h-[92vh] max-w-[95vw]">
             <button
               type="button"
-              onClick={() => setExpandedScreenshotUrl(null)}
+              onClick={() => dispatch({ type: 'setExpandedScreenshotUrl', payload: null })}
               className="absolute right-2 top-2 rounded-full bg-slate-950/70 px-3 py-1 text-xs font-semibold text-white hover:bg-slate-900"
             >
               Close

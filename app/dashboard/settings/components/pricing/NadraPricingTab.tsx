@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 import { Trash2, Save, X, Plus } from 'lucide-react'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { NadraPricing, PricingEditValues } from '@/app/types/pricing'
-import { PRICING_OPTIONS } from '@/app/lib/pricingOptions'
+import { PRICING_OPTIONS } from '@/lib/pricingOptions'
 
 interface NadraPricingTabProps {
   nadraPricing: NadraPricing[]
@@ -16,7 +16,12 @@ interface NadraPricingTabProps {
   onEdit: (item: NadraPricing) => void
   onSave: () => void
   onDelete: (id: string) => void
-  onAddEntry: (entry: { service_type: string; service_option: string; cost_price: number; sale_price: number }) => Promise<void>
+  onAddEntry: (entry: {
+    service_type: string
+    service_option: string
+    cost_price: number
+    sale_price: number
+  }) => Promise<void>
   supabase: SupabaseClient
 }
 
@@ -30,9 +35,14 @@ function NadraPricingTabCore({
   onSave,
   onDelete,
   onAddEntry,
-  supabase
+  supabase,
 }: NadraPricingTabProps) {
-  const [newEntry, setNewEntry] = useState({ service_type: '', service_option: '', cost_price: 0, sale_price: 0 })
+  const [newEntry, setNewEntry] = useState({
+    service_type: '',
+    service_option: '',
+    cost_price: 0,
+    sale_price: 0,
+  })
 
   const handleAddEntry = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -48,7 +58,7 @@ function NadraPricingTabCore({
     try {
       await onAddEntry(newEntry)
       setNewEntry({ service_type: '', service_option: '', cost_price: 0, sale_price: 0 })
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Log detailed error server-side, but show generic message to user
       console.error('[NadraPricingTab] Error adding service:', error)
       toast.error('Failed to add service. Please try again or contact support.')
@@ -62,7 +72,9 @@ function NadraPricingTabCore({
         <form onSubmit={handleAddEntry} className="space-y-3">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label htmlFor="nadra-service-type" className="block text-sm font-medium mb-1">Service Type *</label>
+              <label htmlFor="nadra-service-type" className="block text-sm font-medium mb-1">
+                Service Type *
+              </label>
               <select
                 id="nadra-service-type"
                 value={newEntry.service_type}
@@ -72,12 +84,16 @@ function NadraPricingTabCore({
               >
                 <option value="">Select Service Type</option>
                 {PRICING_OPTIONS.NADRA.serviceTypes.map((type) => (
-                  <option key={type} value={type}>{type}</option>
+                  <option key={type} value={type}>
+                    {type}
+                  </option>
                 ))}
               </select>
             </div>
             <div>
-              <label htmlFor="nadra-service-option" className="block text-sm font-medium mb-1">Service Option *</label>
+              <label htmlFor="nadra-service-option" className="block text-sm font-medium mb-1">
+                Service Option *
+              </label>
               <select
                 id="nadra-service-option"
                 value={newEntry.service_option}
@@ -87,14 +103,18 @@ function NadraPricingTabCore({
               >
                 <option value="">Select Service Option</option>
                 {PRICING_OPTIONS.NADRA.serviceOptions.map((option) => (
-                  <option key={option} value={option}>{option}</option>
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
                 ))}
               </select>
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label htmlFor="nadra-cost-price" className="block text-sm font-medium mb-1">Cost Price</label>
+              <label htmlFor="nadra-cost-price" className="block text-sm font-medium mb-1">
+                Cost Price
+              </label>
               <input
                 id="nadra-cost-price"
                 type="number"
@@ -106,7 +126,9 @@ function NadraPricingTabCore({
               />
             </div>
             <div>
-              <label htmlFor="nadra-sale-price" className="block text-sm font-medium mb-1">Sale Price</label>
+              <label htmlFor="nadra-sale-price" className="block text-sm font-medium mb-1">
+                Sale Price
+              </label>
               <input
                 id="nadra-sale-price"
                 type="number"
@@ -159,7 +181,9 @@ function NadraPricingTabCore({
                           type="number"
                           step="0.01"
                           value={editValues.cost_price}
-                          onChange={(e) => setEditValues({ ...editValues, cost_price: e.target.value })}
+                          onChange={(e) =>
+                            setEditValues({ ...editValues, cost_price: e.target.value })
+                          }
                           className="w-full px-2 py-1 border rounded"
                         />
                       </td>
@@ -168,7 +192,9 @@ function NadraPricingTabCore({
                           type="number"
                           step="0.01"
                           value={editValues.sale_price}
-                          onChange={(e) => setEditValues({ ...editValues, sale_price: e.target.value })}
+                          onChange={(e) =>
+                            setEditValues({ ...editValues, sale_price: e.target.value })
+                          }
                           className="w-full px-2 py-1 border rounded"
                         />
                       </td>

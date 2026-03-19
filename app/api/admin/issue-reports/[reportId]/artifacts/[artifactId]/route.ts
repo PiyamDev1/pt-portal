@@ -1,12 +1,16 @@
-import { NextResponse } from 'next/server'
 import { verifyMasterAdminSession } from '@/lib/issueReportAuth'
 import { getSupabaseClient } from '@/lib/supabaseClient'
 import { readIssueArtifact } from '@/lib/issueReportStorage'
+import { apiError } from '@/lib/api/http'
+import { NextResponse } from 'next/server'
 
-export async function GET(_: Request, context: { params: Promise<{ reportId: string; artifactId: string }> }) {
+export async function GET(
+  _: Request,
+  context: { params: Promise<{ reportId: string; artifactId: string }> },
+) {
   const auth = await verifyMasterAdminSession()
   if (!auth.authorized) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status })
+    return apiError(auth.error ?? 'Unauthorized', auth.status)
   }
 
   const { reportId, artifactId } = await context.params
@@ -20,7 +24,7 @@ export async function GET(_: Request, context: { params: Promise<{ reportId: str
     .single()
 
   if (error || !artifact) {
-    return NextResponse.json({ error: 'Artifact not found' }, { status: 404 })
+    return apiError('Artifact not found', 404)
   }
 
   const artifactRecord = artifact as {

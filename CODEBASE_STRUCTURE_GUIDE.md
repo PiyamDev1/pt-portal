@@ -46,17 +46,23 @@ app/
 ```tsx
 // Simple fetch
 const { data, loading, error, execute } = useAsync(
-  () => fetch('/api/data').then(r => r.json()),
-  true // immediate execution
+  () => fetch('/api/data').then((r) => r.json()),
+  true, // immediate execution
 )
 
 // With components
-{loading && <Spinner />}
-{error && <ErrorMessage error={error} />}
-{data && <DataDisplay data={data} />}
+{
+  loading && <Spinner />
+}
+{
+  error && <ErrorMessage error={error} />
+}
+{
+  data && <DataDisplay data={data} />
+}
 
 // Manual trigger
-<button onClick={() => execute()}>Retry</button>
+;<button onClick={() => execute()}>Retry</button>
 ```
 
 ### 2. `useModal` - Modal State Management
@@ -167,8 +173,8 @@ const filters = useTableFilters(items, (item, search) => {
 
 // Sorting
 <th onClick={() => filters.setSortBy('name')}>
-  Name {filters.sortBy === 'name' ? 
-    (filters.sortDirection === 'asc' ? '▲' : '▼') : 
+  Name {filters.sortBy === 'name' ?
+    (filters.sortDirection === 'asc' ? '▲' : '▼') :
     ''}
 </th>
 
@@ -186,6 +192,7 @@ const filters = useTableFilters(items, (item, search) => {
 **Use for:** All modals to ensure consistent styling and behavior.
 
 **Before:**
+
 ```tsx
 export function MyModal({ isOpen, onClose }) {
   return (
@@ -204,15 +211,11 @@ export function MyModal({ isOpen, onClose }) {
 ```
 
 **After:**
+
 ```tsx
 export function MyModal({ isOpen, onClose }) {
   return (
-    <ModalBase
-      isOpen={isOpen}
-      onClose={onClose}
-      title="My Modal"
-      size="md"
-    >
+    <ModalBase isOpen={isOpen} onClose={onClose} title="My Modal" size="md">
       {children}
     </ModalBase>
   )
@@ -277,9 +280,10 @@ const res = await fetch(API_ENDPOINTS.LMS)
 
 ```tsx
 import { VALIDATION_MESSAGES } from '@/lib/constants'
-
-<input required placeholder="Email" />
-{errors.email && <p>{VALIDATION_MESSAGES.INVALID_EMAIL}</p>}
+;<input required placeholder="Email" />
+{
+  errors.email && <p>{VALIDATION_MESSAGES.INVALID_EMAIL}</p>
+}
 ```
 
 ### UI Classes
@@ -294,6 +298,7 @@ import { COMMON_CLASSES } from '@/lib/constants'
 ## Import Examples
 
 ### Before (Scattered Imports)
+
 ```tsx
 import { useState } from 'react'
 import { ModalBase as MB } from '@/components/ModalBase'
@@ -303,6 +308,7 @@ import { VALIDATION_MESSAGES } from '@/lib/validation-messages'
 ```
 
 ### After (Clean, Organized)
+
 ```tsx
 import { useState } from 'react'
 import { ModalBase, useAsync, usePagination } from '@/hooks'
@@ -356,9 +362,12 @@ export interface MyComponentProps {
 ### Example: Refactoring a Large Component
 
 **Before:** `TransactionModal.tsx` (498 lines)
+
 ```tsx
 export function TransactionModal({ data, onClose, onSave }) {
-  const [form, setForm] = useState({ /* 10+ fields */ })
+  const [form, setForm] = useState({
+    /* 10+ fields */
+  })
   const [loading, setLoading] = useState(false)
   // ... 50 lines of state logic
   // ... 200 lines of form handling
@@ -371,9 +380,11 @@ export function TransactionModal({ data, onClose, onSave }) {
 ```tsx
 // hooks/useTransactionForm.ts
 export function useTransactionForm(type: string) {
-  const [form, setForm] = useState({ /* */ })
+  const [form, setForm] = useState({
+    /* */
+  })
   // Form logic (50 lines)
-  return { form, setForm, /* methods */ }
+  return { form, setForm /* methods */ }
 }
 
 // components/TransactionModal/TransactionForm.tsx
@@ -405,13 +416,13 @@ import { usePagination } from '@/hooks'
 describe('usePagination', () => {
   it('should calculate offset correctly', () => {
     const { result } = renderHook(() => usePagination(50, 200))
-    
+
     expect(result.current.offset).toBe(0)
-    
+
     act(() => {
       result.current.goToPage(2)
     })
-    
+
     expect(result.current.offset).toBe(50)
   })
 })
@@ -435,14 +446,12 @@ When refactoring existing large components:
 ## Performance Considerations
 
 ### Memoization
+
 ```tsx
 import { useMemo, useCallback } from 'react'
 
 // Expensive calculations
-const filtered = useMemo(
-  () => filters.filteredItems,
-  [filters.filteredItems]
-)
+const filtered = useMemo(() => filters.filteredItems, [filters.filteredItems])
 
 // Stable callbacks
 const handleClick = useCallback(() => {
@@ -451,6 +460,7 @@ const handleClick = useCallback(() => {
 ```
 
 ### Code Splitting
+
 Use `React.lazy()` for large modals or sections:
 
 ```tsx
@@ -475,6 +485,7 @@ const TransactionModal = React.lazy(
 ## Questions or Issues?
 
 Refer to:
+
 - CODEBASE_REFACTORING_PLAN.md - Overall strategy
 - Individual component README files
 - Hook type definitions for prop signatures

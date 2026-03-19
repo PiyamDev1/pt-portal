@@ -11,11 +11,18 @@ export default async function NadraPage() {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
-      cookies: { getAll() { return cookieStore.getAll() }, setAll() {} },
-    }
+      cookies: {
+        getAll() {
+          return cookieStore.getAll()
+        },
+        setAll() {},
+      },
+    },
   )
 
-  const { data: { session } } = await supabase.auth.getSession()
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
   if (!session) redirect('/login')
 
   const { data: employee } = await supabase
@@ -33,7 +40,8 @@ export default async function NadraPage() {
   // Query applications with their details
   const { data: applications } = await supabase
     .from('applications')
-    .select(`
+    .select(
+      `
       id,
       tracking_number,
       family_head_id,
@@ -53,7 +61,8 @@ export default async function NadraPage() {
         nicop_cnic_details ( service_option ),
         employees!nadra_services_employee_id_fkey ( id, full_name )
       )
-    `)
+    `,
+    )
     .order('created_at', { ascending: false })
 
   const { data: complaintRows } = await supabase
@@ -61,22 +70,24 @@ export default async function NadraPage() {
     .select('nadra_service_id')
     .eq('entry_type', 'complaint')
 
-  const complainedNadraIds = [...new Set((complaintRows || []).map((row) => row.nadra_service_id).filter(Boolean))]
+  const complainedNadraIds = [
+    ...new Set((complaintRows || []).map((row) => row.nadra_service_id).filter(Boolean)),
+  ]
 
   // Merge: create entries for family heads with no applications
-  const familyHeadIds = new Set(applications?.map(app => app.family_head_id) || [])
-  const headsWithNoMembers = familyHeads?.filter(head => !familyHeadIds.has(head.id)) || []
-  
+  const familyHeadIds = new Set(applications?.map((app) => app.family_head_id) || [])
+  const headsWithNoMembers = familyHeads?.filter((head) => !familyHeadIds.has(head.id)) || []
+
   const allRecords = [
     ...(applications || []),
-    ...headsWithNoMembers.map(head => ({
+    ...headsWithNoMembers.map((head) => ({
       id: null,
       tracking_number: null,
       family_head_id: head.id,
       family_heads: head,
       applicants: null,
-      nadra_services: null
-    }))
+      nadra_services: null,
+    })),
   ]
 
   const location = Array.isArray(employee?.locations) ? employee.locations[0] : employee?.locations
@@ -85,18 +96,20 @@ export default async function NadraPage() {
   return (
     <DashboardClientWrapper>
       <div className="min-h-screen bg-slate-50">
-        <PageHeader 
-          employeeName={employee?.full_name} 
-          role={role?.name} 
-          location={location} 
-          userId={session.user.id} 
-          showBack={true} 
+        <PageHeader
+          employeeName={employee?.full_name}
+          role={role?.name}
+          location={location}
+          userId={session.user.id}
+          showBack={true}
         />
-        
+
         <main className="max-w-7xl mx-auto p-6 w-full flex-grow">
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-slate-800">Nadra Services</h1>
-            <p className="text-slate-500">Manage Family Head records and track application credentials.</p>
+            <p className="text-slate-500">
+              Manage Family Head records and track application credentials.
+            </p>
           </div>
 
           <NadraClient

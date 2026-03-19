@@ -18,7 +18,7 @@ export function InitialTransactionSection({
   paymentMethodId,
   notes,
   methods,
-  onChange
+  onChange,
 }: InitialTransactionProps) {
   return (
     <div className="space-y-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
@@ -30,7 +30,7 @@ export function InitialTransactionSection({
         </label>
         <select
           value={type}
-          onChange={e => onChange('type', e.target.value)}
+          onChange={(e) => onChange('type', e.target.value)}
           className="w-full p-3 border rounded-lg bg-white"
         >
           <option value={TRANSACTION_TYPES.SERVICE}>Installment Plan</option>
@@ -40,9 +40,7 @@ export function InitialTransactionSection({
       </div>
 
       <div>
-        <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">
-          Amount
-        </label>
+        <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Amount</label>
         <div className="relative">
           <span className="absolute left-3 top-3 text-lg text-slate-500 font-black">£</span>
           <input
@@ -50,7 +48,7 @@ export function InitialTransactionSection({
             step="0.01"
             placeholder="0.00"
             value={amount}
-            onChange={e => onChange('amount', e.target.value)}
+            onChange={(e) => onChange('amount', e.target.value)}
             className="w-full pl-10 p-3 border rounded-lg text-lg font-bold"
           />
         </div>
@@ -63,11 +61,11 @@ export function InitialTransactionSection({
           </label>
           <select
             value={paymentMethodId}
-            onChange={e => onChange('paymentMethodId', e.target.value)}
+            onChange={(e) => onChange('paymentMethodId', e.target.value)}
             className="w-full p-3 border rounded-lg bg-white"
           >
             <option value="">Select method...</option>
-            {methods.map(m => (
+            {methods.map((m) => (
               <option key={m.id} value={m.id}>
                 {m.name}
               </option>
@@ -79,7 +77,7 @@ export function InitialTransactionSection({
       <textarea
         placeholder="Notes (optional)"
         value={notes}
-        onChange={e => onChange('notes', e.target.value)}
+        onChange={(e) => onChange('notes', e.target.value)}
         className="w-full p-3 border rounded-lg"
         rows={2}
       />

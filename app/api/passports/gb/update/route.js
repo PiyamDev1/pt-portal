@@ -1,15 +1,26 @@
 import { createClient } from '@supabase/supabase-js'
-import { NextResponse } from 'next/server'
+import { apiError, apiOk } from '@/lib/api/http'
+import { toErrorMessage } from '@/lib/api/error'
 
 export async function POST(request) {
   try {
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
+      process.env.SUPABASE_SERVICE_ROLE_KEY,
     )
 
     const body = await request.json()
-    const { id, status, notes, userId, applicantName, applicantPassport, dateOfBirth, phoneNumber, pexNumber } = body
+    const {
+      id,
+      status,
+      notes,
+      userId,
+      applicantName,
+      applicantPassport,
+      dateOfBirth,
+      phoneNumber,
+      pexNumber,
+    } = body
 
     // Get the applicant ID and current status (BEFORE any updates)
     const { data: gbApp, error: gbErr } = await supabase
@@ -65,13 +76,12 @@ export async function POST(request) {
         old_status: oldStatus,
         new_status: status,
         notes: notes || null,
-        changed_by: userId
+        changed_by: userId,
       })
     }
 
-    return NextResponse.json({ success: true })
+    return apiOk({ updatedPassportId: id })
   } catch (error) {
-    console.error('Update error:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return apiError(toErrorMessage(error, 'Failed to update application'), 500)
   }
 }

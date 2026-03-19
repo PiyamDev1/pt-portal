@@ -41,15 +41,15 @@ MinIO offline:
 
 ## Server Configuration
 
-| | MinIO (Primary) | R2 (Fallback) |
-|---|---|---|
-| Label | EU Server 49v2 | EU Server 45v5 |
+|             | MinIO (Primary)                  | R2 (Fallback)                                   |
+| ----------- | -------------------------------- | ----------------------------------------------- |
+| Label       | EU Server 49v2                   | EU Server 45v5                                  |
 | S3 Endpoint | `https://eu49v2.piyamtravel.com` | `https://<account-id>.r2.cloudflarestorage.com` |
-| Display URL | — | `https://eu45v5.piyamtravel.com` |
-| Region | `eu-west-1` | `auto` |
-| Bucket | `portal-documents` | `portal-fallback` |
-| Path style | `forcePathStyle: true` | `forcePathStyle: true` |
-| TLS | Standard | Minimum TLS 1.2 |
+| Display URL | —                                | `https://eu45v5.piyamtravel.com`                |
+| Region      | `eu-west-1`                      | `auto`                                          |
+| Bucket      | `portal-documents`               | `portal-fallback`                               |
+| Path style  | `forcePathStyle: true`           | `forcePathStyle: true`                          |
+| TLS         | Standard                         | Minimum TLS 1.2                                 |
 
 > **Important**: `R2_ENDPOINT` must be the S3 API URL (`account-id.r2.cloudflarestorage.com`), not the custom domain. The custom domain (`eu45v5.piyamtravel.com`) only handles public HTTP reads — it cannot service S3 API operations like HeadBucket, PutObject, GetObject.
 
@@ -115,9 +115,11 @@ Try: MinIO GetObjectCommand(key)
 ```
 
 Cache headers on successful responses:
+
 ```
 Cache-Control: public, max-age=31536000, immutable
 ```
+
 This caches the file in the browser for 1 year. Since object keys include a timestamp, new uploads always get new keys and are never stale-served.
 
 ---
@@ -160,22 +162,24 @@ probeR2():    HeadBucketCommand({ Bucket: 'portal-fallback' })
 ```
 
 When **both are online**, a background batch migration is triggered:
+
 ```typescript
-void migrateFallbackBatch(5)  // migrate up to 5 fallback files non-blocking
+void migrateFallbackBatch(5) // migrate up to 5 fallback files non-blocking
 ```
 
 Response shape:
+
 ```json
 {
   "status": {
-    "connected": true,       // MinIO connected
-    "ping": 42,              // MinIO RTT ms
-    "mode": "primary",       // "primary" | "fallback-upload-only" | "offline"
+    "connected": true, // MinIO connected
+    "ping": 42, // MinIO RTT ms
+    "mode": "primary", // "primary" | "fallback-upload-only" | "offline"
     "endpoint": "https://eu49v2.piyamtravel.com",
     "fallback": {
       "configured": true,
       "connected": true,
-      "endpoint": "https://eu45v5.piyamtravel.com",  // display URL
+      "endpoint": "https://eu45v5.piyamtravel.com", // display URL
       "bucket": "portal-fallback",
       "ping": 110
     },
@@ -203,6 +207,7 @@ migrateObjectFromR2ToMinio(key: string): Promise<boolean>
 ```
 
 Steps (all-or-nothing):
+
 1. `GetObjectCommand` from R2 — read full object bytes
 2. `PutObjectCommand` to MinIO — write bytes with same ContentType
 3. **Only if step 2 succeeded**: `DeleteObjectCommand` from R2
@@ -222,10 +227,10 @@ Queries Supabase for documents where `minio_bucket = 'portal-fallback' AND delet
 
 ### Migration triggers summary
 
-| When | Where | How many |
-|---|---|---|
-| File previewed/downloaded from R2 | `preview/route.ts`, `download/route.ts` | 1 file (background) |
-| Status check with both servers online | `status/route.ts` | Up to 5 (background) |
+| When                                  | Where                                   | How many             |
+| ------------------------------------- | --------------------------------------- | -------------------- |
+| File previewed/downloaded from R2     | `preview/route.ts`, `download/route.ts` | 1 file (background)  |
+| Status check with both servers online | `status/route.ts`                       | Up to 5 (background) |
 
 ---
 
@@ -233,11 +238,11 @@ Queries Supabase for documents where `minio_bucket = 'portal-fallback' AND delet
 
 `app/dashboard/applications/nadra/components/DocumentHub/MinioStatus.tsx`
 
-| `mode` | `connected` | `uploadOnlyFallback` | Banner colour | Badge | Message |
-|---|---|---|---|---|---|
-| `primary` | true | false | Green | "Ready" | "Document Storage Connected" |
-| `fallback-upload-only` | false | true | Amber | "Upload-Only Mode" | "Primary Storage Offline • EU Server 45v5 Active" |
-| `offline` | false | false | Red | "Unavailable" | "Document Storage Offline" |
+| `mode`                 | `connected` | `uploadOnlyFallback` | Banner colour | Badge              | Message                                           |
+| ---------------------- | ----------- | -------------------- | ------------- | ------------------ | ------------------------------------------------- |
+| `primary`              | true        | false                | Green         | "Ready"            | "Document Storage Connected"                      |
+| `fallback-upload-only` | false       | true                 | Amber         | "Upload-Only Mode" | "Primary Storage Offline • EU Server 45v5 Active" |
+| `offline`              | false       | false                | Red           | "Unavailable"      | "Document Storage Offline"                        |
 
 ---
 

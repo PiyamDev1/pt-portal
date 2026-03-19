@@ -15,11 +15,13 @@ lib/constants/
 ## Usage
 
 ### Import from Barrel Export
+
 ```tsx
 import { API_ENDPOINTS, VALIDATION_MESSAGES, COLORS } from '@/lib/constants'
 ```
 
 ### Or Import Individually
+
 ```tsx
 import { API_ENDPOINTS } from '@/lib/constants/api'
 import { VALIDATION_MESSAGES } from '@/lib/constants/validation'
@@ -33,6 +35,7 @@ import { COLORS } from '@/lib/constants/ui'
 Contains all API endpoints and HTTP-related constants.
 
 ### API Endpoints
+
 Organized by feature:
 
 ```tsx
@@ -42,26 +45,27 @@ API_ENDPOINTS = {
     USER: '/api/admin/users',
     SETTINGS: '/api/admin/settings',
   },
-  
+
   // Auth APIs
   AUTH: {
     LOGIN: '/api/auth/login',
     LOGOUT: '/api/auth/logout',
     REFRESH: '/api/auth/refresh',
   },
-  
+
   // Application APIs
   APPLICATIONS: {
     NADRA: '/api/applications/nadra',
     PASSPORTS: '/api/applications/passports',
     VISAS: '/api/applications/visas',
   },
-  
+
   // ... more endpoints
 }
 ```
 
 ### HTTP Status Codes
+
 ```tsx
 HTTP_STATUS = {
   OK: 200,
@@ -76,6 +80,7 @@ HTTP_STATUS = {
 ```
 
 ### Pagination
+
 ```tsx
 PAGINATION = {
   DEFAULT_LIMIT: 50,
@@ -85,15 +90,17 @@ PAGINATION = {
 ```
 
 ### Timeouts
+
 ```tsx
 TIMEOUT = {
-  DEFAULT: 30000,    // 30 seconds
-  LONG: 60000,       // 60 seconds
-  SHORT: 5000,       // 5 seconds
+  DEFAULT: 30000, // 30 seconds
+  LONG: 60000, // 60 seconds
+  SHORT: 5000, // 5 seconds
 }
 ```
 
 ### Usage Example
+
 ```tsx
 import { API_ENDPOINTS, HTTP_STATUS } from '@/lib/constants'
 
@@ -117,6 +124,7 @@ if (res.status === HTTP_STATUS.UNAUTHORIZED) {
 Contains all validation rules and error messages.
 
 ### Validation Rules
+
 ```tsx
 VALIDATION_RULES = {
   EMAIL: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
@@ -132,6 +140,7 @@ if (!VALIDATION_RULES.EMAIL.test(email)) {
 ```
 
 ### Validation Messages
+
 Pre-defined error messages for consistency:
 
 ```tsx
@@ -148,6 +157,7 @@ VALIDATION_MESSAGES = {
 ```
 
 ### Error Codes
+
 ```tsx
 ERROR_CODES = {
   VALIDATION_ERROR: 'VALIDATION_ERROR',
@@ -159,6 +169,7 @@ ERROR_CODES = {
 ```
 
 ### Usage Example
+
 ```tsx
 import { VALIDATION_RULES, VALIDATION_MESSAGES } from '@/lib/constants'
 
@@ -182,19 +193,21 @@ if (error) {
 Contains all UI-related constants.
 
 ### Colors
+
 ```tsx
 COLORS = {
-  PRIMARY: '#3B82F6',      // Blue
-  SECONDARY: '#8B5CF6',    // Purple
-  SUCCESS: '#10B981',      // Green
-  WARNING: '#F59E0B',      // Amber
-  DANGER: '#EF4444',       // Red
-  GRAY: '#6B7280',         // Gray
+  PRIMARY: '#3B82F6', // Blue
+  SECONDARY: '#8B5CF6', // Purple
+  SUCCESS: '#10B981', // Green
+  WARNING: '#F59E0B', // Amber
+  DANGER: '#EF4444', // Red
+  GRAY: '#6B7280', // Gray
   // ... more color variants
 }
 ```
 
 ### Sizes
+
 ```tsx
 SIZES = {
   XS: '320px',
@@ -207,22 +220,24 @@ SIZES = {
 ```
 
 ### Spacing
+
 ```tsx
 SPACING = {
   '0': '0px',
-  '1': '0.25rem',      // 4px
-  '2': '0.5rem',       // 8px
-  '3': '0.75rem',      // 12px
-  '4': '1rem',         // 16px
-  '5': '1.25rem',      // 20px
-  '6': '1.5rem',       // 24px
-  '8': '2rem',         // 32px
-  '10': '2.5rem',      // 40px
-  '12': '3rem',        // 48px
+  '1': '0.25rem', // 4px
+  '2': '0.5rem', // 8px
+  '3': '0.75rem', // 12px
+  '4': '1rem', // 16px
+  '5': '1.25rem', // 20px
+  '6': '1.5rem', // 24px
+  '8': '2rem', // 32px
+  '10': '2.5rem', // 40px
+  '12': '3rem', // 48px
 }
 ```
 
 ### Z-Index
+
 ```tsx
 Z_INDEX = {
   DROPDOWN: 10,
@@ -236,17 +251,21 @@ Z_INDEX = {
 ```
 
 ### Common CSS Classes
+
 ```tsx
 COMMON_CLASSES = {
-  BUTTON_PRIMARY: 'bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50',
+  BUTTON_PRIMARY:
+    'bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50',
   BUTTON_SECONDARY: 'bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300',
   BUTTON_DANGER: 'bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700',
-  INPUT: 'border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500',
+  INPUT:
+    'border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500',
   CARD: 'bg-white rounded-lg shadow p-4',
 }
 ```
 
 ### Shadows
+
 ```tsx
 SHADOWS = {
   SM: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
@@ -257,16 +276,18 @@ SHADOWS = {
 ```
 
 ### Breakpoints
+
 ```tsx
 BREAKPOINTS = {
-  SM: 640,   // Small laptops
-  MD: 768,   // Tablets
-  LG: 1024,  // Desktops
-  XL: 1280,  // Large desktops
+  SM: 640, // Small laptops
+  MD: 768, // Tablets
+  LG: 1024, // Desktops
+  XL: 1280, // Large desktops
 }
 ```
 
 ### Usage Example
+
 ```tsx
 import { COLORS, COMMON_CLASSES, Z_INDEX } from '@/lib/constants'
 
@@ -299,11 +320,7 @@ Consolidates all exports for convenient importing:
 
 ```tsx
 // Single import, all constants available
-import { 
-  API_ENDPOINTS, 
-  VALIDATION_RULES, 
-  COLORS 
-} from '@/lib/constants'
+import { API_ENDPOINTS, VALIDATION_RULES, COLORS } from '@/lib/constants'
 ```
 
 ---
@@ -311,21 +328,25 @@ import {
 ## Adding New Constants
 
 ### Step 1: Identify Category
+
 Determine if the constant belongs to existing file or needs a new one.
 
 ### Step 2: Add to Appropriate File
+
 ```tsx
 // lib/constants/ui.ts
 export const NEW_CONSTANT = 'value'
 ```
 
 ### Step 3: Update Barrel Export
+
 ```tsx
 // lib/constants/index.ts
 export { NEW_CONSTANT } from './ui'
 ```
 
 ### Step 4: Document in README
+
 Add usage example in this file.
 
 ---
@@ -333,6 +354,7 @@ Add usage example in this file.
 ## Best Practices
 
 ### ✅ Do:
+
 - Keep constants organized by category
 - Use UPPER_SNAKE_CASE for constant names
 - Group related constants together
@@ -341,6 +363,7 @@ Add usage example in this file.
 - Export from barrel file for consistency
 
 ### ❌ Don't:
+
 - Mix unrelated constants in one category
 - Use magic numbers or strings in components
 - Duplicate constants across files
@@ -352,6 +375,7 @@ Add usage example in this file.
 ## Examples
 
 ### Authentication Flow
+
 ```tsx
 import { API_ENDPOINTS, HTTP_STATUS, TIMEOUT } from '@/lib/constants'
 
@@ -362,42 +386,44 @@ async function login(email, password) {
     body: JSON.stringify({ email, password }),
     timeout: TIMEOUT.DEFAULT,
   })
-  
+
   if (res.status === HTTP_STATUS.UNAUTHORIZED) {
     throw new Error('Invalid credentials')
   }
-  
+
   return res.json()
 }
 ```
 
 ### Form Validation
+
 ```tsx
 import { VALIDATION_RULES, VALIDATION_MESSAGES } from '@/lib/constants'
 
 function validateForm(data) {
   const errors = {}
-  
+
   if (!VALIDATION_RULES.EMAIL.test(data.email)) {
     errors.email = VALIDATION_MESSAGES.INVALID_EMAIL
   }
-  
+
   if (data.phone && !VALIDATION_RULES.PHONE.test(data.phone)) {
     errors.phone = VALIDATION_MESSAGES.INVALID_PHONE
   }
-  
+
   return Object.keys(errors).length === 0 ? null : errors
 }
 ```
 
 ### UI Styling
+
 ```tsx
 import { COLORS, COMMON_CLASSES, Z_INDEX } from '@/lib/constants'
 
 export function NotificationPanel() {
   return (
-    <div 
-      style={{ 
+    <div
+      style={{
         backgroundColor: COLORS.SUCCESS,
         zIndex: Z_INDEX.TOAST,
       }}
@@ -414,15 +440,18 @@ export function NotificationPanel() {
 ## Maintenance
 
 ### Regular Reviews
+
 Quarterly reviews to:
+
 - Remove unused constants
 - Consolidate duplicates
 - Update outdated values
 - Gather team feedback
 
 ### Backward Compatibility
+
 When removing constants, maintain through deprecation period.
 
 ### Version Control
-Track significant constant changes in commit messages for easy tracking.
 
+Track significant constant changes in commit messages for easy tracking.

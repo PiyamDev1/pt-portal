@@ -5,9 +5,21 @@ import { Database, AlertCircle, CheckCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { ConfirmationDialog } from '@/components/ConfirmationDialog'
 
+type MigrationResult = {
+  message?: string
+  error?: string
+  requiresManualSetup?: boolean
+  sql?: string
+  created?: number
+  skipped?: number
+  errors?: number
+  total?: number
+  errorDetails?: string[]
+}
+
 export function MaintenanceTab() {
   const [migrating, setMigrating] = useState(false)
-  const [result, setResult] = useState<any>(null)
+  const [result, setResult] = useState<MigrationResult | null>(null)
   const [showMigrationConfirm, setShowMigrationConfirm] = useState(false)
 
   const migrateInstallments = async () => {
@@ -23,17 +35,18 @@ export function MaintenanceTab() {
         throw new Error('Migration failed')
       }
 
-      const data = await res.json()
+      const data: MigrationResult = await res.json()
       setResult(data)
-      
+
       if (data.requiresManualSetup) {
         toast.error('Manual table setup required - see instructions below')
       } else {
         toast.success(data.message || 'Migration completed successfully')
       }
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to migrate installments')
-      setResult({ error: err.message })
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to migrate installments'
+      toast.error(message)
+      setResult({ error: message })
     } finally {
       setMigrating(false)
     }
@@ -55,10 +68,11 @@ export function MaintenanceTab() {
             <div className="flex-1">
               <h3 className="font-bold text-slate-900 mb-1">Migrate Installment Plans</h3>
               <p className="text-sm text-slate-600 mb-3">
-                Convert existing temporary installment plans to database records. This will create installment 
-                tracking for all service transactions that were created before the installment tracking system was enabled.
+                Convert existing temporary installment plans to database records. This will create
+                installment tracking for all service transactions that were created before the
+                installment tracking system was enabled.
               </p>
-              
+
               <button
                 onClick={() => setShowMigrationConfirm(true)}
                 disabled={migrating}
@@ -68,7 +82,9 @@ export function MaintenanceTab() {
               </button>
 
               {result && (
-                <div className={`mt-4 p-3 rounded-lg ${result.error || result.requiresManualSetup ? 'bg-red-50 border border-red-200' : 'bg-green-50 border border-green-200'}`}>
+                <div
+                  className={`mt-4 p-3 rounded-lg ${result.error || result.requiresManualSetup ? 'bg-red-50 border border-red-200' : 'bg-green-50 border border-green-200'}`}
+                >
                   <div className="flex items-start gap-2">
                     {result.error || result.requiresManualSetup ? (
                       <AlertCircle className="w-5 h-5 text-red-600 mt-0.5" />
@@ -78,24 +94,34 @@ export function MaintenanceTab() {
                     <div className="flex-1">
                       {result.requiresManualSetup ? (
                         <>
-                          <p className="text-sm text-red-800 font-medium mb-2">Manual Setup Required</p>
+                          <p className="text-sm text-red-800 font-medium mb-2">
+                            Manual Setup Required
+                          </p>
                           <p className="text-xs text-red-700 mb-3">{result.error}</p>
-                          <p className="text-xs text-red-700 font-bold mb-2">Run this SQL in Supabase SQL Editor:</p>
+                          <p className="text-xs text-red-700 font-bold mb-2">
+                            Run this SQL in Supabase SQL Editor:
+                          </p>
                           <pre className="text-[10px] bg-slate-900 text-green-400 p-3 rounded overflow-x-auto font-mono">
                             {result.sql}
                           </pre>
-                          <p className="text-xs text-red-700 mt-2">After running the SQL, try the migration again.</p>
+                          <p className="text-xs text-red-700 mt-2">
+                            After running the SQL, try the migration again.
+                          </p>
                         </>
                       ) : result.error ? (
                         <p className="text-sm text-red-800 font-medium">{result.error}</p>
                       ) : (
                         <>
-                          <p className="text-sm text-green-800 font-medium mb-2">{result.message}</p>
+                          <p className="text-sm text-green-800 font-medium mb-2">
+                            {result.message}
+                          </p>
                           {result.created !== undefined && (
                             <div className="text-xs text-green-700 space-y-1">
                               <p>✓ Created: {result.created} installments</p>
                               <p>✓ Skipped: {result.skipped} (already had installments)</p>
-                              {result.errors > 0 && <p className="text-red-700">✗ Errors: {result.errors}</p>}
+                              {result.errors > 0 && (
+                                <p className="text-red-700">✗ Errors: {result.errors}</p>
+                              )}
                               <p>✓ Total transactions processed: {result.total}</p>
                             </div>
                           )}
@@ -103,7 +129,9 @@ export function MaintenanceTab() {
                             <div className="mt-3 p-2 bg-red-50 border border-red-200 rounded text-xs">
                               <p className="font-bold text-red-800 mb-1">Error Details:</p>
                               {result.errorDetails.map((err: string, idx: number) => (
-                                <p key={idx} className="text-red-700 font-mono text-[10px]">{err}</p>
+                                <p key={idx} className="text-red-700 font-mono text-[10px]">
+                                  {err}
+                                </p>
                               ))}
                             </div>
                           )}
@@ -126,7 +154,10 @@ export function MaintenanceTab() {
                 <li>Migration is safe to run multiple times - it will skip existing records</li>
                 <li>New service transactions automatically create installment records</li>
                 <li>Migration uses loan term data and accounts for deposits when available</li>
-                <li>Temporary installment displays will be replaced with database records after migration</li>
+                <li>
+                  Temporary installment displays will be replaced with database records after
+                  migration
+                </li>
               </ul>
             </div>
           </div>

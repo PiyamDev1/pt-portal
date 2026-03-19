@@ -70,6 +70,34 @@ export type ModalState = {
   passportId?: string
 }
 
+export type TrackingStep = {
+  status: string
+  completed: boolean
+}
+
+export type PakUpdateRecordPayload = {
+  status: string
+  oldPassportReturned?: boolean
+  isRefunded?: boolean
+}
+
+export type PakEditFormData = {
+  id: string
+  passportId?: string
+  applicantId?: string
+  applicantName: string
+  applicantCnic?: string
+  applicantEmail: string
+  applicantPhone: string
+  familyHeadEmail: string
+  trackingNumber: string
+  oldPassportNumber: string
+  applicationType?: string
+  category?: string
+  speed?: string
+  status?: string
+}
+
 export type Metadata = {
   categories: string[]
   speeds: string[]

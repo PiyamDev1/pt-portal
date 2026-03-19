@@ -10,7 +10,7 @@ export interface FormErrors {
 
 export function useFormState<T extends Record<string, any>>(
   initialValues: T,
-  onSubmit?: (values: T) => Promise<void> | void
+  onSubmit?: (values: T) => Promise<void> | void,
 ) {
   const [values, setValues] = useState<T>(initialValues)
   const [errors, setErrors] = useState<FormErrors>({})
@@ -18,21 +18,21 @@ export function useFormState<T extends Record<string, any>>(
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const setFieldValue = useCallback((field: keyof T, value: any) => {
-    setValues(prev => ({
+    setValues((prev) => ({
       ...prev,
       [field]: value,
     }))
   }, [])
 
   const setFieldError = useCallback((field: string, error: string | undefined) => {
-    setErrors(prev => ({
+    setErrors((prev) => ({
       ...prev,
       [field]: error,
     }))
   }, [])
 
   const setFieldTouched = useCallback((field: string, touched = true) => {
-    setTouched(prev => ({
+    setTouched((prev) => ({
       ...prev,
       [field]: touched,
     }))
@@ -44,14 +44,14 @@ export function useFormState<T extends Record<string, any>>(
       const val = type === 'checkbox' ? (e.target as HTMLInputElement).checked : value
       setFieldValue(name as keyof T, val)
     },
-    [setFieldValue]
+    [setFieldValue],
   )
 
   const handleBlur = useCallback(
     (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
       setFieldTouched(e.target.name)
     },
-    [setFieldTouched]
+    [setFieldTouched],
   )
 
   const handleSubmit = useCallback(
@@ -66,7 +66,7 @@ export function useFormState<T extends Record<string, any>>(
         }
       }
     },
-    [values, onSubmit]
+    [values, onSubmit],
   )
 
   const resetForm = useCallback(() => {
@@ -76,11 +76,14 @@ export function useFormState<T extends Record<string, any>>(
     setIsSubmitting(false)
   }, [initialValues])
 
-  const resetField = useCallback((field: keyof T) => {
-    setFieldValue(field, initialValues[field])
-    setFieldError(String(field), undefined)
-    setFieldTouched(String(field), false)
-  }, [setFieldValue, setFieldError, setFieldTouched, initialValues])
+  const resetField = useCallback(
+    (field: keyof T) => {
+      setFieldValue(field, initialValues[field])
+      setFieldError(String(field), undefined)
+      setFieldTouched(String(field), false)
+    },
+    [setFieldValue, setFieldError, setFieldTouched, initialValues],
+  )
 
   return {
     values,

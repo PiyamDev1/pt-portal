@@ -1,16 +1,17 @@
 import { createClient } from '@supabase/supabase-js'
-import { NextResponse } from 'next/server'
+import { apiError, apiOk } from '@/lib/api/http'
+import { toErrorMessage } from '@/lib/api/error'
 
 // CONFIG: Map UI Status -> Database Status
 // If your DB fails on "Processing", change the right side to "In Progress"
 const DB_STATUS_MAP = {
   'Pending Submission': 'Pending Submission',
   'Biometrics Taken': 'Biometrics Taken',
-  'Processing': 'Processing', // If DB error persists, change this to: 'In Progress'
-  'Approved': 'Approved',
+  Processing: 'Processing', // If DB error persists, change this to: 'In Progress'
+  Approved: 'Approved',
   'Passport Arrived': 'Passport Arrived',
-  'Collected': 'Collected',
-  'Cancelled': 'Cancelled'
+  Collected: 'Collected',
+  Cancelled: 'Cancelled',
 }
 
 const ALLOWED_PASSPORT_STATUSES = new Set(Object.keys(DB_STATUS_MAP))
@@ -19,18 +20,26 @@ export async function POST(request) {
   try {
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
+      process.env.SUPABASE_SERVICE_ROLE_KEY,
     )
 
     const body = await request.json()
-    const { passportId, status, userId, newPassportNo, isCollected, oldPassportReturned, isRefunded } = body
+    const {
+      passportId,
+      status,
+      userId,
+      newPassportNo,
+      isCollected,
+      oldPassportReturned,
+      isRefunded,
+    } = body
 
     if (!passportId || !status) {
-      return NextResponse.json({ error: 'Missing passportId or status' }, { status: 400 })
+      return apiError('Missing passportId or status', 400)
     }
 
     if (!ALLOWED_PASSPORT_STATUSES.has(status)) {
-      return NextResponse.json({ error: `Invalid status: ${status}` }, { status: 400 })
+      return apiError(`Invalid status: ${status}`, 400)
     }
 
     // 1. Resolve DB Status (fallback to provided status)
@@ -39,7 +48,7 @@ export async function POST(request) {
     // 2. Prepare Update Object
     const updateData = {
       status: dbStatus,
-      employee_id: userId
+      employee_id: userId,
     }
 
     // Add optional fields if they exist
@@ -49,23 +58,23 @@ export async function POST(request) {
       updateData.is_refunded = !!isRefunded
       updateData.refunded_at = isRefunded ? new Date().toISOString() : null
     }
-    
+
     // 3. Validation for Collection
     if (status === 'Collected') {
       let hasNumber = !!newPassportNo
-      
+
       // If number not provided in this request, check if it exists in DB
       if (!hasNumber) {
-         const { data } = await supabase
-            .from('pakistani_passport_applications')
-            .select('new_passport_number')
-            .eq('id', passportId)
-            .single()
-         if (data?.new_passport_number) hasNumber = true
+        const { data } = await supabase
+          .from('pakistani_passport_applications')
+          .select('new_passport_number')
+          .eq('id', passportId)
+          .single()
+        if (data?.new_passport_number) hasNumber = true
       }
-      
+
       if (!hasNumber) {
-        return NextResponse.json({ error: 'Cannot mark Collected without Passport Number' }, { status: 400 })
+        return apiError('Cannot mark Collected without Passport Number', 400)
       }
     }
 
@@ -76,21 +85,18 @@ export async function POST(request) {
       .eq('id', passportId)
 
     if (error) {
-        // Return the actual DB error to the UI so you can see it in the console
-        console.error('DB Update Error:', error)
-        return NextResponse.json({ error: `Database Error: ${error.message}` }, { status: 500 })
+      throw new Error(`Database Error: ${error.message}`)
     }
 
     // 5. Log History
     await supabase.from('pakistani_passport_status_history').insert({
-        passport_application_id: passportId,
-        new_status: status, // Log the readable UI status
-        changed_by: userId
+      passport_application_id: passportId,
+      new_status: status, // Log the readable UI status
+      changed_by: userId,
     })
 
-    return NextResponse.json({ success: true })
+    return apiOk({ updatedPassportId: passportId, status })
   } catch (error) {
-    console.error('Update Error:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return apiError(toErrorMessage(error, 'Failed to update passport status'), 500)
   }
 }

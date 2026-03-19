@@ -1,7 +1,16 @@
 import { getDeviceInfo } from './utils'
 
+interface SessionViewModel {
+  id: string
+  is_active?: boolean
+  is_current?: boolean
+  user_agent?: string
+  ip?: string
+  last_active?: string
+}
+
 interface ActiveDevicesSectionProps {
-  sessions: any[]
+  sessions: SessionViewModel[]
   loading: boolean
   sessionsLoading: boolean
   sessionsError: string | null
@@ -15,7 +24,7 @@ export function ActiveDevicesSection({
   sessionsLoading,
   sessionsError,
   onSignOutAll,
-  onRevokeSession
+  onRevokeSession,
 }: ActiveDevicesSectionProps) {
   return (
     <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-200">
@@ -23,7 +32,7 @@ export function ActiveDevicesSection({
         <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
           <span>📱</span> Active Devices & Session History
         </h3>
-        {sessions.filter(s => s.is_active).length > 1 && !sessionsLoading && !sessionsError && (
+        {sessions.filter((s) => s.is_active).length > 1 && !sessionsLoading && !sessionsError && (
           <button
             onClick={onSignOutAll}
             disabled={loading}
@@ -38,34 +47,45 @@ export function ActiveDevicesSection({
 
       <div className="space-y-3">
         {sessionsLoading && (
-          <p className="text-sm text-slate-500 italic" role="status" aria-live="polite">Fetching device list...</p>
+          <p className="text-sm text-slate-500 italic" role="status" aria-live="polite">
+            Fetching device list...
+          </p>
         )}
         {sessionsError && !sessionsLoading && (
-          <p className="text-sm text-red-600" role="status" aria-live="polite">{sessionsError}</p>
+          <p className="text-sm text-red-600" role="status" aria-live="polite">
+            {sessionsError}
+          </p>
         )}
         {!sessionsLoading && !sessionsError && sessions.length === 0 && (
-          <p className="text-sm text-slate-500 italic" role="status" aria-live="polite">No sessions found.</p>
+          <p className="text-sm text-slate-500 italic" role="status" aria-live="polite">
+            No sessions found.
+          </p>
         )}
 
         {sessions.map((session) => {
           const { name, icon } = getDeviceInfo(session.user_agent)
           const isActive = session.is_active !== false
           return (
-            <div key={session.id} className={`flex items-center justify-between p-3 rounded border ${
-              session.is_current
-                ? 'border-green-200 bg-green-50'
-                : isActive
-                  ? 'border-blue-100 bg-blue-50'
-                  : 'border-slate-100 bg-slate-50 opacity-60'
-            }`}>
+            <div
+              key={session.id}
+              className={`flex items-center justify-between p-3 rounded border ${
+                session.is_current
+                  ? 'border-green-200 bg-green-50'
+                  : isActive
+                    ? 'border-blue-100 bg-blue-50'
+                    : 'border-slate-100 bg-slate-50 opacity-60'
+              }`}
+            >
               <div className="flex items-center gap-3">
-                <div className={`h-10 w-10 rounded flex items-center justify-center text-xl ${
-                  session.is_current
-                    ? 'bg-green-100 text-green-600'
-                    : isActive
-                      ? 'bg-blue-100 text-blue-600'
-                      : 'bg-slate-100 text-slate-400'
-                }`}>
+                <div
+                  className={`h-10 w-10 rounded flex items-center justify-center text-xl ${
+                    session.is_current
+                      ? 'bg-green-100 text-green-600'
+                      : isActive
+                        ? 'bg-blue-100 text-blue-600'
+                        : 'bg-slate-100 text-slate-400'
+                  }`}
+                >
                   {icon}
                 </div>
                 <div>
@@ -90,7 +110,10 @@ export function ActiveDevicesSection({
                   <div className="flex items-center gap-2 text-xs text-slate-500 mt-0.5">
                     <span>📍 {session.ip}</span>
                     <span>•</span>
-                    <span>🕒 Last used: {new Date(session.last_active).toLocaleDateString()} {new Date(session.last_active).toLocaleTimeString()}</span>
+                    <span>
+                      🕒 Last used: {new Date(session.last_active).toLocaleDateString()}{' '}
+                      {new Date(session.last_active).toLocaleTimeString()}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -113,7 +136,8 @@ export function ActiveDevicesSection({
 
       {!sessionsLoading && sessions.length > 0 && (
         <p className="text-xs text-slate-500 mt-4 text-center">
-          Showing up to 6 most recent sessions. Sessions inactive for over 1 hour are marked as inactive.
+          Showing up to 6 most recent sessions. Sessions inactive for over 1 hour are marked as
+          inactive.
         </p>
       )}
     </div>

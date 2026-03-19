@@ -2,11 +2,12 @@
 
 import React, { useState, useEffect, useRef } from 'react'
 import { X } from 'lucide-react'
+import type { GbEditFormData } from './types'
 
 interface EditModalProps {
   isOpen: boolean
-  editFormData: any
-  setEditFormData: (data: any) => void
+  editFormData: GbEditFormData
+  setEditFormData: React.Dispatch<React.SetStateAction<GbEditFormData>>
   onSave: () => void
   onClose: () => void
   isSaving: boolean
@@ -20,7 +21,7 @@ export default function EditModal({
   onSave,
   onClose,
   isSaving,
-  onDelete
+  onDelete,
 }: EditModalProps) {
   const [deleteAuthCode, setDeleteAuthCode] = useState('')
   const dialogRef = useRef<HTMLDivElement>(null)
@@ -53,7 +54,14 @@ export default function EditModal({
 
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in">
-      <div ref={dialogRef} className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[90vh]" role="dialog" aria-modal="true" aria-label="Edit application" tabIndex={-1}>
+      <div
+        ref={dialogRef}
+        className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Edit application"
+        tabIndex={-1}
+      >
         <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
           <h3 className="font-bold text-lg text-slate-800">Edit Application</h3>
           <button
@@ -69,31 +77,33 @@ export default function EditModal({
         <div className="p-6 overflow-y-auto space-y-5">
           {/* Applicant Name & Phone */}
           <div>
-            <label htmlFor="gb-applicant-name" className="text-[10px] uppercase font-bold text-slate-400 block mb-2">
+            <label
+              htmlFor="gb-applicant-name"
+              className="text-[10px] uppercase font-bold text-slate-400 block mb-2"
+            >
               Full Name
             </label>
             <input
               id="gb-applicant-name"
               className="w-full p-2.5 border border-slate-200 rounded-lg text-sm"
               value={editFormData.applicantName || ''}
-              onChange={(e) =>
-                setEditFormData({ ...editFormData, applicantName: e.target.value })
-              }
+              onChange={(e) => setEditFormData({ ...editFormData, applicantName: e.target.value })}
               placeholder="Full name"
             />
           </div>
 
           <div>
-            <label htmlFor="gb-phone-number" className="text-[10px] uppercase font-bold text-slate-400 block mb-2">
+            <label
+              htmlFor="gb-phone-number"
+              className="text-[10px] uppercase font-bold text-slate-400 block mb-2"
+            >
               Phone Number
             </label>
             <input
               id="gb-phone-number"
               className="w-full p-2.5 border border-slate-200 rounded-lg text-sm"
               value={editFormData.phoneNumber || ''}
-              onChange={(e) =>
-                setEditFormData({ ...editFormData, phoneNumber: e.target.value })
-              }
+              onChange={(e) => setEditFormData({ ...editFormData, phoneNumber: e.target.value })}
               placeholder="Phone number"
               type="tel"
             />
@@ -101,7 +111,10 @@ export default function EditModal({
 
           {/* Passport Number */}
           <div>
-            <label htmlFor="gb-passport-number" className="text-[10px] uppercase font-bold text-slate-400 block mb-2">
+            <label
+              htmlFor="gb-passport-number"
+              className="text-[10px] uppercase font-bold text-slate-400 block mb-2"
+            >
               Passport Number
             </label>
             <input
@@ -111,7 +124,7 @@ export default function EditModal({
               onChange={(e) =>
                 setEditFormData({
                   ...editFormData,
-                  applicantPassport: e.target.value.toUpperCase()
+                  applicantPassport: e.target.value.toUpperCase(),
                 })
               }
               placeholder="Passport number (optional)"
@@ -120,7 +133,10 @@ export default function EditModal({
 
           {/* Date of Birth */}
           <div>
-            <label htmlFor="gb-dob" className="text-[10px] uppercase font-bold text-slate-400 block mb-2">
+            <label
+              htmlFor="gb-dob"
+              className="text-[10px] uppercase font-bold text-slate-400 block mb-2"
+            >
               Date of Birth
             </label>
             <input
@@ -128,15 +144,16 @@ export default function EditModal({
               type="date"
               className="w-full p-2.5 border border-slate-200 rounded-lg text-sm"
               value={editFormData.dateOfBirth || ''}
-              onChange={(e) =>
-                setEditFormData({ ...editFormData, dateOfBirth: e.target.value })
-              }
+              onChange={(e) => setEditFormData({ ...editFormData, dateOfBirth: e.target.value })}
             />
           </div>
 
           {/* PEX Reference */}
           <div>
-            <label htmlFor="gb-pex-reference" className="text-[10px] uppercase font-bold text-slate-400 block mb-2">
+            <label
+              htmlFor="gb-pex-reference"
+              className="text-[10px] uppercase font-bold text-slate-400 block mb-2"
+            >
               PEX Reference
             </label>
             <input
@@ -146,7 +163,7 @@ export default function EditModal({
               onChange={(e) =>
                 setEditFormData({
                   ...editFormData,
-                  pexNumber: e.target.value.toUpperCase()
+                  pexNumber: e.target.value.toUpperCase(),
                 })
               }
               placeholder="PEX Reference"
@@ -155,16 +172,17 @@ export default function EditModal({
 
           {/* Status */}
           <div>
-            <label htmlFor="gb-status" className="text-[10px] uppercase font-bold text-slate-400 block mb-2">
+            <label
+              htmlFor="gb-status"
+              className="text-[10px] uppercase font-bold text-slate-400 block mb-2"
+            >
               Status
             </label>
             <select
               id="gb-status"
               className="w-full p-2.5 border border-slate-200 rounded-lg text-sm bg-white"
               value={editFormData.status || 'Pending Submission'}
-              onChange={(e) =>
-                setEditFormData({ ...editFormData, status: e.target.value })
-              }
+              onChange={(e) => setEditFormData({ ...editFormData, status: e.target.value })}
             >
               <option value="Pending Submission">Pending Submission</option>
               <option value="Submitted">Submitted</option>
@@ -185,7 +203,9 @@ export default function EditModal({
               Deleting this record is permanent. Please enter your Auth Code to confirm.
             </p>
             <div className="flex gap-2">
-              <label htmlFor="gb-delete-auth" className="sr-only">Auth code</label>
+              <label htmlFor="gb-delete-auth" className="sr-only">
+                Auth code
+              </label>
               <input
                 id="gb-delete-auth"
                 type="password"

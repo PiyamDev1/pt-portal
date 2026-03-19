@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
-import { NextResponse } from 'next/server'
+import { toErrorMessage } from '@/lib/api/error'
+import { apiError, apiOk } from '@/lib/api/http'
 import { verifyAdminAccess, unauthorizedResponse } from '@/lib/adminAuth'
 
 /**
@@ -18,15 +19,12 @@ export async function POST(request: Request) {
     const user = authResult.user!
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY
-    
+
     if (!url || !key) {
-      return NextResponse.json({ error: 'Supabase not configured' }, { status: 500 })
+      return apiError('Supabase not configured', 500)
     }
 
     const supabase = createClient(url, key)
-
-    console.log(`🔐 Authorized deletion request from ${user.email} (admin, Google auth)`)
-    console.log('🗑️  Starting LMS data cleanup...')
 
     // Delete in order to respect foreign key constraints
     // 1. Delete installments first (references loan_transactions)
@@ -36,9 +34,7 @@ export async function POST(request: Request) {
       .neq('id', '00000000-0000-0000-0000-000000000000') // Delete all
 
     if (installmentsError) {
-      console.error('Error deleting installments:', installmentsError)
-    } else {
-      console.log(`✅ Deleted ${installmentsCount || 0} installment records`)
+      // Preserve legacy behavior: continue cleanup even if installment delete fails.
     }
 
     // 2. Delete loan transactions (references loans)
@@ -48,10 +44,8 @@ export async function POST(request: Request) {
       .neq('id', '00000000-0000-0000-0000-000000000000') // Delete all
 
     if (txError) {
-      console.error('Error deleting transactions:', txError)
-      return NextResponse.json({ error: txError.message }, { status: 500 })
+      return apiError(txError.message, 500)
     }
-    console.log(`✅ Deleted ${txCount || 0} loan transactions`)
 
     // 3. Delete loans (references loan_customers)
     const { error: loansError, count: loansCount } = await supabase
@@ -60,10 +54,8 @@ export async function POST(request: Request) {
       .neq('id', '00000000-0000-0000-0000-000000000000') // Delete all
 
     if (loansError) {
-      console.error('Error deleting loans:', loansError)
-      return NextResponse.json({ error: loansError.message }, { status: 500 })
+      return apiError(loansError.message, 500)
     }
-    console.log(`✅ Deleted ${loansCount || 0} loans`)
 
     // 4. Delete loan customers
     const { error: customersError, count: customersCount } = await supabase
@@ -72,26 +64,17 @@ export async function POST(request: Request) {
       .neq('id', '00000000-0000-0000-0000-000000000000') // Delete all
 
     if (customersError) {
-      console.error('Error deleting customers:', customersError)
-      return NextResponse.json({ error: customersError.message }, { status: 500 })
+      return apiError(customersError.message, 500)
     }
-    console.log(`✅ Deleted ${customersCount || 0} loan customers`)
-
-    console.log('🎉 LMS data cleanup completed successfully!')
-
-    return NextResponse.json({ 
-      success: true,
-      message: 'LMS data cleared successfully',
+    return apiOk({
       deleted: {
         installments: installmentsCount || 0,
         transactions: txCount || 0,
         loans: loansCount || 0,
         customers: customersCount || 0,
-      }
+      },
     })
-
-  } catch (error: any) {
-    console.error('Error clearing LMS data:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  } catch (error) {
+    return apiError(toErrorMessage(error, 'Failed to clear LMS data'), 500)
   }
 }

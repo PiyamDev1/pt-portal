@@ -5,9 +5,11 @@ Complete document management interface for MinIO S3-compatible storage integrati
 ## 📦 Components
 
 ### 1. **MinioStatus** (`MinioStatus.tsx`)
+
 Real-time connection status indicator for MinIO server.
 
 **Features:**
+
 - Live connection monitoring with automatic polling (30s interval)
 - Ping/latency display
 - Manual refresh button
@@ -15,10 +17,10 @@ Real-time connection status indicator for MinIO server.
 - Connection state callback
 
 **Usage:**
+
 ```tsx
 import { MinioStatus } from '@/app/dashboard/applications/nadra/components/DocumentHub'
-
-<MinioStatus 
+;<MinioStatus
   pollInterval={30000}
   compact={false}
   onStatusChange={(connected) => console.log('Status:', connected)}
@@ -26,6 +28,7 @@ import { MinioStatus } from '@/app/dashboard/applications/nadra/components/Docum
 ```
 
 **Props:**
+
 - `pollInterval?: number` - Polling interval in ms (default: 30000)
 - `onStatusChange?: (connected: boolean) => void` - Status change callback
 - `compact?: boolean` - Compact or full view (default: false)
@@ -34,9 +37,11 @@ import { MinioStatus } from '@/app/dashboard/applications/nadra/components/Docum
 ---
 
 ### 2. **DocumentUpload** (`DocumentUpload.tsx`)
+
 Drag-and-drop file upload with validation and progress tracking.
 
 **Features:**
+
 - Drag-and-drop zone
 - File browser picker
 - Real-time upload progress
@@ -46,10 +51,10 @@ Drag-and-drop file upload with validation and progress tracking.
 - Multiple file upload support
 
 **Usage:**
+
 ```tsx
 import { DocumentUpload } from '@/app/dashboard/applications/nadra/components/DocumentHub'
-
-<DocumentUpload 
+;<DocumentUpload
   applicantId={applicantId}
   onSuccess={(docs) => console.log('Uploaded:', docs)}
   onError={(error) => console.log('Error:', error)}
@@ -58,6 +63,7 @@ import { DocumentUpload } from '@/app/dashboard/applications/nadra/components/Do
 ```
 
 **Props:**
+
 - `applicantId: string` - Applicant identifier (required)
 - `onSuccess?: (documents: Document[]) => void` - Success callback
 - `onError?: (error: string) => void` - Error callback
@@ -67,9 +73,11 @@ import { DocumentUpload } from '@/app/dashboard/applications/nadra/components/Do
 ---
 
 ### 3. **DocumentGrid** (`DocumentGrid.tsx`)
+
 Responsive grid display of document thumbnails.
 
 **Features:**
+
 - Responsive grid layout (1-4 columns)
 - Image preview thumbnails
 - File type icons for non-images
@@ -79,10 +87,10 @@ Responsive grid display of document thumbnails.
 - Empty state message
 
 **Usage:**
+
 ```tsx
 import { DocumentGrid } from '@/app/dashboard/applications/nadra/components/DocumentHub'
-
-<DocumentGrid 
+;<DocumentGrid
   documents={documents}
   isLoading={loading}
   onSelectDocument={(doc) => setSelected(doc)}
@@ -92,6 +100,7 @@ import { DocumentGrid } from '@/app/dashboard/applications/nadra/components/Docu
 ```
 
 **Props:**
+
 - `documents: Document[]` - List of documents (required)
 - `isLoading?: boolean` - Loading state (default: false)
 - `onSelectDocument?: (document: Document) => void` - Selection callback
@@ -102,9 +111,11 @@ import { DocumentGrid } from '@/app/dashboard/applications/nadra/components/Docu
 ---
 
 ### 4. **DocumentPreview** (`DocumentPreview.tsx`)
+
 Right-side panel for document preview and actions.
 
 **Features:**
+
 - Image preview with zoom control
 - PDF preview placeholder (for full-page integration)
 - File metadata display
@@ -114,10 +125,10 @@ Right-side panel for document preview and actions.
 - File type-specific rendering
 
 **Usage:**
+
 ```tsx
 import { DocumentPreview } from '@/app/dashboard/applications/nadra/components/DocumentHub'
-
-<DocumentPreview 
+;<DocumentPreview
   document={selectedDocument}
   onClose={() => setSelected(null)}
   onDelete={(id) => handleDelete(id)}
@@ -126,6 +137,7 @@ import { DocumentPreview } from '@/app/dashboard/applications/nadra/components/D
 ```
 
 **Props:**
+
 - `document: Document | null` - Document to preview (required)
 - `onClose?: () => void` - Close callback
 - `onDelete?: (documentId: string) => void` - Delete callback
@@ -135,9 +147,11 @@ import { DocumentPreview } from '@/app/dashboard/applications/nadra/components/D
 ---
 
 ### 5. **DocumentHub** (`page.tsx`)
+
 Main container component combining all features.
 
 **Features:**
+
 - Full document management interface
 - 2-column layout (desktop) / single column (mobile)
 - Upload section
@@ -148,17 +162,14 @@ Main container component combining all features.
 - Loading states
 
 **Usage:**
+
 ```tsx
 import { DocumentHub } from '@/app/dashboard/applications/nadra/components/DocumentHub'
-
-<DocumentHub 
-  applicantId={applicantId}
-  applicantName="John Doe"
-  showStatus={true}
-/>
+;<DocumentHub applicantId={applicantId} applicantName="John Doe" showStatus={true} />
 ```
 
 **Props:**
+
 - `applicantId: string` - Applicant identifier (required)
 - `applicantName?: string` - Applicant name for display (default: 'Applicant')
 - `showStatus?: boolean` - Show MinIO status bar (default: true)
@@ -173,21 +184,23 @@ import { DocumentHub } from '@/app/dashboard/applications/nadra/components/Docum
 Hook for managing MinIO connection status with auto-polling.
 
 **Usage:**
+
 ```tsx
-const { 
-  status,              // MinioStatus object
-  loading,             // boolean
-  error,               // string | null
-  connected,           // boolean
-  ping,                // number | null (latency in ms)
-  checkStatus,         // async function
-  startPolling,        // function
-  stopPolling,         // function
-  refresh              // async function
+const {
+  status, // MinioStatus object
+  loading, // boolean
+  error, // string | null
+  connected, // boolean
+  ping, // number | null (latency in ms)
+  checkStatus, // async function
+  startPolling, // function
+  stopPolling, // function
+  refresh, // async function
 } = useMinioConnection(30000, true)
 ```
 
 **Parameters:**
+
 - `pollInterval?: number` - Polling interval in ms (default: 30000)
 - `autoStart?: boolean` - Auto-start polling on mount (default: true)
 
@@ -198,19 +211,21 @@ const {
 Hook with automatic reconnection and exponential backoff.
 
 **Usage:**
+
 ```tsx
 const {
   // ... all useMinioConnection returns
-  isRetrying,       // boolean
-  retryCount,       // number
-  maxRetries,       // number
+  isRetrying, // boolean
+  retryCount, // number
+  maxRetries, // number
   attemptReconnect, // function
-  resetRetries,     // function
-  canRetry          // boolean
+  resetRetries, // function
+  canRetry, // boolean
 } = useMinioConnectionWithRetry(3, 1000)
 ```
 
 **Parameters:**
+
 - `maxRetries?: number` - Maximum retry attempts (default: 3)
 - `baseDelay?: number` - Base delay in ms (default: 1000)
 
@@ -298,13 +313,7 @@ To integrate DocumentHub into Nadra applications:
 import { DocumentHub } from '@/app/dashboard/applications/nadra/components/DocumentHub'
 
 export default function NadraDocumentsPage({ params }: { params: { id: string } }) {
-  return (
-    <DocumentHub 
-      applicantId={params.id}
-      applicantName="Applicant Name"
-      showStatus={true}
-    />
-  )
+  return <DocumentHub applicantId={params.id} applicantName="Applicant Name" showStatus={true} />
 }
 ```
 
@@ -325,6 +334,7 @@ Add a column to the Nadra applications table that links to document hub:
 ### 3. Add Route
 
 Create a new route file at:
+
 ```
 app/dashboard/applications/nadra/[id]/documents/page.tsx
 ```
@@ -367,11 +377,11 @@ When backend is ready, replace placeholder implementations in:
 
 ## 📱 Responsive Design
 
-| Breakpoint | Layout |
-|-----------|--------|
-| Mobile | Single column (100%) |
-| Tablet | Single column with narrower preview |
-| Desktop | 2-column (70% upload/grid, 30% preview) |
+| Breakpoint | Layout                                  |
+| ---------- | --------------------------------------- |
+| Mobile     | Single column (100%)                    |
+| Tablet     | Single column with narrower preview     |
+| Desktop    | 2-column (70% upload/grid, 30% preview) |
 
 ---
 

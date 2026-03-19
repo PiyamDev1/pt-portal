@@ -4,23 +4,31 @@
  */
 
 import { Trash2, Save, X } from 'lucide-react'
-import type { NadraPricing, PKPassportPricing, GBPassportPricing, VisaPricing, ActiveTab } from '@/app/types/pricing'
+import type {
+  NadraPricing,
+  PKPassportPricing,
+  GBPassportPricing,
+  VisaPricing,
+  ActiveTab,
+} from '@/app/types/pricing'
+
+type PricingRow = NadraPricing | PKPassportPricing | GBPassportPricing | VisaPricing
 
 interface PricingTableProps {
-  data: any[]
+  data: PricingRow[]
   editingId: string | null
-  editValues: Record<string, any>
-  onEdit: (item: any) => void
+  editValues: Record<string, string | number>
+  onEdit: (item: PricingRow) => void
   onSave: (activeTab: ActiveTab) => Promise<void>
   onDelete: (id: string, tab: ActiveTab) => Promise<void>
-  onEditValueChange: (field: string, value: any) => void
+  onEditValueChange: (field: string, value: string | number) => void
   onCancelEdit: () => void
   activeTab: ActiveTab
   columns: {
     key: string
     label: string
     align?: 'left' | 'right' | 'center'
-    format?: (value: any) => string
+    format?: (value: unknown) => string
   }[]
   emptyMessage?: string
 }
@@ -36,9 +44,9 @@ export const PricingTable: React.FC<PricingTableProps> = ({
   onCancelEdit,
   activeTab,
   columns,
-  emptyMessage = 'No pricing entries found'
+  emptyMessage = 'No pricing entries found',
 }) => {
-  const getColumnValue = (item: any, key: string) => {
+  const getColumnValue = (item: PricingRow, key: string): unknown => {
     const keys = key.split('.')
     let value = item
     for (const k of keys) {
@@ -61,14 +69,23 @@ export const PricingTable: React.FC<PricingTableProps> = ({
                 {col.label}
               </th>
             ))}
-            <th scope="col" className="text-right py-3 px-4 font-semibold">Profit</th>
-            <th scope="col" className="text-center py-3 px-4 font-semibold">Actions</th>
+            <th scope="col" className="text-right py-3 px-4 font-semibold">
+              Profit
+            </th>
+            <th scope="col" className="text-center py-3 px-4 font-semibold">
+              Actions
+            </th>
           </tr>
         </thead>
         <tbody>
           {data.length === 0 ? (
             <tr>
-              <td colSpan={columns.length + 2} className="py-8 px-4 text-center text-gray-500" role="status" aria-live="polite">
+              <td
+                colSpan={columns.length + 2}
+                className="py-8 px-4 text-center text-gray-500"
+                role="status"
+                aria-live="polite"
+              >
                 {emptyMessage}
               </td>
             </tr>
@@ -80,8 +97,14 @@ export const PricingTable: React.FC<PricingTableProps> = ({
                     key={`${item.id}-${col.key}`}
                     className={`py-3 px-4 text-${col.align || 'left'}`}
                   >
-                    {editingId === item.id && col.key !== 'cost_price' && col.key !== 'sale_price' ? (
-                      <span>{col.format ? col.format(getColumnValue(item, col.key)) : getColumnValue(item, col.key)}</span>
+                    {editingId === item.id &&
+                    col.key !== 'cost_price' &&
+                    col.key !== 'sale_price' ? (
+                      <span>
+                        {col.format
+                          ? col.format(getColumnValue(item, col.key))
+                          : getColumnValue(item, col.key)}
+                      </span>
                     ) : editingId === item.id && col.key === 'cost_price' ? (
                       <input
                         type="number"
@@ -107,7 +130,11 @@ export const PricingTable: React.FC<PricingTableProps> = ({
                     ) : col.key === 'sale_price' ? (
                       <span className="text-right">{item.sale_price.toFixed(2)}</span>
                     ) : (
-                      <span>{col.format ? col.format(getColumnValue(item, col.key)) : getColumnValue(item, col.key)}</span>
+                      <span>
+                        {col.format
+                          ? col.format(getColumnValue(item, col.key))
+                          : getColumnValue(item, col.key)}
+                      </span>
                     )}
                   </td>
                 ))}

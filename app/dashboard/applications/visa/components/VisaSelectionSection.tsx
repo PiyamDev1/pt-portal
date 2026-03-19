@@ -24,7 +24,7 @@ export function VisaSelectionSection({
   typeDisabled,
   onDestinationChange,
   onTypeChange,
-  onValidityChange
+  onValidityChange,
 }: VisaSelectionSectionProps) {
   return (
     <div className="space-y-4">
@@ -34,7 +34,7 @@ export function VisaSelectionSection({
           label="Destination"
           value={destination}
           onChange={onDestinationChange}
-          options={availableDestinations.map(c => ({ value: c.id, label: c.name }))}
+          options={availableDestinations.map((c) => ({ value: c.id, label: c.name }))}
           disabled={destinationDisabled}
           placeholder={destinationDisabled ? 'Select Nationality First' : 'Select Destination...'}
         />
@@ -42,15 +42,11 @@ export function VisaSelectionSection({
           label="Visa Type"
           value={visaType}
           onChange={onTypeChange}
-          options={availableVisaTypes.map(t => ({ value: t.name, label: t.name }))}
+          options={availableVisaTypes.map((t) => ({ value: t.name, label: t.name }))}
           disabled={typeDisabled}
           placeholder="Select Type..."
         />
-        <FormInputField
-          label="Validity"
-          value={validity}
-          onChange={onValidityChange}
-        />
+        <FormInputField label="Validity" value={validity} onChange={onValidityChange} />
       </div>
     </div>
   )

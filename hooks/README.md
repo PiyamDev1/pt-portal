@@ -5,35 +5,41 @@ This directory contains reusable React hooks used across the application for com
 ## Available Hooks
 
 ### `useAsync<T>`
+
 Generic hook for handling asynchronous operations with automatic loading and error state management.
 
 **Usage:**
+
 ```tsx
 const { data, loading, error, execute } = useAsync(
   async () => {
     const res = await fetch('/api/data')
     return res.json()
   },
-  true // immediate execution
+  true, // immediate execution
 )
 ```
 
 **Features:**
+
 - Automatic loading state during execution
 - Error state management
 - Manual retry via `execute()` function
 - TypeScript generic for type-safe data
 
 **Props:**
+
 - `fn` - Async function to execute
 - `immediate` - Execute immediately on mount (default: false)
 
 ---
 
 ### `useModal`
+
 Manages modal/dialog state including open/close, loading, and error handling.
 
 **Usage:**
+
 ```tsx
 const modal = useModal()
 
@@ -48,6 +54,7 @@ modal.reset() // Reset to initial state
 ```
 
 **Properties:**
+
 - `isOpen` - Whether modal is open
 - `isLoading` - Whether modal is processing
 - `error` - Error message if any
@@ -60,9 +67,11 @@ modal.reset() // Reset to initial state
 ---
 
 ### `usePagination`
+
 Handles pagination logic for lists and tables.
 
 **Usage:**
+
 ```tsx
 const pagination = usePagination(50, 200) // (itemsPerPage, totalItems)
 
@@ -76,6 +85,7 @@ const items = allItems.slice(pagination.offset, pagination.offset + pagination.l
 ```
 
 **Properties:**
+
 - `page` - Current page number (1-indexed)
 - `limit` - Items per page
 - `offset` - Calculated offset for database queries
@@ -88,9 +98,11 @@ const items = allItems.slice(pagination.offset, pagination.offset + pagination.l
 ---
 
 ### `useFormState<T>`
+
 Manages form state including values, errors, and touched fields.
 
 **Usage:**
+
 ```tsx
 const form = useFormState(
   { name: '', email: '' },
@@ -119,6 +131,7 @@ const form = useFormState(
 ```
 
 **Features:**
+
 - Automatic change tracking
 - Touch tracking (knows if field was focused)
 - Error state management
@@ -126,6 +139,7 @@ const form = useFormState(
 - Type-safe with TypeScript generics
 
 **Methods:**
+
 - `handleChange(event)` - Handle input changes
 - `handleBlur(event)` - Handle input blur
 - `handleSubmit(event)` - Handle form submission
@@ -136,9 +150,11 @@ const form = useFormState(
 ---
 
 ### `useTableFilters<T>`
+
 Handles table filtering, searching, and sorting with memoization for performance.
 
 **Usage:**
+
 ```tsx
 const filters = useTableFilters(items, (item, search) => {
   return item.name.toLowerCase().includes(search.toLowerCase())
@@ -162,6 +178,7 @@ filters.setSortDirection('asc')
 ```
 
 **Properties:**
+
 - `search` - Current search query
 - `filters` - Object of active filters
 - `sortBy` - Current sort field
@@ -170,6 +187,7 @@ filters.setSortDirection('asc')
 - `itemCount` - Number of filtered items
 
 **Methods:**
+
 - `setSearch(query)` - Update search query
 - `setFilter(key, value)` - Set or update a filter
 - `setSortBy(field)` - Set sort field
@@ -183,6 +201,7 @@ filters.setSortDirection('asc')
 ## Best Practices
 
 ### 1. Extracting Common Patterns
+
 If you're using the same hook logic in 2+ components, consider creating a custom hook:
 
 ```tsx
@@ -190,7 +209,7 @@ If you're using the same hook logic in 2+ components, consider creating a custom
 export function useStaffList() {
   const [staff, setStaff] = useState([])
   const { data, loading, error } = useAsync(() => fetchStaff())
-  
+
   return { staff: data, loading, error }
 }
 
@@ -199,6 +218,7 @@ const { staff, loading } = useStaffList()
 ```
 
 ### 2. Combining Multiple Hooks
+
 For complex components, you can combine several hooks:
 
 ```tsx
@@ -206,12 +226,13 @@ export function ManageStaff() {
   const form = useFormState({ name: '', email: '' }, handleSubmit)
   const list = useStaffList()
   const modal = useModal()
-  
+
   return (/* use all three */}
 }
 ```
 
 ### 3. Type Safety
+
 Always provide types for better TypeScript support:
 
 ```tsx
@@ -222,16 +243,19 @@ interface StaffForm {
   role: 'admin' | 'user'
 }
 
-const form = useFormState<StaffForm>({ /* */ })
+const form = useFormState<StaffForm>({
+  /* */
+})
 // Now form.values has full type safety
 ```
 
 ### 4. Performance Optimization
+
 The `useTableFilters` hook uses useMemo - use it when filtering large lists:
 
 ```tsx
 // Won't re-calculate unless items or search changes
-const filters = useTableFilters(1000+ items)
+const filters = useTableFilters(1000 + items)
 ```
 
 ---
@@ -239,20 +263,23 @@ const filters = useTableFilters(1000+ items)
 ## Migration Guide
 
 ### From useState to useFormState
+
 **Before:**
+
 ```tsx
 const [values, setValues] = useState({ name: '', email: '' })
 const [errors, setErrors] = useState({})
 const [loading, setLoading] = useState(false)
 
 const handleChange = (e) => {
-  setValues(prev => ({ ...prev, [e.target.name]: e.target.value }))
+  setValues((prev) => ({ ...prev, [e.target.name]: e.target.value }))
 }
 
 // ... more handlers
 ```
 
 **After:**
+
 ```tsx
 const form = useFormState({ name: '', email: '' }, handleSubmit)
 
@@ -265,6 +292,7 @@ const form = useFormState({ name: '', email: '' }, handleSubmit)
 ## Contributing
 
 When adding new hooks:
+
 1. Keep them focused on a single responsibility
 2. Provide TypeScript types and generics
 3. Add JSDoc comments with usage examples
@@ -281,18 +309,15 @@ import { useFormState } from '@/hooks'
 
 describe('useFormState', () => {
   it('should update field values on change', () => {
-    const { result } = renderHook(() => 
-      useFormState({ name: '' }, async () => {})
-    )
-    
+    const { result } = renderHook(() => useFormState({ name: '' }, async () => {}))
+
     act(() => {
       result.current.handleChange({
-        target: { name: 'name', value: 'John' }
+        target: { name: 'name', value: 'John' },
       })
     })
-    
+
     expect(result.current.values.name).toBe('John')
   })
 })
 ```
-

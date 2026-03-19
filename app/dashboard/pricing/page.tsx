@@ -15,18 +15,20 @@ export default async function PricingPage() {
         getAll() {
           return cookieStore.getAll()
         },
-        setAll(cookiesToSet: any[]) {
+        setAll(cookiesToSet: { name: string; value: string; options?: Record<string, unknown> }[]) {
           try {
             cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
+              cookieStore.set(name, value, options),
             )
           } catch {}
         },
       },
-    }
+    },
   )
 
-  const { data: { session } } = await supabase.auth.getSession()
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
   if (!session) redirect('/login')
 
   const { data: employeeData } = await supabase
@@ -35,25 +37,27 @@ export default async function PricingPage() {
     .eq('id', session.user.id)
     .single()
 
-  const location = Array.isArray(employeeData?.locations) ? employeeData.locations[0] : employeeData?.locations
+  const location = Array.isArray(employeeData?.locations)
+    ? employeeData.locations[0]
+    : employeeData?.locations
   const role = Array.isArray(employeeData?.roles) ? employeeData.roles[0] : employeeData?.roles
   const userRole = role?.name || 'Employee'
 
   return (
     <DashboardClientWrapper>
       <div className="min-h-screen bg-slate-50">
-        <PageHeader 
-          employeeName={employeeData?.full_name} 
-          role={userRole} 
-          location={location} 
-          userId={session.user.id} 
+        <PageHeader
+          employeeName={employeeData?.full_name}
+          role={userRole}
+          location={location}
+          userId={session.user.id}
           showBack={true}
         />
-        
+
         <main className="max-w-7xl mx-auto p-6">
           <h1 className="text-3xl font-bold text-slate-800 mb-2">Pricing Management</h1>
           <p className="text-slate-500 mb-8">Manage pricing for all services and offerings.</p>
-          
+
           <PricingClient userRole={userRole} />
         </main>
       </div>

@@ -2,8 +2,8 @@
 
 import { useState } from 'react'
 import { X, Calendar, DollarSign, Filter } from 'lucide-react'
-import { handleDateInput as coreHandleDateInput } from '@/app/lib/utils'
-import { formatToISODate } from '@/app/lib/dateFormatter'
+import { handleDateInput as coreHandleDateInput } from '@/lib/utils'
+import { formatToISODate } from '@/lib/dateFormatter'
 import { ModalWrapper } from './ModalWrapper'
 
 interface AdvancedSearchModalProps {
@@ -21,7 +21,11 @@ export interface SearchFilters {
   hasDueSoon?: boolean
 }
 
-export function AdvancedSearchModal({ onClose, onApplyFilters, currentFilters }: AdvancedSearchModalProps) {
+export function AdvancedSearchModal({
+  onClose,
+  onApplyFilters,
+  currentFilters,
+}: AdvancedSearchModalProps) {
   const [filters, setFilters] = useState<SearchFilters>(currentFilters)
 
   // Use centralized handleDateInput utility
@@ -46,7 +50,12 @@ export function AdvancedSearchModal({ onClose, onApplyFilters, currentFilters }:
 
   return (
     <ModalWrapper onClose={onClose} title="Advanced Search">
-      <div role="dialog" aria-modal="true" aria-label="Advanced Search Filters" className="space-y-4">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Advanced Search Filters"
+        className="space-y-4"
+      >
         {/* Date Range */}
         <div className="bg-slate-50 p-4 rounded-lg">
           <div className="flex items-center gap-2 mb-3">
@@ -55,7 +64,12 @@ export function AdvancedSearchModal({ onClose, onApplyFilters, currentFilters }:
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label htmlFor="filter-date-from" className="block text-xs font-medium text-slate-600 mb-1">From (DD/MM/YYYY)</label>
+              <label
+                htmlFor="filter-date-from"
+                className="block text-xs font-medium text-slate-600 mb-1"
+              >
+                From (DD/MM/YYYY)
+              </label>
               <input
                 id="filter-date-from"
                 type="text"
@@ -64,14 +78,22 @@ export function AdvancedSearchModal({ onClose, onApplyFilters, currentFilters }:
                 value={filters.dateFrom ? formatToDisplayDate(filters.dateFrom) : ''}
                 onChange={(e) => {
                   const formatted = handleDateInput(e.target.value)
-                  setFilters({ ...filters, dateFrom: formatted.length === 10 ? formatToISODate(formatted) : undefined })
+                  setFilters({
+                    ...filters,
+                    dateFrom: formatted.length === 10 ? formatToISODate(formatted) : undefined,
+                  })
                 }}
                 maxLength={10}
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
               />
             </div>
             <div>
-              <label htmlFor="filter-date-to" className="block text-xs font-medium text-slate-600 mb-1">To (DD/MM/YYYY)</label>
+              <label
+                htmlFor="filter-date-to"
+                className="block text-xs font-medium text-slate-600 mb-1"
+              >
+                To (DD/MM/YYYY)
+              </label>
               <input
                 id="filter-date-to"
                 type="text"
@@ -80,7 +102,10 @@ export function AdvancedSearchModal({ onClose, onApplyFilters, currentFilters }:
                 value={filters.dateTo ? formatToDisplayDate(filters.dateTo) : ''}
                 onChange={(e) => {
                   const formatted = handleDateInput(e.target.value)
-                  setFilters({ ...filters, dateTo: formatted.length === 10 ? formatToISODate(formatted) : undefined })
+                  setFilters({
+                    ...filters,
+                    dateTo: formatted.length === 10 ? formatToISODate(formatted) : undefined,
+                  })
                 }}
                 maxLength={10}
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
@@ -97,26 +122,46 @@ export function AdvancedSearchModal({ onClose, onApplyFilters, currentFilters }:
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label htmlFor="filter-min-amount" className="block text-xs font-medium text-slate-600 mb-1">Min (£)</label>
+              <label
+                htmlFor="filter-min-amount"
+                className="block text-xs font-medium text-slate-600 mb-1"
+              >
+                Min (£)
+              </label>
               <input
                 id="filter-min-amount"
                 type="number"
                 step="0.01"
                 placeholder="0.00"
                 value={filters.minAmount || ''}
-                onChange={(e) => setFilters({ ...filters, minAmount: e.target.value ? parseFloat(e.target.value) : undefined })}
+                onChange={(e) =>
+                  setFilters({
+                    ...filters,
+                    minAmount: e.target.value ? parseFloat(e.target.value) : undefined,
+                  })
+                }
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
               />
             </div>
             <div>
-              <label htmlFor="filter-max-amount" className="block text-xs font-medium text-slate-600 mb-1">Max (£)</label>
+              <label
+                htmlFor="filter-max-amount"
+                className="block text-xs font-medium text-slate-600 mb-1"
+              >
+                Max (£)
+              </label>
               <input
                 id="filter-max-amount"
                 type="number"
                 step="0.01"
                 placeholder="10000.00"
                 value={filters.maxAmount || ''}
-                onChange={(e) => setFilters({ ...filters, maxAmount: e.target.value ? parseFloat(e.target.value) : undefined })}
+                onChange={(e) =>
+                  setFilters({
+                    ...filters,
+                    maxAmount: e.target.value ? parseFloat(e.target.value) : undefined,
+                  })
+                }
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
               />
             </div>

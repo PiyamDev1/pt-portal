@@ -40,7 +40,6 @@ export default function ManualEntryClient({ userId }: { userId: string }) {
           throw new Error(errorData.error || 'Failed to generate code')
         }
         const data = await response.json()
-        console.log('Generated payload:', data)
         setPayload(data)
         setTimeLeft(30)
         setQrDataUrl(null)
@@ -90,7 +89,6 @@ export default function ManualEntryClient({ userId }: { userId: string }) {
     if (!payload?.qrPayload) return
     const renderQr = async () => {
       try {
-        console.log('Rendering QR code to data URL...')
         const dataUrl = await QRCode.toDataURL(payload.qrPayload, {
           width: 256,
           margin: 2,
@@ -100,12 +98,11 @@ export default function ManualEntryClient({ userId }: { userId: string }) {
           },
         })
         setQrDataUrl(dataUrl)
-        console.log('QR code rendered successfully')
       } catch (qrError) {
         console.error('QR generation error:', qrError)
         setError(
           'Failed to generate QR code: ' +
-            (qrError instanceof Error ? qrError.message : 'Unknown error')
+            (qrError instanceof Error ? qrError.message : 'Unknown error'),
         )
       }
     }
@@ -142,14 +139,23 @@ export default function ManualEntryClient({ userId }: { userId: string }) {
   return (
     <div className="max-w-md mx-auto p-6">
       <h1 className="text-2xl font-bold mb-2">Manual Punch Entry</h1>
-      <p className="text-gray-600 mb-6">Display this code for staff to scan or enter manually. You can also use the current code to punch yourself in or out.</p>
+      <p className="text-gray-600 mb-6">
+        Display this code for staff to scan or enter manually. You can also use the current code to
+        punch yourself in or out.
+      </p>
 
       {loading && <div className="text-center py-8">Generating code...</div>}
-      {error && <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 text-red-800">{error}</div>}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 text-red-800">
+          {error}
+        </div>
+      )}
       {isSuspended && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6 text-yellow-900">
           <p className="font-semibold mb-2">Session paused to reduce API usage</p>
-          <p className="text-sm mb-4">This page auto-pauses after 2 minutes. Refresh to generate a new code.</p>
+          <p className="text-sm mb-4">
+            This page auto-pauses after 2 minutes. Refresh to generate a new code.
+          </p>
           <button
             type="button"
             onClick={() => window.location.reload()}
@@ -194,7 +200,9 @@ export default function ManualEntryClient({ userId }: { userId: string }) {
 
           {/* Numeric Code Section */}
           <div className="bg-gray-50 rounded-lg border border-gray-200 p-6">
-            <p className="text-sm font-semibold text-gray-700 mb-3 text-center">Manual Entry Code</p>
+            <p className="text-sm font-semibold text-gray-700 mb-3 text-center">
+              Manual Entry Code
+            </p>
             <div className="text-center font-mono text-3xl font-bold tracking-widest mb-3 text-blue-600">
               {payload.codeDisplay}
             </div>
@@ -210,7 +218,9 @@ export default function ManualEntryClient({ userId }: { userId: string }) {
               {selfSubmitting ? 'Recording punch...' : 'Punch myself with this code'}
             </button>
             {selfPunchMessage && (
-              <p className={`mt-3 text-center text-sm ${selfPunchMessage.toLowerCase().includes('failed') || selfPunchMessage.toLowerCase().includes('error') || selfPunchMessage.toLowerCase().includes('expired') ? 'text-red-600' : 'text-green-700'}`}>
+              <p
+                className={`mt-3 text-center text-sm ${selfPunchMessage.toLowerCase().includes('failed') || selfPunchMessage.toLowerCase().includes('error') || selfPunchMessage.toLowerCase().includes('expired') ? 'text-red-600' : 'text-green-700'}`}
+              >
                 {selfPunchMessage}
               </p>
             )}

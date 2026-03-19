@@ -21,7 +21,7 @@ export function OfficeUseSection({
   onAppNoChange,
   onBaseCostChange,
   onCustomerPriceChange,
-  onPackageToggle
+  onPackageToggle,
 }: OfficeUseSectionProps) {
   return (
     <div className="space-y-4">
@@ -36,11 +36,7 @@ export function OfficeUseSection({
           mono
         />
         <div className="grid grid-cols-2 gap-3">
-          <FormCurrencyField
-            label="Our Cost"
-            value={baseCost}
-            onChange={onBaseCostChange}
-          />
+          <FormCurrencyField label="Our Cost" value={baseCost} onChange={onBaseCostChange} />
           <FormCurrencyField
             label="Agency Price"
             value={customerPrice}

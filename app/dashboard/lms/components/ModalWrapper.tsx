@@ -42,7 +42,7 @@ export function ModalWrapper({ children, onClose, title }: ModalWrapperProps) {
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in"
-      onMouseDown={event => {
+      onMouseDown={(event) => {
         if (event.target === event.currentTarget) {
           onClose()
         }
@@ -57,8 +57,10 @@ export function ModalWrapper({ children, onClose, title }: ModalWrapperProps) {
         className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden"
       >
         <div className="bg-slate-900 text-white p-4 flex justify-between items-center">
-          <h3 id={titleId} className="font-bold">{title}</h3>
-          <button 
+          <h3 id={titleId} className="font-bold">
+            {title}
+          </h3>
+          <button
             onClick={onClose}
             className="hover:text-slate-400 transition-colors"
             aria-label="Close modal"

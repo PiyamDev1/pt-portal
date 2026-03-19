@@ -4,7 +4,7 @@
  * Document Preview Component
  * Right-side panel showing full document preview
  * Supports images, PDFs, and file downloads
- * 
+ *
  * @component
  */
 
@@ -78,8 +78,36 @@ export function DocumentPreview({
       return
     }
 
-    setIsLoading(true)
-    setPreviewSrc(`/api/documents/preview?key=${encodeURIComponent(document.minio.key)}`)
+    let cancelled = false
+
+    const loadPreviewUrl = async () => {
+      setIsLoading(true)
+
+      try {
+        const response = await fetch(
+          `/api/documents/signed-url?key=${encodeURIComponent(document.minio.key)}`,
+        )
+        const payload = await response.json().catch(() => ({}))
+
+        if (!response.ok || !payload?.url) {
+          throw new Error(payload?.error || 'Failed to load preview URL')
+        }
+
+        if (!cancelled) {
+          setPreviewSrc(payload.url)
+        }
+      } catch {
+        if (!cancelled) {
+          setPreviewSrc(`/api/documents/preview?key=${encodeURIComponent(document.minio.key)}`)
+        }
+      }
+    }
+
+    void loadPreviewUrl()
+
+    return () => {
+      cancelled = true
+    }
   }, [document])
 
   // Format file size
@@ -88,7 +116,7 @@ export function DocumentPreview({
     const k = 1024
     const sizes = ['B', 'KB', 'MB']
     const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i]
+    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i]
   }
 
   // Format date
@@ -122,147 +150,147 @@ export function DocumentPreview({
 
   return (
     <>
-    <div className={`flex flex-col h-full bg-white rounded-lg border border-slate-200 overflow-hidden ${className}`}>
-      {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-slate-200 flex-shrink-0">
-        <div className="flex-1 min-w-0">
-          <h3 className="font-semibold text-slate-800 truncate text-sm" title={document.fileName}>
-            {document.fileName}
-          </h3>
-          <p className="text-xs text-slate-500 mt-1">
-            {formatFileSize(document.fileSize)} • {formatDate(document.uploadedAt)}
-          </p>
+      <div
+        className={`flex flex-col h-full bg-white rounded-lg border border-slate-200 overflow-hidden ${className}`}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-slate-200 flex-shrink-0">
+          <div className="flex-1 min-w-0">
+            <h3 className="font-semibold text-slate-800 truncate text-sm" title={document.fileName}>
+              {document.fileName}
+            </h3>
+            <p className="text-xs text-slate-500 mt-1">
+              {formatFileSize(document.fileSize)} • {formatDate(document.uploadedAt)}
+            </p>
+          </div>
+
+          <button
+            onClick={onClose}
+            className="flex-shrink-0 p-2 text-slate-400 hover:text-slate-600 rounded-md hover:bg-slate-100 transition-colors ml-2"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
 
-        <button
-          onClick={onClose}
-          className="flex-shrink-0 p-2 text-slate-400 hover:text-slate-600 rounded-md hover:bg-slate-100 transition-colors ml-2"
-        >
-          <X className="w-4 h-4" />
-        </button>
-      </div>
+        {/* Preview Area */}
+        <div className="flex-1 overflow-auto flex items-center justify-center bg-slate-50 p-4 relative">
+          {isImage ? (
+            // Image Preview
+            <div className="flex items-center justify-center w-full h-full">
+              <img
+                src={previewSrc || ''}
+                alt={document.fileName}
+                className="max-w-full max-h-full rounded-md"
+                style={{
+                  transform: `scale(${zoom / 100})`,
+                  transition: 'transform 0.2s ease-out',
+                }}
+                onLoad={() => setIsLoading(false)}
+                onError={() => setIsLoading(false)}
+              />
+            </div>
+          ) : isPDF ? (
+            // PDF Preview
+            <div className="w-full h-full min-h-[360px] bg-white rounded-md border border-slate-200 overflow-hidden">
+              <iframe
+                src={previewSrc || ''}
+                title={document.fileName}
+                className="w-full h-full"
+                onLoad={() => setIsLoading(false)}
+              />
+            </div>
+          ) : (
+            // Other file types
+            <div className="flex flex-col items-center justify-center text-slate-500">
+              <FileText className="w-16 h-16 mx-auto mb-3 opacity-30" />
+              <p className="font-medium mb-2">Preview Not Available</p>
+              <p className="text-sm text-slate-400 mb-4">
+                This file type cannot be previewed in the browser
+              </p>
+              <button
+                onClick={() => onDownload(document.id)}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+              >
+                <Download className="w-4 h-4" />
+                Download File
+              </button>
+            </div>
+          )}
 
-      {/* Preview Area */}
-      <div className="flex-1 overflow-auto flex items-center justify-center bg-slate-50 p-4 relative">
-        {isImage ? (
-          // Image Preview
-          <div className="flex items-center justify-center w-full h-full">
-            <img
-              src={previewSrc || ''}
-              alt={document.fileName}
-              className="max-w-full max-h-full rounded-md"
-              style={{
-                transform: `scale(${zoom / 100})`,
-                transition: 'transform 0.2s ease-out',
-              }}
-              onLoad={() => setIsLoading(false)}
-              onError={() => setIsLoading(false)}
-            />
-          </div>
-        ) : isPDF ? (
-          // PDF Preview
-          <div className="w-full h-full min-h-[360px] bg-white rounded-md border border-slate-200 overflow-hidden">
-            <iframe
-              src={previewSrc || ''}
-              title={document.fileName}
-              className="w-full h-full"
-              onLoad={() => setIsLoading(false)}
-            />
-          </div>
-        ) : (
-          // Other file types
-          <div className="flex flex-col items-center justify-center text-slate-500">
-            <FileText className="w-16 h-16 mx-auto mb-3 opacity-30" />
-            <p className="font-medium mb-2">Preview Not Available</p>
-            <p className="text-sm text-slate-400 mb-4">
-              This file type cannot be previewed in the browser
-            </p>
+          {/* Loading indicator for images */}
+          {isImage && isLoading && (
+            <div className="absolute inset-0 flex items-center justify-center bg-slate-100/50">
+              <div className="w-8 h-8 border-4 border-slate-300 border-t-blue-600 rounded-full animate-spin" />
+            </div>
+          )}
+        </div>
+
+        {/* Controls Bar (for images) */}
+        {isImage && (
+          <div className="flex items-center justify-center gap-2 p-3 border-t border-slate-200 bg-slate-50 flex-shrink-0">
             <button
-              onClick={() => onDownload(document.id)}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+              onClick={() => setZoom(Math.max(50, zoom - 10))}
+              disabled={zoom <= 50}
+              className="p-2 text-slate-600 hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed rounded-md hover:text-slate-800 transition-colors"
+              title="Zoom out"
             >
-              <Download className="w-4 h-4" />
-              Download File
+              <ZoomOut className="w-4 h-4" />
+            </button>
+
+            <span className="text-xs font-medium text-slate-600 min-w-12 text-center">{zoom}%</span>
+
+            <button
+              onClick={() => setZoom(Math.min(200, zoom + 10))}
+              disabled={zoom >= 200}
+              className="p-2 text-slate-600 hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed rounded-md hover:text-slate-800 transition-colors"
+              title="Zoom in"
+            >
+              <ZoomIn className="w-4 h-4" />
+            </button>
+
+            <div className="w-px h-6 bg-slate-300 mx-1" />
+
+            <button
+              onClick={() => setZoom(100)}
+              className="px-2 py-1 text-xs font-medium text-slate-600 hover:bg-white rounded-md hover:text-slate-800 transition-colors"
+            >
+              Reset
             </button>
           </div>
         )}
 
-        {/* Loading indicator for images */}
-        {isImage && isLoading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-slate-100/50">
-            <div className="w-8 h-8 border-4 border-slate-300 border-t-blue-600 rounded-full animate-spin" />
-          </div>
-        )}
-      </div>
-
-      {/* Controls Bar (for images) */}
-      {isImage && (
-        <div className="flex items-center justify-center gap-2 p-3 border-t border-slate-200 bg-slate-50 flex-shrink-0">
+        {/* Actions Footer */}
+        <div className="flex items-center gap-2 p-3 border-t border-slate-200 flex-shrink-0 bg-slate-50">
           <button
-            onClick={() => setZoom(Math.max(50, zoom - 10))}
-            disabled={zoom <= 50}
-            className="p-2 text-slate-600 hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed rounded-md hover:text-slate-800 transition-colors"
-            title="Zoom out"
+            onClick={() => onDownload(document.id)}
+            className="flex-1 inline-flex items-center justify-center gap-2 px-3 py-2 rounded-md border border-blue-300 text-blue-600 bg-blue-50 hover:bg-blue-100 transition-colors"
           >
-            <ZoomOut className="w-4 h-4" />
+            <Download className="w-4 h-4" />
+            <span className="text-sm font-medium">Download</span>
           </button>
 
-          <span className="text-xs font-medium text-slate-600 min-w-12 text-center">
-            {zoom}%
-          </span>
-
           <button
-            onClick={() => setZoom(Math.min(200, zoom + 10))}
-            disabled={zoom >= 200}
-            className="p-2 text-slate-600 hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed rounded-md hover:text-slate-800 transition-colors"
-            title="Zoom in"
+            onClick={() => setShowDeleteConfirm(true)}
+            className="flex-1 inline-flex items-center justify-center gap-2 px-3 py-2 rounded-md border border-red-300 text-red-600 bg-red-50 hover:bg-red-100 transition-colors"
           >
-            <ZoomIn className="w-4 h-4" />
-          </button>
-
-          <div className="w-px h-6 bg-slate-300 mx-1" />
-
-          <button
-            onClick={() => setZoom(100)}
-            className="px-2 py-1 text-xs font-medium text-slate-600 hover:bg-white rounded-md hover:text-slate-800 transition-colors"
-          >
-            Reset
+            <Trash2 className="w-4 h-4" />
+            <span className="text-sm font-medium">Delete</span>
           </button>
         </div>
-      )}
-
-      {/* Actions Footer */}
-      <div className="flex items-center gap-2 p-3 border-t border-slate-200 flex-shrink-0 bg-slate-50">
-        <button
-          onClick={() => onDownload(document.id)}
-          className="flex-1 inline-flex items-center justify-center gap-2 px-3 py-2 rounded-md border border-blue-300 text-blue-600 bg-blue-50 hover:bg-blue-100 transition-colors"
-        >
-          <Download className="w-4 h-4" />
-          <span className="text-sm font-medium">Download</span>
-        </button>
-
-        <button
-          onClick={() => setShowDeleteConfirm(true)}
-          className="flex-1 inline-flex items-center justify-center gap-2 px-3 py-2 rounded-md border border-red-300 text-red-600 bg-red-50 hover:bg-red-100 transition-colors"
-        >
-          <Trash2 className="w-4 h-4" />
-          <span className="text-sm font-medium">Delete</span>
-        </button>
       </div>
-    </div>
-    <ConfirmationDialog
-      isOpen={showDeleteConfirm}
-      onClose={() => setShowDeleteConfirm(false)}
-      onConfirm={() => {
-        onDelete(document.id)
-        setShowDeleteConfirm(false)
-      }}
-      title="Delete Document"
-      message="Are you sure you want to delete this document? This action cannot be undone."
-      confirmLabel="Delete"
-      cancelLabel="Cancel"
-      type="danger"
-    />
+      <ConfirmationDialog
+        isOpen={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        onConfirm={() => {
+          onDelete(document.id)
+          setShowDeleteConfirm(false)
+        }}
+        title="Delete Document"
+        message="Are you sure you want to delete this document? This action cannot be undone."
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        type="danger"
+      />
     </>
   )
 }

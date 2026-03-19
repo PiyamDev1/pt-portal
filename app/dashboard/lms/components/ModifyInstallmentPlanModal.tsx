@@ -41,7 +41,7 @@ export function ModifyInstallmentPlanModal({
     handleSaveSchedule: hookSaveSchedule,
     handleCancelEdit: hookCancelEdit,
     handleDelete: hookDelete,
-    fetchInstallments
+    fetchInstallments,
   } = useInstallmentManagement(transaction)
 
   const handleSaveSchedule = async () => {
@@ -67,7 +67,12 @@ export function ModifyInstallmentPlanModal({
 
   return (
     <ModalWrapper onClose={onClose} title="Modify Installment Plan">
-      <div role="dialog" aria-modal="true" aria-label="Modify installment plan" className="space-y-4">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Modify installment plan"
+        className="space-y-4"
+      >
         <TransactionDetails
           transaction={transaction}
           totalInstallments={totalInstallments}
@@ -75,10 +80,7 @@ export function ModifyInstallmentPlanModal({
         />
 
         {!showSchedule && totalInstallments > 0 && (
-          <ModificationOptions
-            canModify={canModify}
-            onModify={() => setShowSchedule(true)}
-          />
+          <ModificationOptions canModify={canModify} onModify={() => setShowSchedule(true)} />
         )}
 
         {showSchedule && (

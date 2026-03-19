@@ -4,51 +4,59 @@ export interface GeneratedInstallment {
   remaining: number
 }
 
+interface StatementTransaction {
+  transaction_timestamp: string
+  transaction_type?: string
+  amount: string | number
+  remark?: string
+}
+
 export function generateInstallmentSchedule(
   startDate: string,
   totalAmount: number,
   initialDeposit: number,
   termMonths: number,
-  nextDueDate?: string
+  nextDueDate?: string,
 ): GeneratedInstallment[] {
   // Calculate the remaining amount after initial deposit
   const remainingAfterDeposit = totalAmount - initialDeposit
   // Divide equally across all terms
   const installmentAmount = remainingAfterDeposit / termMonths
   const schedule: GeneratedInstallment[] = []
-  
+
   const firstDueDate = nextDueDate ? new Date(nextDueDate) : new Date(startDate)
-  
+
   for (let i = 0; i < termMonths; i++) {
     const dueDate = new Date(firstDueDate)
     dueDate.setMonth(dueDate.getMonth() + i)
-    
+
     // Calculate remaining balance after this installment
-    const remaining = remainingAfterDeposit - (installmentAmount * (i + 1))
+    const remaining = remainingAfterDeposit - installmentAmount * (i + 1)
     schedule.push({
       date: dueDate.toISOString(),
       amount: installmentAmount,
-      remaining: Math.max(0, remaining)
+      remaining: Math.max(0, remaining),
     })
   }
-  
+
   return schedule
 }
 
-export function generateCSV(transactions: any[]): string {
+export function generateCSV(transactions: StatementTransaction[]): string {
   const headers = ['Date', 'Type', 'Description', 'Debit', 'Credit']
-  const rows = transactions.map(tx => [
+  const rows = transactions.map((tx) => [
     new Date(tx.transaction_timestamp).toLocaleDateString(),
     (tx.transaction_type || '').toLowerCase(),
     tx.remark || '',
-    ((tx.transaction_type || '').toLowerCase() === 'service' || (tx.transaction_type || '').toLowerCase() === 'fee') ? parseFloat(tx.amount).toFixed(2) : '',
-    ((tx.transaction_type || '').toLowerCase() === 'payment') ? parseFloat(tx.amount).toFixed(2) : ''
+    (tx.transaction_type || '').toLowerCase() === 'service' ||
+    (tx.transaction_type || '').toLowerCase() === 'fee'
+      ? parseFloat(tx.amount).toFixed(2)
+      : '',
+    (tx.transaction_type || '').toLowerCase() === 'payment' ? parseFloat(tx.amount).toFixed(2) : '',
   ])
-  
-  const csv = [headers, ...rows]
-    .map(row => row.map(cell => `"${cell}"`).join(','))
-    .join('\n')
-  
+
+  const csv = [headers, ...rows].map((row) => row.map((cell) => `"${cell}"`).join(',')).join('\n')
+
   return csv
 }
 

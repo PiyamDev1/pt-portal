@@ -14,7 +14,12 @@ interface StatCardProps {
  * Stat Card Component - Displays statistics with icon and color coding
  * Memoized to prevent unnecessary re-renders
  */
-export const StatCard = React.memo(function StatCard({ icon: Icon, label, value, color }: StatCardProps) {
+export const StatCard = React.memo(function StatCard({
+  icon: Icon,
+  label,
+  value,
+  color,
+}: StatCardProps) {
   return (
     <div className={`bg-gradient-to-br ${STAT_CARD_COLORS[color]} rounded-xl p-4 border shadow-sm`}>
       <div className="flex items-center justify-between mb-1">

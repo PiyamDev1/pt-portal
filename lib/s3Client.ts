@@ -1,7 +1,7 @@
 /**
  * Shared S3/MinIO Client
  * Singleton instance to avoid recreating AWS SDK clients per request
- * 
+ *
  * @module lib/s3Client
  */
 

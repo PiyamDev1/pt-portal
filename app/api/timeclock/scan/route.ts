@@ -3,6 +3,8 @@ import { createServerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies, headers } from 'next/headers'
 import { createClient } from '@supabase/supabase-js'
 import crypto from 'crypto'
+import { apiError, apiOk } from '@/lib/api/http'
+import { toErrorMessage } from '@/lib/api/error'
 
 export const dynamic = 'force-dynamic'
 
@@ -84,34 +86,36 @@ function computeHash(material: string) {
 }
 
 function getUtcDayBounds(date: Date) {
-  const start = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 0, 0, 0, 0))
-  const end = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 23, 59, 59, 999))
+  const start = new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 0, 0, 0, 0),
+  )
+  const end = new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 23, 59, 59, 999),
+  )
   return { start, end }
 }
 
 export async function POST(request: Request) {
   try {
     if (!supabaseUrl || !serviceKey) {
-      return NextResponse.json({ error: 'Supabase not configured' }, { status: 500 })
+      return apiError('Supabase not configured', 500)
     }
 
     const cookieStore = await cookies()
-    const supabase = createServerClient(
-      supabaseUrl,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return cookieStore.getAll()
-          },
-          setAll() {},
+    const supabase = createServerClient(supabaseUrl, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll()
         },
-      }
-    )
+        setAll() {},
+      },
+    })
 
-    const { data: { session } } = await supabase.auth.getSession()
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
     if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return apiError('Unauthorized', 401)
     }
 
     const body = await request.json()
@@ -120,16 +124,16 @@ export async function POST(request: Request) {
 
     const payload = parseQrPayload(qrText)
     if (!payload) {
-      return NextResponse.json({ error: 'Invalid QR payload' }, { status: 400 })
+      return apiError('Invalid QR payload', 400)
     }
 
     if (!payload.device_id || !payload.nonce || !payload.sig || payload.v !== 1) {
-      return NextResponse.json({ error: 'QR payload missing required fields' }, { status: 400 })
+      return apiError('QR payload missing required fields', 400)
     }
 
     const normalizedTs = normalizeTimestamp(payload.ts)
     if (!normalizedTs) {
-      return NextResponse.json({ error: 'Invalid device timestamp' }, { status: 400 })
+      return apiError('Invalid device timestamp', 400)
     }
 
     const { data: device, error: deviceError } = await adminSupabase
@@ -139,17 +143,17 @@ export async function POST(request: Request) {
       .single()
 
     if (deviceError || !device) {
-      return NextResponse.json({ error: 'Device not found' }, { status: 404 })
+      return apiError('Device not found', 404)
     }
 
     if (!device.is_active) {
-      return NextResponse.json({ error: 'Device inactive' }, { status: 403 })
+      return apiError('Device inactive', 403)
     }
 
     const nowSeconds = Math.floor(Date.now() / 1000)
     const skewSeconds = Math.abs(nowSeconds - normalizedTs)
     if (skewSeconds > 120) {
-      return NextResponse.json({ error: 'QR expired' }, { status: 400 })
+      return apiError('QR expired', 400)
     }
 
     const signatureBase = `${payload.device_id}.${normalizedTs}.${payload.nonce}`
@@ -159,7 +163,7 @@ export async function POST(request: Request) {
       .digest('base64url')
 
     if (!safeEqual(expectedSig, payload.sig)) {
-      return NextResponse.json({ error: 'Invalid signature' }, { status: 400 })
+      return apiError('Invalid signature', 400)
     }
 
     const { data: lastEvent } = await adminSupabase
@@ -195,7 +199,7 @@ export async function POST(request: Request) {
       .maybeSingle()
 
     if (recentEvent) {
-      return NextResponse.json({ error: 'Duplicate scan blocked. Please wait a few seconds and try again.' }, { status: 409 })
+      return apiError('Duplicate scan blocked. Please wait a few seconds and try again.', 409)
     }
 
     const prevHash = lastEvent?.hash || null
@@ -245,21 +249,19 @@ export async function POST(request: Request) {
 
     if (insertError) {
       if (insertError.code === '23505') {
-        return NextResponse.json({ error: 'QR already used' }, { status: 409 })
+        return apiError('QR already used', 409)
       }
-      throw insertError
+      throw new Error(insertError.message || 'Failed to insert scan event')
     }
 
-    return NextResponse.json({
-      ok: true,
-      message: 'Clock event recorded.',
+    return apiOk({
       eventId: inserted?.id,
       eventType: inserted?.event_type,
       punchType,
       scannedAt: inserted?.scanned_at,
     })
   } catch (error: any) {
-    console.error('[TIMECLOCK SCAN] Error:', error)
-    return NextResponse.json({ error: error?.message || 'Server error' }, { status: 500 })
+    const errorMessage = toErrorMessage(error, 'Failed to process scan')
+    return apiError(errorMessage, 500)
   }
 }

@@ -13,6 +13,7 @@ A gamified attendance tracking system where employees' "attendance health" is re
 ### 2.1 New Tables
 
 #### `attendance_plants`
+
 - `id` (uuid, PK)
 - `employee_id` (uuid, FK → employees)
 - `current_points` (integer, default: 0) - Can be negative
@@ -26,6 +27,7 @@ A gamified attendance tracking system where employees' "attendance health" is re
 - `reset_date` (timestamp) - Last point reset (if monthly/quarterly)
 
 #### `attendance_warnings`
+
 - `id` (uuid, PK)
 - `employee_id` (uuid, FK)
 - `warning_number` (integer, 1/2/3)
@@ -37,6 +39,7 @@ A gamified attendance tracking system where employees' "attendance health" is re
 - `created_at` (timestamp)
 
 #### `attendance_point_logs` (optional, for audit trail)
+
 - `id` (uuid, PK)
 - `employee_id` (uuid, FK)
 - `points_delta` (integer, can be negative)
@@ -69,12 +72,10 @@ Late: After shift start
 - **Warning #1**: 10+ mins late (first offense)
   - Message: "You were 12 minutes late. This is your first warning. Please be on time."
   - Plant visual hint: wilting
-  
 - **Warning #2**: 10+ mins late (second offense within 30 days)
   - Message: "Second warning. Your supervisor has been notified."
   - Action: Add entry to `attendance_warnings`, set `notified_supervisor = true`
   - Plant visual: more wilted
-  
 - **Warning #3**: 10+ mins late (third offense within 30 days)
   - Message: "Third warning. HR has been escalated. Your supervisor will discuss corrective action."
   - Action: Set `escalated_to_hr = true`, send notification to both supervisor + HR
@@ -88,10 +89,12 @@ Late: After shift start
 ### 3.4 Point Reset Policy (to decide)
 
 **Option A**: Points never reset (career total)
+
 - Simpler, shows long-term commitment
 - Risk: New employees start at 0, old employees at +500
 
 **Option B**: Reset monthly/quarterly
+
 - Keeps competition fresh
 - Resets give second chances
 - **Recommendation**: Quarterly reset (Jan/Apr/Jul/Oct) with "legacy" badge for high all-time totals
@@ -104,13 +107,13 @@ Late: After shift start
 
 Plants advance through stages based on `current_points`:
 
-| Stage | Points Threshold | Visual | Emoji |
-|-------|------------------|--------|-------|
-| Seed | 0-20 | Small seed in soil | 🌱 |
-| Sprout | 21-50 | Tiny sprout emerging | 🌿 |
-| Plant | 51-100 | Full green plant with 3 leaves | 🌾 |
-| Flower | 101-150 | Flowering plant (color options) | 🌻 |
-| Bloomed | 151+ | Full bloom garden plant | 🌹 |
+| Stage   | Points Threshold | Visual                          | Emoji |
+| ------- | ---------------- | ------------------------------- | ----- |
+| Seed    | 0-20             | Small seed in soil              | 🌱    |
+| Sprout  | 21-50            | Tiny sprout emerging            | 🌿    |
+| Plant   | 51-100           | Full green plant with 3 leaves  | 🌾    |
+| Flower  | 101-150          | Flowering plant (color options) | 🌻    |
+| Bloomed | 151+             | Full bloom garden plant         | 🌹    |
 
 ### 4.2 Visual Degradation (Negative Points)
 
@@ -139,9 +142,11 @@ Plants advance through stages based on `current_points`:
 ### 5.1 When Points Are Calculated
 
 **Time**: Daily, via scheduled job at end of shift (e.g., 6 PM server time)
+
 - **Alternative**: Real-time on dashboard, cached server-side
 
 **Logic**: For each employee with a timeclock punch that day:
+
 1. Find latest punch of the day (could be multiple clock-ins)
 2. Compare first clock-in time vs. scheduled shift start
 3. Calculate points delta
@@ -169,6 +174,7 @@ Plants advance through stages based on `current_points`:
 **Size**: ~300x300px card
 
 **Contents**:
+
 - Plant SVG/image (animated)
 - Current points: `"Total Points: +47"`
 - Current stage: `"Stage: Plant (47%)"`
@@ -177,6 +183,7 @@ Plants advance through stages based on `current_points`:
 - CTA button: "View Details" → `/dashboard/attendance-plant`
 
 **Colors**:
+
 - Stage 0-1: Brown/dull
 - Stage 2+: Green
 - Warning #1: Orange tint
@@ -189,6 +196,7 @@ Plants advance through stages based on `current_points`:
 **Three Tabs**:
 
 #### Tab 1: "Overview"
+
 - Large plant visual
 - Current points / stage / progress
 - Last 7 days points summary (mini bar chart)
@@ -196,11 +204,13 @@ Plants advance through stages based on `current_points`:
 - "Point Reset Date: Mar 31, 2026"
 
 #### Tab 2: "Recent Activity"
+
 - Table of last 30 days attendance:
   - Date | Clock-in time | Points change | Reason
   - Example: "Feb 26 | 09:03 AM | -2 | 3 mins late"
 
 #### Tab 3: "Warnings & Discipline"
+
 - Chronological list of warnings
   - Date issued | Warning #N | Reason | Action taken
 - For Warning #2: "Supervisor notified on [date]"
@@ -210,17 +220,20 @@ Plants advance through stages based on `current_points`:
 ### 6.3 Real-Time Displays
 
 **On Timeclock Pages** (`/dashboard/timeclock/history`):
+
 - Add column: "Points Earned" with color coding
   - Green: +points
   - Red: -points
   - Grey: 0 (day off, no punch)
 
 **On Dashboard**: Show streak indicator
+
 - "✅ On time 5 days in a row!"
 
 ### 6.4 Warnings Modal
 
 Triggered when employee logs in after receiving a warning:
+
 ```
 ⚠️ ATTENDANCE ALERT
 
@@ -304,18 +317,21 @@ POST /api/admin/employee/{id}/warnings/issue
 ## 9. Implementation Phases
 
 ### Phase 1: Core Infrastructure (Week 1)
+
 - [ ] Create database tables
 - [ ] Build API endpoints (GET plant, GET history)
 - [ ] Create daily calculation job (cron)
 - [ ] Dashboard widget (static HTML, no interactivity)
 
 ### Phase 2: UI & Visuals (Week 2)
+
 - [ ] Plant SVG assets (4 stages × 3 color variants)
 - [ ] Detailed plant page (3 tabs)
 - [ ] Real-time point updates on dashboard
 - [ ] Animations (growth, damage, recovery)
 
 ### Phase 3: Warnings & Discipline (Week 3)
+
 - [ ] Warning trigger logic
 - [ ] Warning modal on login
 - [ ] Warnings tab UI
@@ -323,6 +339,7 @@ POST /api/admin/employee/{id}/warnings/issue
 - [ ] Warning reset job
 
 ### Phase 4: Polish & Testing (Week 4)
+
 - [ ] Edge case handling (day off, no punch, etc.)
 - [ ] Performance testing (daily calc for 500+ employees)
 - [ ] User feedback loop
@@ -345,13 +362,13 @@ POST /api/admin/employee/{id}/warnings/issue
 
 ## 11. Risks & Mitigations
 
-| Risk | Mitigation |
-|------|-----------|
-| Employees feel pressure/stress | Start with opt-in, gather feedback, adjust scoring |
-| False positives (technical issues) | Manual review + admin override tools |
+| Risk                                     | Mitigation                                                  |
+| ---------------------------------------- | ----------------------------------------------------------- |
+| Employees feel pressure/stress           | Start with opt-in, gather feedback, adjust scoring          |
+| False positives (technical issues)       | Manual review + admin override tools                        |
 | Calculation bugs causing unfair warnings | Thorough testing, audit trail in logs, easy dispute process |
-| Requires timezone handling | Standardize to employee branch timezone, document clearly |
-| Late arrivals spike before reset date | This is expected behavior; consider motivational messaging |
+| Requires timezone handling               | Standardize to employee branch timezone, document clearly   |
+| Late arrivals spike before reset date    | This is expected behavior; consider motivational messaging  |
 
 ---
 

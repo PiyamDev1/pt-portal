@@ -1,10 +1,12 @@
+import type { PaymentMethod } from './types'
+
 export const DEFAULT_PAYMENT_METHODS = [
   { id: 'cash', name: 'Cash' },
   { id: 'bank-transfer', name: 'Bank Transfer' },
-  { id: 'card-payment', name: 'Card Payment' }
+  { id: 'card-payment', name: 'Card Payment' },
 ]
 
-export const mergePaymentMethods = (fetched: any[] = []) => {
+export const mergePaymentMethods = (fetched: PaymentMethod[] = []) => {
   const existing = new Set(fetched.map((m) => m.name?.toLowerCase?.()))
   const missing = DEFAULT_PAYMENT_METHODS.filter((m) => !existing.has(m.name.toLowerCase()))
   return [...fetched, ...missing]

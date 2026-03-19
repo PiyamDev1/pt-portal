@@ -18,7 +18,13 @@ interface GBPassportPricingTabProps {
   onEdit: (item: GBPassportPricing) => void
   onSave: () => void
   onDelete: (id: string) => void
-  onAddEntry: (entry: { age_group: string; pages: string; service_type: string; cost_price: number; sale_price: number }) => Promise<void>
+  onAddEntry: (entry: {
+    age_group: string
+    pages: string
+    service_type: string
+    cost_price: number
+    sale_price: number
+  }) => Promise<void>
   supabase: SupabaseClient
 }
 
@@ -35,9 +41,15 @@ function GBPassportPricingTabCore({
   onSave,
   onDelete,
   onAddEntry,
-  supabase
+  supabase,
 }: GBPassportPricingTabProps) {
-  const [newEntry, setNewEntry] = useState({ age_group: '', pages: '', service_type: '', cost_price: 0, sale_price: 0 })
+  const [newEntry, setNewEntry] = useState({
+    age_group: '',
+    pages: '',
+    service_type: '',
+    cost_price: 0,
+    sale_price: 0,
+  })
 
   const handleAddEntry = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -49,7 +61,7 @@ function GBPassportPricingTabCore({
     try {
       await onAddEntry(newEntry)
       setNewEntry({ age_group: '', pages: '', service_type: '', cost_price: 0, sale_price: 0 })
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[GBPassportPricingTab] Error adding service:', error)
       toast.error('Failed to add service. Please try again or contact support.')
     }
@@ -62,7 +74,9 @@ function GBPassportPricingTabCore({
         <form onSubmit={handleAddEntry} className="space-y-3">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label htmlFor="gb-passport-age-group" className="block text-sm font-medium mb-1">Age Group *</label>
+              <label htmlFor="gb-passport-age-group" className="block text-sm font-medium mb-1">
+                Age Group *
+              </label>
               <select
                 id="gb-passport-age-group"
                 value={newEntry.age_group}
@@ -72,12 +86,16 @@ function GBPassportPricingTabCore({
               >
                 <option value="">Select Age Group</option>
                 {ageGroups.map((group) => (
-                  <option key={group} value={group}>{group}</option>
+                  <option key={group} value={group}>
+                    {group}
+                  </option>
                 ))}
               </select>
             </div>
             <div>
-              <label htmlFor="gb-passport-pages" className="block text-sm font-medium mb-1">Pages *</label>
+              <label htmlFor="gb-passport-pages" className="block text-sm font-medium mb-1">
+                Pages *
+              </label>
               <select
                 id="gb-passport-pages"
                 value={newEntry.pages}
@@ -87,12 +105,16 @@ function GBPassportPricingTabCore({
               >
                 <option value="">Select Pages</option>
                 {pages.map((page) => (
-                  <option key={page} value={page}>{page}</option>
+                  <option key={page} value={page}>
+                    {page}
+                  </option>
                 ))}
               </select>
             </div>
             <div>
-              <label htmlFor="gb-passport-service-type" className="block text-sm font-medium mb-1">Service Type *</label>
+              <label htmlFor="gb-passport-service-type" className="block text-sm font-medium mb-1">
+                Service Type *
+              </label>
               <select
                 id="gb-passport-service-type"
                 value={newEntry.service_type}
@@ -102,14 +124,18 @@ function GBPassportPricingTabCore({
               >
                 <option value="">Select Service Type</option>
                 {serviceTypes.map((type) => (
-                  <option key={type} value={type}>{type}</option>
+                  <option key={type} value={type}>
+                    {type}
+                  </option>
                 ))}
               </select>
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label htmlFor="gb-cost-price" className="block text-sm font-medium mb-1">Cost Price</label>
+              <label htmlFor="gb-cost-price" className="block text-sm font-medium mb-1">
+                Cost Price
+              </label>
               <input
                 id="gb-cost-price"
                 type="number"
@@ -121,7 +147,9 @@ function GBPassportPricingTabCore({
               />
             </div>
             <div>
-              <label htmlFor="gb-sale-price" className="block text-sm font-medium mb-1">Sale Price</label>
+              <label htmlFor="gb-sale-price" className="block text-sm font-medium mb-1">
+                Sale Price
+              </label>
               <input
                 id="gb-sale-price"
                 type="number"
@@ -176,7 +204,9 @@ function GBPassportPricingTabCore({
                           type="number"
                           step="0.01"
                           value={editValues.cost_price}
-                          onChange={(e) => setEditValues({ ...editValues, cost_price: e.target.value })}
+                          onChange={(e) =>
+                            setEditValues({ ...editValues, cost_price: e.target.value })
+                          }
                           className="w-full px-2 py-1 border rounded"
                         />
                       </td>
@@ -185,7 +215,9 @@ function GBPassportPricingTabCore({
                           type="number"
                           step="0.01"
                           value={editValues.sale_price}
-                          onChange={(e) => setEditValues({ ...editValues, sale_price: e.target.value })}
+                          onChange={(e) =>
+                            setEditValues({ ...editValues, sale_price: e.target.value })
+                          }
                           className="w-full px-2 py-1 border rounded"
                         />
                       </td>

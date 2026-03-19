@@ -1,7 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { PutObjectCommand } from '@aws-sdk/client-s3'
 import { getS3Client } from '@/lib/s3Client'
 import { getR2Client, isR2Configured } from '@/lib/r2Client'
+import { apiError, apiOk } from '@/lib/api/http'
+import { toErrorMessage } from '@/lib/api/error'
 
 const MINIO_BUCKET = process.env.MINIO_BUCKET_NAME || 'portal-documents'
 const R2_BUCKET = process.env.R2_BUCKET_NAME || 'portal-fallback'
@@ -19,10 +21,7 @@ export async function POST(request: NextRequest) {
     const category = String(formData.get('category') || 'general')
 
     if (!file || !familyHeadId) {
-      return NextResponse.json(
-        { success: false, error: 'Missing required fields' },
-        { status: 400 }
-      )
+      return apiError('Missing required fields', 400)
     }
 
     const safeCategory = category || 'general'
@@ -43,7 +42,7 @@ export async function POST(request: NextRequest) {
           Key: minioKey,
           Body: buffer,
           ContentType: file.type || 'application/octet-stream',
-        })
+        }),
       )
       etag = putResult.ETag || etag
     } catch (minioError) {
@@ -58,34 +57,25 @@ export async function POST(request: NextRequest) {
           Key: minioKey,
           Body: buffer,
           ContentType: file.type || 'application/octet-stream',
-        })
+        }),
       )
       storageProvider = 'r2'
       storageBucket = R2_BUCKET
       etag = fallbackResult.ETag || etag
     }
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        documentId,
-        minioKey,
-        etag,
-        storageProvider,
-        storageBucket,
-        fileName: file.name,
-        fileType: file.type || 'application/octet-stream',
-        category: safeCategory,
-        familyHeadId,
-      },
+    return apiOk({
+      documentId,
+      minioKey,
+      etag,
+      storageProvider,
+      storageBucket,
+      fileName: file.name,
+      fileType: file.type || 'application/octet-stream',
+      category: safeCategory,
+      familyHeadId,
     })
   } catch (error) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed direct upload',
-      },
-      { status: 500 }
-    )
+    return apiError(toErrorMessage(error, 'Failed direct upload'), 500)
   }
 }

@@ -6,6 +6,14 @@ import { getSupabaseClient } from '@/lib/supabaseClient'
 const ORG_ADMIN_ROLES = ['admin', 'master admin', 'super admin']
 const MAINTENANCE_ROLES = ['maintenance admin', ...ORG_ADMIN_ROLES]
 
+type EmployeeRolesRow = {
+  roles?: { name?: string | null } | Array<{ name?: string | null }> | null
+}
+
+type ProfileRoleRow = {
+  role?: string | null
+}
+
 function normalizeRoleName(value: unknown) {
   return String(value || '')
     .trim()
@@ -25,7 +33,7 @@ export async function requireAdminSession() {
         },
         setAll() {},
       },
-    }
+    },
   )
 
   const {
@@ -42,8 +50,12 @@ export async function requireAdminSession() {
 
   const supabase = getSupabaseClient()
   const [{ data: employeeData }, { data: profileData }] = await Promise.all([
-    (supabase.from('employees') as any).select('roles(name)').eq('id', user.id).maybeSingle(),
-    (supabase.from('profiles') as any).select('role').eq('id', user.id).maybeSingle(),
+    supabase
+      .from('employees')
+      .select('roles(name)')
+      .eq('id', user.id)
+      .maybeSingle<EmployeeRolesRow>(),
+    supabase.from('profiles').select('role').eq('id', user.id).maybeSingle<ProfileRoleRow>(),
   ])
 
   const employeeRole = Array.isArray(employeeData?.roles)
@@ -75,7 +87,7 @@ export async function requireMaintenanceSession() {
         },
         setAll() {},
       },
-    }
+    },
   )
 
   const {
@@ -92,8 +104,12 @@ export async function requireMaintenanceSession() {
 
   const supabase = getSupabaseClient()
   const [{ data: employeeData }, { data: profileData }] = await Promise.all([
-    (supabase.from('employees') as any).select('roles(name)').eq('id', user.id).maybeSingle(),
-    (supabase.from('profiles') as any).select('role').eq('id', user.id).maybeSingle(),
+    supabase
+      .from('employees')
+      .select('roles(name)')
+      .eq('id', user.id)
+      .maybeSingle<EmployeeRolesRow>(),
+    supabase.from('profiles').select('role').eq('id', user.id).maybeSingle<ProfileRoleRow>(),
   ])
 
   const employeeRole = Array.isArray(employeeData?.roles)

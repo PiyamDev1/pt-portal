@@ -5,21 +5,17 @@ This directory contains reusable UI components used across the application.
 ## Available Components
 
 ### `ModalBase`
+
 A reusable modal/dialog component that provides consistent styling and behavior across the app.
 
 **Usage:**
+
 ```tsx
 import { ModalBase } from '@/components'
 
 export function MyModal({ isOpen, onClose }) {
   return (
-    <ModalBase
-      isOpen={isOpen}
-      onClose={onClose}
-      title="My Modal Title"
-      size="md"
-      isLoading={false}
-    >
+    <ModalBase isOpen={isOpen} onClose={onClose} title="My Modal Title" size="md" isLoading={false}>
       <p>Modal content goes here</p>
     </ModalBase>
   )
@@ -27,6 +23,7 @@ export function MyModal({ isOpen, onClose }) {
 ```
 
 **Props:**
+
 - `isOpen` (boolean) - Controls modal visibility
 - `onClose` (function) - Called when modal should close
 - `title` (string) - Modal header title
@@ -42,6 +39,7 @@ export function MyModal({ isOpen, onClose }) {
 - `closeOnBackdropClick` (boolean) - Close when clicking outside. Default: true
 
 **Features:**
+
 - Smooth fade-in/out animations
 - Keyboard support (ESC to close)
 - Click-outside to close (configurable)
@@ -52,9 +50,11 @@ export function MyModal({ isOpen, onClose }) {
 ---
 
 ### `ConfirmationDialog`
+
 A specialized modal for confirmation actions, especially destructive operations.
 
 **Usage:**
+
 ```tsx
 import { ConfirmationDialog, useConfirmation } from '@/components'
 
@@ -62,11 +62,11 @@ export function ManageUsers() {
   const confirmation = useConfirmation(async () => {
     await deleteUser(userId)
   })
-  
+
   return (
     <>
       <button onClick={confirmation.open}>Delete User</button>
-      
+
       <ConfirmationDialog
         isOpen={confirmation.isOpen}
         onClose={confirmation.close}
@@ -83,6 +83,7 @@ export function ManageUsers() {
 ```
 
 **Props:**
+
 - `isOpen` (boolean) - Controls dialog visibility
 - `onClose` (function) - Called when dialog should close
 - `onConfirm` (function) - Called when user confirms
@@ -108,8 +109,8 @@ const confirmation = useConfirmation(
   },
   {
     onSuccess: () => console.log('Done!'),
-    onError: (err) => console.error(err)
-  }
+    onError: (err) => console.error(err),
+  },
 )
 
 // Available properties:
@@ -126,6 +127,7 @@ const confirmation = useConfirmation(
 ## Component Patterns
 
 ### Pattern 1: Modal with Form
+
 Combine `ModalBase` with `useFormState` hook:
 
 ```tsx
@@ -133,31 +135,19 @@ import { ModalBase } from '@/components'
 import { useFormState } from '@/hooks'
 
 export function EditUserModal({ isOpen, onClose, user }) {
-  const form = useFormState(
-    { name: user.name, email: user.email },
-    async (values) => {
-      await api.updateUser(user.id, values)
-      onClose()
-    }
-  )
-  
+  const form = useFormState({ name: user.name, email: user.email }, async (values) => {
+    await api.updateUser(user.id, values)
+    onClose()
+  })
+
   return (
-    <ModalBase
-      isOpen={isOpen}
-      onClose={onClose}
-      title="Edit User"
-      isLoading={form.isSubmitting}
-    >
+    <ModalBase isOpen={isOpen} onClose={onClose} title="Edit User" isLoading={form.isSubmitting}>
       <form onSubmit={form.handleSubmit} className="space-y-4">
-        <input
-          name="name"
-          value={form.values.name}
-          onChange={form.handleChange}
-        />
+        <input name="name" value={form.values.name} onChange={form.handleChange} />
         {form.touched.name && form.errors.name && (
           <p className="text-red-500">{form.errors.name}</p>
         )}
-        
+
         <button
           type="submit"
           disabled={form.isSubmitting}
@@ -172,6 +162,7 @@ export function EditUserModal({ isOpen, onClose, user }) {
 ```
 
 ### Pattern 2: Multi-step Confirmation
+
 Chain multiple confirmations:
 
 ```tsx
@@ -184,11 +175,11 @@ export function DeleteWithDependents() {
       await deleteItem()
     }
   })
-  
+
   const confirm2 = useConfirmation(async () => {
     await deleteWithDependents()
   })
-  
+
   return (
     <>
       <button onClick={confirm1.open}>Delete</button>
@@ -206,7 +197,9 @@ export function DeleteWithDependents() {
 All components use Tailwind CSS and are designed to match the application's theme.
 
 ### Customizing Colors
+
 To change modal colors globally, update the component file. For dialog type colors:
+
 - `danger`: bg-red-50, border-red-200, text-red-600 (button: bg-red-600)
 - `warning`: bg-amber-50, border-amber-200, text-amber-600 (button: bg-amber-600)
 - `info`: bg-blue-50, border-blue-200, text-blue-600 (button: bg-blue-600)
@@ -236,6 +229,7 @@ To change modal colors globally, update the component file. For dialog type colo
 ## Examples
 
 ### Simple Alert
+
 ```tsx
 <ConfirmationDialog
   isOpen={showAlert}
@@ -249,6 +243,7 @@ To change modal colors globally, update the component file. For dialog type colo
 ```
 
 ### Loading Modal
+
 ```tsx
 <ModalBase
   isOpen={true}
@@ -263,15 +258,11 @@ To change modal colors globally, update the component file. For dialog type colo
 ```
 
 ### List in Modal
+
 ```tsx
-<ModalBase
-  isOpen={isOpen}
-  onClose={onClose}
-  title="Select Item"
-  size="lg"
->
+<ModalBase isOpen={isOpen} onClose={onClose} title="Select Item" size="lg">
   <ul className="space-y-2">
-    {items.map(item => (
+    {items.map((item) => (
       <li key={item.id} className="p-2 hover:bg-gray-100 cursor-pointer">
         {item.name}
       </li>
@@ -285,6 +276,7 @@ To change modal colors globally, update the component file. For dialog type colo
 ## Contributing
 
 When adding new components:
+
 1. Make them unstyled at the core level
 2. Accept props for customization
 3. Use Tailwind CSS for styling
@@ -292,4 +284,3 @@ When adding new components:
 5. Add JSDoc comments
 6. Update this README
 7. Include an example in the "Examples" section
-

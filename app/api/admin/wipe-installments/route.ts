@@ -1,11 +1,12 @@
 import { createClient } from '@supabase/supabase-js'
-import { NextResponse } from 'next/server'
+import { toErrorMessage } from '@/lib/api/error'
+import { apiError, apiOk } from '@/lib/api/http'
 
 export async function POST(request: Request) {
   try {
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
     )
 
     // Delete all installment records
@@ -15,23 +16,13 @@ export async function POST(request: Request) {
       .neq('id', '00000000-0000-0000-0000-000000000000') // Delete all (using impossible condition to delete everything)
 
     if (error) {
-      console.error('Error wiping installments:', error)
-      return NextResponse.json({ 
-        success: false, 
-        error: error.message 
-      }, { status: 500 })
+      return apiError(error.message, 500)
     }
 
-    return NextResponse.json({ 
-      success: true, 
-      message: `All installment records wiped`,
-      count 
+    return apiOk({
+      deletedInstallmentCount: count || 0,
     })
-  } catch (error: any) {
-    console.error('Error in wipe-installments:', error)
-    return NextResponse.json({ 
-      success: false, 
-      error: error.message 
-    }, { status: 500 })
+  } catch (error) {
+    return apiError(toErrorMessage(error, 'Failed to wipe installments'), 500)
   }
 }

@@ -3,8 +3,8 @@
 import { useEffect, useState, memo, useCallback } from 'react'
 import { AlertCircle } from 'lucide-react'
 import { ServicePricingTabProps } from '@/app/types/pricing'
-import { PRICING_OPTIONS } from '@/app/lib/pricingOptions'
-import { usePricingOptions } from '@/app/hooks/usePricingOptions'
+import { PRICING_OPTIONS } from '@/lib/pricingOptions'
+import { usePricingOptions } from '@/hooks/usePricingOptions'
 import NadraPricingTab from './pricing/NadraPricingTab'
 import PKPassportPricingTab from './pricing/PKPassportPricingTab'
 import GBPassportPricingTab from './pricing/GBPassportPricingTab'
@@ -18,10 +18,14 @@ const SECTION_LABELS: Record<PricingSection, string> = {
   nadra: 'NADRA Services',
   passport: 'Pakistani Passport',
   gb: 'GB Passport',
-  visa: 'Visa Services'
+  visa: 'Visa Services',
 }
 
-function ServicePricingTabCore({ supabase, loading: initialLoading, setLoading }: ServicePricingTabProps) {
+function ServicePricingTabCore({
+  supabase,
+  loading: initialLoading,
+  setLoading,
+}: ServicePricingTabProps) {
   const [activeSection, setActiveSection] = useState<PricingSection>('nadra')
   const [activePanel, setActivePanel] = useState<PricingPanel>('pricing')
   const [loading, setLoadingState] = useState(initialLoading)
@@ -38,7 +42,7 @@ function ServicePricingTabCore({ supabase, loading: initialLoading, setLoading }
     fetchPricing,
     handleEdit,
     handleSave,
-    handleDelete
+    handleDelete,
   } = usePricingOptions(supabase)
 
   // Available options state
@@ -46,7 +50,9 @@ function ServicePricingTabCore({ supabase, loading: initialLoading, setLoading }
   const [nadrServiceOptions, setNadrServiceOptions] = useState(PRICING_OPTIONS.NADRA.serviceOptions)
   const [pkCategories, setPKCategories] = useState(PRICING_OPTIONS.PK_PASSPORT.categories)
   const [pkSpeeds, setPKSpeeds] = useState(PRICING_OPTIONS.PK_PASSPORT.speeds)
-  const [pkApplicationTypes, setPKApplicationTypes] = useState(PRICING_OPTIONS.PK_PASSPORT.applicationTypes)
+  const [pkApplicationTypes, setPKApplicationTypes] = useState(
+    PRICING_OPTIONS.PK_PASSPORT.applicationTypes,
+  )
   const [pkPages, setPKPages] = useState<string[]>([])
   const [gbAgeGroups, setGBAgeGroups] = useState(PRICING_OPTIONS.GB_PASSPORT.ageGroups)
   const [gbPages, setGBPages] = useState(PRICING_OPTIONS.GB_PASSPORT.pages)
@@ -56,19 +62,19 @@ function ServicePricingTabCore({ supabase, loading: initialLoading, setLoading }
     const [agesRes, pagesRes, servicesRes] = await Promise.all([
       supabase.from('gb_passport_ages').select('name').order('name'),
       supabase.from('gb_passport_pages').select('option_label').order('option_label'),
-      supabase.from('gb_passport_services').select('name').order('name')
+      supabase.from('gb_passport_services').select('name').order('name'),
     ])
 
     if (!agesRes.error && agesRes.data?.length) {
-      setGBAgeGroups(agesRes.data.map((a: any) => a.name))
+      setGBAgeGroups(agesRes.data.map((a: { name: string }) => a.name))
     }
 
     if (!pagesRes.error && pagesRes.data?.length) {
-      setGBPages(pagesRes.data.map((p: any) => p.option_label))
+      setGBPages(pagesRes.data.map((p: { option_label: string }) => p.option_label))
     }
 
     if (!servicesRes.error && servicesRes.data?.length) {
-      setGBServiceTypes(servicesRes.data.map((s: any) => s.name))
+      setGBServiceTypes(servicesRes.data.map((s: { name: string }) => s.name))
     }
   }, [supabase])
 
@@ -77,23 +83,23 @@ function ServicePricingTabCore({ supabase, loading: initialLoading, setLoading }
       supabase.from('pk_passport_categories').select('name').order('name'),
       supabase.from('pk_passport_speeds').select('name').order('name'),
       supabase.from('pk_passport_application_types').select('name').order('name'),
-      supabase.from('pk_passport_pages').select('option_label').order('option_label')
+      supabase.from('pk_passport_pages').select('option_label').order('option_label'),
     ])
 
     if (!categoriesRes.error && categoriesRes.data?.length) {
-      setPKCategories(categoriesRes.data.map((c: any) => c.name))
+      setPKCategories(categoriesRes.data.map((c: { name: string }) => c.name))
     }
 
     if (!speedsRes.error && speedsRes.data?.length) {
-      setPKSpeeds(speedsRes.data.map((s: any) => s.name))
+      setPKSpeeds(speedsRes.data.map((s: { name: string }) => s.name))
     }
 
     if (!typesRes.error && typesRes.data?.length) {
-      setPKApplicationTypes(typesRes.data.map((t: any) => t.name))
+      setPKApplicationTypes(typesRes.data.map((t: { name: string }) => t.name))
     }
 
     if (!pagesRes.error && pagesRes.data?.length) {
-      setPKPages(pagesRes.data.map((p: any) => p.option_label))
+      setPKPages(pagesRes.data.map((p: { option_label: string }) => p.option_label))
     }
   }, [supabase])
 
@@ -111,19 +117,31 @@ function ServicePricingTabCore({ supabase, loading: initialLoading, setLoading }
   }, [activeSection])
 
   // Handler wrappers for database operations
-  const handleAddNadraEntry = async (entry: { service_type: string; service_option: string; cost_price: number; sale_price: number }) => {
+  const handleAddNadraEntry = async (entry: {
+    service_type: string
+    service_option: string
+    cost_price: number
+    sale_price: number
+  }) => {
     const { error } = await supabase.from('nadra_pricing').insert({
       service_type: entry.service_type.trim(),
       service_option: entry.service_option?.trim() || null,
       cost_price: Number(entry.cost_price) || 0,
       sale_price: Number(entry.sale_price) || 0,
-      is_active: true
+      is_active: true,
     })
     if (error) throw error
     await fetchPricing()
   }
 
-  const handleAddPKEntry = async (entry: { category: string; speed: string; application_type: string; pages: string; cost_price: number; sale_price: number }) => {
+  const handleAddPKEntry = async (entry: {
+    category: string
+    speed: string
+    application_type: string
+    pages: string
+    cost_price: number
+    sale_price: number
+  }) => {
     const { error } = await supabase.from('pk_passport_pricing').insert({
       category: entry.category.trim(),
       speed: entry.speed.trim(),
@@ -131,32 +149,43 @@ function ServicePricingTabCore({ supabase, loading: initialLoading, setLoading }
       pages: entry.pages.trim(),
       cost_price: Number(entry.cost_price) || 0,
       sale_price: Number(entry.sale_price) || 0,
-      is_active: true
+      is_active: true,
     })
     if (error) throw error
     await fetchPricing()
   }
 
-  const handleAddGBEntry = async (entry: { age_group: string; pages: string; service_type: string; cost_price: number; sale_price: number }) => {
+  const handleAddGBEntry = async (entry: {
+    age_group: string
+    pages: string
+    service_type: string
+    cost_price: number
+    sale_price: number
+  }) => {
     const { error } = await supabase.from('gb_passport_pricing').insert({
       age_group: entry.age_group.trim(),
       pages: entry.pages.trim(),
       service_type: entry.service_type.trim(),
       cost_price: Number(entry.cost_price) || 0,
       sale_price: Number(entry.sale_price) || 0,
-      is_active: true
+      is_active: true,
     })
     if (error) throw error
     await fetchPricing()
   }
 
-  const handleAddVisaEntry = async (entry: { country: string; visa_type: string; cost_price: number; sale_price: number }) => {
+  const handleAddVisaEntry = async (entry: {
+    country: string
+    visa_type: string
+    cost_price: number
+    sale_price: number
+  }) => {
     const { error } = await supabase.from('visa_pricing').insert({
       country: entry.country.trim(),
       visa_type: entry.visa_type.trim(),
       cost_price: Number(entry.cost_price) || 0,
       sale_price: Number(entry.sale_price) || 0,
-      is_active: true
+      is_active: true,
     })
     if (error) throw error
     await fetchPricing()
@@ -179,7 +208,7 @@ function ServicePricingTabCore({ supabase, loading: initialLoading, setLoading }
 
           {/* Content skeleton */}
           <div className="space-y-3">
-            {[1, 2, 3].map(i => (
+            {[1, 2, 3].map((i) => (
               <div key={i} className="h-12 bg-slate-200 rounded animate-pulse"></div>
             ))}
           </div>
@@ -202,7 +231,10 @@ function ServicePricingTabCore({ supabase, loading: initialLoading, setLoading }
           <AlertCircle className="h-5 w-5 text-yellow-600 mt-0.5 flex-shrink-0" />
           <div className="flex-1">
             <h3 className="font-semibold text-yellow-900 mb-2">Database Setup Required</h3>
-            <p className="text-sm text-yellow-800 mb-4">The pricing tables do not exist yet. Run the SQL from scripts/create-pricing-tables.sql in your Supabase project SQL Editor.</p>
+            <p className="text-sm text-yellow-800 mb-4">
+              The pricing tables do not exist yet. Run the SQL from
+              scripts/create-pricing-tables.sql in your Supabase project SQL Editor.
+            </p>
           </div>
         </div>
       </div>
@@ -213,13 +245,16 @@ function ServicePricingTabCore({ supabase, loading: initialLoading, setLoading }
     <div className="p-6">
       <div className="mb-6">
         <h2 className="text-2xl font-bold mb-4">Service Pricing Management</h2>
-        <p className="text-gray-600 mb-4">Add and manage service pricing options. Configure what services you offer and their costs.</p>
-        
+        <p className="text-gray-600 mb-4">
+          Add and manage service pricing options. Configure what services you offer and their costs.
+        </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[240px_1fr] gap-6">
         <aside className="h-fit rounded-lg border bg-white p-3 shadow-sm">
-          <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">Sections</div>
+          <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">
+            Sections
+          </div>
           <nav className="space-y-1">
             {(Object.keys(SECTION_LABELS) as PricingSection[]).map((section) => (
               <button
@@ -240,8 +275,12 @@ function ServicePricingTabCore({ supabase, loading: initialLoading, setLoading }
         <section className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h3 className="text-lg font-semibold text-slate-900">{SECTION_LABELS[activeSection]}</h3>
-              <p className="text-sm text-slate-500">Configure pricing and options for this service.</p>
+              <h3 className="text-lg font-semibold text-slate-900">
+                {SECTION_LABELS[activeSection]}
+              </h3>
+              <p className="text-sm text-slate-500">
+                Configure pricing and options for this service.
+              </p>
             </div>
             <div className="inline-flex rounded-md border bg-white p-1">
               <button
@@ -337,7 +376,9 @@ function ServicePricingTabCore({ supabase, loading: initialLoading, setLoading }
           {activePanel === 'manage' && (
             <div className="rounded-lg border bg-white p-4">
               {activeSection === 'visa' ? (
-                <div className="text-sm text-slate-500">No configurable options for Visa services yet.</div>
+                <div className="text-sm text-slate-500">
+                  No configurable options for Visa services yet.
+                </div>
               ) : (
                 <ManagePricingOptionsTab
                   scope={activeSection}

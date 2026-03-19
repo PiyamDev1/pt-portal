@@ -2,7 +2,7 @@
 
 **Status**: Planning Phase  
 **Created**: March 5, 2026  
-**Target Module**: Nadra Applications  
+**Target Module**: Nadra Applications
 
 ---
 
@@ -15,6 +15,7 @@ Integrate MinIO S3-compatible object storage with Caddy reverse proxy to enable 
 ## 🎯 User Requirements
 
 ### Core Features (MVP)
+
 1. **Document Icon** - Add document/file icon next to family head in Nadra table
 2. **Document Hub Page** - Dedicated page for managing documents per applicant
 3. **MinIO Connection Status** - Display real-time connectivity to MinIO server
@@ -25,6 +26,7 @@ Integrate MinIO S3-compatible object storage with Caddy reverse proxy to enable 
 8. **File Metadata** - Display file name, size, upload date, type
 
 ### Non-MVP Features (Future)
+
 - File categorization/tagging
 - Document sharing/permissions
 - Audit trail/versioning
@@ -55,10 +57,11 @@ dashboard/applications/nadra/
 ```
 
 ### Technology Stack
+
 - **Frontend Framework**: Next.js 14.2 + React 18.x
 - **Styling**: Tailwind CSS
 - **State Management**: React hooks + Context API
-- **File Preview**: 
+- **File Preview**:
   - Images: Native `<img>` preview
   - PDFs: `react-pdf` library
   - Documents: File icon with download option
@@ -73,61 +76,63 @@ dashboard/applications/nadra/
 ### Phase 1: Foundation Setup (Days 1-2)
 
 #### 1.1 Create Type Definitions
+
 **File**: `app/dashboard/applications/nadra/components/DocumentHub/types.ts`
 
 ```typescript
 // Document-related types
 export interface Document {
-  id: string;
-  fileName: string;
-  fileSize: number;
-  fileType: string;
-  uploadedAt: string;
-  uploadedBy: string;
-  applicantId: string;
+  id: string
+  fileName: string
+  fileSize: number
+  fileType: string
+  uploadedAt: string
+  uploadedBy: string
+  applicantId: string
   minio: {
-    bucket: string;
-    key: string;
-    etag: string;
-  };
+    bucket: string
+    key: string
+    etag: string
+  }
   preview?: {
-    thumbnail?: string;
-    previewUrl?: string;
-  };
+    thumbnail?: string
+    previewUrl?: string
+  }
 }
 
 export interface MinioConfig {
-  endpoint: string;
-  accessKey: string;
-  secretKey: string;
-  bucket: string;
-  region: string;
+  endpoint: string
+  accessKey: string
+  secretKey: string
+  bucket: string
+  region: string
 }
 
 export interface UploadProgress {
-  fileId: string;
-  fileName: string;
-  progress: number; // 0-100
-  status: 'pending' | 'uploading' | 'success' | 'error';
-  error?: string;
+  fileId: string
+  fileName: string
+  progress: number // 0-100
+  status: 'pending' | 'uploading' | 'success' | 'error'
+  error?: string
 }
 
 export interface MinioStatus {
-  connected: boolean;
-  ping?: number; // latency in ms
-  timestamp: string;
-  error?: string;
+  connected: boolean
+  ping?: number // latency in ms
+  timestamp: string
+  error?: string
 }
 
 export interface DocumentCategory {
-  id: string;
-  name: string;
-  icon: string;
-  color: string;
+  id: string
+  name: string
+  icon: string
+  color: string
 }
 ```
 
 #### 1.2 Create Placeholder Service Layer
+
 **File**: `lib/services/documentService.ts`
 
 This service will wrap all MinIO interactions with placeholder methods, allowing easy swapping to real implementations.
@@ -135,23 +140,23 @@ This service will wrap all MinIO interactions with placeholder methods, allowing
 ```typescript
 interface DocumentService {
   // Connection
-  checkMinioStatus(): Promise<MinioStatus>;
-  pingMinioServer(endpoint: string): Promise<number>;
+  checkMinioStatus(): Promise<MinioStatus>
+  pingMinioServer(endpoint: string): Promise<number>
 
   // Document Operations
-  uploadDocument(file: File, applicantId: string): Promise<Document>;
-  uploadMultipleDocuments(files: File[], applicantId: string): Promise<Document[]>;
-  getDocuments(applicantId: string): Promise<Document[]>;
-  deleteDocument(documentId: string): Promise<void>;
-  downloadDocument(documentId: string): Promise<Blob>;
+  uploadDocument(file: File, applicantId: string): Promise<Document>
+  uploadMultipleDocuments(files: File[], applicantId: string): Promise<Document[]>
+  getDocuments(applicantId: string): Promise<Document[]>
+  deleteDocument(documentId: string): Promise<void>
+  downloadDocument(documentId: string): Promise<Blob>
 
   // Preview
-  generateThumbnail(document: Document): Promise<string>;
-  getPreviewUrl(document: Document): Promise<string>;
+  generateThumbnail(document: Document): Promise<string>
+  getPreviewUrl(document: Document): Promise<string>
 
   // Configuration
-  getMinioConfig(): Promise<MinioConfig>;
-  validateFileSize(file: File): { valid: boolean; error?: string };
+  getMinioConfig(): Promise<MinioConfig>
+  validateFileSize(file: File): { valid: boolean; error?: string }
 }
 
 export const documentService: DocumentService = {
@@ -160,24 +165,25 @@ export const documentService: DocumentService = {
 ```
 
 #### 1.3 Create MinIO Connection Hook
+
 **File**: `app/hooks/useMinioConnection.ts`
 
 ```typescript
 export const useMinioConnection = () => {
-  const [status, setStatus] = useState<MinioStatus | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [status, setStatus] = useState<MinioStatus | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const checkStatus = useCallback(async () => {
     // Will ping MinIO server and update status
-  }, []);
+  }, [])
 
   useEffect(() => {
     // Check status on mount and every 30 seconds
-  }, []);
+  }, [])
 
-  return { status, loading, error, checkStatus };
-};
+  return { status, loading, error, checkStatus }
+}
 ```
 
 ---
@@ -185,6 +191,7 @@ export const useMinioConnection = () => {
 ### Phase 2: UI Components (Days 3-4)
 
 #### 2.1 MinIO Status Component
+
 **File**: `app/dashboard/applications/nadra/components/DocumentHub/MinioStatus.tsx`
 
 ```
@@ -197,6 +204,7 @@ Display:
 ```
 
 #### 2.2 Document Upload Component
+
 **File**: `app/dashboard/applications/nadra/components/DocumentHub/DocumentUpload.tsx`
 
 ```
@@ -211,6 +219,7 @@ Features:
 ```
 
 #### 2.3 Document Grid Component
+
 **File**: `app/dashboard/applications/nadra/components/DocumentHub/DocumentGrid.tsx`
 
 ```
@@ -226,6 +235,7 @@ Display:
 ```
 
 #### 2.4 Document Preview Component
+
 **File**: `app/dashboard/applications/nadra/components/DocumentHub/DocumentPreview.tsx`
 
 ```
@@ -241,6 +251,7 @@ Right-side Panel:
 ```
 
 #### 2.5 Document Hub Page Layout
+
 **File**: `app/dashboard/applications/nadra/components/DocumentHub/page.tsx`
 
 ```
@@ -258,12 +269,14 @@ Layout:
 ### Phase 3: Integration (Days 5-6)
 
 #### 3.1 Update Nadra Applications Page
+
 **File**: `app/dashboard/applications/nadra/page.tsx`
 
 - Add routing to document hub page
 - Pass applicant context to document component
 
 #### 3.2 Add Document Icon to Table
+
 **File**: `app/dashboard/applications/nadra/components/NadraTable.tsx`
 
 - New column with document icon
@@ -271,9 +284,11 @@ Layout:
 - Badge showing document count (optional)
 
 #### 3.3 Create Route Handler for Placeholder API
+
 **File**: `app/api/documents/[action].ts`
 
 Placeholder endpoints that will be connected to real backend:
+
 - `GET /api/documents/status` - MinIO connection status
 - `POST /api/documents/upload` - Upload document
 - `GET /api/documents/:applicantId` - List documents
@@ -285,23 +300,27 @@ Placeholder endpoints that will be connected to real backend:
 ### Phase 4: Polish & Testing (Days 7-8)
 
 #### 4.1 Error Handling
+
 - Network errors
 - File upload failures
 - Preview generation failures
 - MinIO connection timeouts
 
 #### 4.2 Loading States
+
 - Skeleton loaders for thumbnails
 - Progress indicators for uploads
 - Shimmer effects for grid
 
 #### 4.3 Accessibility
+
 - ARIA labels on all interactive elements
 - Keyboard navigation
 - Alt text for images
 - Screen reader support
 
 #### 4.4 Testing Strategy
+
 - Unit tests for service layer
 - Component tests for UI elements
 - Integration tests for upload flow
@@ -312,6 +331,7 @@ Placeholder endpoints that will be connected to real backend:
 ## 🔌 API Contract (Placeholder)
 
 ### Upload Endpoint
+
 ```typescript
 POST /api/documents/upload
 Content-Type: multipart/form-data
@@ -335,6 +355,7 @@ Response:
 ```
 
 ### Status Endpoint
+
 ```typescript
 GET /api/documents/status
 
@@ -349,6 +370,7 @@ Response:
 ```
 
 ### List Documents Endpoint
+
 ```typescript
 GET /api/documents?applicantId=ID
 
@@ -421,6 +443,7 @@ Response:
 ## 🛠️ Configuration Files
 
 ### MinIO Configuration (Environment Variables)
+
 ```env
 NEXT_PUBLIC_MINIO_ENDPOINT=https://minio.yourdomain.com
 NEXT_PUBLIC_MINIO_BUCKET=nadra-documents
@@ -431,12 +454,13 @@ MINIO_PING_INTERVAL=30000
 ```
 
 ### Caddy Configuration (Example)
+
 ```caddy
 https://minio.yourdomain.com {
   reverse_proxy * http://minio-container:9000 {
     header_up Host {upstream_hostport}
   }
-  
+
   # CORS headers
   @cors_preflight method OPTIONS
   header @cors_preflight Access-Control-Allow-Origin "*"
@@ -450,6 +474,7 @@ https://minio.yourdomain.com {
 ## 📊 Database Schema (Supabase)
 
 ### Documents Table
+
 ```sql
 CREATE TABLE documents (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -464,7 +489,7 @@ CREATE TABLE documents (
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW(),
   is_deleted BOOLEAN DEFAULT FALSE,
-  
+
   CONSTRAINT file_size_check CHECK (file_size <= 1500000)
 );
 
@@ -473,6 +498,7 @@ CREATE INDEX idx_documents_created_at ON documents(created_at DESC);
 ```
 
 ### Document Previews Table (Cache)
+
 ```sql
 CREATE TABLE document_previews (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -534,6 +560,7 @@ When your network engineer completes the MinIO VM setup, follow this checklist:
 ## 📞 Question for Network Engineer
 
 When VM is ready, confirm:
+
 1. MinIO endpoint URL/IP address
 2. Whether Caddy is set up as reverse proxy
 3. SSL certificate setup

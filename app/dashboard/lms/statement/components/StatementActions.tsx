@@ -1,9 +1,10 @@
 import { Download, Printer } from 'lucide-react'
 import { generateCSV, downloadCSV } from '../utils/statementUtils'
 import { memo } from 'react'
+import type { Transaction } from '@/app/types/lms'
 
 interface StatementActionsProps {
-  filteredTransactions: any[]
+  filteredTransactions: Transaction[]
   accountId: string
 }
 

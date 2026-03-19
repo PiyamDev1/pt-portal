@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { documentService } from '@/lib/services/documentService'
+import { apiError } from '@/lib/api/http'
+import { getSignedDocumentPreviewUrl } from '@/lib/services/documentServer'
 
 /**
  * GET /api/documents/[documentId]/download
@@ -8,18 +9,18 @@ import { documentService } from '@/lib/services/documentService'
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ documentId: string }> }
+  { params }: { params: Promise<{ documentId: string }> },
 ) {
   try {
     const { documentId } = await params
 
     if (!documentId) {
-      return NextResponse.json({ error: 'documentId is required' }, { status: 400 })
+      return apiError('documentId is required', 400)
     }
 
-    const url = await documentService.getPreviewUrl(documentId)
+    const url = await getSignedDocumentPreviewUrl(documentId)
     return NextResponse.redirect(url)
   } catch (error) {
-    return NextResponse.json({ error: 'Failed to generate download link' }, { status: 500 })
+    return apiError('Failed to generate download link', 500)
   }
 }

@@ -57,22 +57,22 @@ PT-Portal is an internal business portal for Piyam Travels, managing travel docu
 
 ## Technology Stack
 
-| Layer | Technology | Version |
-|---|---|---|
-| Framework | Next.js | 16.1.6 |
-| UI Runtime | React | 18.3 |
-| Language | TypeScript | 5.3 |
-| Styling | Tailwind CSS | 3.4 |
-| Icons | Lucide React | 0.562 |
-| Database | Supabase (PostgreSQL) | 2.87 |
-| Primary Storage | MinIO (S3-compatible) | — |
-| Fallback Storage | Cloudflare R2 | — |
-| Storage SDK | AWS SDK v3 | 3.1006 |
-| PDF Rendering | pdfjs-dist | 5.5.207 |
-| Toast Notifications | Sonner | 2.0 |
-| Progress Bar | next-nprogress-bar | 2.4 |
-| QR Scanning | jsqr | 1.4 |
-| Deployment | Vercel | — |
+| Layer               | Technology            | Version |
+| ------------------- | --------------------- | ------- |
+| Framework           | Next.js               | 16.1.6  |
+| UI Runtime          | React                 | 18.3    |
+| Language            | TypeScript            | 5.3     |
+| Styling             | Tailwind CSS          | 3.4     |
+| Icons               | Lucide React          | 0.562   |
+| Database            | Supabase (PostgreSQL) | 2.87    |
+| Primary Storage     | MinIO (S3-compatible) | —       |
+| Fallback Storage    | Cloudflare R2         | —       |
+| Storage SDK         | AWS SDK v3            | 3.1006  |
+| PDF Rendering       | pdfjs-dist            | 5.5.207 |
+| Toast Notifications | Sonner                | 2.0     |
+| Progress Bar        | next-nprogress-bar    | 2.4     |
+| QR Scanning         | jsqr                  | 1.4     |
+| Deployment          | Vercel                | —       |
 
 ---
 
@@ -211,6 +211,7 @@ pt-portal/
 ### Admin Authorization
 
 Protected admin routes use `verifyAdminAccess()` from `lib/adminAuth.ts`:
+
 1. Reads `Authorization: Bearer <token>` header
 2. Validates JWT with Supabase service role
 3. Checks `role = 'admin'` in `profiles` table
@@ -224,15 +225,15 @@ See **[technical/STORAGE_SYSTEM.md](../technical/STORAGE_SYSTEM.md)** for the fu
 
 ### Summary
 
-| Aspect | Primary (MinIO) | Fallback (R2) |
-|---|---|---|
-| Server label | EU Server 49v2 | EU Server 45v5 |
-| S3 Endpoint | eu49v2.piyamtravel.com | a09d97...r2.cloudflarestorage.com |
-| Display URL | — | eu45v5.piyamtravel.com |
-| Bucket | portal-documents | portal-fallback |
-| Probe timeout | 2,500 ms | 2,500 ms |
-| Status check interval | 5 minutes | — |
-| Auto-migration | — | On status check + on read |
+| Aspect                | Primary (MinIO)        | Fallback (R2)                     |
+| --------------------- | ---------------------- | --------------------------------- |
+| Server label          | EU Server 49v2         | EU Server 45v5                    |
+| S3 Endpoint           | eu49v2.piyamtravel.com | a09d97...r2.cloudflarestorage.com |
+| Display URL           | —                      | eu45v5.piyamtravel.com            |
+| Bucket                | portal-documents       | portal-fallback                   |
+| Probe timeout         | 2,500 ms               | 2,500 ms                          |
+| Status check interval | 5 minutes              | —                                 |
+| Auto-migration        | —                      | On status check + on read         |
 
 ---
 
@@ -242,18 +243,18 @@ Supabase (PostgreSQL) hosts all application data.
 
 ### Key Tables
 
-| Table | Purpose |
-|---|---|
-| `profiles` | User accounts, roles, employee data |
-| `documents` | Document metadata (key, bucket, size, category, family ref) |
-| `nadra_applications` | NADRA service applications |
-| `passports` | Pakistani passport applications |
-| `gb_passports` | GB passport applications |
-| `visa_applications` | Visa applications |
-| `lms_accounts` | Loan management accounts |
-| `installments` | Individual payment installments |
-| `timeclock_events` | Clock-in/out records |
-| `commissions` | Agent commission records |
+| Table                | Purpose                                                     |
+| -------------------- | ----------------------------------------------------------- |
+| `profiles`           | User accounts, roles, employee data                         |
+| `documents`          | Document metadata (key, bucket, size, category, family ref) |
+| `nadra_applications` | NADRA service applications                                  |
+| `passports`          | Pakistani passport applications                             |
+| `gb_passports`       | GB passport applications                                    |
+| `visa_applications`  | Visa applications                                           |
+| `lms_accounts`       | Loan management accounts                                    |
+| `installments`       | Individual payment installments                             |
+| `timeclock_events`   | Clock-in/out records                                        |
+| `commissions`        | Agent commission records                                    |
 
 ### Document Table (key columns)
 
@@ -277,20 +278,20 @@ documents (
 
 ## Feature Modules
 
-| Module | Routes | Description |
-|---|---|---|
-| Document Hub | `/dashboard/applications/nadra/documents/[id]` | Family document management with MinIO/R2 storage |
-| NADRA | `/dashboard/applications/nadra` | NADRA services ledger, status management |
-| Pakistani Passports | `/dashboard/applications/passports` | PAK passport applications |
-| GB Passports | `/dashboard/applications/passports-gb` | GB passport applications |
-| Visas | `/dashboard/applications/visa` | Visa applications |
-| LMS | `/dashboard/lms` | Loan management, installments, statements |
-| Timeclock | `/dashboard/timeclock` | QR clock-in/out, manual entry, team view |
-| Commissions | `/dashboard/commissions` | Agent commission tracking |
-| Employee Records | `/dashboard/employee-record` | HR records |
-| Pricing | `/dashboard/pricing` | Service pricing management |
-| Settings | `/dashboard/settings` | System configuration |
-| Ticketing | `/dashboard/ticketing` | Support tickets |
+| Module              | Routes                                         | Description                                      |
+| ------------------- | ---------------------------------------------- | ------------------------------------------------ |
+| Document Hub        | `/dashboard/applications/nadra/documents/[id]` | Family document management with MinIO/R2 storage |
+| NADRA               | `/dashboard/applications/nadra`                | NADRA services ledger, status management         |
+| Pakistani Passports | `/dashboard/applications/passports`            | PAK passport applications                        |
+| GB Passports        | `/dashboard/applications/passports-gb`         | GB passport applications                         |
+| Visas               | `/dashboard/applications/visa`                 | Visa applications                                |
+| LMS                 | `/dashboard/lms`                               | Loan management, installments, statements        |
+| Timeclock           | `/dashboard/timeclock`                         | QR clock-in/out, manual entry, team view         |
+| Commissions         | `/dashboard/commissions`                       | Agent commission tracking                        |
+| Employee Records    | `/dashboard/employee-record`                   | HR records                                       |
+| Pricing             | `/dashboard/pricing`                           | Service pricing management                       |
+| Settings            | `/dashboard/settings`                          | System configuration                             |
+| Ticketing           | `/dashboard/ticketing`                         | Support tickets                                  |
 
 ---
 
@@ -300,34 +301,34 @@ documents (
 
 All storage/database clients are module-level singletons — instantiated once per serverless worker lifecycle to maximise connection reuse.
 
-| File | Export | Purpose |
-|---|---|---|
-| `lib/s3Client.ts` | `getS3Client()` | MinIO AWS SDK v3 client |
-| `lib/r2Client.ts` | `getR2Client()`, `isR2Configured()` | Cloudflare R2 client |
+| File                    | Export                                           | Purpose                       |
+| ----------------------- | ------------------------------------------------ | ----------------------------- |
+| `lib/s3Client.ts`       | `getS3Client()`                                  | MinIO AWS SDK v3 client       |
+| `lib/r2Client.ts`       | `getR2Client()`, `isR2Configured()`              | Cloudflare R2 client          |
 | `lib/supabaseClient.ts` | `getSupabaseClient()`, `getSupabaseAnonClient()` | Supabase service/anon clients |
 
 ### Generic Hooks (`hooks/`)
 
-| Hook | Purpose |
-|---|---|
-| `useAsync` | Wrap async operations with loading/error state |
-| `useFormState` | Controlled form field management |
-| `useModal` | Open/close/data state for modals |
-| `usePagination` | Page index + page size management |
-| `useTableFilters` | Column filter state for data tables |
+| Hook              | Purpose                                        |
+| ----------------- | ---------------------------------------------- |
+| `useAsync`        | Wrap async operations with loading/error state |
+| `useFormState`    | Controlled form field management               |
+| `useModal`        | Open/close/data state for modals               |
+| `usePagination`   | Page index + page size management              |
+| `useTableFilters` | Column filter state for data tables            |
 
 ### App Hooks (`app/hooks/`)
 
-| Hook | Purpose |
-|---|---|
-| `useMinioConnection` | Poll `/api/documents/status`, expose `connected`, `ping`, `status` |
-| `useSessionTimeout` | Track session expiry, trigger warning UI |
-| `useVisaFiltering` | Visa table filter/sort state |
-| `useVisaFormState` | Visa application form state |
-| `useStatementData` | LMS statement data loading |
-| `useStatementFilters` | LMS statement filter state |
-| `usePricingOptions` | Pricing option loading |
-| `useSecuritySessions` | Active security session listing |
+| Hook                  | Purpose                                                            |
+| --------------------- | ------------------------------------------------------------------ |
+| `useMinioConnection`  | Poll `/api/documents/status`, expose `connected`, `ping`, `status` |
+| `useSessionTimeout`   | Track session expiry, trigger warning UI                           |
+| `useVisaFiltering`    | Visa table filter/sort state                                       |
+| `useVisaFormState`    | Visa application form state                                        |
+| `useStatementData`    | LMS statement data loading                                         |
+| `useStatementFilters` | LMS statement filter state                                         |
+| `usePricingOptions`   | Pricing option loading                                             |
+| `useSecuritySessions` | Active security session listing                                    |
 
 ---
 
@@ -348,6 +349,7 @@ Implemented in `middleware.ts` using a token-bucket algorithm:
 ### Vercel
 
 The app is deployed on Vercel with:
+
 - Automatic deployments on push to `main`
 - Environment variables set in Vercel project settings
 - `vercel.json` for custom configuration
@@ -379,33 +381,35 @@ npm run build   # next build (Turbopack)
 npm run dev     # next dev (local)
 npm run lint    # eslint
 ```
-│   ├── lms/                      # Loan management system
-│   ├── pricing/                  # Pricing management
-│   └── settings/                 # Settings & admin
+
+│ ├── lms/ # Loan management system
+│ ├── pricing/ # Pricing management
+│ └── settings/ # Settings & admin
 │
-├── hooks/                        # Custom React hooks
-│   ├── useLmsData.ts            # Loan data fetching
-│   ├── usePricingOptions.ts     # Pricing state management
-│   └── ... other hooks
+├── hooks/ # Custom React hooks
+│ ├── useLmsData.ts # Loan data fetching
+│ ├── usePricingOptions.ts # Pricing state management
+│ └── ... other hooks
 │
-├── lib/                          # Utilities & helpers
-│   ├── errorHandler.ts          # Error handling
-│   ├── pricingOptions.ts        # Pricing constants
-│   └── ... other utilities
+├── lib/ # Utilities & helpers
+│ ├── errorHandler.ts # Error handling
+│ ├── pricingOptions.ts # Pricing constants
+│ └── ... other utilities
 │
-├── types/                        # TypeScript type definitions
-│   ├── pricing.ts               # Pricing types
-│   ├── application.ts           # Application types
-│   └── ... other types
+├── types/ # TypeScript type definitions
+│ ├── pricing.ts # Pricing types
+│ ├── application.ts # Application types
+│ └── ... other types
 │
-├── auth/                         # Authentication pages
-│   ├── login/
-│   └── setup-2fa/
+├── auth/ # Authentication pages
+│ ├── login/
+│ └── setup-2fa/
 │
-├── layout.tsx                    # Root layout
-├── page.tsx                      # Home page
-└── globals.css                   # Global styles
-```
+├── layout.tsx # Root layout
+├── page.tsx # Home page
+└── globals.css # Global styles
+
+````
 
 ---
 
@@ -429,12 +433,13 @@ export default async function DashboardPage() {
   const cookieStore = await cookies()
   const supabase = createServerClient(...)
   const { data } = await supabase.auth.getSession()
-  
+
   return <div>Welcome {data.session?.user.email}</div>
 }
-```
+````
 
 #### Client Components
+
 - Start with `'use client'` directive
 - Run in user's browser
 - Can use React hooks (useState, useEffect, etc.)
@@ -449,9 +454,9 @@ import { useState } from 'react'
 
 export default function SearchFilter() {
   const [search, setSearch] = useState('')
-  
+
   return (
-    <input 
+    <input
       value={search}
       onChange={(e) => setSearch(e.target.value)}
     />
@@ -482,11 +487,13 @@ DashboardPage (Server Component)
 ## 🔌 Data Flow (Example: LMS)
 
 ### Step 1: User Navigates to LMS
+
 ```
 Browser → /dashboard/lms → Next.js Router
 ```
 
 ### Step 2: Server Component Loads
+
 ```
 Server Component (page.tsx)
 ├── Authenticate user
@@ -495,6 +502,7 @@ Server Component (page.tsx)
 ```
 
 ### Step 3: Client Component Initializes
+
 ```
 Client Component (client.tsx)
 ├── Mount with React.memo (prevent re-renders)
@@ -504,6 +512,7 @@ Client Component (client.tsx)
 ```
 
 ### Step 4: Data Fetching
+
 ```
 useCallback(() => {
   supabase.from('accounts')
@@ -514,6 +523,7 @@ useCallback(() => {
 ```
 
 ### Step 5: Display Data
+
 ```
 Component renders:
 ├── Table with accounts
@@ -523,6 +533,7 @@ Component renders:
 ```
 
 ### Step 6: User Interaction
+
 ```
 User clicks → Button → Handler function
 → API call → Supabase update → Re-fetch data
@@ -534,21 +545,23 @@ User clicks → Button → Handler function
 ## 🎣 Custom Hooks (State Management)
 
 ### `useLmsData` Hook
+
 **Purpose**: Fetch loan account data with pagination and filtering
 
 ```typescript
-const { 
-  accounts,      // Array of accounts
-  loading,       // Is loading?
-  error,         // Error message
-  total,         // Total account count
-  currentPage,   // Current page number
+const {
+  accounts, // Array of accounts
+  loading, // Is loading?
+  error, // Error message
+  total, // Total account count
+  currentPage, // Current page number
   fetchAccounts, // Manual fetch function
-  setFilter,     // Update search filter
+  setFilter, // Update search filter
 } = useLmsData(supabase)
 ```
 
 **How it Works:**
+
 1. Takes Supabase client as input
 2. Maintains state for: accounts, loading, current filter
 3. Uses `useRef` to track previous filter (prevents infinite loops)
@@ -556,24 +569,26 @@ const {
 5. Returns all needed data and functions
 
 ### `usePricingOptions` Hook
+
 **Purpose**: Manage pricing data and edit state
 
 ```typescript
 const {
-  nadraPricing,    // Array of NADRA prices
-  pkPassPricing,   // Array of Pakistan passport prices
-  gbPassPricing,   // Array of GB passport prices
-  visaPricing,     // Array of visa prices
-  editingId,       // Currently editing ID
-  editValues,      // Edit form values
-  fetchPricing,    // Fetch all pricing data
-  handleEdit,      // Start editing
-  handleSave,      // Save changes
-  handleDelete,    // Delete pricing entry
+  nadraPricing, // Array of NADRA prices
+  pkPassPricing, // Array of Pakistan passport prices
+  gbPassPricing, // Array of GB passport prices
+  visaPricing, // Array of visa prices
+  editingId, // Currently editing ID
+  editValues, // Edit form values
+  fetchPricing, // Fetch all pricing data
+  handleEdit, // Start editing
+  handleSave, // Save changes
+  handleDelete, // Delete pricing entry
 } = usePricingOptions(supabase)
 ```
 
 ### Hook Best Practices
+
 ```typescript
 // ✅ GOOD: Memoize hook functions to prevent infinite loops
 const fetchData = useCallback(async () => { ... }, [supabase])
@@ -598,11 +613,13 @@ useEffect(() => { fetchData() }, [])  // Won't react to prop changes
 ### Creating a New API Route
 
 **File Structure:**
+
 ```
 app/api/my-feature/route.js (or route.ts for TypeScript)
 ```
 
 **Example: Get Loan Accounts**
+
 ```javascript
 import { createServerClient } from '@supabase/auth-helpers-nextjs'
 import { NextResponse } from 'next/server'
@@ -611,12 +628,14 @@ export async function GET(req) {
   // 1. Create Supabase client
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
   )
 
   try {
     // 2. Authenticate
-    const { data: { session } } = await supabase.auth.getSession()
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     // 3. Get parameters from URL
@@ -638,14 +657,11 @@ export async function GET(req) {
       data,
       total: count,
       page,
-      limit
+      limit,
     })
   } catch (error) {
     console.error('API Error:', error)
-    return NextResponse.json(
-      { error: error.message },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
 ```
@@ -653,11 +669,13 @@ export async function GET(req) {
 ### API Route Patterns
 
 **GET** - Fetch data
+
 ```javascript
 export async function GET(req) { ... }
 ```
 
 **POST** - Create data
+
 ```javascript
 export async function POST(req) {
   const body = await req.json()
@@ -666,6 +684,7 @@ export async function POST(req) {
 ```
 
 **PUT** - Update data
+
 ```javascript
 export async function PUT(req) {
   const body = await req.json()
@@ -674,6 +693,7 @@ export async function PUT(req) {
 ```
 
 **DELETE** - Delete data
+
 ```javascript
 export async function DELETE(req) {
   const id = searchParams.get('id')
@@ -686,6 +706,7 @@ export async function DELETE(req) {
 ## 🎨 Styling
 
 ### Tailwind CSS Usage
+
 PT-Portal uses **Tailwind CSS** for styling (no separate CSS files).
 
 ```typescript
@@ -697,7 +718,7 @@ export function Button({ variant = 'primary', children }) {
     secondary: 'bg-gray-200 text-gray-900 hover:bg-gray-300',
     danger: 'bg-red-600 text-white hover:bg-red-700'
   }
-  
+
   return (
     <button className={`${baseStyles} ${variants[variant]}`}>
       {children}
@@ -707,24 +728,26 @@ export function Button({ variant = 'primary', children }) {
 ```
 
 ### Common Tailwind Classes
-| Class | Effect |
-|-------|--------|
-| `px-4 py-2` | Padding |
-| `rounded` | Border radius |
-| `bg-blue-600` | Background color |
-| `text-white` | Text color |
-| `hover:bg-blue-700` | Hover effect |
-| `flex items-center justify-between` | Flexbox layout |
-| `grid grid-cols-3 gap-4` | Grid layout |
-| `md:flex lg:grid` | Responsive design |
-| `animate-spin` | Animation |
-| `opacity-50` | Transparency |
+
+| Class                               | Effect            |
+| ----------------------------------- | ----------------- |
+| `px-4 py-2`                         | Padding           |
+| `rounded`                           | Border radius     |
+| `bg-blue-600`                       | Background color  |
+| `text-white`                        | Text color        |
+| `hover:bg-blue-700`                 | Hover effect      |
+| `flex items-center justify-between` | Flexbox layout    |
+| `grid grid-cols-3 gap-4`            | Grid layout       |
+| `md:flex lg:grid`                   | Responsive design |
+| `animate-spin`                      | Animation         |
+| `opacity-50`                        | Transparency      |
 
 ---
 
 ## 🔐 Authentication & Authorization
 
 ### Authentication Flow
+
 ```
 1. User visits /login
 2. Enters email/password
@@ -737,31 +760,34 @@ export function Button({ variant = 'primary', children }) {
 ```
 
 ### Protected Pages
+
 ```typescript
 // Server component - check auth
 export default async function ProtectedPage() {
   const { data: { session } } = await supabase.auth.getSession()
-  
+
   if (!session) {
     redirect('/login')  // Force login
   }
-  
+
   return <Content userId={session.user.id} />
 }
 ```
 
 ### Authorization Levels
-| Level | Permissions |
-|-------|-------------|
-| **User** | View own data, edit own applications |
-| **Manager** | Manage team data, change statuses |
-| **Admin** | All access, system configuration |
+
+| Level       | Permissions                          |
+| ----------- | ------------------------------------ |
+| **User**    | View own data, edit own applications |
+| **Manager** | Manage team data, change statuses    |
+| **Admin**   | All access, system configuration     |
 
 ---
 
 ## 🐛 Debugging Tips
 
 ### Console Logging
+
 ```typescript
 // In client component
 console.log('User data:', userData)
@@ -770,6 +796,7 @@ console.log('User data:', userData)
 ```
 
 ### React DevTools
+
 1. Install extension: React Developer Tools
 2. Open DevTools (F12)
 3. Go to "React" tab
@@ -777,6 +804,7 @@ console.log('User data:', userData)
 5. View props and state
 
 ### Network Tab Debugging
+
 1. Open DevTools (F12)
 2. Go to "Network" tab
 3. Make API call
@@ -787,11 +815,12 @@ console.log('User data:', userData)
    - Status code
 
 ### Performance Profiling
+
 ```typescript
 // Measure render time
 console.time('render')
 // ...code...
-console.timeEnd('render')  // Shows milliseconds
+console.timeEnd('render') // Shows milliseconds
 ```
 
 ---
@@ -801,6 +830,7 @@ console.timeEnd('render')  // Shows milliseconds
 ### Key Tables
 
 #### `accounts`
+
 ```sql
 id: UUID
 customer_name: VARCHAR
@@ -814,6 +844,7 @@ is_active: BOOLEAN
 ```
 
 #### `transactions`
+
 ```sql
 id: UUID
 account_id: UUID (FK)
@@ -825,6 +856,7 @@ created_at: TIMESTAMP
 ```
 
 #### `applications`
+
 ```sql
 id: UUID
 customer_name: VARCHAR
@@ -841,7 +873,9 @@ updated_at: TIMESTAMP
 ### Step-by-Step Example: Add "Export to Excel"
 
 #### 1. Create API Endpoint
+
 **File:** `app/api/accounts/export/route.js`
+
 ```javascript
 export async function POST(req) {
   const { ids } = await req.json()
@@ -852,28 +886,32 @@ export async function POST(req) {
 ```
 
 #### 2. Create Hook for Export
+
 **File:** `app/hooks/useExportAccounts.ts`
+
 ```typescript
 export const useExportAccounts = () => {
   const [exporting, setExporting] = useState(false)
-  
+
   const exportToExcel = async (accountIds) => {
     setExporting(true)
     const response = await fetch('/api/accounts/export', {
       method: 'POST',
-      body: JSON.stringify({ ids: accountIds })
+      body: JSON.stringify({ ids: accountIds }),
     })
     const blob = await response.blob()
     // Download blob as file
     setExporting(false)
   }
-  
+
   return { exportToExcel, exporting }
 }
 ```
 
 #### 3. Add UI Button
+
 **File:** `app/dashboard/lms/client.tsx`
+
 ```typescript
 'use client'
 
@@ -882,7 +920,7 @@ import { useExportAccounts } from '@/app/hooks/useExportAccounts'
 export default function LMSClient() {
   const { exportToExcel, exporting } = useExportAccounts()
   const [selectedIds, setSelectedIds] = useState([])
-  
+
   return (
     <>
       <button
@@ -901,6 +939,7 @@ export default function LMSClient() {
 ## ✅ Code Quality Standards
 
 ### TypeScript Usage
+
 ```typescript
 // ✅ Define types for props
 interface ButtonProps {
@@ -917,6 +956,7 @@ function handleData(data: any) { ... }
 ```
 
 ### Error Handling
+
 ```typescript
 // ✅ Proper error handling
 try {
@@ -935,16 +975,15 @@ return await result.json()
 ```
 
 ### Code Comments
+
 ```typescript
 // ✅ Explain WHY, not WHAT
 // Filter out duplicate accounts because the API returns them
-const uniqueAccounts = accounts.filter((a, i) => 
-  accounts.indexOf(a) === i
-)
+const uniqueAccounts = accounts.filter((a, i) => accounts.indexOf(a) === i)
 
 // ❌ Obvious comments
 // Loop through accounts
-accounts.forEach(account => {
+accounts.forEach((account) => {
   // Update account
   updateAccount(account)
 })
@@ -955,6 +994,7 @@ accounts.forEach(account => {
 ## 📚 Learning Resources
 
 ### Official Documentation
+
 - [Next.js Docs](https://nextjs.org/docs)
 - [React Docs](https://react.dev)
 - [TypeScript Handbook](https://www.typescriptlang.org/docs/)
@@ -962,6 +1002,7 @@ accounts.forEach(account => {
 - [Tailwind CSS](https://tailwindcss.com/docs)
 
 ### Development Workflow
+
 1. Create feature branch: `git checkout -b feature/my-feature`
 2. Make changes and test locally
 3. Commit with clear messages: `git commit -m "Add export feature"`
@@ -975,12 +1016,14 @@ accounts.forEach(account => {
 ## 🎯 Performance Optimization
 
 ### React.memo for Components
+
 ```typescript
 // Prevent re-renders when props haven't changed
 export default memo(AccountsList)
 ```
 
 ### useCallback for Functions
+
 ```typescript
 // Prevent function recreation
 const handleEdit = useCallback((id) => {
@@ -989,15 +1032,14 @@ const handleEdit = useCallback((id) => {
 ```
 
 ### useMemo for Expensive Computations
+
 ```typescript
 // Cache calculation result
-const memoizedFilter = useMemo(() => 
-  applyFilters(data, filters),
-  [data, filters]
-)
+const memoizedFilter = useMemo(() => applyFilters(data, filters), [data, filters])
 ```
 
 ### Lazy Loading Components
+
 ```typescript
 // Load component only when needed
 const HeavyComponent = dynamic(() => import('./Heavy'))
@@ -1008,12 +1050,13 @@ const HeavyComponent = dynamic(() => import('./Heavy'))
 ## 🔄 Common Patterns
 
 ### Pagination Pattern
+
 ```typescript
 const [page, setPage] = useState(1)
 const limit = 50
 
-const handleNextPage = () => setPage(p => p + 1)
-const handlePrevPage = () => setPage(p => Math.max(1, p - 1))
+const handleNextPage = () => setPage((p) => p + 1)
+const handlePrevPage = () => setPage((p) => Math.max(1, p - 1))
 
 // Fetch data
 useEffect(() => {
@@ -1022,20 +1065,18 @@ useEffect(() => {
 ```
 
 ### Search Filter Pattern
+
 ```typescript
 const [search, setSearch] = useState('')
 const [filtered, setFiltered] = useState(data)
 
 useEffect(() => {
-  setFiltered(
-    data.filter(item =>
-      item.name.toLowerCase().includes(search.toLowerCase())
-    )
-  )
+  setFiltered(data.filter((item) => item.name.toLowerCase().includes(search.toLowerCase())))
 }, [search, data])
 ```
 
 ### Modal Pattern
+
 ```typescript
 const [isOpen, setIsOpen] = useState(false)
 

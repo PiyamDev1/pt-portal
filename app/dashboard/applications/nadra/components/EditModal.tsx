@@ -1,14 +1,15 @@
 import { useEffect, useRef, memo } from 'react'
+import type { NadraEditFormData, NadraEditType } from '@/app/types/nadra'
 
 interface EditModalProps {
   isOpen: boolean
-  editType: 'application' | 'family_head' | null
-  editFormData: any
+  editType: NadraEditType | null
+  editFormData: NadraEditFormData
   deleteAuthCode: string
   agentOptions: { id: string; name: string }[]
   canChangeAgent: boolean
   serviceOptionOptions: string[]
-  onInputChange: (name: string, value: any) => void
+  onInputChange: (name: keyof NadraEditFormData, value: string | boolean) => void
   onAuthCodeChange: (code: string) => void
   onSave: () => void
   onDelete: () => void
@@ -27,7 +28,7 @@ function EditModalContent({
   onAuthCodeChange,
   onSave,
   onDelete,
-  onClose
+  onClose,
 }: EditModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null)
 
@@ -53,12 +54,24 @@ function EditModalContent({
 
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
-      <div ref={dialogRef} className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[90vh]" role="dialog" aria-modal="true" aria-label={editType === 'family_head' ? 'Modify family head' : 'Modify application'} tabIndex={-1}>
+      <div
+        ref={dialogRef}
+        className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+        role="dialog"
+        aria-modal="true"
+        aria-label={editType === 'family_head' ? 'Modify family head' : 'Modify application'}
+        tabIndex={-1}
+      >
         <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
           <h3 className="font-bold text-slate-800">
             {editType === 'family_head' ? 'Modify Family Head' : 'Modify Application'}
           </h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600" type="button" aria-label="Close edit dialog">
+          <button
+            onClick={onClose}
+            className="text-slate-400 hover:text-slate-600"
+            type="button"
+            aria-label="Close edit dialog"
+          >
             ✕
           </button>
         </div>
@@ -71,7 +84,12 @@ function EditModalContent({
             </h4>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label htmlFor="edit-firstName" className="text-[10px] font-bold uppercase text-slate-400">First Name</label>
+                <label
+                  htmlFor="edit-firstName"
+                  className="text-[10px] font-bold uppercase text-slate-400"
+                >
+                  First Name
+                </label>
                 <input
                   id="edit-firstName"
                   name="firstName"
@@ -83,7 +101,12 @@ function EditModalContent({
                 />
               </div>
               <div>
-                <label htmlFor="edit-lastName" className="text-[10px] font-bold uppercase text-slate-400">Last Name</label>
+                <label
+                  htmlFor="edit-lastName"
+                  className="text-[10px] font-bold uppercase text-slate-400"
+                >
+                  Last Name
+                </label>
                 <input
                   id="edit-lastName"
                   name="lastName"
@@ -106,19 +129,30 @@ function EditModalContent({
               <div className="col-span-2">
                 <label className="text-[10px] font-bold uppercase text-slate-400 flex justify-between">
                   <span>CNIC (Read Only)</span>
-                  <span className="text-[9px] text-amber-600 bg-amber-50 px-1 rounded">🔒 Locked</span>
+                  <span className="text-[9px] text-amber-600 bg-amber-50 px-1 rounded">
+                    🔒 Locked
+                  </span>
                 </label>
                 <input
                   className={`w-full border rounded p-2 text-sm font-mono ${editFormData.newBorn ? 'bg-slate-100 cursor-not-allowed' : 'bg-slate-100 text-slate-500 cursor-not-allowed'}`}
                   value={editFormData.cnic || ''}
                   readOnly={!editFormData.newBorn}
                   disabled={editFormData.newBorn}
-                  title={editFormData.newBorn ? 'Citizen number disabled for newborn flow' : 'CNIC cannot be edited to prevent database corruption'}
+                  title={
+                    editFormData.newBorn
+                      ? 'Citizen number disabled for newborn flow'
+                      : 'CNIC cannot be edited to prevent database corruption'
+                  }
                 />
               </div>
               {editType === 'family_head' && (
                 <div className="col-span-2">
-                  <label htmlFor="edit-phone" className="text-[10px] font-bold uppercase text-slate-400">Phone Number</label>
+                  <label
+                    htmlFor="edit-phone"
+                    className="text-[10px] font-bold uppercase text-slate-400"
+                  >
+                    Phone Number
+                  </label>
                   <input
                     id="edit-phone"
                     name="phone"
@@ -132,7 +166,12 @@ function EditModalContent({
               )}
               {editType === 'application' && (
                 <div className="col-span-2">
-                  <label htmlFor="edit-email" className="text-[10px] font-bold uppercase text-slate-400">Email Address</label>
+                  <label
+                    htmlFor="edit-email"
+                    className="text-[10px] font-bold uppercase text-slate-400"
+                  >
+                    Email Address
+                  </label>
                   <input
                     id="edit-email"
                     name="email"
@@ -158,7 +197,9 @@ function EditModalContent({
                   <label className="text-[10px] font-bold uppercase text-slate-400 flex items-center justify-between">
                     <span>Assigned Agent</span>
                     {!canChangeAgent && (
-                      <span className="text-[9px] text-amber-600 bg-amber-50 px-1 rounded">Manager only</span>
+                      <span className="text-[9px] text-amber-600 bg-amber-50 px-1 rounded">
+                        Manager only
+                      </span>
                     )}
                   </label>
                   {canChangeAgent ? (
@@ -185,7 +226,9 @@ function EditModalContent({
                   )}
                 </div>
                 <div className="col-span-2">
-                  <label className="text-[10px] font-bold uppercase text-slate-400">Service Option</label>
+                  <label className="text-[10px] font-bold uppercase text-slate-400">
+                    Service Option
+                  </label>
                   <select
                     className="w-full border rounded p-2 text-sm bg-white"
                     value={editFormData.serviceOption || ''}
@@ -195,13 +238,20 @@ function EditModalContent({
                       <option value="">Loading options...</option>
                     ) : (
                       serviceOptionOptions.map((opt) => (
-                        <option key={opt} value={opt}>{opt}</option>
+                        <option key={opt} value={opt}>
+                          {opt}
+                        </option>
                       ))
                     )}
                   </select>
                 </div>
                 <div>
-                  <label htmlFor="edit-trackingNumber" className="text-[10px] font-bold uppercase text-slate-400">Tracking ID</label>
+                  <label
+                    htmlFor="edit-trackingNumber"
+                    className="text-[10px] font-bold uppercase text-slate-400"
+                  >
+                    Tracking ID
+                  </label>
                   <input
                     id="edit-trackingNumber"
                     name="trackingNumber"
@@ -213,7 +263,12 @@ function EditModalContent({
                   />
                 </div>
                 <div>
-                  <label htmlFor="edit-pin" className="text-[10px] font-bold uppercase text-slate-400">PIN</label>
+                  <label
+                    htmlFor="edit-pin"
+                    className="text-[10px] font-bold uppercase text-slate-400"
+                  >
+                    PIN
+                  </label>
                   <input
                     id="edit-pin"
                     name="pin"
@@ -249,7 +304,9 @@ function EditModalContent({
                 Deleting this record is permanent. Please enter your Auth Code to confirm.
               </p>
               <div className="flex gap-2">
-                <label htmlFor="nadra-delete-auth" className="sr-only">Auth code</label>
+                <label htmlFor="nadra-delete-auth" className="sr-only">
+                  Auth code
+                </label>
                 <input
                   id="nadra-delete-auth"
                   type="password"

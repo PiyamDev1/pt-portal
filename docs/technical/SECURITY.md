@@ -61,11 +61,11 @@ PT-Portal uses **Supabase Auth** (PostgreSQL-backed JWT sessions).
 
 ### Backup Codes
 
-| Endpoint | Method | Purpose |
-|---|---|---|
-| `/api/auth/generate-backup-codes` | POST | Generate a fresh set of backup codes |
-| `/api/auth/backup-codes/count` | GET | How many unused codes remain |
-| `/api/auth/consume-backup-code` | POST | Use one backup code (single-use) |
+| Endpoint                          | Method | Purpose                              |
+| --------------------------------- | ------ | ------------------------------------ |
+| `/api/auth/generate-backup-codes` | POST   | Generate a fresh set of backup codes |
+| `/api/auth/backup-codes/count`    | GET    | How many unused codes remain         |
+| `/api/auth/consume-backup-code`   | POST   | Use one backup code (single-use)     |
 
 Backup codes are stored hashed in Supabase. Each code is consumed on use — once all are used, the user must regenerate.
 
@@ -117,11 +117,11 @@ Request → API route handler
 
 ### Roles
 
-| Role | Access |
-|---|---|
-| `admin` | All admin endpoints, staff management, LMS seeding, data migrations |
-| (standard) | Dashboard, documents, applications — scoped to own data |
-| `super_admin` | Implied by Supabase service role — used server-side only |
+| Role          | Access                                                              |
+| ------------- | ------------------------------------------------------------------- |
+| `admin`       | All admin endpoints, staff management, LMS seeding, data migrations |
+| (standard)    | Dashboard, documents, applications — scoped to own data             |
+| `super_admin` | Implied by Supabase service role — used server-side only            |
 
 ### Usage in a Route
 
@@ -140,13 +140,13 @@ Implemented in `middleware.ts` applied to all `/api/**` routes.
 
 ### Algorithm: Token Bucket (per IP + User-Agent)
 
-| Parameter | Value |
-|---|---|
-| Window | 60 seconds |
-| Max requests | 60 per window |
-| Key | `{x-forwarded-for}:{user-agent}` |
-| Response on breach | `429 Too Many Requests` |
-| `Retry-After` header | `60` (seconds) |
+| Parameter            | Value                            |
+| -------------------- | -------------------------------- |
+| Window               | 60 seconds                       |
+| Max requests         | 60 per window                    |
+| Key                  | `{x-forwarded-for}:{user-agent}` |
+| Response on breach   | `429 Too Many Requests`          |
+| `Retry-After` header | `60` (seconds)                   |
 
 ### Behaviour
 
@@ -165,6 +165,7 @@ Implemented in `middleware.ts` applied to all `/api/**` routes.
 ### Login Protection
 
 The `/api/auth/**` path is within the rate-limited scope, providing protection against:
+
 - Password brute-force attacks
 - 2FA code enumeration
 - Backup code stuffing
@@ -173,11 +174,11 @@ The `/api/auth/**` path is within the rate-limited scope, providing protection a
 
 ## Password Management
 
-| Endpoint | Purpose |
-|---|---|
-| `/api/auth/update-password` | Authenticated user changes their own password |
-| `/api/admin/reset-password` | Admin resets another user's password |
-| `/app/auth/new-password` | Page for password reset via email link (Supabase magic link flow) |
+| Endpoint                    | Purpose                                                           |
+| --------------------------- | ----------------------------------------------------------------- |
+| `/api/auth/update-password` | Authenticated user changes their own password                     |
+| `/api/admin/reset-password` | Admin resets another user's password                              |
+| `/app/auth/new-password`    | Page for password reset via email link (Supabase magic link flow) |
 
 Passwords are not stored by PT-Portal — all password hashing is handled by Supabase Auth (bcrypt internally).
 
@@ -204,6 +205,7 @@ This runs non-blocking on every status check that finds MinIO online.
 ### Next.js / Vercel Headers
 
 Standard Next.js security headers apply. For production hardening, `next.config.js` can be extended with `headers()` to add:
+
 - `X-Content-Type-Options: nosniff`
 - `X-Frame-Options: DENY`
 - `Strict-Transport-Security`
@@ -215,15 +217,15 @@ These are not currently explicitly set — Vercel's platform provides some defau
 
 ## OWASP Considerations
 
-| Threat | Mitigation in PT-Portal |
-|---|---|
-| **Broken Access Control** | Supabase RLS policies on all tables; `verifyAdminAccess` on admin routes; session middleware on all dashboard pages |
-| **Cryptographic Failures** | HTTPS enforced by Vercel; Supabase manages password hashing; JWT tokens signed by Supabase |
-| **Injection (SQL)** | Supabase client uses parameterised queries; no raw SQL string interpolation in routes |
-| **Injection (XSS)** | React's JSX auto-escapes output; no `dangerouslySetInnerHTML` usage |
-| **Insecure Design** | Soft deletes preserve audit trail; migration logic is copy-first-then-delete |
+| Threat                        | Mitigation in PT-Portal                                                                                                       |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| **Broken Access Control**     | Supabase RLS policies on all tables; `verifyAdminAccess` on admin routes; session middleware on all dashboard pages           |
+| **Cryptographic Failures**    | HTTPS enforced by Vercel; Supabase manages password hashing; JWT tokens signed by Supabase                                    |
+| **Injection (SQL)**           | Supabase client uses parameterised queries; no raw SQL string interpolation in routes                                         |
+| **Injection (XSS)**           | React's JSX auto-escapes output; no `dangerouslySetInnerHTML` usage                                                           |
+| **Insecure Design**           | Soft deletes preserve audit trail; migration logic is copy-first-then-delete                                                  |
 | **Security Misconfiguration** | `.env.local` is gitignored; service role key never exposed to client; `NEXT_PUBLIC_` prefix only on intentionally public vars |
-| **Vulnerable Components** | `npm audit` run after each install; `npm audit fix` used to patch dependencies |
-| **Auth Failures** | 2FA enforced; backup codes single-use; session expiry warnings; rate limiting on auth endpoints |
-| **SSRF** | Storage endpoints use fixed server-side env var URLs — no user-supplied URLs are fetched |
-| **Logging Failures** | Server errors logged to Vercel; `[PdfThumbnail]` errors logged client-side for debugging |
+| **Vulnerable Components**     | `npm audit` run after each install; `npm audit fix` used to patch dependencies                                                |
+| **Auth Failures**             | 2FA enforced; backup codes single-use; session expiry warnings; rate limiting on auth endpoints                               |
+| **SSRF**                      | Storage endpoints use fixed server-side env var URLs — no user-supplied URLs are fetched                                      |
+| **Logging Failures**          | Server errors logged to Vercel; `[PdfThumbnail]` errors logged client-side for debugging                                      |

@@ -33,6 +33,7 @@ export interface Transaction {
   amount: number | string
   description: string | null
   created_at: string
+  transaction_timestamp?: string
   loan_id?: string
 }
 

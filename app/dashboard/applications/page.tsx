@@ -17,7 +17,7 @@ type QueryWarning = {
 
 async function runLabeledQuery<T>(
   label: string,
-  query: PromiseLike<{ data: T | null; error: { message?: string } | null }>
+  query: PromiseLike<{ data: T | null; error: { message?: string } | null }>,
 ): Promise<QueryResult<T>> {
   const { data, error } = await query
   if (error) throw new Error(`${label}: ${error.message || 'query failed'}`)
@@ -27,14 +27,20 @@ async function runLabeledQuery<T>(
 function getSuccessfulData<T>(
   settled: PromiseSettledResult<QueryResult<T>>[],
   label: string,
-  warnings: QueryWarning[]
+  warnings: QueryWarning[],
 ): T {
   const hit = settled.find((entry) => entry.status === 'fulfilled' && entry.value.label === label)
   if (hit && hit.status === 'fulfilled') {
     return hit.value.data
   }
 
-  const failed = settled.find((entry) => entry.status === 'rejected' && String(entry.reason || '').toLowerCase().includes(label.toLowerCase()))
+  const failed = settled.find(
+    (entry) =>
+      entry.status === 'rejected' &&
+      String(entry.reason || '')
+        .toLowerCase()
+        .includes(label.toLowerCase()),
+  )
   if (failed && failed.status === 'rejected') {
     warnings.push({ label, message: String(failed.reason) })
   } else {
@@ -48,10 +54,19 @@ export default async function ApplicationsHubPage() {
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: { getAll() { return cookieStore.getAll() }, setAll() {} } }
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll()
+        },
+        setAll() {},
+      },
+    },
   )
 
-  const { data: { session } } = await supabase.auth.getSession()
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
   if (!session) redirect('/login')
 
   const { data: employee } = await supabase
@@ -65,75 +80,163 @@ export default async function ApplicationsHubPage() {
 
   // All-settled loading keeps the dashboard operational even when one module query fails.
   const settled = await Promise.allSettled([
-    runLabeledQuery('nadraStatuses', supabase.from('nadra_services').select('id, status, created_at')),
-    runLabeledQuery('pakStatuses', supabase.from('pakistani_passport_applications').select('id, status, created_at')),
-    runLabeledQuery('gbStatuses', supabase.from('british_passport_applications').select('id, status, created_at')),
-    runLabeledQuery('visaStatuses', supabase.from('visa_applications').select('id, status, created_at')),
+    runLabeledQuery(
+      'nadraStatuses',
+      supabase.from('nadra_services').select('id, status, created_at'),
+    ),
+    runLabeledQuery(
+      'pakStatuses',
+      supabase.from('pakistani_passport_applications').select('id, status, created_at'),
+    ),
+    runLabeledQuery(
+      'gbStatuses',
+      supabase.from('british_passport_applications').select('id, status, created_at'),
+    ),
+    runLabeledQuery(
+      'visaStatuses',
+      supabase.from('visa_applications').select('id, status, created_at'),
+    ),
 
-    runLabeledQuery('nadraRecent', supabase.from('applications').select(`
+    runLabeledQuery(
+      'nadraRecent',
+      supabase
+        .from('applications')
+        .select(
+          `
       id, tracking_number, created_at,
       applicants:applicants!applications_applicant_id_fkey(first_name, last_name),
       nadra_services!inner(id, status, service_type, created_at, tracking_number)
-    `).order('created_at', { ascending: false }).limit(16)),
+    `,
+        )
+        .order('created_at', { ascending: false })
+        .limit(16),
+    ),
 
-    runLabeledQuery('pakRecent', supabase.from('applications').select(`
+    runLabeledQuery(
+      'pakRecent',
+      supabase
+        .from('applications')
+        .select(
+          `
       id, tracking_number, created_at,
       applicants:applicants!applications_applicant_id_fkey(first_name, last_name),
       pakistani_passport_applications!inner(id, status, application_type, created_at)
-    `).order('created_at', { ascending: false }).limit(16)),
+    `,
+        )
+        .order('created_at', { ascending: false })
+        .limit(16),
+    ),
 
-    runLabeledQuery('gbRecent', supabase.from('british_passport_applications').select(`
+    runLabeledQuery(
+      'gbRecent',
+      supabase
+        .from('british_passport_applications')
+        .select(
+          `
       id, status, created_at,
       applicants(first_name, last_name),
       applications(id, tracking_number)
-    `).order('created_at', { ascending: false }).limit(16)),
+    `,
+        )
+        .order('created_at', { ascending: false })
+        .limit(16),
+    ),
 
-    runLabeledQuery('visaRecent', supabase.from('visa_applications').select(`
+    runLabeledQuery(
+      'visaRecent',
+      supabase
+        .from('visa_applications')
+        .select(
+          `
       id, status, created_at,
       applicants(first_name, last_name),
       visa_countries(name)
-    `).order('created_at', { ascending: false }).limit(16)),
+    `,
+        )
+        .order('created_at', { ascending: false })
+        .limit(16),
+    ),
 
-    runLabeledQuery('nadraAttention', supabase.from('applications').select(`
+    runLabeledQuery(
+      'nadraAttention',
+      supabase
+        .from('applications')
+        .select(
+          `
       id, tracking_number, created_at,
       applicants:applicants!applications_applicant_id_fkey(first_name, last_name),
       nadra_services!inner(id, status, service_type, created_at, tracking_number)
-    `).eq('nadra_services.status', 'Pending Submission').order('created_at', { ascending: false }).limit(8)),
+    `,
+        )
+        .eq('nadra_services.status', 'Pending Submission')
+        .order('created_at', { ascending: false })
+        .limit(8),
+    ),
 
-    runLabeledQuery('pakAttention', supabase.from('applications').select(`
+    runLabeledQuery(
+      'pakAttention',
+      supabase
+        .from('applications')
+        .select(
+          `
       id, tracking_number, created_at,
       applicants:applicants!applications_applicant_id_fkey(first_name, last_name),
       pakistani_passport_applications!inner(id, status, application_type, created_at)
-    `).eq('pakistani_passport_applications.status', 'Passport Arrived').order('created_at', { ascending: false }).limit(8)),
+    `,
+        )
+        .eq('pakistani_passport_applications.status', 'Passport Arrived')
+        .order('created_at', { ascending: false })
+        .limit(8),
+    ),
 
-    runLabeledQuery('gbAttention', supabase.from('british_passport_applications').select(`
+    runLabeledQuery(
+      'gbAttention',
+      supabase
+        .from('british_passport_applications')
+        .select(
+          `
       id, status, created_at,
       applicants(first_name, last_name),
       applications(id, tracking_number)
-    `).eq('status', 'Pending Submission').order('created_at', { ascending: false }).limit(8)),
+    `,
+        )
+        .eq('status', 'Pending Submission')
+        .order('created_at', { ascending: false })
+        .limit(8),
+    ),
 
-    runLabeledQuery('visaAttention', supabase.from('visa_applications').select(`
+    runLabeledQuery(
+      'visaAttention',
+      supabase
+        .from('visa_applications')
+        .select(
+          `
       id, status, created_at,
       applicants(first_name, last_name),
       visa_countries(name)
-    `).eq('status', 'Pending').order('created_at', { ascending: false }).limit(8)),
+    `,
+        )
+        .eq('status', 'Pending')
+        .order('created_at', { ascending: false })
+        .limit(8),
+    ),
   ])
 
   const warnings: QueryWarning[] = []
-  const nadraStatuses = getSuccessfulData<any[]>(settled, 'nadraStatuses', warnings)
-  const pakStatuses = getSuccessfulData<any[]>(settled, 'pakStatuses', warnings)
-  const gbStatuses = getSuccessfulData<any[]>(settled, 'gbStatuses', warnings)
-  const visaStatuses = getSuccessfulData<any[]>(settled, 'visaStatuses', warnings)
+  const nadraStatuses = getSuccessfulData<unknown[]>(settled, 'nadraStatuses', warnings)
+  const pakStatuses = getSuccessfulData<unknown[]>(settled, 'pakStatuses', warnings)
+  const gbStatuses = getSuccessfulData<unknown[]>(settled, 'gbStatuses', warnings)
+  const visaStatuses = getSuccessfulData<unknown[]>(settled, 'visaStatuses', warnings)
 
-  const nadraRecent = getSuccessfulData<any[]>(settled, 'nadraRecent', warnings)
-  const pakRecent = getSuccessfulData<any[]>(settled, 'pakRecent', warnings)
-  const gbRecent = getSuccessfulData<any[]>(settled, 'gbRecent', warnings)
-  const visaRecent = getSuccessfulData<any[]>(settled, 'visaRecent', warnings)
+  const nadraRecent = getSuccessfulData<unknown[]>(settled, 'nadraRecent', warnings)
+  const pakRecent = getSuccessfulData<unknown[]>(settled, 'pakRecent', warnings)
+  const gbRecent = getSuccessfulData<unknown[]>(settled, 'gbRecent', warnings)
+  const visaRecent = getSuccessfulData<unknown[]>(settled, 'visaRecent', warnings)
 
-  const nadraAttention = getSuccessfulData<any[]>(settled, 'nadraAttention', warnings)
-  const pakAttention = getSuccessfulData<any[]>(settled, 'pakAttention', warnings)
-  const gbAttention = getSuccessfulData<any[]>(settled, 'gbAttention', warnings)
-  const visaAttention = getSuccessfulData<any[]>(settled, 'visaAttention', warnings)
+  const nadraAttention = getSuccessfulData<unknown[]>(settled, 'nadraAttention', warnings)
+  const pakAttention = getSuccessfulData<unknown[]>(settled, 'pakAttention', warnings)
+  const gbAttention = getSuccessfulData<unknown[]>(settled, 'gbAttention', warnings)
+  const visaAttention = getSuccessfulData<unknown[]>(settled, 'visaAttention', warnings)
 
   return (
     <DashboardClientWrapper>

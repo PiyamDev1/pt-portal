@@ -12,6 +12,22 @@ import { StatementHeader } from './StatementHeader'
 import { StatementFooter } from './StatementFooter'
 import { StatementTransactionsTable } from './StatementTransactionsTable'
 
+interface SelectedInstallment {
+  id: string
+  date: string
+  amount: number
+  amountPaid: number
+  status: string
+  installmentNumber: number
+  totalInstallments: number
+  loanId?: string
+}
+
+interface ModifyingTransaction {
+  id: string
+  amount: number | string
+}
+
 interface StatementPopupProps {
   account: Account
   employeeId: string
@@ -32,9 +48,11 @@ export function StatementPopup({
   onAddDebt,
   onRefresh,
 }: StatementPopupProps) {
-  const [selectedInstallment, setSelectedInstallment] = useState<any>(null)
+  const [selectedInstallment, setSelectedInstallment] = useState<SelectedInstallment | null>(null)
   const { localAccount, installmentsByTransaction } = useInstallmentsByTransaction(account)
-  const [modifyingTransaction, setModifyingTransaction] = useState<any>(null)
+  const [modifyingTransaction, setModifyingTransaction] = useState<ModifyingTransaction | null>(
+    null,
+  )
   const [deletePaymentId, setDeletePaymentId] = useState<string | null>(null)
   const [skipInstallmentId, setSkipInstallmentId] = useState<string | null>(null)
 
@@ -101,7 +119,7 @@ export function StatementPopup({
           try {
             const res = await fetch(
               `/api/lms/installment-payment?transactionId=${deletePaymentId}&accountId=${account.id}`,
-              { method: 'DELETE' }
+              { method: 'DELETE' },
             )
             if (!res.ok) throw new Error('Failed to delete')
             onRefresh?.()
@@ -127,17 +145,19 @@ export function StatementPopup({
             const res = await fetch('/api/lms/skip-installment', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ installmentId: skipInstallmentId })
+              body: JSON.stringify({ installmentId: skipInstallmentId }),
             })
-            
+
             const data = await res.json()
             if (!res.ok) throw new Error(data.error || 'Failed to skip')
-            
-            toast.success(`Installment skipped. ${data.remainingInstallments} installments recalculated to £${data.newAmountPerInstallment.toFixed(2)} each`)
+
+            toast.success(
+              `Installment skipped. ${data.remainingInstallments} installments recalculated to £${data.newAmountPerInstallment.toFixed(2)} each`,
+            )
             onRefresh?.()
             setSkipInstallmentId(null)
-          } catch (err: any) {
-            toast.error(err.message || 'Failed to skip installment')
+          } catch (err: unknown) {
+            toast.error(err instanceof Error ? err.message : 'Failed to skip installment')
           }
         }}
         onCancel={() => setSkipInstallmentId(null)}

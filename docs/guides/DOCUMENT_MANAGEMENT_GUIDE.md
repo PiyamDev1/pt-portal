@@ -1,6 +1,7 @@
 # Document Management System Guide
 
 ## Overview
+
 > Last updated: March 2026
 
 The Document Management System is a fully operational document storage, preview and management module for PT-Portal. It supports categorised uploads, PDF/image thumbnail previews, streaming downloads, and dual-storage redundancy (MinIO primary + R2 fallback).
@@ -105,10 +106,10 @@ When MinIO is offline, files are uploaded to R2 fallback. The system automatical
 
 ### Migration triggers
 
-| Trigger | Where | What happens |
-|---|---|---|
-| File is previewed/downloaded | `preview/route.ts`, `download/route.ts` | Non-blocking `migrateObjectFromR2ToMinio(key)` called in background |
-| Status check when both online | `status/route.ts` | `migrateFallbackBatch(5)` runs in background — up to 5 files per check |
+| Trigger                       | Where                                   | What happens                                                           |
+| ----------------------------- | --------------------------------------- | ---------------------------------------------------------------------- |
+| File is previewed/downloaded  | `preview/route.ts`, `download/route.ts` | Non-blocking `migrateObjectFromR2ToMinio(key)` called in background    |
+| Status check when both online | `status/route.ts`                       | `migrateFallbackBatch(5)` runs in background — up to 5 files per check |
 
 ### Migration guarantee (in `lib/r2Migration.ts`)
 
@@ -152,11 +153,11 @@ Runs parallel probes of both servers with a **2,500 ms timeout** each:
 
 ### `mode` values
 
-| Mode | Meaning | UI |
-|---|---|---|
-| `primary` | MinIO online | Green banner |
+| Mode                   | Meaning                  | UI           |
+| ---------------------- | ------------------------ | ------------ |
+| `primary`              | MinIO online             | Green banner |
 | `fallback-upload-only` | MinIO offline, R2 online | Amber banner |
-| `offline` | Both offline | Red banner |
+| `offline`              | Both offline             | Red banner   |
 
 The client polls this endpoint every **5 minutes** via `useMinioConnection` hook.
 
@@ -166,10 +167,10 @@ The client polls this endpoint every **5 minutes** via `useMinioConnection` hook
 
 Each family can have documents in three categories, shown as separate upload zones:
 
-| Category key | Display name | Purpose |
-|---|---|---|
-| `main` | Main Documents | General supporting documents |
-| `receipts` | Receipts | Payment and receipt records |
+| Category key         | Display name       | Purpose                                 |
+| -------------------- | ------------------ | --------------------------------------- |
+| `main`               | Main Documents     | General supporting documents            |
+| `receipts`           | Receipts           | Payment and receipt records             |
 | `application-review` | Application Review | Documents needed for application review |
 
 The category is stored in the `category` column in Supabase and sent as `?category=<key>` on list queries.
@@ -188,6 +189,7 @@ PDFs are rendered client-side using `pdfjs-dist` (v5.5.207).
 - Images show direct `<img>` previews; other file types show an emoji icon.
 
 To update the worker after upgrading `pdfjs-dist`:
+
 ```bash
 cp node_modules/pdfjs-dist/build/pdf.worker.min.mjs public/pdf.worker.min.mjs
 ```
@@ -199,22 +201,22 @@ cp node_modules/pdfjs-dist/build/pdf.worker.min.mjs public/pdf.worker.min.mjs
 All DocumentHub components live in:
 `app/dashboard/applications/nadra/components/DocumentHub/`
 
-| Component | File | Purpose |
-|---|---|---|
-| `DocumentHub` | `page.tsx` | Main page — composes all sub-components |
-| `DocumentUpload` | `DocumentUpload.tsx` | Drag-drop zones, upload progress bars |
-| `DocumentGrid` | `DocumentGrid.tsx` | Thumbnail grid with hover actions |
-| `DocumentPreview` | `DocumentPreview.tsx` | Full-screen preview modal |
-| `MinioStatus` | `MinioStatus.tsx` | Storage status banner (green/amber/red) |
-| Types | `types.ts` | TypeScript interfaces |
+| Component         | File                  | Purpose                                 |
+| ----------------- | --------------------- | --------------------------------------- |
+| `DocumentHub`     | `page.tsx`            | Main page — composes all sub-components |
+| `DocumentUpload`  | `DocumentUpload.tsx`  | Drag-drop zones, upload progress bars   |
+| `DocumentGrid`    | `DocumentGrid.tsx`    | Thumbnail grid with hover actions       |
+| `DocumentPreview` | `DocumentPreview.tsx` | Full-screen preview modal               |
+| `MinioStatus`     | `MinioStatus.tsx`     | Storage status banner (green/amber/red) |
+| Types             | `types.ts`            | TypeScript interfaces                   |
 
 ### MinioStatus banner states
 
-| State | Condition | Message |
-|---|---|---|
-| Green | MinIO connected | "Document Storage Connected · Xms" |
+| State | Condition                | Message                                           |
+| ----- | ------------------------ | ------------------------------------------------- |
+| Green | MinIO connected          | "Document Storage Connected · Xms"                |
 | Amber | MinIO offline, R2 online | "Primary Storage Offline • EU Server 45v5 Active" |
-| Red | Both offline | "Document Storage Offline" |
+| Red   | Both offline             | "Document Storage Offline"                        |
 
 ---
 
@@ -222,15 +224,15 @@ All DocumentHub components live in:
 
 See **[../technical/API_REFERENCE.md](../technical/API_REFERENCE.md)** for full details.
 
-| Method | Path | Purpose |
-|---|---|---|
-| `GET` | `/api/documents?familyHeadId=&category=&page=&limit=` | List documents |
-| `POST` | `/api/documents` | Save document metadata |
-| `POST` | `/api/documents/upload-direct` | Upload file (MinIO → R2 fallback) |
-| `GET` | `/api/documents/status` | Storage health check |
-| `GET` | `/api/documents/preview?key=` | Stream file for preview |
-| `GET` | `/api/documents/download?key=` | Stream file for download |
-| `DELETE` | `/api/documents/[documentId]` | Soft-delete document |
+| Method   | Path                                                  | Purpose                           |
+| -------- | ----------------------------------------------------- | --------------------------------- |
+| `GET`    | `/api/documents?familyHeadId=&category=&page=&limit=` | List documents                    |
+| `POST`   | `/api/documents`                                      | Save document metadata            |
+| `POST`   | `/api/documents/upload-direct`                        | Upload file (MinIO → R2 fallback) |
+| `GET`    | `/api/documents/status`                               | Storage health check              |
+| `GET`    | `/api/documents/preview?key=`                         | Stream file for preview           |
+| `GET`    | `/api/documents/download?key=`                        | Stream file for download          |
+| `DELETE` | `/api/documents/[documentId]`                         | Soft-delete document              |
 
 ---
 
@@ -261,11 +263,11 @@ CREATE INDEX ON documents (family_head_id, uploaded_at DESC);
 
 ## File Restrictions
 
-| Restriction | Value |
-|---|---|
-| Max file size | 1.5 MB |
-| Allowed types | PDF, JPG, PNG, WEBP |
-| MIME types | `application/pdf`, `image/jpeg`, `image/png`, `image/webp` |
+| Restriction   | Value                                                      |
+| ------------- | ---------------------------------------------------------- |
+| Max file size | 1.5 MB                                                     |
+| Allowed types | PDF, JPG, PNG, WEBP                                        |
+| MIME types    | `application/pdf`, `image/jpeg`, `image/png`, `image/webp` |
 
 These limits are enforced both client-side (UI message) and server-side (route validation).
 
@@ -317,10 +319,12 @@ Documents are organized into three categories:
 ### File Type Restrictions
 
 **Allowed File Types**:
+
 - PDF documents (`.pdf`)
 - Images: JPEG (`.jpg`, `.jpeg`), PNG (`.png`), WebP (`.webp`)
 
 **Validation Levels**:
+
 1. **Client-side**: File picker accept attribute + MIME type validation
 2. **Service Layer**: MIME type checking before upload
 3. **Server-side**: API route validates MIME types
@@ -330,6 +334,7 @@ Documents are organized into three categories:
 ### Document Preview System
 
 #### Features
+
 - **Image Preview**: Direct rendering with zoom controls
 - **PDF Preview**: Embedded iframe with native browser PDF viewer
 - **Protected Resource Handling**: Blob URL fetching with credentials for protected links
@@ -337,6 +342,7 @@ Documents are organized into three categories:
 - **Quick Actions**: Download and delete from preview panel
 
 #### Preview Panel Layout
+
 ```
 ┌─────────────────────────────┐
 │  Document Preview           │
@@ -364,11 +370,13 @@ Documents are organized into three categories:
 **Location**: `/app/dashboard/applications/nadra/`
 
 **Key Files**:
+
 - `components/LedgerTable.tsx` - Family header with sky-blue "Manage Documents" button
 - `documents/[familyHeadId]/page.tsx` - Server component fetching family head data
 - `components/DocumentHub/page.tsx` - Main document hub interface
 
 **Data Flow**:
+
 ```
 LedgerTable (Family Header Row)
   → Click "Manage Documents"
@@ -379,6 +387,7 @@ LedgerTable (Family Header Row)
 ```
 
 **UI Features**:
+
 - Button Color: Sky blue (`bg-sky-600 hover:bg-sky-700`)
 - Button Size: `text-xs px-3 py-1.5` (matches Add Member button)
 - Button Icon: 📄 emoji prefix
@@ -389,11 +398,13 @@ LedgerTable (Family Header Row)
 **Location**: `/app/dashboard/applications/passports/`
 
 **Key Files**:
+
 - `components/RowItem.tsx` - Action buttons in vertical stack
 - `client.tsx` - Navigation handler for document management
 - `documents/[applicationId]/page.tsx` - Per-application document page
 
 **Data Flow**:
+
 ```
 RowItem (Application Row)
   → Click Document Icon Button
@@ -405,6 +416,7 @@ RowItem (Application Row)
 ```
 
 **UI Features**:
+
 - Button Layout: Vertical stack (Edit on top, Document below)
 - Button Styling: `bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded`
 - Button Icon: 📄 emoji
@@ -455,6 +467,7 @@ Desktop view uses a two-column grid:
 ```
 
 **Responsive Behavior**:
+
 - Desktop (`lg:` breakpoint): Two columns
 - Mobile/Tablet: Single column stack
 
@@ -463,23 +476,25 @@ Desktop view uses a two-column grid:
 To ensure symmetric appearance:
 
 **Header Alignment**:
+
 - Fixed `min-h-[44px]` wrapper for title + description
 - Fixed `min-h-[30px]` for description text
 - Prevents height mismatch between Receipts and Application Review cards
 
 **Visual Consistency**:
+
 - Same border radius and shadow
 - Consistent padding and spacing
 - Aligned drag-and-drop zones
 
 ### Color Scheme
 
-| Element | Color | Class |
-|---------|-------|-------|
-| NADRA Document Button | Sky Blue | `bg-sky-600 hover:bg-sky-700` |
-| Passport Document Button | Blue | `bg-blue-600 hover:bg-blue-700` |
-| Upload Zones (Active) | Sky Blue | `border-sky-400 bg-sky-50` |
-| Upload Zones (Idle) | Gray | `border-gray-300 bg-gray-50` |
+| Element                  | Color    | Class                           |
+| ------------------------ | -------- | ------------------------------- |
+| NADRA Document Button    | Sky Blue | `bg-sky-600 hover:bg-sky-700`   |
+| Passport Document Button | Blue     | `bg-blue-600 hover:bg-blue-700` |
+| Upload Zones (Active)    | Sky Blue | `border-sky-400 bg-sky-50`      |
+| Upload Zones (Idle)      | Gray     | `border-gray-300 bg-gray-50`    |
 
 ---
 
@@ -490,36 +505,25 @@ To ensure symmetric appearance:
 Defined in multiple layers for security:
 
 **Client Service** (`/lib/services/documentService.ts`):
+
 ```typescript
-const ALLOWED_MIME_TYPES = [
-  'application/pdf',
-  'image/jpeg',
-  'image/png',
-  'image/webp'
-];
+const ALLOWED_MIME_TYPES = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp']
 ```
 
 **API Route** (`/app/api/documents/upload/route.ts`):
+
 ```typescript
-const ALLOWED_MIME_TYPES = [
-  'application/pdf',
-  'image/jpeg',
-  'image/png',
-  'image/webp'
-];
+const ALLOWED_MIME_TYPES = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp']
 ```
 
 ### File Picker Configuration
 
 ```tsx
-<input
-  type="file"
-  accept=".pdf,.jpg,.jpeg,.png,.webp,image/*,application/pdf"
-  multiple
-/>
+<input type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,image/*,application/pdf" multiple />
 ```
 
 **Dual specification**:
+
 - Extension list: `.pdf,.jpg,.jpeg,.png,.webp`
 - MIME wildcards: `image/*,application/pdf`
 
@@ -541,20 +545,22 @@ const ALLOWED_MIME_TYPES = [
 
 ```typescript
 interface DocumentHubProps {
-  familyHeadId: string;
-  trackingNumber?: string;
-  applicantName?: string;
-  customSubtitle?: string;
+  familyHeadId: string
+  trackingNumber?: string
+  applicantName?: string
+  customSubtitle?: string
 }
 ```
 
 **Key Features**:
+
 - Manages document state and selection
 - Coordinates upload/delete operations
 - Provides context to child components
 - Supports both family and application contexts via `customSubtitle`
 
 **Layout Responsibility**:
+
 - Two-column grid setup
 - Component composition
 - Responsive breakpoints
@@ -565,14 +571,15 @@ interface DocumentHubProps {
 
 ```typescript
 interface DocumentUploadProps {
-  familyHeadId: string;
-  onUploadComplete: () => void;
-  category?: 'receipt' | 'application-review' | 'general';
-  compact?: boolean;
+  familyHeadId: string
+  onUploadComplete: () => void
+  category?: 'receipt' | 'application-review' | 'general'
+  compact?: boolean
 }
 ```
 
 **Key Features**:
+
 - Drag-and-drop file upload
 - Category-based organization
 - Compact mode for pyramid layout
@@ -581,6 +588,7 @@ interface DocumentUploadProps {
 - File type validation
 
 **Visual States**:
+
 - Idle: Gray border with dashed outline
 - Drag Over: Sky blue border with filled background
 - Uploading: Progress indicator
@@ -592,13 +600,14 @@ interface DocumentUploadProps {
 
 ```typescript
 interface DocumentGridProps {
-  documents: Document[];
-  onDocumentSelect: (document: Document) => void;
-  selectedDocumentId?: string;
+  documents: Document[]
+  onDocumentSelect: (document: Document) => void
+  selectedDocumentId?: string
 }
 ```
 
 **Key Features**:
+
 - Responsive grid layout
 - Thumbnail display (direct `<img>` tags)
 - Document metadata overlay
@@ -606,6 +615,7 @@ interface DocumentGridProps {
 - Visual selection state
 
 **Grid Breakpoints**:
+
 - Mobile: 2 columns
 - Tablet (`sm:`): 3 columns
 - Desktop (`md:`): 4 columns
@@ -616,13 +626,14 @@ interface DocumentGridProps {
 
 ```typescript
 interface DocumentPreviewProps {
-  document: Document;
-  onClose: () => void;
-  onDelete: (documentId: string) => void;
+  document: Document
+  onClose: () => void
+  onDelete: (documentId: string) => void
 }
 ```
 
 **Key Features**:
+
 - Blob URL fetching for protected resources
 - PDF iframe embedding
 - Image zoom controls (zoom in/out/reset)
@@ -631,11 +642,12 @@ interface DocumentPreviewProps {
 - Fallback handling for load errors
 
 **Preview Strategy**:
+
 ```typescript
 // Fetch with credentials to bypass CORS/protection
 fetch(sourceUrl, { credentials: 'include' })
-  .then(r => r.blob())
-  .then(blob => URL.createObjectURL(blob))
+  .then((r) => r.blob())
+  .then((blob) => URL.createObjectURL(blob))
   .catch(() => sourceUrl) // Fallback to direct URL
 ```
 
@@ -645,11 +657,12 @@ fetch(sourceUrl, { credentials: 'include' })
 
 ```typescript
 interface MinioStatusProps {
-  familyHeadId: string;
+  familyHeadId: string
 }
 ```
 
 **Key Features**:
+
 - Total document count
 - Storage size calculation
 - Server connection status
@@ -668,6 +681,7 @@ All endpoints currently return placeholder data. Real MinIO integration pending.
 **Endpoint**: `POST /api/documents/upload`
 
 **Request**:
+
 ```typescript
 FormData {
   file: File,
@@ -677,6 +691,7 @@ FormData {
 ```
 
 **Response**:
+
 ```typescript
 {
   id: string,
@@ -697,6 +712,7 @@ FormData {
 ```
 
 **Validation**:
+
 - File type must be PDF or image
 - File size limits (to be implemented)
 - Category must be valid enum value
@@ -706,10 +722,12 @@ FormData {
 **Endpoint**: `GET /api/documents/list?familyHeadId={id}&category={category}`
 
 **Query Parameters**:
+
 - `familyHeadId` (required): Family head or application ID
 - `category` (optional): Filter by category
 
 **Response**:
+
 ```typescript
 {
   documents: Document[],
@@ -723,6 +741,7 @@ FormData {
 **Endpoint**: `DELETE /api/documents/delete`
 
 **Request**:
+
 ```typescript
 {
   documentId: string,
@@ -731,6 +750,7 @@ FormData {
 ```
 
 **Response**:
+
 ```typescript
 {
   success: boolean,
@@ -756,28 +776,28 @@ CREATE TABLE documents (
   family_head_id UUID REFERENCES applicants(id),
   application_id UUID REFERENCES applications(id), -- For passport docs
   category VARCHAR(50) NOT NULL CHECK (category IN ('general', 'receipt', 'application-review')),
-  
+
   -- File metadata
   filename VARCHAR(255) NOT NULL,
   original_filename VARCHAR(255) NOT NULL,
   mime_type VARCHAR(100) NOT NULL,
   file_size BIGINT NOT NULL,
-  
+
   -- MinIO storage
   minio_bucket VARCHAR(100) NOT NULL DEFAULT 'pt-portal-documents',
   minio_key VARCHAR(500) NOT NULL,
   minio_url TEXT,
-  
+
   -- Thumbnails
   thumbnail_key VARCHAR(500),
   thumbnail_url TEXT,
-  
+
   -- Metadata
   uploaded_by UUID REFERENCES auth.users(id),
   uploaded_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   deleted_at TIMESTAMP WITH TIME ZONE, -- Soft delete
-  
+
   -- Indexes
   CONSTRAINT documents_scope_check CHECK (
     (family_head_id IS NOT NULL AND application_id IS NULL) OR
@@ -824,6 +844,7 @@ CREATE POLICY documents_delete_policy ON documents
 **Status**: Pending
 
 **Tasks**:
+
 1. Set up MinIO server instance
 2. Configure S3-compatible client in Next.js
 3. Implement actual file upload to MinIO
@@ -832,6 +853,7 @@ CREATE POLICY documents_delete_policy ON documents
 6. Add file size limits and quota management
 
 **Files to Update**:
+
 - `/app/api/documents/upload/route.ts`
 - `/app/api/documents/list/route.ts`
 - `/app/api/documents/delete/route.ts`
@@ -845,6 +867,7 @@ CREATE POLICY documents_delete_policy ON documents
 **Status**: Pending
 
 **Tasks**:
+
 1. Create documents table in Supabase
 2. Implement RLS policies
 3. Create database triggers for soft deletes
@@ -857,6 +880,7 @@ CREATE POLICY documents_delete_policy ON documents
 **Status**: Future
 
 **Potential Features**:
+
 - Document versioning
 - Bulk upload with progress tracking
 - Document sharing between applications
@@ -874,6 +898,7 @@ CREATE POLICY documents_delete_policy ON documents
 **Status**: Future
 
 **Tasks**:
+
 - Virus scanning for uploaded files
 - Encrypted storage at rest
 - Audit trail for all document access
@@ -897,23 +922,27 @@ CREATE POLICY documents_delete_policy ON documents
 ### Browser Compatibility
 
 **Tested Browsers**:
+
 - Chrome/Edge (Chromium): Full support
 - Firefox: Full support
 - Safari: Full support (PDF preview may vary)
 
 **Known Issues**:
+
 - Safari may handle blob URLs differently for PDF previews
 - Mobile browsers may require additional touch event handling
 
 ### Performance Considerations
 
 **Optimizations Implemented**:
+
 - Direct `<img>` tags instead of Next.js Image for thumbnails (faster)
 - Blob URL caching for preview panel
 - Lazy loading for document grids
 - Debounced search/filter inputs
 
 **Future Optimizations**:
+
 - Virtual scrolling for large document lists
 - Progressive image loading
 - Server-side pagination
@@ -922,12 +951,14 @@ CREATE POLICY documents_delete_policy ON documents
 ### Accessibility
 
 **Current Features**:
+
 - Keyboard navigation support
 - ARIA labels on interactive elements
 - Focus management in modals
 - Screen reader announcements
 
 **To Improve**:
+
 - Add skip links for document lists
 - Improve color contrast ratios
 - Add keyboard shortcuts documentation
@@ -962,6 +993,7 @@ CREATE POLICY documents_delete_policy ON documents
 ### Adding Document Management to New Module
 
 **Step 1**: Add navigation button to your list component
+
 ```tsx
 <button
   onClick={() => router.push(`/dashboard/your-module/documents/${itemId}`)}
@@ -972,22 +1004,18 @@ CREATE POLICY documents_delete_policy ON documents
 ```
 
 **Step 2**: Create document route page
+
 ```tsx
 // /app/dashboard/your-module/documents/[itemId]/page.tsx
-import DocumentHub from '@/app/dashboard/applications/nadra/components/DocumentHub/page';
+import DocumentHub from '@/app/dashboard/applications/nadra/components/DocumentHub/page'
 
 export default async function DocumentsPage({ params }: { params: { itemId: string } }) {
-  const { itemId } = params;
-  
+  const { itemId } = params
+
   // Fetch your item data
-  const item = await getItemData(itemId);
-  
-  return (
-    <DocumentHub
-      familyHeadId={itemId}
-      customSubtitle={`Documents for ${item.name}`}
-    />
-  );
+  const item = await getItemData(itemId)
+
+  return <DocumentHub familyHeadId={itemId} customSubtitle={`Documents for ${item.name}`} />
 }
 ```
 
@@ -995,40 +1023,40 @@ export default async function DocumentsPage({ params }: { params: { itemId: stri
 
 ### Common File Paths
 
-| Purpose | Path |
-|---------|------|
-| Document Hub Component | `/app/dashboard/applications/nadra/components/DocumentHub/page.tsx` |
-| Upload Component | `/app/dashboard/applications/nadra/components/DocumentHub/DocumentUpload.tsx` |
-| Preview Component | `/app/dashboard/applications/nadra/components/DocumentHub/DocumentPreview.tsx` |
-| Grid Component | `/app/dashboard/applications/nadra/components/DocumentHub/DocumentGrid.tsx` |
-| Stats Component | `/app/dashboard/applications/nadra/components/DocumentHub/MinioStatus.tsx` |
-| Document Service | `/lib/services/documentService.ts` |
-| Upload API | `/app/api/documents/upload/route.ts` |
-| List API | `/app/api/documents/list/route.ts` |
-| Delete API | `/app/api/documents/delete/route.ts` |
-| NADRA Route | `/app/dashboard/applications/nadra/documents/[familyHeadId]/page.tsx` |
-| Passports Route | `/app/dashboard/applications/passports/documents/[applicationId]/page.tsx` |
+| Purpose                | Path                                                                           |
+| ---------------------- | ------------------------------------------------------------------------------ |
+| Document Hub Component | `/app/dashboard/applications/nadra/components/DocumentHub/page.tsx`            |
+| Upload Component       | `/app/dashboard/applications/nadra/components/DocumentHub/DocumentUpload.tsx`  |
+| Preview Component      | `/app/dashboard/applications/nadra/components/DocumentHub/DocumentPreview.tsx` |
+| Grid Component         | `/app/dashboard/applications/nadra/components/DocumentHub/DocumentGrid.tsx`    |
+| Stats Component        | `/app/dashboard/applications/nadra/components/DocumentHub/MinioStatus.tsx`     |
+| Document Service       | `/lib/services/documentService.ts`                                             |
+| Upload API             | `/app/api/documents/upload/route.ts`                                           |
+| List API               | `/app/api/documents/list/route.ts`                                             |
+| Delete API             | `/app/api/documents/delete/route.ts`                                           |
+| NADRA Route            | `/app/dashboard/applications/nadra/documents/[familyHeadId]/page.tsx`          |
+| Passports Route        | `/app/dashboard/applications/passports/documents/[applicationId]/page.tsx`     |
 
 ### Color Reference
 
 ```typescript
 // NADRA Documents Button
-className="bg-sky-600 hover:bg-sky-700 text-white"
+className = 'bg-sky-600 hover:bg-sky-700 text-white'
 
-// Passport Documents Button  
-className="bg-blue-600 hover:bg-blue-700 text-white"
+// Passport Documents Button
+className = 'bg-blue-600 hover:bg-blue-700 text-white'
 
 // Upload Zone Active
-className="border-sky-400 bg-sky-50"
+className = 'border-sky-400 bg-sky-50'
 
 // Upload Zone Idle
-className="border-gray-300 bg-gray-50"
+className = 'border-gray-300 bg-gray-50'
 
 // Delete Button
-className="bg-red-600 hover:bg-red-700 text-white"
+className = 'bg-red-600 hover:bg-red-700 text-white'
 
 // Download Button
-className="bg-green-600 hover:bg-green-700 text-white"
+className = 'bg-green-600 hover:bg-green-700 text-white'
 ```
 
 ---
@@ -1038,6 +1066,7 @@ className="bg-green-600 hover:bg-green-700 text-white"
 ### Version 1.0.0 (Current - March 2026)
 
 **Initial Implementation**:
+
 - ✅ Document Hub component with two-column layout
 - ✅ Categorized upload sections (Main, Receipts, Application Review)
 - ✅ Pyramid layout structure
@@ -1051,6 +1080,7 @@ className="bg-green-600 hover:bg-green-700 text-white"
 - ✅ Placeholder MinIO integration
 
 **Pending**:
+
 - ⏳ MinIO backend server connection
 - ⏳ Database schema implementation
 - ⏳ Actual file persistence
@@ -1065,6 +1095,7 @@ className="bg-green-600 hover:bg-green-700 text-white"
 **Documentation Updates**: This guide will be updated when MinIO backend integration is completed.
 
 **Related Documentation**:
+
 - See `/Future Plans/MINIO_DOCUMENT_MANAGEMENT_PLAN.md` for backend planning
 - See `/docs/guides/ARCHITECTURE_GUIDE.md` for overall system architecture
 - See `/docs/guides/USAGE_GUIDE.md` for general usage patterns

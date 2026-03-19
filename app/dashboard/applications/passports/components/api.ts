@@ -1,12 +1,14 @@
-type ApiResponse<T = any> = {
+import type { PakApplicationCreatePayload, PakEditFormData, PakUpdateRecordPayload } from './types'
+
+type ApiResponse<T = unknown> = {
   ok: boolean
   data?: T
   error?: string
 }
 
-export async function apiRequest<T = any>(
+export async function apiRequest<T = unknown>(
   url: string,
-  options?: RequestInit
+  options?: RequestInit,
 ): Promise<ApiResponse<T>> {
   try {
     const res = await fetch(url, {
@@ -24,19 +26,19 @@ export async function apiRequest<T = any>(
       ok: false,
       error: errorData?.error || errorData?.details || `Request failed (${res.status})`,
     }
-  } catch (e: any) {
-    return { ok: false, error: e?.message || 'Network error' }
+  } catch (e: unknown) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Network error' }
   }
 }
 
 export const pakPassportApi = {
-  addApplication: (data: any) =>
+  addApplication: (data: PakApplicationCreatePayload) =>
     apiRequest('/api/passports/pak/add-application', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
 
-  updateRecord: (id: string, data: any, userId: string | number) =>
+  updateRecord: (id: string, data: PakEditFormData, userId: string | number) =>
     apiRequest('/api/passports/pak/manage-record', {
       method: 'POST',
       body: JSON.stringify({ action: 'update', id, data, userId }),
@@ -52,14 +54,19 @@ export const pakPassportApi = {
     passportId: string,
     status: string,
     userId: string | number,
-    extraData?: { newPassportNo?: string; oldPassportReturned?: boolean; isRefunded?: boolean }
+    extraData?: { newPassportNo?: string } | PakUpdateRecordPayload,
   ) =>
     apiRequest('/api/passports/pak/update-status', {
       method: 'POST',
       body: JSON.stringify({ passportId, status, userId, ...extraData }),
     }),
 
-  updateCustody: (passportId: string, action: string, userId: string | number, newNumber?: string) =>
+  updateCustody: (
+    passportId: string,
+    action: string,
+    userId: string | number,
+    newNumber?: string,
+  ) =>
     apiRequest('/api/passports/pak/update-custody', {
       method: 'POST',
       body: JSON.stringify({ passportId, action, userId, newNumber }),

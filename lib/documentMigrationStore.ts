@@ -14,10 +14,22 @@ export type StoredMigrationEvent = {
   created_at: string
 }
 
+type StoredMigrationEventRow = {
+  id: string
+  event_type: 'attempt' | 'success' | 'failure' | 'batch'
+  outcome: 'success' | 'failure' | 'info'
+  object_key: string | null
+  attempted: number | null
+  migrated: number | null
+  trigger_source: string | null
+  error_message: string | null
+  created_at: string
+}
+
 async function insertEvent(payload: Record<string, unknown>) {
   try {
     const supabase = getSupabaseClient()
-    await (supabase.from('document_migration_runs') as any).insert(payload)
+    await supabase.from('document_migration_runs').insert(payload)
   } catch {
     // Non-fatal: table may not exist yet or DB may be temporarily unavailable.
   }
@@ -44,7 +56,7 @@ export async function recordPersistentMigrationSuccess(key: string, trigger: Mig
 export async function recordPersistentMigrationFailure(
   key: string,
   trigger: MigrationTrigger,
-  errorMessage: string
+  errorMessage: string,
 ) {
   await insertEvent({
     event_type: 'failure',
@@ -58,7 +70,7 @@ export async function recordPersistentMigrationFailure(
 export async function recordPersistentMigrationBatch(
   attempted: number,
   migrated: number,
-  trigger: MigrationTrigger
+  trigger: MigrationTrigger,
 ) {
   await insertEvent({
     event_type: 'batch',
@@ -69,15 +81,20 @@ export async function recordPersistentMigrationBatch(
   })
 }
 
-export async function getPersistentMigrationEvents(limit: number = 30): Promise<StoredMigrationEvent[]> {
+export async function getPersistentMigrationEvents(
+  limit: number = 30,
+): Promise<StoredMigrationEvent[]> {
   try {
     const supabase = getSupabaseClient()
-    const { data } = await (supabase.from('document_migration_runs') as any)
-      .select('id, event_type, outcome, object_key, attempted, migrated, trigger_source, error_message, created_at')
+    const { data } = await supabase
+      .from('document_migration_runs')
+      .select(
+        'id, event_type, outcome, object_key, attempted, migrated, trigger_source, error_message, created_at',
+      )
       .order('created_at', { ascending: false })
       .limit(Math.max(1, Math.min(100, limit)))
 
-    return Array.isArray(data) ? (data as StoredMigrationEvent[]) : []
+    return Array.isArray(data) ? (data as StoredMigrationEventRow[]) : []
   } catch {
     return []
   }

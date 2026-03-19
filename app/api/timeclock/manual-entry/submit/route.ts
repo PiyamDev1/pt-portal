@@ -1,8 +1,9 @@
-import { NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies, headers } from 'next/headers'
 import { createClient } from '@supabase/supabase-js'
 import crypto from 'crypto'
+import { apiError, apiOk } from '@/lib/api/http'
+import { toErrorMessage } from '@/lib/api/error'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -14,30 +15,32 @@ function computeHash(material: string) {
 }
 
 function getUtcDayBounds(date: Date) {
-  const start = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 0, 0, 0, 0))
-  const end = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 23, 59, 59, 999))
+  const start = new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 0, 0, 0, 0),
+  )
+  const end = new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 23, 59, 59, 999),
+  )
   return { start, end }
 }
 
 export async function POST(request: Request) {
   try {
     const cookieStore = await cookies()
-    const supabase = createServerClient(
-      supabaseUrl,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return cookieStore.getAll()
-          },
-          setAll() {},
+    const supabase = createServerClient(supabaseUrl, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll()
         },
-      }
-    )
+        setAll() {},
+      },
+    })
 
-    const { data: { session } } = await supabase.auth.getSession()
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
     if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return apiError('Unauthorized', 401)
     }
 
     const body = await request.json()
@@ -45,7 +48,7 @@ export async function POST(request: Request) {
     const code = rawCode.replace(/\D/g, '')
 
     if (!code || code.length !== 8 || !/^\d{8}$/.test(code)) {
-      return NextResponse.json({ error: 'Invalid code format' }, { status: 400 })
+      return apiError('Invalid code format', 400)
     }
 
     // Look up the code
@@ -56,13 +59,13 @@ export async function POST(request: Request) {
       .maybeSingle()
 
     if (codeError || !codeRecord) {
-      return NextResponse.json({ error: 'Invalid code' }, { status: 404 })
+      return apiError('Invalid code', 404)
     }
 
     // Check expiration
     const expiresAt = new Date(codeRecord.expires_at).getTime()
     if (Date.now() > expiresAt) {
-      return NextResponse.json({ error: 'Code expired' }, { status: 400 })
+      return apiError('Code expired', 400)
     }
 
     const deviceId = codeRecord.device_id
@@ -102,7 +105,7 @@ export async function POST(request: Request) {
       .maybeSingle()
 
     if (recentEvent) {
-      return NextResponse.json({ error: 'Duplicate scan blocked. Please wait a few seconds and try again.' }, { status: 409 })
+      return apiError('Duplicate scan blocked. Please wait a few seconds and try again.', 409)
     }
 
     // Get location info from headers
@@ -154,26 +157,20 @@ export async function POST(request: Request) {
       .single()
 
     if (insertError) {
-      console.error('Insert error:', insertError)
-      return NextResponse.json({ error: 'Failed to record punch' }, { status: 500 })
+      throw new Error(insertError.message || 'Failed to record punch')
     }
 
     // Delete the used code
-    await adminSupabase
-      .from('timeclock_manual_codes')
-      .delete()
-      .eq('code', code)
+    await adminSupabase.from('timeclock_manual_codes').delete().eq('code', code)
 
-    return NextResponse.json({
-      success: true,
+    return apiOk({
       eventId: insertedEvent?.id,
       eventType: insertedEvent?.event_type || 'PUNCH',
       punchType,
       scannedAt: nowIso,
-      message: `Punch recorded: ${punchType}`,
     })
   } catch (error) {
-    console.error('Manual entry submit error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    const errorMessage = toErrorMessage(error, 'Failed to submit manual entry')
+    return apiError(errorMessage, 500)
   }
 }

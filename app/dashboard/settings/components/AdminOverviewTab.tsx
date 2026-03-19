@@ -91,7 +91,8 @@ export function AdminOverviewTab({
     {
       id: 'document-storage',
       title: 'Document Storage',
-      description: 'Monitor EU Server 49v2 and EU Server 45v5 health, backlog, and migration activity.',
+      description:
+        'Monitor EU Server 49v2 and EU Server 45v5 health, backlog, and migration activity.',
       icon: ShieldCheck,
       visible: canAccessMaintenance,
     },
@@ -116,14 +117,16 @@ export function AdminOverviewTab({
             <div className="inline-flex items-center rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-200">
               Admin Console
             </div>
-            <h2 className="mt-4 text-3xl font-bold tracking-tight">Operations, access, and maintenance</h2>
-            <p className="mt-3 text-sm text-slate-200">
-              {roleSummary}
-            </p>
+            <h2 className="mt-4 text-3xl font-bold tracking-tight">
+              Operations, access, and maintenance
+            </h2>
+            <p className="mt-3 text-sm text-slate-200">{roleSummary}</p>
           </div>
 
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm xl:max-w-sm">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-300">Signed-in role</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-300">
+              Signed-in role
+            </p>
             <p className="mt-2 text-xl font-bold">{userRole}</p>
             <p className="mt-2 text-sm text-slate-300">
               Use the quick actions below to jump directly into the area you need.
@@ -135,7 +138,11 @@ export function AdminOverviewTab({
       <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Total Staff" value={employeeCount} />
         <StatCard label="Active Staff" value={activeEmployeeCount} tone="green" />
-        <StatCard label="Inactive Staff" value={inactiveEmployeeCount} tone={inactiveEmployeeCount > 0 ? 'amber' : 'green'} />
+        <StatCard
+          label="Inactive Staff"
+          value={inactiveEmployeeCount}
+          tone={inactiveEmployeeCount > 0 ? 'amber' : 'green'}
+        />
         <StatCard label="Branches / Roles" value={`${branchCount} / ${roleCount}`} tone="blue" />
       </section>
 
@@ -151,30 +158,32 @@ export function AdminOverviewTab({
           </div>
 
           <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-2">
-            {quickActions.filter(action => action.visible).map((action) => {
-              const Icon = action.icon
+            {quickActions
+              .filter((action) => action.visible)
+              .map((action) => {
+                const Icon = action.icon
 
-              return (
-                <button
-                  key={action.id}
-                  onClick={() => onSelectTab(action.id)}
-                  className="group rounded-xl border border-slate-200 bg-slate-50 p-4 text-left transition hover:border-blue-300 hover:bg-blue-50"
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex items-start gap-3">
-                      <div className="rounded-lg bg-white p-2 text-slate-700 shadow-sm ring-1 ring-slate-200">
-                        <Icon className="h-5 w-5" />
+                return (
+                  <button
+                    key={action.id}
+                    onClick={() => onSelectTab(action.id)}
+                    className="group rounded-xl border border-slate-200 bg-slate-50 p-4 text-left transition hover:border-blue-300 hover:bg-blue-50"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-start gap-3">
+                        <div className="rounded-lg bg-white p-2 text-slate-700 shadow-sm ring-1 ring-slate-200">
+                          <Icon className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <p className="font-semibold text-slate-900">{action.title}</p>
+                          <p className="mt-1 text-sm text-slate-600">{action.description}</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-semibold text-slate-900">{action.title}</p>
-                        <p className="mt-1 text-sm text-slate-600">{action.description}</p>
-                      </div>
+                      <ArrowRight className="h-4 w-4 text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-blue-700" />
                     </div>
-                    <ArrowRight className="h-4 w-4 text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-blue-700" />
-                  </div>
-                </button>
-              )
-            })}
+                  </button>
+                )
+              })}
           </div>
         </div>
 
@@ -193,14 +202,16 @@ export function AdminOverviewTab({
             <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
               <p className="font-semibold text-slate-900">Maintenance access</p>
               <p className="mt-1">
-                Document storage monitoring, backlog review, and data maintenance tools are available here.
+                Document storage monitoring, backlog review, and data maintenance tools are
+                available here.
               </p>
             </div>
 
             <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-blue-900">
               <p className="font-semibold">Recommended first check</p>
               <p className="mt-1">
-                Review Document Storage after any outage so you can confirm whether fallback uploads are clearing back to primary.
+                Review Document Storage after any outage so you can confirm whether fallback uploads
+                are clearing back to primary.
               </p>
             </div>
           </div>

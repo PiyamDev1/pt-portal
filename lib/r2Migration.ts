@@ -19,13 +19,17 @@ import { getSupabaseClient } from '@/lib/supabaseClient'
 const MINIO_BUCKET = process.env.MINIO_BUCKET_NAME || 'portal-documents'
 const R2_BUCKET = process.env.R2_BUCKET_NAME || 'portal-fallback'
 
+type DocumentKeyRow = {
+  minio_key: string | null
+}
+
 /**
  * Migrate a single object from R2 to MinIO, then delete from R2.
  * Database metadata is updated only after transfer + delete succeed.
  */
 export async function migrateObjectFromR2ToMinio(
   key: string,
-  options?: { trigger?: MigrationTrigger }
+  options?: { trigger?: MigrationTrigger },
 ): Promise<boolean> {
   if (!isR2Configured()) return false
   const trigger = options?.trigger || 'unknown'
@@ -40,7 +44,7 @@ export async function migrateObjectFromR2ToMinio(
       new GetObjectCommand({
         Bucket: R2_BUCKET,
         Key: key,
-      })
+      }),
     )
 
     if (!r2Object.Body) return false
@@ -49,9 +53,9 @@ export async function migrateObjectFromR2ToMinio(
       new PutObjectCommand({
         Bucket: MINIO_BUCKET,
         Key: key,
-        Body: r2Object.Body as any,
+        Body: r2Object.Body,
         ContentType: r2Object.ContentType || 'application/octet-stream',
-      })
+      }),
     )
 
     // Only after successful copy, remove temporary object from fallback.
@@ -59,11 +63,12 @@ export async function migrateObjectFromR2ToMinio(
       new DeleteObjectCommand({
         Bucket: R2_BUCKET,
         Key: key,
-      })
+      }),
     )
 
     const supabase = getSupabaseClient()
-    await (supabase.from('documents') as any)
+    await supabase
+      .from('documents')
       .update({
         minio_bucket: MINIO_BUCKET,
         minio_etag: putResult.ETag || '',
@@ -87,13 +92,14 @@ export async function migrateObjectFromR2ToMinio(
  */
 export async function migrateFallbackBatch(
   limit: number = 5,
-  options?: { trigger?: MigrationTrigger }
+  options?: { trigger?: MigrationTrigger },
 ): Promise<{ attempted: number; migrated: number }> {
   if (!isR2Configured()) return { attempted: 0, migrated: 0 }
   const trigger = options?.trigger || 'unknown'
 
   const supabase = getSupabaseClient()
-  const { data, error } = await (supabase.from('documents') as any)
+  const { data, error } = await supabase
+    .from('documents')
     .select('minio_key')
     .eq('deleted', false)
     .eq('minio_bucket', R2_BUCKET)
@@ -104,7 +110,7 @@ export async function migrateFallbackBatch(
   }
 
   let migrated = 0
-  for (const row of data) {
+  for (const row of data as DocumentKeyRow[]) {
     const key = String(row.minio_key || '')
     if (!key) continue
     const ok = await migrateObjectFromR2ToMinio(key, { trigger })

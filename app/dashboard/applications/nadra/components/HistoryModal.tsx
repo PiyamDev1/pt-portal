@@ -1,9 +1,10 @@
 import { useEffect, useRef } from 'react'
+import type { NadraApplication, NadraHistoryEntry } from '@/app/types/nadra'
 
 interface HistoryModalProps {
   isOpen: boolean
-  selectedHistory: any
-  historyLogs: any[]
+  selectedHistory: NadraApplication | null
+  historyLogs: NadraHistoryEntry[]
   loadingHistory: boolean
   onClose: () => void
 }
@@ -13,7 +14,7 @@ export default function HistoryModal({
   selectedHistory,
   historyLogs,
   loadingHistory,
-  onClose
+  onClose,
 }: HistoryModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null)
   const onCloseRef = useRef(onClose)
@@ -45,11 +46,20 @@ export default function HistoryModal({
 
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
-      <div ref={dialogRef} className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[80vh]" role="dialog" aria-modal="true" aria-label="Status history" tabIndex={-1}>
+      <div
+        ref={dialogRef}
+        className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[80vh]"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Status history"
+        tabIndex={-1}
+      >
         <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
           <div>
             <h3 className="font-bold text-slate-800">Status History</h3>
-            <p className="text-xs text-slate-500 font-mono mt-1">Tracking: {selectedHistory.tracking_number}</p>
+            <p className="text-xs text-slate-500 font-mono mt-1">
+              Tracking: {selectedHistory.tracking_number}
+            </p>
           </div>
           <button
             onClick={onClose}
@@ -63,9 +73,21 @@ export default function HistoryModal({
 
         <div className="p-6 overflow-y-auto">
           {loadingHistory ? (
-            <div className="text-center py-8 text-slate-400 text-sm" role="status" aria-live="polite">Loading history...</div>
+            <div
+              className="text-center py-8 text-slate-400 text-sm"
+              role="status"
+              aria-live="polite"
+            >
+              Loading history...
+            </div>
           ) : historyLogs.length === 0 ? (
-            <div className="text-center py-8 text-slate-400 text-sm italic" role="status" aria-live="polite">No history recorded yet.</div>
+            <div
+              className="text-center py-8 text-slate-400 text-sm italic"
+              role="status"
+              aria-live="polite"
+            >
+              No history recorded yet.
+            </div>
           ) : (
             <div className="relative pl-4 border-l-2 border-slate-100 space-y-8 ml-2">
               {historyLogs.map((log, index) => (
@@ -76,14 +98,16 @@ export default function HistoryModal({
                         ? 'bg-amber-500 ring-4 ring-amber-50'
                         : log.entryType === 'refund'
                           ? 'bg-rose-500 ring-4 ring-rose-50'
-                        : index === 0
-                          ? 'bg-green-500 ring-4 ring-green-50'
-                          : 'bg-slate-300'
+                          : index === 0
+                            ? 'bg-green-500 ring-4 ring-green-50'
+                            : 'bg-slate-300'
                     }`}
                   />
                   <div className="flex justify-between items-start">
                     <div>
-                      <p className={`text-sm font-bold ${index === 0 ? 'text-slate-800' : 'text-slate-500'}`}>
+                      <p
+                        className={`text-sm font-bold ${index === 0 ? 'text-slate-800' : 'text-slate-500'}`}
+                      >
                         {log.entryType === 'complaint'
                           ? 'Complaint Launched'
                           : log.entryType === 'refund'
@@ -92,12 +116,20 @@ export default function HistoryModal({
                       </p>
                       {log.entryType === 'complaint' && (
                         <>
-                          <p className="text-[11px] text-amber-700 mt-1 font-mono">Complaint No: {log.complaintNumber}</p>
-                          {log.details && <p className="text-[11px] text-slate-600 mt-1 whitespace-pre-wrap">{log.details}</p>}
+                          <p className="text-[11px] text-amber-700 mt-1 font-mono">
+                            Complaint No: {log.complaintNumber}
+                          </p>
+                          {log.details && (
+                            <p className="text-[11px] text-slate-600 mt-1 whitespace-pre-wrap">
+                              {log.details}
+                            </p>
+                          )}
                         </>
                       )}
                       {log.entryType !== 'complaint' && log.details && (
-                        <p className="text-[11px] text-slate-600 mt-1 whitespace-pre-wrap">{log.details}</p>
+                        <p className="text-[11px] text-slate-600 mt-1 whitespace-pre-wrap">
+                          {log.details}
+                        </p>
                       )}
                       <p className="text-[10px] text-slate-400 mt-0.5">by {log.changed_by}</p>
                     </div>
@@ -106,7 +138,10 @@ export default function HistoryModal({
                         {new Date(log.date).toLocaleDateString()}
                       </p>
                       <p className="text-[10px] text-slate-500">
-                        {new Date(log.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        {new Date(log.date).toLocaleTimeString([], {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
                       </p>
                     </div>
                   </div>

@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
+import type { ChangeEvent } from 'react'
 import { toast } from 'sonner'
 import FormSection from './components/FormSection'
 import EditModal from './components/EditModal'
@@ -8,6 +9,7 @@ import HistoryModal from './components/HistoryModal'
 import LedgerTable from './components/LedgerTable'
 import SearchHeader from './components/SearchHeader'
 import { useRouter, useSearchParams } from 'next/navigation'
+import type { GbEditFormData, GbHistoryLog, GbMetadata, GbPassportItem } from './components/types'
 
 interface FormData {
   applicantName: string
@@ -20,33 +22,51 @@ interface FormData {
   serviceType: string
 }
 
-export default function GbPassportsClient({ initialData, currentUserId }: any) {
+type GbPassportsClientProps = {
+  initialData: GbPassportItem[]
+  currentUserId: string | number
+}
+
+export default function GbPassportsClient({ initialData, currentUserId }: GbPassportsClientProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const attentionMode = searchParams.get('focus') === 'attention'
   const [searchTerm, setSearchTerm] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  
+
   // New: Store database options
-  const [metadata, setMetadata] = useState<any>({ ages: [], pages: [], services: [], pricing: [] })
+  const [metadata, setMetadata] = useState<GbMetadata>({
+    ages: [],
+    pages: [],
+    services: [],
+    pricing: [],
+  })
 
   // Edit modal state
-  const [editModal, setEditModal] = useState<any>(null)
-  const [editFormData, setEditFormData] = useState<any>({})
+  const [editModal, setEditModal] = useState<GbPassportItem | null>(null)
+  const [editFormData, setEditFormData] = useState<GbEditFormData>({
+    id: '',
+    applicantName: '',
+    applicantPassport: '',
+    dateOfBirth: '',
+    phoneNumber: '',
+    pexNumber: '',
+    status: 'Pending Submission',
+  })
   const [isEditSaving, setIsEditSaving] = useState(false)
   const [deleteAuthCode, setDeleteAuthCode] = useState('')
 
   // History modal state
-  const [selectedHistory, setSelectedHistory] = useState<any>(null)
-  const [historyLogs, setHistoryLogs] = useState<any[]>([])
+  const [selectedHistory, setSelectedHistory] = useState<GbPassportItem | null>(null)
+  const [historyLogs, setHistoryLogs] = useState<GbHistoryLog[]>([])
   const [loadingHistory, setLoadingHistory] = useState(false)
 
   // Fetch metadata on mount
   useEffect(() => {
     fetch('/api/passports/gb/metadata')
-      .then(res => res.json())
-      .then(data => setMetadata(data))
+      .then((res) => res.json())
+      .then((data) => setMetadata(data))
       .catch(() => {
         // Silently fail - will use defaults
       })
@@ -57,9 +77,9 @@ export default function GbPassportsClient({ initialData, currentUserId }: any) {
     if (selectedHistory?.id) {
       setLoadingHistory(true)
       fetch(`/api/passports/gb/status-history?passportId=${selectedHistory.id}`)
-        .then(res => res.json())
-        .then(data => setHistoryLogs(data.history || []))
-        .catch(err => toast.error("Failed to load history"))
+        .then((res) => res.json())
+        .then((data) => setHistoryLogs(data.history || []))
+        .catch((err) => toast.error('Failed to load history'))
         .finally(() => setLoadingHistory(false))
     }
   }, [selectedHistory])
@@ -70,18 +90,24 @@ export default function GbPassportsClient({ initialData, currentUserId }: any) {
     dateOfBirth: '',
     phoneNumber: '',
     pexNumber: '',
-    ageGroup: '',    // empty default
-    pages: '',       // empty default
-    serviceType: ''  // empty default
+    ageGroup: '', // empty default
+    pages: '', // empty default
+    serviceType: '', // empty default
   })
 
-  const handleInputChange = (e: any) => {
+  const handleInputChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target
     setFormData({ ...formData, [name]: value })
   }
 
   const handleSubmit = async () => {
-    if (!formData.applicantName || !formData.pexNumber || !formData.ageGroup || !formData.pages || !formData.serviceType) {
+    if (
+      !formData.applicantName ||
+      !formData.pexNumber ||
+      !formData.ageGroup ||
+      !formData.pages ||
+      !formData.serviceType
+    ) {
       toast.error('Please fill all required fields')
       return
     }
@@ -91,7 +117,7 @@ export default function GbPassportsClient({ initialData, currentUserId }: any) {
       const res = await fetch('/api/passports/gb/add', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...formData, currentUserId })
+        body: JSON.stringify({ ...formData, currentUserId }),
       })
 
       if (!res.ok) {
@@ -109,18 +135,18 @@ export default function GbPassportsClient({ initialData, currentUserId }: any) {
         pexNumber: '',
         ageGroup: '',
         pages: '',
-        serviceType: ''
+        serviceType: '',
       })
       setShowForm(false)
       router.refresh()
-    } catch (e: any) {
-      toast.error(e.message)
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Failed to save')
     } finally {
       setIsSubmitting(false)
     }
   }
 
-  const openEditModal = (item: any) => {
+  const openEditModal = (item: GbPassportItem) => {
     setEditFormData({
       id: item.id,
       applicantName: `${item.applicants?.first_name} ${item.applicants?.last_name}`,
@@ -128,7 +154,7 @@ export default function GbPassportsClient({ initialData, currentUserId }: any) {
       dateOfBirth: item.applicants?.date_of_birth || '',
       phoneNumber: item.applicants?.phone_number || '',
       pexNumber: item.pex_number || '',
-      status: item.status || 'Pending Submission'
+      status: item.status || 'Pending Submission',
     })
     setEditModal(item)
   }
@@ -141,8 +167,8 @@ export default function GbPassportsClient({ initialData, currentUserId }: any) {
         body: JSON.stringify({
           id,
           status: newStatus,
-          userId: currentUserId
-        })
+          userId: currentUserId,
+        }),
       })
 
       if (!res.ok) {
@@ -152,8 +178,8 @@ export default function GbPassportsClient({ initialData, currentUserId }: any) {
 
       toast.success('Status Updated')
       router.refresh()
-    } catch (e: any) {
-      toast.error(e.message)
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Failed to update status')
     }
   }
 
@@ -171,8 +197,8 @@ export default function GbPassportsClient({ initialData, currentUserId }: any) {
           phoneNumber: editFormData.phoneNumber,
           pexNumber: editFormData.pexNumber,
           status: editFormData.status,
-          userId: currentUserId
-        })
+          userId: currentUserId,
+        }),
       })
 
       if (!res.ok) {
@@ -182,10 +208,18 @@ export default function GbPassportsClient({ initialData, currentUserId }: any) {
 
       toast.success('Application Updated Successfully')
       setEditModal(null)
-      setEditFormData({})
+      setEditFormData({
+        id: '',
+        applicantName: '',
+        applicantPassport: '',
+        dateOfBirth: '',
+        phoneNumber: '',
+        pexNumber: '',
+        status: 'Pending Submission',
+      })
       router.refresh()
-    } catch (e: any) {
-      toast.error(e.message)
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Failed to update')
     } finally {
       setIsEditSaving(false)
     }
@@ -199,8 +233,8 @@ export default function GbPassportsClient({ initialData, currentUserId }: any) {
         body: JSON.stringify({
           id: editFormData.id,
           authCode,
-          userId: currentUserId
-        })
+          userId: currentUserId,
+        }),
       })
 
       if (!res.ok) {
@@ -210,19 +244,34 @@ export default function GbPassportsClient({ initialData, currentUserId }: any) {
 
       toast.success('Application Deleted Successfully')
       setEditModal(null)
-      setEditFormData({})
+      setEditFormData({
+        id: '',
+        applicantName: '',
+        applicantPassport: '',
+        dateOfBirth: '',
+        phoneNumber: '',
+        pexNumber: '',
+        status: 'Pending Submission',
+      })
       setDeleteAuthCode('')
       router.refresh()
-    } catch (e: any) {
-      toast.error(e.message)
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Failed to delete')
     }
   }
 
-  const filtered = initialData.filter((item: any) => {
-    const matchesSearch = JSON.stringify(item).toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesAttention = !attentionMode || (item.status || 'Pending Submission') === 'Pending Submission'
-    return matchesSearch && matchesAttention
-  })
+  const searchTermLower = useMemo(() => searchTerm.toLowerCase(), [searchTerm])
+
+  const filtered = useMemo(
+    () =>
+      initialData.filter((item) => {
+        const matchesSearch = JSON.stringify(item).toLowerCase().includes(searchTermLower)
+        const matchesAttention =
+          !attentionMode || (item.status || 'Pending Submission') === 'Pending Submission'
+        return matchesSearch && matchesAttention
+      }),
+    [initialData, searchTermLower, attentionMode],
+  )
 
   return (
     <div className="space-y-6">
@@ -239,7 +288,7 @@ export default function GbPassportsClient({ initialData, currentUserId }: any) {
       </div>
 
       {/* Search & Header */}
-      <SearchHeader 
+      <SearchHeader
         searchTerm={searchTerm}
         onSearchChange={setSearchTerm}
         showForm={showForm}
@@ -258,7 +307,7 @@ export default function GbPassportsClient({ initialData, currentUserId }: any) {
       />
 
       {/* Ledger Table */}
-      <LedgerTable 
+      <LedgerTable
         items={filtered}
         onStatusChange={handleStatusChange}
         onViewHistory={(item) => setSelectedHistory(item)}
@@ -273,7 +322,15 @@ export default function GbPassportsClient({ initialData, currentUserId }: any) {
         onSave={handleEditSave}
         onClose={() => {
           setEditModal(null)
-          setEditFormData({})
+          setEditFormData({
+            id: '',
+            applicantName: '',
+            applicantPassport: '',
+            dateOfBirth: '',
+            phoneNumber: '',
+            pexNumber: '',
+            status: 'Pending Submission',
+          })
           setDeleteAuthCode('')
         }}
         isSaving={isEditSaving}
@@ -282,7 +339,7 @@ export default function GbPassportsClient({ initialData, currentUserId }: any) {
 
       {/* History Modal */}
       <HistoryModal
-        isOpen={!!selectedHistory} 
+        isOpen={!!selectedHistory}
         onClose={() => setSelectedHistory(null)}
         data={historyLogs}
         isLoading={loadingHistory}

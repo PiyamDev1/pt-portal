@@ -1,0 +1,1396 @@
+================================================================================
+PT-PORTAL CODEBASE MAINTENANCE CHECKLIST
+================================================================================
+Generated: March 17, 2026
+Codebase Health: GOOD (but needs strategic cleanup)
+
+OVERVIEW
+────────────────────────────────────────────────────────────────────────────
+Project Scope:
+  - Total Source Files: 283
+  - Total Lines of Code: 36,334
+  - Dashboard Pages: 21
+  - API Routes: 79
+  - Client Components: 12
+  - Type Definitions: 79
+  - Tests: 1 (minimal coverage)
+
+Quality Metrics:
+  - "any" Type Usage: 372 instances (TYPE SAFETY ISSUE)
+  - Type Assertions (as any/as unknown): 0 instances
+  - Console Statements: 151 (production debugging)
+  - Deprecated/Legacy References: 9 source matches, 28 docs/planning mentions (audit refined March 18 2026)
+  - Array Operations: 308 (.map/.filter/.find/.reduce)
+  - useState Calls: 333 (indicates state complexity)
+  - useEffect Calls: 117 (effect management complexity)
+  - Barrel Exports: 4 files (LOW adoption)
+  - TypeScript Ignores: 1
+
+Module Organization:
+  - Root Shared (lib/): 20 files
+  - App-Local (app/lib + app/hooks): 15 files
+  - DUPLICATION DETECTED: Split utilities across two locations
+
+================================================================================
+CRITICAL PRIORITY (Fix First - Blocks Other Work)
+================================================================================
+
+[✅] 1. LINT PIPELINE BROKEN
+     Status: ✅ FIXED (March 17 2026)
+     Impact: Prevents safe refactoring and CI confidence
+     
+     Issue:
+       - npm run lint fails with "Invalid project directory provided"
+       - Blocks automated code quality checks
+       - Cannot safely make large changes without lint feedback
+     
+     Fix:
+       - Update package.json lint script from "next lint" to "eslint . --ext .ts,.tsx,.js"
+       - Run: npm run lint:fix to auto-correct fixable issues
+       - Add separate lint:fix script to package.json
+       - Integrate post-commit hook to run lint
+     
+     Time Estimate: 15 minutes
+     Files to Change: package.json
+
+[✅] 2. TYPE SAFETY EROSION (372 "any" instances)
+  Status: ✅ COMPLETED (March 17 2026)
+     Impact: Makes refactoring dangerous, hides bugs, IDE support degraded
+
+  Progress So Far:
+    - Added shared domain types: app/types/nadra.ts, app/types/visa.ts
+    - Replaced `any` in NADRA entry/component boundaries and helper utilities
+    - Replaced `any` in visa client/form flow and API helper payload typing
+    - Replaced `any` catch and response patterns in timeclock/history/team/maintenance clients
+    - Replaced remaining technical `any` in passports + passports-gb modules
+    - Focused `any` count (app/dashboard + app/hooks + app/types): 206 → 3
+    - Remaining 3 matches are plain English text occurrences, not TypeScript `any` usage
+     
+     Top Issues:
+       Location: app/dashboard/applications/nadra/client.tsx (line 59)
+         - Component props typed as "any"
+         - State variables typed as "any" @ line 95
+       
+       Location: app/dashboard/settings/components/IssueReportsTab.tsx
+         - Report data typed as Record<string, any>
+       
+       Location: app/hooks/*.ts
+         - useVisaFiltering.ts: metadata params as any[]
+         - useVisaFormState.ts: formData as any
+         - useStatementFilters.ts: account as any
+       
+       Location: app/dashboard/lms/components/
+         - Multiple components using any for transaction/installment types
+     
+     Recommended Approach:
+       - Phase 1: Create shared type definitions for major domains:
+         types/nadra.ts, types/lms.ts, types/visa.ts
+       - Phase 2: Replace any in entrypoint components (client.tsx files)
+       - Phase 3: Gradually narrow types in helpers/utils
+       - Phase 4: Update API route handler signatures
+     
+     Time Estimate: 4-6 hours across multiple PRs
+     Priority Order:
+       1. NADRA types (most complex state)
+       2. LMS types (payment/installment domain)
+       3. Visa types (form state management)
+       4. Settings types (admin controls)
+
+[✅] 3. PRODUCTION CONSOLE STATEMENTS (151 instances)
+  Status: ✅ FIXED (March 17 2026)
+     Impact: Debug noise in production, potential security info leaks
+     
+     Issue:
+       - console.log, console.error, console.debug scattered throughout
+       - Not properly wrapped in development checks
+       - May leak sensitive data in production logs
+     
+     Action:
+       - Audit console statements: categorize as debug vs error handling
+       - Keep only error/warning statements for production
+       - Wrap debug logs in: if (process.env.NODE_ENV === 'development')
+       - Consider structured logging library (winston, pino)
+
+     Result:
+       - Eliminated all `no-console` lint warnings across server and client code
+       - Removed debug/progress tracing from LMS and maintenance routes
+       - Kept only warning/error logging for security and failure cases
+       - Reduced total lint warnings from 104 to 34
+     
+     Time Estimate: 2-3 hours
+     Focus Areas:
+       - app/lib/errorHandler.ts
+       - app/api/lms/installment-payment/route.ts
+       - app/dashboard/lms/components/ (high console volume)
+
+================================================================================
+HIGH PRIORITY (Complete Next - Unblocks Maintenance)
+================================================================================
+
+[✅] 4. MODULE STRUCTURE DUPLICATION (app/lib vs root lib)
+  Status: ✅ COMPLETED (March 17 2026)
+     Impact: Confusing imports, inconsistent patterns, hard to maintain
+
+     Progress So Far:
+       - Added [lib ownership model](lib/README.md) to define shared-module boundaries
+       - Added transitional bridge modules under `lib/` and `hooks/` for legacy `app/lib` and `app/hooks` exports
+       - Migrated app-code imports from app-scoped aliases to root aliases
+       - Moved concrete implementations into root `lib/` and `hooks/` modules
+       - Converted `app/lib/*` and `app/hooks/*` to compatibility re-exports to avoid breaking legacy imports
+       - App import metrics now:
+         - `@/app/lib`: 0
+         - `@/app/hooks`: 0
+         - `@/lib`: 74
+         - `@/hooks`: 8
+       - Root module dependency check:
+         - `lib/` and `hooks/` imports from `@/app/lib` or `@/app/hooks`: 0
+       - Added ESLint restriction to block new `@/app/lib/*` and `@/app/hooks/*` imports
+     
+     Current State:
+       - Root lib/: 20 files (shared utilities)
+       - App app/lib/: 8 files (app-specific)
+       - App app/hooks/: 7 files (app-specific hooks)
+       
+     Import Fragmentation:
+       - 83 imports from @/lib
+       - 16 imports from @/app/lib
+       - 8 imports from @/app/hooks
+       - 2 imports from @/hooks
+     
+     Problem Areas:
+       1. Visa utilities in app/lib/visaApi.ts, app/lib/visaConstants.ts
+          Should consolidate to root lib/
+       2. Date formatting scattered across app/lib/dateFormatter.ts
+       3. Error handling mixedPatterns in app/lib/errorHandler.ts vs lib/
+       4. Pricing options defined in both locations
+     
+     Solution:
+       - Step 1: Create lib/README.md with clear ownership model
+       - Step 2: Move app/lib utilities to lib/ (evaluate each):
+         lib/visaApi.ts, lib/visaConstants.ts, lib/dateFormatter.ts,
+         lib/pricingOptions.ts, lib/errorHandler.ts
+       - Step 3: Move app/hooks to hooks/ (shared state logic):
+         hooks/useVisaFiltering.ts, hooks/useVisaFormState.ts,
+         hooks/useStatementFilters.ts, hooks/usePricingOptions.ts
+       - Step 4: Update all imports to @/lib and @/hooks
+       - Step 5: Add eslint import rule to prevent new app/lib imports
+     
+     Time Estimate: 3-4 hours (multiple small PRs recommended)
+     Files Affected: ~50+ import statements
+
+[x] 5. MINIMAL TEST COVERAGE (1 test file)
+  Status: ✅ COMPLETE (March 18 2026)
+     Impact: High risk on refactors, no regression detection
+
+     Progress So Far:
+       - Added unit test harness with Vitest + jsdom
+       - Added scripts: `test:unit`, `test:unit:watch`
+       - Added initial unit tests:
+         - tests/unit/installmentsDb.test.ts
+         - tests/unit/usePricingOptions.test.tsx
+         - tests/unit/documentService.test.ts
+         - tests/unit/issueReportsRoute.test.ts
+         - tests/unit/adminIssueReportsRoute.test.ts
+         - tests/unit/installmentPaymentRoute.test.ts
+         - tests/unit/documentSignedUrlRoute.test.ts
+         - tests/unit/lmsNotesRoute.test.ts
+         - tests/unit/updateInstallmentsRoute.test.ts
+         - tests/unit/deleteInstallmentPlanRoute.test.ts
+         - tests/unit/skipInstallmentRoute.test.ts
+         - tests/unit/installmentsRoute.test.ts
+         - tests/unit/auditLogsRoute.test.ts
+         - tests/unit/paymentMethodsRoute.test.ts
+         - tests/unit/seedServiceCategoriesRoute.test.ts
+         - tests/unit/lmsRouteActions.test.ts
+         - tests/unit/vitalsRoute.test.ts
+         - tests/unit/seedPaymentMethodsRoute.test.ts
+         - tests/unit/disableEnableEmployeeRoute.test.ts
+         - tests/unit/timeclockScanRoute.test.ts
+         - tests/unit/addEmployeeRoute.test.ts
+         - tests/unit/deleteEmployeeRoute.test.ts
+         - tests/unit/timeclockEventsRoute.test.ts
+         - tests/unit/documentsRoute.test.ts
+         - tests/unit/manualEntrySubmitRoute.test.ts
+         - tests/unit/updatePasswordRoute.test.ts
+         - tests/unit/authSessionsRoute.test.ts
+        - tests/unit/backupCodesCountRoute.test.ts
+        - tests/unit/visasMetadataRoute.test.ts
+        - tests/unit/nadraMetadataRoute.test.ts
+        - tests/unit/nadraAgentOptionsRoute.test.ts
+        - tests/unit/visasUpdateStatusRoute.test.ts
+        - tests/unit/nadraStatusHistoryRoute.test.ts
+        - tests/unit/nadraUpdateStatusRoute.test.ts
+        - tests/unit/nadraComplaintRoute.test.ts
+        - tests/unit/visasSaveRoute.test.ts
+        - tests/unit/passportsPakMetadataRoute.test.ts
+        - tests/unit/passportsPakStatusHistoryRoute.test.ts
+        - tests/unit/passportsGbMetadataRoute.test.ts
+        - tests/unit/passportsGbStatusHistoryRoute.test.ts
+        - tests/unit/passportsGbAddRoute.test.ts
+        - tests/unit/passportsGbUpdateRoute.test.ts
+        - tests/unit/passportsGbDeleteRoute.test.ts
+        - tests/unit/passportsPakUpdateCustodyRoute.test.ts
+        - tests/unit/passportsPakNotesRoute.test.ts
+        - tests/unit/passportsPakUpdateStatusRoute.test.ts
+        - tests/unit/authConsumeBackupCodeRoute.test.ts
+        - tests/unit/authGenerateBackupCodesRoute.test.ts
+        - tests/unit/authReset2faRoute.test.ts
+       - Phase 1 critical paths now covered (documentService, installmentsDb, usePricingOptions)
+       - Added first API route unit test coverage for issue-report submission flow
+       - Added admin issue-report listing route tests (auth gate + success response)
+       - Added installment-payment route validation tests (POST/DELETE/PATCH guard paths)
+       - Added signed-url route tests (missing key + successful URL response)
+       - Added LMS notes route tests (GET/POST/DELETE validation + success paths)
+       - Added update-installments route tests (invalid payload, partial skip, Supabase failure)
+       - Added delete-installment-plan route tests (missing transactionId, not found, full success flow)
+       - Added skip-installment route tests (missing installmentId, lookup failure, recalculation success)
+       - Added installments route tests (env validation, required query, success, query error fallback)
+       - Added audit-logs route tests (GET validation/formatting/errors + POST validation/success/errors)
+       - Added payment-methods route tests (missing env, query error, success, exception fallback)
+       - Added seed-service-categories route tests (missing env, fetch failure, normalization + upsert success, upsert failure)
+       - Added LMS route POST action tests (env guard, invalid action, add_fee, record_payment, update_customer, delete_customer auth guard, create_customer)
+       - Added vitals route tests (valid payload, invalid JSON -> 400)
+       - Added seed-payment-methods route tests (env guard, already exists skip, insert failure, insert success)
+       - Added disable-enable-employee route tests (401 unauth, 400 missing params, 400 self-disable, 200 enable success)
+       - Added timeclock scan route tests (401 unauth, 400 invalid QR, 400 missing fields, 400 bad timestamp, 404 device not found)
+       - Added add-employee route tests (GET health check, 500 missing env, 401 unauth, 403 employee not found)
+       - Added delete-employee route tests (401 unauth, 400 missing params, 404 profile not found, 403 non-admin, 400 self-delete)
+       - Added timeclock events route tests (401 no session, 500 employees query error, 403 team scope no manager)
+       - Added documents route tests (400 missing familyHeadId, 500 query error, 200 paginated success)
+       - Added manual-entry submit route tests (401 unauth, 400 invalid code format, 404 code not found, 400 expired code)
+       - Added update-password route tests (400 missing fields, 400 weak pw variants, 400 auth error, 200 success)
+       - Added auth sessions route tests (401 unauth, 200 sessions list, 200 RPC fallback on table error)
+      - Added backup-codes count route tests (400 missing userId, 500 missing env, 200 table missing fallback, 500 db error, 200 correct count)
+      - Added visas metadata route tests (200 countries+types, 200 empty arrays, 500 on throw)
+      - Added nadra metadata route tests (500 on throw, 200 with types/options/pricing, 200 dedup serviceOptions)
+      - Added nadra agent-options route tests (400 missing userId, 404 user missing, 200 scoped manager options, 200 master admin full list)
+      - Added visas update-status route tests (200 success, 500 supabase error, 500 invalid JSON body)
+      - Added nadra status-history route tests (400 missing nadraId, 500 query failure, 200 mapped response payload)
+      - Added nadra update-status route tests (400 missing nadraId, 500 update failure, 200 success with history insert)
+      - Added nadra complaint route tests (400 missing nadraId, 400 missing complaint number, 404 service missing, 200 complaint history insert)
+      - Added visas save route tests (400 invalid countryId, 200 insert path, 200 update path, 500 update failure)
+      - Added passports PAK metadata route tests (200 mapped categories/speeds/types/pages+pricing, 500 thrown query error)
+      - Added passports PAK status-history route tests (404 missing ids, 200 empty history fallback, 200 mapped history, 500 query error)
+      - Added passports GB metadata route tests (200 ages/pages/services+flattened pricing, 500 thrown query error)
+      - Added passports GB status-history route tests (200 empty history when id missing, 200 history rows, 500 query error)
+      - Added passports GB add route tests (500 pricing missing, 200 existing applicant flow, 200 new applicant flow)
+      - Added passports GB update route tests (500 app not found, 200 update with status history insert, 200 unchanged status without history)
+      - Added passports GB delete route tests (403 missing authCode, 404 missing record, 500 deletion-log failure, 200 successful delete flow)
+      - Added passports PAK update-custody route tests (400 missing fields, 200 return_old, 400 record_new missing number, 200 toggle fingerprints, 400 unknown action)
+      - Added passports PAK notes route tests (GET 400 missing applicationId, GET empty default, POST 400 invalid notes type, POST 404 not found, POST 200 success)
+      - Added passports PAK update-status route tests (400 missing fields, 400 invalid status, 400 collected without number, 500 DB update failure, 200 success+history)
+      - Added auth consume-backup-code route tests (400 missing fields, 500 fetch failure, 200 consume + mark used, 400 invalid/used code)
+      - Added auth generate-backup-codes route tests (400 missing userId, 500 insert failure, 200 success with generated code set)
+      - Added auth reset-2fa route tests (400 missing userId, 500 list-factor failure, 200 factor reset + db flag update)
+      - Current unit baseline: 51 test files, 189 passing tests
+       - Phase 3: Add E2E tests for major user flows
+     
+     Time Estimate: 8-12 hours
+     Technology: Vitest (lightweight) or Jest (traditional)
+     Starting Point: tests/README.md with setup guide
+
+[✅] 6. LARGE CLIENT FILES - MODULARIZATION NEEDED
+  Status: ✅ COMPLETED (March 18 2026)
+     Impact: Hard to test, high coupling, prop drilling
+
+     Progress So Far:
+       - Extracted passports list sorting/filtering/pagination into dedicated hook:
+         app/dashboard/applications/passports/components/usePassportListFiltering.ts
+       - Wired hook into app/dashboard/applications/passports/client.tsx
+       - Preserved behavior (attention mode filter, date range filter, pagination reset on filter changes)
+       - Extracted passports client presentational sections:
+         - app/dashboard/applications/passports/components/PassportsToolbar.tsx
+         - app/dashboard/applications/passports/components/PassportsTable.tsx
+         - app/dashboard/applications/passports/components/PassportsPagination.tsx
+       - Extracted LMS transaction modal sections:
+         - app/dashboard/lms/components/TransactionServiceFields.tsx
+         - app/dashboard/lms/components/TransactionSummary.tsx
+       - Extracted settings staff add-form section:
+         - app/dashboard/settings/components/StaffAddEmployeeForm.tsx
+       - Extracted issue reports dashboard sections:
+         - app/dashboard/settings/components/IssueReportsTicketsPanel.tsx
+         - app/dashboard/settings/components/IssueReportDetailPanel.tsx
+       - Reduced medium-tier large files below 500 lines:
+         - app/dashboard/applications/passports/client.tsx: 535 -> 438
+         - app/dashboard/lms/components/TransactionModal.tsx: 535 -> 432
+         - app/dashboard/settings/components/StaffTab.tsx: 581 -> 499
+       - Reduced high-tier issue reports file below 500 lines:
+         - app/dashboard/settings/components/IssueReportsTab.tsx: 646 -> 385
+       - Reduced high-tier applications hub file below 500 lines:
+         - app/dashboard/applications/client.tsx: 748 -> 453
+       - Added extracted applications hub renderer:
+         - app/dashboard/applications/components/ApplicationsHubBody.tsx
+       - Extracted timeclock scan/popup UI sections:
+         - app/dashboard/timeclock/components/ScanSectionCard.tsx
+         - app/dashboard/timeclock/components/ScanSuccessPopup.tsx
+       - Reduced high-tier timeclock file below 500 lines:
+         - app/dashboard/timeclock/client.tsx: 590 -> 499
+       - Extracted timeclock team UI sections:
+         - app/dashboard/timeclock/team/components/TeamFiltersBar.tsx
+         - app/dashboard/timeclock/team/components/TeamEventsTable.tsx
+         - app/dashboard/timeclock/team/components/TeamAdjustmentModal.tsx
+       - Reduced high-tier team timeclock file below 500 lines:
+         - app/dashboard/timeclock/team/client.tsx: 623 -> 433
+       - Extracted NADRA command deck, pagination, and complaint modal:
+         - app/dashboard/applications/nadra/components/NadraCommandDeck.tsx
+         - app/dashboard/applications/nadra/components/NadraPagination.tsx
+         - app/dashboard/applications/nadra/components/NadraComplaintModal.tsx
+       - Extracted NADRA filtering/metadata logic hooks:
+         - app/dashboard/applications/nadra/components/useNadraApplicationFiltering.ts
+         - app/dashboard/applications/nadra/components/useNadraServiceMetadata.ts
+       - Reduced Tier 1 NADRA client (phase 1):
+         - app/dashboard/applications/nadra/client.tsx: 1279 -> 924
+       - Extracted NADRA edit/modal and auxiliary state management hooks:
+         - app/dashboard/applications/nadra/components/useNadraEditManagement.ts
+         - app/dashboard/applications/nadra/components/useNadraAuxiliaryManagement.ts
+       - Extracted NADRA form state/handlers hook:
+         - app/dashboard/applications/nadra/components/useNadraFormManagement.ts
+       - Reduced Tier 1 NADRA client below 500 (phase 2 complete):
+         - app/dashboard/applications/nadra/client.tsx: 1279 -> 420
+       - Verification snapshot (March 18 2026):
+         - No `.ts` / `.tsx` files over 500 lines in app/, lib/, hooks/, or components/
+     
+     Files Over 500 Lines (Refactor Targets):
+       
+       Tier 1 - CRITICAL (1000+ lines):
+        - COMPLETED: app/dashboard/applications/nadra/client.tsx (now 420 lines)
+          Logic: search, filter, form, edit, modals, history, refunds
+          Refactor: extracted form/edit/auxiliary hooks + command deck/pagination/modal components
+       
+       Tier 2 - HIGH (700-999 lines):
+         - COMPLETED: app/dashboard/applications/client.tsx (now 453 lines)
+           Logic: application search, filtering, status updates
+           Refactor: Extract filters + table components
+         
+        - COMPLETED: app/dashboard/timeclock/team/client.tsx (now 433 lines)
+          Logic: team filters, event list, one-time adjustments
+          Refactor: Extracted filters bar + events table + adjustment modal
+         
+         - COMPLETED: app/dashboard/timeclock/client.tsx (now 499 lines)
+           Logic: punch clock, schedule, manual entry
+           Refactor: Extract punch UI + schedule display
+         
+         - COMPLETED: app/dashboard/settings/components/IssueReportsTab.tsx (now 385 lines)
+           Logic: report list, filters, detail view, assignment
+           Refactor: Extract report filters + ticket view
+       
+       Tier 3 - MEDIUM (500-699 lines):
+         - COMPLETED in this pass (all previously listed files reduced below 500)
+         - lib/services/documentService.ts (489 lines)
+     
+     Refactoring Guidelines:
+       - Extract one hook per file (manage state only)
+       - Extract one presentational component per file
+       - Keep business logic in hooks, UI in components
+       - Use composition pattern to reduce prop drilling
+     
+     Time Estimate: Completed
+     Suggested Order: Completed
+
+[✅] 7. MISSING BARREL EXPORTS (Only 4 index files)
+  Status: ✅ COMPLETED (March 17 2026)
+     Impact: Deep imports clutter code, harder to refactor
+
+  Progress So Far:
+    - Added `lib/index.ts`
+    - Added `lib/services/index.ts`
+    - Added compatibility barrels: `app/lib/index.ts`, `app/hooks/index.ts`
+    - Expanded `hooks/index.ts` exports for migrated shared hooks
+     
+     Current:
+       - hooks/index.ts (4 hooks exported)
+       - hooks/README.md
+       - components/index.ts (2 components exported)
+       - components/README.md
+       - lib/constants/index.ts exists but others missing
+     
+     Missing Barrel Files:
+       - lib/index.ts (export all public utilities)
+       - lib/services/index.ts (export documentService)
+       - app/lib/index.ts (if keeping app-scoped)
+       - app/hooks/index.ts (if keeping app-scoped)
+       - app/dashboard/*/components/index.ts (sub-modules)
+       - app/api/*/utils.ts (API route helpers)
+     
+     Benefits:
+       - Cleaner imports: from '@/lib' instead of '@/lib/utils'
+       - Easier refactoring: move files without updating imports
+       - Better tree-shaking: bundler can optimize better
+     
+     Action:
+       - Create lib/index.ts exporting public APIs
+       - Create lib/services/index.ts
+       - Add to lib/constants/ if missing
+       - Update imports in 50+ places
+     
+     Time Estimate: 2-3 hours
+
+================================================================================
+MEDIUM PRIORITY (Complete This Sprint/Month)
+================================================================================
+
+[✅] 8. DEPRECATED/LEGACY CODE CLEANUP
+     Status: ✅ COMPLETED (March 18 2026)
+     Impact: Maintainer confusion, accumulating technical debt
+     
+     Audit Result:
+       - Source scan (`app/`, `lib/`, `hooks/`, `components/`; `.ts/.tsx/.js/.jsx`; excluding `.d.ts`): 9 matches
+       - All 9 source matches are legitimate domain wording or compatibility notes (e.g., old passport fields, legacy fallback comment), not dead code markers
+       - Docs/planning scan (excluding `node_modules`, `.next`, `.git`): 28 matches, mostly checklist/history/guide text
+       - No stale `.old`/`.backup` source files currently present in workspace
+     
+     Action Taken:
+       - Completed repository-wide audit and classification
+       - Confirmed no actionable deprecated/legacy code cleanup required in active source
+       - Retained compatibility wording where behavior fallback is intentional
+     
+     Verification Commands:
+       - `grep -RInE "deprecated|legacy|obsolete|\bold\b" app lib hooks components --include='*.ts' --include='*.tsx' --include='*.js' --include='*.jsx' --exclude='*.d.ts'`
+       - `grep -RInE "deprecated|legacy|obsolete|\bold\b" . --exclude-dir=node_modules --exclude-dir=.next --exclude-dir=.git --include='*.md' --include='*.txt'`
+     
+     Time Estimate: Completed
+
+[✅] 9. PERFORMANCE: ARRAY OPERATION REVIEW (308 instances)
+  Status: ✅ COMPLETED (March 18 2026)
+     Impact: N+1 query patterns, unnecessary re-renders
+
+     Progress So Far (March 18 2026):
+       - Ran targeted operation-density scan for `.map/.filter/.find/.reduce` hotspots
+       - Top candidates identified: pricing settings tabs, staff tab, applications hub, document hub
+       - Applied first optimization in document hub:
+         - app/dashboard/applications/nadra/components/DocumentHub/page.tsx
+         - Replaced repeated render-time category filters/reductions with `useMemo`
+         - Memoized category splits (`main`, `review`, `receipt`), total size label, and last upload label
+       - Applied second optimization in pricing options tab:
+         - app/dashboard/settings/components/pricing/ManagePricingOptionsTab.tsx
+         - Replaced repeated `includes` checks with memoized `Set` lookups
+         - Consolidated add/remove array transforms via shared `useCallback` helpers
+         - Switched list setters to functional updates to avoid stale array copies
+       - Applied third optimization in staff tab directory table:
+         - app/dashboard/settings/components/StaffTab.tsx
+         - Replaced per-row `.find` lookups for role/location/department names with memoized ID maps
+         - Switched employee list updates (toggle/delete/edit) to functional state setters
+       - Applied fourth optimization in applications hub dashboard:
+         - app/dashboard/applications/client.tsx
+         - Replaced multi-pass status metrics (`filter`/`reduce` chains) with single-pass summary helper
+         - Memoized role visibility, service cards metadata, recent records, and attention records
+       - Applied fifth optimization in LMS transaction modal:
+         - app/dashboard/lms/components/TransactionModal.tsx
+         - Replaced per-render installment option array construction with shared static option tables
+         - Switched installment date edits to functional `setInstallmentPlan` updates
+       - Applied sixth optimization in visa applications client:
+         - app/dashboard/applications/visa/client.tsx
+         - Memoized attention-mode filtered rows (depends on initialData + attentionMode)
+       - Applied seventh optimization in GB passports client:
+         - app/dashboard/applications/passports-gb/client.tsx
+         - Memoized `searchTermLower` and `filtered` list (avoids JSON.stringify + filter on each render)
+         - Added `searchTermLower` derived memo to avoid repeated `.toLowerCase()` calls inside the filter
+       - Applied eighth optimization in issue reports dashboard:
+         - app/dashboard/settings/components/IssueReportsTab.tsx
+         - Replaced duplicate open/solved `reports.filter(...).length` passes with a single memoized reducer summary
+       - Applied ninth optimization in dashboard landing page:
+         - app/dashboard/page.tsx
+         - Moved static module list derivations (pinned/recent/sorted) to module scope
+         - Replaced repeated request-time filter/sort passes with precomputed constants
+       - Re-opened with strict closure criteria and applied tenth optimization in hierarchy view:
+         - app/dashboard/settings/components/HierarchyTab.tsx
+         - Replaced recursive per-node `employees.filter(...)` traversal with memoized manager->reports index map
+         - Memoized role/location lookup maps and switched manager updates to functional state setter
+       - Goal: reduce repeated O(n) work on each render while preserving behavior
+     
+     Verification Snapshot:
+       - Completed targeted hotspot pass across the originally flagged dashboard surfaces
+       - Replaced repeated render/request-time filter/find/reduce/sort work in high-traffic views
+       - Added memoized derivations or precomputed constants where values are reused
+       - Preserved behavior and validated touched files with diagnostics after each pass
+      - Re-opened and re-closed after removing remaining high-signal O(n^2) hierarchy traversal in settings view
+     
+      Residual Risks:
+       1. New features can reintroduce render-time recomputation if derived lists are not memoized
+       2. Very large datasets still require profiling in production-like data volumes
+       3. Remaining array operations in low-traffic views may still be optimized opportunistically
+     
+     Audit Focus:
+       - app/dashboard/lms/components/ (high array complexity)
+       - app/dashboard/settings/components/ (admin tables)
+       - app/dashboard/applications/nadra/client.tsx (state transformations)
+       - app/dashboard/applications/nadra/components/DocumentHub/page.tsx (completed first pass)
+       - app/dashboard/settings/components/pricing/ManagePricingOptionsTab.tsx (completed second pass)
+      - app/dashboard/settings/components/StaffTab.tsx (completed third pass)
+      - app/dashboard/applications/client.tsx (completed fourth pass)
+      - app/dashboard/lms/components/TransactionModal.tsx (completed fifth pass)
+      - app/dashboard/applications/visa/client.tsx (completed sixth pass)
+      - app/dashboard/applications/passports-gb/client.tsx (completed seventh pass)
+      - app/dashboard/settings/components/IssueReportsTab.tsx (completed eighth pass)
+      - app/dashboard/page.tsx (completed ninth pass)
+      - app/dashboard/settings/components/HierarchyTab.tsx (completed tenth pass)
+     
+     Recommended Tools:
+       - React DevTools Profiler (measure render time)
+       - useMemo for expensive computations
+       - useCallback for stable function references
+     
+    Time Estimate: Completed
+
+[✅] 10. API ROUTES ORGANIZATION (79 routes)
+      Status: ✅ COMPLETED (March 18 2026)
+      Impact: Hard to track, endpoint sprawl, maintenance burden
+
+      Progress So Far (March 18 2026):
+        - Added shared API route helpers:
+          - lib/api/http.ts (standardized success/error response helpers)
+          - lib/api/request.ts (typed body/query parsing helpers)
+          - lib/api/serverSupabase.ts (shared server-route Supabase client bootstrap)
+        - Refactored priority LMS route to shared infrastructure + typed parsing:
+          - app/api/lms/installment-payment/route.ts
+          - Removed repeated server-client bootstrap blocks across POST/DELETE/PATCH
+          - Added typed body parsing for POST/PATCH and shared query param helper for DELETE
+        - Refactored priority admin issue listing route:
+          - app/api/admin/issue-reports/route.ts
+          - Added typed query schema parsing and standardized response handling
+        - Refactored priority public issue creation route:
+          - app/api/issue-reports/route.ts
+          - Added typed body schema parsing and standardized response handling
+        - Added route-handler organization anchor:
+          - lib/handlers/README.md
+        - Preserved API response contracts used by existing frontend/tests
+
+      Verification Snapshot:
+        - Route diagnostics clean for all touched API files and new shared helper modules
+        - Targeted unit suite passed after refactor:
+          - tests/unit/installmentPaymentRoute.test.ts
+          - tests/unit/issueReportsRoute.test.ts
+          - tests/unit/adminIssueReportsRoute.test.ts
+          - Result: 3 files, 7 tests passing
+
+      Residual Risks:
+        1. Additional non-priority routes can still benefit from the same shared helper migration
+        2. Full OpenAPI endpoint documentation remains tracked under Documentation Gaps (#16)
+        3. Deeper business-logic extraction to dedicated handler modules can continue incrementally
+      
+      Current Structure:
+        - app/api/admin/ (12+ seed/migration/management routes)
+        - app/api/lms/ (11 payment/installment routes)
+        - app/api/nadra/ (9 NADRA-specific routes)
+        - app/api/timeclock/ (5 punch/event routes)
+        - app/api/auth/ (6 auth routes)
+        - app/api/documents/ (8 upload/download/preview routes)
+        - app/api/passports/ (3 visa routes)
+        - app/api/visas/ (5 visa meta routes)
+        - app/api/admin/issue-reports/ (3 admin report routes)
+        - app/api/issue-reports/ (1 report creation)
+        - app/api/cron/ (2 maintenance routes)
+      
+      Issues:
+        - Some routes are very long (340+ lines in installment-payment)
+        - Mixed concerns (business logic + data access + validation)
+        - Incomplete error handling consistency
+        - No clear request/response typing
+      
+      Organization Improvements:
+        - Extract route handlers to lib/handlers/
+        - Create typed request/response schemas with Zod
+        - Add middleware layer for auth/validation
+        - Extract database operations to lib/db/
+        - Document all endpoints (OpenAPI/Swagger)
+      
+      Time Estimate: Completed
+      Priority Routes:
+        1. app/api/lms/installment-payment/route.ts (most complex)
+        2. app/api/admin/issue-reports/route.ts (refactored recently)
+        3. app/api/issue-reports/route.ts (user-facing)
+
+[✅] 11. DOCUMENT SERVICE ARCHITECTURE (489 lines)
+      Status: ✅ COMPLETED (March 17 2026)
+      Impact: Runtime risk, harder to test, client code using server logic
+
+      Progress So Far:
+        - Added service split entry points:
+          - lib/services/documentClient.ts
+          - lib/services/documentServer.ts
+        - Added signed URL route:
+          - app/api/documents/signed-url/route.ts
+        - Added service barrel exports for new modules
+        - Migrated document consumers to explicit client/server entry points
+        - Verified no runtime imports of the legacy mixed service from app/hooks/components
+        - Kept legacy service as compatibility shim behind split entry points
+      
+      Issue:
+        - Single class mixes client + server responsibilities
+        - Client components import server-only code
+        - getServerS3Client() called in browser context possible
+      
+      Structure:
+        - uploadDocument() - batch upload with progress
+        - getDocuments() - fetch from API
+        - deleteDocument() - call to API
+        - getPreviewUrl() - SERVER ONLY (generates signed URL)
+        - validateFile() - client validation
+        - checkMinioStatus() - status check
+      
+      Refactor Plan:
+        - Split into client/server modules:
+          lib/services/documentClient.ts (browser code only)
+          lib/services/documentServer.ts (server code only)
+        - Client module: upload, fetch, delete, validate
+        - Server module: signing, MinIO operations
+        - Add "use server" directive to server-side functions
+      
+      Time Estimate: 2-3 hours
+      Files to Create:
+        - lib/services/documentClient.ts
+        - lib/services/documentServer.ts
+        - app/api/documents/signed-url/route.ts (new route)
+
+[✅] 12. STATE MANAGEMENT COMPLEXITY (333 useState, 117 useEffect)
+      Status: ✅ COMPLETED (March 18 2026)
+      Impact: Potential for stale closures, re-render issues
+
+      Progress So Far (March 18 2026):
+        - Started reducer-based state consolidation in staff management view:
+          - app/dashboard/settings/components/StaffTab.tsx
+          - Replaced six fragmented UI/action `useState` atoms with a single `useReducer` state machine
+          - Consolidated confirm/reset/delete dialog/action transitions into typed reducer actions
+          - Preserved behavior while reducing stale-closure risk across async action handlers
+        - Added reducer-driven state coordination in LMS transaction modal:
+          - app/dashboard/lms/components/TransactionModal.tsx
+          - Consolidated `form`, `installmentPlan`, `loading`, and `planExpanded` into one typed reducer state
+          - Preserved installment-date validation and auto-plan generation behavior with reducer actions
+          - Reduced interdependent setter churn for plan updates and submit lifecycle transitions
+        - Consolidated issue reports admin hub into single typed reducer:
+          - app/dashboard/settings/components/IssueReportsTab.tsx
+          - Replaced 15 separate useState calls with one useReducer state machine
+          - Moved lists+data+selection+loading flags under a single coordinated state
+          - Auto-selection logic (select first report on load, re-check on filter change) moved into reducer action
+          - Fixed pre-existing prop type mismatch: getAgeMeta now uses Pick<IssueReport> to accept sub-panel-scoped types
+        - Consolidated NADRA client filter bag from 8 atoms to one FilterState object:
+          - app/dashboard/applications/nadra/client.tsx
+          - Grouped searchQuery + statusFilter + serviceTypeFilter + serviceOptionFilter + startDate + endDate + showEmptyFamilies + currentPage into FilterState
+          - Provided stable useCallback wrappers for each setter (compatible with custom hook signatures)
+          - Filter setters now reset currentPage as a side effect, removing an implicit coupling bug
+          - Reduced component-level useState count from 12 to 4
+      
+      Issue:
+        - High number of state variables suggests state could be consolidated
+        - Many useEffect calls may indicate over-fetching or re-renders
+        - Focus blur issue recently fixed suggests state management issues
+      
+      Analysis:
+        - Average 15+ state variables per complex component
+        - Complex dependency arrays requiring recent focus-ref fixes
+        - Interdependent state likely candidates for useReducer
+      
+      Files to Review:
+        1. app/dashboard/applications/nadra/client.tsx (many useState)
+        2. app/dashboard/lms/components/TransactionModal.tsx (form state)
+        3. app/dashboard/settings/components/StaffTab.tsx (CRUD state)
+        4. app/dashboard/settings/components/IssueReportsTab.tsx (filters, selection)
+      
+      Refactoring Approach:
+        - For each component with 10+ state variables:
+          Convert to useReducer + custom hook
+        - Group related state into objects
+        - Memoize expensive computations
+      
+      Time Estimate: 4-6 hours
+
+================================================================================
+LOW PRIORITY (Nice to Have - Improve Code Quality)
+================================================================================
+
+[✅] 13. TYPESCRIPT ASSERTIONS (0 "as any" or "as unknown" instances)
+      Status: ✅ COMPLETED (March 17 2026)
+      Impact: Type holes, maintenance risk, IDE support degraded
+
+      Progress So Far:
+        - Replaced broad assertions in shared error handling and issue reporter capture utilities
+        - Removed assertion-heavy casts in LMS transactions and LMS notes API
+        - Migrated document and migration APIs from table-wide `as any` usage to typed query patterns
+        - Removed remaining issue-report and timeclock assertion hotspots
+        - Current assertion scan baseline (app + lib + hooks + components): 0
+      
+      Recommendation:
+        - Replace "as any" with proper types or "as unknown" assertions
+        - Use unknown + type guards for safer casting
+        - Add JSDoc explaining why assertion is needed
+      
+      Example Improvements:
+        - app/dashboard/lms/components/StatementTransactionsTable.tsx:
+          (tx as any).loan_id → Extract to typed transaction object
+        - app/dashboard/settings/components/utils.ts:
+          (err as any) → Create ErrorResponse type
+      
+      Time Estimate: 2 hours
+      Tools: TypeScript strict mode (already enabled)
+
+[✅] 14. TYPE DEFINITIONS ORGANIZATION (79 type definitions)
+  Status: ✅ COMPLETED (March 17 2026)
+      Impact: Import organization, discoverability
+
+  Progress So Far:
+    - Added `app/types/index.ts` central type barrel
+    - Domain type files already in place and exported via barrel
+      
+      Current:
+        - Types defined inline in component files
+        - Some types in dedicated types/ folder
+        - Inconsistent naming conventions
+      
+      Recommendation:
+        - Create app/types/index.ts as central export
+        - Create per-domain type files:
+          app/types/nadra.ts (NadraApplication, NadraRecord, etc.)
+          app/types/lms.ts (Installment, Transaction, Account)
+          app/types/auth.ts (Session, User, Role)
+          app/types/timeclock.ts (Event, PunchRecord, Device)
+          app/types/visa.ts (VisaApplication, VisaForm)
+        - Document all types with @typedef comments
+      
+      Time Estimate: 3-4 hours
+
+[✅] 15. ERROR HANDLING CONSISTENCY
+  Status: ✅ COMPLETED (March 18 2026)
+      Impact: Unpredictable error recovery, inconsistent user feedback
+
+      Progress So Far (March 18 2026):
+        - Standardized shared API response helpers:
+          - lib/api/http.ts
+          - Added typed response exports (`ApiErrorResponse`, `ApiResponse<T>`) for route/client narrowing
+          - Removed legacy `apiFailure` helper to prevent split `{ ok, message }` vs `{ error }` contracts
+        - Added shared error normalization utility:
+          - lib/api/error.ts
+          - Added `toErrorMessage(error, fallback)` for consistent unknown-error conversion in route catch blocks
+        - Refactored LMS installment-payment route to use unified error helper:
+          - app/api/lms/installment-payment/route.ts
+          - Replaced remaining legacy `NextResponse.json({ ok: false, message })` response with `apiError(...)`
+        - Refactored documents signed-url route to shared helpers:
+          - app/api/documents/signed-url/route.ts
+          - Replaced `{ success: true/false }` envelope with consistent `apiOk({ ... })` / `apiError(...)`
+        - Refactored documents delete route to shared helpers:
+          - app/api/documents/[documentId]/route.ts
+          - Replaced `{ success: false, error }` / `{ success: true }` payloads with standardized `apiError(...)` / `apiOk(...)`
+          - Preserved existing client behavior (`documentService.deleteDocument`) while aligning error shape
+        - Updated client-side and tests to align with standardized error shape:
+          - app/dashboard/lms/components/InstallmentPaymentModal.tsx
+          - tests/unit/installmentPaymentRoute.test.ts
+          - tests/unit/documentSignedUrlRoute.test.ts
+        - Refactored LMS delete-installment-plan route to standardized helpers:
+          - app/api/lms/delete-installment-plan/route.ts
+          - Replaced legacy `{ ok: true }` wrapper success payload with semantic `{ deletedTransactionId }`
+          - Removed leftover debug logging while preserving failure semantics
+        - Refactored LMS notes route to standardized helpers:
+          - app/api/lms/notes/route.ts
+          - Replaced legacy `{ success: true }` delete payload with semantic `{ deletedNoteId }`
+          - Unified catch blocks via shared `toErrorMessage(...)` normalization
+        - Updated and validated affected tests:
+          - tests/unit/deleteInstallmentPlanRoute.test.ts
+          - tests/unit/lmsNotesRoute.test.ts
+        - Refactored LMS skip-installment route to standardized helpers:
+          - app/api/lms/skip-installment/route.ts
+          - Replaced legacy `{ success: true, message, ... }` envelope with semantic payload fields
+          - Removed route-local debug logging and normalized catch handling
+        - Refactored LMS update-installments route to standardized helpers:
+          - app/api/lms/update-installments/route.ts
+          - Replaced legacy `{ success: true, message, updated }` envelope with `{ updatedInstallmentIds, updatedCount }`
+          - Preserved Supabase failure detail by throwing typed `Error` before catch normalization
+        - Updated and validated affected tests:
+          - tests/unit/skipInstallmentRoute.test.ts
+          - tests/unit/updateInstallmentsRoute.test.ts
+        - Refactored vitals ingestion route to standardized helpers:
+          - app/api/vitals/route.ts
+          - Replaced `{ ok: true/false }` envelope with direct success payload and `{ error }` failures
+        - Updated and validated affected tests:
+          - tests/unit/vitalsRoute.test.ts
+        - Refactored documents list/save route to standardized helpers:
+          - app/api/documents/route.ts
+          - Replaced `{ success: true/false, data }` envelopes with semantic success payloads + `{ error }` failures
+          - Unified unknown error conversion via shared `toErrorMessage(...)`
+        - Updated and validated affected tests:
+          - tests/unit/documentsRoute.test.ts
+        - Refactored auth backup + reset routes to standardized helpers:
+          - app/api/auth/reset-2fa/route.js
+          - app/api/auth/generate-backup-codes/route.js
+          - app/api/auth/consume-backup-code/route.js
+          - app/api/auth/backup-codes/count/route.js
+          - Replaced legacy `{ success: true }` envelopes with semantic payloads (`resetUserId`, `removedFactors`, `generatedCount`, `consumedCodeId`, `count`)
+          - Unified unknown error conversion via shared `toErrorMessage(...)`
+        - Updated and validated affected tests:
+          - tests/unit/authReset2faRoute.test.ts
+          - tests/unit/authGenerateBackupCodesRoute.test.ts
+          - tests/unit/authConsumeBackupCodeRoute.test.ts
+          - tests/unit/backupCodesCountRoute.test.ts
+        - Refactored GB passports add/update/delete routes to standardized helpers:
+          - app/api/passports/gb/add/route.js
+          - app/api/passports/gb/update/route.js
+          - app/api/passports/gb/delete/route.js
+          - Replaced legacy `{ success: true }` envelopes with semantic payloads (`applicationId`, `applicantId`, `updatedPassportId`, `deletedPassportId`)
+          - Unified unknown error conversion via shared `toErrorMessage(...)`
+        - Refactored auth update-password route to standardized helpers:
+          - app/api/auth/update-password/route.js
+          - Replaced legacy `{ success: true, message }` envelope with `{ updatedUserId, message }`
+          - Preserved weak-password + auth/db failure semantics while normalizing catch fallback
+        - Updated and validated affected tests:
+          - tests/unit/passportsGbAddRoute.test.ts
+          - tests/unit/passportsGbUpdateRoute.test.ts
+          - tests/unit/passportsGbDeleteRoute.test.ts
+          - tests/unit/updatePasswordRoute.test.ts
+        - Refactored LMS quick-action route to standardized helpers:
+          - app/api/lms/route.js
+          - Replaced POST action success envelopes (`{ success: true, ... }`) with semantic payloads (`recordedPaymentLoanId`, `createdLoanId`, `customerId`, `updatedCustomerId`, `deletedCustomerId`)
+          - Unified invalid-action and catch-path failures via shared `apiError(...)` + `toErrorMessage(...)`
+        - Updated and validated affected tests:
+          - tests/unit/lmsRouteActions.test.ts
+        - Refactored visas status update route to standardized helpers:
+          - app/api/visas/update-status/route.js
+          - Replaced `{ success: true }` envelope with semantic `{ updatedVisaId, status }`
+          - Preserved DB error detail by converting Supabase errors to `Error` before catch normalization
+        - Updated and validated affected tests:
+          - tests/unit/visasUpdateStatusRoute.test.ts
+        - Refactored visas save route to standardized helpers:
+          - app/api/visas/save/route.js
+          - Replaced `{ success: true }` envelope with semantic `{ operation: 'created' | 'updated' }`
+          - Preserved DB error detail by converting Supabase errors to `Error` before catch normalization
+        - Updated and validated affected tests:
+          - tests/unit/visasSaveRoute.test.ts
+        - Refactored PAK passports status/custody routes to standardized helpers:
+          - app/api/passports/pak/update-status/route.js
+          - app/api/passports/pak/update-custody/route.js
+          - Replaced legacy `{ success: true }` envelopes with semantic payloads (`updatedPassportId`, `status`, `action`)
+          - Preserved CORS headers on custody responses while standardizing error shape
+        - Updated and validated affected tests:
+          - tests/unit/passportsPakUpdateStatusRoute.test.ts
+          - tests/unit/passportsPakUpdateCustodyRoute.test.ts
+          - Validation: 21 test files, 79 tests passing
+      
+      Continued Phase 2 (March 18 2026 - Session 2):
+        - Migrated and validated additional 5 routes:
+          - app/api/nadra/refund/route.js → `{ refundedAt, alreadyRefunded? }`
+          - app/api/timeclock/scan/route.ts → `{ eventId, eventType, punchType, scannedAt }`
+          - app/api/timeclock/events/[eventId]/adjust/route.ts → `{ adjustedEventId, punchType, adjustedTime, reason }`
+          - app/api/admin/issue-reports/[reportId]/route.ts (PATCH) → `{ reportId, status, updatedAt }`
+          - app/api/documents/[documentId]/route.ts (DELETE) → `{ deletedDocumentId }`
+        - Applied shared helper infrastructure:
+          - All routes now import apiOk/apiError from @/lib/api/http
+          - All routes use toErrorMessage() for unknown error normalization
+          - All routes throw new Error(dbError.message) to preserve DB error detail
+        - Refactored error handling:
+          - Removed console.error statements where appropriate
+          - Standardized catch block error responses
+          - Converted NextResponse.json error calls to apiError()
+        - Updated and validated affected tests:
+          - tests/unit/nadraRefundRoute.test.ts (5 tests)
+          - tests/unit/timeclockScanRoute.test.ts (5 tests)
+          - Note: timeclock/adjust route has no tests yet (route migrated)
+          - Note: admin issue-reports PATCH has no tests yet (route migrated)
+          - documents DELETE tests not found (route cleaned up)
+        - Validation: 26 test files, 89 tests passing (10 new tests added to count)
+      
+      Continued Phase 2 Extended (March 18 2026 - Session 2 Additional):
+        - Migrated 1 additional route:
+          - app/api/timeclock/manual-entry/submit/route.ts → `{ eventId, eventType, punchType, scannedAt }`
+        - Applied shared helper infrastructure consistently
+        - Updated and validated affected tests:
+          - tests/unit/manualEntrySubmitRoute.test.ts (4 tests)
+        - Validation: 27 test files, 93 tests passing
+
+      Continued Phase 2 (March 18 2026 - Session 3):
+        - Migrated and validated NADRA + visas routes:
+          - app/api/nadra/complaint/route.js → `{ complaintRecordedForNadraId, complaintNumber }`
+          - app/api/nadra/update-status/route.js → `{ updatedNadraId, status }`
+          - app/api/visas/add-application/route.js → `{ applicationCreatedForApplicantId, internalTrackingNo }`
+          - tests/unit/nadraComplaintRoute.test.ts, tests/unit/nadraUpdateStatusRoute.test.ts, tests/unit/visasAddApplicationRoute.test.ts (11 tests passing)
+        - Migrated and validated additional route contracts:
+          - app/api/passports/pak/notes/route.js (POST) → `{ updatedPassportId, notes }`
+          - app/api/lms/seed-service-categories/route.js → `{ categories }`
+          - app/api/issue-reports/route.ts → `{ ticketId }`
+          - tests/unit/passportsPakNotesRoute.test.ts, tests/unit/seedServiceCategoriesRoute.test.ts, tests/unit/issueReportsRoute.test.ts (11 tests passing)
+        - Migrated and validated admin employee route contracts:
+          - app/api/admin/add-employee/route.js (GET/OPTIONS/POST success payload cleanup)
+          - app/api/admin/delete-employee/route.js → semantic deletion payload fields
+          - app/api/admin/disable-enable-employee/route.js → `{ updatedEmployeeId, isActive, message }`
+          - tests/unit/addEmployeeRoute.test.ts, tests/unit/deleteEmployeeRoute.test.ts, tests/unit/disableEnableEmployeeRoute.test.ts (13 tests passing)
+        - Migrated and validated additional admin/lms contracts:
+          - app/api/lms/installment-payment/route.ts (POST/DELETE/PATCH success payloads)
+          - app/api/admin/seed-payment-methods/route.ts → `{ createdCount, methods }`
+          - tests/unit/installmentPaymentRoute.test.ts, tests/unit/seedPaymentMethodsRoute.test.ts (7 tests passing)
+        - Session validation total: 42 tests passing across 11 updated test files
+
+      Continued Phase 2 (March 18 2026 - Session 4):
+        - Migrated NADRA and PAK passport write-route contracts to semantic payloads:
+          - app/api/nadra/add-application/route.js → `{ createdNadraServiceId, applicationId, applicantId, trackingNumber, status }`
+          - app/api/nadra/manage-record/route.js → `{ updatedRecordType, updatedRecordId }` / `{ deletedRecordType, deletedRecordId }`
+          - app/api/passports/pak/add-application/route.js → `{ createdApplicationId, applicantId, trackingNumber, status }`
+          - app/api/passports/pak/manage-record/route.js → `{ updatedPassportApplicationId, updatedApplicationId }` / `{ deletedPassportApplicationId }`
+        - Standardized helper usage:
+          - Replaced legacy `{ success: true }` wrappers with `apiOk(...)`
+          - Replaced ad-hoc error envelopes with `apiError(...)`
+          - Normalized catch blocks with `toErrorMessage(...)`
+        - Validation:
+          - `npx vitest run tests/unit/nadra*.test.ts tests/unit/passportsPak*.test.ts`
+          - Result: 11 test files, 43 tests passing
+        - Added direct route unit coverage before next migration batch:
+          - tests/unit/nadraAddApplicationRoute.test.ts
+          - tests/unit/nadraManageRecordRoute.test.ts
+          - tests/unit/passportsPakAddApplicationRoute.test.ts
+          - tests/unit/passportsPakManageRecordRoute.test.ts
+          - New direct-coverage result: 4 files, 13 tests passing
+          - Expanded NADRA/PAK regression run: 15 files, 56 tests passing
+
+      Continued Phase 2 (March 18 2026 - Session 5):
+        - Migrated document upload/status route contracts to semantic payloads:
+          - app/api/documents/upload/route.ts
+            - `{ uploadUrl, documentId, minioKey, fileName, fileType, category, familyHeadId }`
+          - app/api/documents/upload-direct/route.ts
+            - `{ documentId, minioKey, etag, storageProvider, storageBucket, fileName, fileType, category, familyHeadId }`
+          - app/api/documents/status/route.ts
+            - `{ status }`
+        - Standardized helper usage in migrated routes:
+          - Replaced legacy `{ success: true/false, data }` envelopes with `apiOk(...)`
+          - Replaced ad-hoc error responses with `apiError(...)`
+          - Added `toErrorMessage(...)` normalization for unknown failures
+        - Updated document service compatibility parsing:
+          - app/lib/services/documentService.ts
+          - Accepts standardized payloads while remaining backward-compatible for legacy `data` wrappers
+        - Added direct route unit coverage:
+          - tests/unit/documentsUploadRoute.test.ts
+          - tests/unit/documentsUploadDirectRoute.test.ts
+          - tests/unit/documentsStatusRoute.test.ts
+        - Validation:
+          - Focused run: 5 files, 15 tests passing
+          - Document regression run: 6 files, 17 tests passing
+
+      Continued Phase 2 (March 18 2026 - Session 6):
+        - Migrated document migration route contracts to semantic payloads:
+          - app/api/documents/migrate-scheduled/route.ts
+            - Unauthorized: `{ error }` with 401
+            - Skip path: `{ skipped, reason }`
+            - Success path: `{ skipped, result, timestamp }`
+          - app/api/documents/migration-overview/route.ts
+            - GET: direct overview payload
+            - POST: `{ result, overview }`
+            - Offline guard: `{ error }` with 409
+        - Standardized helper usage in migrated routes:
+          - Replaced legacy `{ success: true/false, data }` envelopes with `apiOk(...)`
+          - Replaced ad-hoc error responses with `apiError(...)`
+          - Added `toErrorMessage(...)` normalization for catch fallbacks
+        - Updated dashboard consumer for new contract shape:
+          - app/dashboard/settings/components/DocumentMigrationOverviewTab.tsx
+          - Removed legacy `payload.success` / `payload.data` parsing
+          - Reads direct GET payload and direct POST `{ result, overview }`
+        - Added direct route unit coverage:
+          - tests/unit/documentsMigrateScheduledRoute.test.ts
+          - tests/unit/documentsMigrationOverviewRoute.test.ts
+        - Validation:
+          - Migration-route focused run: 2 files, 8 tests passing
+          - Document-focused run (with new tests): 4 files, 14 tests passing
+          - Document regression run: 8 files, 25 tests passing
+
+      Continued Phase 2 (March 18 2026 - Session 7):
+        - Migrated admin LMS cleanup route contracts to semantic payloads:
+          - app/api/admin/wipe-installments/route.ts
+            - Success: `{ deletedInstallmentCount }`
+            - Errors: `{ error }`
+          - app/api/admin/clear-lms-data/route.ts
+            - Success: `{ clearedTables, clearedTableCount }`
+            - Errors: `{ error }`
+        - Standardized helper usage in migrated routes:
+          - Replaced legacy `{ success: true/false, message }` envelopes with `apiOk(...)` / `apiError(...)`
+          - Added `toErrorMessage(...)` normalization for catch fallbacks
+        - Added direct route unit coverage:
+          - tests/unit/adminWipeInstallmentsRoute.test.ts
+          - tests/unit/adminClearLmsDataRoute.test.ts
+        - Validation:
+          - Focused run: 2 files, 6 tests passing
+          - Route + test diagnostics: no errors in touched files
+
+      Continued Phase 2 (March 18 2026 - Session 8):
+        - Migrated additional admin LMS maintenance route contracts to semantic payloads:
+          - app/api/admin/create-installments-table/route.ts
+            - Success: `{ tableReady, tableExists }`
+            - Missing-table guidance: `{ error, sql }`
+          - app/api/admin/migrate-installment-amounts/route.ts
+            - Success: `{ totalInstallments, updatedPaidCount, updatedSkippedCount, unchangedCount }`
+            - Errors: `{ error }`
+        - Standardized helper usage in migrated routes:
+          - Replaced legacy `{ success: true }` wrappers with `apiOk(...)`
+          - Replaced ad-hoc error responses with `apiError(...)`
+          - Added `toErrorMessage(...)` normalization for catch fallbacks
+          - Preserved fetch failure detail by throwing `Error(fetchError.message)` before catch normalization
+        - Added direct route unit coverage:
+          - tests/unit/adminCreateInstallmentsTableRoute.test.ts
+          - tests/unit/adminMigrateInstallmentAmountsRoute.test.ts
+        - Validation:
+          - Focused run: 2 files, 5 tests passing
+          - Route + test diagnostics: no errors in touched files
+
+      Continued Phase 2 (March 18 2026 - Session 9):
+        - Migrated additional admin/cron cleanup route contracts to semantic payloads:
+          - app/api/admin/clear-lms/route.ts
+            - Success: `{ deleted: { installments, transactions, loans, customers } }`
+            - Errors: `{ error }`
+          - app/api/cron/issue-reports/cleanup/route.ts
+            - Success: `{ deletedArtifactCount, deletedTicketCount, retention }`
+            - Errors: `{ error }`
+        - Standardized helper usage in migrated routes:
+          - Replaced legacy `{ success: true }` / `{ ok: true }` envelopes with `apiOk(...)`
+          - Replaced ad-hoc unauthorized/error responses with `apiError(...)`
+          - Added `toErrorMessage(...)` normalization for catch fallbacks
+        - Added direct route unit coverage:
+          - tests/unit/adminClearLmsRoute.test.ts
+          - tests/unit/issueReportsCleanupCronRoute.test.ts
+        - Validation:
+          - Focused run: 2 files, 5 tests passing
+          - Route + test diagnostics: no errors in touched files
+
+      Continued Phase 2 (March 18 2026 - Session 10):
+        - Migrated additional admin maintenance route contracts to semantic payloads:
+          - app/api/admin/seed-countries/route.js
+            - POST success: `{ seededCountryCount }`
+            - GET health: `{ route, note }`
+            - Errors: `{ error }`
+          - app/api/admin/migrate-names-lowercase/route.js
+            - Success: `{ updatedCount, totalProcessed, errors }`
+            - Errors: `{ error }`
+        - Standardized helper usage in migrated routes:
+          - Replaced legacy `{ success: true }` / `{ ok: true }` envelopes with `apiOk(...)`
+          - Replaced ad-hoc error responses with `apiError(...)`
+          - Added `toErrorMessage(...)` normalization for catch fallbacks
+          - Added Supabase env guards (`Supabase not configured`) before client creation
+        - Added direct route unit coverage:
+          - tests/unit/adminSeedCountriesRoute.test.ts
+          - tests/unit/adminMigrateNamesLowercaseRoute.test.ts
+        - Validation:
+          - Focused run: 2 files, 8 tests passing
+          - Route + test diagnostics: no errors in touched files
+
+      Continued Phase 2 (March 18 2026 - Session 11):
+        - Migrated additional admin maintenance route contracts to semantic payloads:
+          - app/api/admin/create-installments/route.ts
+            - Success: `{ createdInstallmentCount, skippedTransactionCount, erroredTransactionCount, totalTransactions }`
+            - Optional detail: `{ errorDetails }`
+            - Manual-setup guidance preserved: `{ error, requiresManualSetup, sql }`
+          - app/api/admin/seed-pricing/route.ts
+            - Success: `{ nadraCount, pkCount, gbCount }`
+            - Errors: `{ error }`
+        - Standardized helper usage in migrated routes:
+          - Replaced legacy `{ success: true, message, results }` wrappers with `apiOk(...)`
+          - Replaced ad-hoc unauthorized/error responses with `apiError(...)`
+          - Added `toErrorMessage(...)` normalization for catch fallbacks
+          - Added Supabase env guards (`Supabase not configured`) before client creation
+        - Added direct route unit coverage:
+          - tests/unit/adminCreateInstallmentsRoute.test.ts
+          - tests/unit/adminSeedPricingRoute.test.ts
+        - Validation:
+          - Focused run: 2 files, 8 tests passing
+          - Route + test diagnostics: no errors in touched files
+
+      Continued Phase 2 (March 18 2026 - Session 12):
+        - Verified legacy wrapper cleanup completion across API routes:
+          - Wrapper scan (`success: true/false`, `ok: true/false`) across `app/api/**/route.{ts,js}` returned clean
+          - Confirmed remaining previously-flagged admin routes already use semantic payloads:
+            - app/api/admin/reset-password/route.js
+            - app/api/admin/seed-presets/route.js
+        - Added direct route unit coverage for final admin routes in this pass:
+          - tests/unit/adminResetPasswordRoute.test.ts
+          - tests/unit/adminSeedPresetsRoute.test.ts
+        - Expanded direct coverage assertions:
+          - reset-password: unauthorized passthrough, env guard, validation error, semantic success payload
+          - seed-presets: env guard, semantic sync summary, thrown-query failure
+        - Validation:
+          - Focused run: 2 files, 7 tests passing
+          - Route + test diagnostics: no errors in touched files
+        - Outcome:
+          - Legacy `{ success }` / `{ ok }` response envelopes are no longer present in `app/api` route handlers
+
+      Continued Phase 2 (March 18 2026 - Session 13):
+        - Pivoted to second-pass cleanup: routes still calling NextResponse.json(...) directly
+        - Migrated 4 routes to apiOk/apiError + toErrorMessage (existing tests, no new test files needed):
+          - app/api/nadra/metadata/route.js
+          - app/api/visas/metadata/route.js
+          - app/api/nadra/status-history/route.js
+          - app/api/nadra/agent-options/route.js
+        - Each route: removed NextResponse import, added apiOk/apiError/toErrorMessage imports,
+          replaced all NextResponse.json(...) calls, removed console.error from catch blocks
+        - visas/metadata: apiOk second-arg pass-through preserves Cache-Control header
+        - Validation:
+          - Focused run: 4 files, 13 tests passing
+          - Diagnostics: no errors in touched files
+
+      Continued Phase 2 (March 18 2026 - Session 14):
+        - Migrated 4 passport routes to apiOk/apiError + toErrorMessage (existing tests, no new test files needed):
+          - app/api/passports/gb/metadata/route.js
+          - app/api/passports/pak/metadata/route.js
+          - app/api/passports/gb/status-history/route.js
+          - app/api/passports/pak/status-history/route.js
+        - gb/metadata and pak/metadata: apiOk preserves Cache-Control header via second-arg pass-through
+        - pak/status-history: removed console.error, preserved empty-history fallback as apiOk({ history: [] }),
+          replaced 404 guard with apiError('Record not found', 404)
+        - Validation:
+          - Focused run: 4 files, 11 tests passing
+          - Diagnostics: no errors in touched files
+
+      Continued Phase 2 (March 18 2026 - Session 15):
+        - Migrated 7 routes to apiOk/apiError + toErrorMessage (existing tests, no new test files needed):
+          - app/api/passports/pak/update-custody/route.js
+          - app/api/admin/delete-employee/route.js
+          - app/api/admin/disable-enable-employee/route.js
+          - app/api/auth/sessions/route.ts
+          - app/api/lms/audit-logs/route.ts
+          - app/api/lms/installments/route.ts
+          - app/api/lms/payment-methods/route.js
+        - Extended error normalization utility to support non-Error objects with message fields:
+          - lib/api/error.ts
+        - Validation:
+          - Focused run: 7 files, 31 tests passing
+          - Regression run across earlier migrated routes: 11 files, 38 tests passing
+          - Diagnostics: no errors in touched files
+
+      Continued Phase 2 (March 18 2026 - Session 16):
+        - Completed final direct NextResponse.json cleanup in app/api:
+          - app/api/admin/add-employee/route.js
+          - app/api/documents/[documentId]/download/route.ts
+          - app/api/documents/[documentId]/thumbnail/route.ts
+        - Updated shared response helper to support header-preserving error responses:
+          - lib/api/http.ts (apiError now accepts optional ResponseInit)
+        - add-employee: preserved CORS behavior via shared helper + route-level header helper,
+          normalized catch/mail errors via toErrorMessage
+        - Validation:
+          - Focused run: 3 files, 9 tests passing
+          - Route diagnostics: no errors in touched files
+          - Repository scan: no remaining NextResponse.json(...) calls in app/api
+        - Outcome:
+          - Second-pass direct-response cleanup complete for Issue 15 scope
+          - Route-level response handling now consistently routed through shared helpers for API endpoints
+          - Shared error normalization aligned with Supabase plain-object errors (`message` extraction)
+          - Focused regression runs passed across migrated API route suites
+      
+      Current State:
+        - mix of try/catch with different error shapes
+        - Some routes return { error: string }
+        - Others return { success: boolean, data: ... }
+        - Some throw raw errors
+      
+      Standardization:
+        - Define ApiResponse<T> type:
+          T | { error: string }
+        - Create error.ts utilities for common cases
+        - Add error boundary wrapper for API calls
+        - Document error response format for each route
+      
+      Time Estimate: 3-4 hours
+
+[✅] 16. DOCUMENTATION GAPS
+  Status: ✅ COMPLETED (March 18 2026)
+      Impact: Onboarding time, inconsistent patterns
+
+  Progress So Far:
+    - API route reference already present: `docs/technical/API_REFERENCE.md`
+    - Added type system guide: `docs/TYPES.md`
+    - Added dependency audit report: `docs/technical/DEPENDENCY_AUDIT.md`
+    - Updated `docs/README.md` links to include new docs
+    - Added authentication flow documentation: `docs/technical/AUTHENTICATION_FLOW.md`
+    - Added database schema overview: `docs/technical/DATABASE_SCHEMA_OVERVIEW.md`
+    - Added deployment and environment setup guide: `docs/technical/DEPLOYMENT_ENVIRONMENT_SETUP.md`
+    - Updated docs index to include all new technical guides
+      
+      Missing:
+        - API Endpoint Documentation (79 routes undocumented)
+        - Database Schema Documentation
+        - Authentication Flow Documentation
+        - Deployment/Environment Setup Guide
+        - Type System Documentation (how to add types)
+        - Performance Optimization Guide
+      
+      Recommendation:
+        - Create docs/API.md (endpoint reference, examples)
+        - Create docs/TYPES.md (type system conventions)
+        - Update docs/ARCHITECTURE.md with current state
+        - Add JSDoc examples to public functions
+      
+      Time Estimate: 4-6 hours
+
+[✅] 17. DEPENDENCIES AUDIT
+  Status: ✅ COMPLETED (March 17 2026)
+      Impact: Security, bundle size, maintenance
+
+  Progress So Far:
+    - Ran `npm audit --json` and documented findings
+    - Upgraded vulnerable dependencies (`next`, `eslint-config-next`) and applied `npm audit fix`
+    - Current audit result: 0 vulnerabilities
+    - Added report: `docs/technical/DEPENDENCY_AUDIT.md`
+      
+      Current Dependencies (from package.json):
+        - @aws-sdk/client-s3 (bundled SDK, large)
+        - @supabase packages (auth + realtime)
+        - sonner, lucide-react, qrcode, html2canvas
+        - form-data, mailgun.js, jsqr, pdfjs-dist
+      
+      Action:
+        - Check for unused dependencies
+        - Identify opportunities to replace heavy dependencies
+        - Add security scanning (npm audit, snyk)
+        - Consider tree-shaking optimizations
+      
+      Time Estimate: 2-3 hours
+
+[✅] 18. CODE STYLE CONSISTENCY
+  Status: ✅ COMPLETED (March 17 2026)
+      Impact: Code review noise, maintainability
+
+  Progress So Far:
+    - Added `format:check` script to package.json
+    - Installed Prettier in devDependencies
+    - Updated CONTRIBUTING with lint/unit/format verification commands
+    - Ran incremental Prettier batch on the latest edited API/service/timeclock files
+    - Ran scoped Prettier batch across `app/api`, `lib`, and `hooks`
+    - Current format baseline: 1 file flagged (`public/pdf.worker.min.mjs`, intentionally excluded as minified vendor asset)
+      
+      Current:
+        - Mixed quotes (some single, some double)
+        - Inconsistent trailing commas
+        - Some prettier.json, eslint.json setup
+      
+      Recommendation:
+        - Run prettier --write . (enforce consistent formatting)
+        - Add pre-commit hook to auto-format
+        - Document code style in CONTRIBUTING.md
+      
+      Time Estimate: 30 minutes
+
+================================================================================
+REFACTORING ROADMAP (Suggested Sequence)
+================================================================================
+
+WEEK 1: Foundation (Blocks Everything Else)
+────────────────────────────────────────────────────────────────────────────
+[ ] Fix lint pipeline (Issue #1) - 15 min
+[ ] Clean production console statements (Issue #3) - 2-3 hours
+[ ] Create shared domain types (Issue #2 Phase 1) - 2 hours
+Result: Foundation for safe refactoring
+
+WEEK 2: Modularity
+────────────────────────────────────────────────────────────────────────────
+[ ] Unify lib/hooks imports (Issue #4) - 3-4 hours
+[ ] Add barrel exports (Issue #7) - 2-3 hours
+[ ] Split document service (Issue #11) - 2-3 hours
+Result: Clean import patterns, easier navigation
+
+WEEK 3: Large File Extraction
+────────────────────────────────────────────────────────────────────────────
+[ ] Refactor NADRA client (Issue #6, Tier 1) - 3-4 hours
+[ ] Refactor Timeclock clients (Issue #6, Tier 2) - 2-3 hours
+[ ] Refactor IssueReportsTab (Issue #6, Tier 2) - 2-3 hours
+Result: Reduced component complexity, easier testing
+
+WEEK 4: Type Safety + Tests
+────────────────────────────────────────────────────────────────────────────
+[ ] Add LMS domain types (Issue #2 Phase 2) - 1-2 hours
+[ ] Add API integration tests (Issue #5) - 4-6 hours
+[ ] Review for type assertions (Issue #13) - 2 hours
+Result: Stronger type safety, regression detection
+
+ONGOING (Each Sprint)
+────────────────────────────────────────────────────────────────────────────
+[ ] Replace any types as you touch files
+[ ] Mark deprecated code with removal dates
+[ ] Add tests for new features
+[ ] Keep imports standardized (@/lib and @/hooks only)
+
+================================================================================
+SUCCESS METRICS
+================================================================================
+
+Track Progress With These Metrics:
+  - "any" type count: Target < 50 (from current 372)
+  - Test count: Target > 50 (from current 1)
+  - Console statements: Target < 20 (from current 151)
+  - Average component size: Target < 300 lines
+  - Custom hook adoption: Target > 80%
+  - Barrel exports: Target 100% for lib, hooks, components
+
+CI/CD Improvements:
+  - [ ] Lint passing on all PRs
+  - [ ] Type checking with tsc --noEmit
+  - [ ] Test coverage tracking (>50% target)
+  - [ ] Bundle size monitoring
+  - [ ] Performance regression detection
+
+================================================================================
+MAINTENANCE CALENDAR
+================================================================================
+
+Ongoing Tasks (Every Sprint):
+  - [ ] Review any new any types in PRs (before merge)
+  - [ ] Run npm audit monthly (security)
+  - [ ] Check dependencies for updates (except patch upgrades)
+  - [ ] Verify test coverage on new code
+  - [ ] Keep CHANGELOG updated
+
+Quarterly:
+  - [ ] Full codebase type audit
+  - [ ] Review and refactor largest files
+  - [ ] Update documentation
+  - [ ] Performance profiling + optimization
+
+================================================================================
+RESOURCES & LINKS
+================================================================================
+
+Documentation Files in Repo:
+  - docs/ARCHITECTURE_GUIDE.md (architecture overview)
+  - CODEBASE_CLEANUP_GUIDE.md (cleanup standards)
+  - CODEBASE_STRUCTURE_GUIDE.md (folder structure)
+  - CONTRIBUTING.md (contribution guidelines)
+
+Recommended Tools:
+  - VS Code TypeScript Extension (strict mode)
+  - React DevTools Profiler (performance)
+  - ESLint + Prettier (code quality)
+  - Vitest or Jest (testing)
+  - npm audit (security scanning)
+
+Learning Resources:
+  - TypeScript Handbook (type safety)
+  - React Documentation (hooks patterns)
+  - Next.js Best Practices
+  - API Design Patterns
+
+================================================================================
+NOTES
+================================================================================
+
+Current Strengths:
+  ✅ Good folder organization with feature-based structure
+  ✅ TypeScript + strictNullChecks enabled
+  ✅ Path aliases configured (@/* pattern)
+  ✅ Consistent component naming (PascalCase)
+  ✅ Recent refactoring work (modal focus fix, issue reporting)
+  ✅ Good separation of concerns (app/, lib/, hooks/, components/)
+
+Areas for Improvement:
+  ⚠️  Type safety (any usage) - needs focused cleanup
+  ⚠️  Test coverage - needs expansion
+  ⚠️  Import organization - needs standardization
+  ⚠️  Large components - need extraction + hooks
+  ⚠️  Documentation - needs updating
+  ⚠️  Lint pipeline - currently broken
+
+Risk Assessment:
+  🔴 HIGH RISK: Making changes without lint + tests
+  🔴 HIGH RISK: Type safety erosion from any usage
+  🟡 MEDIUM RISK: Large components hard to modify
+  🟡 MEDIUM RISK: Inconsistent error handling
+  🟢 LOW RISK: Overall codebase is well-structured
+
+Estimated Total Cleanup Effort:
+  - Foundation work: 5-6 hours
+  - Modularity work: 7-9 hours
+  - Large file refactoring: 10-12 hours
+  - Type safety + tests: 8-10 hours
+  - Documentation: 4-6 hours
+  ─────────────────────────────
+  TOTAL: 34-43 hours (1-2 weeks for one developer)
+
+================================================================================
+End of Checklist
+================================================================================

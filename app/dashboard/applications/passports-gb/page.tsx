@@ -10,20 +10,31 @@ export default async function GbPassportsPage() {
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: { getAll() { return cookieStore.getAll() }, setAll() {} } }
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll()
+        },
+        setAll() {},
+      },
+    },
   )
 
-  const { data: { session } } = await supabase.auth.getSession()
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
   if (!session) redirect('/login')
 
   // Fetch Data
   const { data: passports } = await supabase
     .from('british_passport_applications')
-    .select(`
+    .select(
+      `
       *,
       applicants (id, first_name, last_name, date_of_birth, phone_number),
       applications (id, tracking_number)
-    `)
+    `,
+    )
     .order('created_at', { ascending: false })
 
   // Fetch Employee Info
@@ -39,15 +50,15 @@ export default async function GbPassportsPage() {
   return (
     <DashboardClientWrapper>
       <div className="min-h-screen bg-slate-50 flex flex-col">
-        <PageHeader 
-            employeeName={employee?.full_name} 
-            role={role?.name} 
-            location={location}
-            userId={session?.user?.id}
-            showBack={true}
+        <PageHeader
+          employeeName={employee?.full_name}
+          role={role?.name}
+          location={location}
+          userId={session?.user?.id}
+          showBack={true}
         />
         <main className="max-w-7xl mx-auto p-6 w-full flex-grow">
-            <GbPassportsClient initialData={passports || []} currentUserId={session?.user?.id} />
+          <GbPassportsClient initialData={passports || []} currentUserId={session?.user?.id} />
         </main>
       </div>
     </DashboardClientWrapper>

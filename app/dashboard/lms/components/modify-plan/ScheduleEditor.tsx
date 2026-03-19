@@ -26,16 +26,13 @@ export function ScheduleEditor({
   onSave,
   saving,
   transaction,
-  totalInstallments
+  totalInstallments,
 }: ScheduleEditorProps) {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <h3 className="font-semibold text-slate-800">Edit Payment Schedule</h3>
-        <button
-          onClick={onCancel}
-          className="text-sm text-slate-500 hover:text-slate-700"
-        >
+        <button onClick={onCancel} className="text-sm text-slate-500 hover:text-slate-700">
           Cancel
         </button>
       </div>
@@ -47,15 +44,19 @@ export function ScheduleEditor({
               <span className="text-xs font-semibold text-slate-700">
                 Installment {inst.installment_number}/{totalInstallments}
               </span>
-              <span className={`text-xs px-2 py-0.5 rounded ${
-                inst.status === 'paid' ? 'bg-green-100 text-green-700' :
-                inst.status === 'skipped' ? 'bg-gray-100 text-gray-600' :
-                'bg-blue-100 text-blue-700'
-              }`}>
+              <span
+                className={`text-xs px-2 py-0.5 rounded ${
+                  inst.status === 'paid'
+                    ? 'bg-green-100 text-green-700'
+                    : inst.status === 'skipped'
+                      ? 'bg-gray-100 text-gray-600'
+                      : 'bg-blue-100 text-blue-700'
+                }`}
+              >
                 {inst.status}
               </span>
             </div>
-            
+
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="text-xs text-slate-600 block mb-1">Due Date</label>
@@ -72,7 +73,13 @@ export function ScheduleEditor({
                 <input
                   type="number"
                   step="0.01"
-                  value={inst.status === 'paid' ? inst.amount_paid : inst.status === 'skipped' ? 0 : inst.amount}
+                  value={
+                    inst.status === 'paid'
+                      ? inst.amount_paid
+                      : inst.status === 'skipped'
+                        ? 0
+                        : inst.amount
+                  }
                   onChange={(e) => onInstallmentChange(idx, 'amount', e.target.value)}
                   disabled={inst.status === 'paid' || inst.status === 'skipped'}
                   className="w-full px-2 py-1.5 text-sm border rounded disabled:bg-slate-100 disabled:cursor-not-allowed"
@@ -88,16 +95,24 @@ export function ScheduleEditor({
         <div className="flex justify-between mb-1">
           <span className="text-blue-700">Total Installments:</span>
           <span className="font-semibold text-blue-900">
-            £{editedInstallments.reduce((sum, inst) => {
-              const displayAmount = inst.status === 'paid' ? inst.amount_paid : inst.status === 'skipped' ? 0 : inst.amount
-              return sum + displayAmount
-            }, 0).toFixed(2)}
+            £
+            {editedInstallments
+              .reduce((sum, inst) => {
+                const displayAmount =
+                  inst.status === 'paid'
+                    ? inst.amount_paid
+                    : inst.status === 'skipped'
+                      ? 0
+                      : inst.amount
+                return sum + displayAmount
+              }, 0)
+              .toFixed(2)}
           </span>
         </div>
         <div className="flex justify-between">
           <span className="text-blue-700">Service Amount:</span>
           <span className="font-semibold text-blue-900">
-            £{parseFloat(transaction.amount as any).toFixed(2)}
+            £{Number(transaction.amount).toFixed(2)}
           </span>
         </div>
       </div>

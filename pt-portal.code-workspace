@@ -1,10 +1,10 @@
 {
-	"folders": [
-		{
-			"path": "."
-		}
-	],
-	"settings": {
-		"chat.agent.maxRequests": 50
-	}
+  "folders": [
+    {
+      "path": ".",
+    },
+  ],
+  "settings": {
+    "chat.agent.maxRequests": 50,
+  },
 }

@@ -1,7 +1,9 @@
 # Staff Member Disable/Delete Feature - Implementation Guide
 
 ## Overview
+
 This document describes the new staff member management feature that allows:
+
 - **Managers** to temporarily disable/enable their team members
 - **Super Admin** to permanently delete staff members from the system
 
@@ -12,11 +14,13 @@ A migration file has been created to add the `is_active` field to the employees 
 **File:** `/scripts/migrations/20260221_add_is_active_to_employees.sql`
 
 ### What it does:
+
 1. Adds `is_active` boolean column (default: `true`) to employees table
 2. Creates an index for efficient filtering by active status
 3. Prevents disabled employees from logging in
 
 ### How to apply:
+
 Run this migration on your Supabase database using the service role key:
 
 ```bash
@@ -26,6 +30,7 @@ PGPASSWORD=your_password psql -h your-db.supabase.co -U postgres -d postgres \
 ```
 
 Or use Supabase SQL editor:
+
 1. Go to your Supabase Dashboard
 2. Go to SQL Editor
 3. Run the migration file contents
@@ -33,7 +38,9 @@ Or use Supabase SQL editor:
 ## Features
 
 ### 1. Login Validation
+
 **What happens:** When a disabled employee tries to log in, they receive the message:
+
 > "Your account has been disabled. Contact your administrator for access."
 
 **Code location:** `/app/login/page.tsx` (lines 21-25)
@@ -41,13 +48,16 @@ Or use Supabase SQL editor:
 The login flow now checks `is_active` status before allowing access.
 
 ### 2. Disable/Enable Employee
+
 **Permission:** Managers and Super Admin
 
 **Access:**
+
 - Managers can disable/enable their direct reports and team members
 - Super Admin can disable/enable anyone
 
 **How to use:**
+
 1. Go to Dashboard → Settings → Staff Management
 2. Find the employee in the list
 3. Click **Disable** (for active employees) or **Enable** (for disabled ones)
@@ -55,6 +65,7 @@ The login flow now checks `is_active` status before allowing access.
 5. The list updates immediately with status badges
 
 **Visual indicators:**
+
 - Disabled employees appear **grayed out** with a **red "Disabled" badge**
 - Active employees show a **green "Active" badge**
 - Disabled employee names are **struck through**
@@ -77,19 +88,23 @@ The login flow now checks `is_active` status before allowing access.
 ```
 
 **Authorization:**
+
 - Only managers of the employee or Super Admin can perform this action
 - Prevents self-disabling (you cannot disable your own account)
 - Returns 403 Forbidden if unauthorized
 
 ### 3. Delete Employee (Super Admin Only)
+
 **Permission:** Super Admin ONLY
 
 **What happens:**
+
 - Employee record is permanently removed from the database
 - Employee cannot ever log in again (Auth user is marked as deleted)
 - No recovery possible - this is irreversible
 
 **How to use:**
+
 1. Go to Dashboard → Settings → Staff Management
 2. Find the employee in the list (Super Admin only sees Delete button)
 3. Click **Delete**
@@ -99,6 +114,7 @@ The login flow now checks `is_active` status before allowing access.
 7. Employee is removed instantly
 
 **Safety features:**
+
 - Email confirmation required (must match exactly)
 - Cannot delete your own account
 - Clear warning message shown
@@ -106,6 +122,7 @@ The login flow now checks `is_active` status before allowing access.
 - Logged in audit trail with timestamp and admin email
 
 **Delete Button visibility:**
+
 - ✅ Visible ONLY to Super Admin (Master Admin role)
 - ❌ Not visible to regular Admins
 - ❌ Not visible to Managers
@@ -133,6 +150,7 @@ The login flow now checks `is_active` status before allowing access.
 ```
 
 **Authorization:**
+
 - Only Super Admin (Master Admin role) can call this endpoint
 - Any other role gets 403 Forbidden response
 - Request is logged with super admin's email
@@ -143,23 +161,26 @@ The login flow now checks `is_active` status before allowing access.
 
 The Staff Management table now shows:
 
-| Column | Details |
-|--------|---------|
-| Name | Employee name with email (struck through if disabled) |
-| Role | Employee's role in the system |
-| Branch | Assigned location |
-| Department | Assigned department |
-| **Status** | **NEW** - Shows "Active" (green) or "Disabled" (red) badges |
-| Action | Buttons: Edit, Reset, Disable/Enable, **Delete** (super admin only) |
+| Column     | Details                                                             |
+| ---------- | ------------------------------------------------------------------- |
+| Name       | Employee name with email (struck through if disabled)               |
+| Role       | Employee's role in the system                                       |
+| Branch     | Assigned location                                                   |
+| Department | Assigned department                                                 |
+| **Status** | **NEW** - Shows "Active" (green) or "Disabled" (red) badges         |
+| Action     | Buttons: Edit, Reset, Disable/Enable, **Delete** (super admin only) |
 
 ### Action Buttons
+
 - **Edit** - Modify role, branch, department
 - **Reset** - Send temporary password email
 - **Disable/Enable** - Toggle active status (managers + super admin)
 - **Delete** - Permanently remove (super admin only)
 
 ### Delete Confirmation Dialog
+
 When clicking Delete:
+
 1. Action row expands to show confirmation section
 2. Red warning box appears with instructions
 3. User must type employee's email to confirm
@@ -171,24 +192,29 @@ When clicking Delete:
 ### API Endpoints
 
 #### 1. Disable/Enable Endpoint
+
 **File:** `/app/api/admin/disable-enable-employee/route.js`
 
 Features:
+
 - Authorization check: Manager or Super Admin
 - Manager hierarchy validation (can manage own reports)
 - Prevents self-disabling
 - Updates `is_active` field in employees table
 
 Security:
+
 - Session validation required
 - Role verification
 - Hierarchical permission checking
 - Detailed logging
 
 #### 2. Delete Endpoint
+
 **File:** `/app/api/admin/delete-employee/route.js`
 
 Features:
+
 - Super Admin ONLY authorization
 - Email confirmation required
 - Prevents self-deletion
@@ -197,6 +223,7 @@ Features:
 - Comprehensive audit logging
 
 Security:
+
 - Super Admin role verification only
 - Email address verification (double confirmation)
 - Does not allow deleting yourself
@@ -206,18 +233,21 @@ Security:
 ### Database Changes
 
 **New Column:** `employees.is_active`
+
 - Type: `boolean`
 - Default: `true` (all new employees are active)
 - Indexed for efficient queries
 - Used by login validation
 
 **Index:** `idx_employees_is_active`
+
 - Speeds up queries filtering by active status
 - Used in login checks and staff listings
 
 ## Testing Checklist
 
 ### Test Disable/Enable Feature
+
 - [ ] Log in as a manager with team members
 - [ ] In Staff Management, click Disable on a team member
 - [ ] Verify employee appears grayed out with "Disabled" badge
@@ -227,6 +257,7 @@ Security:
 - [ ] Try to disable yourself (should show error)
 
 ### Test Delete Feature
+
 - [ ] Log in as Super Admin
 - [ ] Go to Staff Management
 - [ ] Verify Delete buttons only appear for Super Admin
@@ -240,18 +271,21 @@ Security:
 - [ ] Try to log in as deleted employee (should get error)
 
 ### Test Authorization
+
 - [ ] As Manager, try to disable non-team members (should fail)
 - [ ] As Manager, try to delete someone (Delete button not visible)
 - [ ] As Admin, try to delete someone (Delete button not visible)
 - [ ] Call delete API directly as Admin (should get 403 error)
 
 ### Test Edge Cases
+
 - [ ] Disable, then re-enable the same employee multiple times
 - [ ] Delete an employee who hasn't logged in yet
 - [ ] Try to delete your own account as Super Admin (should prevent)
 - [ ] Disable all managers except one (verify they can still manage)
 
 ## Environment Variables
+
 None new required - uses existing Supabase configuration
 
 ## Error Handling
@@ -259,11 +293,13 @@ None new required - uses existing Supabase configuration
 ### Common Error Messages
 
 **Login Errors:**
+
 - "Your account has been disabled. Contact your administrator for access."
   - User is disabled (is_active = false)
   - Solution: Manager or Super Admin must re-enable them
 
 **Disable/Enable Errors:**
+
 - "Unauthorized: Only managers or super admin can disable/enable employees"
   - Caller doesn't have permission
   - Solution: Must be manager or Super Admin
@@ -273,6 +309,7 @@ None new required - uses existing Supabase configuration
   - Solution: Ask another manager/admin
 
 **Delete Errors:**
+
 - "Forbidden: Only Super Admin can delete employees"
   - Only Master Admin role can delete
   - Solution: Ask Super Admin to perform deletion
@@ -290,17 +327,20 @@ None new required - uses existing Supabase configuration
 All actions are logged:
 
 ### Disable/Enable
+
 ```
 [disable-enable-employee] john.doe@company.com disabled employee john-smith-id
 [disable-enable-employee] john.doe@company.com enabled employee john-smith-id
 ```
 
 ### Delete
+
 ```
 🗑️  [delete-employee] SUPER ADMIN john.doe@company.com deleted employee jane.smith@company.com (Jane Smith)
 ```
 
 Logs include:
+
 - Timestamp
 - Admin's email who performed action
 - Employee affected
@@ -309,6 +349,7 @@ Logs include:
 ## Future Enhancements
 
 Potential improvements for future versions:
+
 1. Disable date and reason tracking (when/why disabled)
 2. Re-enable deadline (auto-enable after X days)
 3. Bulk disable/enable operations
@@ -340,6 +381,7 @@ A: You cannot disable yourself, so you're safe. But if you have only one Super A
 ## Support
 
 For issues or questions:
+
 1. Check auth flow in `/app/login/page.tsx`
 2. Check StaffTab component in `/app/dashboard/settings/components/StaffTab.tsx`
 3. Review API endpoints in `/app/api/admin/` directory

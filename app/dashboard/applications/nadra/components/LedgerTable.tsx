@@ -1,16 +1,17 @@
 import { getStatusColor, getNadraRecord, getDetails } from './helpers'
+import type { NadraApplication, NadraFamilyGroup, NadraPerson } from '@/app/types/nadra'
 
 interface LedgerTableProps {
-  groupedData: Record<string, any>
+  groupedData: Record<string, NadraFamilyGroup>
   isUpdating: boolean
   onStatusChange: (nadraId: string, newStatus: string) => void
   onMarkRefund: (nadraId: string) => void
-  onEditApplication: (item: any) => void
-  onEditHead: (head: any) => void
-  onAddMember: (head: any) => void
-  onViewHistory: (item: any) => void
-  onOpenNotes: (item: any) => void
-  onOpenComplaint: (item: any) => void
+  onEditApplication: (item: NadraApplication) => void
+  onEditHead: (head: NadraPerson) => void
+  onAddMember: (head: NadraPerson) => void
+  onViewHistory: (item: NadraApplication) => void
+  onOpenNotes: (item: NadraApplication) => void
+  onOpenComplaint: (item: NadraApplication) => void
   onManageDocuments?: (familyHeadId: string, familyHeadName: string) => void
 }
 
@@ -25,44 +26,68 @@ export default function LedgerTable({
   onViewHistory,
   onOpenNotes,
   onOpenComplaint,
-  onManageDocuments
+  onManageDocuments,
 }: LedgerTableProps) {
+  const groupedEntries = Object.entries(groupedData) as [string, NadraFamilyGroup][]
+
   const canOpenComplaintForStatus = (status: string) => {
-    const normalizedStatus = String(status || '').trim().toLowerCase()
-    return normalizedStatus === 'submitted' || normalizedStatus.includes('progress') || normalizedStatus.includes('process')
+    const normalizedStatus = String(status || '')
+      .trim()
+      .toLowerCase()
+    return (
+      normalizedStatus === 'submitted' ||
+      normalizedStatus.includes('progress') ||
+      normalizedStatus.includes('process')
+    )
   }
 
   return (
     <div className="space-y-4">
-      {Object.entries(groupedData).length === 0 ? (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-12 text-center text-slate-400 italic" role="status" aria-live="polite">
+      {groupedEntries.length === 0 ? (
+        <div
+          className="bg-white rounded-xl border border-slate-200 shadow-sm p-12 text-center text-slate-400 italic"
+          role="status"
+          aria-live="polite"
+        >
           No records found.
         </div>
       ) : (
-        Object.entries(groupedData).map(([headCnic, group]: any) => (
-          <div key={headCnic} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        groupedEntries.map(([headCnic, group]) => (
+          <div
+            key={headCnic}
+            className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden"
+          >
             {/* GROUP HEADER */}
             <div className="bg-slate-50 px-6 py-3 border-b border-slate-200 flex justify-between items-center">
               <div className="flex items-center gap-3">
                 <span className="text-xl">🏠</span>
                 <div>
                   <h4 className="font-bold text-slate-800 text-sm">
-                    {group.head ? `${group.head.first_name} ${group.head.last_name}` : 'No Family Head'}
+                    {group.head
+                      ? `${group.head.first_name} ${group.head.last_name}`
+                      : 'No Family Head'}
                   </h4>
                   <div className="flex items-center gap-2 text-[10px] text-slate-500 font-mono uppercase">
                     <span>{headCnic}</span>
                     {group.head?.phone_number && (
-                      <span className="text-slate-500 font-sans normal-case">• 📞 {group.head.phone_number}</span>
+                      <span className="text-slate-500 font-sans normal-case">
+                        • 📞 {group.head.phone_number}
+                      </span>
                     )}
                   </div>
                 </div>
               </div>
-              
+
               {/* Center: Document Management Button */}
               <div className="flex-1 flex justify-center">
                 {group.head && (
                   <button
-                    onClick={() => onManageDocuments?.(group.head.id, `${group.head.first_name} ${group.head.last_name}`)}
+                    onClick={() =>
+                      onManageDocuments?.(
+                        group.head.id,
+                        `${group.head.first_name} ${group.head.last_name}`,
+                      )
+                    }
                     className="text-xs bg-sky-600 hover:bg-sky-700 text-white px-3 py-1.5 rounded-md font-bold transition flex items-center gap-1"
                     type="button"
                     aria-label="Manage family documents"
@@ -72,7 +97,7 @@ export default function LedgerTable({
                   </button>
                 )}
               </div>
-              
+
               <div className="flex items-center gap-3">
                 {group.head && (
                   <button
@@ -100,7 +125,8 @@ export default function LedgerTable({
             {/* Temp banner when family head has no applications */}
             {group.members.length === 0 && (
               <div className="mx-6 mt-3 mb-0 bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-lg px-4 py-3">
-                No applications yet for this family head. Add the first application to link the account and this banner will disappear.
+                No applications yet for this family head. Add the first application to link the
+                account and this banner will disappear.
               </div>
             )}
 
@@ -110,11 +136,20 @@ export default function LedgerTable({
                 {group.members.length === 0 && (
                   <tr>
                     <td className="p-6 text-slate-500 italic" colSpan={5}>
-                      No members yet. <button onClick={() => onAddMember(group.head)} className="underline text-blue-600 hover:text-blue-800 font-semibold" type="button" aria-label="Add family member">Add a member to this family head</button>.
+                      No members yet.{' '}
+                      <button
+                        onClick={() => onAddMember(group.head)}
+                        className="underline text-blue-600 hover:text-blue-800 font-semibold"
+                        type="button"
+                        aria-label="Add family member"
+                      >
+                        Add a member to this family head
+                      </button>
+                      .
                     </td>
                   </tr>
                 )}
-                {group.members.map((item: any) => {
+                {group.members.map((item) => {
                   const nadraRecord = getNadraRecord(item)
                   const details = getDetails(nadraRecord)
                   const status = nadraRecord?.status || 'Pending Submission'
@@ -123,7 +158,10 @@ export default function LedgerTable({
                   const canLaunchComplaint = canOpenComplaintForStatus(status)
 
                   return (
-                    <tr key={item.id || `${headCnic}-placeholder` } className="hover:bg-slate-50/50 transition-colors">
+                    <tr
+                      key={item.id || `${headCnic}-placeholder`}
+                      className="hover:bg-slate-50/50 transition-colors"
+                    >
                       <td className="p-4 pl-12 align-top">
                         <div className="flex items-start gap-3">
                           <span className="text-slate-400 font-light">¬</span>
@@ -134,7 +172,9 @@ export default function LedgerTable({
                             <div className="text-sm text-slate-600 font-mono mt-0.5 tracking-wide">
                               {item.applicants?.citizen_number}
                             </div>
-                            <div className="text-xs text-blue-500 mt-1">{item.applicants?.email}</div>
+                            <div className="text-xs text-blue-500 mt-1">
+                              {item.applicants?.email}
+                            </div>
                           </div>
                         </div>
                       </td>
@@ -180,7 +220,7 @@ export default function LedgerTable({
                           value={status}
                           onChange={(e) => onStatusChange(nadraRecord?.id, e.target.value)}
                           className={`text-xs font-bold px-3 py-1.5 rounded-full border cursor-pointer focus:ring-0 ${getStatusColor(
-                            status
+                            status,
                           )}`}
                         >
                           <option value="Pending Submission">Pending Submission</option>

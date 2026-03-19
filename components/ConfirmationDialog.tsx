@@ -75,7 +75,9 @@ export function ConfirmationDialog({
     >
       <div className="text-center">
         {/* Icon */}
-        <div className={`${iconBg} w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4`}>
+        <div
+          className={`${iconBg} w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4`}
+        >
           <IconComponent className={`${iconColor} w-6 h-6`} />
         </div>
 
@@ -118,9 +120,7 @@ export function ConfirmationDialog({
 /**
  * Hook to manage confirmation dialog state
  */
-export function useConfirmation(
-  onConfirm?: () => void | Promise<void>
-) {
+export function useConfirmation(onConfirm?: () => void | Promise<void>) {
   const [isOpen, setIsOpen] = React.useState(false)
   const [isLoading, setIsLoading] = React.useState(false)
 

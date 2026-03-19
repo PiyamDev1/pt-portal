@@ -1,13 +1,11 @@
 import { createClient } from '@supabase/supabase-js'
-import { NextResponse } from 'next/server'
+import { apiError, apiOk } from '@/lib/api/http'
+import { toErrorMessage } from '@/lib/api/error'
 
 export const dynamic = 'force-dynamic'
 
 const createSupabase = () =>
-  createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY
-  )
+  createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
 
 const cleanPayload = (payload) =>
   Object.fromEntries(Object.entries(payload).filter(([_, value]) => value !== undefined))
@@ -19,11 +17,11 @@ export async function POST(request) {
     const { action, type, id, data = {}, authCode, userId } = body || {}
 
     if (!action || !type) {
-      return NextResponse.json({ error: 'Missing action or type' }, { status: 400 })
+      return apiError('Missing action or type', 400)
     }
 
     if (!id) {
-      return NextResponse.json({ error: 'Missing record id' }, { status: 400 })
+      return apiError('Missing record id', 400)
     }
 
     const normalizedType = type === 'family_head' ? 'family_head' : 'application'
@@ -33,7 +31,7 @@ export async function POST(request) {
     // ---------------------------------------------------------
     if (action === 'delete') {
       if (!authCode) {
-        return NextResponse.json({ error: 'Auth code required' }, { status: 403 })
+        return apiError('Auth code required', 403)
       }
 
       const table = normalizedType === 'family_head' ? 'applicants' : 'nadra_services'
@@ -45,20 +43,20 @@ export async function POST(request) {
 
       if (fetchError) {
         if (fetchError.code === 'PGRST116') {
-          return NextResponse.json({ error: 'Record not found' }, { status: 404 })
+          return apiError('Record not found', 404)
         }
         throw fetchError
       }
 
       if (!recordToDelete) {
-        return NextResponse.json({ error: 'Record not found' }, { status: 404 })
+        return apiError('Record not found', 404)
       }
 
       const { error: logError } = await supabase.from('deletion_logs').insert({
         record_type: normalizedType === 'family_head' ? 'Family Head' : 'Nadra Application',
         deleted_record_data: recordToDelete,
         deleted_by: userId || null,
-        auth_code_used: authCode
+        auth_code_used: authCode,
       })
 
       if (logError) throw logError
@@ -69,14 +67,13 @@ export async function POST(request) {
           .from('applications')
           .select('id')
           .eq('family_head_id', id)
-        
+
         if (checkError) throw checkError
-        
+
         if (linkedApps && linkedApps.length > 0) {
-          return NextResponse.json({ 
-            error: 'Cannot delete family head with existing members',
-            details: `Please delete all ${linkedApps.length} member application(s) first.`
-          }, { status: 409 })
+          return apiError('Cannot delete family head with existing members', 409, {
+            details: `Please delete all ${linkedApps.length} member application(s) first.`,
+          })
         }
 
         // Check if this person is themselves an applicant in any application
@@ -84,20 +81,16 @@ export async function POST(request) {
           .from('applications')
           .select('id')
           .eq('applicant_id', id)
-        
+
         if (applicantCheckError) throw applicantCheckError
-        
+
         if (applicantApps && applicantApps.length > 0) {
-          return NextResponse.json({ 
-            error: 'Cannot delete: Person has active applications',
-            details: `This person has ${applicantApps.length} application(s) as an applicant. Delete those first.`
-          }, { status: 409 })
+          return apiError('Cannot delete: Person has active applications', 409, {
+            details: `This person has ${applicantApps.length} application(s) as an applicant. Delete those first.`,
+          })
         }
 
-        const { error: deleteHeadError } = await supabase
-          .from('applicants')
-          .delete()
-          .eq('id', id)
+        const { error: deleteHeadError } = await supabase.from('applicants').delete().eq('id', id)
 
         if (deleteHeadError) throw deleteHeadError
       } else {
@@ -130,7 +123,10 @@ export async function POST(request) {
         }
       }
 
-      return NextResponse.json({ success: true })
+      return apiOk({
+        deletedRecordType: normalizedType,
+        deletedRecordId: id,
+      })
     }
 
     // ---------------------------------------------------------
@@ -142,7 +138,7 @@ export async function POST(request) {
           first_name: data.firstName,
           last_name: data.lastName,
           citizen_number: data.cnic,
-          phone_number: data.phone
+          phone_number: data.phone,
         })
 
         const { error: updateHeadError } = await supabase
@@ -155,14 +151,14 @@ export async function POST(request) {
         if (data.applicantId) {
           const zeroPlaceholder = typeof data.cnic === 'string' && data.cnic.startsWith('00000')
           const isNewBorn = data.newBorn === true || zeroPlaceholder
-          const citizenNumber = isNewBorn ? null : (data.cnic || null)
+          const citizenNumber = isNewBorn ? null : data.cnic || null
 
           const applicantPayload = cleanPayload({
             first_name: data.firstName,
             last_name: data.lastName,
             citizen_number: citizenNumber,
             email: data.email,
-            is_new_born: isNewBorn
+            is_new_born: isNewBorn,
           })
 
           const { error: updateApplicantError } = await supabase
@@ -173,17 +169,17 @@ export async function POST(request) {
           if (updateApplicantError) throw updateApplicantError
         }
 
-          const servicePayload = cleanPayload({
-            service_type: data.serviceType,
-            tracking_number: data.trackingNumber,
-            application_pin: data.pin,
-            notes: data.notes
-          })
+        const servicePayload = cleanPayload({
+          service_type: data.serviceType,
+          tracking_number: data.trackingNumber,
+          application_pin: data.pin,
+          notes: data.notes,
+        })
 
-          const { error: updateServiceError } = await supabase
-            .from('nadra_services')
-            .update(servicePayload)
-            .eq('id', id)
+        const { error: updateServiceError } = await supabase
+          .from('nadra_services')
+          .update(servicePayload)
+          .eq('id', id)
 
         if (updateServiceError) throw updateServiceError
 
@@ -196,7 +192,7 @@ export async function POST(request) {
 
           const currentUser = employees?.find((emp) => emp.id === userId)
           if (!currentUser) {
-            return NextResponse.json({ error: 'User not found' }, { status: 404 })
+              return apiError('User not found', 404)
           }
 
           const roleName = Array.isArray(currentUser.roles)
@@ -213,7 +209,7 @@ export async function POST(request) {
 
           if (nadraFetchError) {
             if (nadraFetchError.code === 'PGRST116') {
-              return NextResponse.json({ error: 'Nadra record not found' }, { status: 404 })
+              return apiError('Nadra record not found', 404)
             }
             throw nadraFetchError
           }
@@ -234,9 +230,10 @@ export async function POST(request) {
             const managesTarget = isManagerOf(userId, data.employeeId)
 
             if (!managesTarget) {
-              return NextResponse.json({
-                error: 'Only the manager in the hierarchy of the selected agent or a master admin can reassign this agent.'
-              }, { status: 403 })
+              return apiError(
+                'Only the manager in the hierarchy of the selected agent or a master admin can reassign this agent.',
+                403,
+              )
             }
           }
 
@@ -248,14 +245,14 @@ export async function POST(request) {
           if (updateAgentError) throw updateAgentError
         }
 
-          if (data.trackingNumber && data.applicationId) {
-            const { error: updateAppTrackingError } = await supabase
-              .from('applications')
-              .update({ tracking_number: data.trackingNumber })
-              .eq('id', data.applicationId)
+        if (data.trackingNumber && data.applicationId) {
+          const { error: updateAppTrackingError } = await supabase
+            .from('applications')
+            .update({ tracking_number: data.trackingNumber })
+            .eq('id', data.applicationId)
 
-            if (updateAppTrackingError) throw updateAppTrackingError
-          }
+          if (updateAppTrackingError) throw updateAppTrackingError
+        }
 
         if (data.serviceOption !== undefined) {
           const { error: detailError } = await supabase
@@ -266,12 +263,15 @@ export async function POST(request) {
         }
       }
 
-      return NextResponse.json({ success: true })
+      return apiOk({
+        updatedRecordType: normalizedType,
+        updatedRecordId: id,
+      })
     }
 
-    return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
+    return apiError('Invalid action', 400)
   } catch (error) {
     console.error('Manage Record Error:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return apiError(toErrorMessage(error), 500)
   }
 }

@@ -27,12 +27,14 @@ We are committed to providing a welcoming and inclusive environment for all cont
 ### Our Standards
 
 ✅ **Do:**
+
 - Be respectful and inclusive
 - Provide constructive feedback
 - Focus on what is best for the project
 - Show empathy towards others
 
 ❌ **Don't:**
+
 - Use inappropriate language
 - Engage in personal attacks
 - Harass or discriminate
@@ -52,27 +54,32 @@ We are committed to providing a welcoming and inclusive environment for all cont
 ### Setup
 
 1. **Fork the repository**
+
    ```bash
    # Click "Fork" on GitHub
    ```
 
 2. **Clone your fork**
+
    ```bash
    git clone https://github.com/YOUR_USERNAME/pt-portal.git
    cd pt-portal
    ```
 
 3. **Add upstream remote**
+
    ```bash
    git remote add upstream https://github.com/PiyamDev1/pt-portal.git
    ```
 
 4. **Install dependencies**
+
    ```bash
    npm install
    ```
 
 5. **Create environment file**
+
    ```bash
    cp .env.example .env.local
    # Add your Supabase credentials
@@ -115,6 +122,12 @@ git checkout -b docs/what-you-are-documenting
 # Run linter
 npm run lint
 
+# Run unit tests
+npm run test:unit
+
+# Verify formatting
+npm run format:check
+
 # Build the project
 npm run build
 
@@ -139,6 +152,7 @@ git commit -m "WIP"
 ```
 
 **Commit Message Format:**
+
 ```
 <type>: <subject>
 
@@ -148,6 +162,7 @@ git commit -m "WIP"
 ```
 
 **Types:**
+
 - `feat`: New feature
 - `fix`: Bug fix
 - `docs`: Documentation changes
@@ -158,6 +173,7 @@ git commit -m "WIP"
 - `chore`: Maintenance tasks
 
 **Example:**
+
 ```
 feat: Add export to Excel functionality in LMS
 
@@ -176,6 +192,7 @@ Closes #123
 ### TypeScript
 
 ✅ **Do:**
+
 ```typescript
 // Use explicit types
 interface User {
@@ -193,9 +210,10 @@ const MAX_RETRIES = 3
 ```
 
 ❌ **Don't:**
+
 ```typescript
 // Don't use 'any'
-function getData(): any { }
+function getData(): any {}
 
 // Don't use var
 var count = 0
@@ -204,6 +222,7 @@ var count = 0
 ### React Components
 
 ✅ **Do:**
+
 ```typescript
 // Use functional components
 export default function MyComponent({ prop1, prop2 }: Props) {
@@ -219,9 +238,10 @@ const memoizedValue = useMemo(() => computeValue(), [deps])
 ```
 
 ❌ **Don't:**
+
 ```typescript
 // Don't use class components (unless necessary)
-class MyComponent extends React.Component { }
+class MyComponent extends React.Component {}
 
 // Don't ignore useEffect dependencies
 useEffect(() => {
@@ -259,12 +279,14 @@ app/
 ### Pull Request Process
 
 1. **Update your branch**
+
    ```bash
    git fetch upstream
    git rebase upstream/main
    ```
 
 2. **Push to your fork**
+
    ```bash
    git push origin feature/your-feature-name
    ```
@@ -279,24 +301,29 @@ app/
 
 ```markdown
 ## Description
+
 Brief description of changes
 
 ## Type of Change
+
 - [ ] Bug fix
 - [ ] New feature
 - [ ] Breaking change
 - [ ] Documentation update
 
 ## Testing
+
 - [ ] Tested locally
 - [ ] Build passes
 - [ ] No TypeScript errors
 - [ ] Linter passes
 
 ## Screenshots (if applicable)
+
 Add screenshots here
 
 ## Checklist
+
 - [ ] Code follows project style
 - [ ] Documentation updated
 - [ ] No console errors
@@ -328,6 +355,7 @@ A clear description of what the bug is.
 
 **To Reproduce**
 Steps to reproduce:
+
 1. Go to '...'
 2. Click on '...'
 3. See error
@@ -339,6 +367,7 @@ What you expected to happen.
 Add screenshots if applicable.
 
 **Environment:**
+
 - OS: [e.g., Windows 11]
 - Browser: [e.g., Chrome 120]
 - Node version: [e.g., 18.17.0]
@@ -397,6 +426,7 @@ Any other context or screenshots.
 ## 🎯 Good First Issues
 
 Look for issues tagged with:
+
 - `good first issue`
 - `help wanted`
 - `documentation`
@@ -415,6 +445,7 @@ Look for issues tagged with:
 ## 🙏 Recognition
 
 Contributors are recognized in:
+
 - GitHub contributors list
 - CHANGELOG.md for significant contributions
 - README.md for major features

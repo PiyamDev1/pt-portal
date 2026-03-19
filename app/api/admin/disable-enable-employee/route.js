@@ -1,22 +1,21 @@
 import { createClient } from '@supabase/supabase-js'
 import { createServerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
-import { NextResponse } from 'next/server'
+import { apiOk, apiError } from '@/lib/api/http'
+import { toErrorMessage } from '@/lib/api/error'
 
 export const dynamic = 'force-dynamic'
 
 /**
  * API endpoint to disable/enable employees
  * Accessible by: Managers (for their reports) and Super Admin (for anyone)
- * 
+ *
  * Body:
  * - employeeId: string - ID of employee to disable/enable
  * - isActive: boolean - desired status
  */
 export async function POST(request) {
   try {
-    const origin = request.headers.get('origin') || 'unknown'
-    
     // Initialize clients
     const cookieStore = await cookies()
     const supabase = createServerClient(
@@ -24,24 +23,26 @@ export async function POST(request) {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
       {
         cookies: {
-          getAll() { return cookieStore.getAll() },
-          setAll() {}
-        }
-      }
+          getAll() {
+            return cookieStore.getAll()
+          },
+          setAll() {},
+        },
+      },
     )
 
     const supabaseAdmin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
+      process.env.SUPABASE_SERVICE_ROLE_KEY,
     )
 
     // 1. Verify caller is authenticated
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
     if (authError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401, headers: { 'Access-Control-Allow-Origin': origin } }
-      )
+      return apiError('Unauthorized', 401)
     }
 
     // 2. Get request body
@@ -49,10 +50,7 @@ export async function POST(request) {
     const { employeeId, isActive } = body
 
     if (!employeeId || typeof isActive !== 'boolean') {
-      return NextResponse.json(
-        { error: 'Missing or invalid parameters: employeeId and isActive required' },
-        { status: 400, headers: { 'Access-Control-Allow-Origin': origin } }
-      )
+      return apiError('Missing or invalid parameters: employeeId and isActive required', 400)
     }
 
     // 3. Get current user's role and manager info
@@ -63,16 +61,13 @@ export async function POST(request) {
       .single()
 
     if (userError || !currentUser) {
-      return NextResponse.json(
-        { error: 'User profile not found' },
-        { status: 404, headers: { 'Access-Control-Allow-Origin': origin } }
-      )
+      return apiError('User profile not found', 404)
     }
 
-    const role = Array.isArray(currentUser.roles) 
-      ? currentUser.roles[0]?.name 
+    const role = Array.isArray(currentUser.roles)
+      ? currentUser.roles[0]?.name
       : currentUser.roles?.name
-    
+
     const isSuperAdmin = role === 'Master Admin'
 
     // 4. Authorization check
@@ -81,20 +76,16 @@ export async function POST(request) {
       // Check if caller is a manager of this employee
       const isManager = await checkIfManager(supabaseAdmin, user.id, employeeId)
       if (!isManager) {
-        console.log(`[disable-enable-employee] Unauthorized: ${user.email} tried to modify ${employeeId}`)
-        return NextResponse.json(
-          { error: 'Unauthorized: Only managers or super admin can disable/enable employees' },
-          { status: 403, headers: { 'Access-Control-Allow-Origin': origin } }
+        console.warn(
+          `[disable-enable-employee] Unauthorized: ${user.email} tried to modify ${employeeId}`,
         )
+        return apiError('Unauthorized: Only managers or super admin can disable/enable employees', 403)
       }
     }
 
     // 5. Don't allow disabling yourself
     if (user.id === employeeId && !isActive) {
-      return NextResponse.json(
-        { error: 'Cannot disable your own account' },
-        { status: 400, headers: { 'Access-Control-Allow-Origin': origin } }
-      )
+      return apiError('Cannot disable your own account', 400)
     }
 
     // 6. Update employee status
@@ -106,22 +97,16 @@ export async function POST(request) {
     if (updateError) throw updateError
 
     const status = isActive ? 'enabled' : 'disabled'
-    console.log(`[disable-enable-employee] ${user.email} ${status} employee ${employeeId}`)
+    console.warn(`[disable-enable-employee] ${user.email} ${status} employee ${employeeId}`)
 
-    return NextResponse.json(
-      { 
-        success: true,
-        message: `Employee ${status} successfully`,
-        isActive
-      },
-      { status: 200, headers: { 'Access-Control-Allow-Origin': origin } }
-    )
+    return apiOk({
+      updatedEmployeeId: employeeId,
+      message: `Employee ${status} successfully`,
+      isActive,
+    })
   } catch (error) {
     console.error('[disable-enable-employee] Error:', error)
-    return NextResponse.json(
-      { error: error.message || 'Internal server error' },
-      { status: 500, headers: { 'Access-Control-Allow-Origin': origin } }
-    )
+    return apiError(toErrorMessage(error, 'Internal server error'), 500)
   }
 }
 

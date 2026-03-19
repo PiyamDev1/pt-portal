@@ -1,9 +1,27 @@
-import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { apiError, apiOk } from '@/lib/api/http'
+import { toErrorMessage } from '@/lib/api/error'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 const supabase = createClient(supabaseUrl, supabaseKey)
+
+type EmployeeRef = { full_name?: string } | { full_name?: string }[]
+
+type NoteRow = {
+  id: string
+  note: string
+  created_by: string
+  created_at: string
+  employees?: EmployeeRef
+}
+
+const resolveEmployeeName = (employees?: EmployeeRef): string | undefined => {
+  if (Array.isArray(employees)) {
+    return employees[0]?.full_name
+  }
+  return employees?.full_name
+}
 
 // GET - Fetch notes for an account
 export async function GET(request: Request) {
@@ -12,35 +30,36 @@ export async function GET(request: Request) {
     const accountId = searchParams.get('accountId')
 
     if (!accountId) {
-      return NextResponse.json({ error: 'Account ID required' }, { status: 400 })
+      return apiError('Account ID required', 400)
     }
 
     const { data: notes, error } = await supabase
       .from('loan_account_notes')
-      .select(`
+      .select(
+        `
         id,
         note,
         created_by,
         created_at,
         employees (full_name)
-      `)
+      `,
+      )
       .eq('loan_customer_id', accountId)
       .order('created_at', { ascending: false })
 
     if (error) throw error
 
-    const formattedNotes = notes?.map((n: any) => ({
+    const formattedNotes = (notes as NoteRow[] | null)?.map((n) => ({
       id: n.id,
       note: n.note,
       created_by: n.created_by,
       created_at: n.created_at,
-      employee_name: Array.isArray(n.employees) ? n.employees[0]?.full_name : n.employees?.full_name
+      employee_name: resolveEmployeeName(n.employees),
     }))
 
-    return NextResponse.json({ notes: formattedNotes || [] })
-  } catch (error: any) {
-    console.error('[NOTES API] Error:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return apiOk({ notes: formattedNotes || [] })
+  } catch (error: unknown) {
+    return apiError(toErrorMessage(error, 'Failed to fetch notes'), 500)
   }
 }
 
@@ -50,7 +69,7 @@ export async function POST(request: Request) {
     const { accountId, note, employeeId } = await request.json()
 
     if (!accountId || !note || !employeeId) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+      return apiError('Missing required fields', 400)
     }
 
     const { data: newNote, error } = await supabase
@@ -59,31 +78,34 @@ export async function POST(request: Request) {
         loan_customer_id: accountId,
         note: note.trim(),
         created_by: employeeId,
-        created_at: new Date().toISOString()
+        created_at: new Date().toISOString(),
       })
-      .select(`
+      .select(
+        `
         id,
         note,
         created_by,
         created_at,
         employees (full_name)
-      `)
+      `,
+      )
       .single()
 
     if (error) throw error
+
+    const typedNote = newNote as NoteRow
 
     const formattedNote = {
       id: newNote.id,
       note: newNote.note,
       created_by: newNote.created_by,
       created_at: newNote.created_at,
-      employee_name: Array.isArray((newNote as any).employees) ? (newNote as any).employees[0]?.full_name : (newNote as any).employees?.full_name
+      employee_name: resolveEmployeeName(typedNote.employees),
     }
 
-    return NextResponse.json({ note: formattedNote })
-  } catch (error: any) {
-    console.error('[NOTES API] Error:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return apiOk({ note: formattedNote })
+  } catch (error: unknown) {
+    return apiError(toErrorMessage(error, 'Failed to create note'), 500)
   }
 }
 
@@ -94,19 +116,15 @@ export async function DELETE(request: Request) {
     const noteId = searchParams.get('noteId')
 
     if (!noteId) {
-      return NextResponse.json({ error: 'Note ID required' }, { status: 400 })
+      return apiError('Note ID required', 400)
     }
 
-    const { error } = await supabase
-      .from('loan_account_notes')
-      .delete()
-      .eq('id', noteId)
+    const { error } = await supabase.from('loan_account_notes').delete().eq('id', noteId)
 
     if (error) throw error
 
-    return NextResponse.json({ success: true })
-  } catch (error: any) {
-    console.error('[NOTES API] Error:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return apiOk({ deletedNoteId: noteId })
+  } catch (error: unknown) {
+    return apiError(toErrorMessage(error, 'Failed to delete note'), 500)
   }
 }

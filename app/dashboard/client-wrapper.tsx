@@ -1,6 +1,6 @@
 'use client'
 import { useState } from 'react'
-// import { useSessionTimeout } from '@/app/hooks/useSessionTimeout'
+// import { useSessionTimeout } from '@/hooks/useSessionTimeout'
 import { SessionWarningHeader } from '@/app/components/SessionWarningHeader'
 
 export default function DashboardClientWrapper({ children }: { children: React.ReactNode }) {

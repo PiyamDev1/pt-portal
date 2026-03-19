@@ -1,13 +1,14 @@
 import { createClient } from '@supabase/supabase-js'
-import { NextResponse } from 'next/server'
+import { apiError, apiOk } from '@/lib/api/http'
+import { toErrorMessage } from '@/lib/api/error'
 
 export async function POST(request) {
   try {
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
+      process.env.SUPABASE_SERVICE_ROLE_KEY,
     )
-    
+
     const body = await request.json()
     const { action, id, data, authCode, userId } = body
 
@@ -17,7 +18,7 @@ export async function POST(request) {
     if (action === 'delete') {
       // 1. Verify Auth Code (Simple check - enhance as needed)
       if (!authCode) {
-        return NextResponse.json({ error: 'Auth code required' }, { status: 403 })
+        return apiError('Auth code required', 403)
       }
 
       // 2. Fetch data before deleting (for logging/audit if needed)
@@ -27,15 +28,17 @@ export async function POST(request) {
         .eq('id', id)
         .single()
 
-      if (!recordToDelete) return NextResponse.json({ error: 'Record not found' }, { status: 404 })
+      if (!recordToDelete) return apiError('Record not found', 404)
 
       // 3. Perform Deletion (Cascade will handle the passport details if we delete the parent application)
       // We delete from 'applications' to remove the root of the hierarchy
       const { error } = await supabase.from('applications').delete().eq('id', id)
-      
+
       if (error) throw error
 
-      return NextResponse.json({ success: true })
+      return apiOk({
+        deletedPassportApplicationId: id,
+      })
     }
 
     // ---------------------------------------------------------
@@ -63,7 +66,7 @@ export async function POST(request) {
             last_name: data.applicantName?.split(' ').slice(1).join(' ') || '',
             citizen_number: data.applicantCnic,
             email: data.applicantEmail,
-            phone_number: data.applicantPhone
+            phone_number: data.applicantPhone,
           })
           .eq('id', data.applicantId)
         if (applicantError) throw applicantError
@@ -79,19 +82,21 @@ export async function POST(request) {
           speed: data.speed,
           old_passport_number: data.oldPassportNumber || null,
           fingerprints_completed: data.fingerprintsCompleted,
-          family_head_email: data.familyHeadEmail || null
+          family_head_email: data.familyHeadEmail || null,
         })
         .eq('id', passportId)
 
       if (ppError) throw ppError
 
-      return NextResponse.json({ success: true })
+      return apiOk({
+        updatedPassportApplicationId: passportId,
+        updatedApplicationId: applicationId,
+      })
     }
 
-    return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
-
+    return apiError('Invalid action', 400)
   } catch (error) {
     console.error('Manage Record Error:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return apiError(toErrorMessage(error), 500)
   }
 }

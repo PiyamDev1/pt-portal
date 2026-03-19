@@ -26,7 +26,7 @@ export async function verifyMasterAdminSession(): Promise<AdminAuthResult> {
         },
         setAll() {},
       },
-    }
+    },
   )
 
   const {
@@ -86,7 +86,7 @@ export async function getOptionalIssueReporter() {
         },
         setAll() {},
       },
-    }
+    },
   )
 
   const {

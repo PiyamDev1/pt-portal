@@ -1,82 +1,94 @@
-import { createClient } from '@supabase/supabase-js';
-import { createServerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
-import formData from 'form-data';
-import Mailgun from 'mailgun.js';
-import bcrypt from 'bcryptjs';
-import { NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js'
+import { createServerClient } from '@supabase/auth-helpers-nextjs'
+import { cookies } from 'next/headers'
+import formData from 'form-data'
+import Mailgun from 'mailgun.js'
+import bcrypt from 'bcryptjs'
+import { apiOk, apiError } from '@/lib/api/http'
+import { toErrorMessage } from '@/lib/api/error'
 
 // Force dynamic rendering so the API is always evaluated and not statically optimized
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
+const corsHeaders = (origin) => ({
+  'Access-Control-Allow-Origin': origin,
+  Vary: 'Origin',
+})
+
 // Health/diagnostic GET to confirm route is reachable in production
 export async function GET(request) {
   const origin = request.headers.get('origin') || '*'
-  return NextResponse.json({ ok: true, route: 'add-employee', method: 'GET', note: 'route is reachable' }, {
-    status: 200,
-    headers: {
-      'Access-Control-Allow-Origin': origin,
-      Vary: 'Origin'
-    }
-  })
+  return apiOk(
+    { route: 'add-employee', method: 'GET', note: 'route is reachable' },
+    {
+      status: 200,
+      headers: corsHeaders(origin),
+    },
+  )
 }
 
 // Explicitly handle CORS/preflight to avoid 405 from OPTIONS requests and echo diagnostics
 export async function OPTIONS(request) {
   const origin = request.headers.get('origin') || '*'
-  return NextResponse.json({ ok: true }, {
-    status: 200,
-    headers: {
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-      'Access-Control-Allow-Origin': origin,
-      Vary: 'Origin'
-    }
-  })
+  return apiOk(
+    { route: 'add-employee', method: 'OPTIONS' },
+    {
+      status: 200,
+      headers: {
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        ...corsHeaders(origin),
+      },
+    },
+  )
 }
 
 export async function POST(request) {
   try {
     const origin = request.headers.get('origin') || 'unknown'
-    console.log('[add-employee] request received from', origin)
     // Validate critical environment configuration early
-    const missingEnv = [];
-    if (!process.env.NEXT_PUBLIC_SUPABASE_URL) missingEnv.push('NEXT_PUBLIC_SUPABASE_URL');
-    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) missingEnv.push('SUPABASE_SERVICE_ROLE_KEY');
-    if (!process.env.MAILGUN_API_KEY) missingEnv.push('MAILGUN_API_KEY');
-    if (!process.env.MAILGUN_DOMAIN) missingEnv.push('MAILGUN_DOMAIN');
-    const senderEmail = process.env.MAILGUN_SENDER_EMAIL || process.env.MAIL_FROM_ADDRESS;
-    if (!senderEmail) missingEnv.push('MAILGUN_SENDER_EMAIL or MAIL_FROM_ADDRESS');
+    const missingEnv = []
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL) missingEnv.push('NEXT_PUBLIC_SUPABASE_URL')
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) missingEnv.push('SUPABASE_SERVICE_ROLE_KEY')
+    if (!process.env.MAILGUN_API_KEY) missingEnv.push('MAILGUN_API_KEY')
+    if (!process.env.MAILGUN_DOMAIN) missingEnv.push('MAILGUN_DOMAIN')
+    const senderEmail = process.env.MAILGUN_SENDER_EMAIL || process.env.MAIL_FROM_ADDRESS
+    if (!senderEmail) missingEnv.push('MAILGUN_SENDER_EMAIL or MAIL_FROM_ADDRESS')
     if (missingEnv.length > 0) {
-      const msg = `Missing required environment variables: ${missingEnv.join(', ')}`;
-      console.error(msg);
-      return NextResponse.json({ error: msg }, { status: 500, headers: { 'Access-Control-Allow-Origin': origin, Vary: 'Origin' } });
+      const msg = `Missing required environment variables: ${missingEnv.join(', ')}`
+      console.error(msg)
+      return apiError(msg, 500, {}, { headers: corsHeaders(origin) })
     }
 
     // Initialize clients inside the function
     const supabaseAdmin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
-    );
+      process.env.SUPABASE_SERVICE_ROLE_KEY,
+    )
 
     // Check if caller is authenticated and has admin role
-    const cookieStore = await cookies();
+    const cookieStore = await cookies()
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
       {
         cookies: {
-          getAll() { return cookieStore.getAll() },
-          setAll() {}
-        }
-      }
-    );
+          getAll() {
+            return cookieStore.getAll()
+          },
+          setAll() {},
+        },
+      },
+    )
 
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser()
     if (userError || !user) {
-      console.log('[add-employee] unauthorized: user not authenticated');
-      return NextResponse.json({ error: 'Unauthorized: not authenticated' }, { status: 401, headers: { 'Access-Control-Allow-Origin': origin, Vary: 'Origin' } });
+      console.warn('[add-employee] unauthorized: user not authenticated')
+      return apiError('Unauthorized: not authenticated', 401, {}, { headers: corsHeaders(origin) })
     }
 
     // Verify user has admin role
@@ -84,11 +96,11 @@ export async function POST(request) {
       .from('employees')
       .select('id, role_id')
       .eq('id', user.id)
-      .maybeSingle();
+      .maybeSingle()
 
     if (empError || !employee) {
-      console.log('[add-employee] unauthorized: employee not found');
-      return NextResponse.json({ error: 'Unauthorized: employee profile not found' }, { status: 403, headers: { 'Access-Control-Allow-Origin': origin, Vary: 'Origin' } });
+      console.warn('[add-employee] unauthorized: employee not found')
+      return apiError('Unauthorized: employee profile not found', 403, {}, { headers: corsHeaders(origin) })
     }
 
     // Get the role name for the employee
@@ -96,116 +108,122 @@ export async function POST(request) {
       .from('roles')
       .select('name')
       .eq('id', employee.role_id)
-      .maybeSingle();
+      .maybeSingle()
 
     if (roleError || !roleData) {
-      console.log('[add-employee] unauthorized: role not found');
-      return NextResponse.json({ error: 'Unauthorized: role not found' }, { status: 403, headers: { 'Access-Control-Allow-Origin': origin, Vary: 'Origin' } });
+      console.warn('[add-employee] unauthorized: role not found')
+      return apiError('Unauthorized: role not found', 403, {}, { headers: corsHeaders(origin) })
     }
 
     // Only Master Admin and Admin can add employees
-    const isAdmin = ['Admin', 'Master Admin'].includes(roleData.name);
+    const isAdmin = ['Admin', 'Master Admin'].includes(roleData.name)
     if (!isAdmin) {
-      console.log(`[add-employee] unauthorized: user role "${roleData.name}" is not admin`);
-      return NextResponse.json({ error: 'Unauthorized: only admins can add employees' }, { status: 403, headers: { 'Access-Control-Allow-Origin': origin, Vary: 'Origin' } });
+      console.warn(`[add-employee] unauthorized: user role "${roleData.name}" is not admin`)
+      return apiError('Unauthorized: only admins can add employees', 403, {}, { headers: corsHeaders(origin) })
     }
 
-    const mailgun = new Mailgun(formData);
-    const rawMailgunEndpoint = process.env.MAILGUN_ENDPOINT || 'https://api.mailgun.net';
-    const mailgunEndpoint = /^https?:\/\//i.test(rawMailgunEndpoint) ? rawMailgunEndpoint : `https://${rawMailgunEndpoint}`;
+    const mailgun = new Mailgun(formData)
+    const rawMailgunEndpoint = process.env.MAILGUN_ENDPOINT || 'https://api.mailgun.net'
+    const mailgunEndpoint = /^https?:\/\//i.test(rawMailgunEndpoint)
+      ? rawMailgunEndpoint
+      : `https://${rawMailgunEndpoint}`
     const mg = mailgun.client({
       username: 'api',
       key: process.env.MAILGUN_API_KEY,
-      url: mailgunEndpoint
-    });
+      url: mailgunEndpoint,
+    })
 
-    const body = await request.json();
+    const body = await request.json()
     // NOW ACCEPTING 'department_ids' ARRAY INSTEAD OF SINGLE ID
-    const { email, firstName, lastName, role_id, department_ids, location_id } = body;
+    const { email, firstName, lastName, role_id, department_ids, location_id } = body
 
     if (!email || !role_id) {
-      return NextResponse.json({ error: 'Email and Role ID are required.' }, { status: 400 });
+      return apiError('Email and Role ID are required.', 400)
     }
 
-    const tempPassword = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-4) + '!';
+    const tempPassword =
+      Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-4) + '!'
 
     // 1. Create Auth User
     const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email: email,
       password: tempPassword,
       email_confirm: true,
-      user_metadata: { first_name: firstName, last_name: lastName }
-    });
+      user_metadata: { first_name: firstName, last_name: lastName },
+    })
 
-    if (authError) return NextResponse.json({ error: authError.message }, { status: 400, headers: { 'Access-Control-Allow-Origin': origin, Vary: 'Origin' } });
+    if (authError)
+      return apiError(authError.message, 400, {}, { headers: corsHeaders(origin) })
 
     // 2. Create Employee Profile
     // Note: We DO NOT save department_id here anymore
-    const { error: profileError } = await supabaseAdmin
-      .from('employees')
-      .insert({
-        id: authUser.user.id,
-        email: email,
-        full_name: `${firstName} ${lastName}`,
-        role_id: role_id,
-        location_id: location_id || null,
-        is_temporary_password: true,
-        two_factor_enabled: false
-      });
+    const { error: profileError } = await supabaseAdmin.from('employees').insert({
+      id: authUser.user.id,
+      email: email,
+      full_name: `${firstName} ${lastName}`,
+      role_id: role_id,
+      location_id: location_id || null,
+      is_temporary_password: true,
+      two_factor_enabled: false,
+    })
 
     if (profileError) {
-      await supabaseAdmin.auth.admin.deleteUser(authUser.user.id);
-      return NextResponse.json({ error: profileError.message }, { status: 500, headers: { 'Access-Control-Allow-Origin': origin, Vary: 'Origin' } });
+      await supabaseAdmin.auth.admin.deleteUser(authUser.user.id)
+      return apiError(profileError.message, 500, {}, { headers: corsHeaders(origin) })
     }
 
     // Record initial password in history
     try {
       const hash = await bcrypt.hash(tempPassword, 12)
-      await supabaseAdmin.from('password_history').insert({ employee_id: authUser.user.id, password_hash: hash })
+      await supabaseAdmin
+        .from('password_history')
+        .insert({ employee_id: authUser.user.id, password_hash: hash })
     } catch (e) {
       console.error('Failed to write initial password history:', e)
     }
 
     // 3. LINK DEPARTMENTS (The New Logic)
     if (department_ids && department_ids.length > 0) {
-      const deptInserts = department_ids.map(deptId => ({
+      const deptInserts = department_ids.map((deptId) => ({
         employee_id: authUser.user.id,
-        department_id: deptId
-      }));
+        department_id: deptId,
+      }))
 
       const { error: deptError } = await supabaseAdmin
         .from('employee_departments')
-        .insert(deptInserts);
+        .insert(deptInserts)
 
       if (deptError) {
-        console.error('Failed to link departments:', deptError);
+        console.error('Failed to link departments:', deptError)
         // We don't fail the whole request, but we log it.
       }
     }
 
     // 4. Send Email (wrap to capture Mailgun/client URL issues)
     try {
-      const senderDomain = (process.env.MAILGUN_DOMAIN || '').replace(/^https?:\/\//, '').replace(/\/$/, '');
+      const senderDomain = (process.env.MAILGUN_DOMAIN || '')
+        .replace(/^https?:\/\//, '')
+        .replace(/\/$/, '')
       if (!senderDomain) {
-        throw new Error('Missing or invalid MAILGUN_DOMAIN');
+        throw new Error('Missing or invalid MAILGUN_DOMAIN')
       }
-      
+
       // Fetch location/branch details if location_id is provided
-      let locationHTML = '';
-      let locationText = '';
+      let locationHTML = ''
+      let locationText = ''
       if (location_id) {
         const { data: locationData } = await supabaseAdmin
           .from('locations')
           .select('name, branch_code')
           .eq('id', location_id)
-          .maybeSingle();
-        
+          .maybeSingle()
+
         if (locationData) {
-          locationHTML = `<tr><td style="padding: 8px 0; color: #475569; font-size: 14px;"><strong>Branch/Location:</strong> ${locationData.name} (${locationData.branch_code})</td></tr>`;
-          locationText = `\nBranch/Location: ${locationData.name} (${locationData.branch_code})`;
+          locationHTML = `<tr><td style="padding: 8px 0; color: #475569; font-size: 14px;"><strong>Branch/Location:</strong> ${locationData.name} (${locationData.branch_code})</td></tr>`
+          locationText = `\nBranch/Location: ${locationData.name} (${locationData.branch_code})`
         }
       }
-      
+
       // HTML email template
       const htmlTemplate = `
         <html>
@@ -245,25 +263,34 @@ export async function POST(request) {
             </div>
           </body>
         </html>
-      `;
-      
+      `
+
       await mg.messages.create(senderDomain, {
         from: `${senderEmail}`,
         to: email,
         subject: 'Welcome to IMS - Your Login Details',
         text: `Hello ${firstName},\n\nYour account has been created.\n\nEmail: ${email}\nTemporary Password: ${tempPassword}${locationText}\n\nPlease log in immediately to change your password.\n\nLogin here: https://ims.piyamtravel.com`,
-        html: htmlTemplate
-      });
+        html: htmlTemplate,
+      })
     } catch (mailError) {
-      console.error('Mailgun send error:', mailError);
-      return NextResponse.json({ error: `Failed to send onboarding email: ${mailError.message || mailError}` }, { status: 502, headers: { 'Access-Control-Allow-Origin': origin, Vary: 'Origin' } });
+      console.error('Mailgun send error:', mailError)
+      return apiError(
+        `Failed to send onboarding email: ${toErrorMessage(mailError, 'Unknown mail error')}`,
+        502,
+        {},
+        { headers: corsHeaders(origin) },
+      )
     }
 
-    return NextResponse.json({ success: true, message: 'User created' }, { status: 200, headers: { 'Access-Control-Allow-Origin': origin, Vary: 'Origin' } });
-
+    return apiOk(
+      { createdUserId: authUser.user.id, message: 'User created' },
+      { status: 200, headers: corsHeaders(origin) },
+    )
   } catch (error) {
-    console.error('API Error:', error);
+    console.error('API Error:', error)
     const origin = request.headers.get('origin') || '*'
-    return NextResponse.json({ error: error.message, note: 'add-employee handler catch' }, { status: 500, headers: { 'Access-Control-Allow-Origin': origin, Vary: 'Origin' } });
+    return apiError(toErrorMessage(error, 'add-employee handler catch'), 500, {
+      note: 'add-employee handler catch',
+    }, { headers: corsHeaders(origin) })
   }
 }

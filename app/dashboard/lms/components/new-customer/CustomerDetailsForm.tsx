@@ -17,7 +17,7 @@ export function CustomerDetailsForm({
   phone,
   email,
   address,
-  onChange
+  onChange,
 }: CustomerFormProps) {
   return (
     <div>
@@ -26,14 +26,14 @@ export function CustomerDetailsForm({
         <input
           placeholder="First Name *"
           value={firstName}
-          onChange={e => onChange('firstName', e.target.value)}
+          onChange={(e) => onChange('firstName', e.target.value)}
           className="p-3 border rounded-lg"
           required
         />
         <input
           placeholder="Last Name *"
           value={lastName}
-          onChange={e => onChange('lastName', e.target.value)}
+          onChange={(e) => onChange('lastName', e.target.value)}
           className="p-3 border rounded-lg"
           required
         />
@@ -43,7 +43,7 @@ export function CustomerDetailsForm({
         <input
           placeholder="Phone"
           value={phone}
-          onChange={e => onChange('phone', e.target.value)}
+          onChange={(e) => onChange('phone', e.target.value)}
           className="w-full pl-10 p-3 border rounded-lg"
         />
       </div>
@@ -53,7 +53,7 @@ export function CustomerDetailsForm({
           placeholder="Email"
           type="email"
           value={email}
-          onChange={e => onChange('email', e.target.value)}
+          onChange={(e) => onChange('email', e.target.value)}
           className="w-full pl-10 p-3 border rounded-lg"
         />
       </div>
@@ -62,7 +62,7 @@ export function CustomerDetailsForm({
         <input
           placeholder="Address"
           value={address}
-          onChange={e => onChange('address', e.target.value)}
+          onChange={(e) => onChange('address', e.target.value)}
           className="w-full pl-10 p-3 border rounded-lg"
         />
       </div>

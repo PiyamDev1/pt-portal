@@ -1,20 +1,19 @@
 import { createClient } from '@supabase/supabase-js'
-import { NextResponse } from 'next/server'
+import { apiError, apiOk } from '@/lib/api/http'
+import { toErrorMessage } from '@/lib/api/error'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
 export async function POST(request) {
-  const origin = request.headers.get('origin') || '*'
-  
   try {
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
+      process.env.SUPABASE_SERVICE_ROLE_KEY,
     )
 
     const body = await request.json()
-    const { 
+    const {
       applicantCnic,
       applicantName,
       applicantEmail,
@@ -25,7 +24,7 @@ export async function POST(request) {
       serviceOption,
       trackingNumber,
       pin,
-      currentUserId
+      currentUserId,
     } = body
 
     // 1. Find or Create Applicant
@@ -49,26 +48,34 @@ export async function POST(request) {
         }
       } else {
         const parts = applicantName.split(' ')
-        const { data: newApp, error } = await supabase.from('applicants').insert({
-          first_name: parts[0],
-          last_name: parts.slice(1).join(' ') || 'N/A',
-          citizen_number: applicantCnic,
-          email: applicantEmail || null,
-          is_new_born: false
-        }).select('id, email').single()
+        const { data: newApp, error } = await supabase
+          .from('applicants')
+          .insert({
+            first_name: parts[0],
+            last_name: parts.slice(1).join(' ') || 'N/A',
+            citizen_number: applicantCnic,
+            email: applicantEmail || null,
+            is_new_born: false,
+          })
+          .select('id, email')
+          .single()
         if (error) throw error
         applicant = newApp
       }
     } else {
       // New born: no CNIC provided, always create fresh
       const parts = applicantName.split(' ')
-      const { data: newBaby, error } = await supabase.from('applicants').insert({
-        first_name: parts[0],
-        last_name: parts.slice(1).join(' ') || '.',
-        citizen_number: null,
-        is_new_born: true,
-        email: applicantEmail || null
-      }).select('id, email').single()
+      const { data: newBaby, error } = await supabase
+        .from('applicants')
+        .insert({
+          first_name: parts[0],
+          last_name: parts.slice(1).join(' ') || '.',
+          citizen_number: null,
+          is_new_born: true,
+          email: applicantEmail || null,
+        })
+        .select('id, email')
+        .single()
       if (error) throw error
       applicant = newBaby
     }
@@ -88,12 +95,16 @@ export async function POST(request) {
 
       if (!head && familyHeadName) {
         const parts = familyHeadName.split(' ')
-        const { data: newHead } = await supabase.from('applicants').insert({
-          first_name: parts[0],
-          last_name: parts.slice(1).join(' ') || 'N/A',
-          citizen_number: familyHeadCnic,
-          phone_number: familyHeadPhone || null
-        }).select('id').single()
+        const { data: newHead } = await supabase
+          .from('applicants')
+          .insert({
+            first_name: parts[0],
+            last_name: parts.slice(1).join(' ') || 'N/A',
+            citizen_number: familyHeadCnic,
+            phone_number: familyHeadPhone || null,
+          })
+          .select('id')
+          .single()
         headId = newHead?.id || null
       } else {
         headId = head?.id || null
@@ -114,7 +125,7 @@ export async function POST(request) {
         family_head_id: headId || applicant.id,
         applicant_id: applicant.id,
         submitted_by_employee_id: currentUserId,
-        status: 'Pending Submission'
+        status: 'Pending Submission',
       })
       .select('id')
       .single()
@@ -129,7 +140,7 @@ export async function POST(request) {
       service_type: serviceType,
       tracking_number: trackingNumber,
       application_pin: pin || null,
-      status: 'Pending Submission'
+      status: 'Pending Submission',
     }
 
     const { data: nadraRecord, error: nadraError } = await supabase
@@ -140,48 +151,44 @@ export async function POST(request) {
 
     if (nadraError) {
       if (nadraError.code === '23505') {
-        return NextResponse.json({
-          error: 'Duplicate in system not allowed',
-          details: 'This tracking number is already registered.'
-        }, { status: 409, headers: { 'Access-Control-Allow-Origin': origin } })
+        return apiError('Duplicate in system not allowed', 409, {
+          details: 'This tracking number is already registered.',
+        })
       }
 
-      return NextResponse.json({
-        error: 'Database error',
-        details: nadraError.message
-      }, { status: 500, headers: { 'Access-Control-Allow-Origin': origin } })
+      return apiError('Database error', 500, {
+        details: nadraError.message,
+      })
     }
 
     // 5. Dual Table Logic: nicop_cnic_details
     if (serviceOption) {
-      const { error: detailsError } = await supabase
-        .from('nicop_cnic_details')
-        .insert({
-          id: nadraRecord.id,
-          service_option: serviceOption
-        })
+      const { error: detailsError } = await supabase.from('nicop_cnic_details').insert({
+        id: nadraRecord.id,
+        service_option: serviceOption,
+      })
     }
 
     // 6. Insert initial status history record
-    const { error: historyError } = await supabase
-      .from('nadra_status_history')
-      .insert({
-        nadra_service_id: nadraRecord.id,
-        new_status: 'Pending Submission',
-        changed_by: currentUserId,
-        entry_type: 'status'
-      })
-
-    return NextResponse.json({ success: true, data: nadraRecord }, { 
-      status: 200, 
-      headers: { 'Access-Control-Allow-Origin': origin } 
+    const { error: historyError } = await supabase.from('nadra_status_history').insert({
+      nadra_service_id: nadraRecord.id,
+      new_status: 'Pending Submission',
+      changed_by: currentUserId,
+      entry_type: 'status',
     })
+    if (historyError) throw new Error(historyError.message)
 
+    return apiOk({
+      createdNadraServiceId: nadraRecord.id,
+      applicationId: appRecord.id,
+      applicantId: applicant.id,
+      trackingNumber,
+      status: nadraRecord.status,
+    })
   } catch (error) {
     console.error('[NADRA API] Unexpected error:', error)
-    return NextResponse.json({ 
-      error: 'Internal server error',
-      details: error.message 
-    }, { status: 500, headers: { 'Access-Control-Allow-Origin': origin } })
+    return apiError('Internal server error', 500, {
+      details: toErrorMessage(error),
+    })
   }
 }

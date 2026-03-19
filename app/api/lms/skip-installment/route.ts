@@ -1,6 +1,22 @@
 import { createServerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
-import { NextResponse } from 'next/server'
+import { apiError, apiOk } from '@/lib/api/http'
+import { toErrorMessage } from '@/lib/api/error'
+
+type LoanTransaction = {
+  loan_id: string
+  amount: string | number
+}
+
+type InstallmentLookupRow = {
+  loan_transaction_id: string
+  loan_transactions: LoanTransaction
+}
+
+type InstallmentRow = {
+  id: string
+  status: string | null
+}
 
 export async function POST(request: Request) {
   try {
@@ -8,17 +24,21 @@ export async function POST(request: Request) {
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { cookies: { getAll() { return cookieStore.getAll() }, setAll() {} } }
+      {
+        cookies: {
+          getAll() {
+            return cookieStore.getAll()
+          },
+          setAll() {},
+        },
+      },
     )
 
-    const body = await request.json()
+    const body = (await request.json()) as { installmentId?: string }
     const { installmentId } = body
 
     if (!installmentId) {
-      return NextResponse.json(
-        { error: 'installmentId is required' },
-        { status: 400 }
-      )
+      return apiError('installmentId is required', 400)
     }
 
     // 1. Get the installment and its transaction
@@ -29,15 +49,13 @@ export async function POST(request: Request) {
       .single()
 
     if (installmentError || !installment) {
-      return NextResponse.json(
-        { error: 'Installment not found' },
-        { status: 404 }
-      )
+      return apiError('Installment not found', 404)
     }
 
-    const transactionId = installment.loan_transaction_id
-    const loanId = installment.loan_transactions.loan_id
-    const serviceAmount = parseFloat(installment.loan_transactions.amount)
+    const typedInstallment = installment as InstallmentLookupRow
+    const transactionId = typedInstallment.loan_transaction_id
+    const loanId = typedInstallment.loan_transactions.loan_id
+    const serviceAmount = Number(typedInstallment.loan_transactions.amount)
 
     // 2. Mark this installment as skipped
     const { error: skipError } = await supabase
@@ -68,19 +86,17 @@ export async function POST(request: Request) {
 
     if (paymentsError) throw paymentsError
 
-    const totalPaid = (allPayments || []).reduce((sum, p) => sum + parseFloat(p.amount), 0)
+    const totalPaid = (allPayments || []).reduce(
+      (sum, p: { amount: string | number }) => sum + Number(p.amount),
+      0,
+    )
     const remainingBalance = serviceAmount - totalPaid
 
-    console.log(`[SKIP-INSTALLMENT] Service: £${serviceAmount}, Paid: £${totalPaid}, Remaining: £${remainingBalance}`)
-
     // 5. Find remaining installments that are not paid/partial/skipped
-    const remainingInstallments = (allInstallments || []).filter((inst: any) => 
-      inst.status !== 'paid' && 
-      inst.status !== 'partial' && 
-      inst.status !== 'skipped'
-    )
-
-    console.log(`[SKIP-INSTALLMENT] Found ${remainingInstallments.length} remaining installments to recalculate`)
+    const remainingInstallments = (allInstallments || []).filter((inst: InstallmentRow) => {
+      const status = inst.status ?? ''
+      return status !== 'paid' && status !== 'partial' && status !== 'skipped'
+    })
 
     // 6. Recalculate amounts for remaining installments
     if (remainingInstallments.length > 0) {
@@ -96,22 +112,16 @@ export async function POST(request: Request) {
 
         if (updateError) throw updateError
       }
-
-      console.log(`[SKIP-INSTALLMENT] Updated ${remainingInstallments.length} installments to £${newAmountPerInstallment.toFixed(2)} each`)
     }
 
-    return NextResponse.json({
-      success: true,
-      message: 'Installment skipped and amounts recalculated',
+    return apiOk({
+      skippedInstallmentId: installmentId,
       remainingBalance,
       remainingInstallments: remainingInstallments.length,
-      newAmountPerInstallment: remainingInstallments.length > 0 ? remainingBalance / remainingInstallments.length : 0,
+      newAmountPerInstallment:
+        remainingInstallments.length > 0 ? remainingBalance / remainingInstallments.length : 0,
     })
-  } catch (err: any) {
-    console.error('[Skip Installment]', err)
-    return NextResponse.json(
-      { error: err.message || 'Failed to skip installment' },
-      { status: 400 }
-    )
+  } catch (error) {
+    return apiError(toErrorMessage(error, 'Failed to skip installment'), 400)
   }
 }

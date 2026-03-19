@@ -17,12 +17,7 @@ interface EditCustomerModalProps {
   employeeId: string
 }
 
-function EditCustomerModalCore({
-  customer,
-  onClose,
-  onSave,
-  employeeId
-}: EditCustomerModalProps) {
+function EditCustomerModalCore({ customer, onClose, onSave, employeeId }: EditCustomerModalProps) {
   // Date format conversion utilities
   const formatToDisplayDate = (isoDate: string): string => {
     if (!isoDate) return ''
@@ -51,16 +46,18 @@ function EditCustomerModalCore({
     if (!dateString) return true
     const dateRegex = /^\d{2}\/\d{2}\/\d{4}$/
     if (!dateRegex.test(dateString)) return false
-    
+
     const parts = dateString.split('/')
     const day = parseInt(parts[0])
     const month = parseInt(parts[1])
     const year = parseInt(parts[2])
-    
+
     if (month < 1 || month > 12) return false
     if (day < 1 || day > 31) return false
-    
-    const date = new Date(`${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`)
+
+    const date = new Date(
+      `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
+    )
     return date instanceof Date && !isNaN(date.getTime())
   }
 
@@ -72,7 +69,7 @@ function EditCustomerModalCore({
     setDeleteAuthCode,
     deleting,
     handleSubmit: hookHandleSubmit,
-    handleDelete: hookHandleDelete
+    handleDelete: hookHandleDelete,
   } = useEditCustomer(customer, employeeId)
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -105,7 +102,7 @@ function EditCustomerModalCore({
             email: form.email || customer.email || '',
             address: form.address || customer.address || '',
             dateOfBirth: form.dateOfBirth || displayDateOfBirth,
-            notes: form.notes || customer.notes || ''
+            notes: form.notes || customer.notes || '',
           }}
           onFormChange={updateForm}
           onDateInput={handleDateInput}

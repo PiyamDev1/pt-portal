@@ -1,7 +1,8 @@
 import Image from 'next/image'
+import type { AuthUser } from '@/app/types/auth'
 
 interface AvatarCardProps {
-  currentUser: any
+  currentUser: AuthUser
   loading: boolean
   onUpload: (e: React.ChangeEvent<HTMLInputElement>) => void
 }

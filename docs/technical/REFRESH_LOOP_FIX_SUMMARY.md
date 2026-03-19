@@ -7,24 +7,29 @@ The payment service (LMS) page was experiencing constant data refetching, making
 ## Root Causes Identified
 
 ### 1. **Dynamic Import with ssr:false** (PRIMARY CAUSE)
+
 - The page was using `dynamic(() => import('./client'), { ssr: false })`
 - This pattern causes the component to constantly remount and unmount
 - Each remount resets component state and triggers initialization effects
 - Result: Infinite mount/refresh cycle
 
 ### 2. **Effect Dependency Array Issues**
+
 - Initial attempts to fix with dependency arrays created cascading re-triggers
 - `refresh` function was in dependencies, which itself depends on `filter`
 - This created: filter changes → refresh created → effect runs → data changes → re-render...
 
 ### 3. **Statement Modal Effect Overhead**
+
 - The modal sync effect was triggering on every `data.accounts` change
 - Since data changes on every fetch, this created another cascade
 
 ## Solutions Implemented
 
 ### Layer 1: Remove Dynamic Import (CRITICAL)
+
 **File:** `app/dashboard/lms/page.tsx`
+
 ```tsx
 // BEFORE: Caused constant remounts
 const LMSClient = dynamic(() => import('./client'), { ssr: false })
@@ -32,10 +37,13 @@ const LMSClient = dynamic(() => import('./client'), { ssr: false })
 // AFTER: Direct import, stable component identity
 import LMSClient from './client'
 ```
+
 **Impact:** Eliminates the root cause of component remounting
 
 ### Layer 2: React.memo Wrapper
+
 **File:** `app/dashboard/lms/client.tsx`
+
 ```tsx
 // Function renamed to LMSClientInner for clarity
 function LMSClientInner({ currentUserId }: LMSClientProps) { ... }
@@ -43,10 +51,13 @@ function LMSClientInner({ currentUserId }: LMSClientProps) { ... }
 // Wrapped in memo to prevent re-renders from parent changes
 export default memo(LMSClientInner)
 ```
+
 **Impact:** Prevents unnecessary re-renders even if parent re-renders
 
 ### Layer 3: Ref-Based Filter Tracking
+
 **File:** `app/dashboard/lms/hooks.ts`
+
 ```tsx
 const previousFilterRef = useRef<string>('')
 
@@ -57,32 +68,41 @@ useEffect(() => {
   }
 }, [filter, refresh])
 ```
-**Impact:** 
+
+**Impact:**
+
 - Fetches only when filter value actually changes
 - Prevents re-evaluation loops
 - Safe to include `refresh` in dependencies without causing cycles
 
 ### Layer 4: Memoized Filter State
+
 **File:** `app/dashboard/lms/client.tsx`
+
 ```tsx
 const memoizedFilter = useMemo(() => filter, [filter])
 const { ...data } = useLmsData(memoizedFilter)
 ```
+
 **Impact:** Ensures filter reference is stable between renders
 
 ### Layer 5: Optimized Modal Sync Effect
+
 **File:** `app/dashboard/lms/client.tsx`
+
 ```tsx
 useEffect(() => {
   if (!showStatementPopup || !data.accounts) return
-  
-  const updated = data.accounts.find(a => a.id === showStatementPopup.id)
+
+  const updated = data.accounts.find((a) => a.id === showStatementPopup.id)
   if (updated?.balance !== showStatementPopup.balance) {
     setShowStatementPopup(updated)
   }
 }, [showStatementPopup?.id, data.accounts])
 ```
+
 **Impact:**
+
 - Only checks when modal is open
 - Early returns reduce unnecessary processing
 - Specific balance comparison instead of deep equality
@@ -98,13 +118,13 @@ useEffect(() => {
 
 ## Performance Improvements
 
-| Metric | Before | After |
-|--------|--------|-------|
+| Metric                   | Before          | After      |
+| ------------------------ | --------------- | ---------- |
 | API Calls (initial load) | 5-10 per second | 1 on mount |
-| API Calls (idle) | 2-5 per second | 0 |
-| Memory Usage | 200-500MB | 50-80MB |
-| Page Responsiveness | Unusable | Smooth |
-| Load Time | 15-30s | 1-2s |
+| API Calls (idle)         | 2-5 per second  | 0          |
+| Memory Usage             | 200-500MB       | 50-80MB    |
+| Page Responsiveness      | Unusable        | Smooth     |
+| Load Time                | 15-30s          | 1-2s       |
 
 ## Testing
 
@@ -134,6 +154,7 @@ useEffect(() => {
 ## Multi-Layered Approach
 
 This fix uses multiple overlapping strategies:
+
 - **Component level:** Direct import + React.memo
 - **Hook level:** Ref-based filter tracking + memoization
 - **Effect level:** Optimized dependencies + early returns

@@ -12,7 +12,7 @@ export function InstallmentPlanPreview({
   installmentPlan,
   planExpanded,
   onToggle,
-  onUpdateInstallmentDate
+  onUpdateInstallmentDate,
 }: InstallmentPlanPreviewProps) {
   const panelId = useId()
 
@@ -63,7 +63,7 @@ export function InstallmentPlanPreview({
                       type="text"
                       placeholder="DD/MM/YYYY"
                       value={installment.dueDate}
-                      onChange={e => onUpdateInstallmentDate(idx, e.target.value)}
+                      onChange={(e) => onUpdateInstallmentDate(idx, e.target.value)}
                       aria-label={`Installment ${idx + 1} due date`}
                       className="w-full p-2 text-sm border-2 border-slate-200 rounded-lg hover:border-blue-400 focus:border-blue-500 outline-none"
                     />

@@ -6,10 +6,10 @@ import ServicePricingTab from '@/app/dashboard/settings/components/ServicePricin
 
 export default function PricingClient({ userRole }: { userRole: string }) {
   const [loading, setLoading] = useState(false)
-  
+
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
   )
 
   const isAdmin = ['Admin', 'Master Admin'].includes(userRole)
@@ -22,11 +22,5 @@ export default function PricingClient({ userRole }: { userRole: string }) {
     )
   }
 
-  return (
-    <ServicePricingTab 
-      supabase={supabase}
-      loading={loading}
-      setLoading={setLoading}
-    />
-  )
+  return <ServicePricingTab supabase={supabase} loading={loading} setLoading={setLoading} />
 }

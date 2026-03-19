@@ -1,5 +1,21 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
+import { apiError, apiOk } from '@/lib/api/http'
+import { toErrorMessage } from '@/lib/api/error'
 import { getSupabaseClient } from '@/lib/supabaseClient'
+
+type DocumentRow = {
+  id: string
+  file_name: string
+  file_size: number
+  file_type: string
+  category: string
+  uploaded_at: string
+  uploaded_by: string
+  family_head_id: string
+  minio_bucket: string
+  minio_key: string
+  minio_etag: string
+}
 
 /**
  * GET /api/documents?familyHeadId=ID&page=1&limit=20&category=general
@@ -17,13 +33,16 @@ export async function GET(request: NextRequest) {
     const offset = (page - 1) * limit
 
     if (!familyHeadId) {
-      return NextResponse.json({ success: false, error: 'familyHeadId is required' }, { status: 400 })
+      return apiError('familyHeadId is required', 400)
     }
 
     const supabase = getSupabaseClient()
     let query = supabase
-      .from('documents' as any)
-      .select('id, file_name, file_size, file_type, category, uploaded_at, uploaded_by, family_head_id, minio_bucket, minio_key, minio_etag', { count: 'exact' })
+      .from('documents')
+      .select(
+        'id, file_name, file_size, file_type, category, uploaded_at, uploaded_by, family_head_id, minio_bucket, minio_key, minio_etag',
+        { count: 'exact' },
+      )
       .eq('family_head_id', familyHeadId)
       .eq('deleted', false)
 
@@ -38,7 +57,7 @@ export async function GET(request: NextRequest) {
 
     if (error) throw error
 
-    const documents = (data || []).map((row: any) => ({
+    const documents = ((data || []) as DocumentRow[]).map((row) => ({
       id: row.id,
       fileName: row.file_name,
       fileSize: row.file_size,
@@ -54,21 +73,17 @@ export async function GET(request: NextRequest) {
       },
     }))
 
-    return NextResponse.json({ 
-      success: true, 
-      data: documents,
+    return apiOk({
+      documents,
       pagination: {
         page,
         limit,
         total: count || 0,
         pages: Math.ceil((count || 0) / limit),
-      }
+      },
     })
   } catch (error) {
-    return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : 'Failed to fetch documents' },
-      { status: 500 }
-    )
+    return apiError(toErrorMessage(error, 'Failed to fetch documents'), 500)
   }
 }
 
@@ -92,13 +107,13 @@ export async function POST(request: NextRequest) {
     } = body
 
     if (!documentId || !fileName || !familyHeadId || !minioKey) {
-      return NextResponse.json({ success: false, error: 'Missing required fields' }, { status: 400 })
+      return apiError('Missing required fields', 400)
     }
 
     const bucket = storageBucket || process.env.MINIO_BUCKET_NAME || 'portal-documents'
     const supabase = getSupabaseClient()
 
-    const { error } = await (supabase.from('documents') as any).insert({
+    const { error } = await supabase.from('documents').insert({
       id: documentId,
       file_name: fileName,
       file_size: fileSize || 0,
@@ -115,11 +130,8 @@ export async function POST(request: NextRequest) {
 
     if (error) throw error
 
-    return NextResponse.json({ success: true })
+    return apiOk({ documentId })
   } catch (error) {
-    return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : 'Failed to save document' },
-      { status: 500 }
-    )
+    return apiError(toErrorMessage(error, 'Failed to save document'), 500)
   }
 }

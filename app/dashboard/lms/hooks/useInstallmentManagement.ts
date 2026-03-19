@@ -65,10 +65,12 @@ export function useInstallmentManagement(transaction: Transaction) {
 
     // Validate amounts
     const totalAmount = editedInstallments.reduce((sum, inst) => sum + inst.amount, 0)
-    const serviceAmount = parseFloat(transaction.amount as any)
-    
+    const serviceAmount = Number(transaction.amount)
+
     if (Math.abs(totalAmount - serviceAmount) > 0.01) {
-      toast.error(`Total installments (£${totalAmount.toFixed(2)}) must equal service amount (£${serviceAmount.toFixed(2)})`)
+      toast.error(
+        `Total installments (£${totalAmount.toFixed(2)}) must equal service amount (£${serviceAmount.toFixed(2)})`,
+      )
       return
     }
 
@@ -77,7 +79,7 @@ export function useInstallmentManagement(transaction: Transaction) {
       const res = await fetch('/api/lms/update-installments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ installments: editedInstallments })
+        body: JSON.stringify({ installments: editedInstallments }),
       })
 
       const data = await res.json()
@@ -89,7 +91,7 @@ export function useInstallmentManagement(transaction: Transaction) {
       toast.success(`Updated ${data.updated.length} installment(s)`)
       await fetchInstallments()
       return true
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('[useInstallmentManagement] Error saving changes:', err)
       toast.error('Failed to save changes. Please try again or contact support.')
       return false
@@ -108,7 +110,7 @@ export function useInstallmentManagement(transaction: Transaction) {
       const res = await fetch('/api/lms/delete-installment-plan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ transactionId: transaction.id })
+        body: JSON.stringify({ transactionId: transaction.id }),
       })
 
       const data = await res.json()
@@ -119,7 +121,7 @@ export function useInstallmentManagement(transaction: Transaction) {
 
       toast.success('Service charge deleted and balance updated')
       return true
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('[useInstallmentManagement] Error deleting installment:', err)
       toast.error('Failed to delete. Please try again or contact support.')
       setLoading(false)
@@ -128,7 +130,7 @@ export function useInstallmentManagement(transaction: Transaction) {
   }
 
   const totalInstallments = installments.length
-  const paidInstallments = installments.filter(i => i.status === 'paid').length
+  const paidInstallments = installments.filter((i) => i.status === 'paid').length
   const canModify = paidInstallments === 0
 
   return {
@@ -143,6 +145,6 @@ export function useInstallmentManagement(transaction: Transaction) {
     handleSaveSchedule,
     handleCancelEdit,
     handleDelete,
-    fetchInstallments
+    fetchInstallments,
   }
 }

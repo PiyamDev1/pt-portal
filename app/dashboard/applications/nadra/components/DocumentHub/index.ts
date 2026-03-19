@@ -1,7 +1,7 @@
 /**
  * DocumentHub Components
  * Main export file for all document management components
- * 
+ *
  * @module DocumentHub/index
  */
 

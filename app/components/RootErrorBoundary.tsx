@@ -33,17 +33,11 @@ export function RootErrorBoundary({
                 />
               </svg>
             </div>
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">
-              Something went wrong
-            </h1>
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">Something went wrong</h1>
             <p className="text-gray-600 mb-6">
               We apologize for the inconvenience. Please try again.
             </p>
-            {error.digest && (
-              <p className="text-xs text-gray-500 mb-4">
-                Error ID: {error.digest}
-              </p>
-            )}
+            {error.digest && <p className="text-xs text-gray-500 mb-4">Error ID: {error.digest}</p>}
             <button
               onClick={reset}
               className="bg-slate-700 hover:bg-slate-800 text-white px-6 py-2 rounded-lg transition-colors duration-200"

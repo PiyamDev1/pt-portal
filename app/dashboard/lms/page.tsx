@@ -9,10 +9,19 @@ export default async function LMSPage() {
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: { getAll() { return cookieStore.getAll() }, setAll() {} } }
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll()
+        },
+        setAll() {},
+      },
+    },
   )
 
-  const { data: { session } } = await supabase.auth.getSession()
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
 
   const { data: employee } = await supabase
     .from('employees')
@@ -26,20 +35,22 @@ export default async function LMSPage() {
   return (
     <DashboardClientWrapper>
       <div className="min-h-screen bg-slate-50 flex flex-col">
-        <PageHeader 
-            employeeName={employee?.full_name} 
-            role={role?.name} 
-            location={location} 
-            userId={session?.user?.id}
-            showBack={true}
+        <PageHeader
+          employeeName={employee?.full_name}
+          role={role?.name}
+          location={location}
+          userId={session?.user?.id}
+          showBack={true}
         />
         <main className="max-w-7xl mx-auto p-6 w-full flex-grow">
-            <div className="mb-6">
-                <h1 className="text-3xl font-black text-slate-800 tracking-tight">Loan Management</h1>
-                <p className="text-slate-500 text-sm mt-1">Track customer accounts, services, and payments</p>
-            </div>
-            
-            <LMSClient currentUserId={session?.user?.id ?? ''} />
+          <div className="mb-6">
+            <h1 className="text-3xl font-black text-slate-800 tracking-tight">Loan Management</h1>
+            <p className="text-slate-500 text-sm mt-1">
+              Track customer accounts, services, and payments
+            </p>
+          </div>
+
+          <LMSClient currentUserId={session?.user?.id ?? ''} />
         </main>
       </div>
     </DashboardClientWrapper>

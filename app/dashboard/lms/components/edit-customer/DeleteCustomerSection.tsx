@@ -14,7 +14,7 @@ export function DeleteCustomerSection({
   deleteAuthCode,
   onAuthCodeChange,
   onDelete,
-  deleting
+  deleting,
 }: DeleteCustomerSectionProps) {
   return (
     <div className="mt-4 p-3 border border-red-200 rounded-lg bg-red-50">
@@ -23,13 +23,13 @@ export function DeleteCustomerSection({
         <div className="flex-1 space-y-2">
           <div className="text-sm font-bold text-red-800">Delete Customer</div>
           <p className="text-xs text-red-700">
-            Enter your Google Authenticator code to permanently delete this customer and all
-            related records.
+            Enter your Google Authenticator code to permanently delete this customer and all related
+            records.
           </p>
           <input
             type="text"
             value={deleteAuthCode}
-            onChange={e => onAuthCodeChange(e.target.value)}
+            onChange={(e) => onAuthCodeChange(e.target.value)}
             placeholder="Auth Code"
             className="w-full p-2 border border-red-200 rounded-lg focus:border-red-500"
           />

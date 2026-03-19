@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import { ModalWrapper } from './ModalWrapper'
 import { LoadingSpinner } from './Skeletons'
 import { useNewCustomer } from '../hooks/useNewCustomer'
+import type { CustomerForm } from '../types'
 import { CustomerDetailsForm } from './new-customer/CustomerDetailsForm'
 import { InitialTransactionSection } from './new-customer/InitialTransactionSection'
 
@@ -27,20 +28,31 @@ function NewCustomerModalCore({ onClose, onSave, employeeId }: NewCustomerModalP
     updateTxForm,
     methods,
     loading,
-    handleSubmit
+    handleSubmit,
   } = useNewCustomer({ onSave, onClose, employeeId })
 
   const handleFormChange = (field: string, value: string) => {
-    updateForm({ [field]: value } as any)
+    updateForm({ [field]: value } as Partial<CustomerForm>)
   }
 
   const handleTxFormChange = (field: string, value: string) => {
-    updateTxForm({ [field]: value } as any)
+    updateTxForm({ [field]: value } as {
+      amount?: string
+      type?: 'service' | 'payment' | 'fee'
+      paymentMethodId?: string
+      notes?: string
+    })
   }
 
   return (
     <ModalWrapper onClose={onClose} title="New Customer">
-      <form onSubmit={handleSubmit} role="dialog" aria-modal="true" aria-label="Create new customer" className="space-y-4">
+      <form
+        onSubmit={handleSubmit}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Create new customer"
+        className="space-y-4"
+      >
         <CustomerDetailsForm
           firstName={form.firstName}
           lastName={form.lastName}
@@ -56,7 +68,7 @@ function NewCustomerModalCore({ onClose, onSave, employeeId }: NewCustomerModalP
             id="add-initial-transaction"
             type="checkbox"
             checked={addTransaction}
-            onChange={e => setAddTransaction(e.target.checked)}
+            onChange={(e) => setAddTransaction(e.target.checked)}
             className="w-4 h-4 cursor-pointer"
           />
           <label

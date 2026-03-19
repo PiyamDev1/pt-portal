@@ -11,7 +11,7 @@ interface AuditLog {
   action: string
   entity_type: string
   entity_id: string
-  changes: Record<string, any> | null
+  changes: Record<string, unknown> | null
   created_at: string
   employee: {
     name: string
@@ -31,7 +31,7 @@ const ACTION_COLORS: Record<string, { bg: string; text: string; icon: string }> 
   DELETE: { bg: 'bg-red-50', text: 'text-red-700', icon: '🗑️' },
   PAYMENT: { bg: 'bg-purple-50', text: 'text-purple-700', icon: '💳' },
   SKIP: { bg: 'bg-amber-50', text: 'text-amber-700', icon: '⏭️' },
-  MODIFY: { bg: 'bg-indigo-50', text: 'text-indigo-700', icon: '📝' }
+  MODIFY: { bg: 'bg-indigo-50', text: 'text-indigo-700', icon: '📝' },
 }
 
 export function AuditLogsModal({ accountId, accountName, onClose }: AuditLogsModalProps) {
@@ -65,7 +65,7 @@ export function AuditLogsModal({ accountId, accountName, onClose }: AuditLogsMod
       year: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
-      second: '2-digit'
+      second: '2-digit',
     })
   }
 
@@ -76,7 +76,12 @@ export function AuditLogsModal({ accountId, accountName, onClose }: AuditLogsMod
 
   return (
     <ModalWrapper onClose={onClose} title={`Audit Trail - ${accountName}`}>
-      <div role="dialog" aria-modal="true" aria-label={`Audit Trail for ${accountName}`} className="space-y-4">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Audit Trail for ${accountName}`}
+        className="space-y-4"
+      >
         {loading ? (
           <div role="status" aria-live="polite" className="flex justify-center py-8">
             <div className="animate-spin h-8 w-8 border-4 border-slate-200 border-t-blue-600 rounded-full"></div>
@@ -93,7 +98,10 @@ export function AuditLogsModal({ accountId, accountName, onClose }: AuditLogsMod
               const hasChanges = log.changes && Object.keys(log.changes).length > 0
 
               return (
-                <div key={log.id} className={`${actionDisplay.bg} rounded-lg border border-current/10 p-4`}>
+                <div
+                  key={log.id}
+                  className={`${actionDisplay.bg} rounded-lg border border-current/10 p-4`}
+                >
                   {/* Header */}
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-start gap-3 flex-1">
@@ -144,22 +152,29 @@ export function AuditLogsModal({ accountId, accountName, onClose }: AuditLogsMod
                         return (
                           <div key={key} className="text-xs space-y-1">
                             <div className="font-medium text-slate-700">
-                              {key.replace(/_/g, ' ').charAt(0).toUpperCase() + key.replace(/_/g, ' ').slice(1)}
+                              {key.replace(/_/g, ' ').charAt(0).toUpperCase() +
+                                key.replace(/_/g, ' ').slice(1)}
                             </div>
                             {newValue ? (
                               <div className="grid grid-cols-2 gap-2">
                                 <div className="bg-white/50 p-2 rounded border border-current/5">
                                   <div className="text-xs text-slate-500 mb-1">From:</div>
-                                  <div className="font-mono text-xs break-all">{String(oldValue)}</div>
+                                  <div className="font-mono text-xs break-all">
+                                    {String(oldValue)}
+                                  </div>
                                 </div>
                                 <div className="bg-white/50 p-2 rounded border border-current/5">
                                   <div className="text-xs text-slate-500 mb-1">To:</div>
-                                  <div className="font-mono text-xs break-all">{String(newValue)}</div>
+                                  <div className="font-mono text-xs break-all">
+                                    {String(newValue)}
+                                  </div>
                                 </div>
                               </div>
                             ) : (
                               <div className="bg-white/50 p-2 rounded border border-current/5">
-                                <div className="font-mono text-xs break-all">{String(oldValue)}</div>
+                                <div className="font-mono text-xs break-all">
+                                  {String(oldValue)}
+                                </div>
                               </div>
                             )}
                           </div>
@@ -176,7 +191,10 @@ export function AuditLogsModal({ accountId, accountName, onClose }: AuditLogsMod
         {/* Info Box */}
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex gap-2 text-xs text-blue-700">
           <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-          <p>All changes to this account are tracked and displayed here for compliance and audit purposes.</p>
+          <p>
+            All changes to this account are tracked and displayed here for compliance and audit
+            purposes.
+          </p>
         </div>
       </div>
     </ModalWrapper>

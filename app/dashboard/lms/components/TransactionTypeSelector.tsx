@@ -15,7 +15,7 @@ export function TransactionTypeSelector({ value, onChange }: TransactionTypeSele
         {[
           { type: TRANSACTION_TYPES.SERVICE, label: 'Installment Plan', color: 'blue' },
           { type: TRANSACTION_TYPES.PAYMENT, label: 'Payment', color: 'green' },
-          { type: TRANSACTION_TYPES.FEE, label: 'Service Fee', color: 'amber' }
+          { type: TRANSACTION_TYPES.FEE, label: 'Service Fee', color: 'amber' },
         ].map(({ type, label, color }) => (
           <button
             key={type}

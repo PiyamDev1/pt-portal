@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
-import { NextResponse } from 'next/server'
+import { toErrorMessage } from '@/lib/api/error'
+import { apiError, apiOk } from '@/lib/api/http'
 import { verifyAdminAccess, unauthorizedResponse } from '@/lib/adminAuth'
 
 /**
@@ -15,15 +16,14 @@ export async function POST(request) {
       return unauthorizedResponse(authResult.error, authResult.status)
     }
 
-    const user = authResult.user
-    console.log(`🔐 Migration request from ${user.email} (admin, Google auth)`)
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY
 
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
-    )
+    if (!url || !key) {
+      return apiError('Supabase not configured', 500)
+    }
 
-    console.log('Starting migration: Converting applicant names to lowercase...')
+    const supabase = createClient(url, key)
 
     // Fetch all applicants
     const { data: applicants, error: fetchError } = await supabase
@@ -34,15 +34,17 @@ export async function POST(request) {
       throw new Error(`Failed to fetch applicants: ${fetchError.message}`)
     }
 
-    console.log(`Found ${applicants.length} applicants to process`)
-
     let updatedCount = 0
     const errors = []
 
     // Update each applicant with lowercase names
     for (const applicant of applicants) {
-      const updatedFirstName = applicant.first_name ? applicant.first_name.toLowerCase() : applicant.first_name
-      const updatedLastName = applicant.last_name ? applicant.last_name.toLowerCase() : applicant.last_name
+      const updatedFirstName = applicant.first_name
+        ? applicant.first_name.toLowerCase()
+        : applicant.first_name
+      const updatedLastName = applicant.last_name
+        ? applicant.last_name.toLowerCase()
+        : applicant.last_name
 
       // Only update if there's a difference
       if (updatedFirstName !== applicant.first_name || updatedLastName !== applicant.last_name) {
@@ -50,7 +52,7 @@ export async function POST(request) {
           .from('applicants')
           .update({
             first_name: updatedFirstName,
-            last_name: updatedLastName
+            last_name: updatedLastName,
           })
           .eq('id', applicant.id)
 
@@ -58,7 +60,7 @@ export async function POST(request) {
           errors.push({
             applicantId: applicant.id,
             name: `${applicant.first_name} ${applicant.last_name}`,
-            error: updateError.message
+            error: updateError.message,
           })
         } else {
           updatedCount++
@@ -66,15 +68,12 @@ export async function POST(request) {
       }
     }
 
-    return NextResponse.json({
-      success: true,
-      message: `Migration complete. Updated ${updatedCount} applicants to lowercase names.`,
+    return apiOk({
       updatedCount,
       totalProcessed: applicants.length,
-      errors: errors.length > 0 ? errors : null
+      errors: errors.length > 0 ? errors : null,
     })
   } catch (error) {
-    console.error('Migration error:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return apiError(toErrorMessage(error, 'Failed to migrate applicant names'), 500)
   }
 }

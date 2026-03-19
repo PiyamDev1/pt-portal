@@ -1,22 +1,26 @@
-import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { apiError, apiOk } from '@/lib/api/http'
+import { toErrorMessage } from '@/lib/api/error'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 const supabase = createClient(supabaseUrl, supabaseKey)
 
+type InstallmentUpdateInput = {
+  id?: string
+  due_date?: string
+  amount?: number | string
+}
+
 export async function POST(request: Request) {
   try {
-    const { installments } = await request.json()
-
-    if (!installments || !Array.isArray(installments)) {
-      return NextResponse.json(
-        { error: 'Invalid installments data' },
-        { status: 400 }
-      )
+    const { installments } = (await request.json()) as {
+      installments?: InstallmentUpdateInput[]
     }
 
-    console.log('[UPDATE-INSTALLMENTS] Updating installments:', installments)
+    if (!installments || !Array.isArray(installments)) {
+      return apiError('Invalid installments data', 400)
+    }
 
     // Update each installment
     const updates = []
@@ -24,7 +28,6 @@ export async function POST(request: Request) {
       const { id, due_date, amount } = installment
 
       if (!id || !due_date || !amount) {
-        console.error('[UPDATE-INSTALLMENTS] Invalid installment:', installment)
         continue
       }
 
@@ -32,31 +35,22 @@ export async function POST(request: Request) {
         .from('loan_installments')
         .update({
           due_date,
-          amount: parseFloat(amount)
+          amount: parseFloat(String(amount)),
         })
         .eq('id', id)
 
       if (error) {
-        console.error('[UPDATE-INSTALLMENTS] Error updating installment:', id, error)
-        throw error
+        throw new Error(error.message || 'Failed to update installment')
       }
 
       updates.push(id)
     }
 
-    console.log('[UPDATE-INSTALLMENTS] Successfully updated:', updates)
-
-    return NextResponse.json({
-      success: true,
-      message: `Updated ${updates.length} installment(s)`,
-      updated: updates
+    return apiOk({
+      updatedInstallmentIds: updates,
+      updatedCount: updates.length,
     })
-
-  } catch (error: any) {
-    console.error('[UPDATE-INSTALLMENTS] Error:', error)
-    return NextResponse.json(
-      { error: error.message || 'Failed to update installments' },
-      { status: 500 }
-    )
+  } catch (error) {
+    return apiError(toErrorMessage(error, 'Failed to update installments'), 500)
   }
 }

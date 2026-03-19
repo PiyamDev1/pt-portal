@@ -1,8 +1,14 @@
-import { NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 import { createClient } from '@supabase/supabase-js'
-import { hasMaintenanceTimeclockAccess, hasManagerTimeclockAccess, normalizeRoleName, pickRoleName } from '@/lib/timeclockAccess'
+import { apiOk, apiError } from '@/lib/api/http'
+import { toErrorMessage } from '@/lib/api/error'
+import {
+  hasMaintenanceTimeclockAccess,
+  hasManagerTimeclockAccess,
+  normalizeRoleName,
+  pickRoleName,
+} from '@/lib/timeclockAccess'
 
 export const dynamic = 'force-dynamic'
 
@@ -43,26 +49,24 @@ const getRoleName = (employee?: EmployeeRow | null) => {
 export async function GET(request: Request) {
   try {
     if (!supabaseUrl || !serviceKey) {
-      return NextResponse.json({ error: 'Supabase not configured' }, { status: 500 })
+      return apiError('Supabase not configured', 500)
     }
 
     const cookieStore = await cookies()
-    const supabase = createServerClient(
-      supabaseUrl,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return cookieStore.getAll()
-          },
-          setAll() {},
+    const supabase = createServerClient(supabaseUrl, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll()
         },
-      }
-    )
+        setAll() {},
+      },
+    })
 
-    const { data: { session } } = await supabase.auth.getSession()
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
     if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return apiError('Unauthorized', 401)
     }
 
     const { searchParams } = new URL(request.url)
@@ -117,7 +121,7 @@ export async function GET(request: Request) {
           device_id,
           timeclock_devices ( name )
         `,
-          { count: 'exact' }
+          { count: 'exact' },
         )
         .eq('employee_id', session.user.id)
 
@@ -129,13 +133,15 @@ export async function GET(request: Request) {
         query = query.lte('scanned_at', to)
       }
 
-      const { data: events, error, count } = await query
-        .order('scanned_at', { ascending: false })
-        .range(offset, offset + limit - 1)
+      const {
+        data: events,
+        error,
+        count,
+      } = await query.order('scanned_at', { ascending: false }).range(offset, offset + limit - 1)
 
       if (error) throw error
 
-      return NextResponse.json({
+      return apiOk({
         events: events || [],
         total: count || 0,
         page,
@@ -147,15 +153,17 @@ export async function GET(request: Request) {
 
     if (scope === 'team') {
       const allowedIds = new Set(
-        hasMaintenanceAccess || isMasterAdmin ? employeeRows.map((emp) => emp.id) : [session.user.id, ...subtreeIds]
+        hasMaintenanceAccess || isMasterAdmin
+          ? employeeRows.map((emp) => emp.id)
+          : [session.user.id, ...subtreeIds],
       )
 
       if (!hasMaintenanceAccess && !isMasterAdmin && !hasManagerAccess) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+        return apiError('Forbidden', 403)
       }
 
       if (employeeId && !allowedIds.has(employeeId)) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+        return apiError('Forbidden', 403)
       }
 
       const idsToQuery = employeeId ? [employeeId] : Array.from(allowedIds)
@@ -179,7 +187,7 @@ export async function GET(request: Request) {
           employees ( full_name ),
           timeclock_devices ( name )
         `,
-          { count: 'exact' }
+          { count: 'exact' },
         )
         .in('employee_id', idsToQuery)
 
@@ -191,9 +199,11 @@ export async function GET(request: Request) {
         query = query.lte('scanned_at', to)
       }
 
-      const { data: events, error, count } = await query
-        .order('scanned_at', { ascending: false })
-        .range(offset, offset + limit - 1)
+      const {
+        data: events,
+        error,
+        count,
+      } = await query.order('scanned_at', { ascending: false }).range(offset, offset + limit - 1)
 
       if (error) throw error
 
@@ -205,7 +215,7 @@ export async function GET(request: Request) {
         .filter(Boolean)
         .sort((a: any, b: any) => a.name.localeCompare(b.name))
 
-      return NextResponse.json({
+      return apiOk({
         events: events || [],
         total: count || 0,
         page,
@@ -216,9 +226,9 @@ export async function GET(request: Request) {
       })
     }
 
-    return NextResponse.json({ error: 'Invalid scope' }, { status: 400 })
+    return apiError('Invalid scope', 400)
   } catch (error: any) {
     console.error('[TIMECLOCK EVENTS] Error:', error)
-    return NextResponse.json({ error: error?.message || 'Server error' }, { status: 500 })
+    return apiError(toErrorMessage(error, 'Server error'), 500)
   }
 }

@@ -10,11 +10,35 @@ const formatTransactionType = (type?: string) => {
 
 interface StatementTransactionsTableProps {
   localAccount: Account
-  installmentsByTransaction: Record<string, any[]>
-  onSelectInstallment: (installment: any) => void
+  installmentsByTransaction: Record<string, InstallmentRecord[]>
+  onSelectInstallment: (installment: SelectedInstallment) => void
   onDeletePayment: (id: string) => void
-  onModifyTransaction: (tx: any) => void
+  onModifyTransaction: (tx: EnhancedTransaction) => void
   onSkipInstallment: (id: string) => void
+}
+
+interface InstallmentRecord {
+  id: string
+  due_date: string
+  amount: number | string
+  amount_paid: number | string
+  status: string
+  installment_number: number
+}
+
+interface EnhancedTransaction extends Transaction {
+  loan_id?: string
+}
+
+interface SelectedInstallment {
+  id: string
+  date: string
+  amount: number
+  amountPaid: number
+  status: string
+  installmentNumber: number
+  totalInstallments: number
+  loanId?: string
 }
 
 export function StatementTransactionsTable({
@@ -23,44 +47,57 @@ export function StatementTransactionsTable({
   onSelectInstallment,
   onDeletePayment,
   onModifyTransaction,
-  onSkipInstallment
+  onSkipInstallment,
 }: StatementTransactionsTableProps) {
   return (
     <div className="max-h-96 overflow-y-auto">
       <table className="w-full text-xs">
         <thead className="sticky top-0 bg-slate-100 text-[10px] uppercase text-slate-500">
           <tr>
-            <th scope="col" className="p-2 text-left">Date</th>
-            <th scope="col" className="p-2 text-left">Type</th>
-            <th scope="col" className="p-2 text-left">Description</th>
-            <th scope="col" className="p-2 text-right text-red-600">Debit</th>
-            <th scope="col" className="p-2 text-right text-green-600">Credit</th>
-            <th scope="col" className="p-2 text-center">Action</th>
+            <th scope="col" className="p-2 text-left">
+              Date
+            </th>
+            <th scope="col" className="p-2 text-left">
+              Type
+            </th>
+            <th scope="col" className="p-2 text-left">
+              Description
+            </th>
+            <th scope="col" className="p-2 text-right text-red-600">
+              Debit
+            </th>
+            <th scope="col" className="p-2 text-right text-green-600">
+              Credit
+            </th>
+            <th scope="col" className="p-2 text-center">
+              Action
+            </th>
           </tr>
         </thead>
         <tbody>
           {localAccount.transactions && localAccount.transactions.length > 0 ? (
             localAccount.transactions.flatMap(
               (
-                tx: Transaction & {
+                tx: EnhancedTransaction & {
                   transaction_timestamp?: string
                   transaction_type?: string
                   remark?: string
                   loan_payment_methods?: { name: string }
                 },
-                i: number
+                i: number,
               ) => {
                 const tType = (tx.transaction_type || '').toLowerCase()
                 const isDebit = tType === 'service' || tType === 'fee'
                 const txAmount =
-                  typeof tx.amount === 'number'
-                    ? tx.amount
-                    : parseFloat(tx.amount as unknown as string) || 0
+                  typeof tx.amount === 'number' ? tx.amount : parseFloat(String(tx.amount)) || 0
 
                 const rows = []
 
                 rows.push(
-                  <tr key={`tx-${i}`} className="border-t border-slate-200 hover:bg-slate-50 cursor-pointer">
+                  <tr
+                    key={`tx-${i}`}
+                    className="border-t border-slate-200 hover:bg-slate-50 cursor-pointer"
+                  >
                     <td className="p-2 text-slate-600">
                       {new Date(tx.transaction_timestamp!).toLocaleDateString()}
                     </td>
@@ -78,10 +115,10 @@ export function StatementTransactionsTable({
                       </span>
                     </td>
                     <td className="p-2 text-slate-600 text-xs">
-                      {tType === 'service' && (tx as any).loan_id ? (
+                      {tType === 'service' && tx.loan_id ? (
                         <div>
                           <div className="text-[9px] text-slate-400 mb-0.5">
-                            Ref: {(tx as any).loan_id.substring(0, 8)}
+                            Ref: {tx.loan_id.substring(0, 8)}
                           </div>
                           <div>{tx.remark || '-'}</div>
                         </div>
@@ -131,7 +168,7 @@ export function StatementTransactionsTable({
                         </div>
                       )}
                     </td>
-                  </tr>
+                  </tr>,
                 )
 
                 if (tType === 'service') {
@@ -140,11 +177,15 @@ export function StatementTransactionsTable({
 
                   for (const installment of installments) {
                     const statusColor =
-                      installment.status === 'paid' ? 'bg-green-100 text-green-700' :
-                      installment.status === 'partial' ? 'bg-yellow-100 text-yellow-700' :
-                      installment.status === 'skipped' ? 'bg-gray-100 text-gray-600' :
-                      installment.status === 'overdue' ? 'bg-red-100 text-red-700' :
-                      'bg-blue-100 text-blue-700'
+                      installment.status === 'paid'
+                        ? 'bg-green-100 text-green-700'
+                        : installment.status === 'partial'
+                          ? 'bg-yellow-100 text-yellow-700'
+                          : installment.status === 'skipped'
+                            ? 'bg-gray-100 text-gray-600'
+                            : installment.status === 'overdue'
+                              ? 'bg-red-100 text-red-700'
+                              : 'bg-blue-100 text-blue-700'
 
                     rows.push(
                       <tr
@@ -158,7 +199,7 @@ export function StatementTransactionsTable({
                             status: installment.status,
                             installmentNumber: installment.installment_number,
                             totalInstallments: totalInstallments,
-                            loanId: (tx as any).loan_id,
+                            loanId: tx.loan_id,
                           })
                         }
                         className="border-t border-blue-200 bg-blue-50 hover:bg-blue-100 cursor-pointer text-[9px]"
@@ -167,12 +208,16 @@ export function StatementTransactionsTable({
                           {new Date(installment.due_date).toLocaleDateString()}
                         </td>
                         <td className="p-2">
-                          <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold ${statusColor}`}>
+                          <span
+                            className={`px-1.5 py-0.5 rounded text-[8px] font-bold ${statusColor}`}
+                          >
                             {installment.status.toUpperCase()}
                           </span>
                         </td>
                         <td className="p-2 text-slate-600 text-[10px]">
-                          <div>Installment {installment.installment_number}/{totalInstallments}</div>
+                          <div>
+                            Installment {installment.installment_number}/{totalInstallments}
+                          </div>
                           <div className="text-[9px] text-slate-400">
                             Ref: {tx.id.substring(0, 8)} | ID: {installment.id.substring(0, 8)}
                           </div>
@@ -181,7 +226,9 @@ export function StatementTransactionsTable({
                           £{parseFloat(installment.amount).toFixed(2)}
                         </td>
                         <td className="p-2 text-right text-slate-400">
-                          {installment.amount_paid > 0 ? `£${parseFloat(installment.amount_paid).toFixed(2)}` : '-'}
+                          {installment.amount_paid > 0
+                            ? `£${parseFloat(installment.amount_paid).toFixed(2)}`
+                            : '-'}
                         </td>
                         <td className="p-2 text-center">
                           {installment.status !== 'paid' && installment.status !== 'skipped' && (
@@ -198,17 +245,22 @@ export function StatementTransactionsTable({
                             </button>
                           )}
                         </td>
-                      </tr>
+                      </tr>,
                     )
                   }
                 }
 
                 return rows
-              }
+              },
             )
           ) : (
             <tr>
-              <td colSpan={6} className="p-4 text-center text-slate-400" role="status" aria-live="polite">
+              <td
+                colSpan={6}
+                className="p-4 text-center text-slate-400"
+                role="status"
+                aria-live="polite"
+              >
                 No transactions found
               </td>
             </tr>

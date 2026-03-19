@@ -4,13 +4,13 @@
  * Document Upload Component
  * Handles drag-and-drop file upload with validation and progress tracking
  * Supports multiple file selection with real-time progress indicators
- * 
+ *
  * @component
  */
 
 import React, { useCallback, useState, useRef } from 'react'
 import { Upload, X, AlertCircle, CheckCircle2, File, FileText, RotateCcw } from 'lucide-react'
-import { documentService } from '@/lib/services/documentService'
+import { documentClient } from '@/lib/services/documentClient'
 import { UploadProgress, Document } from './types'
 
 export interface DocumentUploadProps {
@@ -103,7 +103,7 @@ export function DocumentUpload({
       // Create upload progress entries
       for (const file of fileArray) {
         const fileId = `${Date.now()}-${Math.random()}`
-        const validation = documentService.validateFile(file)
+        const validation = documentClient.validateFile(file)
 
         if (!validation.valid) {
           newUploads.push({
@@ -127,13 +127,13 @@ export function DocumentUpload({
         }
       }
 
-      setUploads(prev => [...prev, ...newUploads])
+      setUploads((prev) => [...prev, ...newUploads])
 
       // Upload files
       const successfulDocs: Document[] = []
 
       for (const file of fileArray) {
-        const fileId = newUploads.find(u => u.fileName === file.name)?.fileId
+        const fileId = newUploads.find((u) => u.fileName === file.name)?.fileId
         if (!fileId) continue
 
         // Ensure file is stored for potential retry
@@ -143,63 +143,53 @@ export function DocumentUpload({
 
         try {
           // Update status to uploading
-          setUploads(prev =>
-            prev.map(u =>
-              u.fileId === fileId
-                ? { ...u, status: 'uploading', progress: 0 }
-                : u
-            )
+          setUploads((prev) =>
+            prev.map((u) => (u.fileId === fileId ? { ...u, status: 'uploading', progress: 0 } : u)),
           )
 
           // Upload document with real XHR progress
-          const doc = await documentService.uploadDocument(
+          const doc = await documentClient.uploadDocument(
             file,
             familyHeadId,
             category,
             (percent) => {
-              setUploads(prev =>
-                prev.map(u =>
-                  u.fileId === fileId && u.status === 'uploading'
-                    ? { ...u, progress: percent }
-                    : u
-                )
+              setUploads((prev) =>
+                prev.map((u) =>
+                  u.fileId === fileId && u.status === 'uploading' ? { ...u, progress: percent } : u,
+                ),
               )
-            }
+            },
           )
 
           // Update to success
-          setUploads(prev =>
-            prev.map(u =>
-              u.fileId === fileId
-                ? { ...u, status: 'success', progress: 100 }
-                : u
-            )
+          setUploads((prev) =>
+            prev.map((u) => (u.fileId === fileId ? { ...u, status: 'success', progress: 100 } : u)),
           )
 
           successfulDocs.push(doc)
 
           // Auto remove successful uploads after 2 seconds
           setTimeout(() => {
-            setUploads(prev => prev.filter(u => u.fileId !== fileId))
+            setUploads((prev) => prev.filter((u) => u.fileId !== fileId))
             fileMapRef.current.delete(fileId)
           }, 2000)
         } catch (error) {
-          setUploads(prev =>
-            prev.map(u =>
+          setUploads((prev) =>
+            prev.map((u) =>
               u.fileId === fileId
                 ? {
                     ...u,
                     status: 'error',
                     error: error instanceof Error ? error.message : 'Upload failed',
                   }
-                : u
-            )
+                : u,
+            ),
           )
         }
       }
 
       if (successfulDocs.length > 0) {
-        setUploadedFiles(prev => [...prev, ...successfulDocs])
+        setUploadedFiles((prev) => [...prev, ...successfulDocs])
         if (onSuccess) onSuccess(successfulDocs)
       }
 
@@ -208,7 +198,7 @@ export function DocumentUpload({
         fileInputRef.current.value = ''
       }
     },
-    [familyHeadId, category, onSuccess, onError]
+    [familyHeadId, category, onSuccess, onError],
   )
 
   /**
@@ -238,14 +228,14 @@ export function DocumentUpload({
 
       handleFileUpload(e.dataTransfer.files)
     },
-    [disabled, handleFileUpload]
+    [disabled, handleFileUpload],
   )
 
   /**
    * Remove upload from list
    */
   const removeUpload = (fileId: string) => {
-    setUploads(prev => prev.filter(u => u.fileId !== fileId))
+    setUploads((prev) => prev.filter((u) => u.fileId !== fileId))
     fileMapRef.current.delete(fileId)
   }
 
@@ -254,47 +244,46 @@ export function DocumentUpload({
       const file = fileMapRef.current.get(fileId)
       if (!file) return
 
-      setUploads(prev =>
-        prev.map(u =>
-          u.fileId === fileId ? { ...u, status: 'uploading', progress: 0, error: undefined } : u
-        )
+      setUploads((prev) =>
+        prev.map((u) =>
+          u.fileId === fileId ? { ...u, status: 'uploading', progress: 0, error: undefined } : u,
+        ),
       )
 
       try {
-        const doc = await documentService.uploadDocument(
-          file,
-          familyHeadId,
-          category,
-          (percent) => {
-            setUploads(prev =>
-              prev.map(u =>
-                u.fileId === fileId && u.status === 'uploading' ? { ...u, progress: percent } : u
-              )
-            )
-          }
-        )
+        const doc = await documentClient.uploadDocument(file, familyHeadId, category, (percent) => {
+          setUploads((prev) =>
+            prev.map((u) =>
+              u.fileId === fileId && u.status === 'uploading' ? { ...u, progress: percent } : u,
+            ),
+          )
+        })
 
-        setUploads(prev =>
-          prev.map(u => (u.fileId === fileId ? { ...u, status: 'success', progress: 100 } : u))
+        setUploads((prev) =>
+          prev.map((u) => (u.fileId === fileId ? { ...u, status: 'success', progress: 100 } : u)),
         )
-        setUploadedFiles(prev => [...prev, doc])
+        setUploadedFiles((prev) => [...prev, doc])
         if (onSuccess) onSuccess([doc])
 
         setTimeout(() => {
-          setUploads(prev => prev.filter(u => u.fileId !== fileId))
+          setUploads((prev) => prev.filter((u) => u.fileId !== fileId))
           fileMapRef.current.delete(fileId)
         }, 2000)
       } catch (error) {
-        setUploads(prev =>
-          prev.map(u =>
+        setUploads((prev) =>
+          prev.map((u) =>
             u.fileId === fileId
-              ? { ...u, status: 'error', error: error instanceof Error ? error.message : 'Upload failed' }
-              : u
-          )
+              ? {
+                  ...u,
+                  status: 'error',
+                  error: error instanceof Error ? error.message : 'Upload failed',
+                }
+              : u,
+          ),
         )
       }
     },
-    [familyHeadId, category, onSuccess]
+    [familyHeadId, category, onSuccess],
   )
 
   const sectionText =
@@ -322,16 +311,14 @@ export function DocumentUpload({
         onDragOver={handleDrag}
         onDrop={handleDrop}
         className={`relative border-2 border-dashed rounded-lg transition-all ${
-          dragActive
-            ? 'border-blue-500 bg-blue-50'
-            : 'border-slate-300 bg-slate-50'
+          dragActive ? 'border-blue-500 bg-blue-50' : 'border-slate-300 bg-slate-50'
         } ${compact ? 'p-4' : 'p-8'} ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:border-blue-400'}`}
       >
         <input
           ref={fileInputRef}
           type="file"
           multiple
-          onChange={e => handleFileUpload(e.target.files)}
+          onChange={(e) => handleFileUpload(e.target.files)}
           disabled={disabled}
           className="hidden"
           accept=".pdf,.jpg,.jpeg,.png,.webp,image/*,application/pdf"
@@ -369,7 +356,7 @@ export function DocumentUpload({
         <div className="space-y-2">
           <h4 className="text-sm font-semibold text-slate-700">Uploading...</h4>
 
-          {uploads.map(upload => (
+          {uploads.map((upload) => (
             <div
               key={upload.fileId}
               className="flex items-center gap-3 p-3 rounded-lg border bg-white"
@@ -387,9 +374,7 @@ export function DocumentUpload({
 
               {/* File Info */}
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-slate-800 truncate">
-                  {upload.fileName}
-                </p>
+                <p className="text-sm font-medium text-slate-800 truncate">{upload.fileName}</p>
 
                 {upload.status === 'uploading' && (
                   <>
@@ -447,8 +432,7 @@ export function DocumentUpload({
       {uploadedFiles.length > 0 && uploads.length === 0 && (
         <div className="rounded-lg border border-green-200 bg-green-50 p-3">
           <p className="text-sm text-green-800">
-            ✓ {uploadedFiles.length} file{uploadedFiles.length > 1 ? 's' : ''} uploaded
-            successfully
+            ✓ {uploadedFiles.length} file{uploadedFiles.length > 1 ? 's' : ''} uploaded successfully
           </p>
         </div>
       )}

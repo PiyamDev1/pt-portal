@@ -28,7 +28,9 @@ function StatementTotalsComponent({ totals, account, hasTransactions }: Statemen
         </div>
         <div className="flex justify-between text-sm border-t-2 border-slate-900 pt-2 print:pt-1 print:text-xs">
           <span className="font-bold text-slate-900">Current Balance:</span>
-          <span className="font-bold text-slate-900 text-lg print:text-base">£{(account.balance || 0).toLocaleString()}</span>
+          <span className="font-bold text-slate-900 text-lg print:text-base">
+            £{(account.balance || 0).toLocaleString()}
+          </span>
         </div>
       </div>
     </div>

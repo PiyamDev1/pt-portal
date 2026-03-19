@@ -4,12 +4,12 @@
  * MinIO Connection Status Component
  * Displays real-time connection status with ping information
  * Shows connection indicator, latency, and refresh button
- * 
+ *
  * @component
  */
 
 import React, { useState } from 'react'
-import { useMinioConnection } from '@/app/hooks/useMinioConnection'
+import { useMinioConnection } from '@/hooks/useMinioConnection'
 import { CheckCircle2, AlertCircle, RefreshCw, Loader } from 'lucide-react'
 
 export interface MinioStatusProps {
@@ -47,7 +47,7 @@ export function MinioStatus({
 }: MinioStatusProps) {
   const { status, loading, error, connected, ping, refresh } = useMinioConnection(
     pollInterval,
-    true
+    true,
   )
   const [isRefreshing, setIsRefreshing] = useState(false)
   const endpointLabel = 'EU server 49v2'
@@ -77,9 +77,7 @@ export function MinioStatus({
   // Loading state
   if (!status && loading) {
     return (
-      <div
-        className={`flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-100 ${className}`}
-      >
+      <div className={`flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-100 ${className}`}>
         <Loader className="w-4 h-4 text-slate-500 animate-spin" />
         <span className="text-sm text-slate-600">Checking File Server...</span>
       </div>
@@ -98,7 +96,9 @@ export function MinioStatus({
         ) : uploadOnlyFallback ? (
           <>
             <div className="w-2 h-2 bg-amber-500 rounded-full" />
-            <span className="text-xs text-slate-600">EU server 49v2 Offline • EU server 45v5 Upload Available</span>
+            <span className="text-xs text-slate-600">
+              EU server 49v2 Offline • EU server 45v5 Upload Available
+            </span>
           </>
         ) : (
           <>
@@ -185,7 +185,8 @@ export function MinioStatus({
               )}
 
               <p className="text-xs text-slate-500">
-                Last checked: {status?.timestamp ? new Date(status.timestamp).toLocaleTimeString() : 'Never'}
+                Last checked:{' '}
+                {status?.timestamp ? new Date(status.timestamp).toLocaleTimeString() : 'Never'}
               </p>
             </div>
           </div>
@@ -198,9 +199,7 @@ export function MinioStatus({
           className="flex-shrink-0 p-2 rounded-md text-slate-600 hover:bg-white hover:text-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           title="Refresh status"
         >
-          <RefreshCw
-            className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`}
-          />
+          <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
         </button>
       </div>
 

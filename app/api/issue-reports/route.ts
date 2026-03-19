@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { z } from 'zod'
 import { getSupabaseClient } from '@/lib/supabaseClient'
 import { getOptionalIssueReporter } from '@/lib/issueReportAuth'
 import { uploadIssueArtifact } from '@/lib/issueReportStorage'
@@ -11,21 +11,50 @@ import {
   sanitizeConsoleEntries,
   sanitizeFailedRequests,
 } from '@/lib/issueReportUtils'
+import { apiError, apiOk } from '@/lib/api/http'
+import { parseBodyWithSchema } from '@/lib/api/request'
+import { toErrorMessage } from '@/lib/api/error'
+
+const reportBodySchema = z.object({
+  notes: z.string().optional(),
+  pageUrl: z.string().optional(),
+  routePath: z.string().optional(),
+  severity: z.unknown().optional(),
+  includeScreenshot: z.boolean().optional(),
+  includeConsoleLog: z.boolean().optional(),
+  includeFailedRequests: z.boolean().optional(),
+  screenshotDataUrl: z.string().optional(),
+  consoleEntries: z.unknown().optional(),
+  failedRequests: z.unknown().optional(),
+  browserContext: z
+    .object({
+      viewport: z.unknown().optional(),
+      userAgent: z.string().optional(),
+      language: z.string().optional(),
+      platform: z.string().optional(),
+      appVersion: z.string().optional(),
+    })
+    .optional(),
+})
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json()
+    const { data: body, error: bodyError } = await parseBodyWithSchema(request, reportBodySchema)
+    if (bodyError || !body) {
+      return apiError(bodyError || 'Invalid request payload', 400)
+    }
+
     const notes = normalizeIssueNotes(body?.notes)
 
     if (!notes) {
-      return NextResponse.json({ error: 'Please describe what went wrong.' }, { status: 400 })
+      return apiError('Please describe what went wrong.', 400)
     }
 
     const pageUrl = redactSensitiveText(String(body?.pageUrl || '')).slice(0, 2000)
     const routePath = String(body?.routePath || '').slice(0, 500)
 
     if (!pageUrl || !routePath) {
-      return NextResponse.json({ error: 'Missing page context for issue report.' }, { status: 400 })
+      return apiError('Missing page context for issue report.', 400)
     }
 
     const severity = normalizeSeverity(body?.severity)
@@ -39,7 +68,9 @@ export async function POST(request: Request) {
       language: String(body?.browserContext?.language || '').slice(0, 50),
       platform: String(body?.browserContext?.platform || '').slice(0, 100),
       appVersion: String(body?.browserContext?.appVersion || '').slice(0, 100),
-      consoleEntryCount: Array.isArray(body?.consoleEntries) ? Math.min(body.consoleEntries.length, 200) : 0,
+      consoleEntryCount: Array.isArray(body?.consoleEntries)
+        ? Math.min(body.consoleEntries.length, 200)
+        : 0,
       failedRequestCount: failedRequests.length,
       failedRequests,
       capturedAt: new Date().toISOString(),
@@ -48,9 +79,9 @@ export async function POST(request: Request) {
     const reporter = await getOptionalIssueReporter()
     const supabase = getSupabaseClient()
     const moduleKey = deriveModuleFromPath(routePath)
-    const issueReportsTable = supabase.from('issue_reports') as any
-    const issueReportArtifactsTable = supabase.from('issue_report_artifacts') as any
-    const issueReportEventsTable = supabase.from('issue_report_events') as any
+    const issueReportsTable = supabase.from('issue_reports')
+    const issueReportArtifactsTable = supabase.from('issue_report_artifacts')
+    const issueReportEventsTable = supabase.from('issue_report_events')
 
     const { data: report, error: reportError } = await issueReportsTable
       .insert({
@@ -73,7 +104,11 @@ export async function POST(request: Request) {
 
     const artifactRows: Array<Record<string, unknown>> = []
 
-    if (includeScreenshot && typeof body?.screenshotDataUrl === 'string' && body.screenshotDataUrl.startsWith('data:')) {
+    if (
+      includeScreenshot &&
+      typeof body?.screenshotDataUrl === 'string' &&
+      body.screenshotDataUrl.startsWith('data:')
+    ) {
       try {
         const screenshot = parseDataUrl(body.screenshotDataUrl)
         const upload = await uploadIssueArtifact({
@@ -152,9 +187,8 @@ export async function POST(request: Request) {
       },
     })
 
-    return NextResponse.json({ ok: true, ticketId: report.id })
-  } catch (error: any) {
-    console.error('Issue report submission failed:', error)
-    return NextResponse.json({ error: error?.message || 'Failed to submit issue report' }, { status: 500 })
+    return apiOk({ ticketId: report.id })
+  } catch (error: unknown) {
+    return apiError(toErrorMessage(error, 'Failed to submit issue report'), 500)
   }
 }

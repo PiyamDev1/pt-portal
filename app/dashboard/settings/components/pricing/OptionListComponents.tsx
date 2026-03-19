@@ -9,10 +9,7 @@ export function OptionListItem({ value, onDelete }: OptionListItemProps) {
   return (
     <div className="flex items-center gap-2 bg-white p-2 rounded border">
       <span className="flex-1 text-sm">{value}</span>
-      <button
-        onClick={onDelete}
-        className="text-red-500 hover:text-red-700 text-xs font-bold"
-      >
+      <button onClick={onDelete} className="text-red-500 hover:text-red-700 text-xs font-bold">
         ✕
       </button>
     </div>

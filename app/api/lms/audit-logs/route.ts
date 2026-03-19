@@ -1,4 +1,5 @@
-import { NextResponse } from 'next/server'
+import { apiOk, apiError } from '@/lib/api/http'
+import { toErrorMessage } from '@/lib/api/error'
 import { createClient } from '@supabase/supabase-js'
 
 export const dynamic = 'force-dynamic'
@@ -24,10 +25,14 @@ export async function GET(request: Request) {
     const offset = parseInt(searchParams.get('offset') || '0')
 
     if (!accountId) {
-      return NextResponse.json({ error: 'Account ID required' }, { status: 400 })
+      return apiError('Account ID required', 400)
     }
 
-    const { data: logs, error, count } = await supabase
+    const {
+      data: logs,
+      error,
+      count,
+    } = await supabase
       .from('audit_logs')
       .select(
         `
@@ -40,7 +45,7 @@ export async function GET(request: Request) {
         created_at,
         employees (full_name, email)
       `,
-        { count: 'exact' }
+        { count: 'exact' },
       )
       .eq('entity_id', accountId)
       .order('created_at', { ascending: false })
@@ -58,14 +63,14 @@ export async function GET(request: Request) {
       created_at: log.created_at,
       employee: {
         name: Array.isArray(log.employees) ? log.employees[0]?.full_name : log.employees?.full_name,
-        email: Array.isArray(log.employees) ? log.employees[0]?.email : log.employees?.email
-      }
+        email: Array.isArray(log.employees) ? log.employees[0]?.email : log.employees?.email,
+      },
     }))
 
-    return NextResponse.json({ logs: formattedLogs || [], total: count || 0 })
+    return apiOk({ logs: formattedLogs || [], total: count || 0 })
   } catch (error: any) {
     console.error('[AUDIT LOGS API] Error:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return apiError(toErrorMessage(error, 'Failed to fetch audit logs'), 500)
   }
 }
 
@@ -75,7 +80,7 @@ export async function POST(request: Request) {
     const { userId, action, entityType, entityId, changes } = await request.json()
 
     if (!userId || !action || !entityType || !entityId) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+      return apiError('Missing required fields', 400)
     }
 
     const { data: log, error } = await supabase
@@ -86,16 +91,16 @@ export async function POST(request: Request) {
         entity_type: entityType,
         entity_id: entityId,
         changes: changes || null,
-        created_at: new Date().toISOString()
+        created_at: new Date().toISOString(),
       })
       .select()
       .single()
 
     if (error) throw error
 
-    return NextResponse.json({ log })
+    return apiOk({ log })
   } catch (error: any) {
     console.error('[AUDIT LOGS API] Error:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return apiError(toErrorMessage(error, 'Failed to create audit log'), 500)
   }
 }

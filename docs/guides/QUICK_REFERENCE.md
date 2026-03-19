@@ -7,6 +7,7 @@
 ## 🚀 Getting Started (Copy-Paste Commands)
 
 ### Windows Users - Complete Setup
+
 ```powershell
 # 1. Clone project
 git clone https://github.com/PiyamDev1/pt-portal.git
@@ -29,6 +30,7 @@ start http://localhost:3000
 ```
 
 ### Mac/Linux Users - Complete Setup
+
 ```bash
 # 1. Clone project
 git clone https://github.com/PiyamDev1/pt-portal.git
@@ -55,6 +57,7 @@ open http://localhost:3000
 ## 🔑 Environment Variables Template
 
 Create `.env.local` file:
+
 ```env
 NEXT_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=YOUR_ANON_KEY_HERE
@@ -67,13 +70,13 @@ Get these from [Supabase Dashboard](https://supabase.com/dashboard) > Settings >
 
 ## 📚 Documentation Quick Links
 
-| Need | Document |
-|------|----------|
-| **First time using app?** | [USAGE_GUIDE.md](USAGE_GUIDE.md) |
-| **Setting up on Windows?** | [WINDOWS_SETUP_GUIDE.md](WINDOWS_SETUP_GUIDE.md) |
-| **Understanding the code?** | [ARCHITECTURE_GUIDE.md](ARCHITECTURE_GUIDE.md) |
+| Need                        | Document                                                                                             |
+| --------------------------- | ---------------------------------------------------------------------------------------------------- |
+| **First time using app?**   | [USAGE_GUIDE.md](USAGE_GUIDE.md)                                                                     |
+| **Setting up on Windows?**  | [WINDOWS_SETUP_GUIDE.md](WINDOWS_SETUP_GUIDE.md)                                                     |
+| **Understanding the code?** | [ARCHITECTURE_GUIDE.md](ARCHITECTURE_GUIDE.md)                                                       |
 | **Troubleshooting issues?** | [WINDOWS_SETUP_GUIDE.md#-common-issues--solutions](WINDOWS_SETUP_GUIDE.md#-common-issues--solutions) |
-| **Performance details?** | [PAYMENT_SERVICE_OPTIMIZATION.md](PAYMENT_SERVICE_OPTIMIZATION.md) |
+| **Performance details?**    | [PAYMENT_SERVICE_OPTIMIZATION.md](PAYMENT_SERVICE_OPTIMIZATION.md)                                   |
 
 ---
 
@@ -99,24 +102,25 @@ npm cache clean         # Clear npm cache
 
 ### Important Files
 
-| File | Purpose |
-|------|---------|
-| `.env.local` | Your secret API keys (never commit!) |
-| `app/page.tsx` | Home page |
-| `app/dashboard/page.tsx` | Main dashboard |
-| `app/api/` | Backend API endpoints |
-| `app/components/` | Reusable React components |
-| `app/hooks/` | Custom React hooks |
-| `app/lib/` | Utility functions |
-| `next.config.js` | Next.js configuration |
-| `tailwind.config.js` | Tailwind CSS setup |
-| `tsconfig.json` | TypeScript configuration |
+| File                     | Purpose                              |
+| ------------------------ | ------------------------------------ |
+| `.env.local`             | Your secret API keys (never commit!) |
+| `app/page.tsx`           | Home page                            |
+| `app/dashboard/page.tsx` | Main dashboard                       |
+| `app/api/`               | Backend API endpoints                |
+| `app/components/`        | Reusable React components            |
+| `app/hooks/`             | Custom React hooks                   |
+| `app/lib/`               | Utility functions                    |
+| `next.config.js`         | Next.js configuration                |
+| `tailwind.config.js`     | Tailwind CSS setup                   |
+| `tsconfig.json`          | TypeScript configuration             |
 
 ---
 
 ## 🎯 Common Tasks
 
 ### Create a New API Endpoint
+
 ```typescript
 // app/api/my-endpoint/route.ts
 import { NextResponse } from 'next/server'
@@ -132,6 +136,7 @@ export async function GET(req) {
 ```
 
 ### Create a New Page
+
 ```typescript
 // app/dashboard/my-page/page.tsx
 'use client'
@@ -140,12 +145,13 @@ import { useState } from 'react'
 
 export default function MyPage() {
   const [data, setData] = useState([])
-  
+
   return <div>My Page</div>
 }
 ```
 
 ### Create a Custom Hook
+
 ```typescript
 // app/hooks/useMyData.ts
 import { useState, useEffect } from 'react'
@@ -153,12 +159,12 @@ import { useState, useEffect } from 'react'
 export function useMyData() {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
-  
+
   useEffect(() => {
     // Fetch data
     setLoading(false)
   }, [])
-  
+
   return { data, loading }
 }
 ```
@@ -168,21 +174,25 @@ export function useMyData() {
 ## 🧪 Testing Your Code
 
 ### Run Build (Tests Everything)
+
 ```bash
 npm run build
 ```
 
 ### Check for TypeScript Errors
+
 ```bash
 npm run type-check
 ```
 
 ### Check Code Quality
+
 ```bash
 npm run lint
 ```
 
 ### Format Code
+
 ```bash
 npm run format
 ```
@@ -191,20 +201,21 @@ npm run format
 
 ## 🆘 Quick Troubleshooting
 
-| Problem | Solution |
-|---------|----------|
-| **Port 3000 in use** | `npm run dev -- -p 3001` |
-| **npm not found** | Reinstall Node.js |
-| **Dependencies error** | `npm install` (or `npm ci` for exact versions) |
-| **Env variables not working** | Restart dev server (`Ctrl+C` then `npm run dev`) |
-| **Git conflicts** | `git pull origin main` then resolve conflicts |
-| **Build fails** | `rm -rf .next node_modules` then `npm install` and `npm run build` |
+| Problem                       | Solution                                                           |
+| ----------------------------- | ------------------------------------------------------------------ |
+| **Port 3000 in use**          | `npm run dev -- -p 3001`                                           |
+| **npm not found**             | Reinstall Node.js                                                  |
+| **Dependencies error**        | `npm install` (or `npm ci` for exact versions)                     |
+| **Env variables not working** | Restart dev server (`Ctrl+C` then `npm run dev`)                   |
+| **Git conflicts**             | `git pull origin main` then resolve conflicts                      |
+| **Build fails**               | `rm -rf .next node_modules` then `npm install` and `npm run build` |
 
 ---
 
 ## 🎨 Tailwind CSS Cheat Sheet
 
 ### Common Classes
+
 ```typescript
 // Spacing
 px-4 py-2          // Horizontal & vertical padding
@@ -264,6 +275,7 @@ xl: 1280px
 ## 🔐 Security Best Practices
 
 ✅ DO:
+
 - Keep `.env.local` in `.gitignore`
 - Use HTTPS in production
 - Validate all inputs
@@ -271,6 +283,7 @@ xl: 1280px
 - Never commit secrets
 
 ❌ DON'T:
+
 - Commit `.env.local` files
 - Use `admin` keys in client code
 - Log sensitive data
@@ -284,19 +297,19 @@ xl: 1280px
 ### Quick Query Examples
 
 **Get all accounts:**
+
 ```javascript
 const { data } = await supabase.from('accounts').select('*')
 ```
 
 **Filter by status:**
+
 ```javascript
-const { data } = await supabase
-  .from('applications')
-  .select('*')
-  .eq('status', 'approved')
+const { data } = await supabase.from('applications').select('*').eq('status', 'approved')
 ```
 
 **Get recent transactions:**
+
 ```javascript
 const { data } = await supabase
   .from('transactions')
@@ -310,18 +323,21 @@ const { data } = await supabase
 ## 🐛 Debugging in Browser
 
 ### Open Developer Tools
+
 - **Windows/Linux**: `F12` or `Ctrl+Shift+I`
 - **Mac**: `Cmd+Option+I`
 
 ### Tabs to Check
-| Tab | Use |
-|-----|-----|
-| **Console** | See errors and logs |
-| **Network** | See API calls, responses |
-| **Elements** | Inspect HTML structure |
-| **Application** | Check cookies, storage |
+
+| Tab             | Use                      |
+| --------------- | ------------------------ |
+| **Console**     | See errors and logs      |
+| **Network**     | See API calls, responses |
+| **Elements**    | Inspect HTML structure   |
+| **Application** | Check cookies, storage   |
 
 ### Debug React Components
+
 1. Install React Developer Tools extension
 2. Open DevTools (F12)
 3. Go to "React" tab
@@ -333,6 +349,7 @@ const { data } = await supabase
 ## 💡 Code Snippets
 
 ### Fetch Data from API
+
 ```typescript
 async function getData() {
   try {
@@ -346,13 +363,14 @@ async function getData() {
 ```
 
 ### Form Handling
+
 ```typescript
 const [formData, setFormData] = useState({ name: '', email: '' })
 
 const handleChange = (e) => {
-  setFormData({ 
-    ...formData, 
-    [e.target.name]: e.target.value 
+  setFormData({
+    ...formData,
+    [e.target.name]: e.target.value,
   })
 }
 
@@ -363,6 +381,7 @@ const handleSubmit = (e) => {
 ```
 
 ### Loading State
+
 ```typescript
 const [loading, setLoading] = useState(false)
 
@@ -383,6 +402,7 @@ return <button disabled={loading}>{loading ? 'Loading...' : 'Submit'}</button>
 ## 🔗 Useful Links
 
 ### Documentation
+
 - [Next.js Docs](https://nextjs.org/docs)
 - [React Docs](https://react.dev)
 - [TypeScript Docs](https://www.typescriptlang.org/docs/)
@@ -390,12 +410,14 @@ return <button disabled={loading}>{loading ? 'Loading...' : 'Submit'}</button>
 - [Tailwind CSS](https://tailwindcss.com/)
 
 ### Tools
+
 - [VS Code](https://code.visualstudio.com/)
 - [Git](https://git-scm.com/)
 - [Node.js](https://nodejs.org/)
 - [Supabase Dashboard](https://supabase.com/dashboard)
 
 ### Resources
+
 - [MDN Web Docs](https://developer.mozilla.org/)
 - [CSS Tricks](https://css-tricks.com/)
 - [Dev.to](https://dev.to/)

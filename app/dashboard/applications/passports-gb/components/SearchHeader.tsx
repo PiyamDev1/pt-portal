@@ -9,7 +9,12 @@ interface SearchHeaderProps {
   onToggleForm: () => void
 }
 
-export default function SearchHeader({ searchTerm, onSearchChange, showForm, onToggleForm }: SearchHeaderProps) {
+export default function SearchHeader({
+  searchTerm,
+  onSearchChange,
+  showForm,
+  onToggleForm,
+}: SearchHeaderProps) {
   return (
     <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
       <div className="relative w-full md:w-96">
@@ -17,7 +22,7 @@ export default function SearchHeader({ searchTerm, onSearchChange, showForm, onT
         <input
           placeholder="Search by Name, PEX, etc..."
           value={searchTerm}
-          onChange={e => onSearchChange(e.target.value)}
+          onChange={(e) => onSearchChange(e.target.value)}
           className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-slate-900 outline-none"
         />
       </div>

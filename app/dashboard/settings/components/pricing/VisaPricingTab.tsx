@@ -15,7 +15,12 @@ interface VisaPricingTabProps {
   onEdit: (item: VisaPricing) => void
   onSave: () => void
   onDelete: (id: string) => void
-  onAddEntry: (entry: { country: string; visa_type: string; cost_price: number; sale_price: number }) => Promise<void>
+  onAddEntry: (entry: {
+    country: string
+    visa_type: string
+    cost_price: number
+    sale_price: number
+  }) => Promise<void>
   supabase: SupabaseClient
 }
 
@@ -31,9 +36,14 @@ function VisaPricingTabCore({
   onSave,
   onDelete,
   onAddEntry,
-  supabase
+  supabase,
 }: VisaPricingTabProps) {
-  const [newEntry, setNewEntry] = useState({ country: '', visa_type: '', cost_price: 0, sale_price: 0 })
+  const [newEntry, setNewEntry] = useState({
+    country: '',
+    visa_type: '',
+    cost_price: 0,
+    sale_price: 0,
+  })
 
   const handleAddEntry = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -45,7 +55,7 @@ function VisaPricingTabCore({
     try {
       await onAddEntry(newEntry)
       setNewEntry({ country: '', visa_type: '', cost_price: 0, sale_price: 0 })
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[VisaPricingTab] Error adding visa pricing:', error)
       toast.error('Failed to add visa pricing. Please try again or contact support.')
     }
@@ -58,7 +68,9 @@ function VisaPricingTabCore({
         <form onSubmit={handleAddEntry} className="space-y-3">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label htmlFor="visa-country" className="block text-sm font-medium mb-1">Country *</label>
+              <label htmlFor="visa-country" className="block text-sm font-medium mb-1">
+                Country *
+              </label>
               <input
                 id="visa-country"
                 type="text"
@@ -70,7 +82,9 @@ function VisaPricingTabCore({
               />
             </div>
             <div>
-              <label htmlFor="visa-type" className="block text-sm font-medium mb-1">Visa Type *</label>
+              <label htmlFor="visa-type" className="block text-sm font-medium mb-1">
+                Visa Type *
+              </label>
               <select
                 id="visa-type"
                 value={newEntry.visa_type}
@@ -80,14 +94,18 @@ function VisaPricingTabCore({
               >
                 <option value="">Select Visa Type</option>
                 {VISA_TYPES.map((type) => (
-                  <option key={type} value={type}>{type}</option>
+                  <option key={type} value={type}>
+                    {type}
+                  </option>
                 ))}
               </select>
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label htmlFor="visa-cost-price" className="block text-sm font-medium mb-1">Cost Price</label>
+              <label htmlFor="visa-cost-price" className="block text-sm font-medium mb-1">
+                Cost Price
+              </label>
               <input
                 id="visa-cost-price"
                 type="number"
@@ -99,7 +117,9 @@ function VisaPricingTabCore({
               />
             </div>
             <div>
-              <label htmlFor="visa-sale-price" className="block text-sm font-medium mb-1">Sale Price</label>
+              <label htmlFor="visa-sale-price" className="block text-sm font-medium mb-1">
+                Sale Price
+              </label>
               <input
                 id="visa-sale-price"
                 type="number"
@@ -152,7 +172,9 @@ function VisaPricingTabCore({
                           type="number"
                           step="0.01"
                           value={editValues.cost_price}
-                          onChange={(e) => setEditValues({ ...editValues, cost_price: e.target.value })}
+                          onChange={(e) =>
+                            setEditValues({ ...editValues, cost_price: e.target.value })
+                          }
                           className="w-full px-2 py-1 border rounded"
                         />
                       </td>
@@ -161,7 +183,9 @@ function VisaPricingTabCore({
                           type="number"
                           step="0.01"
                           value={editValues.sale_price}
-                          onChange={(e) => setEditValues({ ...editValues, sale_price: e.target.value })}
+                          onChange={(e) =>
+                            setEditValues({ ...editValues, sale_price: e.target.value })
+                          }
                           className="w-full px-2 py-1 border rounded"
                         />
                       </td>

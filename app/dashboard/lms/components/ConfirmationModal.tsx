@@ -22,7 +22,7 @@ export function ConfirmationModal({
   cancelText = 'Cancel',
   isDangerous = false,
   onConfirm,
-  onCancel
+  onCancel,
 }: ConfirmationModalProps) {
   const [loading, setLoading] = useState(false)
   const titleId = useId()
@@ -67,7 +67,7 @@ export function ConfirmationModal({
   return (
     <div
       className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-      onMouseDown={event => {
+      onMouseDown={(event) => {
         if (event.target === event.currentTarget) {
           onCancel()
         }
@@ -90,7 +90,10 @@ export function ConfirmationModal({
             </div>
           )}
           <div className="flex-grow">
-            <h2 id={titleId} className={`text-lg font-bold ${isDangerous ? 'text-red-700' : 'text-slate-800'}`}>
+            <h2
+              id={titleId}
+              className={`text-lg font-bold ${isDangerous ? 'text-red-700' : 'text-slate-800'}`}
+            >
               {title}
             </h2>
           </div>

@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 🎉 Major Release - Codebase Organization & Branding Update
 
 #### Added
+
 - Comprehensive documentation structure in `docs/` directory
 - Documentation organized into logical categories:
   - `docs/guides/` - User and developer guides
@@ -26,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - docs/README.md for documentation navigation
 
 #### Changed
+
 - Updated package.json to version 2.0.0
 - Reorganized all documentation files into structured directories
 - Updated all documentation links to reflect new structure
@@ -33,12 +35,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Improved documentation cross-references
 
 #### Fixed
+
 - Pricing tab infinite loading issue (memoization fix)
 - Console errors from missing dashboard routes
 - Infinite refresh loops in LMS page
 - TypeScript errors in stub pages
 
 ### Technical Improvements
+
 - React.memo optimization for components
 - useCallback memoization for hook functions
 - Ref-based filter tracking to prevent effect cycles
@@ -54,6 +58,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Initial Release
 
 #### Features
+
 - **Application Management**
   - NADRA services (CNICs, family registration, forms, reports)
   - Pakistani passport applications
@@ -85,6 +90,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Status overview
 
 #### Technical Stack
+
 - Next.js 14.2 (App Router)
 - React 18
 - TypeScript 5
@@ -96,10 +102,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Version History Summary
 
-| Version | Date | Major Changes |
-|---------|------|---------------|
-| 2.0.0 | 2026-02-01 | Documentation organization, branding update, performance fixes |
-| 1.0.0 | 2026-01-15 | Initial release with core features |
+| Version | Date       | Major Changes                                                  |
+| ------- | ---------- | -------------------------------------------------------------- |
+| 2.0.0   | 2026-02-01 | Documentation organization, branding update, performance fixes |
+| 1.0.0   | 2026-01-15 | Initial release with core features                             |
 
 ---
 
@@ -108,6 +114,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### From 1.0.0 to 2.0.0
 
 **Documentation Links:**
+
 - All documentation has moved to `docs/` directory
 - Update bookmarks and internal links
 - See [DOCUMENTATION_INDEX.md](DOCUMENTATION_INDEX.md) for new structure

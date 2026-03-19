@@ -8,7 +8,12 @@ interface StatementFooterProps {
   onClose: () => void
 }
 
-export function StatementFooter({ account, onAddPayment, onAddDebt, onClose }: StatementFooterProps) {
+export function StatementFooter({
+  account,
+  onAddPayment,
+  onAddDebt,
+  onClose,
+}: StatementFooterProps) {
   return (
     <div className="flex flex-col gap-2 pt-4 border-t">
       <div className="flex gap-2">

@@ -2,6 +2,10 @@
 
 type ConsoleLevel = 'log' | 'info' | 'warn' | 'error'
 
+type WindowWithIssueReporterFlag = Window & {
+  __issueReporterConsolePatched?: boolean
+}
+
 export type CapturedConsoleEntry = {
   level: ConsoleLevel
   message: string
@@ -35,7 +39,12 @@ function safeStringify(value: unknown): string {
     return value
   }
 
-  if (typeof value === 'number' || typeof value === 'boolean' || value === null || value === undefined) {
+  if (
+    typeof value === 'number' ||
+    typeof value === 'boolean' ||
+    value === null ||
+    value === undefined
+  ) {
     return String(value)
   }
 
@@ -61,7 +70,8 @@ function pushFailedRequest(entry: CapturedFailedRequest) {
 }
 
 export function startConsoleCapture() {
-  if (typeof window === 'undefined' || (window as any).__issueReporterConsolePatched) {
+  const win = typeof window !== 'undefined' ? (window as WindowWithIssueReporterFlag) : undefined
+  if (!win || win.__issueReporterConsolePatched) {
     return
   }
 
@@ -71,12 +81,17 @@ export function startConsoleCapture() {
     const timestamp = new Date().toISOString()
     const request = args[0]
     const init = args[1]
-    const method = (init?.method || (request instanceof Request ? request.method : 'GET') || 'GET').toUpperCase()
-    const url = typeof request === 'string'
-      ? request
-      : request instanceof URL
-        ? request.toString()
-        : request.url
+    const method = (
+      init?.method ||
+      (request instanceof Request ? request.method : 'GET') ||
+      'GET'
+    ).toUpperCase()
+    const url =
+      typeof request === 'string'
+        ? request
+        : request instanceof URL
+          ? request.toString()
+          : request.url
 
     try {
       const response = await originalFetch(...args)
@@ -113,14 +128,18 @@ export function startConsoleCapture() {
       throw error
     }
   }
-
   ;(['log', 'info', 'warn', 'error'] as ConsoleLevel[]).forEach((level) => {
+    // eslint-disable-next-line no-console
     const original = console[level].bind(console)
+    // eslint-disable-next-line no-console
     console[level] = (...args: unknown[]) => {
       pushEntry({
         level,
         message: args.map((arg) => safeStringify(arg)).join(' '),
-        stack: args.find((arg) => arg instanceof Error) instanceof Error ? (args.find((arg) => arg instanceof Error) as Error).stack : undefined,
+        stack:
+          args.find((arg) => arg instanceof Error) instanceof Error
+            ? (args.find((arg) => arg instanceof Error) as Error).stack
+            : undefined,
         timestamp: new Date().toISOString(),
         source: 'console',
       })
@@ -139,7 +158,10 @@ export function startConsoleCapture() {
   })
 
   window.addEventListener('unhandledrejection', (event) => {
-    const reason = event.reason instanceof Error ? `${event.reason.name}: ${event.reason.message}` : safeStringify(event.reason)
+    const reason =
+      event.reason instanceof Error
+        ? `${event.reason.name}: ${event.reason.message}`
+        : safeStringify(event.reason)
     pushEntry({
       level: 'error',
       message: reason,
@@ -149,7 +171,7 @@ export function startConsoleCapture() {
     })
   })
 
-  ;(window as any).__issueReporterConsolePatched = true
+  win.__issueReporterConsolePatched = true
 }
 
 export function getRecentConsoleEntries() {

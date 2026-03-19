@@ -15,12 +15,14 @@ Complete MinIO document management system has been implemented for Nadra Applica
 #### **15 Files Created**
 
 **Foundation Layer (7 files)**
+
 1. Type definitions and interfaces
 2. Document service layer with placeholders
 3. MinIO connection hooks (with retry logic)
 4. API route handlers (7 endpoints)
 
 **UI Components (6 files)**
+
 1. MinIO Status indicator
 2. Drag-and-drop file uploader
 3. Responsive thumbnail grid
@@ -29,6 +31,7 @@ Complete MinIO document management system has been implemented for Nadra Applica
 6. Component exports and documentation
 
 **Integration (2 files)**
+
 1. Documents page route
 2. Updated Nadra table with document icon
 
@@ -37,12 +40,14 @@ Complete MinIO document management system has been implemented for Nadra Applica
 ## 🎯 Key Features Implemented
 
 ### MinIO Status Monitoring
+
 - Real-time connection status with ping/latency
 - Auto-polling every 5 minutes (Vercel-friendly)
 - Manual refresh button
 - Connection state callbacks
 
 ### File Upload System
+
 - Drag-and-drop + file picker interface
 - Real-time upload progress bars
 - File size validation (1.5 MB max)
@@ -51,6 +56,7 @@ Complete MinIO document management system has been implemented for Nadra Applica
 - Error handling with retry logic
 
 ### Document Management
+
 - Responsive thumbnail grid (1-4 columns)
 - Image preview with zoom controls
 - File metadata display
@@ -59,6 +65,7 @@ Complete MinIO document management system has been implemented for Nadra Applica
 - Loading skeletons
 
 ### Document Preview
+
 - Image zoom and pan
 - PDF preview placeholder
 - File type detection
@@ -66,6 +73,7 @@ Complete MinIO document management system has been implemented for Nadra Applica
 - Responsive layout
 
 ### Nadra Table Integration
+
 - New document icon (📄) in actions column
 - Color-coded button (purple)
 - Direct navigation to document hub
@@ -136,27 +144,25 @@ lib/
 ### For Developers
 
 #### Test Components in Isolation
+
 ```tsx
 import { DocumentHub } from '@/app/dashboard/applications/nadra/components/DocumentHub'
-
-<DocumentHub 
-  applicantId="uuid"
-  applicantName="John Doe"
-  showStatus={true}
-/>
+;<DocumentHub applicantId="uuid" applicantName="John Doe" showStatus={true} />
 ```
 
 #### Import Individual Components
+
 ```tsx
-import { 
+import {
   MinioStatus,
   DocumentUpload,
   DocumentGrid,
-  DocumentPreview
+  DocumentPreview,
 } from '@/app/dashboard/applications/nadra/components/DocumentHub'
 ```
 
 #### Use Connection Hook
+
 ```tsx
 import { useMinioConnection } from '@/app/hooks/useMinioConnection'
 
@@ -168,6 +174,7 @@ const { connected, ping, status, refresh } = useMinioConnection()
 ## 🔌 Integration Points (When Backend Ready)
 
 ### 1. Replace Service Methods
+
 **File**: `lib/services/documentService.ts`
 
 ```typescript
@@ -179,6 +186,7 @@ async uploadDocument(file: File, applicantId: string): Promise<Document> {
 ```
 
 ### 2. Implement API Routes
+
 **Files**: `app/api/documents/*.ts`
 
 - POST `/api/documents/upload` - Upload to MinIO
@@ -190,7 +198,9 @@ async uploadDocument(file: File, applicantId: string): Promise<Document> {
 - GET `/api/documents/status` - Check MinIO health
 
 ### 3. Database Schema
+
 Create tables in Supabase:
+
 ```sql
 CREATE TABLE documents (
   id UUID PRIMARY KEY,
@@ -207,6 +217,7 @@ CREATE TABLE documents (
 ```
 
 ### 4. Environment Variables
+
 ```env
 NEXT_PUBLIC_MINIO_ENDPOINT=https://minio.yourdomain.com
 NEXT_PUBLIC_MINIO_BUCKET=nadra-documents
@@ -220,26 +231,31 @@ MINIO_REGION=us-east-1
 ## ⚙️ Configuration
 
 ### Polling Settings
+
 **Current**: 5-minute interval (300,000 ms) - Optimized for Vercel
 
 Customize in `useMinioConnection` hook:
+
 ```tsx
 const { status } = useMinioConnection(
-  120000,  // 2 minutes - your custom interval
-  true     // auto-start
+  120000, // 2 minutes - your custom interval
+  true, // auto-start
 )
 ```
 
 ### File Validation
+
 **Current**: 1.5 MB max, specific MIME types
 
 Adjust in `documentService.ts`:
+
 ```typescript
 const MAX_FILE_SIZE = 2000000  // 2 MB
 const ALLOWED_MIME_TYPES = [...]  // Add more types
 ```
 
 ### Styling
+
 All components use Tailwind CSS. Customize colors in component files.
 
 ---
@@ -295,6 +311,7 @@ All components use Tailwind CSS. Customize colors in component files.
 ## 📚 Documentation
 
 Complete documentation available in:
+
 - [DocumentHub Component Guide](app/dashboard/applications/nadra/components/DocumentHub/README.md)
 - [Implementation Plan](Future%20Plans/MINIO_DOCUMENT_MANAGEMENT_PLAN.md)
 - Code comments in all component files
@@ -329,6 +346,7 @@ Complete documentation available in:
 ## 📞 Contact & Support
 
 For implementation questions, refer to:
+
 1. [MINIO_DOCUMENT_MANAGEMENT_PLAN.md](Future%20Plans/MINIO_DOCUMENT_MANAGEMENT_PLAN.md) - Full architecture details
 2. [DocumentHub README.md](app/dashboard/applications/nadra/components/DocumentHub/README.md) - Component API docs
 3. Code comments - Technical details per file
@@ -341,11 +359,12 @@ For implementation questions, refer to:
 **Total Files Created**: 15  
 **Total Lines of Code**: ~2,500  
 **Build Status**: ✅ Successful  
-**Ready for Backend**: Yes  
+**Ready for Backend**: Yes
 
 The frontend is 100% complete and ready for backend MinIO integration. All placeholder methods are clearly marked and documented, making integration straightforward when the MinIO VM is ready.
 
-**Next Steps**: 
+**Next Steps**:
+
 1. Network engineer sets up MinIO VM
 2. Update environment variables
 3. Implement API route handlers

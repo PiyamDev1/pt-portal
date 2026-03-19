@@ -15,7 +15,7 @@ interface TransactionDetailsProps {
 export function TransactionDetails({
   transaction,
   totalInstallments,
-  paidInstallments
+  paidInstallments,
 }: TransactionDetailsProps) {
   return (
     <div className="bg-slate-50 p-4 rounded-lg">
@@ -23,7 +23,7 @@ export function TransactionDetails({
       <div className="space-y-1 text-sm">
         <div className="flex justify-between">
           <span className="text-slate-600">Service Amount:</span>
-          <span className="font-semibold">£{parseFloat(transaction.amount as any).toFixed(2)}</span>
+          <span className="font-semibold">£{Number(transaction.amount).toFixed(2)}</span>
         </div>
         {transaction.remark && (
           <div className="flex justify-between">
@@ -38,7 +38,9 @@ export function TransactionDetails({
         {totalInstallments > 0 && (
           <div className="flex justify-between">
             <span className="text-slate-600">Installments:</span>
-            <span className="text-slate-700">{paidInstallments}/{totalInstallments} paid</span>
+            <span className="text-slate-700">
+              {paidInstallments}/{totalInstallments} paid
+            </span>
           </div>
         )}
       </div>

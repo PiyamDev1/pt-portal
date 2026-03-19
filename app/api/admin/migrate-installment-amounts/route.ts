@@ -1,5 +1,6 @@
-import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { toErrorMessage } from '@/lib/api/error'
+import { apiError, apiOk } from '@/lib/api/http'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -7,8 +8,6 @@ const supabase = createClient(supabaseUrl, supabaseKey)
 
 export async function POST(request: Request) {
   try {
-    console.log('[MIGRATE-INSTALLMENTS] Starting migration...')
-
     // Fetch all installments
     const { data: installments, error: fetchError } = await supabase
       .from('loan_installments')
@@ -16,11 +15,8 @@ export async function POST(request: Request) {
       .order('created_at', { ascending: true })
 
     if (fetchError) {
-      console.error('[MIGRATE-INSTALLMENTS] Fetch error:', fetchError)
-      throw fetchError
+      throw new Error(fetchError.message)
     }
-
-    console.log(`[MIGRATE-INSTALLMENTS] Found ${installments?.length || 0} installments`)
 
     let updatedPaid = 0
     let updatedSkipped = 0
@@ -52,33 +48,18 @@ export async function POST(request: Request) {
           .eq('id', inst.id)
 
         if (updateError) {
-          console.error(`[MIGRATE-INSTALLMENTS] Error updating ${inst.id}:`, updateError)
-        } else {
-          console.log(`[MIGRATE-INSTALLMENTS] Updated ${inst.id}: ${inst.amount} -> ${newAmount} (${inst.status})`)
+          // Continue migration even if one row fails; this mirrors previous best-effort behavior.
         }
       }
     }
 
-    const summary = {
-      total: installments?.length || 0,
-      updatedPaid,
-      updatedSkipped,
-      skipped,
-      message: `Migration complete: ${updatedPaid} paid installments updated, ${updatedSkipped} skipped installments updated, ${skipped} left unchanged`
-    }
-
-    console.log('[MIGRATE-INSTALLMENTS] Summary:', summary)
-
-    return NextResponse.json({
-      success: true,
-      ...summary
+    return apiOk({
+      totalInstallments: installments?.length || 0,
+      updatedPaidCount: updatedPaid,
+      updatedSkippedCount: updatedSkipped,
+      unchangedCount: skipped,
     })
-
-  } catch (error: any) {
-    console.error('[MIGRATE-INSTALLMENTS] Error:', error)
-    return NextResponse.json(
-      { error: error.message || 'Migration failed' },
-      { status: 500 }
-    )
+  } catch (error) {
+    return apiError(toErrorMessage(error, 'Migration failed'), 500)
   }
 }

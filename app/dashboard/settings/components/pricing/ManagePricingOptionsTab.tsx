@@ -1,5 +1,6 @@
 'use client'
 
+import { useCallback, useMemo } from 'react'
 import { OptionListItem, OptionListInput } from './OptionListComponents'
 
 type ManageScope = 'nadra' | 'passport' | 'gb' | 'visa'
@@ -7,21 +8,21 @@ type ManageScope = 'nadra' | 'passport' | 'gb' | 'visa'
 interface ManagePricingOptionsTabProps {
   scope: ManageScope
   nadrServiceTypes: string[]
-  setNadrServiceTypes: (types: string[]) => void
+  setNadrServiceTypes: React.Dispatch<React.SetStateAction<string[]>>
   nadrServiceOptions: string[]
-  setNadrServiceOptions: (options: string[]) => void
+  setNadrServiceOptions: React.Dispatch<React.SetStateAction<string[]>>
   pkCategories: string[]
-  setPKCategories: (categories: string[]) => void
+  setPKCategories: React.Dispatch<React.SetStateAction<string[]>>
   pkSpeeds: string[]
-  setPKSpeeds: (speeds: string[]) => void
+  setPKSpeeds: React.Dispatch<React.SetStateAction<string[]>>
   pkApplicationTypes: string[]
-  setPKApplicationTypes: (types: string[]) => void
+  setPKApplicationTypes: React.Dispatch<React.SetStateAction<string[]>>
   gbAgeGroups: string[]
-  setGBAgeGroups: (groups: string[]) => void
+  setGBAgeGroups: React.Dispatch<React.SetStateAction<string[]>>
   gbPages: string[]
-  setGBPages: (pages: string[]) => void
+  setGBPages: React.Dispatch<React.SetStateAction<string[]>>
   gbServiceTypes: string[]
-  setGBServiceTypes: (types: string[]) => void
+  setGBServiceTypes: React.Dispatch<React.SetStateAction<string[]>>
 }
 
 export default function ManagePricingOptionsTab({
@@ -41,233 +42,223 @@ export default function ManagePricingOptionsTab({
   gbPages,
   setGBPages,
   gbServiceTypes,
-  setGBServiceTypes
+  setGBServiceTypes,
 }: ManagePricingOptionsTabProps) {
   const showNadra = scope === 'nadra'
   const showPassport = scope === 'passport'
   const showGb = scope === 'gb'
 
+  const nadrServiceTypesSet = useMemo(() => new Set(nadrServiceTypes), [nadrServiceTypes])
+  const nadrServiceOptionsSet = useMemo(() => new Set(nadrServiceOptions), [nadrServiceOptions])
+  const pkCategoriesSet = useMemo(() => new Set(pkCategories), [pkCategories])
+  const pkSpeedsSet = useMemo(() => new Set(pkSpeeds), [pkSpeeds])
+  const pkApplicationTypesSet = useMemo(() => new Set(pkApplicationTypes), [pkApplicationTypes])
+  const gbAgeGroupsSet = useMemo(() => new Set(gbAgeGroups), [gbAgeGroups])
+  const gbPagesSet = useMemo(() => new Set(gbPages), [gbPages])
+  const gbServiceTypesSet = useMemo(() => new Set(gbServiceTypes), [gbServiceTypes])
+
+  const removeOption = useCallback(
+    (setValues: React.Dispatch<React.SetStateAction<string[]>>, value: string) => {
+      setValues((previous) => previous.filter((item) => item !== value))
+    },
+    [],
+  )
+
+  const addOptionFromInput = useCallback(
+    (
+      inputId: string,
+      existingValues: Set<string>,
+      setValues: React.Dispatch<React.SetStateAction<string[]>>,
+    ) => {
+      const input = document.getElementById(inputId) as HTMLInputElement | null
+      const nextValue = input?.value.trim()
+
+      if (!nextValue || existingValues.has(nextValue)) {
+        return
+      }
+
+      setValues((previous) => [...previous, nextValue])
+      if (input) input.value = ''
+    },
+    [],
+  )
+
   return (
     <div className="space-y-8">
       {showNadra && (
         <div>
-        <h3 className="font-semibold text-lg mb-4">NADRA Service Types</h3>
-        <div className="space-y-2 mb-3">
-          {nadrServiceTypes.map((type) => (
-            <OptionListItem
-              key={type}
-              value={type}
-              onDelete={() => setNadrServiceTypes(nadrServiceTypes.filter(t => t !== type))}
-            />
-          ))}
-        </div>
-        <OptionListInput
-          id="new-nadra-type"
-          placeholder="Add new service type"
-          onAddClick={() => {
-            const input = document.getElementById('new-nadra-type') as HTMLInputElement
-            const value = input?.value
-            if (value && !nadrServiceTypes.includes(value)) {
-              setNadrServiceTypes([...nadrServiceTypes, value])
-              if (input) input.value = ''
+          <h3 className="font-semibold text-lg mb-4">NADRA Service Types</h3>
+          <div className="space-y-2 mb-3">
+            {nadrServiceTypes.map((type) => (
+              <OptionListItem
+                key={type}
+                value={type}
+                onDelete={() => removeOption(setNadrServiceTypes, type)}
+              />
+            ))}
+          </div>
+          <OptionListInput
+            id="new-nadra-type"
+            placeholder="Add new service type"
+            onAddClick={() =>
+              addOptionFromInput('new-nadra-type', nadrServiceTypesSet, setNadrServiceTypes)
             }
-          }}
-        />
+          />
         </div>
       )}
 
       {showNadra && (
         <div>
-        <h3 className="font-semibold text-lg mb-4">NADRA Service Options</h3>
-        <div className="space-y-2 mb-3">
-          {nadrServiceOptions.map((option) => (
-            <OptionListItem
-              key={option}
-              value={option}
-              onDelete={() => setNadrServiceOptions(nadrServiceOptions.filter(o => o !== option))}
-            />
-          ))}
-        </div>
-        <OptionListInput
-          id="new-nadra-option"
-          placeholder="Add new service option"
-          onAddClick={() => {
-            const input = document.getElementById('new-nadra-option') as HTMLInputElement
-            const value = input?.value
-            if (value && !nadrServiceOptions.includes(value)) {
-              setNadrServiceOptions([...nadrServiceOptions, value])
-              if (input) input.value = ''
+          <h3 className="font-semibold text-lg mb-4">NADRA Service Options</h3>
+          <div className="space-y-2 mb-3">
+            {nadrServiceOptions.map((option) => (
+              <OptionListItem
+                key={option}
+                value={option}
+                onDelete={() => removeOption(setNadrServiceOptions, option)}
+              />
+            ))}
+          </div>
+          <OptionListInput
+            id="new-nadra-option"
+            placeholder="Add new service option"
+            onAddClick={() =>
+              addOptionFromInput('new-nadra-option', nadrServiceOptionsSet, setNadrServiceOptions)
             }
-          }}
-        />
+          />
         </div>
       )}
 
       {showPassport && (
         <div>
-        <h3 className="font-semibold text-lg mb-4">Pakistani Passport Categories</h3>
-        <div className="space-y-2 mb-3">
-          {pkCategories.map((cat) => (
-            <OptionListItem
-              key={cat}
-              value={cat}
-              onDelete={() => setPKCategories(pkCategories.filter(c => c !== cat))}
-            />
-          ))}
-        </div>
-        <OptionListInput
-          id="new-pk-category"
-          placeholder="Add new category"
-          onAddClick={() => {
-            const input = document.getElementById('new-pk-category') as HTMLInputElement
-            const value = input?.value
-            if (value && !pkCategories.includes(value)) {
-              setPKCategories([...pkCategories, value])
-              if (input) input.value = ''
+          <h3 className="font-semibold text-lg mb-4">Pakistani Passport Categories</h3>
+          <div className="space-y-2 mb-3">
+            {pkCategories.map((cat) => (
+              <OptionListItem
+                key={cat}
+                value={cat}
+                onDelete={() => removeOption(setPKCategories, cat)}
+              />
+            ))}
+          </div>
+          <OptionListInput
+            id="new-pk-category"
+            placeholder="Add new category"
+            onAddClick={() =>
+              addOptionFromInput('new-pk-category', pkCategoriesSet, setPKCategories)
             }
-          }}
-        />
+          />
         </div>
       )}
 
       {showPassport && (
         <div>
-        <h3 className="font-semibold text-lg mb-4">Pakistani Passport Speeds</h3>
-        <div className="space-y-2 mb-3">
-          {pkSpeeds.map((speed) => (
-            <OptionListItem
-              key={speed}
-              value={speed}
-              onDelete={() => setPKSpeeds(pkSpeeds.filter(s => s !== speed))}
-            />
-          ))}
-        </div>
-        <OptionListInput
-          id="new-pk-speed"
-          placeholder="Add new speed"
-          onAddClick={() => {
-            const input = document.getElementById('new-pk-speed') as HTMLInputElement
-            const value = input?.value
-            if (value && !pkSpeeds.includes(value)) {
-              setPKSpeeds([...pkSpeeds, value])
-              if (input) input.value = ''
-            }
-          }}
-        />
+          <h3 className="font-semibold text-lg mb-4">Pakistani Passport Speeds</h3>
+          <div className="space-y-2 mb-3">
+            {pkSpeeds.map((speed) => (
+              <OptionListItem
+                key={speed}
+                value={speed}
+                onDelete={() => removeOption(setPKSpeeds, speed)}
+              />
+            ))}
+          </div>
+          <OptionListInput
+            id="new-pk-speed"
+            placeholder="Add new speed"
+            onAddClick={() => addOptionFromInput('new-pk-speed', pkSpeedsSet, setPKSpeeds)}
+          />
         </div>
       )}
 
       {showPassport && (
         <div>
-        <h3 className="font-semibold text-lg mb-4">Pakistani Passport Application Types</h3>
-        <div className="space-y-2 mb-3">
-          {pkApplicationTypes.map((type) => (
-            <OptionListItem
-              key={type}
-              value={type}
-              onDelete={() => setPKApplicationTypes(pkApplicationTypes.filter(t => t !== type))}
-            />
-          ))}
-        </div>
-        <OptionListInput
-          id="new-pk-app-type"
-          placeholder="Add new application type"
-          onAddClick={() => {
-            const input = document.getElementById('new-pk-app-type') as HTMLInputElement
-            const value = input?.value
-            if (value && !pkApplicationTypes.includes(value)) {
-              setPKApplicationTypes([...pkApplicationTypes, value])
-              if (input) input.value = ''
+          <h3 className="font-semibold text-lg mb-4">Pakistani Passport Application Types</h3>
+          <div className="space-y-2 mb-3">
+            {pkApplicationTypes.map((type) => (
+              <OptionListItem
+                key={type}
+                value={type}
+                onDelete={() => removeOption(setPKApplicationTypes, type)}
+              />
+            ))}
+          </div>
+          <OptionListInput
+            id="new-pk-app-type"
+            placeholder="Add new application type"
+            onAddClick={() =>
+              addOptionFromInput('new-pk-app-type', pkApplicationTypesSet, setPKApplicationTypes)
             }
-          }}
-        />
+          />
         </div>
       )}
 
       {showGb && (
         <div>
-        <h3 className="font-semibold text-lg mb-4">GB Passport Age Groups</h3>
-        <div className="space-y-2 mb-3">
-          {gbAgeGroups.map((group) => (
-            <OptionListItem
-              key={group}
-              value={group}
-              onDelete={() => setGBAgeGroups(gbAgeGroups.filter(g => g !== group))}
-            />
-          ))}
-        </div>
-        <OptionListInput
-          id="new-gb-age"
-          placeholder="Add new age group"
-          onAddClick={() => {
-            const input = document.getElementById('new-gb-age') as HTMLInputElement
-            const value = input?.value
-            if (value && !gbAgeGroups.includes(value)) {
-              setGBAgeGroups([...gbAgeGroups, value])
-              if (input) input.value = ''
-            }
-          }}
-        />
+          <h3 className="font-semibold text-lg mb-4">GB Passport Age Groups</h3>
+          <div className="space-y-2 mb-3">
+            {gbAgeGroups.map((group) => (
+              <OptionListItem
+                key={group}
+                value={group}
+                onDelete={() => removeOption(setGBAgeGroups, group)}
+              />
+            ))}
+          </div>
+          <OptionListInput
+            id="new-gb-age"
+            placeholder="Add new age group"
+            onAddClick={() => addOptionFromInput('new-gb-age', gbAgeGroupsSet, setGBAgeGroups)}
+          />
         </div>
       )}
 
       {showGb && (
         <div>
-        <h3 className="font-semibold text-lg mb-4">GB Passport Pages</h3>
-        <div className="space-y-2 mb-3">
-          {gbPages.map((page) => (
-            <OptionListItem
-              key={page}
-              value={page}
-              onDelete={() => setGBPages(gbPages.filter(p => p !== page))}
-            />
-          ))}
-        </div>
-        <OptionListInput
-          id="new-gb-pages"
-          placeholder="Add new page count"
-          onAddClick={() => {
-            const input = document.getElementById('new-gb-pages') as HTMLInputElement
-            const value = input?.value
-            if (value && !gbPages.includes(value)) {
-              setGBPages([...gbPages, value])
-              if (input) input.value = ''
-            }
-          }}
-        />
+          <h3 className="font-semibold text-lg mb-4">GB Passport Pages</h3>
+          <div className="space-y-2 mb-3">
+            {gbPages.map((page) => (
+              <OptionListItem
+                key={page}
+                value={page}
+                onDelete={() => removeOption(setGBPages, page)}
+              />
+            ))}
+          </div>
+          <OptionListInput
+            id="new-gb-pages"
+            placeholder="Add new page count"
+            onAddClick={() => addOptionFromInput('new-gb-pages', gbPagesSet, setGBPages)}
+          />
         </div>
       )}
 
       {showGb && (
         <div>
-        <h3 className="font-semibold text-lg mb-4">GB Passport Service Types</h3>
-        <div className="space-y-2 mb-3">
-          {gbServiceTypes.map((type) => (
-            <OptionListItem
-              key={type}
-              value={type}
-              onDelete={() => setGBServiceTypes(gbServiceTypes.filter(t => t !== type))}
-            />
-          ))}
-        </div>
-        <OptionListInput
-          id="new-gb-service-type"
-          placeholder="Add new service type"
-          onAddClick={() => {
-            const input = document.getElementById('new-gb-service-type') as HTMLInputElement
-            const value = input?.value
-            if (value && !gbServiceTypes.includes(value)) {
-              setGBServiceTypes([...gbServiceTypes, value])
-              if (input) input.value = ''
+          <h3 className="font-semibold text-lg mb-4">GB Passport Service Types</h3>
+          <div className="space-y-2 mb-3">
+            {gbServiceTypes.map((type) => (
+              <OptionListItem
+                key={type}
+                value={type}
+                onDelete={() => removeOption(setGBServiceTypes, type)}
+              />
+            ))}
+          </div>
+          <OptionListInput
+            id="new-gb-service-type"
+            placeholder="Add new service type"
+            onAddClick={() =>
+              addOptionFromInput('new-gb-service-type', gbServiceTypesSet, setGBServiceTypes)
             }
-          }}
-        />
+          />
         </div>
       )}
 
       {(showNadra || showPassport || showGb) && (
         <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-800">
-          <strong>Note:</strong> New options will appear in the dropdown menus. You can still delete options here that are no longer used.
+          <strong>Note:</strong> New options will appear in the dropdown menus. You can still delete
+          options here that are no longer used.
         </div>
       )}
     </div>

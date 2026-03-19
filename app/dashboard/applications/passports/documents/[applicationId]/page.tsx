@@ -38,7 +38,7 @@ export default async function PassportDocumentsPage({ params }: PassportDocument
         },
         setAll() {},
       },
-    }
+    },
   )
 
   const {
@@ -57,7 +57,8 @@ export default async function PassportDocumentsPage({ params }: PassportDocument
 
   const { data: application } = await supabase
     .from('applications')
-    .select(`
+    .select(
+      `
       id,
       tracking_number,
       applicants:applicants!applications_applicant_id_fkey(
@@ -65,7 +66,8 @@ export default async function PassportDocumentsPage({ params }: PassportDocument
         last_name,
         citizen_number
       )
-    `)
+    `,
+    )
     .eq('id', applicationId)
     .single()
 
@@ -73,18 +75,14 @@ export default async function PassportDocumentsPage({ params }: PassportDocument
     notFound()
   }
 
-  const location = Array.isArray(employee?.locations)
-    ? employee.locations[0]
-    : employee?.locations
+  const location = Array.isArray(employee?.locations) ? employee.locations[0] : employee?.locations
   const role = Array.isArray(employee?.roles) ? employee.roles[0] : employee?.roles
 
   const applicant = Array.isArray(application.applicants)
     ? application.applicants[0]
     : application.applicants
 
-  const applicantName = applicant
-    ? `${applicant.first_name} ${applicant.last_name}`
-    : 'Applicant'
+  const applicantName = applicant ? `${applicant.first_name} ${applicant.last_name}` : 'Applicant'
 
   return (
     <DashboardClientWrapper>
@@ -104,7 +102,12 @@ export default async function PassportDocumentsPage({ params }: PassportDocument
               className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 text-sm font-medium mb-4"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M15 19l-7-7 7-7"
+                />
               </svg>
               Back to Pakistani Passports
             </a>

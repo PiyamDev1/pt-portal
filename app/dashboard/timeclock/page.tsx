@@ -4,7 +4,12 @@ import { redirect } from 'next/navigation'
 import PageHeader from '@/app/components/PageHeader.client'
 import DashboardClientWrapper from '@/app/dashboard/client-wrapper'
 import TimeclockClient from './client'
-import { getRoleName, hasMaintenanceTimeclockAccess, hasManagerTimeclockAccess, pickRoleName } from '@/lib/timeclockAccess'
+import {
+  getRoleName,
+  hasMaintenanceTimeclockAccess,
+  hasManagerTimeclockAccess,
+  pickRoleName,
+} from '@/lib/timeclockAccess'
 
 export const metadata = {
   title: 'Timeclock - PT Portal',
@@ -21,16 +26,20 @@ export default async function TimeclockPage() {
         getAll() {
           return cookieStore.getAll()
         },
-        setAll(cookiesToSet: any[]) {
+        setAll(cookiesToSet: { name: string; value: string; options?: Record<string, unknown> }[]) {
           try {
-            cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options))
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options),
+            )
           } catch {}
         },
       },
-    }
+    },
   )
 
-  const { data: { session } } = await supabase.auth.getSession()
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
   if (!session) redirect('/login')
 
   const [{ data: employee }, { count: reportCount }, { data: profile }] = await Promise.all([
@@ -43,11 +52,7 @@ export default async function TimeclockPage() {
       .from('employees')
       .select('id', { count: 'exact', head: true })
       .eq('manager_id', session.user.id),
-    supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', session.user.id)
-      .maybeSingle(),
+    supabase.from('profiles').select('role').eq('id', session.user.id).maybeSingle(),
   ])
 
   const location = Array.isArray(employee?.locations) ? employee.locations[0] : employee?.locations
@@ -71,7 +76,10 @@ export default async function TimeclockPage() {
 
         <main className="max-w-4xl mx-auto p-6 w-full flex-grow">
           <h1 className="text-3xl font-bold text-slate-800 mb-2">Timeclock</h1>
-          <p className="text-slate-500 mb-6">Scan the QR code on the device to clock in or out. Managers can also open manual entry for team access and self-punch fallback.</p>
+          <p className="text-slate-500 mb-6">
+            Scan the QR code on the device to clock in or out. Managers can also open manual entry
+            for team access and self-punch fallback.
+          </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
             <a
               href="/dashboard/timeclock/history"
@@ -86,7 +94,9 @@ export default async function TimeclockPage() {
                 className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:border-blue-300 transition"
               >
                 <h2 className="text-lg font-semibold text-slate-800">Team punches</h2>
-                <p className="text-sm text-slate-500">See punches for your reporting team, or across the site with maintenance access.</p>
+                <p className="text-sm text-slate-500">
+                  See punches for your reporting team, or across the site with maintenance access.
+                </p>
               </a>
             )}
             {canSeeManualEntry && (
@@ -95,7 +105,9 @@ export default async function TimeclockPage() {
                 className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:border-green-300 transition"
               >
                 <h2 className="text-lg font-semibold text-slate-800">Manual entry</h2>
-                <p className="text-sm text-slate-500">Use QR code or 4-4 numeric code for punches.</p>
+                <p className="text-sm text-slate-500">
+                  Use QR code or 4-4 numeric code for punches.
+                </p>
               </a>
             )}
           </div>

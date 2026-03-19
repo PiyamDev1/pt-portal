@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
-import { NextResponse } from 'next/server'
+import { apiError, apiOk } from '@/lib/api/http'
+import { toErrorMessage } from '@/lib/api/error'
 
 const DEFAULT_PAYMENT_METHODS = [
   { name: 'Cash' },
@@ -13,21 +14,18 @@ export async function POST(request: Request) {
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY
 
     if (!url || !key) {
-      return NextResponse.json({ error: 'Supabase not configured' }, { status: 500 })
+      return apiError('Supabase not configured', 500)
     }
 
     const supabase = createClient(url, key)
 
     // Check if methods already exist
-    const { data: existing } = await supabase
-      .from('loan_payment_methods')
-      .select('id')
-      .limit(1)
+    const { data: existing } = await supabase.from('loan_payment_methods').select('id').limit(1)
 
     if (existing && existing.length > 0) {
-      return NextResponse.json({ 
+      return apiOk({
         message: 'Payment methods already exist',
-        skipped: true 
+        skipped: true,
       })
     }
 
@@ -38,17 +36,14 @@ export async function POST(request: Request) {
       .select()
 
     if (error) {
-      console.error('Error seeding payment methods:', error)
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      throw new Error(error.message || 'Failed to seed payment methods')
     }
 
-    return NextResponse.json({ 
-      success: true,
-      message: `Created ${data?.length || 0} payment methods`,
-      methods: data
+    return apiOk({
+      createdCount: data?.length || 0,
+      methods: data,
     })
   } catch (error: any) {
-    console.error('Error in seed-payment-methods:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return apiError(toErrorMessage(error, 'Failed to seed payment methods'), 500)
   }
 }

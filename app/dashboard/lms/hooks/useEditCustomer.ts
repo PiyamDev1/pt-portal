@@ -22,7 +22,7 @@ export function useEditCustomer(customer: Account, employeeId: string) {
     email: '',
     address: '',
     dateOfBirth: '',
-    notes: ''
+    notes: '',
   })
   const [loading, setLoading] = useState(false)
   const [deleteAuthCode, setDeleteAuthCode] = useState('')
@@ -30,14 +30,10 @@ export function useEditCustomer(customer: Account, employeeId: string) {
 
   // Memoized form update handler
   const updateForm = useCallback((updates: Partial<FormData>) => {
-    setForm(prev => ({ ...prev, ...updates }))
+    setForm((prev) => ({ ...prev, ...updates }))
   }, [])
 
-  const handleSubmit = async (
-    isoDateOfBirth: string,
-    onSave: () => void,
-    onClose: () => void
-  ) => {
+  const handleSubmit = async (isoDateOfBirth: string, onSave: () => void, onClose: () => void) => {
     setLoading(true)
     try {
       const res = await fetch(API_ENDPOINTS.LMS, {
@@ -51,8 +47,8 @@ export function useEditCustomer(customer: Account, employeeId: string) {
           address: form.address,
           dateOfBirth: isoDateOfBirth,
           notes: form.notes,
-          employeeId
-        })
+          employeeId,
+        }),
       })
       if (!res.ok) throw new Error('Failed')
       toast.success('Customer updated!')
@@ -65,10 +61,7 @@ export function useEditCustomer(customer: Account, employeeId: string) {
     }
   }
 
-  const handleDelete = async (
-    onSave: () => void,
-    onClose: () => void
-  ) => {
+  const handleDelete = async (onSave: () => void, onClose: () => void) => {
     if (!deleteAuthCode.trim()) {
       toast.error('Auth code required for deletion')
       return
@@ -83,8 +76,8 @@ export function useEditCustomer(customer: Account, employeeId: string) {
           action: 'delete_customer',
           customerId: customer.id,
           authCode: deleteAuthCode.trim(),
-          userId: employeeId
-        })
+          userId: employeeId,
+        }),
       })
 
       const data = await res.json()
@@ -109,6 +102,6 @@ export function useEditCustomer(customer: Account, employeeId: string) {
     setDeleteAuthCode,
     deleting,
     handleSubmit,
-    handleDelete
+    handleDelete,
   }
 }

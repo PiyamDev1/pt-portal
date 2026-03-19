@@ -22,6 +22,7 @@ type EventsResponse = {
   total: number
   page?: number
   pageSize?: number
+  error?: string
 }
 
 const formatDate = (value?: string | null) => {
@@ -43,8 +44,10 @@ const extractDeviceName = (device?: TimeclockEvent['timeclock_devices']) => {
   return Array.isArray(device) ? device[0]?.name || 'Unknown' : device?.name || 'Unknown'
 }
 
-const getEffectiveDeviceTime = (event: TimeclockEvent) => event.adjusted_device_ts || event.device_ts
-const getEffectiveRecordedTime = (event: TimeclockEvent) => event.adjusted_scanned_at || event.scanned_at
+const getEffectiveDeviceTime = (event: TimeclockEvent) =>
+  event.adjusted_device_ts || event.device_ts
+const getEffectiveRecordedTime = (event: TimeclockEvent) =>
+  event.adjusted_scanned_at || event.scanned_at
 
 export default function TimeclockHistoryClient() {
   const [events, setEvents] = useState<TimeclockEvent[]>([])
@@ -77,15 +80,15 @@ export default function TimeclockHistoryClient() {
       const response = await fetch(`/api/timeclock/events?${params.toString()}`)
       const data: EventsResponse = await response.json()
       if (!response.ok) {
-        setError((data as any)?.error || 'Unable to load events.')
+        setError(data?.error || 'Unable to load events.')
         return
       }
       setEvents(data.events || [])
       setTotal(data.total || 0)
       setPage(data.page || nextPage)
       setPageSize(data.pageSize || pageSize)
-    } catch (err: any) {
-      setError(err?.message || 'Unable to load events.')
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Unable to load events.')
     } finally {
       setLoading(false)
     }
@@ -208,23 +211,36 @@ export default function TimeclockHistoryClient() {
             <tbody className="text-slate-700">
               {events.map((event) => {
                 const geo = event.geo
-                const geoText = geo?.lat && geo?.lng
-                  ? `${geo.lat.toFixed(5)}, ${geo.lng.toFixed(5)}${geo.accuracy ? ` (${Math.round(geo.accuracy)}m)` : ''}`
-                  : '-'
+                const geoText =
+                  geo?.lat && geo?.lng
+                    ? `${geo.lat.toFixed(5)}, ${geo.lng.toFixed(5)}${geo.accuracy ? ` (${Math.round(geo.accuracy)}m)` : ''}`
+                    : '-'
                 return (
                   <tr key={event.id} className="border-b border-slate-100 last:border-b-0">
-                    <td className="py-3 pr-4 font-medium">{extractDeviceName(event.timeclock_devices)}</td>
+                    <td className="py-3 pr-4 font-medium">
+                      {extractDeviceName(event.timeclock_devices)}
+                    </td>
                     <td className="py-3 pr-4">
                       <div>{event.punch_type || event.event_type}</div>
-                      {event.adjusted_at && <div className="text-xs text-amber-700">Adjusted once</div>}
+                      {event.adjusted_at && (
+                        <div className="text-xs text-amber-700">Adjusted once</div>
+                      )}
                     </td>
                     <td className="py-3 pr-4">
                       <div>{formatDate(getEffectiveDeviceTime(event))}</div>
-                      {event.adjusted_device_ts && <div className="text-xs text-slate-500">Original: {formatDate(event.device_ts)}</div>}
+                      {event.adjusted_device_ts && (
+                        <div className="text-xs text-slate-500">
+                          Original: {formatDate(event.device_ts)}
+                        </div>
+                      )}
                     </td>
                     <td className="py-3 pr-4">
                       <div>{formatDate(getEffectiveRecordedTime(event))}</div>
-                      {event.adjusted_scanned_at && <div className="text-xs text-slate-500">Original: {formatDate(event.scanned_at)}</div>}
+                      {event.adjusted_scanned_at && (
+                        <div className="text-xs text-slate-500">
+                          Original: {formatDate(event.scanned_at)}
+                        </div>
+                      )}
                     </td>
                     <td className="py-3 pr-4">{geoText}</td>
                   </tr>
@@ -274,7 +290,9 @@ export default function TimeclockHistoryClient() {
               className="px-2 py-1.5 rounded border border-slate-200 text-sm text-slate-700"
             >
               {[10, 25, 50, 100].map((size) => (
-                <option key={size} value={size}>{size} / page</option>
+                <option key={size} value={size}>
+                  {size} / page
+                </option>
               ))}
             </select>
           </div>

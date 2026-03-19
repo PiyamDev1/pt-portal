@@ -11,13 +11,16 @@ This guide walks you through setting up the PT-Portal project on your Windows ma
 Before starting, ensure you have these installed:
 
 ### Required Software
+
 - **Node.js** (v18 or higher) - [Download](https://nodejs.org/)
 - **Git** (for version control) - [Download](https://git-scm.com/)
 - **Visual Studio Code** - [Download](https://code.visualstudio.com/)
 - **Supabase Account** - [Create Free Account](https://supabase.com/)
 
 ### Verify Installation
+
 Open PowerShell or Command Prompt and run:
+
 ```powershell
 node --version
 npm --version
@@ -46,6 +49,7 @@ You should see version numbers. If not, restart your terminal or computer.
 ## 🔧 Step 2: Visual Studio Code Setup
 
 ### Install VS Code
+
 1. Download and install [Visual Studio Code](https://code.visualstudio.com/)
 2. Open the project folder in VS Code:
    - Open PowerShell in the `pt-portal` folder
@@ -53,6 +57,7 @@ You should see version numbers. If not, restart your terminal or computer.
    - Or use File > Open Folder in VS Code
 
 ### Essential VS Code Extensions
+
 Install these extensions for better development experience:
 
 1. **ES7+ React/Redux/React-Native snippets**
@@ -76,7 +81,9 @@ Install these extensions for better development experience:
    - Direct database access
 
 ### Install Extensions
+
 For each extension:
+
 1. Click the Extensions icon (Ctrl+Shift+X)
 2. Search for the extension name
 3. Click "Install"
@@ -92,6 +99,7 @@ For each extension:
    ```
 
 This may take 2-5 minutes. Wait for it to complete. You should see:
+
 ```
 added XXX packages in XX.XXs
 ```
@@ -101,6 +109,7 @@ added XXX packages in XX.XXs
 ## 🔐 Step 4: Environment Variables Setup
 
 ### Get Your Supabase Credentials
+
 1. Go to [Supabase Dashboard](https://supabase.com/dashboard)
 2. Create a new project or use existing one
 3. Go to **Settings > API**
@@ -109,6 +118,7 @@ added XXX packages in XX.XXs
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY` (anon public)
 
 ### Create `.env.local` File
+
 1. In VS Code, create a new file at the root: `.env.local`
 2. Add this content (replace with your actual values):
 
@@ -125,6 +135,7 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
 
 ### Keep `.env.local` Secure
+
 - **NEVER** commit `.env.local` to Git
 - It's already in `.gitignore` (don't modify this)
 - Each developer should have their own copy
@@ -134,6 +145,7 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 ## 🗄️ Step 5: Database Setup
 
 ### Create Pricing Tables
+
 1. Go to your **Supabase Dashboard**
 2. Click **SQL Editor** in the left sidebar
 3. Click **+ New Query**
@@ -145,7 +157,9 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 You should see: ✅ Success messages
 
 ### Seed Initial Data (Optional)
+
 Run in terminal:
+
 ```powershell
 node scripts/setup-direct.js
 ```
@@ -157,11 +171,13 @@ This creates test pricing data.
 ## ▶️ Step 6: Run the Development Server
 
 In VS Code terminal, run:
+
 ```powershell
 npm run dev
 ```
 
 You should see:
+
 ```
 > next dev
 
@@ -173,6 +189,7 @@ You should see:
 ```
 
 ### Access the Application
+
 Open your browser and go to: **http://localhost:3000**
 
 ---
@@ -180,12 +197,14 @@ Open your browser and go to: **http://localhost:3000**
 ## 🧪 Step 7: Testing the Application
 
 ### Login Test
+
 1. On the login page, you'll need to create a test account or use existing credentials
 2. If it's your first time, you may need to:
    - Use Supabase dashboard to create a test user
    - Or set up authentication properly in Supabase
 
 ### Navigate the Application
+
 - **Dashboard**: View loan data, applications, pricing
 - **Applications**: NADRA, Passports, Visas, etc.
 - **Settings**: Manage pricing and system configuration
@@ -197,22 +216,24 @@ Open your browser and go to: **http://localhost:3000**
 
 ### Terminal Commands (run in VS Code terminal)
 
-| Command | Purpose |
-|---------|---------|
-| `npm run dev` | Start development server (port 3000) |
-| `npm run build` | Build for production |
-| `npm start` | Start production server |
-| `npm run lint` | Check code quality |
-| `npm run format` | Auto-format code |
-| `npm run type-check` | Run TypeScript type checking |
-| `npm test` | Run tests (if configured) |
+| Command              | Purpose                              |
+| -------------------- | ------------------------------------ |
+| `npm run dev`        | Start development server (port 3000) |
+| `npm run build`      | Build for production                 |
+| `npm start`          | Start production server              |
+| `npm run lint`       | Check code quality                   |
+| `npm run format`     | Auto-format code                     |
+| `npm run type-check` | Run TypeScript type checking         |
+| `npm test`           | Run tests (if configured)            |
 
 ---
 
 ## 🛠️ Debugging in VS Code
 
 ### Enable Debug Mode
+
 1. Create `.vscode/launch.json`:
+
 ```json
 {
   "version": "0.2.0",
@@ -234,7 +255,9 @@ Open your browser and go to: **http://localhost:3000**
 3. Breakpoints work like normal - click left of line numbers
 
 ### Console Logs
+
 Open browser DevTools (F12) to see:
+
 - Console logs
 - Network requests
 - React component hierarchy
@@ -269,18 +292,24 @@ pt-portal/
 ## 🔍 Common Issues & Solutions
 
 ### Issue: "npm: The term 'npm' is not recognized"
+
 **Solution:** Node.js not installed or not in PATH
+
 - Reinstall Node.js from [nodejs.org](https://nodejs.org/)
 - Restart PowerShell/Command Prompt
 
 ### Issue: "Cannot find module" errors
+
 **Solution:** Dependencies not installed
+
 ```powershell
 npm install
 ```
 
 ### Issue: "EADDRINUSE: address already in use :::3000"
+
 **Solution:** Another process is using port 3000
+
 ```powershell
 # Kill the process
 netstat -ano | findstr :3000
@@ -291,18 +320,24 @@ npm run dev -- -p 3001
 ```
 
 ### Issue: Environment variables not loading
+
 **Solution:** Restart the dev server
+
 1. Stop the server (Ctrl+C)
 2. Restart with `npm run dev`
 
 ### Issue: Supabase authentication fails
+
 **Solution:** Check environment variables
+
 1. Open `.env.local`
 2. Verify URLs and keys are correct (no extra spaces)
 3. Make sure the Supabase project exists and is active
 
 ### Issue: Database tables don't exist
+
 **Solution:** Run the SQL setup script
+
 1. Go to Supabase Dashboard > SQL Editor
 2. Run `scripts/create-pricing-tables.sql`
 3. Verify tables appear in Database > Tables
@@ -312,6 +347,7 @@ npm run dev -- -p 3001
 ## 🚀 Building for Production
 
 ### Local Production Build
+
 Test your app before deploying:
 
 ```powershell
@@ -325,6 +361,7 @@ npm start
 Visit **http://localhost:3000**
 
 ### Pre-deployment Checklist
+
 - [ ] `.env.local` is in `.gitignore` (never commit secrets)
 - [ ] All tests pass: `npm run lint`
 - [ ] Build succeeds: `npm run build`
@@ -336,7 +373,9 @@ Visit **http://localhost:3000**
 ## 📱 Testing on Mobile/Other Devices
 
 ### Access Dev Server from Network
+
 Find your computer's IP address:
+
 ```powershell
 ipconfig
 ```
@@ -344,6 +383,7 @@ ipconfig
 Look for "IPv4 Address" (usually starts with 192.168 or 10.0)
 
 Then on your mobile device, open:
+
 ```
 http://<YOUR_IP>:3000
 ```
@@ -353,11 +393,13 @@ http://<YOUR_IP>:3000
 ## 🆘 Getting Help
 
 ### Check Logs
+
 1. Look at terminal output in VS Code
 2. Open browser DevTools (F12) for JavaScript errors
 3. Check Supabase dashboard for API errors
 
 ### Common Resources
+
 - [Next.js Documentation](https://nextjs.org/docs)
 - [React Documentation](https://react.dev)
 - [Supabase Docs](https://supabase.com/docs)

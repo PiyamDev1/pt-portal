@@ -1,11 +1,11 @@
 // Helper: Parse User Agent with Icons
 export const getDeviceInfo = (ua: string) => {
   if (!ua) return { name: 'Unknown Device', icon: '💻' }
-  
+
   let icon = '💻'
   let name = 'Unknown Device'
   let browser = ''
-  
+
   // Detect Device Type & Icon
   if (ua.includes('iPhone')) {
     icon = '📱'
@@ -34,14 +34,14 @@ export const getDeviceInfo = (ua: string) => {
     icon = '💻'
     name = 'Chromebook'
   }
-  
+
   // Detect Browser
   if (ua.includes('Edg/')) browser = 'Edge'
   else if (ua.includes('Chrome')) browser = 'Chrome'
   else if (ua.includes('Firefox')) browser = 'Firefox'
   else if (ua.includes('Safari') && !ua.includes('Chrome')) browser = 'Safari'
   else if (ua.includes('Opera') || ua.includes('OPR')) browser = 'Opera'
-  
+
   if (browser) name += ` (${browser})`
 
   return { name, icon }
@@ -83,6 +83,6 @@ export const resizeImage = (file: File, size: number): Promise<Blob> => {
         else reject(new Error('Canvas conversion failed'))
       }, 'image/png')
     }
-    img.onerror = (err) => reject(err as any)
+    img.onerror = (err) => reject(err)
   })
 }

@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
-import { NextResponse } from 'next/server'
+import { toErrorMessage } from '@/lib/api/error'
+import { apiError, apiOk } from '@/lib/api/http'
 import { requireMaintenanceSession } from '@/lib/adminSessionAuth'
 
 const createTableSQL = `
@@ -30,9 +31,9 @@ export async function POST(request: Request) {
 
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY
-    
+
     if (!url || !key) {
-      return NextResponse.json({ error: 'Supabase not configured' }, { status: 500 })
+      return apiError('Supabase not configured', 500)
     }
 
     const supabase = createClient(url, key)
@@ -42,44 +43,43 @@ export async function POST(request: Request) {
     // First check if table exists by attempting a simple query
     let tableExists = false
     try {
-      await supabase
-        .from('loan_installments')
-        .select('id', { count: 'exact' })
-        .limit(0)
+      await supabase.from('loan_installments').select('id', { count: 'exact' }).limit(0)
       tableExists = true
     } catch (e) {
       // Table doesn't exist, need to create it
-      console.log('Table does not exist, will attempt to create')
     }
 
     if (!tableExists) {
       // Create table using SQL
       // Note: This requires the database to have the proper function or we need admin access
-      console.log('Attempting to create loan_installments table...')
-      
+
       // Try using the SQL editor/query if available
       try {
-        const { error: createError } = await supabase.rpc('exec_sql', { 
-          sql: createTableSQL 
+        const { error: createError } = await supabase.rpc('exec_sql', {
+          sql: createTableSQL,
         })
-        
+
         if (createError) {
           throw createError
         }
       } catch (rpcError) {
         // RPC method not available, return error asking to create table manually
-        return NextResponse.json({ 
-          error: 'Table does not exist. Please create the loan_installments table first using the SQL provided below.',
-          requiresManualSetup: true,
-          sql: createTableSQL
-        }, { status: 400 })
+        return apiError(
+          'Table does not exist. Please create the loan_installments table first using the SQL provided below.',
+          400,
+          {
+            requiresManualSetup: true,
+            sql: createTableSQL,
+          },
+        )
       }
     }
 
     // 2. Fetch all service transactions that don't have installments yet
     const { data: serviceTransactions, error: fetchError } = await supabase
       .from('loan_transactions')
-      .select(`
+      .select(
+        `
         *,
         loan:loans!loan_id (
           id,
@@ -87,10 +87,11 @@ export async function POST(request: Request) {
           total_debt_amount,
           current_balance
         )
-      `)
+      `,
+      )
       .eq('transaction_type', 'service')
 
-    if (fetchError) throw fetchError
+    if (fetchError) throw new Error(fetchError.message)
 
     let createdCount = 0
     let skippedCount = 0
@@ -108,14 +109,12 @@ export async function POST(request: Request) {
           .limit(1)
 
         if (checkError) {
-          console.error(`Error checking installments for ${tx.id}:`, checkError)
           errors.push(`Check error for ${tx.id}: ${checkError.message}`)
           errorCount++
           continue
         }
 
         if (existingInstallments && existingInstallments.length > 0) {
-          console.log(`Skipping ${tx.id} - already has installments`)
           skippedCount++
           continue
         }
@@ -123,12 +122,10 @@ export async function POST(request: Request) {
         const totalAmount = parseFloat(tx.amount)
         const loan = Array.isArray(tx.loan) ? tx.loan[0] : tx.loan
         const terms = loan?.term_months || 3 // Use loan terms or default to 3
-        
+
         // Calculate installment amount based on current balance (accounts for deposits)
         const currentBalance = loan?.current_balance || totalAmount
         const installmentAmount = currentBalance / terms
-
-        console.log(`Creating installments for ${tx.id}: balance=${currentBalance}, terms=${terms}, amount=${installmentAmount}`)
 
         const installments = []
         const baseDate = new Date(tx.transaction_timestamp)
@@ -154,32 +151,26 @@ export async function POST(request: Request) {
           .select()
 
         if (insertError) {
-          console.error(`Error creating installments for ${tx.id}:`, insertError)
           errors.push(`Insert error for ${tx.id}: ${insertError.message}`)
           errorCount++
         } else {
           const count = insertedData?.length || 0
-          console.log(`Successfully created ${count} installments for ${tx.id}`)
           createdCount += count
         }
-      } catch (err: any) {
-        console.error(`Exception processing ${tx.id}:`, err)
-        errors.push(`Exception for ${tx.id}: ${err.message}`)
+      } catch (err) {
+        errors.push(`Exception for ${tx.id}: ${toErrorMessage(err, 'Unknown error')}`)
         errorCount++
       }
     }
 
-    return NextResponse.json({
-      success: true,
-      message: `Created ${createdCount} installment records for ${serviceTransactions?.length || 0} service transactions`,
-      created: createdCount,
-      skipped: skippedCount,
-      errors: errorCount,
-      errorDetails: errors.length > 0 ? errors : undefined,
-      total: serviceTransactions?.length || 0,
+    return apiOk({
+      createdInstallmentCount: createdCount,
+      skippedTransactionCount: skippedCount,
+      erroredTransactionCount: errorCount,
+      ...(errors.length > 0 ? { errorDetails: errors } : {}),
+      totalTransactions: serviceTransactions?.length || 0,
     })
-  } catch (error: any) {
-    console.error('Migration error:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  } catch (error) {
+    return apiError(toErrorMessage(error, 'Failed to create installments'), 500)
   }
 }

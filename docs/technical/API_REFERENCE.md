@@ -30,14 +30,15 @@ List documents for a family with optional filtering and pagination.
 
 **Query parameters:**
 
-| Parameter | Type | Required | Default | Description |
-|---|---|---|---|---|
-| `familyHeadId` | string | Yes | — | Family head identifier |
-| `page` | number | No | `1` | Page number (1-based) |
-| `limit` | number | No | `20` | Items per page (5–100) |
-| `category` | string | No | — | Filter by category: `main`, `receipts`, `application-review` |
+| Parameter      | Type   | Required | Default | Description                                                  |
+| -------------- | ------ | -------- | ------- | ------------------------------------------------------------ |
+| `familyHeadId` | string | Yes      | —       | Family head identifier                                       |
+| `page`         | number | No       | `1`     | Page number (1-based)                                        |
+| `limit`        | number | No       | `20`    | Items per page (5–100)                                       |
+| `category`     | string | No       | —       | Filter by category: `main`, `receipts`, `application-review` |
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -67,18 +68,19 @@ Save document metadata after upload completes.
 
 **Body (JSON):**
 
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `familyHeadId` | string | Yes | Family head identifier |
-| `fileName` | string | Yes | Original file name |
-| `fileType` | string | Yes | MIME type |
-| `fileSize` | number | Yes | Bytes |
-| `minioKey` | string | Yes | Object key in storage |
-| `minioEtag` | string | No | ETag from storage response |
-| `category` | string | No | Document category |
-| `storageBucket` | string | No | Bucket name (defaults to MinIO primary) |
+| Field           | Type   | Required | Description                             |
+| --------------- | ------ | -------- | --------------------------------------- |
+| `familyHeadId`  | string | Yes      | Family head identifier                  |
+| `fileName`      | string | Yes      | Original file name                      |
+| `fileType`      | string | Yes      | MIME type                               |
+| `fileSize`      | number | Yes      | Bytes                                   |
+| `minioKey`      | string | Yes      | Object key in storage                   |
+| `minioEtag`     | string | No       | ETag from storage response              |
+| `category`      | string | No       | Document category                       |
+| `storageBucket` | string | No       | Bucket name (defaults to MinIO primary) |
 
 **Response:**
+
 ```json
 { "success": true, "id": "uuid" }
 ```
@@ -91,13 +93,14 @@ Upload a file server-side. Tries MinIO first; falls back to R2 if MinIO is unrea
 
 **Body (multipart/form-data):**
 
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `file` | File | Yes | The file to upload (max 1.5 MB) |
-| `familyHeadId` | string | Yes | Family head identifier |
-| `category` | string | No | Document category (default: `general`) |
+| Field          | Type   | Required | Description                            |
+| -------------- | ------ | -------- | -------------------------------------- |
+| `file`         | File   | Yes      | The file to upload (max 1.5 MB)        |
+| `familyHeadId` | string | Yes      | Family head identifier                 |
+| `category`     | string | No       | Document category (default: `general`) |
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -117,6 +120,7 @@ Upload a file server-side. Tries MinIO first; falls back to R2 if MinIO is unrea
 Health check for both storage servers. Used by the status banner.
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -152,9 +156,9 @@ Stream a document to the browser for inline display.
 
 **Query parameters:**
 
-| Parameter | Type | Required | Description |
-|---|---|---|---|
-| `key` | string | Yes | Object storage key |
+| Parameter | Type   | Required | Description        |
+| --------- | ------ | -------- | ------------------ |
+| `key`     | string | Yes      | Object storage key |
 
 **Response:** Binary file stream with appropriate `Content-Type`.  
 **Cache:** `Cache-Control: public, max-age=31536000, immutable`
@@ -176,6 +180,7 @@ Same parameters and fallback behaviour as `/api/documents/preview`.
 Soft-delete a document. Removes the object from the appropriate store and marks `deleted = true` in Supabase.
 
 **Response:**
+
 ```json
 { "success": true }
 ```
@@ -189,6 +194,7 @@ Soft-delete a document. Removes the object from the appropriate store and marks 
 Returns active sessions for the authenticated user. Requires session cookie.
 
 **Response:**
+
 ```json
 {
   "sessions": [...],

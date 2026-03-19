@@ -17,16 +17,17 @@ export function DeleteSection({
   showDeleteConfirm,
   onDeleteClick,
   onConfirmDelete,
-  onCancelDelete
+  onCancelDelete,
 }: DeleteSectionProps) {
   return (
     <>
       <div className="border-t pt-4">
         <h3 className="font-semibold text-red-700 mb-2">Danger Zone</h3>
         <p className="text-sm text-slate-600 mb-3">
-          Permanently delete this service charge and all associated installment records. This action cannot be undone.
+          Permanently delete this service charge and all associated installment records. This action
+          cannot be undone.
         </p>
-        
+
         <button
           onClick={onDeleteClick}
           disabled={loading}
@@ -39,7 +40,7 @@ export function DeleteSection({
       <ConfirmationModal
         isOpen={showDeleteConfirm}
         title="Delete Service Transaction"
-        message={`Delete this service charge (£${parseFloat(transaction.amount as any).toFixed(2)}) and all related installments?\n\nThis will remove the entire transaction from the account and cannot be undone.`}
+        message={`Delete this service charge (£${Number(transaction.amount).toFixed(2)}) and all related installments?\n\nThis will remove the entire transaction from the account and cannot be undone.`}
         confirmText="Delete"
         cancelText="Cancel"
         isDangerous={true}

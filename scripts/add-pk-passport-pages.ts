@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
 )
 
 async function main() {
@@ -19,9 +19,9 @@ async function main() {
         created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
       );
-    `
+    `,
   })
-  
+
   if (createTableError) {
     console.error('❌ Error creating table:', createTableError)
   } else {
@@ -31,12 +31,12 @@ async function main() {
   // Step 2: Insert page options
   console.log('\n2. Inserting page options...')
   const pageOptions = ['34 pages', '50 pages', '72 pages', '100 pages']
-  
+
   for (const option of pageOptions) {
     const { error } = await supabase
       .from('pk_passport_pages')
       .upsert({ option_label: option }, { onConflict: 'option_label' })
-    
+
     if (error) {
       console.error(`  ❌ Error inserting "${option}":`, error.message)
     } else {
@@ -50,9 +50,9 @@ async function main() {
     sql: `
       ALTER TABLE pk_passport_pricing 
       ADD COLUMN IF NOT EXISTS pages TEXT DEFAULT '34 pages';
-    `
+    `,
   })
-  
+
   if (addColumnError) {
     console.error('❌ Error adding column:', addColumnError)
   } else {
@@ -65,7 +65,7 @@ async function main() {
     .from('pk_passport_pricing')
     .select('id, category, pages')
     .limit(3)
-  
+
   if (verifyError) {
     console.error('❌ Error verifying:', verifyError)
   } else {

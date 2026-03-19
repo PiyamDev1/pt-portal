@@ -32,7 +32,10 @@ test.describe('document storage smoke', () => {
 
   test('manual batch migration can be triggered when explicitly enabled', async ({ page }) => {
     const config = getSmokeConfig()
-    test.skip(!config.runBatchMutation, 'Set SMOKE_RUN_BATCH=true to allow this mutating smoke test.')
+    test.skip(
+      !config.runBatchMutation,
+      'Set SMOKE_RUN_BATCH=true to allow this mutating smoke test.',
+    )
 
     await loginForSmoke(page)
     await page.goto('/dashboard/settings')
@@ -42,7 +45,9 @@ test.describe('document storage smoke', () => {
     await expect(batchButton).toBeVisible()
 
     if (await batchButton.isDisabled()) {
-      await expect(page.getByText(/Primary storage is offline|Both storage paths are currently unavailable/)).toBeVisible()
+      await expect(
+        page.getByText(/Primary storage is offline|Both storage paths are currently unavailable/),
+      ).toBeVisible()
       return
     }
 

@@ -9,11 +9,11 @@ export default function LoginPage() {
   const [branchCode, setBranchCode] = useState('')
   const [errorMsg, setErrorMsg] = useState('')
   const [loading, setLoading] = useState(false)
-  
+
   const router = useRouter()
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
   )
 
   // --- LOGIC: Validate Branch, Password Status & Redirect ---
@@ -107,38 +107,49 @@ export default function LoginPage() {
         </button>
 
         <div className="relative mb-6">
-          <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-200"></div></div>
-          <div className="relative flex justify-center text-sm"><span className="px-2 bg-white text-slate-500">Or use Branch Credentials</span></div>
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-slate-200"></div>
+          </div>
+          <div className="relative flex justify-center text-sm">
+            <span className="px-2 bg-white text-slate-500">Or use Branch Credentials</span>
+          </div>
         </div>
 
         <form onSubmit={handleStandardLogin} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
-            <input 
-              type="email" required 
+            <input
+              type="email"
+              required
               className="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-blue-600 outline-none"
-              value={email} onChange={e => setEmail(e.target.value)}
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
             />
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Password</label>
-            <input 
-              type="password" required 
+            <input
+              type="password"
+              required
               className="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-blue-600 outline-none"
-              value={password} onChange={e => setPassword(e.target.value)}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
             />
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Branch Code</label>
-            <input 
-              type="text" required placeholder="e.g. HQ-001"
+            <input
+              type="text"
+              required
+              placeholder="e.g. HQ-001"
               className="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-blue-600 outline-none uppercase tracking-wide"
-              value={branchCode} onChange={e => setBranchCode(e.target.value.toUpperCase())}
+              value={branchCode}
+              onChange={(e) => setBranchCode(e.target.value.toUpperCase())}
             />
           </div>
 
-          <button 
-            type="submit" 
+          <button
+            type="submit"
             disabled={loading}
             className="w-full py-3 bg-blue-900 text-white rounded-lg font-bold hover:bg-blue-800 transition disabled:opacity-50"
           >

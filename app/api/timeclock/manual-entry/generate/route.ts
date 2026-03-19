@@ -1,9 +1,15 @@
-import { NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies, headers } from 'next/headers'
 import { createClient } from '@supabase/supabase-js'
 import crypto from 'crypto'
-import { getRoleName, hasMaintenanceTimeclockAccess, hasManagerTimeclockAccess, pickRoleName } from '@/lib/timeclockAccess'
+import { apiOk, apiError } from '@/lib/api/http'
+import { toErrorMessage } from '@/lib/api/error'
+import {
+  getRoleName,
+  hasMaintenanceTimeclockAccess,
+  hasManagerTimeclockAccess,
+  pickRoleName,
+} from '@/lib/timeclockAccess'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -29,12 +35,9 @@ function formatCodeDisplay(code: string) {
 function generateQrPayload(deviceId: string, secret: string): string {
   const ts = Math.floor(Date.now() / 1000)
   const nonce = generateNonce()
-  
+
   const signatureBase = `${deviceId}.${ts}.${nonce}`
-  const sig = crypto
-    .createHmac('sha256', secret)
-    .update(signatureBase)
-    .digest('base64url')
+  const sig = crypto.createHmac('sha256', secret).update(signatureBase).digest('base64url')
 
   const payload = {
     v: 1,
@@ -46,47 +49,37 @@ function generateQrPayload(deviceId: string, secret: string): string {
 
   const jsonPayload = JSON.stringify(payload)
   const base64Payload = Buffer.from(jsonPayload).toString('base64url')
-  
+
   return `${PAYLOAD_NAMESPACE}${base64Payload}`
 }
 
 export async function POST(request: Request) {
   try {
     const cookieStore = await cookies()
-    const supabase = createServerClient(
-      supabaseUrl,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return cookieStore.getAll()
-          },
-          setAll() {},
+    const supabase = createServerClient(supabaseUrl, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll()
         },
-      }
-    )
+        setAll() {},
+      },
+    })
 
-    const { data: { session } } = await supabase.auth.getSession()
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
     if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return apiError('Unauthorized', 401)
     }
 
     // Check if user has manager-level or maintenance-level timeclock access.
     const [{ data: user }, { count: reportCount }, { data: profile }] = await Promise.all([
-      supabase
-        .from('employees')
-        .select('roles(name)')
-        .eq('id', session.user.id)
-        .single(),
+      supabase.from('employees').select('roles(name)').eq('id', session.user.id).single(),
       supabase
         .from('employees')
         .select('id', { count: 'exact', head: true })
         .eq('manager_id', session.user.id),
-      supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', session.user.id)
-        .maybeSingle(),
+      supabase.from('profiles').select('role').eq('id', session.user.id).maybeSingle(),
     ])
 
     const roleName = pickRoleName(getRoleName(user?.roles), profile?.role)
@@ -94,7 +87,7 @@ export async function POST(request: Request) {
       hasManagerTimeclockAccess(roleName, reportCount) || hasMaintenanceTimeclockAccess(roleName)
 
     if (!canAccessManualEntry) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      return apiError('Forbidden', 403)
     }
 
     // Get or create a virtual device for manual entry
@@ -107,10 +100,7 @@ export async function POST(request: Request) {
 
     if (deviceError) {
       console.error('Manual device lookup error:', deviceError)
-      return NextResponse.json(
-        { error: 'Device lookup failed', details: deviceError.message },
-        { status: 500 }
-      )
+      return apiError('Device lookup failed', 500, { details: deviceError.message })
     }
 
     let deviceId: string
@@ -122,7 +112,7 @@ export async function POST(request: Request) {
       // Create virtual device if it doesn't exist
       deviceId = crypto.randomUUID()
       deviceSecret = crypto.randomBytes(32).toString('hex')
-      
+
       const { error: insertDeviceError } = await adminSupabase
         .from('timeclock_devices')
         .insert({
@@ -137,10 +127,7 @@ export async function POST(request: Request) {
 
       if (insertDeviceError) {
         console.error('Manual device insert error:', insertDeviceError)
-        return NextResponse.json(
-          { error: 'Device creation failed', details: insertDeviceError.message },
-          { status: 500 }
-        )
+        return apiError('Device creation failed', 500, { details: insertDeviceError.message })
       }
     }
 
@@ -158,27 +145,21 @@ export async function POST(request: Request) {
       user_id: session.user.id,
       expires_at: new Date(expiresAt).toISOString(),
     }
-    
-    console.log('Attempting to insert code:', { ...insertData, qr_payload: qrPayload.substring(0, 20) + '...' })
-    
+
     const { error: codeError } = await adminSupabase
       .from('timeclock_manual_codes')
       .insert(insertData)
 
     if (codeError) {
       console.error('Code storage error:', codeError)
-      return NextResponse.json(
-        { 
-          error: 'Failed to generate code', 
-          details: codeError.message,
-          code: codeError.code,
-          hint: codeError.hint 
-        },
-        { status: 500 }
-      )
+      return apiError('Failed to generate code', 500, {
+        details: codeError.message,
+        code: codeError.code,
+        hint: codeError.hint,
+      })
     }
 
-    return NextResponse.json({
+    return apiOk({
       code: numericCode,
       codeDisplay,
       qrPayload,
@@ -186,6 +167,6 @@ export async function POST(request: Request) {
     })
   } catch (error) {
     console.error('Manual entry generate error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return apiError(toErrorMessage(error, 'Internal server error'), 500)
   }
 }

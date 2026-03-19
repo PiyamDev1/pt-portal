@@ -26,26 +26,22 @@ export async function ensureInstallmentsTableExists() {
   try {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY
-    
+
     if (!url || !key) {
       console.warn('Supabase not configured')
       return false
     }
 
     const supabase = createClient(url, key)
-    
+
     // First, try a simple query to see if table exists
     try {
-      await supabase
-        .from('loan_installments')
-        .select('id', { count: 'exact' })
-        .limit(1)
-      
+      await supabase.from('loan_installments').select('id', { count: 'exact' }).limit(1)
+
       // Table exists
       return true
     } catch (e) {
       // Table doesn't exist, that's ok - system will work with client-side generation
-      console.log('Installments table does not exist yet, will use client-side fallback')
       return false
     }
   } catch (error) {
@@ -61,12 +57,12 @@ export async function createInstallmentRecords(
   loanTransactionId: string,
   amount: number,
   serviceDate: string,
-  numberOfTerms: number = 3
+  numberOfTerms: number = 3,
 ) {
   try {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY
-    
+
     if (!url || !key) {
       console.warn('Supabase not configured')
       return null
@@ -84,13 +80,9 @@ export async function createInstallmentRecords(
     // Calculate installment details
     const installmentAmount = amount / numberOfTerms
     const baseDate = new Date(serviceDate)
-    
-    console.log(`Creating ${numberOfTerms} installments for transaction ${loanTransactionId}:`)
-    console.log(`  Total amount: ${amount}`)
-    console.log(`  Installment amount: ${installmentAmount}`)
-    
+
     const records = Array.from({ length: numberOfTerms }, (_, i) => {
-      const dueDate = new Date(baseDate.getTime() + ((i + 1) * 30 * 24 * 60 * 60 * 1000))
+      const dueDate = new Date(baseDate.getTime() + (i + 1) * 30 * 24 * 60 * 60 * 1000)
       return {
         loan_transaction_id: loanTransactionId,
         installment_number: i + 1,
@@ -102,17 +94,13 @@ export async function createInstallmentRecords(
     })
 
     // Insert records
-    const { data, error } = await supabase
-      .from('loan_installments')
-      .insert(records)
-      .select()
+    const { data, error } = await supabase.from('loan_installments').insert(records).select()
 
     if (error) {
       console.error('Error creating installment records:', error)
       return null
     }
 
-    console.log(`Created ${data?.length || 0} installment records for transaction ${loanTransactionId}`)
     return data
   } catch (error) {
     console.error('Error in createInstallmentRecords:', error)
@@ -126,12 +114,12 @@ export async function createInstallmentRecords(
 export async function createDetailedInstallmentRecords(
   loanTransactionId: string,
   installmentPlan: Array<{ dueDate: string; amount: number }>,
-  paymentFrequency?: string
+  paymentFrequency?: string,
 ) {
   try {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY
-    
+
     if (!url || !key) {
       console.warn('Supabase not configured')
       return null
@@ -146,8 +134,6 @@ export async function createDetailedInstallmentRecords(
       return null
     }
 
-    console.log(`Creating ${installmentPlan.length} detailed installments for transaction ${loanTransactionId}:`)
-    
     const records = installmentPlan.map((installment, i) => ({
       loan_transaction_id: loanTransactionId,
       installment_number: i + 1,
@@ -158,17 +144,13 @@ export async function createDetailedInstallmentRecords(
     }))
 
     // Insert records
-    const { data, error } = await supabase
-      .from('loan_installments')
-      .insert(records)
-      .select()
+    const { data, error } = await supabase.from('loan_installments').insert(records).select()
 
     if (error) {
       console.error('Error creating detailed installment records:', error)
       return null
     }
 
-    console.log(`Created ${data?.length || 0} detailed installment records for transaction ${loanTransactionId}`)
     return data
   } catch (error) {
     console.error('Error in createDetailedInstallmentRecords:', error)

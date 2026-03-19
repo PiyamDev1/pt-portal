@@ -15,9 +15,11 @@ A comprehensive web application for managing travel services, passport applicati
 ## 📖 Quick Start
 
 ### For Users
+
 - **New to PT-Portal?** Start with [docs/guides/USAGE_GUIDE.md](docs/guides/USAGE_GUIDE.md) to learn how to use all features
 
 ### For Developers
+
 - **Setting up on Windows?** Follow [docs/guides/WINDOWS_SETUP_GUIDE.md](docs/guides/WINDOWS_SETUP_GUIDE.md)
 - **Want to understand the code?** Read [docs/guides/ARCHITECTURE_GUIDE.md](docs/guides/ARCHITECTURE_GUIDE.md)
 - **Running locally?** See [Local Development](#local-development) below
@@ -27,24 +29,28 @@ A comprehensive web application for managing travel services, passport applicati
 ## ✨ Features
 
 ### 📋 Application Management
+
 - **NADRA Services**: CNICs, family registration, forms, and official reports
 - **Passport Services**: Pakistani and UK passport applications
 - **Visa Services**: Visa applications with document management
 - **Status Tracking**: Real-time status updates for all applications
 
 ### 💰 Loan Management System (LMS)
+
 - **Account Management**: View customer accounts and balances
 - **Payment Processing**: Track payments with multiple payment methods
 - **Installment Plans**: Create and manage payment plans
 - **Transaction History**: Complete payment and charge history
 
 ### 💵 Pricing Management
+
 - **Dynamic Pricing**: Configure prices for all services
 - **Cost Tracking**: Manage cost prices and profit margins
 - **Service Options**: Add custom service variations
 - **Price History**: Track price changes over time
 
 ### 👥 User & Admin Features
+
 - **Role-Based Access**: Admin, Manager, and User roles
 - **Employee Management**: Add and manage team members
 - **Branch Management**: Manage multiple branch locations
@@ -54,21 +60,22 @@ A comprehensive web application for managing travel services, passport applicati
 
 ## 🛠️ Tech Stack
 
-| Layer | Technology |
-|-------|-----------|
-| **Frontend** | React 18, TypeScript, Next.js 14, Tailwind CSS |
-| **Backend** | Next.js API Routes, Node.js |
-| **Database** | Supabase (PostgreSQL) |
-| **Authentication** | Supabase Auth |
-| **UI Components** | Custom components, Lucide Icons |
-| **State Management** | React Hooks, Custom Hooks |
-| **Deployment** | Vercel (recommended) |
+| Layer                | Technology                                     |
+| -------------------- | ---------------------------------------------- |
+| **Frontend**         | React 18, TypeScript, Next.js 14, Tailwind CSS |
+| **Backend**          | Next.js API Routes, Node.js                    |
+| **Database**         | Supabase (PostgreSQL)                          |
+| **Authentication**   | Supabase Auth                                  |
+| **UI Components**    | Custom components, Lucide Icons                |
+| **State Management** | React Hooks, Custom Hooks                      |
+| **Deployment**       | Vercel (recommended)                           |
 
 ---
 
 ## 🚀 Local Development
 
 ### Prerequisites
+
 - Node.js 18+ ([Download](https://nodejs.org/))
 - Git ([Download](https://git-scm.com/))
 - VS Code ([Download](https://code.visualstudio.com/))
@@ -76,21 +83,26 @@ A comprehensive web application for managing travel services, passport applicati
 ### Quick Setup (5 minutes)
 
 1. **Clone Repository**
+
    ```bash
    git clone https://github.com/PiyamDev1/pt-portal.git
    cd pt-portal
    ```
 
 2. **Install Dependencies**
+
    ```bash
    npm install
    ```
 
 3. **Setup Environment Variables**
+
    ```bash
    cp .env.example .env.local
    ```
+
    Edit `.env.local` with your Supabase credentials:
+
    ```env
    NEXT_PUBLIC_SUPABASE_URL=your_url_here
    NEXT_PUBLIC_SUPABASE_ANON_KEY=your_key_here
@@ -108,6 +120,7 @@ A comprehensive web application for managing travel services, passport applicati
    Visit: http://localhost:3000
 
 ### Available Commands
+
 ```bash
 npm run dev          # Start development server
 npm run build        # Build for production
@@ -124,6 +137,7 @@ npm run type-check   # Check TypeScript types
 All documentation is organized in the `docs/` directory:
 
 ### User Documentation
+
 - **[docs/guides/USAGE_GUIDE.md](docs/guides/USAGE_GUIDE.md)** - Complete guide to using all features
   - Dashboard navigation
   - Application management
@@ -132,6 +146,7 @@ All documentation is organized in the `docs/` directory:
   - Best practices and tips
 
 ### Developer Documentation
+
 - **[docs/guides/WINDOWS_SETUP_GUIDE.md](docs/guides/WINDOWS_SETUP_GUIDE.md)** - Windows setup with VS Code
   - Step-by-step installation
   - Environment setup
@@ -158,6 +173,7 @@ All documentation is organized in the `docs/` directory:
   - Learning paths
 
 ### Codebase Refactoring & Cleanup
+
 These documents guide the ongoing refactoring efforts:
 
 - **[CODEBASE_STRUCTURE_GUIDE.md](CODEBASE_STRUCTURE_GUIDE.md)** - New modular structure
@@ -196,6 +212,7 @@ These documents guide the ongoing refactoring efforts:
   - UI constants (colors, spacing, sizes)
 
 ### Technical Documentation
+
 - **[docs/technical/PAYMENT_SERVICE_OPTIMIZATION.md](docs/technical/PAYMENT_SERVICE_OPTIMIZATION.md)** - LMS optimizations
   - Backend pagination
   - Query optimization
@@ -273,6 +290,7 @@ pt-portal/
 ## 📈 Performance
 
 Recent optimizations achieved:
+
 - **90% Memory Reduction**: From 500MB to 50MB
 - **15x Faster Loading**: Initial load 15-30s → 1-2s
 - **Zero Idle API Calls**: Eliminated unnecessary requests
@@ -283,20 +301,24 @@ Recent optimizations achieved:
 ## 🆘 Troubleshooting
 
 ### Can't log in?
+
 1. Check email and password
 2. Verify Supabase project is active
 3. Check environment variables in `.env.local`
 
 ### Port 3000 already in use?
+
 ```bash
 npm run dev -- -p 3001
 ```
 
 ### Database tables missing?
+
 1. Go to Supabase Dashboard
 2. Run SQL from `scripts/create-pricing-tables.sql`
 
 ### Need help?
+
 - Check [WINDOWS_SETUP_GUIDE.md](WINDOWS_SETUP_GUIDE.md#-common-issues--solutions)
 - Read [ARCHITECTURE_GUIDE.md](ARCHITECTURE_GUIDE.md) for technical details
 - Open an issue on [GitHub](https://github.com/PiyamDev1/pt-portal/issues)
@@ -305,13 +327,13 @@ npm run dev -- -p 3001
 
 ## 📊 Key Metrics
 
-| Metric | Value |
-|--------|-------|
-| **Bundle Size** | ~200KB (gzipped) |
-| **Performance** | 95+ Lighthouse score |
-| **Load Time** | < 2 seconds |
-| **Accessibility** | WCAG 2.1 AA |
-| **Type Safety** | 99% TypeScript |
+| Metric            | Value                |
+| ----------------- | -------------------- |
+| **Bundle Size**   | ~200KB (gzipped)     |
+| **Performance**   | 95+ Lighthouse score |
+| **Load Time**     | < 2 seconds          |
+| **Accessibility** | WCAG 2.1 AA          |
+| **Type Safety**   | 99% TypeScript       |
 
 ---
 
@@ -338,6 +360,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ## 👨‍💻 Author
 
 **Rathobixz Inc.**
+
 - Company: [Rathobixz Inc.](https://rathobixz.com)
 - GitHub: [@PiyamDev1](https://github.com/PiyamDev1)
 - Project: PT-Portal - Travel & Document Management System

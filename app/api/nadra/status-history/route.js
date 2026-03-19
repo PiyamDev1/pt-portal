@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
-import { NextResponse } from 'next/server'
+import { toErrorMessage } from '@/lib/api/error'
+import { apiError, apiOk } from '@/lib/api/http'
 
 export const dynamic = 'force-dynamic'
 
@@ -7,19 +8,20 @@ export async function GET(request) {
   try {
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
+      process.env.SUPABASE_SERVICE_ROLE_KEY,
     )
 
     const { searchParams } = new URL(request.url)
     const nadraId = searchParams.get('nadraId')
 
     if (!nadraId) {
-      return NextResponse.json({ error: 'Missing Nadra ID' }, { status: 400 })
+      return apiError('Missing Nadra ID', 400)
     }
 
     const { data, error } = await supabase
       .from('nadra_status_history')
-      .select(`
+      .select(
+        `
         id,
         entry_type,
         new_status,
@@ -27,27 +29,26 @@ export async function GET(request) {
         details,
         changed_at,
         employees ( full_name )
-      `)
+      `,
+      )
       .eq('nadra_service_id', nadraId)
       .order('changed_at', { ascending: false })
 
     if (error) throw error
 
     // Map 'new_status' to 'status' for easier frontend usage
-    const history = data.map(item => ({
+    const history = data.map((item) => ({
       id: item.id,
       entryType: item.entry_type || 'status',
       status: item.new_status,
       complaintNumber: item.complaint_number || null,
       details: item.details || '',
       changed_by: item.employees?.full_name || 'System',
-      date: item.changed_at
+      date: item.changed_at,
     }))
 
-    return NextResponse.json({ history })
-
+    return apiOk({ history })
   } catch (error) {
-    console.error('History Fetch Error:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return apiError(toErrorMessage(error, 'Failed to load NADRA status history'), 500)
   }
 }

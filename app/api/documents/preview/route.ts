@@ -4,6 +4,7 @@ import { Readable } from 'stream'
 import { getS3Client } from '@/lib/s3Client'
 import { getR2Client, isR2Configured } from '@/lib/r2Client'
 import { migrateObjectFromR2ToMinio } from '@/lib/r2Migration'
+import { apiError } from '@/lib/api/http'
 
 const MINIO_BUCKET = process.env.MINIO_BUCKET_NAME || 'portal-documents'
 const R2_BUCKET = process.env.R2_BUCKET_NAME || 'portal-fallback'
@@ -19,7 +20,7 @@ export async function GET(request: NextRequest) {
     const key = searchParams.get('key')
 
     if (!key) {
-      return NextResponse.json({ error: 'key is required' }, { status: 400 })
+      return apiError('key is required', 400)
     }
 
     let result
@@ -30,7 +31,7 @@ export async function GET(request: NextRequest) {
         new GetObjectCommand({
           Bucket: MINIO_BUCKET,
           Key: key,
-        })
+        }),
       )
     } catch (minioReadError) {
       if (!isR2Configured()) {
@@ -42,7 +43,7 @@ export async function GET(request: NextRequest) {
         new GetObjectCommand({
           Bucket: R2_BUCKET,
           Key: key,
-        })
+        }),
       )
 
       // Try to move object back to MinIO for future reads
@@ -50,19 +51,20 @@ export async function GET(request: NextRequest) {
     }
 
     if (!result.Body) {
-      return NextResponse.json({ error: 'File body is empty' }, { status: 404 })
+      return apiError('File body is empty', 404)
     }
 
     // Convert AWS SDK stream to Node.js Readable stream for efficient streaming
     const stream = Readable.from(result.Body as AsyncIterable<Uint8Array>)
-    
-    return new NextResponse(stream as any, {
+    const webStream = Readable.toWeb(stream) as ReadableStream<Uint8Array>
+
+    return new NextResponse(webStream, {
       headers: {
         'Content-Type': result.ContentType || 'application/octet-stream',
         'Cache-Control': 'public, max-age=31536000, immutable',
       },
     })
   } catch {
-    return NextResponse.json({ error: 'Failed to stream preview file' }, { status: 500 })
+    return apiError('Failed to stream preview file', 500)
   }
 }

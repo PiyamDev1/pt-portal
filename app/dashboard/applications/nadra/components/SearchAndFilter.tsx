@@ -33,14 +33,16 @@ export default function SearchAndFilter({
   endDate,
   onEndDateChange,
   showEmptyFamilies,
-  onToggleEmptyFamilies
+  onToggleEmptyFamilies,
 }: SearchAndFilterProps) {
   return (
     <div className="relative overflow-hidden rounded-2xl border border-emerald-700/40 bg-[#012010]/80 p-4 shadow-sm space-y-3 text-white backdrop-blur-sm">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_20%,rgba(74,222,128,0.06),transparent_40%),radial-gradient(circle_at_85%_10%,rgba(34,197,94,0.04),transparent_45%)]" />
       <div className="flex flex-col md:flex-row gap-4">
         <div className="relative flex-grow">
-          <label htmlFor="nadra-search" className="sr-only">Search applications</label>
+          <label htmlFor="nadra-search" className="sr-only">
+            Search applications
+          </label>
           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-700">🔍</span>
           <input
             id="nadra-search"
@@ -77,7 +79,9 @@ export default function SearchAndFilter({
           >
             <option value="All">All Service Types</option>
             {serviceTypeOptions.map((serviceType) => (
-              <option key={serviceType} value={serviceType}>{serviceType}</option>
+              <option key={serviceType} value={serviceType}>
+                {serviceType}
+              </option>
             ))}
           </select>
         </div>
@@ -90,37 +94,42 @@ export default function SearchAndFilter({
           >
             <option value="All">All Options</option>
             {serviceOptionOptions.map((serviceOption) => (
-              <option key={serviceOption} value={serviceOption}>{serviceOption}</option>
+              <option key={serviceOption} value={serviceOption}>
+                {serviceOption}
+              </option>
             ))}
           </select>
         </div>
       </div>
-      
+
       <div className="flex flex-col md:flex-row gap-4 items-center">
         <div className="flex gap-2 items-center">
           <label className="text-sm text-emerald-200/80">Date Range (DD/MM/YYYY):</label>
-          <input 
-            type="text" 
+          <input
+            type="text"
             placeholder="DD/MM/YYYY"
-            value={startDate} 
-            onChange={e => onStartDateChange(e.target.value)}
+            value={startDate}
+            onChange={(e) => onStartDateChange(e.target.value)}
             className="px-3 py-2 bg-[#011508]/70 border border-emerald-700/50 rounded-lg text-sm text-white placeholder:text-emerald-400/40"
             maxLength={10}
             aria-label="Start date"
           />
           <span className="text-emerald-400/60">to</span>
-          <input 
-            type="text" 
+          <input
+            type="text"
             placeholder="DD/MM/YYYY"
-            value={endDate} 
-            onChange={e => onEndDateChange(e.target.value)}
+            value={endDate}
+            onChange={(e) => onEndDateChange(e.target.value)}
             className="px-3 py-2 bg-[#011508]/70 border border-emerald-700/50 rounded-lg text-sm text-white placeholder:text-emerald-400/40"
             maxLength={10}
             aria-label="End date"
           />
           {(startDate || endDate) && (
-            <button 
-              onClick={() => { onStartDateChange(''); onEndDateChange('') }}
+            <button
+              onClick={() => {
+                onStartDateChange('')
+                onEndDateChange('')
+              }}
               className="text-xs text-emerald-400 hover:text-emerald-300 underline"
               type="button"
             >
@@ -128,13 +137,13 @@ export default function SearchAndFilter({
             </button>
           )}
         </div>
-        
+
         <div className="flex items-center gap-2 ml-auto">
-          <input 
-            type="checkbox" 
+          <input
+            type="checkbox"
             id="show-empty-families"
             checked={showEmptyFamilies}
-            onChange={e => onToggleEmptyFamilies(e.target.checked)}
+            onChange={(e) => onToggleEmptyFamilies(e.target.checked)}
             className="h-4 w-4 text-emerald-500 rounded focus:ring-emerald-500 cursor-pointer"
           />
           <label htmlFor="show-empty-families" className="text-sm text-emerald-200 cursor-pointer">

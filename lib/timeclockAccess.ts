@@ -20,7 +20,10 @@ export function pickRoleName(...roleCandidates: Array<string | null | undefined>
   return null
 }
 
-export function hasManagerTimeclockAccess(roleName: string | null | undefined, reportCount: number | null | undefined) {
+export function hasManagerTimeclockAccess(
+  roleName: string | null | undefined,
+  reportCount: number | null | undefined,
+) {
   const normalizedRole = normalizeRoleName(roleName)
   const hasReports = (reportCount || 0) > 0
 

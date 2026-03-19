@@ -2,15 +2,21 @@
 
 import { MoreHorizontal, User, Clock } from 'lucide-react'
 import { toast } from 'sonner'
+import type { GbPassportItem } from './types'
 
 interface LedgerTableProps {
-  items: any[]
+  items: GbPassportItem[]
   onStatusChange: (id: string, newStatus: string) => void
-  onViewHistory: (item: any) => void
-  onEdit: (item: any) => void
+  onViewHistory: (item: GbPassportItem) => void
+  onEdit: (item: GbPassportItem) => void
 }
 
-export default function LedgerTable({ items, onStatusChange, onViewHistory, onEdit }: LedgerTableProps) {
+export default function LedgerTable({
+  items,
+  onStatusChange,
+  onViewHistory,
+  onEdit,
+}: LedgerTableProps) {
   const formatName = (firstName: string, lastName: string) => {
     return `${firstName.toUpperCase()} ${lastName.toUpperCase()}`
   }
@@ -20,23 +26,40 @@ export default function LedgerTable({ items, onStatusChange, onViewHistory, onEd
       <table className="w-full text-left">
         <thead className="bg-slate-50 text-slate-500 text-[11px] uppercase font-bold border-b border-slate-100">
           <tr>
-            <th scope="col" className="p-4">Applicant</th>
-            <th scope="col" className="p-4">Phone</th>
-            <th scope="col" className="p-4">Service Details</th>
-            <th scope="col" className="p-4">PEX Ref</th>
-            <th scope="col" className="p-4">Status</th>
-            <th scope="col" className="p-4 text-right">Action</th>
+            <th scope="col" className="p-4">
+              Applicant
+            </th>
+            <th scope="col" className="p-4">
+              Phone
+            </th>
+            <th scope="col" className="p-4">
+              Service Details
+            </th>
+            <th scope="col" className="p-4">
+              PEX Ref
+            </th>
+            <th scope="col" className="p-4">
+              Status
+            </th>
+            <th scope="col" className="p-4 text-right">
+              Action
+            </th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-50">
           {items.length === 0 ? (
             <tr>
-              <td colSpan={6} className="p-6 text-center text-slate-400" role="status" aria-live="polite">
+              <td
+                colSpan={6}
+                className="p-6 text-center text-slate-400"
+                role="status"
+                aria-live="polite"
+              >
                 No records found.
               </td>
             </tr>
           ) : (
-            items.map((item: any) => (
+            items.map((item) => (
               <tr key={item.id} className="hover:bg-slate-50 transition-colors">
                 <td className="p-4">
                   <div className="flex items-center gap-3">
@@ -91,7 +114,9 @@ export default function LedgerTable({ items, onStatusChange, onViewHistory, onEd
                       {item.pex_number || 'N/A'}
                     </button>
                     <div className="text-[10px] text-slate-500">
-                      {item.created_at ? new Date(item.created_at).toLocaleDateString('en-GB') : 'N/A'}
+                      {item.created_at
+                        ? new Date(item.created_at).toLocaleDateString('en-GB')
+                        : 'N/A'}
                     </div>
                   </div>
                 </td>
@@ -111,7 +136,7 @@ export default function LedgerTable({ items, onStatusChange, onViewHistory, onEd
                 </td>
                 <td className="p-4 text-right">
                   <div className="flex justify-end gap-2">
-                    <button 
+                    <button
                       onClick={() => onViewHistory(item)}
                       className="text-slate-400 hover:text-blue-600 p-2 hover:bg-blue-50 rounded transition-colors"
                       title="View History"
@@ -120,7 +145,7 @@ export default function LedgerTable({ items, onStatusChange, onViewHistory, onEd
                     >
                       <Clock className="w-4 h-4" />
                     </button>
-                    <button 
+                    <button
                       onClick={() => onEdit(item)}
                       className="text-slate-400 hover:text-slate-700 p-2 hover:bg-slate-100 rounded"
                       type="button"

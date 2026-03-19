@@ -15,7 +15,7 @@ export interface FilterState {
 
 export function useTableFilters<T extends Record<string, any>>(
   items: T[] = [],
-  filterFn?: (item: T, search: string, filters: Record<string, any>) => boolean
+  filterFn?: (item: T, search: string, filters: Record<string, any>) => boolean,
 ) {
   const [state, setState] = useState<FilterState>({
     search: '',
@@ -25,11 +25,11 @@ export function useTableFilters<T extends Record<string, any>>(
   })
 
   const setSearch = useCallback((search: string) => {
-    setState(prev => ({ ...prev, search }))
+    setState((prev) => ({ ...prev, search }))
   }, [])
 
   const setFilter = useCallback((key: string, value: any) => {
-    setState(prev => ({
+    setState((prev) => ({
       ...prev,
       filters: {
         ...prev.filters,
@@ -39,7 +39,7 @@ export function useTableFilters<T extends Record<string, any>>(
   }, [])
 
   const clearFilters = useCallback(() => {
-    setState(prev => ({
+    setState((prev) => ({
       ...prev,
       filters: {},
       search: '',
@@ -47,7 +47,7 @@ export function useTableFilters<T extends Record<string, any>>(
   }, [])
 
   const setSortBy = useCallback((field: string) => {
-    setState(prev => ({
+    setState((prev) => ({
       ...prev,
       sortBy: field,
       sortDirection: prev.sortBy === field && prev.sortDirection === 'asc' ? 'desc' : 'asc',
@@ -57,7 +57,7 @@ export function useTableFilters<T extends Record<string, any>>(
   const filteredItems = useMemo(() => {
     if (!filterFn) return items
 
-    return items.filter(item => filterFn(item, state.search, state.filters))
+    return items.filter((item) => filterFn(item, state.search, state.filters))
   }, [items, state.search, state.filters, filterFn])
 
   const sortedItems = useMemo(() => {

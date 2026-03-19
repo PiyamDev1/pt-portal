@@ -4,27 +4,27 @@ import { useState } from 'react'
 import { MoreHorizontal, StickyNote, User } from 'lucide-react'
 import { toast } from 'sonner'
 import { getApplicantRecord, getPassportRecord } from './utils'
-import type { Application } from './types'
+import type { Application, PakUpdateRecordPayload } from './types'
 import { ConfirmationDialog } from '@/components/ConfirmationDialog'
 
 type RowItemProps = {
   item: Application
   onOpenEdit: (item: Application) => void
-  onUpdateRecord: (id: string, data: Record<string, any>) => void
+  onUpdateRecord: (id: string, data: PakUpdateRecordPayload) => void
   onViewHistory: (appId: string, trackingNo: string) => void
   onOpenArrival: (item: Application) => void
   onManageDocuments?: (appId: string, trackingNo?: string) => void
   onOpenNotes?: (appId: string, trackingNo?: string) => void
 }
 
-export default function RowItem({ 
-  item, 
-  onOpenEdit, 
-  onUpdateRecord, 
-  onViewHistory, 
-  onOpenArrival, 
-  onManageDocuments, 
-  onOpenNotes 
+export default function RowItem({
+  item,
+  onOpenEdit,
+  onUpdateRecord,
+  onViewHistory,
+  onOpenArrival,
+  onManageDocuments,
+  onOpenNotes,
 }: RowItemProps) {
   const [confirmAction, setConfirmAction] = useState<null | 'return' | 'collect' | 'refund'>(null)
   const pp = getPassportRecord(item)
@@ -34,16 +34,16 @@ export default function RowItem({
   const hasNotes = pp.notes && pp.notes.trim().length > 0
 
   // Status Colors
-  const statusColors: any = {
+  const statusColors: Record<string, string> = {
     'Pending Submission': 'bg-gray-100 text-gray-600',
     'Biometrics Taken': 'bg-blue-100 text-blue-700',
-    'Processing': 'bg-yellow-100 text-yellow-700',
-    'Approved': 'bg-emerald-100 text-emerald-700',
+    Processing: 'bg-yellow-100 text-yellow-700',
+    Approved: 'bg-emerald-100 text-emerald-700',
     'Passport Arrived': 'bg-indigo-100 text-indigo-700',
-    'Collected': 'bg-green-100 text-green-700',
-    'Cancelled': 'bg-orange-100 text-orange-700'
+    Collected: 'bg-green-100 text-green-700',
+    Cancelled: 'bg-orange-100 text-orange-700',
   }
-  
+
   const handleStatusChange = (newStatus: string) => {
     if (pp.status === 'Collected') return
     if (newStatus === 'Collected') return
@@ -89,12 +89,12 @@ export default function RowItem({
     'Processing',
     'Approved',
     'Passport Arrived',
-    'Collected'
+    'Collected',
   ]
   const currentStepIdx = workflow.indexOf(pp.status || 'Pending Submission')
 
   const createdAt = item?.created_at || pp?.created_at
-  const formatDate = (d: any) => {
+  const formatDate = (d: string | undefined) => {
     try {
       const dt = new Date(d)
       if (isNaN(dt.getTime())) return ''
@@ -127,207 +127,238 @@ export default function RowItem({
 
   return (
     <>
-    <tr className="hover:bg-slate-50 transition-colors">
-      {/* Applicant */}
-      <td className="p-4 align-top">
-        <div className="flex items-start gap-3">
-          <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 mt-0.5">
-            <User className="w-4 h-4" />
+      <tr className="hover:bg-slate-50 transition-colors">
+        {/* Applicant */}
+        <td className="p-4 align-top">
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 mt-0.5">
+              <User className="w-4 h-4" />
+            </div>
+            <div className="space-y-1">
+              <div className="font-semibold text-slate-800 text-sm leading-tight">
+                {applicant?.first_name} {applicant?.last_name}
+              </div>
+              <div className="text-xs text-slate-500 font-mono leading-tight">
+                {applicant?.citizen_number}
+              </div>
+              {pp.family_head_email && (
+                <div className="text-[11px] text-sky-700 font-semibold leading-tight">
+                  FH Email: {pp.family_head_email}
+                </div>
+              )}
+              {applicant?.phone_number && (
+                <div className="text-[11px] text-slate-600 font-semibold leading-tight">
+                  Phone: {applicant.phone_number}
+                </div>
+              )}
+              {createdAt && (
+                <div className="text-[11px] font-semibold text-orange-500 leading-tight">
+                  Added: {formatDate(createdAt)}
+                </div>
+              )}
+            </div>
           </div>
-          <div className="space-y-1">
-            <div className="font-semibold text-slate-800 text-sm leading-tight">{applicant?.first_name} {applicant?.last_name}</div>
-            <div className="text-xs text-slate-500 font-mono leading-tight">{applicant?.citizen_number}</div>
-            {pp.family_head_email && (
-              <div className="text-[11px] text-sky-700 font-semibold leading-tight">
-                FH Email: {pp.family_head_email}
-              </div>
-            )}
-            {applicant?.phone_number && (
-              <div className="text-[11px] text-slate-600 font-semibold leading-tight">
-                Phone: {applicant.phone_number}
-              </div>
-            )}
-            {createdAt && (
-              <div className="text-[11px] font-semibold text-orange-500 leading-tight">
-                Added: {formatDate(createdAt)}
-              </div>
-            )}
-          </div>
-        </div>
-      </td>
+        </td>
 
-      {/* Tracking History with Summary */}
-      <td className="p-4">
-        <button
-          onClick={() => onViewHistory(item.id, item.tracking_number)}
-          className="font-mono font-bold text-blue-600 hover:text-blue-800 hover:underline text-sm mb-2 block"
-          type="button"
-          aria-label="View tracking history"
-        >
-          {item.tracking_number}
-        </button>
-        <div className="flex flex-col gap-1">
-          {workflow.map((step, i) => (
-            <div key={step} className="flex items-center gap-2">
-              <div className={`w-1.5 h-1.5 rounded-full ${i <= currentStepIdx ? 'bg-blue-600' : 'bg-gray-200'}`} />
-              <span className={`text-[10px] uppercase tracking-wider font-semibold ${i <= currentStepIdx ? 'text-gray-700' : 'text-gray-400'}`}>
-                {step}
+        {/* Tracking History with Summary */}
+        <td className="p-4">
+          <button
+            onClick={() => onViewHistory(item.id, item.tracking_number)}
+            className="font-mono font-bold text-blue-600 hover:text-blue-800 hover:underline text-sm mb-2 block"
+            type="button"
+            aria-label="View tracking history"
+          >
+            {item.tracking_number}
+          </button>
+          <div className="flex flex-col gap-1">
+            {workflow.map((step, i) => (
+              <div key={step} className="flex items-center gap-2">
+                <div
+                  className={`w-1.5 h-1.5 rounded-full ${i <= currentStepIdx ? 'bg-blue-600' : 'bg-gray-200'}`}
+                />
+                <span
+                  className={`text-[10px] uppercase tracking-wider font-semibold ${i <= currentStepIdx ? 'text-gray-700' : 'text-gray-400'}`}
+                >
+                  {step}
+                </span>
+              </div>
+            ))}
+          </div>
+        </td>
+
+        {/* Old & New Passport Combined */}
+        <td className="p-3 bg-blue-50/30 border-l border-r border-blue-100 align-top">
+          <div className="space-y-3">
+            {/* Old Passport Section */}
+            {pp.old_passport_number && (
+              <div className="pb-2 border-b border-blue-200">
+                <div className="text-[10px] font-bold text-slate-500 uppercase mb-1">
+                  Old Passport
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="font-mono text-sm font-bold text-slate-700">
+                    {pp.old_passport_number}
+                  </div>
+                  {pp.is_old_passport_returned ? (
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded">
+                      Returned
+                    </span>
+                  ) : (
+                    <button
+                      onClick={confirmReturn}
+                      className="text-[10px] font-bold text-amber-700 bg-amber-100 border border-amber-200 px-2 py-0.5 rounded hover:bg-amber-200"
+                      type="button"
+                      aria-label="Mark old passport returned"
+                    >
+                      Mark Returned
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* New Passport Section */}
+            <div>
+              <div className="text-[10px] font-bold text-slate-500 uppercase mb-1">
+                New Passport
+              </div>
+              {pp.new_passport_number ? (
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="font-mono font-bold text-slate-700 text-sm">
+                    {pp.new_passport_number}
+                  </div>
+                  {pp.status === 'Collected' ? (
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded">
+                      Collected
+                    </span>
+                  ) : (
+                    <button
+                      onClick={confirmCollected}
+                      className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded hover:bg-emerald-100"
+                      type="button"
+                      aria-label="Mark passport collected"
+                    >
+                      Mark Collected
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <button
+                  onClick={() => onOpenArrival(item)}
+                  className="text-xs px-3 py-1.5 rounded border border-dashed border-slate-300 text-slate-500 hover:border-blue-500 hover:text-blue-600 transition w-full text-center mb-2"
+                  type="button"
+                  aria-label="Enter new passport number"
+                >
+                  + Enter Passport #
+                </button>
+              )}
+            </div>
+          </div>
+        </td>
+
+        {/* Passport Details + Status */}
+        <td className="p-4 align-top">
+          <div className="space-y-2">
+            <div className="text-sm font-medium text-slate-700">{pp.application_type}</div>
+            <div className="text-xs text-slate-500">{pp.category}</div>
+            {pp.speed === 'Executive' ? (
+              <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-700 border border-purple-200">
+                EXECUTIVE
               </span>
-            </div>
-          ))}
-        </div>
-      </td>
-
-      {/* Old & New Passport Combined */}
-      <td className="p-3 bg-blue-50/30 border-l border-r border-blue-100 align-top">
-        <div className="space-y-3">
-          {/* Old Passport Section */}
-          {pp.old_passport_number && (
-            <div className="pb-2 border-b border-blue-200">
-              <div className="text-[10px] font-bold text-slate-500 uppercase mb-1">Old Passport</div>
-              <div className="flex items-center gap-2">
-                <div className="font-mono text-sm font-bold text-slate-700">{pp.old_passport_number}</div>
-                {pp.is_old_passport_returned ? (
-                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded">Returned</span>
-                ) : (
-                  <button
-                    onClick={confirmReturn}
-                    className="text-[10px] font-bold text-amber-700 bg-amber-100 border border-amber-200 px-2 py-0.5 rounded hover:bg-amber-200"
-                    type="button"
-                    aria-label="Mark old passport returned"
-                  >
-                    Mark Returned
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* New Passport Section */}
-          <div>
-            <div className="text-[10px] font-bold text-slate-500 uppercase mb-1">New Passport</div>
-            {pp.new_passport_number ? (
-              <div className="flex items-center gap-2 mb-2">
-                <div className="font-mono font-bold text-slate-700 text-sm">{pp.new_passport_number}</div>
-                {pp.status === 'Collected' ? (
-                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded">Collected</span>
-                ) : (
-                  <button
-                    onClick={confirmCollected}
-                    className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded hover:bg-emerald-100"
-                    type="button"
-                    aria-label="Mark passport collected"
-                  >
-                    Mark Collected
-                  </button>
-                )}
-              </div>
             ) : (
-              <button
-                onClick={() => onOpenArrival(item)}
-                className="text-xs px-3 py-1.5 rounded border border-dashed border-slate-300 text-slate-500 hover:border-blue-500 hover:text-blue-600 transition w-full text-center mb-2"
-                type="button"
-                aria-label="Enter new passport number"
+              <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                NORMAL
+              </span>
+            )}
+            {pp.is_refunded && (
+              <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-700 border border-rose-200">
+                REFUNDED
+              </span>
+            )}
+            <div>
+              <label className="text-[10px] uppercase font-bold text-slate-500">Status</label>
+              <select
+                value={pp.status || 'Pending Submission'}
+                onChange={(e) => handleStatusChange(e.target.value)}
+                disabled={pp.status === 'Collected'}
+                className={`mt-1 text-xs font-bold px-2 py-1 rounded border-0 outline-none focus:ring-2 focus:ring-offset-1 ${pp.status === 'Collected' ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'} ${statusColors[pp.status] || 'bg-slate-100'}`}
+                aria-label="Update status"
               >
-                + Enter Passport #
-              </button>
-            )}
+                <option value="Pending Submission">Pending Submission</option>
+                <option value="Biometrics Taken">Biometrics Taken</option>
+                <option value="Processing">Processing</option>
+                <option value="Approved">Approved</option>
+                <option value="Passport Arrived">Passport Arrived</option>
+                <option value="Collected" disabled>
+                  Collected (set via button)
+                </option>
+                <option value="Cancelled">Cancelled</option>
+              </select>
+            </div>
           </div>
-        </div>
-      </td>
+        </td>
 
-      {/* Passport Details + Status */}
-      <td className="p-4 align-top">
-        <div className="space-y-2">
-          <div className="text-sm font-medium text-slate-700">{pp.application_type}</div>
-          <div className="text-xs text-slate-500">{pp.category}</div>
-          {pp.speed === 'Executive' ? (
-            <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-700 border border-purple-200">EXECUTIVE</span>
-          ) : (
-            <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">NORMAL</span>
-          )}
-          {pp.is_refunded && (
-            <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-700 border border-rose-200">REFUNDED</span>
-          )}
-          <div>
-            <label className="text-[10px] uppercase font-bold text-slate-500">Status</label>
-            <select 
-              value={pp.status || 'Pending Submission'}
-              onChange={(e) => handleStatusChange(e.target.value)}
-              disabled={pp.status === 'Collected'}
-              className={`mt-1 text-xs font-bold px-2 py-1 rounded border-0 outline-none focus:ring-2 focus:ring-offset-1 ${pp.status === 'Collected' ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'} ${statusColors[pp.status] || 'bg-slate-100'}`}
-              aria-label="Update status"
+        {/* Actions */}
+        <td className="p-4 text-right">
+          <div className="flex flex-col items-end gap-2">
+            <button
+              onClick={() => onOpenEdit(item)}
+              className="p-2 text-slate-400 hover:text-blue-600 hover:bg-slate-100 rounded-lg transition"
+              type="button"
+              aria-label="Edit passport application"
             >
-              <option value="Pending Submission">Pending Submission</option>
-              <option value="Biometrics Taken">Biometrics Taken</option>
-              <option value="Processing">Processing</option>
-              <option value="Approved">Approved</option>
-              <option value="Passport Arrived">Passport Arrived</option>
-              <option value="Collected" disabled>Collected (set via button)</option>
-              <option value="Cancelled">Cancelled</option>
-            </select>
+              <MoreHorizontal className="w-4 h-4" />
+            </button>
+
+            <button
+              onClick={() => onManageDocuments?.(item.id, item.tracking_number)}
+              className="h-8 w-8 flex items-center justify-center rounded-full bg-sky-50 hover:bg-sky-100 text-sky-600 transition"
+              type="button"
+              aria-label="Manage documents"
+              title="Manage documents"
+            >
+              📄
+            </button>
+
+            <button
+              onClick={() => onOpenNotes?.(item.id, item.tracking_number)}
+              className="h-8 w-8 flex items-center justify-center rounded-full bg-amber-50 hover:bg-amber-100 text-amber-600 transition relative"
+              type="button"
+              aria-label="Application notes"
+              title={hasNotes ? 'Application notes (has notes)' : 'Application notes'}
+            >
+              <StickyNote className="w-4 h-4" />
+              {hasNotes && (
+                <span
+                  className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-amber-500 rounded-full border-2 border-white"
+                  aria-hidden="true"
+                ></span>
+              )}
+            </button>
+
+            <button
+              onClick={confirmRefund}
+              disabled={!!pp.is_refunded}
+              className={`h-8 w-8 flex items-center justify-center rounded-full transition ${pp.is_refunded ? 'bg-rose-100 text-rose-500 cursor-not-allowed' : 'bg-rose-50 hover:bg-rose-100 text-rose-600'}`}
+              type="button"
+              aria-label="Mark refunded"
+              title={pp.is_refunded ? 'Already refunded' : 'Mark refunded'}
+            >
+              $
+            </button>
           </div>
-        </div>
-      </td>
-
-      {/* Actions */}
-      <td className="p-4 text-right">
-        <div className="flex flex-col items-end gap-2">
-          <button 
-            onClick={() => onOpenEdit(item)}
-            className="p-2 text-slate-400 hover:text-blue-600 hover:bg-slate-100 rounded-lg transition"
-            type="button"
-            aria-label="Edit passport application"
-          >
-            <MoreHorizontal className="w-4 h-4" />
-          </button>
-
-          <button
-            onClick={() => onManageDocuments?.(item.id, item.tracking_number)}
-            className="h-8 w-8 flex items-center justify-center rounded-full bg-sky-50 hover:bg-sky-100 text-sky-600 transition"
-            type="button"
-            aria-label="Manage documents"
-            title="Manage documents"
-          >
-            📄
-          </button>
-
-          <button
-            onClick={() => onOpenNotes?.(item.id, item.tracking_number)}
-            className="h-8 w-8 flex items-center justify-center rounded-full bg-amber-50 hover:bg-amber-100 text-amber-600 transition relative"
-            type="button"
-            aria-label="Application notes"
-            title={hasNotes ? "Application notes (has notes)" : "Application notes"}
-          >
-            <StickyNote className="w-4 h-4" />
-            {hasNotes && (
-              <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-amber-500 rounded-full border-2 border-white" aria-hidden="true"></span>
-            )}
-          </button>
-
-          <button
-            onClick={confirmRefund}
-            disabled={!!pp.is_refunded}
-            className={`h-8 w-8 flex items-center justify-center rounded-full transition ${pp.is_refunded ? 'bg-rose-100 text-rose-500 cursor-not-allowed' : 'bg-rose-50 hover:bg-rose-100 text-rose-600'}`}
-            type="button"
-            aria-label="Mark refunded"
-            title={pp.is_refunded ? 'Already refunded' : 'Mark refunded'}
-          >
-            $ 
-          </button>
-        </div>
-      </td>
-    </tr>
-    <ConfirmationDialog
-      isOpen={!!confirmAction}
-      onClose={() => setConfirmAction(null)}
-      onConfirm={handleConfirmAction}
-      title={confirmAction ? confirmConfig[confirmAction].title : 'Confirm Action'}
-      message={confirmAction ? confirmConfig[confirmAction].message : ''}
-      confirmLabel={confirmAction ? confirmConfig[confirmAction].confirmLabel : 'Confirm'}
-      cancelLabel="Cancel"
-      type={confirmAction ? confirmConfig[confirmAction].type : 'warning'}
-    />
+        </td>
+      </tr>
+      <ConfirmationDialog
+        isOpen={!!confirmAction}
+        onClose={() => setConfirmAction(null)}
+        onConfirm={handleConfirmAction}
+        title={confirmAction ? confirmConfig[confirmAction].title : 'Confirm Action'}
+        message={confirmAction ? confirmConfig[confirmAction].message : ''}
+        confirmLabel={confirmAction ? confirmConfig[confirmAction].confirmLabel : 'Confirm'}
+        cancelLabel="Cancel"
+        type={confirmAction ? confirmConfig[confirmAction].type : 'warning'}
+      />
     </>
   )
 }

@@ -2,7 +2,7 @@
  * Nadra Documents Page
  * Document management interface for family-level document sharing
  * All applicants in a family can access shared documents
- * 
+ *
  * Route: /dashboard/applications/nadra/documents/[familyHeadId]
  */
 
@@ -26,9 +26,7 @@ interface NadraDocumentsPageProps {
   }>
 }
 
-export default async function NadraDocumentsPage({
-  params,
-}: NadraDocumentsPageProps) {
+export default async function NadraDocumentsPage({ params }: NadraDocumentsPageProps) {
   const { familyHeadId } = await params
 
   // Initialize Supabase client
@@ -43,11 +41,13 @@ export default async function NadraDocumentsPage({
         },
         setAll() {},
       },
-    }
+    },
   )
 
   // Check authentication
-  const { data: { session } } = await supabase.auth.getSession()
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
   if (!session) {
     redirect('/login')
   }
@@ -71,9 +71,7 @@ export default async function NadraDocumentsPage({
     notFound()
   }
 
-  const location = Array.isArray(employee?.locations)
-    ? employee.locations[0]
-    : employee?.locations
+  const location = Array.isArray(employee?.locations) ? employee.locations[0] : employee?.locations
   const role = Array.isArray(employee?.roles) ? employee.roles[0] : employee?.roles
 
   const familyHeadFullName = `${familyHead.first_name} ${familyHead.last_name}`
@@ -98,12 +96,7 @@ export default async function NadraDocumentsPage({
               href="/dashboard/applications/nadra"
               className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 text-sm font-medium mb-4"
             >
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"

@@ -1,52 +1,76 @@
 import { createClient } from '@supabase/supabase-js'
-import { NextResponse } from 'next/server'
+import { apiError, apiOk } from '@/lib/api/http'
+import { toErrorMessage } from '@/lib/api/error'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
 export async function POST(request) {
-  const origin = request.headers.get('origin') || '*'
-
   try {
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
+      process.env.SUPABASE_SERVICE_ROLE_KEY,
     )
 
     const body = await request.json()
-    const { 
-      applicantCnic, applicantName, applicantEmail,
+    const {
+      applicantCnic,
+      applicantName,
+      applicantEmail,
       applicantPhone,
       familyHeadEmail,
-      applicationType, category, pageCount, speed, 
-      oldPassportNumber, trackingNumber, 
+      applicationType,
+      category,
+      pageCount,
+      speed,
+      oldPassportNumber,
+      trackingNumber,
       fingerprintsCompleted,
-      currentUserId 
+      currentUserId,
     } = body
 
     // ... (Validation & Applicant Creation same as before) ...
     // NOTE: Keeping it brief, just ensuring the STATUS usage below is correct:
 
     // 1. Find/Create Applicant (simplified for brevity, keep your existing logic)
-    let { data: applicant } = await supabase.from('applicants').select('id').eq('citizen_number', applicantCnic).single()
+    let { data: applicant } = await supabase
+      .from('applicants')
+      .select('id')
+      .eq('citizen_number', applicantCnic)
+      .single()
     if (!applicant) {
-         const parts = applicantName.split(' ')
-         const { data: newApp } = await supabase.from('applicants').insert({
-          first_name: parts[0], last_name: parts.slice(1).join(' ') || 'N/A', citizen_number: applicantCnic, email: applicantEmail, phone_number: applicantPhone || null
-         }).select('id').single()
-         applicant = newApp
-        } else if (applicantPhone) {
-          await supabase.from('applicants').update({ phone_number: applicantPhone }).eq('id', applicant.id)
+      const parts = applicantName.split(' ')
+      const { data: newApp } = await supabase
+        .from('applicants')
+        .insert({
+          first_name: parts[0],
+          last_name: parts.slice(1).join(' ') || 'N/A',
+          citizen_number: applicantCnic,
+          email: applicantEmail,
+          phone_number: applicantPhone || null,
+        })
+        .select('id')
+        .single()
+      applicant = newApp
+    } else if (applicantPhone) {
+      await supabase
+        .from('applicants')
+        .update({ phone_number: applicantPhone })
+        .eq('id', applicant.id)
     }
 
     // 2. Create Application Hierarchy
-    const { data: appRecord, error: appError } = await supabase.from('applications').insert({
-      tracking_number: trackingNumber,
-      family_head_id: applicant.id, 
-      applicant_id: applicant.id,
-      submitted_by_employee_id: currentUserId,
-      status: 'Pending Submission' // Matches new workflow
-    }).select('id').single()
+    const { data: appRecord, error: appError } = await supabase
+      .from('applications')
+      .insert({
+        tracking_number: trackingNumber,
+        family_head_id: applicant.id,
+        applicant_id: applicant.id,
+        submitted_by_employee_id: currentUserId,
+        status: 'Pending Submission', // Matches new workflow
+      })
+      .select('id')
+      .single()
 
     if (appError) throw appError
 
@@ -64,16 +88,21 @@ export async function POST(request) {
       is_old_passport_returned: false,
       is_refunded: false,
       fingerprints_completed: fingerprintsCompleted || false,
-      status: 'Pending Submission' // Matches new workflow
+      status: 'Pending Submission', // Matches new workflow
     })
 
     if (ppError) {
-       await supabase.from('applications').delete().eq('id', appRecord.id)
-       throw ppError
+      await supabase.from('applications').delete().eq('id', appRecord.id)
+      throw new Error(ppError.message)
     }
 
-    return NextResponse.json({ success: true }, { status: 200, headers: { 'Access-Control-Allow-Origin': origin } })
+    return apiOk({
+      createdApplicationId: appRecord.id,
+      applicantId: applicant.id,
+      trackingNumber,
+      status: 'Pending Submission',
+    })
   } catch (error) {
-    return NextResponse.json({ error: error.message }, { status: 500, headers: { 'Access-Control-Allow-Origin': origin } })
+    return apiError(toErrorMessage(error), 500)
   }
 }

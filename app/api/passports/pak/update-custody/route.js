@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
-import { NextResponse } from 'next/server'
+import { apiError, apiOk } from '@/lib/api/http'
+import { toErrorMessage } from '@/lib/api/error'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -10,14 +11,14 @@ export async function POST(request) {
   try {
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
+      process.env.SUPABASE_SERVICE_ROLE_KEY,
     )
 
     const body = await request.json()
     const { passportId, action, newNumber, userId } = body
 
     if (!passportId || !action) {
-      return NextResponse.json({ error: 'Missing fields' }, { status: 400, headers: { 'Access-Control-Allow-Origin': origin } })
+      return apiError('Missing fields', 400)
     }
 
     if (action === 'return_old') {
@@ -26,32 +27,42 @@ export async function POST(request) {
         .update({
           is_old_passport_returned: true,
           old_passport_returned_at: new Date().toISOString(),
-          old_passport_returned_by: userId
+          old_passport_returned_by: userId,
         })
         .eq('id', passportId)
 
       if (updError) throw updError
 
       // NOTE: Logging could be implemented to a separate table if available
-      return NextResponse.json({ success: true }, { status: 200, headers: { 'Access-Control-Allow-Origin': origin } })
+      return apiOk(
+        { updatedPassportId: passportId, action: 'return_old' },
+        { status: 200, headers: { 'Access-Control-Allow-Origin': origin } },
+      )
     }
 
     if (action === 'record_new') {
       if (!newNumber) {
-        return NextResponse.json({ error: 'New passport number required' }, { status: 400, headers: { 'Access-Control-Allow-Origin': origin } })
+        return apiError('New passport number required', 400)
       }
 
       const { error: updError } = await supabase
         .from('pakistani_passport_applications')
         .update({
           new_passport_number: newNumber.toUpperCase(),
-          status: 'Completed'
+          status: 'Completed',
         })
         .eq('id', passportId)
 
       if (updError) throw updError
 
-      return NextResponse.json({ success: true }, { status: 200, headers: { 'Access-Control-Allow-Origin': origin } })
+      return apiOk(
+        {
+          updatedPassportId: passportId,
+          action: 'record_new',
+          newPassportNumber: newNumber.toUpperCase(),
+        },
+        { status: 200, headers: { 'Access-Control-Allow-Origin': origin } },
+      )
     }
 
     if (action === 'toggle_fingerprints') {
@@ -63,28 +74,30 @@ export async function POST(request) {
         .single()
 
       if (!current) {
-        return NextResponse.json({ error: 'Passport record not found' }, { status: 404, headers: { 'Access-Control-Allow-Origin': origin } })
+        return apiError('Passport record not found', 404)
       }
 
       const { error: updError } = await supabase
         .from('pakistani_passport_applications')
         .update({
-          fingerprints_completed: !current.fingerprints_completed
+          fingerprints_completed: !current.fingerprints_completed,
         })
         .eq('id', passportId)
 
       if (updError) throw updError
 
-      return NextResponse.json({ success: true, fingerprints_completed: !current.fingerprints_completed }, { status: 200, headers: { 'Access-Control-Allow-Origin': origin } })
+      return apiOk(
+        {
+          updatedPassportId: passportId,
+          action: 'toggle_fingerprints',
+          fingerprints_completed: !current.fingerprints_completed,
+        },
+        { status: 200, headers: { 'Access-Control-Allow-Origin': origin } },
+      )
     }
 
-    return NextResponse.json({ error: 'Unknown action' }, { status: 400, headers: { 'Access-Control-Allow-Origin': origin } })
-
+    return apiError('Unknown action', 400)
   } catch (error) {
-    console.error('[PAK PASSPORT CUSTODY] Unexpected error:', error)
-    return NextResponse.json({
-      error: 'Internal server error',
-      details: error.message
-    }, { status: 500, headers: { 'Access-Control-Allow-Origin': origin } })
+    return apiError('Internal server error', 500, { details: toErrorMessage(error, 'Unexpected error') })
   }
 }

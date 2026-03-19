@@ -2,20 +2,33 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
+import type { SupabaseClient } from '@supabase/supabase-js'
+
+interface BranchLocation {
+  id: string
+  name: string
+  branch_code: string | null
+  type: string
+}
 
 interface BranchesTabProps {
-  initialLocations: any[]
-  supabase: any
+  initialLocations: BranchLocation[]
+  supabase: SupabaseClient
   loading: boolean
   setLoading: (loading: boolean) => void
 }
 
-export default function BranchesTab({ initialLocations, supabase, loading, setLoading }: BranchesTabProps) {
+export default function BranchesTab({
+  initialLocations,
+  supabase,
+  loading,
+  setLoading,
+}: BranchesTabProps) {
   const router = useRouter()
   const [locations, setLocations] = useState(initialLocations)
   const [newBranchName, setNewBranchName] = useState('')
   const [newBranchCode, setNewBranchCode] = useState('')
-  const [editingBranch, setEditingBranch] = useState<any>(null)
+  const [editingBranch, setEditingBranch] = useState<BranchLocation | null>(null)
 
   const handleAddBranch = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -45,7 +58,7 @@ export default function BranchesTab({ initialLocations, supabase, loading, setLo
       .eq('id', editingBranch.id)
 
     if (!error) {
-      setLocations(locations.map((loc: any) => loc.id === editingBranch.id ? editingBranch : loc))
+      setLocations(locations.map((loc) => (loc.id === editingBranch.id ? editingBranch : loc)))
       setEditingBranch(null)
       toast.success('Branch updated successfully')
       router.refresh()
@@ -62,22 +75,35 @@ export default function BranchesTab({ initialLocations, supabase, loading, setLo
         <h3 className="font-bold text-lg mb-4 text-slate-800">Add New Location</h3>
         <form onSubmit={handleAddBranch} className="flex gap-4 items-end">
           <div className="flex-1">
-            <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Branch Name</label>
-            <input 
-              type="text" placeholder="e.g. Manchester Office" required
+            <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">
+              Branch Name
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. Manchester Office"
+              required
               className="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none"
-              value={newBranchName} onChange={e => setNewBranchName(e.target.value)}
+              value={newBranchName}
+              onChange={(e) => setNewBranchName(e.target.value)}
             />
           </div>
           <div className="w-32">
-            <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Code</label>
-            <input 
-              type="text" placeholder="MAN-01" required
+            <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">
+              Code
+            </label>
+            <input
+              type="text"
+              placeholder="MAN-01"
+              required
               className="w-full p-2 border rounded uppercase focus:ring-2 focus:ring-blue-500 outline-none"
-              value={newBranchCode} onChange={e => setNewBranchCode(e.target.value.toUpperCase())}
+              value={newBranchCode}
+              onChange={(e) => setNewBranchCode(e.target.value.toUpperCase())}
             />
           </div>
-          <button disabled={loading} className="bg-blue-900 text-white px-6 py-2 rounded hover:bg-blue-800 font-medium transition-colors">
+          <button
+            disabled={loading}
+            className="bg-blue-900 text-white px-6 py-2 rounded hover:bg-blue-800 font-medium transition-colors"
+          >
             {loading ? 'Adding...' : 'Add Branch'}
           </button>
         </form>
@@ -95,28 +121,47 @@ export default function BranchesTab({ initialLocations, supabase, loading, setLo
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {locations.map((loc: any) => (
+            {locations.map((loc) => (
               <tr key={loc.id} className="hover:bg-slate-50">
                 {editingBranch?.id === loc.id ? (
                   <>
                     <td className="px-6 py-3">
-                      <input 
+                      <input
                         className="border p-1 rounded w-full"
                         value={editingBranch.name}
-                        onChange={e => setEditingBranch({...editingBranch, name: e.target.value})}
+                        onChange={(e) =>
+                          setEditingBranch({ ...editingBranch, name: e.target.value })
+                        }
                       />
                     </td>
                     <td className="px-6 py-3">
-                      <input 
+                      <input
                         className="border p-1 rounded w-24 uppercase"
                         value={editingBranch.branch_code}
-                        onChange={e => setEditingBranch({...editingBranch, branch_code: e.target.value.toUpperCase()})}
+                        onChange={(e) =>
+                          setEditingBranch({
+                            ...editingBranch,
+                            branch_code: e.target.value.toUpperCase(),
+                          })
+                        }
                       />
                     </td>
                     <td className="px-6 py-3 text-slate-400">{loc.type}</td>
                     <td className="px-6 py-3 flex gap-3">
-                      <button type="button" onClick={handleUpdateBranch} className="text-green-600 font-bold hover:underline">Save</button>
-                      <button type="button" onClick={() => setEditingBranch(null)} className="text-slate-400 hover:underline">Cancel</button>
+                      <button
+                        type="button"
+                        onClick={handleUpdateBranch}
+                        className="text-green-600 font-bold hover:underline"
+                      >
+                        Save
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditingBranch(null)}
+                        className="text-slate-400 hover:underline"
+                      >
+                        Cancel
+                      </button>
                     </td>
                   </>
                 ) : (
@@ -124,12 +169,14 @@ export default function BranchesTab({ initialLocations, supabase, loading, setLo
                     <td className="px-6 py-3 font-medium text-slate-900">{loc.name}</td>
                     <td className="px-6 py-3 font-mono text-slate-500">{loc.branch_code || '-'}</td>
                     <td className="px-6 py-3">
-                      <span className={`px-2 py-1 rounded text-xs ${loc.type === 'HQ' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
+                      <span
+                        className={`px-2 py-1 rounded text-xs ${loc.type === 'HQ' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}
+                      >
                         {loc.type}
                       </span>
                     </td>
                     <td className="px-6 py-3">
-                      <button 
+                      <button
                         onClick={() => setEditingBranch(loc)}
                         className="text-blue-600 hover:text-blue-800 font-medium"
                       >

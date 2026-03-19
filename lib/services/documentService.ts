@@ -2,7 +2,7 @@
  * Document Service Layer
  * Placeholder implementations for MinIO integration
  * Easy to swap with real implementations when backend is ready
- * 
+ *
  * @module lib/services/documentService
  */
 
@@ -18,16 +18,12 @@ import {
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || '/api'
 const MINIO_ENDPOINT = process.env.NEXT_PUBLIC_MINIO_ENDPOINT || 'https://eu49v2.piyamtravel.com'
-const MINIO_BUCKET = process.env.MINIO_BUCKET_NAME || process.env.NEXT_PUBLIC_MINIO_BUCKET || 'portal-documents'
+const MINIO_BUCKET =
+  process.env.MINIO_BUCKET_NAME || process.env.NEXT_PUBLIC_MINIO_BUCKET || 'portal-documents'
 
 // Constants
 const MAX_FILE_SIZE = 1500000 // 1.5 MB in bytes
-const ALLOWED_MIME_TYPES = [
-  'application/pdf',
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-]
+const ALLOWED_MIME_TYPES = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp']
 
 /**
  * Document Service Interface
@@ -44,14 +40,19 @@ export interface DocumentService {
     file: File,
     familyHeadId: string,
     category?: 'receipt' | 'application-review' | 'general',
-    onProgress?: (percent: number) => void
+    onProgress?: (percent: number) => void,
   ): Promise<Document>
   uploadMultipleDocuments(
     files: File[],
     familyHeadId: string,
-    category?: 'receipt' | 'application-review' | 'general'
+    category?: 'receipt' | 'application-review' | 'general',
   ): Promise<BatchUploadResponse>
-  getDocuments(familyHeadId: string, page?: number, limit?: number, category?: string): Promise<Document[]>
+  getDocuments(
+    familyHeadId: string,
+    page?: number,
+    limit?: number,
+    category?: string,
+  ): Promise<Document[]>
   deleteDocument(documentId: string): Promise<{ success: boolean }>
   downloadDocument(documentId: string): Promise<Blob>
 
@@ -67,7 +68,7 @@ export interface DocumentService {
 
 /**
  * Placeholder Document Service Implementation
- * 
+ *
  * IMPORTANT: These are placeholder methods that simulate backend behavior
  * Replace with actual API calls when backend is ready
  */
@@ -109,9 +110,8 @@ class PlaceholderDocumentService implements DocumentService {
       const ping = Math.round(performance.now() - startTime)
       const data = await response.json()
 
-      if (data.success && data.status) {
-        return { ...data.status, ping }
-      }
+      const statusPayload = data?.status
+      if (statusPayload) return { ...statusPayload, ping }
 
       return {
         connected: false,
@@ -169,9 +169,8 @@ class PlaceholderDocumentService implements DocumentService {
     file: File,
     familyHeadId: string,
     category: 'receipt' | 'application-review' | 'general' = 'general',
-    onProgress?: (percent: number) => void
+    onProgress?: (percent: number) => void,
   ): Promise<Document> {
-
     // 1. Validate file size and type first
     const validation = this.validateFile(file)
     if (!validation.valid) {
@@ -208,16 +207,17 @@ class PlaceholderDocumentService implements DocumentService {
 
           try {
             const payload = JSON.parse(xhr.responseText)
-            if (!payload.success || !payload.data) {
-              reject(new Error(payload.error || 'Upload failed'))
+            const result = payload?.data ?? payload
+            if (!result?.documentId || !result?.minioKey) {
+              reject(new Error(payload?.error || 'Upload failed'))
               return
             }
 
             resolve({
-              documentId: payload.data.documentId,
-              minioKey: payload.data.minioKey,
-              etag: payload.data.etag || `unknown-${payload.data.documentId}`,
-              storageBucket: payload.data.storageBucket,
+              documentId: result.documentId,
+              minioKey: result.minioKey,
+              etag: result.etag || `unknown-${result.documentId}`,
+              storageBucket: result.storageBucket,
             })
           } catch {
             reject(new Error('Invalid upload response'))
@@ -275,9 +275,7 @@ class PlaceholderDocumentService implements DocumentService {
         },
       } as Document
     } catch (error) {
-      throw new Error(
-        error instanceof Error ? error.message : 'Failed to upload document'
-      )
+      throw new Error(error instanceof Error ? error.message : 'Failed to upload document')
     }
   }
 
@@ -289,7 +287,7 @@ class PlaceholderDocumentService implements DocumentService {
   async uploadMultipleDocuments(
     files: File[],
     familyHeadId: string,
-    category: 'receipt' | 'application-review' | 'general' = 'general'
+    category: 'receipt' | 'application-review' | 'general' = 'general',
   ): Promise<BatchUploadResponse> {
     const response: BatchUploadResponse = {
       successful: [],
@@ -317,7 +315,12 @@ class PlaceholderDocumentService implements DocumentService {
    * Get documents for a family with optional pagination and category filtering
    * Supports both paginated and unpaginated responses
    */
-  async getDocuments(familyHeadId: string, page: number = 1, limit: number = 100, category?: string): Promise<Document[]> {
+  async getDocuments(
+    familyHeadId: string,
+    page: number = 1,
+    limit: number = 100,
+    category?: string,
+  ): Promise<Document[]> {
     try {
       let url = `${API_BASE}/documents?familyHeadId=${familyHeadId}&page=${page}&limit=${limit}`
       if (category) {
@@ -332,11 +335,9 @@ class PlaceholderDocumentService implements DocumentService {
       }
 
       const data: any = await response.json()
-      if (!data.success) {
-        throw new Error(data.error || 'Failed to fetch documents')
-      }
-
-      return Array.isArray(data.data) ? data.data : []
+      if (data?.error) throw new Error(data.error)
+      const documents = data?.documents ?? data?.data
+      return Array.isArray(documents) ? documents : []
     } catch (error) {
       console.error('Error fetching documents:', error)
       return []
@@ -357,11 +358,9 @@ class PlaceholderDocumentService implements DocumentService {
       }
 
       const data = await response.json()
-      return { success: data.success !== false }
+      return { success: !data?.error }
     } catch (error) {
-      throw new Error(
-        error instanceof Error ? error.message : 'Failed to delete document'
-      )
+      throw new Error(error instanceof Error ? error.message : 'Failed to delete document')
     }
   }
 
@@ -371,12 +370,9 @@ class PlaceholderDocumentService implements DocumentService {
    */
   async downloadDocument(documentId: string): Promise<Blob> {
     try {
-      const response = await fetch(
-        `${API_BASE}/documents/${documentId}/download`,
-        {
-          method: 'GET',
-        }
-      )
+      const response = await fetch(`${API_BASE}/documents/${documentId}/download`, {
+        method: 'GET',
+      })
 
       if (!response.ok) {
         throw new Error(`Failed to download document: ${response.statusText}`)
@@ -384,9 +380,7 @@ class PlaceholderDocumentService implements DocumentService {
 
       return await response.blob()
     } catch (error) {
-      throw new Error(
-        error instanceof Error ? error.message : 'Failed to download document'
-      )
+      throw new Error(error instanceof Error ? error.message : 'Failed to download document')
     }
   }
 
@@ -400,12 +394,9 @@ class PlaceholderDocumentService implements DocumentService {
     }
 
     try {
-      const response = await fetch(
-        `${API_BASE}/documents/${document.id}/thumbnail`,
-        {
-          method: 'GET',
-        }
-      )
+      const response = await fetch(`${API_BASE}/documents/${document.id}/thumbnail`, {
+        method: 'GET',
+      })
 
       if (!response.ok) {
         throw new Error('Failed to generate thumbnail')

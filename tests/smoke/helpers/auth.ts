@@ -32,7 +32,9 @@ export async function loginForSmoke(page: Page) {
 
   if (page.url().includes('/login/verify-2fa')) {
     if (!config.backupCode) {
-      throw new Error('2FA verification is enabled for smoke user. Set SMOKE_2FA_BACKUP_CODE in secrets.')
+      throw new Error(
+        '2FA verification is enabled for smoke user. Set SMOKE_2FA_BACKUP_CODE in secrets.',
+      )
     }
 
     await page.getByRole('button', { name: 'Use backup code' }).click()

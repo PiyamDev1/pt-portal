@@ -26,9 +26,9 @@ type StoredArtifact = {
 function isMinioConfigured() {
   return Boolean(
     process.env.MINIO_ENDPOINT &&
-      process.env.MINIO_ACCESS_KEY &&
-      process.env.MINIO_SECRET_KEY &&
-      (process.env.ISSUE_REPORTS_MINIO_BUCKET_NAME || process.env.MINIO_BUCKET_NAME)
+    process.env.MINIO_ACCESS_KEY &&
+    process.env.MINIO_SECRET_KEY &&
+    (process.env.ISSUE_REPORTS_MINIO_BUCKET_NAME || process.env.MINIO_BUCKET_NAME),
   )
 }
 
@@ -36,7 +36,8 @@ function getStorageTarget(): { provider: 'r2' | 'minio'; bucket: string; client:
   if (isR2Configured()) {
     return {
       provider: 'r2',
-      bucket: process.env.ISSUE_REPORTS_R2_BUCKET_NAME || process.env.R2_BUCKET_NAME || 'portal-fallback',
+      bucket:
+        process.env.ISSUE_REPORTS_R2_BUCKET_NAME || process.env.R2_BUCKET_NAME || 'portal-fallback',
       client: getR2Client(),
     }
   }
@@ -44,7 +45,10 @@ function getStorageTarget(): { provider: 'r2' | 'minio'; bucket: string; client:
   if (isMinioConfigured()) {
     return {
       provider: 'minio',
-      bucket: process.env.ISSUE_REPORTS_MINIO_BUCKET_NAME || process.env.MINIO_BUCKET_NAME || 'portal-documents',
+      bucket:
+        process.env.ISSUE_REPORTS_MINIO_BUCKET_NAME ||
+        process.env.MINIO_BUCKET_NAME ||
+        'portal-documents',
       client: getS3Client(),
     }
   }
@@ -72,7 +76,7 @@ export async function uploadIssueArtifact(input: UploadArtifactInput): Promise<S
       Body: input.body,
       ContentType: input.contentType,
       ContentLength: input.body.length,
-    })
+    }),
   )
 
   return {
@@ -84,30 +88,38 @@ export async function uploadIssueArtifact(input: UploadArtifactInput): Promise<S
 }
 
 export async function deleteIssueArtifact(storageBucket: string, storageKey: string) {
-  const provider = storageBucket === (process.env.ISSUE_REPORTS_R2_BUCKET_NAME || process.env.R2_BUCKET_NAME || 'portal-fallback') && isR2Configured()
-    ? 'r2'
-    : 'minio'
+  const provider =
+    storageBucket ===
+      (process.env.ISSUE_REPORTS_R2_BUCKET_NAME ||
+        process.env.R2_BUCKET_NAME ||
+        'portal-fallback') && isR2Configured()
+      ? 'r2'
+      : 'minio'
   const client = provider === 'r2' ? getR2Client() : getS3Client()
 
   await client.send(
     new DeleteObjectCommand({
       Bucket: storageBucket,
       Key: storageKey,
-    })
+    }),
   )
 }
 
 export async function readIssueArtifact(storageBucket: string, storageKey: string) {
-  const provider = storageBucket === (process.env.ISSUE_REPORTS_R2_BUCKET_NAME || process.env.R2_BUCKET_NAME || 'portal-fallback') && isR2Configured()
-    ? 'r2'
-    : 'minio'
+  const provider =
+    storageBucket ===
+      (process.env.ISSUE_REPORTS_R2_BUCKET_NAME ||
+        process.env.R2_BUCKET_NAME ||
+        'portal-fallback') && isR2Configured()
+      ? 'r2'
+      : 'minio'
   const client = provider === 'r2' ? getR2Client() : getS3Client()
 
   const response = await client.send(
     new GetObjectCommand({
       Bucket: storageBucket,
       Key: storageKey,
-    })
+    }),
   )
 
   if (!response.Body) {

@@ -1,4 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
+import { toErrorMessage } from '@/lib/api/error'
+import { apiError, apiOk } from '@/lib/api/http'
 import { getDocumentStorageStatus } from '@/lib/documentStorageStatus'
 import { migrateFallbackBatch } from '@/lib/r2Migration'
 
@@ -15,16 +17,18 @@ function isAuthorizedCronRequest(request: NextRequest, bodyToken?: string) {
   return false
 }
 
-async function runScheduledMigration(request: NextRequest, body?: { token?: string; limit?: number }) {
+async function runScheduledMigration(
+  request: NextRequest,
+  body?: { token?: string; limit?: number },
+) {
   if (!isAuthorizedCronRequest(request, body?.token)) {
-    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+    return apiError('Unauthorized', 401)
   }
 
   try {
     const health = await getDocumentStorageStatus({ runMaintenance: false })
     if (!health.connected) {
-      return NextResponse.json({
-        success: true,
+      return apiOk({
         skipped: true,
         reason: 'Primary storage is offline',
       })
@@ -35,20 +39,13 @@ async function runScheduledMigration(request: NextRequest, body?: { token?: stri
     const limit = Math.max(1, Math.min(100, limitFromBody || limitFromQuery || 30))
     const result = await migrateFallbackBatch(limit, { trigger: 'cron' })
 
-    return NextResponse.json({
-      success: true,
+    return apiOk({
       skipped: false,
       result,
       timestamp: new Date().toISOString(),
     })
   } catch (error) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : 'Scheduled migration failed',
-      },
-      { status: 500 }
-    )
+    return apiError(toErrorMessage(error, 'Scheduled migration failed'), 500)
   }
 }
 

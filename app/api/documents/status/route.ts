@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { getDocumentStorageStatus } from '@/lib/documentStorageStatus'
+import { apiOk } from '@/lib/api/http'
 
 /**
  * GET /api/documents/status
@@ -8,9 +9,5 @@ import { getDocumentStorageStatus } from '@/lib/documentStorageStatus'
  */
 export async function GET(request: NextRequest) {
   const status = await getDocumentStorageStatus({ runMaintenance: true })
-
-  return NextResponse.json({
-    success: true,
-    status,
-  })
+  return apiOk({ status })
 }

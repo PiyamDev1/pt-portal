@@ -12,7 +12,7 @@ export interface AsyncState<T> {
 
 export function useAsync<T>(
   asyncFunction: () => Promise<T>,
-  immediate = true
+  immediate = true,
 ): AsyncState<T> & { execute: () => Promise<T> } {
   const [state, setState] = useState<AsyncState<T>>({
     data: null,

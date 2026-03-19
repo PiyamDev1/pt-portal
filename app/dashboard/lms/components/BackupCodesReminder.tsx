@@ -28,7 +28,7 @@ export function BackupCodesReminder({ userId, onDownloaded }: BackupCodesReminde
         // For now, we'll use localStorage to track this
         const downloaded = localStorage.getItem(`backup-codes-downloaded-${userId}`)
         setBackupCodesDownloaded(!!downloaded)
-        
+
         if (downloaded) {
           setHidden(true)
         }
@@ -63,8 +63,8 @@ export function BackupCodesReminder({ userId, onDownloaded }: BackupCodesReminde
       <div className="flex-1">
         <h3 className="font-bold text-amber-900 mb-1">Save Your Backup Codes</h3>
         <p className="text-sm text-amber-800 mb-3">
-          Backup codes are your only way to regain access to your account if you lose access to your authenticator app. 
-          Download and store them in a safe place now.
+          Backup codes are your only way to regain access to your account if you lose access to your
+          authenticator app. Download and store them in a safe place now.
         </p>
         <div className="flex gap-2">
           <a

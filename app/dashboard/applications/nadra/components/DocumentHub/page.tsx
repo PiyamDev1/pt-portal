@@ -4,13 +4,13 @@
  * Document Hub Page
  * Main document management interface for family-level document sharing
  * All applicants in the family can access shared documents
- * 
+ *
  * @page /dashboard/applications/nadra/documents/[familyHeadId]
  */
 
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { Document } from './types'
-import { documentService } from '@/lib/services/documentService'
+import { documentClient } from '@/lib/services/documentClient'
 import { MinioStatus } from './MinioStatus'
 import { DocumentUpload } from './DocumentUpload'
 import { DocumentGrid } from './DocumentGrid'
@@ -67,6 +67,36 @@ export function DocumentHub({
   const [totalPages, setTotalPages] = useState(1)
   const DOCS_PER_PAGE = 20
 
+  const categorizedDocuments = useMemo(
+    () => ({
+      main: documents.filter((document) => !document.category || document.category === 'general'),
+      review: documents.filter((document) => document.category === 'application-review'),
+      receipt: documents.filter((document) => document.category === 'receipt'),
+    }),
+    [documents],
+  )
+
+  const totalSizeLabel = useMemo(() => {
+    const totalBytes = documents.reduce((sum, document) => sum + document.fileSize, 0)
+    if (totalBytes === 0) return '0 KB'
+
+    const k = 1024
+    const sizes = ['B', 'KB', 'MB']
+    const i = Math.min(Math.floor(Math.log(totalBytes) / Math.log(k)), sizes.length - 1)
+    return Math.round((totalBytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i]
+  }, [documents])
+
+  const lastUploadLabel = useMemo(
+    () =>
+      documents.length > 0
+        ? new Date(documents[0].uploadedAt).toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+          })
+        : '-',
+    [documents],
+  )
+
   /**
    * Load documents on mount
    */
@@ -77,50 +107,50 @@ export function DocumentHub({
   /**
    * Load documents from service with pagination support
    */
-  const loadDocuments = useCallback(async (page: number = 1) => {
-    if (page === 1) {
-      setIsLoading(true)
-    } else {
-      setIsLoadingMore(true)
-    }
-    setError(null)
+  const loadDocuments = useCallback(
+    async (page: number = 1) => {
+      if (page === 1) {
+        setIsLoading(true)
+      } else {
+        setIsLoadingMore(true)
+      }
+      setError(null)
 
-    try {
-      const docs = await documentService.getDocuments(familyHeadId, page, DOCS_PER_PAGE)
-      if (page === 1) {
-        setDocuments(docs)
-      } else {
-        setDocuments(prev => [...prev, ...docs])
+      try {
+        const docs = await documentClient.getDocuments(familyHeadId, page, DOCS_PER_PAGE)
+        if (page === 1) {
+          setDocuments(docs)
+        } else {
+          setDocuments((prev) => [...prev, ...docs])
+        }
+        setCurrentPage(page)
+        // Calculate total pages based on response length
+        // If we get fewer docs than DOCS_PER_PAGE, we're on the last page
+        const isLastPage = docs.length < DOCS_PER_PAGE
+        setTotalPages(isLastPage ? page : page + 1)
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Failed to load documents'
+        setError(errorMessage)
+        console.error('Error loading documents:', err)
+      } finally {
+        if (page === 1) {
+          setIsLoading(false)
+        } else {
+          setIsLoadingMore(false)
+        }
       }
-      setCurrentPage(page)
-      // Calculate total pages based on response length
-      // If we get fewer docs than DOCS_PER_PAGE, we're on the last page
-      const isLastPage = docs.length < DOCS_PER_PAGE
-      setTotalPages(isLastPage ? page : page + 1)
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to load documents'
-      setError(errorMessage)
-      console.error('Error loading documents:', err)
-    } finally {
-      if (page === 1) {
-        setIsLoading(false)
-      } else {
-        setIsLoadingMore(false)
-      }
-    }
-  }, [familyHeadId])
+    },
+    [familyHeadId],
+  )
 
   /**
    * Handle successful upload
    */
-  const handleUploadSuccess = useCallback(
-    (newDocuments: Document[]) => {
-      setDocuments(prev => [...prev, ...newDocuments])
-      // Clear selected document after upload
-      setSelectedDocument(null)
-    },
-    []
-  )
+  const handleUploadSuccess = useCallback((newDocuments: Document[]) => {
+    setDocuments((prev) => [...prev, ...newDocuments])
+    // Clear selected document after upload
+    setSelectedDocument(null)
+  }, [])
 
   /**
    * Handle upload error
@@ -139,8 +169,8 @@ export function DocumentHub({
       setIsDeleting(true)
 
       try {
-        await documentService.deleteDocument(documentId)
-        setDocuments(prev => prev.filter(doc => doc.id !== documentId))
+        await documentClient.deleteDocument(documentId)
+        setDocuments((prev) => prev.filter((doc) => doc.id !== documentId))
         setSelectedDocument(null)
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Failed to delete document'
@@ -149,18 +179,43 @@ export function DocumentHub({
         setIsDeleting(false)
       }
     },
-    [isDeleting]
+    [isDeleting],
   )
 
   /**
    * Download document via presigned URL redirect
    */
-  const handleDownloadDocument = useCallback((documentId: string) => {
-    const doc = documents.find(d => d.id === documentId)
-    if (!doc) return
-    const encodedKey = encodeURIComponent(doc.minio.key)
-    window.open(`/api/documents/download?key=${encodedKey}`, '_blank')
-  }, [documents])
+  const handleDownloadDocument = useCallback(
+    async (documentId: string) => {
+      const doc = documents.find((d) => d.id === documentId)
+      if (!doc) return
+
+      try {
+        const response = await fetch(
+          `/api/documents/signed-url?key=${encodeURIComponent(doc.minio.key)}`,
+        )
+        const payload = await response.json().catch(() => ({}))
+
+        if (!response.ok || !payload?.url) {
+          throw new Error(payload?.error || 'Failed to generate download link')
+        }
+
+        const anchor = window.document.createElement('a')
+        anchor.href = payload.url
+        anchor.download = doc.fileName
+        anchor.target = '_blank'
+        anchor.rel = 'noopener noreferrer'
+        window.document.body.appendChild(anchor)
+        anchor.click()
+        anchor.remove()
+      } catch {
+        // Preserve legacy behavior if signed-url generation fails.
+        const encodedKey = encodeURIComponent(doc.minio.key)
+        window.open(`/api/documents/download?key=${encodedKey}`, '_blank', 'noopener,noreferrer')
+      }
+    },
+    [documents],
+  )
 
   /**
    * Dismiss error
@@ -182,10 +237,7 @@ export function DocumentHub({
             <p className="font-medium text-red-800">Error</p>
             <p className="text-sm text-red-700 mt-1">{error}</p>
           </div>
-          <button
-            onClick={dismissError}
-            className="flex-shrink-0 text-red-400 hover:text-red-600"
-          >
+          <button onClick={dismissError} className="flex-shrink-0 text-red-400 hover:text-red-600">
             ✕
           </button>
         </div>
@@ -197,7 +249,8 @@ export function DocumentHub({
         <p className="text-slate-600 text-sm mt-1">
           {customSubtitle || (
             <>
-              Manage documents shared by <span className="font-medium">{familyHeadName}</span> family
+              Manage documents shared by <span className="font-medium">{familyHeadName}</span>{' '}
+              family
             </>
           )}
         </p>
@@ -252,7 +305,9 @@ export function DocumentHub({
 
           {/* Categorized Grid Section - Scrollable */}
           <div className="flex-1 min-h-[240px] overflow-auto">
-            <h2 className="text-xl font-semibold text-slate-800 mb-4 sticky top-0 bg-slate-50 py-2 z-10">Your Documents</h2>
+            <h2 className="text-xl font-semibold text-slate-800 mb-4 sticky top-0 bg-slate-50 py-2 z-10">
+              Your Documents
+            </h2>
 
             {isLoading ? (
               <div className="flex items-center justify-center py-12">
@@ -264,64 +319,55 @@ export function DocumentHub({
             ) : (
               <div className="space-y-6 pb-4">
                 {/* Main Documents */}
-                {(() => {
-                  const mainDocs = documents.filter(d => !d.category || d.category === 'general')
-                  return mainDocs.length > 0 && (
-                    <div>
-                      <h3 className="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
-                        <span className="text-base">📁</span>
-                        Main Documents ({mainDocs.length})
-                      </h3>
-                      <DocumentGrid
-                        documents={mainDocs}
-                        isLoading={false}
-                        onSelectDocument={setSelectedDocument}
-                        onDelete={handleDeleteDocument}
-                        onDownload={handleDownloadDocument}
-                      />
-                    </div>
-                  )
-                })()}
+                {categorizedDocuments.main.length > 0 && (
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
+                      <span className="text-base">📁</span>
+                      Main Documents ({categorizedDocuments.main.length})
+                    </h3>
+                    <DocumentGrid
+                      documents={categorizedDocuments.main}
+                      isLoading={false}
+                      onSelectDocument={setSelectedDocument}
+                      onDelete={handleDeleteDocument}
+                      onDownload={handleDownloadDocument}
+                    />
+                  </div>
+                )}
 
                 {/* Application Reviews */}
-                {(() => {
-                  const reviewDocs = documents.filter(d => d.category === 'application-review')
-                  return reviewDocs.length > 0 && (
-                    <div>
-                      <h3 className="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
-                        <span className="text-base">📋</span>
-                        Application Reviews ({reviewDocs.length})
-                      </h3>
-                      <DocumentGrid
-                        documents={reviewDocs}
-                        isLoading={false}
-                        onSelectDocument={setSelectedDocument}
-                        onDelete={handleDeleteDocument}
-                        onDownload={handleDownloadDocument}
-                      />
-                    </div>
-                  )
-                })()}
+                {categorizedDocuments.review.length > 0 && (
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
+                      <span className="text-base">📋</span>
+                      Application Reviews ({categorizedDocuments.review.length})
+                    </h3>
+                    <DocumentGrid
+                      documents={categorizedDocuments.review}
+                      isLoading={false}
+                      onSelectDocument={setSelectedDocument}
+                      onDelete={handleDeleteDocument}
+                      onDownload={handleDownloadDocument}
+                    />
+                  </div>
+                )}
 
                 {/* Receipts */}
-                {(() => {
-                  const receiptDocs = documents.filter(d => d.category === 'receipt')
-                  return receiptDocs.length > 0 && (
-                    <div>
-                      <h3 className="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
-                        <span className="text-base">🧾</span>
-                        Receipts ({receiptDocs.length})
-                      </h3>
-                      <DocumentGrid
-                        documents={receiptDocs}
-                        isLoading={false}
-                        onSelectDocument={setSelectedDocument}
-                        onDelete={handleDeleteDocument}
-                        onDownload={handleDownloadDocument}
-                      />
-                    </div>
-                  )
-                })()}
+                {categorizedDocuments.receipt.length > 0 && (
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
+                      <span className="text-base">🧾</span>
+                      Receipts ({categorizedDocuments.receipt.length})
+                    </h3>
+                    <DocumentGrid
+                      documents={categorizedDocuments.receipt}
+                      isLoading={false}
+                      onSelectDocument={setSelectedDocument}
+                      onDelete={handleDeleteDocument}
+                      onDownload={handleDownloadDocument}
+                    />
+                  </div>
+                )}
 
                 {/* Empty state */}
                 {documents.length === 0 && (
@@ -355,27 +401,11 @@ export function DocumentHub({
             </div>
             <div>
               <p className="text-xs text-slate-600">Total Size</p>
-              <p className="text-lg font-semibold text-slate-800">
-                {(() => {
-                  const totalBytes = documents.reduce((sum, doc) => sum + doc.fileSize, 0)
-                  if (totalBytes === 0) return '0 KB'
-                  const k = 1024
-                  const sizes = ['B', 'KB', 'MB']
-                  const i = Math.min(Math.floor(Math.log(totalBytes) / Math.log(k)), sizes.length - 1)
-                  return Math.round((totalBytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i]
-                })()}
-              </p>
+              <p className="text-lg font-semibold text-slate-800">{totalSizeLabel}</p>
             </div>
             <div>
               <p className="text-xs text-slate-600">Last Upload</p>
-              <p className="text-lg font-semibold text-slate-800">
-                {documents.length > 0
-                  ? new Date(documents[0].uploadedAt).toLocaleDateString('en-US', {
-                      month: 'short',
-                      day: 'numeric',
-                    })
-                  : '-'}
-              </p>
+              <p className="text-lg font-semibold text-slate-800">{lastUploadLabel}</p>
             </div>
           </div>
         </div>

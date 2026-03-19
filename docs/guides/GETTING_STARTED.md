@@ -9,16 +9,17 @@ Choose your path below and follow the checklist:
 ## 👤 I'm a User - I Want to Use the Application
 
 ### ✅ Pre-Start Checklist
+
 - [ ] I have login credentials (email + password)
 - [ ] I have access to the PT-Portal application
 - [ ] I understand what PT-Portal does (travel services, passports, visas)
 
 ### 📚 Learning Path
+
 **Follow these in order:**
 
 1. **Read the Overview** (5 minutes)
    - [ ] Read [README.md](README.md) - Features section
-   
 2. **Learn the Dashboard** (10 minutes)
    - [ ] Open [USAGE_GUIDE.md](USAGE_GUIDE.md)
    - [ ] Read: Dashboard Overview section
@@ -43,6 +44,7 @@ Choose your path below and follow the checklist:
    - [ ] Contact your admin for help
 
 ### 🎓 You're Ready To!
+
 - [ ] Navigate the dashboard confidently
 - [ ] Complete your day-to-day tasks
 - [ ] Use search and filters effectively
@@ -54,7 +56,9 @@ Choose your path below and follow the checklist:
 ## 👨‍💻 I'm a Developer - I Want to Set Up Locally
 
 ### ✅ Prerequisites Checklist
+
 Before starting, you need:
+
 - [ ] **Windows/Mac/Linux computer** with admin access
 - [ ] **Visual Studio Code** (or your preferred editor)
 - [ ] **Internet connection** (stable)
@@ -65,12 +69,14 @@ Before starting, you need:
 **Choose your operating system:**
 
 #### Windows Users
+
 - [ ] Go to [WINDOWS_SETUP_GUIDE.md](WINDOWS_SETUP_GUIDE.md)
 - [ ] Follow "Prerequisites" section
 - [ ] Follow "Step 1-7" (Stop after "Running the Application")
 - [ ] **Verify**: Can access http://localhost:3000
 
 #### Mac Users
+
 - [ ] Install Node.js: [nodejs.org](https://nodejs.org/)
 - [ ] Install Git: [git-scm.com](https://git-scm.com/)
 - [ ] Open Terminal
@@ -78,6 +84,7 @@ Before starting, you need:
 - [ ] **Verify**: Can access http://localhost:3000
 
 #### Linux Users
+
 - [ ] Install Node.js via your package manager
 - [ ] Install Git via your package manager
 - [ ] Open Terminal
@@ -106,12 +113,14 @@ Before starting, you need:
 ### 🎯 First Task
 
 Pick one:
+
 - [ ] **Read code**: Open `app/dashboard/page.tsx` and understand its structure
 - [ ] **Create simple API**: Follow "Creating a New API Route" in [ARCHITECTURE_GUIDE.md](ARCHITECTURE_GUIDE.md)
 - [ ] **Fix a bug**: Check GitHub Issues for "good first issue"
 - [ ] **Add a feature**: Pick something small from your task list
 
 ### ✅ You're Ready To!
+
 - [ ] Start the dev server (`npm run dev`)
 - [ ] Make code changes and see them live
 - [ ] Understand the project structure
@@ -166,6 +175,7 @@ Pick one:
 ### 📋 Create Team Guidelines
 
 Create a document with:
+
 - [ ] Git workflow (branching strategy)
 - [ ] Code style (use existing linting config)
 - [ ] PR review process
@@ -176,6 +186,7 @@ Create a document with:
 ### 🚀 Deployment Checklist
 
 Before going live:
+
 - [ ] All tests pass
 - [ ] Code reviewed and approved
 - [ ] Staging environment tested
@@ -220,16 +231,19 @@ Before going live:
 ## ✨ I Want to Contribute - How to Get Started
 
 ### 1. Find Something to Work On
+
 - [ ] Check [GitHub Issues](https://github.com/PiyamDev1/pt-portal/issues)
 - [ ] Look for "good first issue" label
 - [ ] Or suggest your own improvement
 
 ### 2. Set Up Locally
+
 - [ ] Follow Developer checklist above
 - [ ] Get the code running locally
 - [ ] Verify dev server works
 
 ### 3. Create Feature Branch
+
 ```bash
 git checkout -b feature/my-feature
 # or
@@ -237,12 +251,14 @@ git checkout -b fix/my-bug
 ```
 
 ### 4. Make Changes
+
 - [ ] Write your code
 - [ ] Test it locally (`npm run dev`)
 - [ ] Check for errors (`npm run lint`)
 - [ ] Format code (`npm run format`)
 
 ### 5. Commit & Push
+
 ```bash
 git add .
 git commit -m "Add my feature"
@@ -250,6 +266,7 @@ git push origin feature/my-feature
 ```
 
 ### 6. Create Pull Request
+
 - [ ] Go to GitHub
 - [ ] Click "New Pull Request"
 - [ ] Describe what you changed
@@ -257,11 +274,13 @@ git push origin feature/my-feature
 - [ ] Request review
 
 ### 7. Address Feedback
+
 - [ ] Make requested changes
 - [ ] Push updates
 - [ ] Re-request review
 
 ### 8. Celebrate! 🎉
+
 - [ ] Your code is merged
 - [ ] You're now a contributor!
 
@@ -298,14 +317,14 @@ git push origin feature/my-feature
 
 ## 📞 Still Need Help?
 
-| Issue | Solution |
-|-------|----------|
-| **Setup stuck** | Read [WINDOWS_SETUP_GUIDE.md](WINDOWS_SETUP_GUIDE.md#-common-issues--solutions) |
-| **Don't understand code** | Read [ARCHITECTURE_GUIDE.md](ARCHITECTURE_GUIDE.md) |
-| **App won't start** | Check [QUICK_REFERENCE.md](QUICK_REFERENCE.md#-quick-troubleshooting) |
-| **Have a question** | Ask in GitHub Discussions or email support |
-| **Found a bug** | Create GitHub Issue with details |
-| **Want to contribute** | Follow "I Want to Contribute" section above |
+| Issue                     | Solution                                                                        |
+| ------------------------- | ------------------------------------------------------------------------------- |
+| **Setup stuck**           | Read [WINDOWS_SETUP_GUIDE.md](WINDOWS_SETUP_GUIDE.md#-common-issues--solutions) |
+| **Don't understand code** | Read [ARCHITECTURE_GUIDE.md](ARCHITECTURE_GUIDE.md)                             |
+| **App won't start**       | Check [QUICK_REFERENCE.md](QUICK_REFERENCE.md#-quick-troubleshooting)           |
+| **Have a question**       | Ask in GitHub Discussions or email support                                      |
+| **Found a bug**           | Create GitHub Issue with details                                                |
+| **Want to contribute**    | Follow "I Want to Contribute" section above                                     |
 
 ---
 
@@ -314,18 +333,21 @@ git push origin feature/my-feature
 After completing your checklist:
 
 ### Users
+
 - [ ] Can log in successfully
 - [ ] Understand where to find features
 - [ ] Know how to complete your tasks
 - [ ] Know who to ask for help
 
 ### Developers
+
 - [ ] Project runs locally
 - [ ] Understand project structure
 - [ ] Can write and test code
 - [ ] Know how to create PRs
 
 ### Team Leads
+
 - [ ] Team set up and trained
 - [ ] Deployment process documented
 - [ ] Monitoring in place

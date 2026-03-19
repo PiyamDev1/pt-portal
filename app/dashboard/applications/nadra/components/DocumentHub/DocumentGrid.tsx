@@ -4,7 +4,7 @@
  * Document Grid Component
  * Displays documents as a responsive grid with thumbnails
  * Shows file metadata and hover actions
- * 
+ *
  * @component
  */
 
@@ -50,9 +50,7 @@ export interface DocumentGridProps {
  * Skeleton loader for grid items
  */
 function DocumentSkeleton() {
-  return (
-    <div className="rounded-lg overflow-hidden bg-slate-200 animate-pulse aspect-square" />
-  )
+  return <div className="rounded-lg overflow-hidden bg-slate-200 animate-pulse aspect-square" />
 }
 
 function PdfThumbnail({ src, alt }: { src: string; alt: string }) {
@@ -123,9 +121,7 @@ function PdfThumbnail({ src, alt }: { src: string; alt: string }) {
 
   if (failed) {
     return (
-      <div className="w-full h-full flex items-center justify-center text-4xl bg-slate-100">
-        📄
-      </div>
+      <div className="w-full h-full flex items-center justify-center text-4xl bg-slate-100">📄</div>
     )
   }
 
@@ -163,7 +159,7 @@ function DocumentGridItem({
     const k = 1024
     const sizes = ['B', 'KB', 'MB']
     const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i]
+    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i]
   }
 
   // Format date
@@ -265,7 +261,10 @@ function DocumentGridItem({
 
       {/* File Info */}
       <div className="p-3">
-        <h4 className="text-sm font-medium text-slate-800 truncate hover:text-clip" title={document.fileName}>
+        <h4
+          className="text-sm font-medium text-slate-800 truncate hover:text-clip"
+          title={document.fileName}
+        >
           {document.fileName}
         </h4>
 
@@ -327,9 +326,7 @@ export function DocumentGrid({
       <div className={`text-center py-12 ${className}`}>
         <FileText className="w-12 h-12 text-slate-300 mx-auto mb-3" />
         <h3 className="font-medium text-slate-700 mb-1">No documents yet</h3>
-        <p className="text-sm text-slate-500">
-          Upload documents to get started
-        </p>
+        <p className="text-sm text-slate-500">Upload documents to get started</p>
       </div>
     )
   }
@@ -339,10 +336,8 @@ export function DocumentGrid({
       className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 ${className}`}
     >
       {isLoading
-        ? Array.from({ length: itemCount }).map((_, i) => (
-            <DocumentSkeleton key={i} />
-          ))
-        : documents.map(doc => (
+        ? Array.from({ length: itemCount }).map((_, i) => <DocumentSkeleton key={i} />)
+        : documents.map((doc) => (
             <DocumentGridItem
               key={doc.id}
               document={doc}

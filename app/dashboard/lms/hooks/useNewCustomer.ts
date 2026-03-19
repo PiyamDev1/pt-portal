@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { toast } from 'sonner'
 import type { PaymentMethod, CustomerForm } from '../types'
 import { API_ENDPOINTS } from '../constants'
-import { handleApiError, formatErrorForDisplay } from '@/app/lib/errorHandler'
+import { handleApiError, formatErrorForDisplay } from '@/lib/errorHandler'
 
 interface TransactionForm {
   amount: string
@@ -25,14 +25,14 @@ export function useNewCustomer({ onSave, onClose, employeeId }: UseNewCustomerPa
     lastName: '',
     phone: '',
     email: '',
-    address: ''
+    address: '',
   })
   const [addTransaction, setAddTransaction] = useState(false)
   const [txForm, setTxForm] = useState<TransactionForm>({
     amount: '',
     type: 'service',
     paymentMethodId: '',
-    notes: ''
+    notes: '',
   })
   const [methods, setMethods] = useState<PaymentMethod[]>([])
   const [loading, setLoading] = useState(false)
@@ -40,8 +40,8 @@ export function useNewCustomer({ onSave, onClose, employeeId }: UseNewCustomerPa
   // Fetch payment methods on mount
   useEffect(() => {
     fetch(API_ENDPOINTS.PAYMENT_METHODS)
-      .then(r => r.json())
-      .then(d => {
+      .then((r) => r.json())
+      .then((d) => {
         setMethods(d.methods || [])
       })
       .catch((err) => {
@@ -52,11 +52,11 @@ export function useNewCustomer({ onSave, onClose, employeeId }: UseNewCustomerPa
 
   // Memoized form update handlers
   const updateForm = useCallback((updates: Partial<CustomerForm>) => {
-    setForm(prev => ({ ...prev, ...updates }))
+    setForm((prev) => ({ ...prev, ...updates }))
   }, [])
 
   const updateTxForm = useCallback((updates: Partial<TransactionForm>) => {
-    setTxForm(prev => ({ ...prev, ...updates }))
+    setTxForm((prev) => ({ ...prev, ...updates }))
   }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -75,8 +75,8 @@ export function useNewCustomer({ onSave, onClose, employeeId }: UseNewCustomerPa
           action: 'create_customer',
           ...form,
           employeeId,
-          initialTransaction: addTransaction ? txForm : null
-        })
+          initialTransaction: addTransaction ? txForm : null,
+        }),
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
@@ -102,6 +102,6 @@ export function useNewCustomer({ onSave, onClose, employeeId }: UseNewCustomerPa
     updateTxForm,
     methods,
     loading,
-    handleSubmit
+    handleSubmit,
   }
 }

@@ -15,6 +15,7 @@ npm run dev
 Navigate to: `http://localhost:3000/dashboard/applications/nadra`
 
 **Test Checklist:**
+
 - [ ] Nadra page loads without errors
 - [ ] Document icon (📄) visible in table actions
 - [ ] Click document icon navigates to documents page
@@ -23,12 +24,14 @@ Navigate to: `http://localhost:3000/dashboard/applications/nadra`
 ### Phase 2: Component Interaction
 
 **MinIO Status Component**
+
 - [ ] Status bar displays on page load
 - [ ] Automatic polling starts (check network tab -> documents/status)
 - [ ] Manual refresh button works
 - [ ] Status updates every 5 minutes
 
 **Document Upload Component**
+
 - [ ] Drag-and-drop zone displays
 - [ ] "Browse files" button works
 - [ ] File picker opens
@@ -40,6 +43,7 @@ Navigate to: `http://localhost:3000/dashboard/applications/nadra`
 - [ ] Success message appears after upload
 
 **Document Grid Component**
+
 - [ ] Empty state displays when no documents
 - [ ] Grid is responsive:
   - [ ] Mobile: 1 column
@@ -49,6 +53,7 @@ Navigate to: `http://localhost:3000/dashboard/applications/nadra`
 - [ ] Loading skeleton displays when loading
 
 **Document Preview Panel**
+
 - [ ] Empty state displays when no selection
 - [ ] Clicking grid item selects and previews
 - [ ] File metadata displays (name, size, date)
@@ -59,12 +64,14 @@ Navigate to: `http://localhost:3000/dashboard/applications/nadra`
 ### Phase 3: Navigation & Integration
 
 **Nadra Table Integration**
+
 - [ ] Document icon appears in table
 - [ ] Document icon is purple (color-coded)
 - [ ] Positioned correctly in actions column
 - [ ] Click navigates to documents page with correct applicant ID
 
 **Page Navigation**
+
 - [ ] Back to Nadra Services link works
 - [ ] URL shows correct applicant ID
 - [ ] Breadcrumb displays correctly
@@ -80,6 +87,7 @@ Test on different screen sizes:
 ```
 
 **Checklist:**
+
 - [ ] DocumentHub layout adapts:
   - [ ] Desktop: 2-column (upload/grid + preview)
   - [ ] Mobile: Single column
@@ -93,12 +101,14 @@ Test on different screen sizes:
 Test error scenarios:
 
 **File Upload Errors**
+
 - [ ] File size validation error message
-- [ ] File type validation error message  
+- [ ] File type validation error message
 - [ ] Missing applicant ID error
 - [ ] Network error (simulate with Network tab in DevTools)
 
 **MinIO Connection Errors**
+
 - [ ] Status shows "Offline" when unreachable
 - [ ] Error message displays
 - [ ] Retry logic works (watch Network tab)
@@ -111,6 +121,7 @@ Test error scenarios:
 ### Test Case 1: Basic Upload Flow
 
 **Steps:**
+
 1. Navigate to Nadra Applications
 2. Click document icon for any applicant
 3. Wait for page to load (should see "Loading documents...")
@@ -125,11 +136,13 @@ Test error scenarios:
 ### Test Case 2: File Validation
 
 **Steps:**
+
 1. Try to upload file larger than 1.5 MB
 2. Try to upload .exe file
 3. Try to upload valid .pdf file
 
 **Expected Results:**
+
 - [ ] Large file: Error "File size exceeds maximum"
 - [ ] Invalid type: Error "File type not supported"
 - [ ] Valid file: Uploads and shows in grid
@@ -137,6 +150,7 @@ Test error scenarios:
 ### Test Case 3: Document Preview
 
 **Steps:**
+
 1. Upload an image file
 2. Click on thumbnail in grid
 3. Verify preview shows in right panel
@@ -145,6 +159,7 @@ Test error scenarios:
 6. Click delete with confirmation
 
 **Expected Results:**
+
 - [ ] Preview displays correctly
 - [ ] Zoom buttons work
 - [ ] Download button appears
@@ -154,6 +169,7 @@ Test error scenarios:
 ### Test Case 4: Responsive Layout
 
 **Steps:**
+
 1. Open page in desktop view
 2. Verify 2-column layout (70% / 30%)
 3. Resize to tablet (768px)
@@ -162,6 +178,7 @@ Test error scenarios:
 6. Verify mobile optimizations
 
 **Expected Results:**
+
 - [ ] Layout adapts at each breakpoint
 - [ ] No overflow/clipping
 - [ ] Touch targets adequate size
@@ -169,6 +186,7 @@ Test error scenarios:
 ### Test Case 5: Navigation
 
 **Steps:**
+
 1. From Nadra table, click document icon
 2. Verify URL: `/dashboard/applications/nadra/documents/[applicantId]`
 3. Verify applicant name displays
@@ -176,6 +194,7 @@ Test error scenarios:
 5. Verify returns to Nadra table
 
 **Expected Results:**
+
 - [ ] Correct applicant displayed
 - [ ] URL contains applicant ID
 - [ ] Back button returns to Nadra
@@ -185,11 +204,13 @@ Test error scenarios:
 ## 🔧 Browser DevTools Testing
 
 ### Network Tab
+
 - [ ] MinIO status check request: `/api/documents/status`
 - [ ] List documents request: `/api/documents?applicantId=...`
 - [ ] Upload request: `/api/documents/upload` (returns 501 by default)
 
 **Expected Responses:**
+
 ```json
 // GET /api/documents/status
 {
@@ -225,12 +246,14 @@ Test error scenarios:
 ```
 
 ### Console Tab
+
 - [ ] No TypeScript errors
 - [ ] No console errors
 - [ ] No warnings except deprecation warnings
 - [ ] Status check polling messages (if debugging enabled)
 
 ### Elements Tab
+
 - [ ] Correct HTML structure
 - [ ] Accessible ARIA labels
 - [ ] Semantic HTML used
@@ -241,12 +264,14 @@ Test error scenarios:
 ## 🎨 Visual Testing
 
 ### Design Consistency
+
 - [ ] Colors match Tailwind scheme (blues, purples, grays)
 - [ ] Spacing/padding consistent across components
 - [ ] Icons render correctly
 - [ ] Typography hierarchy clear
 
 ### Component States
+
 - [ ] Normal state
 - [ ] Hover state (buttons, grid items)
 - [ ] Active state (selected items)
@@ -256,6 +281,7 @@ Test error scenarios:
 - [ ] Empty state (no documents)
 
 ### Accessibility
+
 - [ ] Keyboard navigation works
 - [ ] Tab order is logical
 - [ ] Focus styles visible
@@ -272,13 +298,14 @@ Test error scenarios:
 ```bash
 # Core Web Vitals
 # LCP (Largest Contentful Paint): < 2.5s
-# FID (First Input Delay): < 100ms  
+# FID (First Input Delay): < 100ms
 # CLS (Cumulative Layout Shift): < 0.1
 ```
 
 ### Tools
 
 **Lighthouse**
+
 1. Open DevTools → Lighthouse
 2. Click "Analyze page load"
 3. Review scores for:
@@ -287,11 +314,13 @@ Test error scenarios:
    - [ ] Best Practices (90+)
 
 **Web Vitals**
+
 1. Install extension: Web Vitals
 2. Visit page
 3. Check metrics in extension popup
 
 ### Performance Checklist
+
 - [ ] Page loads in < 2s
 - [ ] MinIO status check doesn't block UI
 - [ ] Upload doesn't freeze interface
@@ -356,7 +385,8 @@ If you find issues during testing:
 **Severity**: [Error/Warning/Minor]
 
 **Steps to Reproduce**:
-1. 
+
+1.
 2.
 3.
 
@@ -372,6 +402,7 @@ If you find issues during testing:
 ## 🚀 Ready for Backend Integration?
 
 All components have passed frontend testing when:
+
 - ✅ No console errors
 - ✅ All interactions work as expected
 - ✅ Responsive design verified

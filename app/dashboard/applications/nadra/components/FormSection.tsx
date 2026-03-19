@@ -1,3 +1,5 @@
+import type { ChangeEvent } from 'react'
+
 interface FormData {
   familyHeadName: string
   familyHeadCnic: string
@@ -18,7 +20,7 @@ interface FormSectionProps {
   isSubmitting: boolean
   serviceTypeOptions: string[]
   serviceOptionOptions: string[]
-  onInputChange: (e: any) => void
+  onInputChange: (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => void
   onSubmit: () => void
   onToggle: () => void
 }
@@ -31,12 +33,14 @@ export default function FormSection({
   serviceOptionOptions,
   onInputChange,
   onSubmit,
-  onToggle
+  onToggle,
 }: FormSectionProps) {
   return (
     <>
       <div className="flex justify-between items-center">
-        <h3 className="font-bold text-slate-700 uppercase text-xs tracking-widest">Application Ledger</h3>
+        <h3 className="font-bold text-slate-700 uppercase text-xs tracking-widest">
+          Application Ledger
+        </h3>
         <button
           onClick={onToggle}
           className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-green-700 transition flex items-center gap-2 text-sm"
@@ -50,7 +54,9 @@ export default function FormSection({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             {/* Left Column: Hierarchy & Applicant */}
             <div className="space-y-4">
-              <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest">1. Hierarchy</h4>
+              <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest">
+                1. Hierarchy
+              </h4>
               <div className="space-y-2">
                 <input
                   name="familyHeadName"
@@ -76,7 +82,9 @@ export default function FormSection({
               </div>
 
               <div className="pt-2 space-y-2">
-                <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest">2. Applicant</h4>
+                <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest">
+                  2. Applicant
+                </h4>
                 <label className="flex items-center gap-2 text-xs text-slate-600">
                   <input
                     type="checkbox"
@@ -116,10 +124,14 @@ export default function FormSection({
 
             {/* Right Column: Service & Credentials */}
             <div className="space-y-4">
-              <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest">3. Service & Urgency</h4>
+              <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest">
+                3. Service & Urgency
+              </h4>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-[10px] text-slate-400 font-bold uppercase mb-1 block">Service Type</label>
+                  <label className="text-[10px] text-slate-400 font-bold uppercase mb-1 block">
+                    Service Type
+                  </label>
                   <select
                     name="serviceType"
                     value={formData.serviceType}
@@ -127,12 +139,16 @@ export default function FormSection({
                     className="w-full p-2 border rounded text-sm bg-white"
                   >
                     {serviceTypeOptions.map((serviceType) => (
-                      <option key={serviceType} value={serviceType}>{serviceType}</option>
+                      <option key={serviceType} value={serviceType}>
+                        {serviceType}
+                      </option>
                     ))}
                   </select>
                 </div>
                 <div>
-                  <label className="text-[10px] text-slate-400 font-bold uppercase mb-1 block">Service Option</label>
+                  <label className="text-[10px] text-slate-400 font-bold uppercase mb-1 block">
+                    Service Option
+                  </label>
                   <select
                     name="serviceOption"
                     value={formData.serviceOption}
@@ -140,14 +156,18 @@ export default function FormSection({
                     className="w-full p-2 border rounded text-sm bg-white font-medium"
                   >
                     {serviceOptionOptions.map((serviceOption) => (
-                      <option key={serviceOption} value={serviceOption}>{serviceOption}</option>
+                      <option key={serviceOption} value={serviceOption}>
+                        {serviceOption}
+                      </option>
                     ))}
                   </select>
                 </div>
               </div>
 
               <div className="pt-2 space-y-4">
-                <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest">4. Access Credentials</h4>
+                <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest">
+                  4. Access Credentials
+                </h4>
                 <div className="flex gap-2">
                   <input
                     name="trackingNumber"

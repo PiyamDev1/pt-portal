@@ -23,7 +23,7 @@ export function ApplicantSection({
   onPassportChange,
   onNameChange,
   onDobChange,
-  onNationalityChange
+  onNationalityChange,
 }: ApplicantSectionProps) {
   return (
     <div className="space-y-4">
@@ -37,23 +37,14 @@ export function ApplicantSection({
           uppercase
           mono
         />
-        <FormInputField
-          label="Full Name"
-          value={name}
-          onChange={onNameChange}
-        />
+        <FormInputField label="Full Name" value={name} onChange={onNameChange} />
         <div className="grid grid-cols-2 gap-3">
-          <FormInputField
-            label="Date of Birth"
-            value={dob}
-            onChange={onDobChange}
-            type="date"
-          />
+          <FormInputField label="Date of Birth" value={dob} onChange={onDobChange} type="date" />
           <FormSelectField
             label="Nationality"
             value={nationality}
             onChange={onNationalityChange}
-            options={nationalityOptions.map(n => ({ value: n, label: n }))}
+            options={nationalityOptions.map((n) => ({ value: n, label: n }))}
             placeholder="Select nationality..."
             variant="purple"
             icon={<Globe className="w-3 h-3" />}

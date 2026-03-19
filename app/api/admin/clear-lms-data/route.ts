@@ -1,11 +1,12 @@
 import { createClient } from '@supabase/supabase-js'
-import { NextResponse } from 'next/server'
+import { toErrorMessage } from '@/lib/api/error'
+import { apiError, apiOk } from '@/lib/api/http'
 
 export async function POST(request: Request) {
   try {
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
     )
 
     // Clear all LMS data in the correct order (respecting foreign keys)
@@ -25,19 +26,15 @@ export async function POST(request: Request) {
         .neq('id', '00000000-0000-0000-0000-000000000000') // Delete all
 
       if (error) {
-        console.log(`Cleared ${table}`)
+        return apiError(`Failed to clear ${table}`, 500)
       }
     }
 
-    return NextResponse.json({ 
-      success: true, 
-      message: 'All LMS data cleared successfully. You can now add data from scratch.'
+    return apiOk({
+      clearedTables: tables,
+      clearedTableCount: tables.length,
     })
-  } catch (error: any) {
-    console.error('Error clearing LMS data:', error)
-    return NextResponse.json({ 
-      success: false, 
-      error: error.message 
-    }, { status: 500 })
+  } catch (error) {
+    return apiError(toErrorMessage(error, 'Failed to clear LMS data'), 500)
   }
 }

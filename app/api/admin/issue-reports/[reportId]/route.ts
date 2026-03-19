@@ -1,26 +1,27 @@
-import { NextResponse } from 'next/server'
 import { verifyMasterAdminSession } from '@/lib/issueReportAuth'
 import { getSupabaseClient } from '@/lib/supabaseClient'
 import { normalizeStatus } from '@/lib/issueReportUtils'
 import { readIssueArtifact } from '@/lib/issueReportStorage'
+import { apiError, apiOk } from '@/lib/api/http'
+import { toErrorMessage } from '@/lib/api/error'
 
 const ARTIFACT_RETENTION_DAYS = 30
 
 export async function GET(_: Request, context: { params: Promise<{ reportId: string }> }) {
   const auth = await verifyMasterAdminSession()
   if (!auth.authorized) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status })
+    return apiError(auth.error ?? 'Unauthorized', auth.status)
   }
 
   const { reportId } = await context.params
   const supabase = getSupabaseClient()
 
-  const [{ data: report, error: reportError }, { data: artifacts, error: artifactsError }, { data: events, error: eventsError }] = await Promise.all([
-    supabase
-      .from('issue_reports')
-      .select('*')
-      .eq('id', reportId)
-      .single(),
+  const [
+    { data: report, error: reportError },
+    { data: artifacts, error: artifactsError },
+    { data: events, error: eventsError },
+  ] = await Promise.all([
+    supabase.from('issue_reports').select('*').eq('id', reportId).single(),
     supabase
       .from('issue_report_artifacts')
       .select('*')
@@ -34,11 +35,14 @@ export async function GET(_: Request, context: { params: Promise<{ reportId: str
   ])
 
   if (reportError || !report) {
-    return NextResponse.json({ error: reportError?.message || 'Issue report not found' }, { status: 404 })
+    return apiError(reportError?.message || 'Issue report not found', 404)
   }
 
   if (artifactsError || eventsError) {
-    return NextResponse.json({ error: artifactsError?.message || eventsError?.message || 'Failed to load issue report details' }, { status: 500 })
+    return apiError(
+      artifactsError?.message || eventsError?.message || 'Failed to load issue report details',
+      500,
+    )
   }
 
   const artifactRows = (artifacts || []) as Array<{
@@ -49,24 +53,33 @@ export async function GET(_: Request, context: { params: Promise<{ reportId: str
     storage_key: string
   }>
 
-  const screenshotArtifact = artifactRows.find((artifact) => artifact.artifact_type === 'screenshot' && !artifact.deleted_at)
-  const consoleArtifact = artifactRows.find((artifact) => artifact.artifact_type === 'console_log' && !artifact.deleted_at)
+  const screenshotArtifact = artifactRows.find(
+    (artifact) => artifact.artifact_type === 'screenshot' && !artifact.deleted_at,
+  )
+  const consoleArtifact = artifactRows.find(
+    (artifact) => artifact.artifact_type === 'console_log' && !artifact.deleted_at,
+  )
 
   let consoleEntries: unknown[] = []
   if (consoleArtifact) {
     try {
-      const content = await readIssueArtifact(consoleArtifact.storage_bucket, consoleArtifact.storage_key)
+      const content = await readIssueArtifact(
+        consoleArtifact.storage_bucket,
+        consoleArtifact.storage_key,
+      )
       consoleEntries = JSON.parse(content.body.toString('utf8'))
     } catch (error) {
       console.error('Failed to load console artifact:', error)
     }
   }
 
-  return NextResponse.json({
+  return apiOk({
     report,
     artifacts: artifactRows,
     events: events || [],
-    screenshotUrl: screenshotArtifact ? `/api/admin/issue-reports/${reportId}/artifacts/${screenshotArtifact.id}` : null,
+    screenshotUrl: screenshotArtifact
+      ? `/api/admin/issue-reports/${reportId}/artifacts/${screenshotArtifact.id}`
+      : null,
     consoleEntries,
   })
 }
@@ -74,7 +87,7 @@ export async function GET(_: Request, context: { params: Promise<{ reportId: str
 export async function PATCH(request: Request, context: { params: Promise<{ reportId: string }> }) {
   const auth = await verifyMasterAdminSession()
   if (!auth.authorized) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status })
+    return apiError(auth.error ?? 'Unauthorized', auth.status)
   }
 
   const { reportId } = await context.params
@@ -82,18 +95,21 @@ export async function PATCH(request: Request, context: { params: Promise<{ repor
   const hasStatus = typeof body?.status === 'string' && body.status.trim().length > 0
   const status = hasStatus ? normalizeStatus(body?.status) : null
   const hasAssignment = Object.prototype.hasOwnProperty.call(body || {}, 'assignedToUserId')
-  const assignedToUserId = hasAssignment ? (body?.assignedToUserId || null) : undefined
-  const adminNote = String(body?.adminNote || '').trim().slice(0, 2000)
+  const assignedToUserId = hasAssignment ? body?.assignedToUserId || null : undefined
+  const adminNote = String(body?.adminNote || '')
+    .trim()
+    .slice(0, 2000)
 
   if (!hasStatus && !hasAssignment) {
-    return NextResponse.json({ error: 'No status or assignment update was provided.' }, { status: 400 })
+    return apiError('No status or assignment update was provided.', 400)
   }
 
   const now = new Date()
   const solvedAt = status === 'solved' ? now.toISOString() : null
-  const artifactPurgeAfter = status === 'solved'
-    ? new Date(now.getTime() + ARTIFACT_RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString()
-    : null
+  const artifactPurgeAfter =
+    status === 'solved'
+      ? new Date(now.getTime() + ARTIFACT_RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString()
+      : null
   const closedAt = status === 'closed' ? now.toISOString() : null
 
   const updates: Record<string, unknown> = {
@@ -121,8 +137,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ repor
   }
 
   const supabase = getSupabaseClient()
-  const issueReportsTable = supabase.from('issue_reports') as any
-  const issueReportEventsTable = supabase.from('issue_report_events') as any
+  const issueReportsTable = supabase.from('issue_reports')
+  const issueReportEventsTable = supabase.from('issue_report_events')
 
   const { data, error } = await issueReportsTable
     .update(updates)
@@ -131,13 +147,18 @@ export async function PATCH(request: Request, context: { params: Promise<{ repor
     .single()
 
   if (error || !data) {
-    return NextResponse.json({ error: error?.message || 'Failed to update ticket status' }, { status: 500 })
+    return apiError(error?.message || 'Failed to update ticket status', 500)
   }
 
   await issueReportEventsTable.insert({
     ticket_id: reportId,
     actor_user_id: auth.user?.id || null,
-    action: hasStatus && hasAssignment ? 'status_and_assignment_changed' : hasStatus ? 'status_changed' : 'assignment_changed',
+    action:
+      hasStatus && hasAssignment
+        ? 'status_and_assignment_changed'
+        : hasStatus
+          ? 'status_changed'
+          : 'assignment_changed',
     details: {
       status,
       assignedToUserId: hasAssignment ? assignedToUserId : undefined,
@@ -146,5 +167,9 @@ export async function PATCH(request: Request, context: { params: Promise<{ repor
     },
   })
 
-  return NextResponse.json({ ok: true, report: data })
+  return apiOk({
+    reportId: data.id,
+    status: data.status,
+    updatedAt: data.updated_at,
+  })
 }

@@ -36,7 +36,7 @@ export async function probeMinio(): Promise<ProbeResult> {
     const s3Client = getS3Client()
     await runWithTimeout(
       s3Client.send(new HeadBucketCommand({ Bucket: MINIO_BUCKET })),
-      STATUS_TIMEOUT_MS
+      STATUS_TIMEOUT_MS,
     )
     return { connected: true, ping: Math.round(performance.now() - start) }
   } catch (error) {
@@ -58,7 +58,7 @@ export async function probeR2(): Promise<ProbeResult> {
     const r2Client = getR2Client()
     await runWithTimeout(
       r2Client.send(new HeadBucketCommand({ Bucket: R2_BUCKET })),
-      STATUS_TIMEOUT_MS
+      STATUS_TIMEOUT_MS,
     )
     return { connected: true, ping: Math.round(performance.now() - start) }
   } catch (error) {
@@ -87,7 +87,7 @@ async function ensureCorsPolicy() {
             },
           ],
         },
-      })
+      }),
     )
   } catch {
     // Non-fatal — the bucket may already have CORS configured.
@@ -115,11 +115,7 @@ export async function getDocumentStorageStatus(options?: { runMaintenance?: bool
     ping: minio.ping,
     timestamp: new Date().toISOString(),
     endpoint: MINIO_ENDPOINT,
-    mode: minio.connected
-      ? 'primary'
-      : uploadOnlyFallback
-        ? 'fallback-upload-only'
-        : 'offline',
+    mode: minio.connected ? 'primary' : uploadOnlyFallback ? 'fallback-upload-only' : 'offline',
     fallback: {
       configured: isR2Configured(),
       connected: r2.connected,

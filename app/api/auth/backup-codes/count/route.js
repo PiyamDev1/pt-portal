@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
-import { NextResponse } from 'next/server'
+import { apiError, apiOk } from '@/lib/api/http'
+import { toErrorMessage } from '@/lib/api/error'
 
 export const dynamic = 'force-dynamic'
 
@@ -10,7 +11,7 @@ const getSupabaseAdmin = () => {
     throw new Error('Missing Supabase credentials')
   }
   return createClient(supabaseUrl, serviceKey, {
-    auth: { autoRefreshToken: false, persistSession: false }
+    auth: { autoRefreshToken: false, persistSession: false },
   })
 }
 
@@ -22,7 +23,7 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url)
     const userId = searchParams.get('userId')
 
-    if (!userId) return NextResponse.json({ error: 'userId required' }, { status: 400 })
+    if (!userId) return apiError('userId required', 400)
 
     const { data, error } = await supabaseAdmin
       .from('backup_codes')
@@ -32,13 +33,12 @@ export async function GET(request) {
 
     if (error) {
       // Return 0 if table is missing (to prevent crashing before migration)
-      if (error.code === '42P01') return NextResponse.json({ count: 0 })
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      if (error.code === '42P01') return apiOk({ count: 0 })
+      return apiError(error.message, 500)
     }
 
-    return NextResponse.json({ success: true, count: (data || []).length }, { status: 200 })
+    return apiOk({ count: (data || []).length }, { status: 200 })
   } catch (e) {
-    console.error('backup-codes count error', e)
-    return NextResponse.json({ error: e.message || String(e) }, { status: 500 })
+    return apiError(toErrorMessage(e, 'Failed to fetch backup code count'), 500)
   }
 }

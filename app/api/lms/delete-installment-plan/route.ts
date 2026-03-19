@@ -1,21 +1,20 @@
 import { createClient } from '@supabase/supabase-js'
-import { NextResponse } from 'next/server'
+import { apiError, apiOk } from '@/lib/api/http'
+import { toErrorMessage } from '@/lib/api/error'
 
 export async function POST(request: Request) {
   try {
     // 1. Initialize Admin Client
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
     )
 
     const { transactionId } = await request.json()
 
     if (!transactionId) {
-      return NextResponse.json({ error: 'Transaction ID is required' }, { status: 400 })
+      return apiError('Transaction ID is required', 400)
     }
-
-    console.log(`[Delete Plan] Deleting plan for transaction: ${transactionId}`)
 
     // First, get the transaction to find the loan_id and amount
     const { data: transaction, error: fetchError } = await supabase
@@ -25,14 +24,11 @@ export async function POST(request: Request) {
       .single()
 
     if (fetchError || !transaction) {
-      console.error('[Delete Plan] Error fetching transaction:', fetchError)
       throw new Error('Transaction not found')
     }
 
     const loanId = transaction.loan_id
     const deletedAmount = parseFloat(transaction.amount || 0)
-
-    console.log(`[Delete Plan] Loan ID: ${loanId}, Amount to remove: ${deletedAmount}`)
 
     // 2. Delete Child Records: Installments
     // These are the individual payment schedules in 'loan_installments'
@@ -42,7 +38,6 @@ export async function POST(request: Request) {
       .eq('loan_transaction_id', transactionId)
 
     if (instError) {
-      console.error('[Delete Plan] Error deleting installments:', instError)
       throw new Error(`Failed to delete installments: ${instError.message}`)
     }
 
@@ -54,7 +49,6 @@ export async function POST(request: Request) {
       .eq('loan_transaction_id', transactionId)
 
     if (linkError) {
-      console.error('[Delete Plan] Error deleting package links:', linkError)
       throw new Error(`Failed to delete package links: ${linkError.message}`)
     }
 
@@ -66,11 +60,8 @@ export async function POST(request: Request) {
       .eq('id', transactionId)
 
     if (transError) {
-      console.error('[Delete Plan] Error deleting parent transaction:', transError)
       throw new Error(`Failed to delete transaction: ${transError.message}`)
     }
-
-    console.log(`[Delete Plan] Successfully deleted transaction ${transactionId} and all related records`)
 
     // 5. Update the loan's current_balance
     // Subtract the deleted service amount from the loan balance
@@ -83,27 +74,23 @@ export async function POST(request: Request) {
     if (!loanFetchError && loan) {
       const newBalance = Math.max(0, parseFloat(loan.current_balance || 0) - deletedAmount)
       const newTotalDebt = Math.max(0, parseFloat(loan.total_debt_amount || 0) - deletedAmount)
-      
+
       const { error: updateError } = await supabase
         .from('loans')
-        .update({ 
+        .update({
           current_balance: newBalance,
           total_debt_amount: newTotalDebt,
-          status: newBalance === 0 ? 'Settled' : loan.status || 'Active'
+          status: newBalance === 0 ? 'Settled' : loan.status || 'Active',
         })
         .eq('id', loanId)
 
       if (updateError) {
-        console.error('[Delete Plan] Error updating loan balance:', updateError)
-      } else {
-        console.log(`[Delete Plan] Updated loan balance: ${newBalance}`)
+        throw new Error(`Failed to update loan balance: ${updateError.message}`)
       }
     }
 
-    return NextResponse.json({ success: true })
-
-  } catch (error: any) {
-    console.error('[Delete Plan] Critical Error:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return apiOk({ deletedTransactionId: transactionId })
+  } catch (error: unknown) {
+    return apiError(toErrorMessage(error, 'Failed to delete installment plan'), 500)
   }
 }

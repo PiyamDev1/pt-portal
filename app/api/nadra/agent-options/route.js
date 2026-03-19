@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
-import { NextResponse } from 'next/server'
+import { toErrorMessage } from '@/lib/api/error'
+import { apiError, apiOk } from '@/lib/api/http'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,7 +29,7 @@ export async function GET(request) {
     const userId = searchParams.get('userId')
 
     if (!userId) {
-      return NextResponse.json({ error: 'Missing userId' }, { status: 400 })
+      return apiError('Missing userId', 400)
     }
 
     const { data: employees, error: employeesError } = await supabase
@@ -39,7 +40,7 @@ export async function GET(request) {
 
     const currentUser = employees?.find((emp) => emp.id === userId)
     if (!currentUser) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 })
+      return apiError('User not found', 404)
     }
 
     const roleName = Array.isArray(currentUser.roles)
@@ -48,7 +49,7 @@ export async function GET(request) {
 
     const isMasterAdmin = roleName === 'Master Admin'
 
-  const subtreeIds = collectReports(userId, employees || [])
+    const subtreeIds = collectReports(userId, employees || [])
     const allowedIds = new Set(isMasterAdmin ? employees.map((e) => e.id) : [userId, ...subtreeIds])
 
     const agentOptions = (employees || [])
@@ -58,13 +59,12 @@ export async function GET(request) {
 
     const canChangeAgent = isMasterAdmin || subtreeIds.length > 0
 
-    return NextResponse.json({
+    return apiOk({
       canChangeAgent,
       agentOptions,
-      role: roleName || null
+      role: roleName || null,
     })
   } catch (error) {
-    console.error('[NADRA] Agent options error:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return apiError(toErrorMessage(error, 'Failed to load agent options'), 500)
   }
 }

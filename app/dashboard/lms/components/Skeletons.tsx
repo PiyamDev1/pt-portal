@@ -61,7 +61,7 @@ export function TableHeaderSkeleton() {
 export function ModalLoadingSkeleton() {
   return (
     <div className="space-y-4 animate-pulse">
-      {[1, 2, 3, 4].map(i => (
+      {[1, 2, 3, 4].map((i) => (
         <div key={i} className="space-y-2">
           <div className="h-3 w-24 bg-slate-300 rounded"></div>
           <div className="h-10 bg-slate-200 rounded"></div>
@@ -75,13 +75,30 @@ export function LoadingSpinner({ size = 'md' }: { size?: 'sm' | 'md' | 'lg' }) {
   const sizeClasses = {
     sm: 'w-4 h-4',
     md: 'w-6 h-6',
-    lg: 'w-8 h-8'
+    lg: 'w-8 h-8',
   }
 
   return (
-    <div className={`${sizeClasses[size]} animate-spin`} role="status" aria-live="polite" aria-label="Loading">
-      <svg className="w-full h-full text-slate-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+    <div
+      className={`${sizeClasses[size]} animate-spin`}
+      role="status"
+      aria-live="polite"
+      aria-label="Loading"
+    >
+      <svg
+        className="w-full h-full text-slate-600"
+        xmlns="http://www.w3.org/2000/svg"
+        fill="none"
+        viewBox="0 0 24 24"
+      >
+        <circle
+          className="opacity-25"
+          cx="12"
+          cy="12"
+          r="10"
+          stroke="currentColor"
+          strokeWidth="4"
+        ></circle>
         <path
           className="opacity-75"
           fill="currentColor"

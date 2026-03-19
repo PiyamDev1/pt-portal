@@ -9,7 +9,7 @@ export function ModificationOptions({ canModify, onModify }: ModificationOptions
   return (
     <div className="space-y-3">
       <h3 className="font-semibold text-slate-800">Modification Options</h3>
-      
+
       <button
         onClick={onModify}
         disabled={!canModify}

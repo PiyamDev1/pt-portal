@@ -1,9 +1,11 @@
 # Manual Entry Timeclock Fix
 
 ## Issue
+
 The `/timeclock/manual-entry` page returns a 500 error when trying to generate codes.
 
 ## Root Causes
+
 1. Missing `timeclock_devices` table
 2. Missing `timeclock_manual_codes` table
 3. RLS (Row Level Security) policies blocking service role operations
@@ -11,11 +13,13 @@ The `/timeclock/manual-entry` page returns a 500 error when trying to generate c
 ## Quick Diagnosis
 
 Visit this URL to check your setup:
+
 ```
 https://ims.piyamtravel.com/api/timeclock/manual-entry/diagnostics
 ```
 
 This will show:
+
 - ✅ Table existence checks
 - ✅ Permission checks
 - ✅ Test insert operations
@@ -30,6 +34,7 @@ Run this script in your **Supabase SQL Editor**:
 Copy the entire contents of: [`scripts/create-timeclock-tables.sql`](scripts/create-timeclock-tables.sql)
 
 This will:
+
 - Create `timeclock_devices` table
 - Create `timeclock_manual_codes` table
 - Disable RLS on both tables
@@ -69,6 +74,7 @@ DROP POLICY IF EXISTS "Users can delete their own codes" ON timeclock_manual_cod
 ## Why RLS is Disabled
 
 The `timeclock_manual_codes` and `timeclock_devices` tables store temporary data accessed only through authenticated API endpoints. Access control is handled at the API level:
+
 - Only managers and Master Admins can access `/timeclock/manual-entry` page
 - API endpoints check user permissions before allowing code generation
 - Codes expire in 30 seconds

@@ -1,16 +1,44 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useReducer, useEffect, useCallback } from 'react'
 import { Calendar, Receipt } from 'lucide-react'
 import { toast } from 'sonner'
 import { ModalWrapper } from './ModalWrapper'
 import { LoadingSpinner } from './Skeletons'
 import { Account, InstallmentPayment } from '../types'
 import { API_ENDPOINTS, TRANSACTION_TYPES, PAYMENT_FREQUENCIES, DATE_OFFSETS } from '../constants'
-import { formatToDisplayDate, formatToISODate, handleDateInput, isValidDateFormat } from '@/app/lib/dateFormatter'
+import {
+  formatToDisplayDate,
+  formatToISODate,
+  handleDateInput,
+  isValidDateFormat,
+} from '@/lib/dateFormatter'
 import { usePaymentMethods } from '../hooks'
 import { TransactionTypeSelector } from './TransactionTypeSelector'
-import { InstallmentPlanPreview } from './InstallmentPlanPreview'
+import { TransactionServiceFields } from './TransactionServiceFields'
+import { TransactionSummary } from './TransactionSummary'
+
+const INSTALLMENT_OPTIONS_BY_FREQUENCY = {
+  [PAYMENT_FREQUENCIES.WEEKLY]: Array.from({ length: 10 }, (_, i) => {
+    const weeks = i + 3
+    return {
+      value: weeks.toString(),
+      label: `${weeks} week${weeks === 1 ? '' : 's'}`,
+    }
+  }),
+  [PAYMENT_FREQUENCIES.BIWEEKLY]: [2, 4, 6, 8, 10, 12].map((weeks) => ({
+    value: weeks.toString(),
+    label: `${weeks} weeks (bi-weekly)`,
+  })),
+  [PAYMENT_FREQUENCIES.MONTHLY]: [1, 2, 3, 4, 5, 6].map((months) => ({
+    value: months.toString(),
+    label: `${months} month${months === 1 ? '' : 's'}`,
+  })),
+} as const
+
+function getInstallmentOptions(frequency: 'weekly' | 'biweekly' | 'monthly') {
+  return INSTALLMENT_OPTIONS_BY_FREQUENCY[frequency]
+}
 
 interface TransactionModalProps {
   data: Account & { transactionType?: string }
@@ -18,6 +46,60 @@ interface TransactionModalProps {
   onSave: () => void
   employeeId: string
   onPaymentRecorded?: () => void
+}
+
+type TransactionFormState = {
+  type: 'service' | 'payment' | 'fee'
+  amount: string
+  paymentMethodId: string
+  transactionDate: string
+  initialDeposit: string
+  firstPaymentDate: string
+  installmentTerms: string
+  paymentFrequency: 'weekly' | 'biweekly' | 'monthly'
+  notes: string
+}
+
+type TransactionModalState = {
+  form: TransactionFormState
+  installmentPlan: InstallmentPayment[]
+  loading: boolean
+  planExpanded: boolean
+}
+
+type TransactionModalAction =
+  | { type: 'setForm'; payload: Partial<TransactionFormState> }
+  | { type: 'setInstallmentPlan'; payload: InstallmentPayment[] }
+  | { type: 'updateInstallmentDate'; payload: { index: number; dueDate: string } }
+  | { type: 'setLoading'; payload: boolean }
+  | { type: 'togglePlanExpanded' }
+
+function transactionModalReducer(
+  state: TransactionModalState,
+  action: TransactionModalAction,
+): TransactionModalState {
+  switch (action.type) {
+    case 'setForm':
+      return { ...state, form: { ...state.form, ...action.payload } }
+    case 'setInstallmentPlan':
+      return { ...state, installmentPlan: action.payload }
+    case 'updateInstallmentDate': {
+      const nextPlan = [...state.installmentPlan]
+      if (nextPlan[action.payload.index]) {
+        nextPlan[action.payload.index] = {
+          ...nextPlan[action.payload.index],
+          dueDate: action.payload.dueDate,
+        }
+      }
+      return { ...state, installmentPlan: nextPlan }
+    }
+    case 'setLoading':
+      return { ...state, loading: action.payload }
+    case 'togglePlanExpanded':
+      return { ...state, planExpanded: !state.planExpanded }
+    default:
+      return state
+  }
 }
 
 /**
@@ -28,49 +110,30 @@ export function TransactionModal({
   onClose,
   onSave,
   employeeId,
-  onPaymentRecorded
+  onPaymentRecorded,
 }: TransactionModalProps) {
-
-  const getInstallmentOptions = useCallback((frequency: string) => {
-    if (frequency === PAYMENT_FREQUENCIES.WEEKLY) {
-      return Array.from({ length: 10 }, (_, i) => {
-        const weeks = i + 3
-        return {
-          value: weeks.toString(),
-          label: `${weeks} week${weeks === 1 ? '' : 's'}`
-        }
-      })
-    }
-    if (frequency === PAYMENT_FREQUENCIES.BIWEEKLY) {
-      return [2, 4, 6, 8, 10, 12].map(weeks => ({
-        value: weeks.toString(),
-        label: `${weeks} weeks (bi-weekly)`
-      }))
-    }
-    return [1, 2, 3, 4, 5, 6].map(months => ({
-      value: months.toString(),
-      label: `${months} month${months === 1 ? '' : 's'}`
-    }))
-  }, [])
-
-  const [form, setForm] = useState({
-    type: (data.transactionType || TRANSACTION_TYPES.SERVICE) as 'service' | 'payment' | 'fee',
-    amount: '',
-    paymentMethodId: '',
-    transactionDate: formatToDisplayDate(new Date().toISOString().split('T')[0]),
-    initialDeposit: '',
-    firstPaymentDate: formatToDisplayDate(new Date(Date.now() + DATE_OFFSETS.FIRST_PAYMENT_DAYS * 24 * 60 * 60 * 1000)
-      .toISOString()
-      .split('T')[0]),
-    installmentTerms: '6',
-    paymentFrequency: PAYMENT_FREQUENCIES.MONTHLY as 'weekly' | 'biweekly' | 'monthly',
-    notes: ''
-  })
-
-  const [installmentPlan, setInstallmentPlan] = useState<InstallmentPayment[]>([])
   const { methods } = usePaymentMethods()
-  const [loading, setLoading] = useState(false)
-  const [planExpanded, setPlanExpanded] = useState(true)
+  const [state, dispatch] = useReducer(transactionModalReducer, {
+    form: {
+      type: (data.transactionType || TRANSACTION_TYPES.SERVICE) as 'service' | 'payment' | 'fee',
+      amount: '',
+      paymentMethodId: '',
+      transactionDate: formatToDisplayDate(new Date().toISOString().split('T')[0]),
+      initialDeposit: '',
+      firstPaymentDate: formatToDisplayDate(
+        new Date(Date.now() + DATE_OFFSETS.FIRST_PAYMENT_DAYS * 24 * 60 * 60 * 1000)
+          .toISOString()
+          .split('T')[0],
+      ),
+      installmentTerms: '6',
+      paymentFrequency: PAYMENT_FREQUENCIES.MONTHLY as 'weekly' | 'biweekly' | 'monthly',
+      notes: '',
+    },
+    installmentPlan: [],
+    loading: false,
+    planExpanded: true,
+  })
+  const { form, installmentPlan, loading, planExpanded } = state
 
   // Temporary: Allow unlimited past dates for re-entering deleted data
   const ALLOW_UNLIMITED_PAST = true // Set to false when done re-entering data
@@ -81,23 +144,26 @@ export function TransactionModal({
     const firstPaymentDefault = formatToDisplayDate(
       new Date(Date.now() + DATE_OFFSETS.FIRST_PAYMENT_DAYS * 24 * 60 * 60 * 1000)
         .toISOString()
-        .split('T')[0]
+        .split('T')[0],
     )
-    setForm(prev => ({
-      ...prev,
+    dispatch({
+      type: 'setForm',
+      payload: {
       transactionDate: today,
-      firstPaymentDate: firstPaymentDefault
-    }))
+      firstPaymentDate: firstPaymentDefault,
+      },
+    })
   }, []) // Empty dependency array means this runs once when component mounts
 
   // Clamp installment terms when frequency changes
   useEffect(() => {
-    setForm(prev => {
-      const options = getInstallmentOptions(prev.paymentFrequency)
-      if (options.some(opt => opt.value === prev.installmentTerms)) return prev
-      return { ...prev, installmentTerms: options[options.length - 1].value }
+    const options = getInstallmentOptions(form.paymentFrequency)
+    if (options.some((opt) => opt.value === form.installmentTerms)) return
+    dispatch({
+      type: 'setForm',
+      payload: { installmentTerms: options[options.length - 1].value },
     })
-  }, [form.paymentFrequency, getInstallmentOptions])
+  }, [form.paymentFrequency])
 
   // Auto-generate installment plan
   useEffect(() => {
@@ -116,13 +182,13 @@ export function TransactionModal({
         // Convert DD/MM/YYYY to ISO format for Date parsing
         const isoFirstPaymentDate = formatToISODate(form.firstPaymentDate)
         if (!isoFirstPaymentDate) {
-          setInstallmentPlan([])
+          dispatch({ type: 'setInstallmentPlan', payload: [] })
           return
         }
         const firstDate = new Date(isoFirstPaymentDate)
         // Validate the date is valid before proceeding
         if (isNaN(firstDate.getTime())) {
-          setInstallmentPlan([])
+          dispatch({ type: 'setInstallmentPlan', payload: [] })
           return
         }
 
@@ -144,13 +210,13 @@ export function TransactionModal({
             dueDate: formatToDisplayDate(dueDate.toISOString().split('T')[0]),
             amount: installmentAmount,
             runningBalance: Math.max(0, runningBalance),
-            status: 'Pending'
+            status: 'Pending',
           }
         })
 
-        setInstallmentPlan(plan)
+        dispatch({ type: 'setInstallmentPlan', payload: plan })
       } else {
-        setInstallmentPlan([])
+        dispatch({ type: 'setInstallmentPlan', payload: [] })
       }
     }
   }, [
@@ -159,35 +225,39 @@ export function TransactionModal({
     form.installmentTerms,
     form.firstPaymentDate,
     form.paymentFrequency,
-    form.type
+    form.type,
   ])
 
-  const updateInstallmentDate = useCallback((index: number, newDate: string) => {
-    const updated = [...installmentPlan]
-    const selectedDate = new Date(newDate)
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
+  const updateInstallmentDate = useCallback(
+    (index: number, newDate: string) => {
+      const selectedDate = new Date(newDate)
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
 
-    if (selectedDate < today) {
-      toast.error('Cannot set installment date in the past')
-      return
-    }
+      if (selectedDate < today) {
+        toast.error('Cannot set installment date in the past')
+        return
+      }
 
-    if (index > 0 && selectedDate <= new Date(updated[index - 1].dueDate)) {
-      toast.warning('Installment date should be after previous installment')
-    }
+      if (index > 0 && selectedDate <= new Date(installmentPlan[index - 1].dueDate)) {
+        toast.warning('Installment date should be after previous installment')
+      }
 
-    updated[index].dueDate = newDate
-    setInstallmentPlan(updated)
-  }, [installmentPlan])
+      dispatch({
+        type: 'updateInstallmentDate',
+        payload: { index, dueDate: newDate },
+      })
+    },
+    [installmentPlan],
+  )
 
   const updateForm = useCallback((updates: Partial<typeof form>) => {
-    setForm(prev => ({ ...prev, ...updates }))
+    dispatch({ type: 'setForm', payload: updates })
   }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     // Validate all dates
     if (!isValidDateFormat(form.transactionDate)) {
       return toast.error('Invalid Transaction Date format. Use DD/MM/YYYY (e.g., 28/01/2026)')
@@ -198,16 +268,15 @@ export function TransactionModal({
     if (form.type === TRANSACTION_TYPES.SERVICE) {
       for (let i = 0; i < installmentPlan.length; i++) {
         if (!isValidDateFormat(installmentPlan[i].dueDate)) {
-          return toast.error(`Invalid due date in installment #${i + 1}. Use DD/MM/YYYY format (e.g., 28/01/2026)`)
+          return toast.error(
+            `Invalid due date in installment #${i + 1}. Use DD/MM/YYYY format (e.g., 28/01/2026)`,
+          )
         }
       }
     }
-    
+
     if (!form.amount || parseFloat(form.amount) <= 0) return toast.error('Valid amount required')
-    if (
-      form.type === TRANSACTION_TYPES.PAYMENT &&
-      (data.balance || 0) <= 0
-    ) {
+    if (form.type === TRANSACTION_TYPES.PAYMENT && (data.balance || 0) <= 0) {
       return toast.error('No outstanding balance to record a payment')
     }
 
@@ -216,7 +285,7 @@ export function TransactionModal({
       customerId: data.id,
       notes: form.notes,
       employeeId,
-      transactionDate: formatToISODate(form.transactionDate)
+      transactionDate: formatToISODate(form.transactionDate),
     }
 
     if (form.type === TRANSACTION_TYPES.SERVICE) {
@@ -225,16 +294,16 @@ export function TransactionModal({
       payload.initialDeposit = form.initialDeposit
       payload.installmentTerms = form.installmentTerms
       // Convert installment plan dates to ISO format
-      payload.installmentPlan = installmentPlan.map(ip => ({
+      payload.installmentPlan = installmentPlan.map((ip) => ({
         ...ip,
-        dueDate: formatToISODate(ip.dueDate)
+        dueDate: formatToISODate(ip.dueDate),
       }))
       payload.paymentFrequency = form.paymentFrequency
     } else if (form.type === TRANSACTION_TYPES.PAYMENT) {
       payload.action = 'record_payment'
-      const activeLoan = (data as { loans?: Array<{ id: string; current_balance: number }> }).loans?.find(
-        l => l.current_balance > 0
-      )
+      const activeLoan = (
+        data as { loans?: Array<{ id: string; current_balance: number }> }
+      ).loans?.find((l) => l.current_balance > 0)
       if (!activeLoan) return toast.error('No active loan found for this customer')
       payload.loanId = activeLoan.id
       payload.paymentMethodId = form.paymentMethodId
@@ -242,19 +311,18 @@ export function TransactionModal({
       payload.action = 'add_fee'
       const activeLoan =
         (data as { loans?: Array<{ id: string; current_balance: number }> }).loans?.find(
-          l => l.current_balance > 0
-        ) ||
-        (data as { loans?: Array<{ id: string }> }).loans?.[0]
+          (l) => l.current_balance > 0,
+        ) || (data as { loans?: Array<{ id: string }> }).loans?.[0]
       payload.loanId = activeLoan?.id
       payload.customerId = data.id
     }
 
-    setLoading(true)
+    dispatch({ type: 'setLoading', payload: true })
     try {
       const res = await fetch(API_ENDPOINTS.LMS, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
       })
       if (!res.ok) throw new Error('Failed')
 
@@ -275,7 +343,7 @@ export function TransactionModal({
     } catch (err) {
       toast.error('Failed to record transaction')
     } finally {
-      setLoading(false)
+      dispatch({ type: 'setLoading', payload: false })
     }
   }
 
@@ -298,15 +366,23 @@ export function TransactionModal({
             : 'Service Fee'
       } - ${data.name}`}
     >
-      <form onSubmit={handleSubmit} role="dialog" aria-modal="true" aria-label={`Record transaction for ${data.name}`} className="space-y-4 max-h-[80vh] overflow-y-auto">
-        <TransactionTypeSelector
-          value={form.type}
-          onChange={(type) => updateForm({ type })}
-        />
+      <form
+        onSubmit={handleSubmit}
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Record transaction for ${data.name}`}
+        className="space-y-4 max-h-[80vh] overflow-y-auto"
+      >
+        <TransactionTypeSelector value={form.type} onChange={(type) => updateForm({ type })} />
 
         {/* Amount Field */}
         <div>
-          <label htmlFor="transaction-amount" className="text-xs font-bold text-slate-500 uppercase mb-1 block">Amount</label>
+          <label
+            htmlFor="transaction-amount"
+            className="text-xs font-bold text-slate-500 uppercase mb-1 block"
+          >
+            Amount
+          </label>
           <div className="relative">
             <span className="absolute left-3 top-3 text-lg text-slate-500 font-black">£</span>
             <input
@@ -314,7 +390,7 @@ export function TransactionModal({
               step="0.01"
               placeholder="0.00"
               value={form.amount}
-              onChange={e => updateForm({ amount: e.target.value })}
+              onChange={(e) => updateForm({ amount: e.target.value })}
               className="w-full pl-10 p-3 border rounded-lg text-lg font-bold"
             />
           </div>
@@ -324,7 +400,9 @@ export function TransactionModal({
         <div>
           <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">
             Transaction Date
-            {ALLOW_UNLIMITED_PAST && <span className="text-orange-500 text-xs font-normal">(Backdated: Unlimited)</span>}
+            {ALLOW_UNLIMITED_PAST && (
+              <span className="text-orange-500 text-xs font-normal">(Backdated: Unlimited)</span>
+            )}
           </label>
           <div className="relative">
             <Calendar className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
@@ -332,7 +410,7 @@ export function TransactionModal({
               type="text"
               placeholder="DD/MM/YYYY"
               value={form.transactionDate}
-              onChange={e => updateForm({ transactionDate: handleDateInput(e.target.value) })}
+              onChange={(e) => updateForm({ transactionDate: handleDateInput(e.target.value) })}
               className="w-full pl-10 p-3 border rounded-lg"
             />
           </div>
@@ -341,17 +419,20 @@ export function TransactionModal({
         {/* Payment Method (for payments only) */}
         {isPayment && (
           <div>
-            <label htmlFor="payment-method" className="text-xs font-bold text-slate-500 uppercase mb-1 block">
+            <label
+              htmlFor="payment-method"
+              className="text-xs font-bold text-slate-500 uppercase mb-1 block"
+            >
               Payment Method
             </label>
             <select
               id="payment-method"
               value={form.paymentMethodId}
-              onChange={e => updateForm({ paymentMethodId: e.target.value })}
+              onChange={(e) => updateForm({ paymentMethodId: e.target.value })}
               className="w-full p-3 border rounded-lg bg-white"
             >
               <option value="">Select method...</option>
-              {methods.map(m => (
+              {methods.map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.name}
                 </option>
@@ -362,124 +443,37 @@ export function TransactionModal({
 
         {/* Service Details (for service plans) */}
         {isService && (
-          <>
-            <div className="space-y-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
-              <h4 className="text-xs font-bold text-blue-700 uppercase">Initial Deposit</h4>
-              <div className="relative">
-                <span className="absolute left-3 top-3 text-lg text-slate-500 font-black">£</span>
-                <input
-                  id="initial-deposit"
-                  type="number"
-                  step="0.01"
-                  placeholder="0.00 (optional)"
-                  value={form.initialDeposit}
-                  onChange={e => updateForm({ initialDeposit: e.target.value })}
-                  aria-label="Initial deposit amount"
-                  className="w-full pl-10 p-3 border rounded-lg text-lg font-bold"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
-              <h4 className="text-xs font-bold text-blue-700 uppercase">Payment Plan</h4>
-
-              <div>
-                <label htmlFor="payment-frequency" className="text-xs font-bold text-slate-500 uppercase mb-1 block">
-                  Payment Frequency
-                </label>
-                <select
-                  id="payment-frequency"
-                  value={form.paymentFrequency}
-                  onChange={e =>
-                    updateForm({
-                      paymentFrequency: e.target.value as 'weekly' | 'biweekly' | 'monthly'
-                    })
-                  }
-                  className="w-full p-3 border rounded-lg bg-white"
-                >
-                  <option value={PAYMENT_FREQUENCIES.WEEKLY}>Weekly</option>
-                  <option value={PAYMENT_FREQUENCIES.BIWEEKLY}>Bi-weekly</option>
-                  <option value={PAYMENT_FREQUENCIES.MONTHLY}>Monthly</option>
-                </select>
-              </div>
-
-              <div>
-                <label htmlFor="installment-duration" className="text-xs font-bold text-slate-500 uppercase mb-1 block">
-                  Duration
-                </label>
-                <select
-                  id="installment-duration"
-                  value={form.installmentTerms}
-                  onChange={e => updateForm({ installmentTerms: e.target.value })}
-                  className="w-full p-3 border rounded-lg bg-white"
-                >
-                  {installmentOptions.map(opt => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label htmlFor="first-payment-date" className="text-xs font-bold text-slate-500 uppercase mb-1 block">
-                  First Payment Date
-                  {ALLOW_UNLIMITED_PAST && <span className="text-orange-500 text-xs font-normal">(Backdated: Unlimited)</span>}
-                </label>
-                <div className="relative">
-                  <Calendar className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
-                  <input
-                    id="first-payment-date"
-                    type="text"
-                    placeholder="DD/MM/YYYY"
-                    value={form.firstPaymentDate}
-                    onChange={e => updateForm({ firstPaymentDate: handleDateInput(e.target.value) })}
-                    className="w-full pl-10 p-3 border rounded-lg"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <InstallmentPlanPreview
-              installmentPlan={installmentPlan}
-              planExpanded={planExpanded}
-              onToggle={() => setPlanExpanded(!planExpanded)}
-              onUpdateInstallmentDate={updateInstallmentDate}
-            />
-          </>
+          <TransactionServiceFields
+            form={form}
+            updateForm={updateForm}
+            installmentOptions={installmentOptions}
+            installmentPlan={installmentPlan}
+            planExpanded={planExpanded}
+            onTogglePlan={() => dispatch({ type: 'togglePlanExpanded' })}
+            onUpdateInstallmentDate={updateInstallmentDate}
+            allowUnlimitedPast={ALLOW_UNLIMITED_PAST}
+          />
         )}
 
         {/* Summary */}
-        {(isService || isPayment || isFee) && (
-          <div className="bg-slate-50 p-3 rounded-lg space-y-1">
-            {isService && (
-              <>
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-600">Total Amount:</span>
-                  <span className="font-bold">£{totalAmount.toFixed(2)}</span>
-                </div>
-                {deposit > 0 && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-slate-600">Initial Deposit:</span>
-                    <span className="font-bold">£{deposit.toFixed(2)}</span>
-                  </div>
-                )}
-                <div className="flex justify-between text-sm border-t border-slate-200 pt-1 mt-1">
-                  <span className="text-slate-600">Remaining Amount:</span>
-                  <span className="font-bold">£{remainingAmount.toFixed(2)}</span>
-                </div>
-              </>
-            )}
-          </div>
-        )}
+        <TransactionSummary
+          isService={isService}
+          isPayment={isPayment}
+          isFee={isFee}
+          totalAmount={totalAmount}
+          deposit={deposit}
+          remainingAmount={remainingAmount}
+        />
 
         {/* Notes */}
-        <label htmlFor="transaction-notes" className="sr-only">Additional notes</label>
+        <label htmlFor="transaction-notes" className="sr-only">
+          Additional notes
+        </label>
         <textarea
           id="transaction-notes"
           placeholder="Additional notes..."
           value={form.notes}
-          onChange={e => updateForm({ notes: e.target.value })}
+          onChange={(e) => updateForm({ notes: e.target.value })}
           className="w-full p-3 border rounded-lg text-sm"
           rows={2}
         />
