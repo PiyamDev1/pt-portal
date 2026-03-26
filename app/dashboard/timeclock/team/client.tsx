@@ -95,6 +95,121 @@ const escapeCsv = (value: string) => {
   return value
 }
 
+// Helper to format duration in HH:MM format
+const formatDuration = (minutes: number): string => {
+  const hours = Math.floor(minutes / 60)
+  const mins = Math.round(minutes % 60)
+  return `${hours}h ${mins}m`
+}
+
+// Calculate total time between IN and OUT punches
+type DailyTotal = {
+  date: string
+  employeeId: string
+  employeeName: string
+  punches: TimeclockEvent[]
+  totalMinutes: number
+}
+
+const calculateDailyTotals = (events: TimeclockEvent[]): DailyTotal[] => {
+  const grouped: Map<string, TimeclockEvent[]> = new Map()
+
+  // Group events by employee and date
+  events.forEach((event) => {
+    const date = new Date(getEffectiveRecordedTime(event))
+    const dateKey = date.toLocaleDateString('en-GB')
+    const employeeId = event.employee_id || 'unknown'
+    const key = `${employeeId}|${dateKey}`
+
+    if (!grouped.has(key)) {
+      grouped.set(key, [])
+    }
+    grouped.get(key)!.push(event)
+  })
+
+  // Calculate totals for each day/employee pair
+  const totals: DailyTotal[] = []
+  grouped.forEach((punches) => {
+    if (punches.length === 0) return
+
+    const employeeId = punches[0].employee_id || 'unknown'
+    const employeeName = extractEmployeeName(punches[0].employees)
+    const date = new Date(getEffectiveRecordedTime(punches[0]))
+    const dateKey = date.toLocaleDateString('en-GB')
+
+    // Sort punches by time
+    const sorted = [...punches].sort((a, b) => {
+      const timeA = new Date(getEffectiveRecordedTime(a)).getTime()
+      const timeB = new Date(getEffectiveRecordedTime(b)).getTime()
+      return timeA - timeB
+    })
+
+    // Pair IN/OUT punches and calculate duration
+    let totalMinutes = 0
+    let lastOutTime: Date | null = null
+
+    for (let i = 0; i < sorted.length; i++) {
+      const punch = sorted[i]
+      const punchType = (punch.punch_type || punch.event_type || '').toUpperCase()
+
+      if (punchType === 'IN' || punchType === 'CLOCK_IN' || punchType === 'PUNCH_IN') {
+        const punchTime = new Date(getEffectiveRecordedTime(punch))
+        if (lastOutTime) {
+          // If there's a pending OUT time, use it
+          const duration = (punchTime.getTime() - lastOutTime.getTime()) / (1000 * 60)
+          if (duration >= 0) {
+            totalMinutes -= duration // Subtract break time
+          }
+        }
+      } else if (punchType === 'OUT' || punchType === 'CLOCK_OUT' || punchType === 'PUNCH_OUT') {
+        const punchTime = new Date(getEffectiveRecordedTime(punch))
+
+        // Find last IN punch
+        let inTime: Date | null = null
+        for (let j = i - 1; j >= 0; j--) {
+          const prevPunch = sorted[j]
+          const prevType = (prevPunch.punch_type || prevPunch.event_type || '').toUpperCase()
+          if (prevType === 'IN' || prevType === 'CLOCK_IN' || prevType === 'PUNCH_IN') {
+            inTime = new Date(getEffectiveRecordedTime(prevPunch))
+            break
+          }
+        }
+
+        if (inTime) {
+          const duration = (punchTime.getTime() - inTime.getTime()) / (1000 * 60)
+          if (duration > 0) {
+            totalMinutes += duration
+          }
+        }
+        lastOutTime = punchTime
+      }
+    }
+
+    totals.push({
+      date: dateKey,
+      employeeId,
+      employeeName,
+      punches: sorted,
+      totalMinutes: Math.max(0, totalMinutes),
+    })
+  })
+
+  return totals
+}
+
+// Calculate total time per employee (across all days in filter)
+const calculateEmployeeTotals = (events: TimeclockEvent[]): Map<string, number> => {
+  const employeeTotals: Map<string, number> = new Map()
+
+  const dailyTotals = calculateDailyTotals(events)
+  dailyTotals.forEach(({ employeeId, totalMinutes }) => {
+    const current = employeeTotals.get(employeeId) || 0
+    employeeTotals.set(employeeId, current + totalMinutes)
+  })
+
+  return employeeTotals
+}
+
 export default function TimeclockTeamClient() {
   const [events, setEvents] = useState<TimeclockEvent[]>([])
   const [employees, setEmployees] = useState<EmployeeOption[]>([])
@@ -291,7 +406,10 @@ export default function TimeclockTeamClient() {
         return
       }
 
-      const rows = (data.events || []).map((event) => {
+      const csvRows: string[] = []
+
+      // Add main events data
+      const eventRows = (data.events || []).map((event) => {
         const geo = event.geo || {}
         return [
           extractEmployeeName(event.employees),
@@ -320,9 +438,49 @@ export default function TimeclockTeamClient() {
         'Adjustment Reason',
       ]
 
-      const csv = [header, ...rows]
-        .map((row) => row.map((value) => escapeCsv(value)).join(','))
-        .join('\n')
+      csvRows.push(header.map((value) => escapeCsv(value)).join(','))
+      eventRows.forEach((row) => {
+        csvRows.push(row.map((value) => escapeCsv(value)).join(','))
+      })
+
+      // Add blank line and daily summary section
+      csvRows.push('')
+      csvRows.push('DAILY TIME SUMMARY')
+      csvRows.push('Employee,Date,Total Hours')
+
+      const dailyTotals = calculateDailyTotals(data.events || [])
+      const sortedDailyTotals = [...dailyTotals].sort((a, b) => {
+        const nameComp = a.employeeName.localeCompare(b.employeeName)
+        if (nameComp !== 0) return nameComp
+        return a.date.localeCompare(b.date)
+      })
+
+      sortedDailyTotals.forEach(({ employeeName, date, totalMinutes }) => {
+        const totalHours = (totalMinutes / 60).toFixed(2)
+        csvRows.push(
+          `${escapeCsv(employeeName)},${escapeCsv(date)},${escapeCsv(totalHours)} hours`,
+        )
+      })
+
+      // Add employee summary
+      csvRows.push('')
+      csvRows.push('EMPLOYEE TOTAL SUMMARY')
+      csvRows.push('Employee,Total Hours')
+
+      const employeeTotals = calculateEmployeeTotals(data.events || [])
+      const sortedEmployees = Array.from(employeeTotals.entries())
+        .sort((a, b) => a[0].localeCompare(b[0]))
+
+      sortedEmployees.forEach(([_employeeId, totalMinutes]) => {
+        // Find employee name from daily totals
+        const dailyTotal = dailyTotals.find((dt) => dt.employeeId === _employeeId)
+        if (dailyTotal) {
+          const totalHours = (totalMinutes / 60).toFixed(2)
+          csvRows.push(`${escapeCsv(dailyTotal.employeeName)},${escapeCsv(totalHours)} hours`)
+        }
+      })
+
+      const csv = csvRows.join('\n')
 
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
       const url = URL.createObjectURL(blob)
@@ -361,16 +519,112 @@ export default function TimeclockTeamClient() {
       )}
 
       {!loading && !error && events.length > 0 && (
-        <TeamEventsTable
-          events={events}
-          canAdjustTime={canAdjustTime}
-          formatDate={formatDate}
-          extractEmployeeName={extractEmployeeName}
-          extractDeviceName={extractDeviceName}
-          getEffectiveDeviceTime={getEffectiveDeviceTime}
-          getEffectiveRecordedTime={getEffectiveRecordedTime}
-          onOpenAdjustment={openAdjustmentDialog}
-        />
+        <>
+          {selectedEmployee && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+              <h3 className="text-sm font-semibold text-blue-900 mb-3">
+                📊 Employee Time Summary
+              </h3>
+              {(() => {
+                const dailyTotals = calculateDailyTotals(events)
+                const employeeData = dailyTotals.filter((dt) => dt.employeeId === selectedEmployee)
+
+                if (employeeData.length === 0) {
+                  return <p className="text-sm text-blue-700">No data for this employee.</p>
+                }
+
+                const totalMinutes = employeeData.reduce((sum, d) => sum + d.totalMinutes, 0)
+                const totalHours = (totalMinutes / 60).toFixed(2)
+
+                return (
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div className="bg-white p-3 rounded border border-blue-100">
+                        <div className="text-xs text-blue-600 font-medium">Total Hours</div>
+                        <div className="text-lg font-bold text-blue-900">{totalHours}</div>
+                      </div>
+                      <div className="bg-white p-3 rounded border border-blue-100">
+                        <div className="text-xs text-blue-600 font-medium">Working Days</div>
+                        <div className="text-lg font-bold text-blue-900">{employeeData.length}</div>
+                      </div>
+                      <div className="bg-white p-3 rounded border border-blue-100">
+                        <div className="text-xs text-blue-600 font-medium">Avg Hours/Day</div>
+                        <div className="text-lg font-bold text-blue-900">
+                          {(totalMinutes / (employeeData.length * 60)).toFixed(2)}
+                        </div>
+                      </div>
+                    </div>
+                    {employeeData.length > 1 && (
+                      <div className="mt-3 pt-3 border-t border-blue-100">
+                        <p className="text-xs text-blue-700 font-medium mb-2">Daily Breakdown:</p>
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                          {employeeData.map((dt) => (
+                            <div key={dt.date} className="bg-white p-2 rounded text-xs border border-blue-100">
+                              <div className="font-medium text-blue-900">{dt.date}</div>
+                              <div className="text-blue-600">{formatDuration(dt.totalMinutes)}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
+            </div>
+          )}
+
+          {!selectedEmployee && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
+              <h3 className="text-sm font-semibold text-amber-900 mb-3">
+                👥 Employee Totals Summary
+              </h3>
+              {(() => {
+                const employeeTotals = calculateEmployeeTotals(events)
+
+                if (employeeTotals.size === 0) {
+                  return <p className="text-sm text-amber-700">No data available.</p>
+                }
+
+                const sortedEmployees = Array.from(employeeTotals.entries())
+                  .sort((a, b) => b[1] - a[1])
+                  .slice(0, 10)
+
+                return (
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+                    {sortedEmployees.map(([employeeId, totalMinutes]) => {
+                      const dailyTotals = calculateDailyTotals(events)
+                      const employeeInfo = dailyTotals.find((dt) => dt.employeeId === employeeId)
+                      return (
+                        <div
+                          key={employeeId}
+                          className="bg-white p-3 rounded border border-amber-100"
+                        >
+                          <div className="text-xs text-amber-600 font-medium truncate">
+                            {employeeInfo?.employeeName || 'Unknown'}
+                          </div>
+                          <div className="text-lg font-bold text-amber-900">
+                            {(totalMinutes / 60).toFixed(1)}h
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )
+              })()}
+            </div>
+          )}
+
+          <TeamEventsTable
+            events={events}
+            canAdjustTime={canAdjustTime}
+            formatDate={formatDate}
+            extractEmployeeName={extractEmployeeName}
+            extractDeviceName={extractDeviceName}
+            getEffectiveDeviceTime={getEffectiveDeviceTime}
+            getEffectiveRecordedTime={getEffectiveRecordedTime}
+            onOpenAdjustment={openAdjustmentDialog}
+          />
+        </>
       )}
 
       {editingEvent && (
