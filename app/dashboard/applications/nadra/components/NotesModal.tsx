@@ -12,6 +12,8 @@ interface NotesModalProps {
   isSaving: boolean
   onChange: (value: string) => void
   onSave: () => void
+  onMarkUnread?: () => void
+  canMarkUnread?: boolean
   onClose: () => void
 }
 
@@ -21,6 +23,8 @@ export default function NotesModal({
   isSaving,
   onChange,
   onSave,
+  onMarkUnread,
+  canMarkUnread = false,
   onClose,
 }: NotesModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null)
@@ -83,6 +87,14 @@ export default function NotesModal({
             className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
           />
           <div className="flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={onMarkUnread}
+              disabled={isSaving || !canMarkUnread}
+              className="px-4 py-2 text-xs border border-amber-200 text-amber-700 rounded-lg hover:bg-amber-50 disabled:opacity-40"
+            >
+              Mark as unread
+            </button>
             <button
               type="button"
               onClick={onClose}

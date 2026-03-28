@@ -30,6 +30,8 @@ import type {
   NadraServiceRecord,
 } from '@/app/types/nadra'
 
+const getNoteSignature = (value?: string | null) => String(value || '').trim()
+
 export default function NadraClient({
   initialApplications,
   currentUserId,
@@ -67,6 +69,7 @@ export default function NadraClient({
   const pageSize = 25
 
   const [refundTargetId, setRefundTargetId] = useState<string | null>(null)
+  const [noteReadSignatures, setNoteReadSignatures] = useState<Record<string, string>>({})
 
   const [isUpdating, setIsUpdating] = useState(false)
   const isAttentionFocus = searchParams.get('focus') === 'attention'
@@ -89,9 +92,112 @@ export default function NadraClient({
     }
   }, [searchParams])
 
+  const fetchReadSignatures = useCallback(async (recordIds: string[]) => {
+    if (recordIds.length === 0) {
+      setNoteReadSignatures({})
+      return
+    }
+
+    try {
+      const params = new URLSearchParams({
+        context: 'nadra',
+        recordIds: recordIds.join(','),
+      })
+      const response = await fetch(`/api/applications/notes-read?${params.toString()}`, {
+        credentials: 'include',
+      })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        return
+      }
+
+      setNoteReadSignatures(payload?.readSignatures || {})
+    } catch {
+      // Ignore transient failures and keep unread indicators conservative.
+    }
+  }, [])
+
+  useEffect(() => {
+    const recordIds = applications
+      .map((item) => getNadraRecord(item))
+      .filter((record): record is NadraServiceRecord => Boolean(record?.id))
+      .filter((record) => Boolean(getNoteSignature(record.notes)))
+      .map((record) => record.id)
+
+    void fetchReadSignatures(recordIds)
+  }, [applications, fetchReadSignatures])
+
   const refreshData = useCallback(() => {
     router.refresh()
   }, [router])
+
+  const markNadraNotesRead = useCallback(async (
+    nadraId: string,
+    noteValue?: string | null,
+    options: { silent?: boolean } = { silent: true },
+  ) => {
+    const signature = getNoteSignature(noteValue)
+    setNoteReadSignatures((current) => {
+      const next = { ...current }
+      if (!signature) {
+        delete next[nadraId]
+      } else {
+        next[nadraId] = signature
+      }
+      return next
+    })
+
+    try {
+      await fetch('/api/applications/notes-read', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          context: 'nadra',
+          recordId: nadraId,
+          noteSignature: signature,
+        }),
+      })
+    } catch {
+      if (!options.silent) {
+        toast.error('Could not save read state')
+      }
+    }
+  }, [])
+
+  const markNadraNotesUnread = useCallback(async (nadraId: string) => {
+    setNoteReadSignatures((current) => {
+      if (typeof current[nadraId] === 'undefined') return current
+      const next = { ...current }
+      delete next[nadraId]
+      return next
+    })
+
+    try {
+      await fetch('/api/applications/notes-read', {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          context: 'nadra',
+          recordId: nadraId,
+        }),
+      })
+    } catch {
+      toast.error('Could not mark note as unread')
+    }
+  }, [])
+
+  const isNadraNoteUnread = useCallback(
+    (item: NadraApplication) => {
+      const nadra = getNadraRecord(item)
+      if (!nadra?.id) return false
+      const signature = getNoteSignature(nadra.notes)
+      if (!signature) return false
+      return noteReadSignatures[nadra.id] !== signature
+    },
+    [noteReadSignatures],
+  )
 
   // Stable filter-setter callbacks consumed by child hooks
   const setSearchQuery = useCallback(
@@ -213,6 +319,22 @@ export default function NadraClient({
     initialComplainedNadraIds,
     onRefresh: refreshData,
   })
+
+  const handleOpenNotesWithReadState = useCallback(
+    (item: NadraApplication) => {
+      openNotesModal(item)
+      const nadra = getNadraRecord(item)
+      if (!nadra?.id) return
+      void markNadraNotesRead(nadra.id, nadra.notes, { silent: true })
+    },
+    [markNadraNotesRead, openNotesModal],
+  )
+
+  const handleSaveNotesWithReadState = useCallback(async () => {
+    const saved = await handleSaveNotes()
+    if (!saved || !notesModal?.nadraId) return
+    await markNadraNotesRead(notesModal.nadraId, notesText, { silent: true })
+  }, [handleSaveNotes, markNadraNotesRead, notesModal?.nadraId, notesText])
 
   const {
     editingRecord,
@@ -409,7 +531,8 @@ export default function NadraClient({
         onEditHead={(head) => openEditModal(head, 'family_head')}
         onAddMember={handleAddMember}
         onViewHistory={setSelectedHistory}
-        onOpenNotes={openNotesModal}
+        onOpenNotes={handleOpenNotesWithReadState}
+        isNoteUnread={isNadraNoteUnread}
         onOpenComplaint={openComplaintModal}
         onManageDocuments={handleManageDocuments}
       />
@@ -451,7 +574,13 @@ export default function NadraClient({
         isOpen={!!notesModal}
         note={notesText}
         onChange={setNotesText}
-        onSave={handleSaveNotes}
+        onSave={handleSaveNotesWithReadState}
+        onMarkUnread={async () => {
+          if (!notesModal?.nadraId) return
+          await markNadraNotesUnread(notesModal.nadraId)
+          toast.success('Marked as unread')
+        }}
+        canMarkUnread={Boolean(notesModal?.nadraId && getNoteSignature(notesText))}
         onClose={closeNotesModal}
         isSaving={notesSaving}
       />

@@ -16,6 +16,7 @@ interface LedgerTableProps {
   onAddMember: (head: NadraPerson) => void
   onViewHistory: (item: NadraApplication) => void
   onOpenNotes: (item: NadraApplication) => void
+  isNoteUnread: (item: NadraApplication) => boolean
   onOpenComplaint: (item: NadraApplication) => void
   onManageDocuments?: (familyHeadId: string, familyHeadName: string) => void
 }
@@ -30,6 +31,7 @@ export default function LedgerTable({
   onAddMember,
   onViewHistory,
   onOpenNotes,
+  isNoteUnread,
   onOpenComplaint,
   onManageDocuments,
 }: LedgerTableProps) {
@@ -169,6 +171,8 @@ export default function LedgerTable({
                   const isCancelled = String(status).trim().toLowerCase() === 'cancelled'
                   const isRefunded = !!nadraRecord?.is_refunded
                   const canLaunchComplaint = canOpenComplaintForStatus(status)
+                  const hasNotes = Boolean(String(nadraRecord?.notes || '').trim())
+                  const hasUnreadNotes = isNoteUnread(item)
 
                   return (
                     <tr
@@ -286,11 +290,31 @@ export default function LedgerTable({
                           )}
                           <button
                             onClick={() => onOpenNotes(item)}
-                            className="h-8 w-8 flex items-center justify-center rounded-full bg-blue-50 hover:bg-blue-100 text-blue-600 transition"
+                            className="h-8 w-8 flex items-center justify-center rounded-full bg-blue-50 hover:bg-blue-100 text-blue-600 transition relative"
                             type="button"
                             aria-label="Open notes"
+                            title={
+                              hasUnreadNotes
+                                ? 'Application notes (unread)'
+                                : hasNotes
+                                  ? 'Application notes (has notes)'
+                                  : 'Application notes'
+                            }
                           >
                             📝
+                            {hasUnreadNotes ? (
+                              <span
+                                className="absolute -top-2 -right-2 rounded-full bg-rose-500 px-1.5 py-0.5 text-[8px] font-bold leading-none text-white"
+                                aria-hidden="true"
+                              >
+                                NEW
+                              </span>
+                            ) : hasNotes ? (
+                              <span
+                                className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-blue-500"
+                                aria-hidden="true"
+                              />
+                            ) : null}
                           </button>
                           <button
                             onClick={() => onEditApplication(item)}

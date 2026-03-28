@@ -40,7 +40,7 @@ type UseNadraAuxiliaryManagementResult = {
   notesSaving: boolean
   openNotesModal: (record: NadraApplication) => void
   closeNotesModal: () => void
-  handleSaveNotes: () => Promise<void>
+  handleSaveNotes: () => Promise<boolean>
   complaintModal: ComplaintModalState | null
   complaintNumber: string
   setComplaintNumber: (value: string) => void
@@ -161,7 +161,7 @@ export default function useNadraAuxiliaryManagement({
   }, [])
 
   const handleSaveNotes = useCallback(async () => {
-    if (!notesModal?.nadraId) return
+    if (!notesModal?.nadraId) return false
 
     setNotesSaving(true)
     try {
@@ -180,14 +180,16 @@ export default function useNadraAuxiliaryManagement({
       if (!res.ok) {
         const payload = await res.json()
         toast.error(payload?.error || 'Failed to update notes')
-        return
+        return false
       }
 
       toast.success('Notes updated')
       setNotesModal(null)
       onRefresh()
+      return true
     } catch {
       toast.error('Error saving notes')
+      return false
     } finally {
       setNotesSaving(false)
     }

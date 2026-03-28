@@ -13,6 +13,8 @@ type NotesModalProps = {
   notes: string
   setNotes: (value: string) => void
   onSave: () => void
+  onMarkUnread?: () => void
+  canMarkUnread?: boolean
   isSaving: boolean
   isLoading: boolean
 }
@@ -24,6 +26,8 @@ export default function NotesModal({
   notes,
   setNotes,
   onSave,
+  onMarkUnread,
+  canMarkUnread = false,
   isSaving,
   isLoading,
 }: NotesModalProps) {
@@ -160,6 +164,14 @@ export default function NotesModal({
               )}
             </div>
             <div className="flex items-center gap-2">
+              <button
+                onClick={onMarkUnread}
+                type="button"
+                disabled={isSaving || isLoading || !canMarkUnread}
+                className="px-3 py-2 text-xs rounded-md border border-amber-300 text-amber-700 hover:bg-amber-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Mark as unread
+              </button>
               <button
                 onClick={handleClose}
                 type="button"

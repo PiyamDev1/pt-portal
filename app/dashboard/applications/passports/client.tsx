@@ -44,6 +44,8 @@ type PakPassportClientProps = {
   currentUserId: string
 }
 
+const getNoteSignature = (value?: string | null) => String(value || '').trim()
+
 export default function PakPassportClient({
   initialApplications,
   currentUserId,
@@ -69,6 +71,7 @@ export default function PakPassportClient({
   const [isNotesLoading, setIsNotesLoading] = useState(false)
   const [isNotesSaving, setIsNotesSaving] = useState(false)
   const [statusHistory, setStatusHistory] = useState<StatusHistoryEntry[]>([])
+  const [noteReadSignatures, setNoteReadSignatures] = useState<Record<string, string>>({})
 
   // Form Data
   const [formErrors, setFormErrors] = useState<PakApplicationFormErrors>({})
@@ -104,6 +107,108 @@ export default function PakPassportClient({
     applicationTypes: ['First Time', 'Renewal', 'Modification', 'Lost'],
     pageCounts: ['34 pages', '54 pages', '72 pages', '100 pages'],
   })
+
+  const upsertLocalReadSignature = (applicationId: string, noteValue?: string | null) => {
+    const signature = getNoteSignature(noteValue)
+    setNoteReadSignatures((current) => {
+      const next = { ...current }
+      if (!signature) {
+        delete next[applicationId]
+      } else {
+        next[applicationId] = signature
+      }
+      return next
+    })
+  }
+
+  const fetchReadSignatures = async (recordIds: string[]) => {
+    if (recordIds.length === 0) {
+      setNoteReadSignatures({})
+      return
+    }
+
+    try {
+      const params = new URLSearchParams({
+        context: 'pk-passport',
+        recordIds: recordIds.join(','),
+      })
+      const response = await fetch(`/api/applications/notes-read?${params.toString()}`, {
+        credentials: 'include',
+      })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        return
+      }
+
+      setNoteReadSignatures(payload?.readSignatures || {})
+    } catch {
+      // Ignore transient failures and keep unread indicators conservative.
+    }
+  }
+
+  useEffect(() => {
+    const recordIds = initialApplications
+      .filter((app) => Boolean(getNoteSignature(getPassportRecord(app)?.notes)))
+      .map((app) => app.id)
+
+    void fetchReadSignatures(recordIds)
+  }, [initialApplications])
+
+  const markNotesRead = async (
+    applicationId: string,
+    noteValue?: string | null,
+    options: { silent?: boolean } = { silent: true },
+  ) => {
+    const signature = getNoteSignature(noteValue)
+    upsertLocalReadSignature(applicationId, signature)
+
+    try {
+      await fetch('/api/applications/notes-read', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          context: 'pk-passport',
+          recordId: applicationId,
+          noteSignature: signature,
+        }),
+      })
+    } catch {
+      if (!options.silent) {
+        toast.error('Could not save read state')
+      }
+    }
+  }
+
+  const markNotesUnread = async (applicationId: string) => {
+    setNoteReadSignatures((current) => {
+      if (typeof current[applicationId] === 'undefined') return current
+      const next = { ...current }
+      delete next[applicationId]
+      return next
+    })
+
+    try {
+      await fetch('/api/applications/notes-read', {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          context: 'pk-passport',
+          recordId: applicationId,
+        }),
+      })
+    } catch {
+      toast.error('Could not mark note as unread')
+    }
+  }
+
+  const isPassportNotesUnread = (item: Application) => {
+    const passport = getPassportRecord(item)
+    const signature = getNoteSignature(passport?.notes)
+    if (!signature) return false
+    return noteReadSignatures[item.id] !== signature
+  }
 
   // --- HANDLERS ---
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -268,9 +373,13 @@ export default function PakPassportClient({
     const data = (await pakPassportApi.getNotes(applicationId)) as
       | { notes?: string }
       | null
+    let loadedNotes = ''
     if (data && typeof data.notes === 'string') {
+      loadedNotes = data.notes
       setNotesText(data.notes)
     }
+
+    await markNotesRead(applicationId, loadedNotes, { silent: true })
 
     setIsNotesLoading(false)
   }
@@ -290,6 +399,7 @@ export default function PakPassportClient({
     setIsNotesSaving(false)
 
     if (result.ok) {
+      await markNotesRead(notesModal.applicationId, notesText, { silent: true })
       toast.success('Notes saved')
       setNotesModal(null)
       router.refresh()
@@ -398,6 +508,7 @@ export default function PakPassportClient({
         onOpenArrival={handleOpenArrival}
         onManageDocuments={handleManageDocuments}
         onOpenNotes={handleOpenNotes}
+        isNotesUnread={isPassportNotesUnread}
       />
 
       <PassportsPagination
@@ -443,6 +554,12 @@ export default function PakPassportClient({
         notes={notesText}
         setNotes={setNotesText}
         onSave={handleSaveNotes}
+        onMarkUnread={async () => {
+          if (!notesModal?.applicationId) return
+          await markNotesUnread(notesModal.applicationId)
+          toast.success('Marked as unread')
+        }}
+        canMarkUnread={Boolean(notesModal?.applicationId && getNoteSignature(notesText))}
         isSaving={isNotesSaving}
         isLoading={isNotesLoading}
       />

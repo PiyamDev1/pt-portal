@@ -20,6 +20,7 @@ type RowItemProps = {
   onOpenArrival: (item: Application) => void
   onManageDocuments?: (appId: string, trackingNo?: string) => void
   onOpenNotes?: (appId: string, trackingNo?: string) => void
+  hasUnreadNotes?: boolean
 }
 
 export default function RowItem({
@@ -30,6 +31,7 @@ export default function RowItem({
   onOpenArrival,
   onManageDocuments,
   onOpenNotes,
+  hasUnreadNotes,
 }: RowItemProps) {
   const [confirmAction, setConfirmAction] = useState<null | 'return' | 'collect' | 'refund'>(null)
   const pp = getPassportRecord(item)
@@ -331,15 +333,28 @@ export default function RowItem({
               className="h-8 w-8 flex items-center justify-center rounded-full bg-amber-50 hover:bg-amber-100 text-amber-600 transition relative"
               type="button"
               aria-label="Application notes"
-              title={hasNotes ? 'Application notes (has notes)' : 'Application notes'}
+              title={
+                hasUnreadNotes
+                  ? 'Application notes (unread)'
+                  : hasNotes
+                    ? 'Application notes (has notes)'
+                    : 'Application notes'
+              }
             >
               <StickyNote className="w-4 h-4" />
-              {hasNotes && (
+              {hasUnreadNotes ? (
+                <span
+                  className="absolute -top-2 -right-2 rounded-full bg-rose-500 px-1.5 py-0.5 text-[8px] font-bold leading-none text-white"
+                  aria-hidden="true"
+                >
+                  NEW
+                </span>
+              ) : hasNotes ? (
                 <span
                   className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-amber-500 rounded-full border-2 border-white"
                   aria-hidden="true"
                 ></span>
-              )}
+              ) : null}
             </button>
 
             <button
