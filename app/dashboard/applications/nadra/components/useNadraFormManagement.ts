@@ -162,9 +162,25 @@ export default function useNadraFormManagement({
       if (!response.ok) {
         const errorMessage = String(result?.error || 'Failed to save application')
         const details = String(result?.details || '').trim()
+        const errorCode = String(result?.errorCode || '').trim()
 
         if (response.status === 409 || /duplicate/i.test(errorMessage)) {
-          toast.error(details || 'Tracking number already exists in the system.')
+          if (errorCode === 'DUPLICATE_CNIC') {
+            toast.error('Duplicate CNIC: this citizen number already exists.')
+            return
+          }
+
+          if (errorCode === 'DUPLICATE_TRACKING') {
+            toast.error('Duplicate tracking number: this tracking number already exists.')
+            return
+          }
+
+          if (/cnic|citizen/i.test(errorMessage) || /cnic|citizen/i.test(details)) {
+            toast.error('Duplicate CNIC: this citizen number already exists.')
+            return
+          }
+
+          toast.error('Duplicate tracking number: this tracking number already exists.')
           return
         }
 

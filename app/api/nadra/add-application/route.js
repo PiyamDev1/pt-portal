@@ -20,7 +20,52 @@ import { toErrorMessage } from '@/lib/api/error'
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
+const getDuplicateConflict = (error) => {
+  const code = String(error?.code || '')
+  const message = String(error?.message || '')
+  const details = String(error?.details || '')
+  const hint = String(error?.hint || '')
+  const combined = `${message} ${details} ${hint}`.toLowerCase()
+
+  if (code !== '23505' && !combined.includes('duplicate')) {
+    return null
+  }
+
+  if (
+    combined.includes('applications_tracking_number_key') ||
+    combined.includes('tracking_number')
+  ) {
+    return {
+      type: 'tracking',
+      error: 'Duplicate Tracking Number',
+      details: 'This tracking number already exists.',
+      errorCode: 'DUPLICATE_TRACKING',
+    }
+  }
+
+  if (
+    combined.includes('applicants_citizen_number_key') ||
+    combined.includes('citizen_number') ||
+    combined.includes('cnic')
+  ) {
+    return {
+      type: 'cnic',
+      error: 'Duplicate CNIC',
+      details: 'This citizen number already exists.',
+      errorCode: 'DUPLICATE_CNIC',
+    }
+  }
+
+  return {
+    type: 'duplicate',
+    error: 'Duplicate Record',
+    details: 'This record already exists.',
+    errorCode: 'DUPLICATE_RECORD',
+  }
+}
+
 export async function POST(request) {
+  let normalizedTrackingNumber = ''
   try {
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -41,6 +86,13 @@ export async function POST(request) {
       pin,
       currentUserId,
     } = body
+    normalizedTrackingNumber = String(trackingNumber || '')
+      .trim()
+      .toUpperCase()
+
+    if (!normalizedTrackingNumber) {
+      return apiError('Tracking number is required', 400)
+    }
 
     // 1. Find or Create Applicant
     let applicant = null
@@ -132,38 +184,89 @@ export async function POST(request) {
       }
     }
 
-    // 3. INSERT APPLICATION FIRST (The Master Record)
-    const { data: appRecord, error: appError } = await supabase
+    // 3. FIND EXISTING APPLICATION OR INSERT NEW MASTER RECORD
+    const { data: existingApplication, error: existingApplicationError } = await supabase
       .from('applications')
-      .insert({
-        tracking_number: trackingNumber,
-        family_head_id: headId || applicant.id,
-        applicant_id: applicant.id,
-        submitted_by_employee_id: currentUserId,
-        status: 'Pending Submission',
-      })
-      .select('id')
-      .single()
+      .select('id, applicant_id')
+      .eq('tracking_number', normalizedTrackingNumber)
+      .maybeSingle()
 
-    if (appError) {
-      if (appError.code === '23505') {
-        return apiError('Duplicate in system not allowed', 409, {
-          details: 'This tracking number is already registered.',
+    if (existingApplicationError) {
+      return apiError('Database error', 500, {
+        details: existingApplicationError.message,
+      })
+    }
+
+    let appRecord = existingApplication
+    if (existingApplication?.id) {
+      const { data: existingService, error: existingServiceError } = await supabase
+        .from('nadra_services')
+        .select('id')
+        .eq('application_id', existingApplication.id)
+        .maybeSingle()
+
+      if (existingServiceError) {
+        return apiError('Database error', 500, {
+          details: existingServiceError.message,
         })
       }
 
-      return apiError('Database error', 500, {
-        details: appError.message,
-      })
+      if (existingService?.id) {
+        return apiError('Duplicate Tracking Number', 409, {
+          details: 'This tracking number already exists.',
+          errorCode: 'DUPLICATE_TRACKING',
+          existingApplicationId: existingApplication.id,
+          existingNadraServiceId: existingService.id,
+          trackingNumber: normalizedTrackingNumber,
+        })
+      }
+      // If there is an application row but no NADRA service row,
+      // continue and attach service/history to recover from prior partial saves.
+    } else {
+      const { data: insertedApplication, error: appError } = await supabase
+        .from('applications')
+        .insert({
+          tracking_number: normalizedTrackingNumber,
+          family_head_id: headId || applicant.id,
+          applicant_id: applicant.id,
+          submitted_by_employee_id: currentUserId,
+          status: 'Pending Submission',
+        })
+        .select('id, applicant_id')
+        .single()
+
+      if (appError) {
+        const duplicateConflict = getDuplicateConflict(appError)
+        if (duplicateConflict) {
+          const { data: conflictApplication } = await supabase
+            .from('applications')
+            .select('id')
+            .eq('tracking_number', normalizedTrackingNumber)
+            .maybeSingle()
+
+          return apiError(duplicateConflict.error, 409, {
+            details: duplicateConflict.details,
+            errorCode: duplicateConflict.errorCode,
+            existingApplicationId: conflictApplication?.id || null,
+            trackingNumber: normalizedTrackingNumber,
+          })
+        }
+
+        return apiError('Database error', 500, {
+          details: appError.message,
+        })
+      }
+
+      appRecord = insertedApplication
     }
 
     // 4. INSERT NADRA SERVICE (Linked to Application) with duplicate handling
     const payload = {
       application_id: appRecord.id,
-      applicant_id: applicant.id,
+      applicant_id: appRecord.applicant_id || applicant.id,
       employee_id: currentUserId,
       service_type: serviceType,
-      tracking_number: trackingNumber,
+      tracking_number: normalizedTrackingNumber,
       application_pin: pin || null,
       status: 'Pending Submission',
     }
@@ -175,9 +278,12 @@ export async function POST(request) {
       .single()
 
     if (nadraError) {
-      if (nadraError.code === '23505') {
-        return apiError('Duplicate in system not allowed', 409, {
-          details: 'This tracking number is already registered.',
+      const duplicateConflict = getDuplicateConflict(nadraError)
+      if (duplicateConflict) {
+        return apiError(duplicateConflict.error, 409, {
+          details: duplicateConflict.details,
+          errorCode: duplicateConflict.errorCode,
+          trackingNumber: normalizedTrackingNumber,
         })
       }
 
@@ -207,11 +313,21 @@ export async function POST(request) {
       createdNadraServiceId: nadraRecord.id,
       applicationId: appRecord.id,
       applicantId: applicant.id,
-      trackingNumber,
+      trackingNumber: normalizedTrackingNumber,
       status: nadraRecord.status,
     })
   } catch (error) {
     console.error('[NADRA API] Unexpected error:', error)
+
+    const duplicateConflict = getDuplicateConflict(error)
+    if (duplicateConflict) {
+      return apiError(duplicateConflict.error, 409, {
+        details: duplicateConflict.details,
+        errorCode: duplicateConflict.errorCode,
+        trackingNumber: normalizedTrackingNumber,
+      })
+    }
+
     return apiError('Internal server error', 500, {
       details: toErrorMessage(error),
     })
