@@ -106,7 +106,7 @@ export async function POST(request) {
         .from('applicants')
         .select('id, phone_number')
         .eq('citizen_number', familyHeadCnic)
-        .single()
+        .maybeSingle()
 
       if (!head && familyHeadName) {
         const parts = familyHeadName.split(' ')
@@ -145,7 +145,17 @@ export async function POST(request) {
       .select('id')
       .single()
 
-    if (appError) throw appError
+    if (appError) {
+      if (appError.code === '23505') {
+        return apiError('Duplicate in system not allowed', 409, {
+          details: 'This tracking number is already registered.',
+        })
+      }
+
+      return apiError('Database error', 500, {
+        details: appError.message,
+      })
+    }
 
     // 4. INSERT NADRA SERVICE (Linked to Application) with duplicate handling
     const payload = {

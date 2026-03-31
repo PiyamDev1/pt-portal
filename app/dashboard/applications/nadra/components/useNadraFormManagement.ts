@@ -160,7 +160,15 @@ export default function useNadraFormManagement({
       const result = await response.json()
 
       if (!response.ok) {
-        toast.error(result.error || 'Failed to save application')
+        const errorMessage = String(result?.error || 'Failed to save application')
+        const details = String(result?.details || '').trim()
+
+        if (response.status === 409 || /duplicate/i.test(errorMessage)) {
+          toast.error(details || 'Tracking number already exists in the system.')
+          return
+        }
+
+        toast.error(details ? `${errorMessage}: ${details}` : errorMessage)
         return
       }
 
