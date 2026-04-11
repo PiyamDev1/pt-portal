@@ -188,36 +188,23 @@ export function DocumentHub({
   )
 
   /**
-   * Download document via presigned URL redirect
+   * Download document via same-origin streaming route.
+   * This avoids client-side dependence on presigned URL signatures.
    */
   const handleDownloadDocument = useCallback(
     async (documentId: string) => {
       const doc = documents.find((d) => d.id === documentId)
       if (!doc) return
 
-      try {
-        const response = await fetch(
-          `/api/documents/signed-url?key=${encodeURIComponent(doc.minio.key)}`,
-        )
-        const payload = await response.json().catch(() => ({}))
-
-        if (!response.ok || !payload?.url) {
-          throw new Error(payload?.error || 'Failed to generate download link')
-        }
-
-        const anchor = window.document.createElement('a')
-        anchor.href = payload.url
-        anchor.download = doc.fileName
-        anchor.target = '_blank'
-        anchor.rel = 'noopener noreferrer'
-        window.document.body.appendChild(anchor)
-        anchor.click()
-        anchor.remove()
-      } catch {
-        // Preserve legacy behavior if signed-url generation fails.
-        const encodedKey = encodeURIComponent(doc.minio.key)
-        window.open(`/api/documents/download?key=${encodedKey}`, '_blank', 'noopener,noreferrer')
-      }
+      const encodedKey = encodeURIComponent(doc.minio.key)
+      const anchor = window.document.createElement('a')
+      anchor.href = `/api/documents/download?key=${encodedKey}`
+      anchor.download = doc.fileName
+      anchor.target = '_blank'
+      anchor.rel = 'noopener noreferrer'
+      window.document.body.appendChild(anchor)
+      anchor.click()
+      anchor.remove()
     },
     [documents],
   )

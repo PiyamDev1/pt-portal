@@ -89,23 +89,8 @@ export function DocumentPreview({
     const loadPreviewUrl = async () => {
       setIsLoading(true)
 
-      try {
-        const response = await fetch(
-          `/api/documents/signed-url?key=${encodeURIComponent(document.minio.key)}`,
-        )
-        const payload = await response.json().catch(() => ({}))
-
-        if (!response.ok || !payload?.url) {
-          throw new Error(payload?.error || 'Failed to load preview URL')
-        }
-
-        if (!cancelled) {
-          setPreviewSrc(payload.url)
-        }
-      } catch {
-        if (!cancelled) {
-          setPreviewSrc(`/api/documents/preview?key=${encodeURIComponent(document.minio.key)}`)
-        }
+      if (!cancelled) {
+        setPreviewSrc(`/api/documents/preview?key=${encodeURIComponent(document.minio.key)}`)
       }
     }
 
