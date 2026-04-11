@@ -8,6 +8,7 @@
 
 import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
+import { getS3Client } from '@/lib/s3Client'
 import {
   Document,
   MinioStatus,
@@ -74,28 +75,14 @@ export interface DocumentService {
  * Replace with actual API calls when backend is ready
  */
 class PlaceholderDocumentService implements DocumentService {
-  private s3Client: S3Client | null = null
-
   private getServerS3Client(): S3Client {
     if (typeof window !== 'undefined') {
       throw new Error('Signed URL generation is server-only')
     }
 
-    if (!this.s3Client) {
-      this.s3Client = new S3Client({
-        region: MINIO_REGION,
-        endpoint: process.env.MINIO_ENDPOINT || MINIO_ENDPOINT,
-        credentials: {
-          accessKeyId: process.env.MINIO_ACCESS_KEY!,
-          secretAccessKey: process.env.MINIO_SECRET_KEY!,
-        },
-        forcePathStyle: true,
-        requestChecksumCalculation: 'WHEN_REQUIRED',
-        responseChecksumValidation: 'WHEN_REQUIRED',
-      })
-    }
-
-    return this.s3Client
+    // Reuse the shared MinIO/S3 client so signing and direct object reads
+    // always use identical endpoint/region/credentials.
+    return getS3Client()
   }
 
   /**

@@ -3,6 +3,16 @@
  * Build/runtime optimizations, security headers, and image/compression tuning.
  */
 /** @type {import('next').NextConfig} */
+const minioEndpoint =
+  process.env.MINIO_ENDPOINT || process.env.NEXT_PUBLIC_MINIO_ENDPOINT || 'https://eu49v2.piyamtravel.com'
+let minioOrigin = 'https://eu49v2.piyamtravel.com'
+
+try {
+  minioOrigin = new URL(minioEndpoint).origin
+} catch {
+  // Keep fallback origin when env value is not a valid URL.
+}
+
 const nextConfig = {
   reactStrictMode: true,
 
@@ -64,7 +74,7 @@ const nextConfig = {
           {
             key: 'Content-Security-Policy',
             value:
-              "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://*.supabase.co; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: https:; font-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com; connect-src 'self' https://*.supabase.co https://api.github.com https://eu49v2.piyamtravel.com; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self';",
+              `default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://*.supabase.co; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: https:; font-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com; connect-src 'self' https://*.supabase.co https://api.github.com ${minioOrigin}; frame-src 'self' ${minioOrigin}; object-src 'none'; base-uri 'self'; form-action 'self';`,
           },
         ],
       },
