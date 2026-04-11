@@ -15,12 +15,13 @@ import ArrivalModal from './components/ArrivalModal'
 import NotesModal from './components/NotesModal'
 import NewApplicationForm from './components/NewApplicationForm'
 import PassportsToolbar from './components/PassportsToolbar'
+import ReceiptViewerModal from '@/app/dashboard/applications/components/ReceiptViewerModal'
 import PassportsTable from './components/PassportsTable'
 import PassportsPagination from './components/PassportsPagination'
 import ReceiptHistoryModal from '@/app/dashboard/applications/components/ReceiptHistoryModal'
 import { formatCNIC, getApplicantRecord, getPassportRecord } from './components/utils'
 import { usePassportListFiltering } from './components/usePassportListFiltering'
-import { useReceipt } from '@/hooks'
+import { useReceipt, type GeneratedReceipt } from '@/hooks'
 import type {
   PakApplicationFormData,
   Application,
@@ -75,6 +76,8 @@ export default function PakPassportClient({
   const [isNotesSaving, setIsNotesSaving] = useState(false)
   const [statusHistory, setStatusHistory] = useState<StatusHistoryEntry[]>([])
   const [noteReadSignatures, setNoteReadSignatures] = useState<Record<string, string>>({})
+  const [receiptViewerOpen, setReceiptViewerOpen] = useState(false)
+  const [activeReceipt, setActiveReceipt] = useState<GeneratedReceipt | null>(null)
 
   // Form Data
   const [formErrors, setFormErrors] = useState<PakApplicationFormErrors>({})
@@ -110,7 +113,7 @@ export default function PakPassportClient({
     applicationTypes: ['First Time', 'Renewal', 'Modification', 'Lost'],
     pageCounts: ['34 pages', '54 pages', '72 pages', '100 pages'],
   })
-  const { generateReceipt, markReceiptShared } = useReceipt()
+  const { generateReceipt } = useReceipt()
 
   const upsertLocalReadSignature = (applicationId: string, noteValue?: string | null) => {
     const signature = getNoteSignature(noteValue)
@@ -402,15 +405,9 @@ export default function PakPassportClient({
         generatedBy: currentUserId,
       })
 
-      const text = payload?.receipt?.plainText || ''
-      if (text && typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(text)
-        toast.success('Receipt copied to clipboard')
-      } else {
-        toast.success('Receipt generated successfully')
-      }
-
-      await markReceiptShared({ receiptId: payload.receipt.id, channel: 'clipboard' })
+      setActiveReceipt(payload.receipt)
+      setReceiptViewerOpen(true)
+      toast.success('Receipt generated successfully')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to generate receipt')
     }
@@ -535,6 +532,12 @@ export default function PakPassportClient({
         setEndDate={setEndDate}
         showForm={showForm}
         setShowForm={setShowForm}
+      />
+
+      <ReceiptViewerModal
+        isOpen={receiptViewerOpen}
+        onClose={() => setReceiptViewerOpen(false)}
+        receipt={activeReceipt}
       />
 
       {/* NEW FORM */}

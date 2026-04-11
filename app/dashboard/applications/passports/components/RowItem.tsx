@@ -366,7 +366,7 @@ export default function RowItem({
               className="h-8 w-8 flex items-center justify-center rounded-full bg-emerald-50 hover:bg-emerald-100 text-emerald-700 transition"
               type="button"
               aria-label="Generate receipt"
-              title="Generate and copy receipt"
+              title="Generate receipt"
             >
               🧾
             </button>

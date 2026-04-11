@@ -14,7 +14,8 @@ import HistoryModal from './components/HistoryModal'
 import LedgerTable from './components/LedgerTable'
 import SearchHeader from './components/SearchHeader'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useReceipt } from '@/hooks'
+import { useReceipt, type GeneratedReceipt } from '@/hooks'
+import ReceiptViewerModal from '@/app/dashboard/applications/components/ReceiptViewerModal'
 import ReceiptHistoryModal from '@/app/dashboard/applications/components/ReceiptHistoryModal'
 import type { GbEditFormData, GbHistoryLog, GbMetadata, GbPassportItem } from './components/types'
 
@@ -63,7 +64,9 @@ export default function GbPassportsClient({ initialData, currentUserId }: GbPass
   })
   const [isEditSaving, setIsEditSaving] = useState(false)
   const [deleteAuthCode, setDeleteAuthCode] = useState('')
-  const { generateReceipt, markReceiptShared } = useReceipt()
+  const { generateReceipt } = useReceipt()
+  const [receiptViewerOpen, setReceiptViewerOpen] = useState(false)
+  const [activeReceipt, setActiveReceipt] = useState<GeneratedReceipt | null>(null)
 
   // History modal state
   const [selectedHistory, setSelectedHistory] = useState<GbPassportItem | null>(null)
@@ -283,15 +286,9 @@ export default function GbPassportsClient({ initialData, currentUserId }: GbPass
         generatedBy: String(currentUserId),
       })
 
-      const text = payload?.receipt?.plainText || ''
-      if (text && typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(text)
-        toast.success('Receipt copied to clipboard')
-      } else {
-        toast.success('Receipt generated successfully')
-      }
-
-      await markReceiptShared({ receiptId: payload.receipt.id, channel: 'clipboard' })
+      setActiveReceipt(payload.receipt)
+      setReceiptViewerOpen(true)
+      toast.success('Receipt generated successfully')
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Failed to generate receipt')
     }
@@ -330,6 +327,12 @@ export default function GbPassportsClient({ initialData, currentUserId }: GbPass
         onSearchChange={setSearchTerm}
         showForm={showForm}
         onToggleForm={() => setShowForm(!showForm)}
+      />
+
+      <ReceiptViewerModal
+        isOpen={receiptViewerOpen}
+        onClose={() => setReceiptViewerOpen(false)}
+        receipt={activeReceipt}
       />
 
       {/* Form Section - Passing Metadata */}

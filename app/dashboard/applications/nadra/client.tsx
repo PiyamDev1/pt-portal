@@ -19,12 +19,14 @@ import NadraCommandDeck from './components/NadraCommandDeck'
 import NadraPagination from './components/NadraPagination'
 import NadraComplaintModal from './components/NadraComplaintModal'
 import ReceiptHistoryModal from '@/app/dashboard/applications/components/ReceiptHistoryModal'
+import ReceiptViewerModal from '@/app/dashboard/applications/components/ReceiptViewerModal'
 import useNadraApplicationFiltering from './components/useNadraApplicationFiltering'
 import useNadraServiceMetadata from './components/useNadraServiceMetadata'
 import useNadraEditManagement from './components/useNadraEditManagement'
 import useNadraAuxiliaryManagement from './components/useNadraAuxiliaryManagement'
 import useNadraFormManagement from './components/useNadraFormManagement'
 import { useReceipt } from '@/hooks'
+import type { GeneratedReceipt } from '@/hooks'
 import type {
   NadraApplication,
   NadraClientProps,
@@ -72,10 +74,12 @@ export default function NadraClient({
 
   const [refundTargetId, setRefundTargetId] = useState<string | null>(null)
   const [receiptHistoryApplicantId, setReceiptHistoryApplicantId] = useState<string | null>(null)
+  const [receiptViewerOpen, setReceiptViewerOpen] = useState(false)
+  const [activeReceipt, setActiveReceipt] = useState<GeneratedReceipt | null>(null)
   const [noteReadSignatures, setNoteReadSignatures] = useState<Record<string, string>>({})
 
   const [isUpdating, setIsUpdating] = useState(false)
-  const { generateReceipt, markReceiptShared, loading: receiptLoading } = useReceipt()
+  const { generateReceipt, loading: receiptLoading } = useReceipt()
   const isAttentionFocus = searchParams.get('focus') === 'attention'
 
   const normalizeLookupValue = useCallback(
@@ -458,28 +462,14 @@ export default function NadraClient({
           generatedBy: currentUserId,
         })
 
-        const text = payload?.receipt?.plainText || ''
-        if (!text) {
-          toast.error('Receipt generated but copy text is empty')
-          return
-        }
-
-        if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
-          await navigator.clipboard.writeText(text)
-          toast.success('Receipt copied to clipboard')
-        } else {
-          toast.success('Receipt generated successfully')
-        }
-
-        await markReceiptShared({
-          receiptId: payload.receipt.id,
-          channel: 'clipboard',
-        })
+        setActiveReceipt(payload.receipt)
+        setReceiptViewerOpen(true)
+        toast.success('Receipt generated successfully')
       } catch (error) {
         toast.error(error instanceof Error ? error.message : 'Failed to generate receipt')
       }
     },
-    [currentUserId, generateReceipt, markReceiptShared],
+    [currentUserId, generateReceipt],
   )
 
   const confirmMarkRefund = async () => {
@@ -599,6 +589,12 @@ export default function NadraClient({
         applicantId={receiptHistoryApplicantId}
         serviceType="nadra"
         title="NADRA Receipt History"
+      />
+
+      <ReceiptViewerModal
+        isOpen={receiptViewerOpen}
+        onClose={() => setReceiptViewerOpen(false)}
+        receipt={activeReceipt}
       />
 
       <NadraPagination

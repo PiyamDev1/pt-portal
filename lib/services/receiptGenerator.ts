@@ -28,6 +28,10 @@ type ResolvedSourceData = {
   applicationId: string
   applicantId: string
   applicantName: string
+  familyHeadName: string | null
+  contactNumber: string | null
+  serviceName: string | null
+  processingSpeed: string | null
   phone: string | null
   email: string | null
   trackingNumber: string | null
@@ -42,6 +46,10 @@ export interface GeneratedReceipt {
   applicationId: string
   applicantId: string
   applicantName: string
+  familyHeadName: string | null
+  contactNumber: string | null
+  serviceName: string | null
+  processingSpeed: string | null
   phone: string | null
   email: string | null
   serviceType: ReceiptServiceType
@@ -76,6 +84,33 @@ function getSupabaseAdminClient() {
 function toNumeric(value: unknown) {
   const n = Number(value)
   return Number.isFinite(n) ? n : null
+}
+
+async function fetchFamilyHeadInfo(
+  supabase: ReturnType<typeof getSupabaseAdminClient>,
+  applicationId: string,
+) {
+  const { data: application } = await supabase
+    .from('applications')
+    .select('family_head_id')
+    .eq('id', applicationId)
+    .maybeSingle()
+
+  if (!application?.family_head_id) {
+    return { familyHeadName: null, contactNumber: null }
+  }
+
+  const { data: head } = await supabase
+    .from('applicants')
+    .select('first_name, last_name, phone_number')
+    .eq('id', application.family_head_id)
+    .maybeSingle()
+
+  const fullName = `${head?.first_name || ''} ${head?.last_name || ''}`.trim() || null
+  return {
+    familyHeadName: fullName,
+    contactNumber: head?.phone_number || null,
+  }
 }
 
 function generatePin(length = RECEIPT_PIN_LENGTH) {
@@ -142,10 +177,16 @@ async function resolveNadraData(serviceRecordId: string): Promise<ResolvedSource
     salePrice = toNumeric(pricing?.sale_price)
   }
 
+  const familyHead = await fetchFamilyHeadInfo(supabase, data.application_id)
+
   return {
     applicationId: data.application_id,
     applicantId: data.applicant_id,
     applicantName,
+    familyHeadName: familyHead.familyHeadName,
+    contactNumber: familyHead.contactNumber || applicant?.phone_number || null,
+    serviceName: data.service_type || 'NADRA',
+    processingSpeed: serviceOption || 'Standard',
     phone: applicant?.phone_number || null,
     email: applicant?.email || null,
     trackingNumber: data.tracking_number || null,
@@ -196,10 +237,16 @@ async function resolvePkPassportData(serviceRecordId: string): Promise<ResolvedS
     .limit(1)
     .maybeSingle()
 
+  const familyHead = await fetchFamilyHeadInfo(supabase, data.application_id)
+
   return {
     applicationId: data.application_id,
     applicantId: data.applicant_id,
     applicantName,
+    familyHeadName: familyHead.familyHeadName,
+    contactNumber: familyHead.contactNumber || applicant?.phone_number || null,
+    serviceName: data.application_type || 'Pakistani Passport',
+    processingSpeed: data.speed || 'Standard',
     phone: applicant?.phone_number || null,
     email: applicant?.email || null,
     trackingNumber: application?.tracking_number || null,
@@ -242,10 +289,16 @@ async function resolveGbPassportData(serviceRecordId: string): Promise<ResolvedS
   const last = applicant?.last_name || ''
   const applicantName = `${first} ${last}`.trim()
 
+  const familyHead = await fetchFamilyHeadInfo(supabase, data.application_id)
+
   return {
     applicationId: data.application_id,
     applicantId: data.applicant_id,
     applicantName,
+    familyHeadName: familyHead.familyHeadName,
+    contactNumber: familyHead.contactNumber || applicant?.phone_number || null,
+    serviceName: 'British Passport',
+    processingSpeed: data.service_type || 'Standard',
     phone: applicant?.phone_number || null,
     email: applicant?.email || null,
     trackingNumber: application?.tracking_number || null,
@@ -274,6 +327,10 @@ export async function generateReceipt(params: GenerateReceiptParams): Promise<Ge
     applicationId: source.applicationId,
     applicantId: source.applicantId,
     applicantName: source.applicantName,
+    familyHeadName: source.familyHeadName,
+    contactNumber: source.contactNumber,
+    serviceName: source.serviceName,
+    processingSpeed: source.processingSpeed,
     phone: source.phone,
     email: source.email,
     serviceType: params.serviceType,

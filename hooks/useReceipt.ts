@@ -15,6 +15,10 @@ export type GeneratedReceipt = {
   applicationId: string
   applicantId: string
   applicantName: string
+  familyHeadName: string | null
+  contactNumber: string | null
+  serviceName: string | null
+  processingSpeed: string | null
   phone: string | null
   email: string | null
   serviceType: ReceiptServiceType
