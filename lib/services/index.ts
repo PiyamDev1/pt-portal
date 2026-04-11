@@ -6,3 +6,5 @@
 export * from './documentService'
 export * from './documentClient'
 export * from './documentServer'
+export * from './receiptGenerator'
+export * from './receiptStore'

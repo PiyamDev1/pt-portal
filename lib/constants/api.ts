@@ -30,6 +30,7 @@ export const API_ENDPOINTS = {
   ADMIN_RESET_PASSWORD: '/api/admin/reset-password',
   ADMIN_DISABLE_EMPLOYEE: '/api/admin/disable-enable-employee',
   ADMIN_DELETE_EMPLOYEE: '/api/admin/delete-employee',
+  ADMIN_RECEIPT_METRICS: '/api/admin/receipt-metrics',
 
   // Auth
   AUTH_BACKUP_CODES: '/api/auth/backup-codes',
@@ -40,6 +41,12 @@ export const API_ENDPOINTS = {
   // Timeclock
   TIMECLOCK_EVENTS: '/api/timeclock/events',
   TIMECLOCK_SCAN: '/api/timeclock/scan',
+
+  // Receipts
+  RECEIPTS_GENERATE: '/api/receipts/generate',
+  RECEIPTS_VERIFY: '/api/receipts/verify',
+  RECEIPTS_LIST: '/api/receipts/list',
+  RECEIPTS_SHARE: '/api/receipts/share',
 } as const
 
 export const HTTP_STATUS = {

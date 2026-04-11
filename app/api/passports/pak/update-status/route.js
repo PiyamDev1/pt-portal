@@ -8,6 +8,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
+import { tryGenerateReceiptForStatusTrigger } from '@/lib/services/receiptGenerator'
 
 // CONFIG: Map UI Status -> Database Status
 // If your DB fails on "Processing", change the right side to "In Progress"
@@ -100,6 +101,14 @@ export async function POST(request) {
       passport_application_id: passportId,
       new_status: status, // Log the readable UI status
       changed_by: userId,
+    })
+
+    await tryGenerateReceiptForStatusTrigger({
+      serviceType: 'pk_passport',
+      serviceRecordId: passportId,
+      status,
+      isRefunded: !!isRefunded,
+      generatedBy: userId || null,
     })
 
     return apiOk({ updatedPassportId: passportId, status })

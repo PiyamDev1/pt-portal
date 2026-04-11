@@ -17,8 +17,10 @@ import NewApplicationForm from './components/NewApplicationForm'
 import PassportsToolbar from './components/PassportsToolbar'
 import PassportsTable from './components/PassportsTable'
 import PassportsPagination from './components/PassportsPagination'
+import ReceiptHistoryModal from '@/app/dashboard/applications/components/ReceiptHistoryModal'
 import { formatCNIC, getApplicantRecord, getPassportRecord } from './components/utils'
 import { usePassportListFiltering } from './components/usePassportListFiltering'
+import { useReceipt } from '@/hooks'
 import type {
   PakApplicationFormData,
   Application,
@@ -67,6 +69,7 @@ export default function PakPassportClient({
   const [arrivalModal, setArrivalModal] = useState<ModalState | null>(null)
   const [notesModal, setNotesModal] = useState<ModalState | null>(null)
   const [newPassportNum, setNewPassportNum] = useState('')
+  const [receiptHistoryApplicantId, setReceiptHistoryApplicantId] = useState<string | null>(null)
   const [notesText, setNotesText] = useState('')
   const [isNotesLoading, setIsNotesLoading] = useState(false)
   const [isNotesSaving, setIsNotesSaving] = useState(false)
@@ -107,6 +110,7 @@ export default function PakPassportClient({
     applicationTypes: ['First Time', 'Renewal', 'Modification', 'Lost'],
     pageCounts: ['34 pages', '54 pages', '72 pages', '100 pages'],
   })
+  const { generateReceipt, markReceiptShared } = useReceipt()
 
   const upsertLocalReadSignature = (applicationId: string, noteValue?: string | null) => {
     const signature = getNoteSignature(noteValue)
@@ -365,6 +369,53 @@ export default function PakPassportClient({
     router.push(`/dashboard/applications/passports/documents/${applicationId}`)
   }
 
+  const handleGenerateReceipt = async (item: Application) => {
+    const passport = getPassportRecord(item)
+    if (!passport?.id) {
+      toast.error('No passport record found for receipt generation')
+      return
+    }
+
+    const status = String(passport.status || '')
+      .trim()
+      .toLowerCase()
+
+    let receiptType: 'biometrics' | 'collection' | 'refund' | null = null
+    if (passport.is_refunded) {
+      receiptType = 'refund'
+    } else if (status === 'biometrics taken') {
+      receiptType = 'biometrics'
+    } else if (status === 'collected') {
+      receiptType = 'collection'
+    }
+
+    if (!receiptType) {
+      toast.error('Receipt is available for Biometrics Taken, Collected, or Refunded records')
+      return
+    }
+
+    try {
+      const payload = await generateReceipt({
+        serviceType: 'pk_passport',
+        serviceRecordId: passport.id,
+        receiptType,
+        generatedBy: currentUserId,
+      })
+
+      const text = payload?.receipt?.plainText || ''
+      if (text && typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text)
+        toast.success('Receipt copied to clipboard')
+      } else {
+        toast.success('Receipt generated successfully')
+      }
+
+      await markReceiptShared({ receiptId: payload.receipt.id, channel: 'clipboard' })
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to generate receipt')
+    }
+  }
+
   const handleOpenNotes = async (applicationId: string, trackingNumber?: string) => {
     setNotesModal({ applicationId, trackingNumber })
     setNotesText('')
@@ -506,9 +557,22 @@ export default function PakPassportClient({
         onUpdateRecord={handleUpdateRecord}
         onViewHistory={handleViewHistory}
         onOpenArrival={handleOpenArrival}
+        onGenerateReceipt={handleGenerateReceipt}
+        onOpenReceiptHistory={(item) => {
+          const applicant = getApplicantRecord(item)
+          setReceiptHistoryApplicantId(applicant?.id || null)
+        }}
         onManageDocuments={handleManageDocuments}
         onOpenNotes={handleOpenNotes}
         isNotesUnread={isPassportNotesUnread}
+      />
+
+      <ReceiptHistoryModal
+        isOpen={!!receiptHistoryApplicantId}
+        onClose={() => setReceiptHistoryApplicantId(null)}
+        applicantId={receiptHistoryApplicantId}
+        serviceType="pk_passport"
+        title="PK Passport Receipt History"
       />
 
       <PassportsPagination

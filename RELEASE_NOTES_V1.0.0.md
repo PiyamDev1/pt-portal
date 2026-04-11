@@ -11,6 +11,46 @@ PT-Portal is a comprehensive, production-ready web application for managing trav
 
 ---
 
+## 🧾 Receipt Generation Update (April 2026)
+
+The receipt system backend foundation is now implemented and ready for UI integration.
+
+### Implemented APIs
+- `POST /api/receipts/generate` for generating service receipts with pricing, PIN, and QR verification payload.
+- `POST /api/receipts/verify` for tracking-number + PIN authenticity checks.
+- `GET /api/receipts/list` for applicant/service filtered receipt history.
+- `POST /api/receipts/share` for share analytics updates (channel, timestamp, counter).
+
+### Triggered Generation
+- NADRA: Submitted and refund events.
+- Pakistani Passport: Biometrics Taken, Collected, and refund events.
+- British Passport: Pending Submission event via update flow.
+
+### Persistence & Schema
+- New receipt storage table via `scripts/create-generated-receipts-table.sql`.
+- Share-tracking columns: shared flag, shared timestamp, channel, and share count.
+- Safe fallback behavior if schema is not available (APIs remain stable with supported=false responses where applicable).
+
+### Frontend Integration Readiness
+- New reusable receipt hook: `hooks/useReceipt.ts`.
+- New API endpoint constants under `lib/constants/api.ts`.
+
+### Validation
+- Receipt route tests passing:
+	- `tests/unit/receiptsGenerateRoute.test.ts`
+	- `tests/unit/receiptsVerifyRoute.test.ts`
+	- `tests/unit/receiptsListRoute.test.ts`
+	- `tests/unit/receiptsShareRoute.test.ts`
+
+### Admin Audit & Hardening
+- New admin API: `GET /api/admin/receipt-metrics` with maintenance-session protection.
+- New Settings tab: **Receipt Metrics** for generation/share/backfill visibility.
+- New backfill script: `scripts/backfill-generated-receipts-share-columns.sql`.
+- New smoke flow: `tests/smoke/receipt-flow.spec.ts` (generate -> share -> verify -> list roundtrip).
+- New operations guide: `docs/guides/RECEIPT_OPERATIONS_GUIDE.md`.
+
+---
+
 ## ✨ Core Features Implemented
 
 ### 📋 Application Management System

@@ -4,11 +4,17 @@
  */
 
 export interface GbApplicant {
+  id?: string
   first_name?: string
   last_name?: string
   passport_number?: string
   date_of_birth?: string
   phone_number?: string
+}
+
+export interface GbApplicationRef {
+  id?: string
+  tracking_number?: string
 }
 
 export interface GbEmployee {
@@ -33,6 +39,7 @@ export interface GbPassportItem {
   service_type?: string
   created_at?: string
   applicants?: GbApplicant | null
+  applications?: GbApplicationRef | null
 }
 
 export interface GbPricingRule {

@@ -14,6 +14,8 @@ import HistoryModal from './components/HistoryModal'
 import LedgerTable from './components/LedgerTable'
 import SearchHeader from './components/SearchHeader'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { useReceipt } from '@/hooks'
+import ReceiptHistoryModal from '@/app/dashboard/applications/components/ReceiptHistoryModal'
 import type { GbEditFormData, GbHistoryLog, GbMetadata, GbPassportItem } from './components/types'
 
 interface FormData {
@@ -61,9 +63,11 @@ export default function GbPassportsClient({ initialData, currentUserId }: GbPass
   })
   const [isEditSaving, setIsEditSaving] = useState(false)
   const [deleteAuthCode, setDeleteAuthCode] = useState('')
+  const { generateReceipt, markReceiptShared } = useReceipt()
 
   // History modal state
   const [selectedHistory, setSelectedHistory] = useState<GbPassportItem | null>(null)
+  const [receiptHistoryApplicantId, setReceiptHistoryApplicantId] = useState<string | null>(null)
   const [historyLogs, setHistoryLogs] = useState<GbHistoryLog[]>([])
   const [loadingHistory, setLoadingHistory] = useState(false)
 
@@ -265,6 +269,34 @@ export default function GbPassportsClient({ initialData, currentUserId }: GbPass
     }
   }
 
+  const handleGenerateReceipt = async (item: GbPassportItem) => {
+    if (!item?.id) {
+      toast.error('No GB application record found for receipt generation')
+      return
+    }
+
+    try {
+      const payload = await generateReceipt({
+        serviceType: 'gb_passport',
+        serviceRecordId: item.id,
+        receiptType: 'submission',
+        generatedBy: String(currentUserId),
+      })
+
+      const text = payload?.receipt?.plainText || ''
+      if (text && typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text)
+        toast.success('Receipt copied to clipboard')
+      } else {
+        toast.success('Receipt generated successfully')
+      }
+
+      await markReceiptShared({ receiptId: payload.receipt.id, channel: 'clipboard' })
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Failed to generate receipt')
+    }
+  }
+
   const searchTermLower = useMemo(() => searchTerm.toLowerCase(), [searchTerm])
 
   const filtered = useMemo(
@@ -317,6 +349,16 @@ export default function GbPassportsClient({ initialData, currentUserId }: GbPass
         onStatusChange={handleStatusChange}
         onViewHistory={(item) => setSelectedHistory(item)}
         onEdit={openEditModal}
+        onGenerateReceipt={handleGenerateReceipt}
+        onOpenReceiptHistory={(item) => setReceiptHistoryApplicantId(item.applicants?.id || null)}
+      />
+
+      <ReceiptHistoryModal
+        isOpen={!!receiptHistoryApplicantId}
+        onClose={() => setReceiptHistoryApplicantId(null)}
+        applicantId={receiptHistoryApplicantId}
+        serviceType="gb_passport"
+        title="GB Passport Receipt History"
       />
 
       {/* Edit Modal */}

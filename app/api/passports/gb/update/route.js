@@ -8,6 +8,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
+import { tryGenerateReceiptForStatusTrigger } from '@/lib/services/receiptGenerator'
 
 export async function POST(request) {
   try {
@@ -84,6 +85,13 @@ export async function POST(request) {
         new_status: status,
         notes: notes || null,
         changed_by: userId,
+      })
+
+      await tryGenerateReceiptForStatusTrigger({
+        serviceType: 'gb_passport',
+        serviceRecordId: id,
+        status,
+        generatedBy: userId || null,
       })
     }
 

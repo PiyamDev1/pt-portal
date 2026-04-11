@@ -18,6 +18,8 @@ type RowItemProps = {
   onUpdateRecord: (id: string, data: PakUpdateRecordPayload) => void
   onViewHistory: (appId: string, trackingNo: string) => void
   onOpenArrival: (item: Application) => void
+  onGenerateReceipt?: (item: Application) => void
+  onOpenReceiptHistory?: (item: Application) => void
   onManageDocuments?: (appId: string, trackingNo?: string) => void
   onOpenNotes?: (appId: string, trackingNo?: string) => void
   hasUnreadNotes?: boolean
@@ -29,6 +31,8 @@ export default function RowItem({
   onUpdateRecord,
   onViewHistory,
   onOpenArrival,
+  onGenerateReceipt,
+  onOpenReceiptHistory,
   onManageDocuments,
   onOpenNotes,
   hasUnreadNotes,
@@ -355,6 +359,26 @@ export default function RowItem({
                   aria-hidden="true"
                 ></span>
               ) : null}
+            </button>
+
+            <button
+              onClick={() => onGenerateReceipt?.(item)}
+              className="h-8 w-8 flex items-center justify-center rounded-full bg-emerald-50 hover:bg-emerald-100 text-emerald-700 transition"
+              type="button"
+              aria-label="Generate receipt"
+              title="Generate and copy receipt"
+            >
+              🧾
+            </button>
+
+            <button
+              onClick={() => onOpenReceiptHistory?.(item)}
+              className="h-8 w-8 flex items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 transition"
+              type="button"
+              aria-label="View receipt history"
+              title="View receipt history"
+            >
+              📚
             </button>
 
             <button

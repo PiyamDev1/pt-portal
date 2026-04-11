@@ -18,6 +18,8 @@ interface LedgerTableProps {
   onOpenNotes: (item: NadraApplication) => void
   isNoteUnread: (item: NadraApplication) => boolean
   onOpenComplaint: (item: NadraApplication) => void
+  onGenerateReceipt: (item: NadraApplication) => void
+  onOpenReceiptHistory: (item: NadraApplication) => void
   onManageDocuments?: (familyHeadId: string, familyHeadName: string) => void
 }
 
@@ -33,6 +35,8 @@ export default function LedgerTable({
   onOpenNotes,
   isNoteUnread,
   onOpenComplaint,
+  onGenerateReceipt,
+  onOpenReceiptHistory,
   onManageDocuments,
 }: LedgerTableProps) {
   const groupedEntries = Object.entries(groupedData) as [string, NadraFamilyGroup][]
@@ -269,6 +273,26 @@ export default function LedgerTable({
                               Complaint
                             </button>
                           )}
+                          <button
+                            onClick={() => onGenerateReceipt(item)}
+                            disabled={isUpdating}
+                            className="h-8 px-3 flex items-center justify-center rounded-full bg-emerald-50 hover:bg-emerald-100 text-emerald-700 transition text-xs font-semibold border border-emerald-200 whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed"
+                            type="button"
+                            aria-label="Generate receipt"
+                            title="Generate and copy receipt"
+                          >
+                            Receipt
+                          </button>
+                          <button
+                            onClick={() => onOpenReceiptHistory(item)}
+                            disabled={isUpdating}
+                            className="h-8 px-3 flex items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 transition text-xs font-semibold border border-slate-200 whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed"
+                            type="button"
+                            aria-label="View receipt history"
+                            title="View receipt history"
+                          >
+                            Receipts
+                          </button>
                           {isCancelled && (
                             <button
                               onClick={() => {

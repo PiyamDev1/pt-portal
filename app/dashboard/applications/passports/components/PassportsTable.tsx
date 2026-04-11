@@ -13,6 +13,8 @@ type PassportsTableProps = {
   onUpdateRecord: (id: string, data: PakUpdateRecordPayload) => Promise<void>
   onViewHistory: (appId: string, trackingNo: string) => Promise<void>
   onOpenArrival: (item: Application) => void
+  onGenerateReceipt?: (item: Application) => void
+  onOpenReceiptHistory?: (item: Application) => void
   onManageDocuments: (applicationId: string, trackingNumber?: string) => void
   onOpenNotes: (applicationId: string, trackingNumber?: string) => Promise<void>
   isNotesUnread: (item: Application) => boolean
@@ -25,6 +27,8 @@ export default function PassportsTable({
   onUpdateRecord,
   onViewHistory,
   onOpenArrival,
+  onGenerateReceipt,
+  onOpenReceiptHistory,
   onManageDocuments,
   onOpenNotes,
   isNotesUnread,
@@ -72,6 +76,8 @@ export default function PassportsTable({
                 onUpdateRecord={onUpdateRecord}
                 onViewHistory={onViewHistory}
                 onOpenArrival={onOpenArrival}
+                onGenerateReceipt={onGenerateReceipt}
+                onOpenReceiptHistory={onOpenReceiptHistory}
                 onManageDocuments={onManageDocuments}
                 onOpenNotes={onOpenNotes}
                 hasUnreadNotes={isNotesUnread(item)}

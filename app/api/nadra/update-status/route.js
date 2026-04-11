@@ -16,6 +16,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
+import { tryGenerateReceiptForStatusTrigger } from '@/lib/services/receiptGenerator'
 
 export async function POST(request) {
   try {
@@ -51,6 +52,13 @@ export async function POST(request) {
     if (historyError) {
       throw new Error(historyError.message || 'Failed to insert status history')
     }
+
+    await tryGenerateReceiptForStatusTrigger({
+      serviceType: 'nadra',
+      serviceRecordId: nadraId,
+      status,
+      generatedBy: userId || null,
+    })
 
     return apiOk({ updatedNadraId: nadraId, status })
   } catch (error) {

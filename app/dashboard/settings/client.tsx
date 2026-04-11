@@ -12,6 +12,7 @@ import StaffTab from './components/StaffTab'
 import HierarchyTab from './components/HierarchyTab'
 import { AdminOverviewTab } from './components/AdminOverviewTab'
 import { DocumentMigrationOverviewTab } from './components/DocumentMigrationOverviewTab'
+import { ReceiptMetricsTab } from './components/ReceiptMetricsTab'
 import { MaintenanceTab } from './components/MaintenanceTab'
 import { IssueReportsTab } from './components/IssueReportsTab'
 import Link from 'next/link'
@@ -163,6 +164,16 @@ export default function SettingsClient({
                     Document Storage
                   </button>
                   <button
+                    onClick={() => setActiveTab('receipt-metrics')}
+                    className={`w-full text-left px-4 py-3 border-l-4 transition-colors ${
+                      activeTab === 'receipt-metrics'
+                        ? 'border-blue-900 bg-blue-50 font-medium text-blue-900'
+                        : 'border-transparent hover:bg-slate-50 text-slate-600'
+                    }`}
+                  >
+                    Receipt Metrics
+                  </button>
+                  <button
                     onClick={() => setActiveTab('maintenance')}
                     className={`w-full text-left px-4 py-3 border-l-4 transition-colors ${
                       activeTab === 'maintenance'
@@ -255,6 +266,8 @@ export default function SettingsClient({
         {activeTab === 'document-storage' && canAccessMaintenance && (
           <DocumentMigrationOverviewTab />
         )}
+
+        {activeTab === 'receipt-metrics' && canAccessMaintenance && <ReceiptMetricsTab />}
 
         {activeTab === 'maintenance' && canAccessMaintenance && <MaintenanceTab />}
       </div>

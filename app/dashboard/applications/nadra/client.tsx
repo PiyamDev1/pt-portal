@@ -18,11 +18,13 @@ import NotesModal from './components/NotesModal'
 import NadraCommandDeck from './components/NadraCommandDeck'
 import NadraPagination from './components/NadraPagination'
 import NadraComplaintModal from './components/NadraComplaintModal'
+import ReceiptHistoryModal from '@/app/dashboard/applications/components/ReceiptHistoryModal'
 import useNadraApplicationFiltering from './components/useNadraApplicationFiltering'
 import useNadraServiceMetadata from './components/useNadraServiceMetadata'
 import useNadraEditManagement from './components/useNadraEditManagement'
 import useNadraAuxiliaryManagement from './components/useNadraAuxiliaryManagement'
 import useNadraFormManagement from './components/useNadraFormManagement'
+import { useReceipt } from '@/hooks'
 import type {
   NadraApplication,
   NadraClientProps,
@@ -69,9 +71,11 @@ export default function NadraClient({
   const pageSize = 25
 
   const [refundTargetId, setRefundTargetId] = useState<string | null>(null)
+  const [receiptHistoryApplicantId, setReceiptHistoryApplicantId] = useState<string | null>(null)
   const [noteReadSignatures, setNoteReadSignatures] = useState<Record<string, string>>({})
 
   const [isUpdating, setIsUpdating] = useState(false)
+  const { generateReceipt, markReceiptShared, loading: receiptLoading } = useReceipt()
   const isAttentionFocus = searchParams.get('focus') === 'attention'
 
   const normalizeLookupValue = useCallback(
@@ -428,6 +432,56 @@ export default function NadraClient({
     setRefundTargetId(nadraId)
   }
 
+  const handleGenerateReceipt = useCallback(
+    async (item: NadraApplication) => {
+      const nadra = getNadraRecord(item)
+      if (!nadra?.id) {
+        toast.error('No application record found for receipt generation')
+        return
+      }
+
+      const status = String(nadra.status || '')
+        .trim()
+        .toLowerCase()
+      const receiptType = nadra.is_refunded ? 'refund' : 'submission'
+
+      if (!nadra.is_refunded && status !== 'submitted') {
+        toast.error('Submission receipt can be generated after status is Submitted')
+        return
+      }
+
+      try {
+        const payload = await generateReceipt({
+          serviceType: 'nadra',
+          serviceRecordId: nadra.id,
+          receiptType,
+          generatedBy: currentUserId,
+        })
+
+        const text = payload?.receipt?.plainText || ''
+        if (!text) {
+          toast.error('Receipt generated but copy text is empty')
+          return
+        }
+
+        if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(text)
+          toast.success('Receipt copied to clipboard')
+        } else {
+          toast.success('Receipt generated successfully')
+        }
+
+        await markReceiptShared({
+          receiptId: payload.receipt.id,
+          channel: 'clipboard',
+        })
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : 'Failed to generate receipt')
+      }
+    },
+    [currentUserId, generateReceipt, markReceiptShared],
+  )
+
   const confirmMarkRefund = async () => {
     if (!refundTargetId) return
 
@@ -524,7 +578,7 @@ export default function NadraClient({
 
       <LedgerTable
         groupedData={groupedData}
-        isUpdating={isUpdating}
+        isUpdating={isUpdating || receiptLoading}
         onStatusChange={handleStatusChange}
         onMarkRefund={handleMarkRefund}
         onEditApplication={(item) => openEditModal(item, 'application')}
@@ -534,7 +588,17 @@ export default function NadraClient({
         onOpenNotes={handleOpenNotesWithReadState}
         isNoteUnread={isNadraNoteUnread}
         onOpenComplaint={openComplaintModal}
+        onGenerateReceipt={handleGenerateReceipt}
+        onOpenReceiptHistory={(item) => setReceiptHistoryApplicantId(item.applicants?.id || null)}
         onManageDocuments={handleManageDocuments}
+      />
+
+      <ReceiptHistoryModal
+        isOpen={!!receiptHistoryApplicantId}
+        onClose={() => setReceiptHistoryApplicantId(null)}
+        applicantId={receiptHistoryApplicantId}
+        serviceType="nadra"
+        title="NADRA Receipt History"
       />
 
       <NadraPagination

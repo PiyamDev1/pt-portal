@@ -104,6 +104,13 @@ export function AdminOverviewTab({
       visible: canAccessMaintenance,
     },
     {
+      id: 'receipt-metrics',
+      title: 'Receipt Metrics',
+      description: 'Track receipt generation volume, share channels, and backfill health.',
+      icon: Database,
+      visible: canAccessMaintenance,
+    },
+    {
       id: 'maintenance',
       title: 'Data Maintenance',
       description: 'Run controlled maintenance tasks and review the result before wider changes.',

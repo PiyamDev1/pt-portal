@@ -16,6 +16,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
+import { tryGenerateReceiptForStatusTrigger } from '@/lib/services/receiptGenerator'
 
 export const dynamic = 'force-dynamic'
 
@@ -73,6 +74,14 @@ export async function POST(request) {
     })
 
     if (historyError) throw new Error(historyError.message || 'Failed to insert refund history')
+
+    await tryGenerateReceiptForStatusTrigger({
+      serviceType: 'nadra',
+      serviceRecordId: nadraId,
+      status: current.status,
+      isRefunded: true,
+      generatedBy: userId || null,
+    })
 
     return apiOk({ refundedAt })
   } catch (error) {

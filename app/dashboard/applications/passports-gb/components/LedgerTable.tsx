@@ -14,6 +14,8 @@ interface LedgerTableProps {
   onStatusChange: (id: string, newStatus: string) => void
   onViewHistory: (item: GbPassportItem) => void
   onEdit: (item: GbPassportItem) => void
+  onGenerateReceipt?: (item: GbPassportItem) => void
+  onOpenReceiptHistory?: (item: GbPassportItem) => void
 }
 
 export default function LedgerTable({
@@ -21,6 +23,8 @@ export default function LedgerTable({
   onStatusChange,
   onViewHistory,
   onEdit,
+  onGenerateReceipt,
+  onOpenReceiptHistory,
 }: LedgerTableProps) {
   const formatName = (firstName: string, lastName: string) => {
     return `${firstName.toUpperCase()} ${lastName.toUpperCase()}`
@@ -157,6 +161,24 @@ export default function LedgerTable({
                       aria-label="Edit application"
                     >
                       <MoreHorizontal className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => onGenerateReceipt?.(item)}
+                      className="text-emerald-700 hover:text-emerald-800 p-2 hover:bg-emerald-50 rounded"
+                      title="Generate Receipt"
+                      type="button"
+                      aria-label="Generate receipt"
+                    >
+                      <span className="text-sm">🧾</span>
+                    </button>
+                    <button
+                      onClick={() => onOpenReceiptHistory?.(item)}
+                      className="text-slate-700 hover:text-slate-900 p-2 hover:bg-slate-100 rounded"
+                      title="Receipt History"
+                      type="button"
+                      aria-label="View receipt history"
+                    >
+                      <span className="text-sm">📚</span>
                     </button>
                   </div>
                 </td>
