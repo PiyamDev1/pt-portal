@@ -20,6 +20,7 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || '/api'
 const MINIO_ENDPOINT = process.env.NEXT_PUBLIC_MINIO_ENDPOINT || 'https://eu49v2.piyamtravel.com'
 const MINIO_BUCKET =
   process.env.MINIO_BUCKET_NAME || process.env.NEXT_PUBLIC_MINIO_BUCKET || 'portal-documents'
+const MINIO_REGION = process.env.MINIO_REGION || 'eu-west-1'
 
 // Constants
 const MAX_FILE_SIZE = 1500000 // 1.5 MB in bytes
@@ -82,7 +83,7 @@ class PlaceholderDocumentService implements DocumentService {
 
     if (!this.s3Client) {
       this.s3Client = new S3Client({
-        region: 'auto',
+        region: MINIO_REGION,
         endpoint: process.env.MINIO_ENDPOINT || MINIO_ENDPOINT,
         credentials: {
           accessKeyId: process.env.MINIO_ACCESS_KEY!,
@@ -157,7 +158,7 @@ class PlaceholderDocumentService implements DocumentService {
       accessKey: process.env.NEXT_PUBLIC_MINIO_ACCESS_KEY || 'minioadmin',
       secretKey: '***',
       bucket: MINIO_BUCKET,
-      region: process.env.MINIO_REGION || 'us-east-1',
+      region: MINIO_REGION,
       useSSL: MINIO_ENDPOINT.startsWith('https'),
     }
   }
