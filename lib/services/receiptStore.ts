@@ -32,7 +32,13 @@ export type StoredReceiptSummary = {
 }
 
 function getSupabaseAdminClient() {
-  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!url || !serviceRoleKey) {
+    throw new Error('Missing Supabase environment variables for receipt storage')
+  }
+
+  return createClient(url, serviceRoleKey)
 }
 
 function toReason(error: unknown) {

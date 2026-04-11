@@ -64,7 +64,13 @@ export interface GeneratedReceipt {
 }
 
 function getSupabaseAdminClient() {
-  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!url || !serviceRoleKey) {
+    throw new Error('Missing Supabase environment variables for receipt generation')
+  }
+
+  return createClient(url, serviceRoleKey)
 }
 
 function toNumeric(value: unknown) {
@@ -107,10 +113,15 @@ async function resolveNadraData(serviceRecordId: string): Promise<ResolvedSource
 
   if (error || !data) throw new Error('NADRA service not found for receipt')
 
-  const first = data.applicants?.first_name || ''
-  const last = data.applicants?.last_name || ''
+  const applicant = Array.isArray(data.applicants) ? data.applicants[0] : data.applicants
+  const serviceDetail = Array.isArray(data.nicop_cnic_details)
+    ? data.nicop_cnic_details[0]
+    : data.nicop_cnic_details
+
+  const first = applicant?.first_name || ''
+  const last = applicant?.last_name || ''
   const applicantName = `${first} ${last}`.trim()
-  const serviceOption = data.nicop_cnic_details?.service_option || null
+  const serviceOption = serviceDetail?.service_option || null
 
   let costPrice = null
   let salePrice = null
@@ -135,8 +146,8 @@ async function resolveNadraData(serviceRecordId: string): Promise<ResolvedSource
     applicationId: data.application_id,
     applicantId: data.applicant_id,
     applicantName,
-    phone: data.applicants?.phone_number || null,
-    email: data.applicants?.email || null,
+    phone: applicant?.phone_number || null,
+    email: applicant?.email || null,
     trackingNumber: data.tracking_number || null,
     applicationPin: data.application_pin || null,
     serviceDescription: serviceOption ? `${data.service_type || 'NADRA'} - ${serviceOption}` : data.service_type,
@@ -167,8 +178,11 @@ async function resolvePkPassportData(serviceRecordId: string): Promise<ResolvedS
 
   if (error || !data) throw new Error('Pakistani passport application not found for receipt')
 
-  const first = data.applicants?.first_name || ''
-  const last = data.applicants?.last_name || ''
+  const applicant = Array.isArray(data.applicants) ? data.applicants[0] : data.applicants
+  const application = Array.isArray(data.applications) ? data.applications[0] : data.applications
+
+  const first = applicant?.first_name || ''
+  const last = applicant?.last_name || ''
   const applicantName = `${first} ${last}`.trim()
 
   const { data: pricing } = await supabase
@@ -186,9 +200,9 @@ async function resolvePkPassportData(serviceRecordId: string): Promise<ResolvedS
     applicationId: data.application_id,
     applicantId: data.applicant_id,
     applicantName,
-    phone: data.applicants?.phone_number || null,
-    email: data.applicants?.email || null,
-    trackingNumber: data.applications?.tracking_number || null,
+    phone: applicant?.phone_number || null,
+    email: applicant?.email || null,
+    trackingNumber: application?.tracking_number || null,
     applicationPin: null,
     serviceDescription: [data.application_type, data.category, data.speed, data.page_count]
       .filter(Boolean)
@@ -221,17 +235,20 @@ async function resolveGbPassportData(serviceRecordId: string): Promise<ResolvedS
 
   if (error || !data) throw new Error('British passport application not found for receipt')
 
-  const first = data.applicants?.first_name || ''
-  const last = data.applicants?.last_name || ''
+  const applicant = Array.isArray(data.applicants) ? data.applicants[0] : data.applicants
+  const application = Array.isArray(data.applications) ? data.applications[0] : data.applications
+
+  const first = applicant?.first_name || ''
+  const last = applicant?.last_name || ''
   const applicantName = `${first} ${last}`.trim()
 
   return {
     applicationId: data.application_id,
     applicantId: data.applicant_id,
     applicantName,
-    phone: data.applicants?.phone_number || null,
-    email: data.applicants?.email || null,
-    trackingNumber: data.applications?.tracking_number || null,
+    phone: applicant?.phone_number || null,
+    email: applicant?.email || null,
+    trackingNumber: application?.tracking_number || null,
     applicationPin: null,
     serviceDescription: [data.age_group, data.service_type, data.pages].filter(Boolean).join(' / '),
     costPrice: toNumeric(data.cost_price),
