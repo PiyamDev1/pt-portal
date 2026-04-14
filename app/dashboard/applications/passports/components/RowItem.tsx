@@ -19,7 +19,6 @@ type RowItemProps = {
   onViewHistory: (appId: string, trackingNo: string) => void
   onOpenArrival: (item: Application) => void
   onGenerateReceipt?: (item: Application) => void
-  onOpenReceiptHistory?: (item: Application) => void
   onManageDocuments?: (appId: string, trackingNo?: string) => void
   onOpenNotes?: (appId: string, trackingNo?: string) => void
   hasUnreadNotes?: boolean
@@ -32,7 +31,6 @@ export default function RowItem({
   onViewHistory,
   onOpenArrival,
   onGenerateReceipt,
-  onOpenReceiptHistory,
   onManageDocuments,
   onOpenNotes,
   hasUnreadNotes,
@@ -369,16 +367,6 @@ export default function RowItem({
               title="Generate receipt"
             >
               🧾
-            </button>
-
-            <button
-              onClick={() => onOpenReceiptHistory?.(item)}
-              className="h-8 w-8 flex items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 transition"
-              type="button"
-              aria-label="View receipt history"
-              title="View receipt history"
-            >
-              📚
             </button>
 
             <button

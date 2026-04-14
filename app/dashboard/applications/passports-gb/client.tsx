@@ -16,7 +16,6 @@ import SearchHeader from './components/SearchHeader'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useReceipt, type GeneratedReceipt } from '@/hooks'
 import ReceiptViewerModal from '@/app/dashboard/applications/components/ReceiptViewerModal'
-import ReceiptHistoryModal from '@/app/dashboard/applications/components/ReceiptHistoryModal'
 import type { GbEditFormData, GbHistoryLog, GbMetadata, GbPassportItem } from './components/types'
 
 interface FormData {
@@ -70,7 +69,6 @@ export default function GbPassportsClient({ initialData, currentUserId }: GbPass
 
   // History modal state
   const [selectedHistory, setSelectedHistory] = useState<GbPassportItem | null>(null)
-  const [receiptHistoryApplicantId, setReceiptHistoryApplicantId] = useState<string | null>(null)
   const [historyLogs, setHistoryLogs] = useState<GbHistoryLog[]>([])
   const [loadingHistory, setLoadingHistory] = useState(false)
 
@@ -353,15 +351,6 @@ export default function GbPassportsClient({ initialData, currentUserId }: GbPass
         onViewHistory={(item) => setSelectedHistory(item)}
         onEdit={openEditModal}
         onGenerateReceipt={handleGenerateReceipt}
-        onOpenReceiptHistory={(item) => setReceiptHistoryApplicantId(item.applicants?.id || null)}
-      />
-
-      <ReceiptHistoryModal
-        isOpen={!!receiptHistoryApplicantId}
-        onClose={() => setReceiptHistoryApplicantId(null)}
-        applicantId={receiptHistoryApplicantId}
-        serviceType="gb_passport"
-        title="GB Passport Receipt History"
       />
 
       {/* Edit Modal */}

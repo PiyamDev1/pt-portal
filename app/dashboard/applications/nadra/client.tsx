@@ -18,7 +18,6 @@ import NotesModal from './components/NotesModal'
 import NadraCommandDeck from './components/NadraCommandDeck'
 import NadraPagination from './components/NadraPagination'
 import NadraComplaintModal from './components/NadraComplaintModal'
-import ReceiptHistoryModal from '@/app/dashboard/applications/components/ReceiptHistoryModal'
 import ReceiptViewerModal from '@/app/dashboard/applications/components/ReceiptViewerModal'
 import useNadraApplicationFiltering from './components/useNadraApplicationFiltering'
 import useNadraServiceMetadata from './components/useNadraServiceMetadata'
@@ -73,7 +72,6 @@ export default function NadraClient({
   const pageSize = 25
 
   const [refundTargetId, setRefundTargetId] = useState<string | null>(null)
-  const [receiptHistoryApplicantId, setReceiptHistoryApplicantId] = useState<string | null>(null)
   const [receiptViewerOpen, setReceiptViewerOpen] = useState(false)
   const [activeReceipt, setActiveReceipt] = useState<GeneratedReceipt | null>(null)
   const [noteReadSignatures, setNoteReadSignatures] = useState<Record<string, string>>({})
@@ -579,16 +577,7 @@ export default function NadraClient({
         isNoteUnread={isNadraNoteUnread}
         onOpenComplaint={openComplaintModal}
         onGenerateReceipt={handleGenerateReceipt}
-        onOpenReceiptHistory={(item) => setReceiptHistoryApplicantId(item.applicants?.id || null)}
         onManageDocuments={handleManageDocuments}
-      />
-
-      <ReceiptHistoryModal
-        isOpen={!!receiptHistoryApplicantId}
-        onClose={() => setReceiptHistoryApplicantId(null)}
-        applicantId={receiptHistoryApplicantId}
-        serviceType="nadra"
-        title="NADRA Receipt History"
       />
 
       <ReceiptViewerModal

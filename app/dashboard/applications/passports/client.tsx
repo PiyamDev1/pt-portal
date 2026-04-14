@@ -18,7 +18,6 @@ import PassportsToolbar from './components/PassportsToolbar'
 import ReceiptViewerModal from '@/app/dashboard/applications/components/ReceiptViewerModal'
 import PassportsTable from './components/PassportsTable'
 import PassportsPagination from './components/PassportsPagination'
-import ReceiptHistoryModal from '@/app/dashboard/applications/components/ReceiptHistoryModal'
 import { formatCNIC, getApplicantRecord, getPassportRecord } from './components/utils'
 import { usePassportListFiltering } from './components/usePassportListFiltering'
 import { useReceipt, type GeneratedReceipt } from '@/hooks'
@@ -70,7 +69,6 @@ export default function PakPassportClient({
   const [arrivalModal, setArrivalModal] = useState<ModalState | null>(null)
   const [notesModal, setNotesModal] = useState<ModalState | null>(null)
   const [newPassportNum, setNewPassportNum] = useState('')
-  const [receiptHistoryApplicantId, setReceiptHistoryApplicantId] = useState<string | null>(null)
   const [notesText, setNotesText] = useState('')
   const [isNotesLoading, setIsNotesLoading] = useState(false)
   const [isNotesSaving, setIsNotesSaving] = useState(false)
@@ -561,21 +559,9 @@ export default function PakPassportClient({
         onViewHistory={handleViewHistory}
         onOpenArrival={handleOpenArrival}
         onGenerateReceipt={handleGenerateReceipt}
-        onOpenReceiptHistory={(item) => {
-          const applicant = getApplicantRecord(item)
-          setReceiptHistoryApplicantId(applicant?.id || null)
-        }}
         onManageDocuments={handleManageDocuments}
         onOpenNotes={handleOpenNotes}
         isNotesUnread={isPassportNotesUnread}
-      />
-
-      <ReceiptHistoryModal
-        isOpen={!!receiptHistoryApplicantId}
-        onClose={() => setReceiptHistoryApplicantId(null)}
-        applicantId={receiptHistoryApplicantId}
-        serviceType="pk_passport"
-        title="PK Passport Receipt History"
       />
 
       <PassportsPagination

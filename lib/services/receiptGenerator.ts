@@ -319,7 +319,22 @@ export async function generateReceipt(params: GenerateReceiptParams): Promise<Ge
   const source = await resolveSourceData(params.serviceType, params.serviceRecordId)
   const receiptPin = generatePin()
   const verificationUrl = buildVerificationUrl(source.trackingNumber, receiptPin)
-  const qrCodeDataUrl = verificationUrl ? await QRCode.toDataURL(verificationUrl) : null
+  const qrPayload =
+    verificationUrl ||
+    [
+      source.serviceName || params.serviceType,
+      source.trackingNumber ? `Tracking: ${source.trackingNumber}` : null,
+      `PIN: ${receiptPin}`,
+    ]
+      .filter(Boolean)
+      .join(' | ')
+
+  let qrCodeDataUrl: string | null = null
+  try {
+    qrCodeDataUrl = await QRCode.toDataURL(qrPayload)
+  } catch (error) {
+    console.warn('[Receipt] QR generation failed:', error)
+  }
   const generatedAt = new Date().toISOString()
 
   const receipt: GeneratedReceipt = {

@@ -4,9 +4,11 @@
 
 'use client'
 
+import { useState } from 'react'
 import { ModalBase } from '@/components/ModalBase'
 import { toast } from 'sonner'
 import { useReceipt, type GeneratedReceipt } from '@/hooks'
+import ReceiptHistoryModal from './ReceiptHistoryModal'
 
 type ReceiptViewerModalProps = {
   isOpen: boolean
@@ -34,8 +36,26 @@ function formatGeneratedAt(value: string) {
   })
 }
 
+function normalizeQrSource(value: string | null | undefined) {
+  if (!value) return null
+  const trimmed = value.trim()
+  if (!trimmed) return null
+  if (trimmed.startsWith('data:image/')) return trimmed
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed
+  if (trimmed.startsWith('<svg')) {
+    return `data:image/svg+xml;utf8,${encodeURIComponent(trimmed)}`
+  }
+  return null
+}
+
 export default function ReceiptViewerModal({ isOpen, onClose, receipt }: ReceiptViewerModalProps) {
   const { markReceiptShared } = useReceipt()
+  const [historyOpen, setHistoryOpen] = useState(false)
+
+  const qrSource = normalizeQrSource(receipt?.qrCodeDataUrl)
+  const addressLine1 = process.env.NEXT_PUBLIC_RECEIPT_ADDRESS_LINE1 || 'Piyam Travels'
+  const addressLine2 =
+    process.env.NEXT_PUBLIC_RECEIPT_ADDRESS_LINE2 || 'Serving UK & International Clients'
 
   const copyTextReceipt = async () => {
     if (!receipt?.plainText) {
@@ -58,60 +78,60 @@ export default function ReceiptViewerModal({ isOpen, onClose, receipt }: Receipt
   }
 
   return (
-    <ModalBase isOpen={isOpen} onClose={onClose} size="lg" title="Receipt Preview">
+    <ModalBase isOpen={isOpen} onClose={onClose} size="sm" title="Receipt Preview">
       {!receipt ? (
         <p className="text-sm text-slate-500">No receipt selected.</p>
       ) : (
         <div className="space-y-4">
-          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h3 className="text-lg font-bold text-slate-900">Piyam Travel Service Receipt</h3>
-            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-slate-700">
-              <p>
-                <span className="font-semibold">Service:</span> {receipt.serviceName || 'N/A'}
-              </p>
-              <p>
-                <span className="font-semibold">Processing speed:</span>{' '}
-                {receipt.processingSpeed || 'Standard'}
-              </p>
-              <p>
-                <span className="font-semibold">Family Head Name:</span>{' '}
-                {receipt.familyHeadName || 'N/A'}
-              </p>
-              <p>
-                <span className="font-semibold">Contact Number:</span>{' '}
-                {receipt.contactNumber || receipt.phone || 'N/A'}
-              </p>
-              <p>
-                <span className="font-semibold">Applicant Name:</span> {receipt.applicantName || 'N/A'}
-              </p>
-              <p>
-                <span className="font-semibold">Tracking Number:</span>{' '}
-                {receipt.trackingNumber || 'N/A'}
-              </p>
-              <p>
-                <span className="font-semibold">Pin:</span> {receipt.receiptPin}
-              </p>
-              <p>
-                <span className="font-semibold">Price:</span> {formatSalePrice(receipt)}
-              </p>
-              <p className="md:col-span-2">
-                <span className="font-semibold">Generated at:</span> {formatGeneratedAt(receipt.generatedAt)}
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm font-mono text-[12px] leading-relaxed relative">
+            <button
+              onClick={() => setHistoryOpen(true)}
+              className="absolute right-3 top-3 h-7 w-7 rounded-full border border-slate-300 text-slate-600 hover:bg-slate-100"
+              type="button"
+              aria-label="Open receipt history"
+              title="Receipt history"
+            >
+              📚
+            </button>
+
+            <div className="pr-10 text-center">
+              <img src="/logo.png" alt="Piyam Travels logo" className="mx-auto h-10 w-auto" />
+              <p className="mt-1 text-[11px] font-semibold">PIYAM TRAVELS</p>
+              <p className="text-[10px] text-slate-600">{addressLine1}</p>
+              <p className="text-[10px] text-slate-600">{addressLine2}</p>
+              <p className="mt-1 border-t border-dashed border-slate-300 pt-1 text-[10px] text-slate-500">
+                RECEIPT COPY
               </p>
             </div>
 
-            <div className="mt-4 flex items-center justify-between gap-4">
-              <div>
-                <p className="text-xs uppercase tracking-wide text-slate-500">QR Code</p>
-                {receipt.qrCodeDataUrl ? (
+            <div className="mt-2 space-y-1">
+              <p>Service: {receipt.serviceName || 'N/A'}</p>
+              <p>Processing: {receipt.processingSpeed || 'Standard'}</p>
+              <p>Family Head: {receipt.familyHeadName || 'N/A'}</p>
+              <p>Contact: {receipt.contactNumber || receipt.phone || 'N/A'}</p>
+              <p>Applicant: {receipt.applicantName || 'N/A'}</p>
+              <p>Tracking: {receipt.trackingNumber || 'N/A'}</p>
+              <p>PIN: {receipt.receiptPin}</p>
+              <p>Price: {formatSalePrice(receipt)}</p>
+              <p>Generated: {formatGeneratedAt(receipt.generatedAt)}</p>
+            </div>
+
+            <div className="mt-3 border-t border-dashed border-slate-300 pt-2 text-center">
+              <p className="text-[10px] text-slate-500">VERIFY QR</p>
+              {qrSource ? (
+                <>
                   <img
-                    src={receipt.qrCodeDataUrl}
+                    src={qrSource}
                     alt="Receipt QR code"
-                    className="mt-1 h-28 w-28 rounded border border-slate-200 bg-white p-1"
+                    className="mx-auto mt-1 h-24 w-24 rounded border border-slate-200 bg-white p-1"
                   />
-                ) : (
-                  <p className="text-xs text-slate-500 mt-1">Unavailable</p>
-                )}
-              </div>
+                  <p className="mt-1 break-all text-[10px] text-slate-500">{receipt.verificationUrl}</p>
+                </>
+              ) : (
+                <p className="mt-1 text-[10px] text-rose-600">
+                  QR unavailable. Verify using Tracking + PIN manually.
+                </p>
+              )}
             </div>
           </div>
 
@@ -131,6 +151,14 @@ export default function ReceiptViewerModal({ isOpen, onClose, receipt }: Receipt
               Copy Receipt
             </button>
           </div>
+
+          <ReceiptHistoryModal
+            isOpen={historyOpen}
+            onClose={() => setHistoryOpen(false)}
+            applicantId={receipt.applicantId}
+            serviceType={receipt.serviceType}
+            title="Receipt History Logs"
+          />
         </div>
       )}
     </ModalBase>

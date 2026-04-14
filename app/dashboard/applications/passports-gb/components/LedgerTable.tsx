@@ -15,7 +15,6 @@ interface LedgerTableProps {
   onViewHistory: (item: GbPassportItem) => void
   onEdit: (item: GbPassportItem) => void
   onGenerateReceipt?: (item: GbPassportItem) => void
-  onOpenReceiptHistory?: (item: GbPassportItem) => void
 }
 
 export default function LedgerTable({
@@ -24,7 +23,6 @@ export default function LedgerTable({
   onViewHistory,
   onEdit,
   onGenerateReceipt,
-  onOpenReceiptHistory,
 }: LedgerTableProps) {
   const formatName = (firstName: string, lastName: string) => {
     return `${firstName.toUpperCase()} ${lastName.toUpperCase()}`
@@ -170,15 +168,6 @@ export default function LedgerTable({
                       aria-label="Generate receipt"
                     >
                       <span className="text-sm">🧾</span>
-                    </button>
-                    <button
-                      onClick={() => onOpenReceiptHistory?.(item)}
-                      className="text-slate-700 hover:text-slate-900 p-2 hover:bg-slate-100 rounded"
-                      title="Receipt History"
-                      type="button"
-                      aria-label="View receipt history"
-                    >
-                      <span className="text-sm">📚</span>
                     </button>
                   </div>
                 </td>
