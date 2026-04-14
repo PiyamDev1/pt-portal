@@ -49,6 +49,12 @@ function normalizeQrSource(value: string | null | undefined) {
   return null
 }
 
+const SERVICE_TYPE_LABELS: Record<GeneratedReceipt['serviceType'], string> = {
+  nadra: 'NADRA',
+  pk_passport: 'PK Passport',
+  gb_passport: 'GB Passport',
+}
+
 export default function ReceiptViewerModal({ isOpen, onClose, receipt }: ReceiptViewerModalProps) {
   const { markReceiptShared } = useReceipt()
   const [historyOpen, setHistoryOpen] = useState(false)
@@ -58,6 +64,8 @@ export default function ReceiptViewerModal({ isOpen, onClose, receipt }: Receipt
   const addressLine1 = process.env.NEXT_PUBLIC_RECEIPT_ADDRESS_LINE1 || 'Piyam Travels'
   const addressLine2 =
     process.env.NEXT_PUBLIC_RECEIPT_ADDRESS_LINE2 || 'Serving UK & International Clients'
+  const isNadra = receipt?.serviceType === 'nadra'
+  const trackingLabel = receipt?.serviceType === 'gb_passport' ? 'PEX REF' : 'Tracking'
 
   const copyReceiptPreview = async () => {
     if (!receipt) {
@@ -134,13 +142,16 @@ export default function ReceiptViewerModal({ isOpen, onClose, receipt }: Receipt
 
             <div className="mt-2 space-y-1">
               <p>Receipt No: {receipt.receiptNumber}</p>
+              <p>Service Type: {SERVICE_TYPE_LABELS[receipt.serviceType]}</p>
               <p>Service: {receipt.serviceName || 'N/A'}</p>
               <p>Processing: {receipt.processingSpeed || 'Standard'}</p>
-              <p>Family Head: {receipt.familyHeadName || 'N/A'}</p>
+              {isNadra && <p>Family Head: {receipt.familyHeadName || 'N/A'}</p>}
               <p>Contact: {receipt.contactNumber || receipt.phone || 'N/A'}</p>
               <p>Applicant: {receipt.applicantName || 'N/A'}</p>
-              <p>Tracking: {receipt.trackingNumber || 'N/A'}</p>
-              <p>PIN: {receipt.receiptPin}</p>
+              <p>
+                {trackingLabel}: {receipt.trackingNumber || 'N/A'}
+              </p>
+              {isNadra && <p>PIN: {receipt.receiptPin || 'N/A'}</p>}
               <p>Price: {formatSalePrice(receipt)}</p>
               <p>Generated: {formatGeneratedAt(receipt.generatedAt)}</p>
             </div>
@@ -158,7 +169,7 @@ export default function ReceiptViewerModal({ isOpen, onClose, receipt }: Receipt
                 </>
               ) : (
                 <p className="mt-1 text-[10px] text-rose-600">
-                  QR unavailable. Verify using Tracking + PIN manually.
+                  QR unavailable. Verify details manually.
                 </p>
               )}
             </div>

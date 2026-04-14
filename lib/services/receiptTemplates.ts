@@ -18,18 +18,19 @@ function formatCurrency(amount: number | null | undefined, currency = RECEIPT_DE
 export function buildReceiptPlainText(receipt: GeneratedReceipt) {
   const serviceLabel = RECEIPT_SERVICE_LABELS[receipt.serviceType]
   const typeLabel = RECEIPT_TYPE_LABELS[receipt.receiptType]
+  const isNadra = receipt.serviceType === 'nadra'
+  const trackingLabel = receipt.serviceType === 'gb_passport' ? 'PEX REF' : 'Tracking Number'
   const lines = [
     '------------------------------',
     'Piyam Travel Service Receipt',
     '------------------------------',
     `Receipt Number: ${receipt.receiptNumber}`,
+    `Service Type: ${serviceLabel}`,
     `Service: ${receipt.serviceName || serviceLabel}`,
     `Processing speed: ${receipt.processingSpeed || 'Standard'}`,
-    `Family Head Name: ${receipt.familyHeadName || 'N/A'}`,
     `Contact Number: ${receipt.contactNumber || receipt.phone || 'N/A'}`,
     `Applicant Name: ${receipt.applicantName || 'N/A'}`,
-    `Tracking Number: ${receipt.trackingNumber || 'N/A'}`,
-    `Pin: ${receipt.receiptPin}`,
+    `${trackingLabel}: ${receipt.trackingNumber || 'N/A'}`,
     `Price: ${formatCurrency(receipt.pricing.salePrice, receipt.pricing.currency)}`,
     `Generated at: ${new Date(receipt.generatedAt).toLocaleString('en-GB', {
       day: '2-digit',
@@ -42,7 +43,7 @@ export function buildReceiptPlainText(receipt: GeneratedReceipt) {
     '',
     `Service: ${serviceLabel}`,
     `Receipt Type: ${typeLabel}`,
-    `Verification: ${receipt.verificationUrl || 'N/A'}`,
+    `Verification: ${isNadra ? receipt.verificationUrl || 'N/A' : 'Not required'}`,
     '',
     'Pricing',
     `- Description: ${receipt.pricing.serviceDescription || 'N/A'}`,
@@ -51,6 +52,11 @@ export function buildReceiptPlainText(receipt: GeneratedReceipt) {
     `- Currency: ${receipt.pricing.currency || RECEIPT_DEFAULT_CURRENCY}`,
     '------------------------------',
   ]
+
+  if (isNadra) {
+    lines.splice(7, 0, `Family Head Name: ${receipt.familyHeadName || 'N/A'}`)
+    lines.splice(11, 0, `Pin: ${receipt.receiptPin || 'N/A'}`)
+  }
 
   return lines.join('\n')
 }

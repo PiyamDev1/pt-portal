@@ -247,14 +247,12 @@ async function resolvePkPassportData(serviceRecordId: string): Promise<ResolvedS
     .limit(1)
     .maybeSingle()
 
-  const familyHead = await fetchFamilyHeadInfo(supabase, data.application_id)
-
   return {
     applicationId: data.application_id,
     applicantId: data.applicant_id,
     applicantName,
-    familyHeadName: familyHead.familyHeadName,
-    contactNumber: familyHead.contactNumber || applicant?.phone_number || null,
+    familyHeadName: null,
+    contactNumber: applicant?.phone_number || null,
     serviceName: data.application_type || 'Pakistani Passport',
     processingSpeed: data.speed || 'Standard',
     phone: applicant?.phone_number || null,
@@ -281,6 +279,7 @@ async function resolveGbPassportData(serviceRecordId: string): Promise<ResolvedS
       age_group,
       pages,
       service_type,
+      pex_number,
       cost_price,
       sale_price,
       applications(tracking_number),
@@ -299,19 +298,17 @@ async function resolveGbPassportData(serviceRecordId: string): Promise<ResolvedS
   const last = applicant?.last_name || ''
   const applicantName = `${first} ${last}`.trim()
 
-  const familyHead = await fetchFamilyHeadInfo(supabase, data.application_id)
-
   return {
     applicationId: data.application_id,
     applicantId: data.applicant_id,
     applicantName,
-    familyHeadName: familyHead.familyHeadName,
-    contactNumber: familyHead.contactNumber || applicant?.phone_number || null,
+    familyHeadName: null,
+    contactNumber: applicant?.phone_number || null,
     serviceName: 'British Passport',
     processingSpeed: data.service_type || 'Standard',
     phone: applicant?.phone_number || null,
     email: applicant?.email || null,
-    trackingNumber: application?.tracking_number || null,
+    trackingNumber: data.pex_number || application?.tracking_number || null,
     applicationPin: null,
     serviceDescription: [data.age_group, data.service_type, data.pages].filter(Boolean).join(' / '),
     costPrice: toNumeric(data.cost_price),
@@ -327,14 +324,17 @@ async function resolveSourceData(serviceType: ReceiptServiceType, serviceRecordI
 
 export async function generateReceipt(params: GenerateReceiptParams): Promise<GeneratedReceipt> {
   const source = await resolveSourceData(params.serviceType, params.serviceRecordId)
-  const receiptPin = generatePin()
-  const verificationUrl = buildVerificationUrl(source.trackingNumber, receiptPin)
+  const usesPin = params.serviceType === 'nadra'
+  const receiptPin = usesPin ? generatePin() : ''
+  const verificationUrl = usesPin ? buildVerificationUrl(source.trackingNumber, receiptPin) : null
+  const fallbackToken = crypto.randomUUID().replace(/-/g, '').slice(0, 6).toUpperCase()
   const qrPayload =
     verificationUrl ||
     [
       source.serviceName || params.serviceType,
+      `Type: ${params.serviceType}`,
       source.trackingNumber ? `Tracking: ${source.trackingNumber}` : null,
-      `PIN: ${receiptPin}`,
+      usesPin ? `PIN: ${receiptPin}` : null,
     ]
       .filter(Boolean)
       .join(' | ')
@@ -346,7 +346,11 @@ export async function generateReceipt(params: GenerateReceiptParams): Promise<Ge
     console.warn('[Receipt] QR generation failed:', error)
   }
   const generatedAt = new Date().toISOString()
-  const receiptNumber = buildApplicationBoundReceiptNumber(source.applicationId, generatedAt, receiptPin)
+  const receiptNumber = buildApplicationBoundReceiptNumber(
+    source.applicationId,
+    generatedAt,
+    receiptPin || fallbackToken,
+  )
 
   const receipt: GeneratedReceipt = {
     id: crypto.randomUUID(),
