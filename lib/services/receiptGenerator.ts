@@ -43,6 +43,7 @@ type ResolvedSourceData = {
 
 export interface GeneratedReceipt {
   id: string
+  receiptNumber: string
   applicationId: string
   applicantId: string
   applicantName: string
@@ -125,6 +126,15 @@ function buildVerificationUrl(trackingNumber: string | null, receiptPin: string)
   if (!RECEIPT_VERIFY_BASE_URL || !trackingNumber) return null
   const base = RECEIPT_VERIFY_BASE_URL.replace(/\/$/, '')
   return `${base}/receipts/verify?trackingNumber=${encodeURIComponent(trackingNumber)}&pin=${encodeURIComponent(receiptPin)}`
+}
+
+function buildApplicationBoundReceiptNumber(applicationId: string, generatedAt: string, receiptPin: string) {
+  const appToken = applicationId.replace(/-/g, '').slice(0, 8).toUpperCase() || 'APP'
+  const date = new Date(generatedAt)
+  const dateToken = Number.isNaN(date.getTime())
+    ? generatedAt.slice(2, 10).replace(/-/g, '')
+    : `${date.getUTCFullYear().toString().slice(-2)}${String(date.getUTCMonth() + 1).padStart(2, '0')}${String(date.getUTCDate()).padStart(2, '0')}`
+  return `RC-${appToken}-${dateToken}-${receiptPin}`
 }
 
 async function resolveNadraData(serviceRecordId: string): Promise<ResolvedSourceData> {
@@ -336,9 +346,11 @@ export async function generateReceipt(params: GenerateReceiptParams): Promise<Ge
     console.warn('[Receipt] QR generation failed:', error)
   }
   const generatedAt = new Date().toISOString()
+  const receiptNumber = buildApplicationBoundReceiptNumber(source.applicationId, generatedAt, receiptPin)
 
   const receipt: GeneratedReceipt = {
     id: crypto.randomUUID(),
+    receiptNumber,
     applicationId: source.applicationId,
     applicantId: source.applicantId,
     applicantName: source.applicantName,

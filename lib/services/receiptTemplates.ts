@@ -22,6 +22,7 @@ export function buildReceiptPlainText(receipt: GeneratedReceipt) {
     '------------------------------',
     'Piyam Travel Service Receipt',
     '------------------------------',
+    `Receipt Number: ${receipt.receiptNumber}`,
     `Service: ${receipt.serviceName || serviceLabel}`,
     `Processing speed: ${receipt.processingSpeed || 'Standard'}`,
     `Family Head Name: ${receipt.familyHeadName || 'N/A'}`,

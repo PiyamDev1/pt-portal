@@ -4,9 +4,10 @@
 
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { ModalBase } from '@/components/ModalBase'
 import { toast } from 'sonner'
+import { toPng } from 'html-to-image'
 import { useReceipt, type GeneratedReceipt } from '@/hooks'
 import ReceiptHistoryModal from './ReceiptHistoryModal'
 
@@ -51,29 +52,53 @@ function normalizeQrSource(value: string | null | undefined) {
 export default function ReceiptViewerModal({ isOpen, onClose, receipt }: ReceiptViewerModalProps) {
   const { markReceiptShared } = useReceipt()
   const [historyOpen, setHistoryOpen] = useState(false)
+  const receiptCardRef = useRef<HTMLDivElement | null>(null)
 
   const qrSource = normalizeQrSource(receipt?.qrCodeDataUrl)
   const addressLine1 = process.env.NEXT_PUBLIC_RECEIPT_ADDRESS_LINE1 || 'Piyam Travels'
   const addressLine2 =
     process.env.NEXT_PUBLIC_RECEIPT_ADDRESS_LINE2 || 'Serving UK & International Clients'
 
-  const copyTextReceipt = async () => {
-    if (!receipt?.plainText) {
-      toast.error('No receipt content to copy')
+  const copyReceiptPreview = async () => {
+    if (!receipt) {
+      toast.error('No receipt selected')
       return
     }
 
-    if (typeof navigator === 'undefined' || !navigator.clipboard?.writeText) {
+    const card = receiptCardRef.current
+    if (!card) {
+      toast.error('Receipt preview is unavailable')
+      return
+    }
+
+    if (
+      typeof navigator === 'undefined' ||
+      !navigator.clipboard ||
+      typeof navigator.clipboard.write !== 'function' ||
+      typeof ClipboardItem === 'undefined'
+    ) {
       toast.error('Clipboard is unavailable on this device')
       return
     }
 
     try {
-      await navigator.clipboard.writeText(receipt.plainText)
-      await markReceiptShared({ receiptId: receipt.id, channel: 'clipboard' })
-      toast.success('Receipt copied to clipboard')
+      const dataUrl = await toPng(card, {
+        cacheBust: true,
+        pixelRatio: 2,
+        backgroundColor: '#ffffff',
+      })
+
+      const blob = await (await fetch(dataUrl)).blob()
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          [blob.type || 'image/png']: blob,
+        }),
+      ])
+
+      await markReceiptShared({ receiptId: receipt.id, channel: 'clipboard-image' })
+      toast.success('Receipt screenshot copied to clipboard')
     } catch (error) {
-      toast.error('Failed to copy receipt')
+      toast.error('Failed to copy receipt screenshot')
     }
   }
 
@@ -83,7 +108,10 @@ export default function ReceiptViewerModal({ isOpen, onClose, receipt }: Receipt
         <p className="text-sm text-slate-500">No receipt selected.</p>
       ) : (
         <div className="space-y-4">
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm font-mono text-[12px] leading-relaxed relative">
+          <div
+            ref={receiptCardRef}
+            className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm font-mono text-[12px] leading-relaxed relative"
+          >
             <button
               onClick={() => setHistoryOpen(true)}
               className="absolute right-3 top-3 h-7 w-7 rounded-full border border-slate-300 text-slate-600 hover:bg-slate-100"
@@ -105,6 +133,7 @@ export default function ReceiptViewerModal({ isOpen, onClose, receipt }: Receipt
             </div>
 
             <div className="mt-2 space-y-1">
+              <p>Receipt No: {receipt.receiptNumber}</p>
               <p>Service: {receipt.serviceName || 'N/A'}</p>
               <p>Processing: {receipt.processingSpeed || 'Standard'}</p>
               <p>Family Head: {receipt.familyHeadName || 'N/A'}</p>
@@ -144,11 +173,11 @@ export default function ReceiptViewerModal({ isOpen, onClose, receipt }: Receipt
               Close
             </button>
             <button
-              onClick={() => void copyTextReceipt()}
+              onClick={() => void copyReceiptPreview()}
               className="px-3 py-2 rounded-md bg-slate-900 text-white hover:bg-slate-800"
               type="button"
             >
-              Copy Receipt
+              Copy Screenshot
             </button>
           </div>
 

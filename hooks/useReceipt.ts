@@ -12,6 +12,7 @@ export type ReceiptType = 'submission' | 'biometrics' | 'refund' | 'collection'
 
 export type GeneratedReceipt = {
   id: string
+  receiptNumber: string
   applicationId: string
   applicantId: string
   applicantName: string
