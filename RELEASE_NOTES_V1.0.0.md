@@ -13,7 +13,7 @@ PT-Portal is a comprehensive, production-ready web application for managing trav
 
 ## 🧾 Receipt Generation Update (April 2026)
 
-The receipt system backend foundation is now implemented and ready for UI integration.
+The receipt system is fully implemented end-to-end across backend, UI, metrics, and tests.
 
 ### Implemented APIs
 - `POST /api/receipts/generate` for generating service receipts with pricing, PIN, and QR verification payload.
@@ -25,6 +25,17 @@ The receipt system backend foundation is now implemented and ready for UI integr
 - NADRA: Submitted and refund events.
 - Pakistani Passport: Biometrics Taken, Collected, and refund events.
 - British Passport: Pending Submission event via update flow.
+
+### Service-Specific Receipt Rules
+- NADRA receipts use PIN + verification flow.
+- Pakistani Passport and British Passport receipts do not use PIN.
+- Family head details are NADRA-only.
+- British Passport receipts use PEX REF as tracking reference.
+
+### UI Completion
+- Single receipt action per row across NADRA/PK/GB dashboards.
+- Receipt popup provides screenshot-to-clipboard copy for receipt preview.
+- Receipt history is opened from popup corner button and shown as logs-only entries.
 
 ### Persistence & Schema
 - New receipt storage table via `scripts/create-generated-receipts-table.sql`.
@@ -361,7 +372,6 @@ Full schema available in [docs/database/](docs/database/)
 
 ## 🎯 Future Enhancements (In Planning Phase)
 
-- **Receipt Generation System** - Copyable receipts for WhatsApp/Email sharing
 - SMS Notifications
 - Enhanced WhatsApp API integration
 - Mobile app (React Native)
