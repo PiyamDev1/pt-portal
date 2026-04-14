@@ -23,15 +23,17 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData()
     const file = formData.get('file') as File | null
     const familyHeadId = String(formData.get('familyHeadId') || '')
+    const employeeId = String(formData.get('employeeId') || '')
     const category = String(formData.get('category') || 'general')
 
-    if (!file || !familyHeadId) {
+    if (!file || (!familyHeadId && !employeeId)) {
       return apiError('Missing required fields', 400)
     }
 
     const safeCategory = category || 'general'
     const documentId = `doc-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`
-    const minioKey = `family-${familyHeadId}/${safeCategory}/${Date.now()}-${file.name.replace(/\s+/g, '-')}`
+    const scopePrefix = employeeId ? `employee-${employeeId}` : `family-${familyHeadId}`
+    const minioKey = `${scopePrefix}/${safeCategory}/${Date.now()}-${file.name.replace(/\s+/g, '-')}`
 
     // Stream file directly without buffering entire file in memory
     const buffer = Buffer.from(await file.arrayBuffer())
@@ -79,6 +81,7 @@ export async function POST(request: NextRequest) {
       fileType: file.type || 'application/octet-stream',
       category: safeCategory,
       familyHeadId,
+      employeeId,
     })
   } catch (error) {
     return apiError(toErrorMessage(error, 'Failed direct upload'), 500)
