@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { ModalBase } from '@/components/ModalBase'
 import { toast } from 'sonner'
 
@@ -536,6 +536,35 @@ export default function EmployeeRecordClient({
     if (!response.ok) throw new Error(payload?.error || 'Failed to delete calendar event')
     await loadCompanyCalendar(visibleCalendarMonths)
   }
+
+  const handleCalendarDrop = (event: React.DragEvent<HTMLElement>, day: string) => {
+    event.preventDefault()
+    const raw = event.dataTransfer.getData('text/plain')
+    if (!raw) return
+
+    try {
+      const parsed = JSON.parse(raw) as
+        | { type: 'template'; templateId: string }
+        | { type: 'event'; eventId: string }
+
+      if (parsed.type === 'template') {
+        void createCalendarEvent(parsed.templateId, day).catch((error) => {
+          toast.error(error instanceof Error ? error.message : 'Failed to create calendar event')
+        })
+      } else if (parsed.type === 'event') {
+        void moveCalendarEvent(parsed.eventId, day).catch((error) => {
+          toast.error(error instanceof Error ? error.message : 'Failed to move calendar event')
+        })
+      }
+    } catch {
+      toast.error('Invalid drag data')
+    }
+  }
+
+  const weekHourSlots = useMemo(
+    () => Array.from({ length: 12 }, (_, index) => 10 + index),
+    [],
+  )
 
   const saveCalendarTemplateSettings = async () => {
     setSavingCalendar(true)
@@ -2109,146 +2138,275 @@ export default function EmployeeRecordClient({
               </div>
             </div>
 
-            <div className="grid grid-cols-7 gap-2 text-xs font-semibold text-slate-500 px-1 pb-2">
-              <span>Mon</span>
-              <span>Tue</span>
-              <span>Wed</span>
-              <span>Thu</span>
-              <span>Fri</span>
-              <span>Sat</span>
-              <span>Sun</span>
-            </div>
+            {calendarView === 'month' ? (
+              <>
+                <div className="grid grid-cols-7 gap-2 text-xs font-semibold text-slate-500 px-1 pb-2">
+                  <span>Mon</span>
+                  <span>Tue</span>
+                  <span>Wed</span>
+                  <span>Thu</span>
+                  <span>Fri</span>
+                  <span>Sat</span>
+                  <span>Sun</span>
+                </div>
 
-            <div className="overflow-x-auto">
-              <div className="grid min-w-[940px] grid-cols-7 gap-2">
-              {(calendarView === 'month' ? monthGridDays : visibleCalendarDays).map((day, index) => {
-                if (!day) {
-                  return (
-                    <div
-                      key={`empty-${index}`}
-                      className="min-h-[152px] rounded-lg border border-dashed border-slate-200 bg-slate-50/60"
-                    />
-                  )
-                }
-
-                const dayEvents = calendarEventsByDate[day] || []
-                const dayOff = staffOffByDate[day] || []
-                const isToday = day === todayIso
-                return (
-                  <button
-                    key={day}
-                    type="button"
-                    onClick={() => {
-                      setSelectedCalendarDate(day)
-                      setCalendarViewDate(day)
-                    }}
-                    onDragOver={(event) => event.preventDefault()}
-                    onDrop={(event) => {
-                      event.preventDefault()
-                      const raw = event.dataTransfer.getData('text/plain')
-                      if (!raw) return
-
-                      try {
-                        const parsed = JSON.parse(raw) as
-                          | { type: 'template'; templateId: string }
-                          | { type: 'event'; eventId: string }
-
-                        if (parsed.type === 'template') {
-                          void createCalendarEvent(parsed.templateId, day).catch((error) => {
-                            toast.error(
-                              error instanceof Error ? error.message : 'Failed to create calendar event',
-                            )
-                          })
-                        } else if (parsed.type === 'event') {
-                          void moveCalendarEvent(parsed.eventId, day).catch((error) => {
-                            toast.error(
-                              error instanceof Error ? error.message : 'Failed to move calendar event',
-                            )
-                          })
-                        }
-                      } catch {
-                        toast.error('Invalid drag data')
-                      }
-                    }}
-                    className={`min-h-[152px] rounded-lg border p-2 text-left transition ${
-                      selectedCalendarDate === day
-                        ? 'border-slate-700 bg-slate-50'
-                        : isToday
-                          ? 'border-blue-300 bg-blue-50/40'
-                        : 'border-slate-200 bg-white hover:bg-slate-50'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                          {new Date(`${day}T00:00:00`).toLocaleDateString('en-GB', { weekday: 'short' })}
-                        </p>
-                        <p className="text-xs font-semibold text-slate-700">{formatReadableDate(day)}</p>
-                      </div>
-                      {isToday ? (
-                        <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-700">
-                          Today
-                        </span>
-                      ) : visibleCalendarMonths.length > 1 ? (
-                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
-                          {day.slice(5, 7)}
-                        </span>
-                      ) : null}
-                    </div>
-                    <div className="mt-2 space-y-1">
-                      {dayEvents.map((event) => {
-                        const theme = getHolidayTheme(
-                          event.holidayKey,
-                          event.isPaid,
-                          event.countsTowardAnnualLeave,
-                        )
-
+                <div className="overflow-x-auto">
+                  <div className="grid min-w-[940px] grid-cols-7 gap-2">
+                    {monthGridDays.map((day, index) => {
+                      if (!day) {
                         return (
-                        <div
-                          key={event.id}
-                          draggable
-                          onDragStart={(dragEvent) => {
-                            dragEvent.dataTransfer.setData(
-                              'text/plain',
-                              JSON.stringify({ type: 'event', eventId: event.id }),
-                            )
-                          }}
-                          className={`rounded-md border px-2 py-1 text-[11px] font-semibold ${theme.blockClass}`}
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <span>{normalizeHolidayName(event.holidayName)}</span>
-                            <span
-                              role="button"
-                              onClick={(clickEvent) => {
-                                clickEvent.stopPropagation()
-                                void deleteCalendarEvent(event.id).catch((error) => {
-                                  toast.error(
-                                    error instanceof Error
-                                      ? error.message
-                                      : 'Failed to delete calendar event',
-                                  )
-                                })
-                              }}
-                              className="text-[10px] text-slate-700 hover:text-rose-700"
-                            >
-                              x
-                            </span>
-                          </div>
-                          <p className="text-[10px] font-normal text-slate-600">
-                            {event.countsTowardAnnualLeave ? 'Deducted from annual leave' : 'Not deducted'}
-                          </p>
-                        </div>
+                          <div
+                            key={`empty-${index}`}
+                            className="min-h-[152px] rounded-lg border border-dashed border-slate-200 bg-slate-50/60"
+                          />
                         )
-                      })}
+                      }
+
+                      const dayEvents = calendarEventsByDate[day] || []
+                      const dayOff = staffOffByDate[day] || []
+                      const isToday = day === todayIso
+                      return (
+                        <button
+                          key={day}
+                          type="button"
+                          onClick={() => {
+                            setSelectedCalendarDate(day)
+                            setCalendarViewDate(day)
+                          }}
+                          onDragOver={(event) => event.preventDefault()}
+                          onDrop={(event) => handleCalendarDrop(event, day)}
+                          className={`min-h-[152px] rounded-lg border p-2 text-left transition ${
+                            selectedCalendarDate === day
+                              ? 'border-slate-700 bg-slate-50'
+                              : isToday
+                                ? 'border-blue-300 bg-blue-50/40'
+                                : 'border-slate-200 bg-white hover:bg-slate-50'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                                {new Date(`${day}T00:00:00`).toLocaleDateString('en-GB', { weekday: 'short' })}
+                              </p>
+                              <p className="text-xs font-semibold text-slate-700">{formatReadableDate(day)}</p>
+                            </div>
+                            {isToday ? (
+                              <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-700">
+                                Today
+                              </span>
+                            ) : visibleCalendarMonths.length > 1 ? (
+                              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+                                {day.slice(5, 7)}
+                              </span>
+                            ) : null}
+                          </div>
+                          <div className="mt-2 space-y-1">
+                            {dayEvents.map((event) => {
+                              const theme = getHolidayTheme(
+                                event.holidayKey,
+                                event.isPaid,
+                                event.countsTowardAnnualLeave,
+                              )
+
+                              return (
+                                <div
+                                  key={event.id}
+                                  draggable
+                                  onDragStart={(dragEvent) => {
+                                    dragEvent.dataTransfer.setData(
+                                      'text/plain',
+                                      JSON.stringify({ type: 'event', eventId: event.id }),
+                                    )
+                                  }}
+                                  className={`rounded-md border px-2 py-1 text-[11px] font-semibold ${theme.blockClass}`}
+                                >
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span>{normalizeHolidayName(event.holidayName)}</span>
+                                    <span
+                                      role="button"
+                                      onClick={(clickEvent) => {
+                                        clickEvent.stopPropagation()
+                                        void deleteCalendarEvent(event.id).catch((error) => {
+                                          toast.error(
+                                            error instanceof Error
+                                              ? error.message
+                                              : 'Failed to delete calendar event',
+                                          )
+                                        })
+                                      }}
+                                      className="text-[10px] text-slate-700 hover:text-rose-700"
+                                    >
+                                      x
+                                    </span>
+                                  </div>
+                                  <p className="text-[10px] font-normal text-slate-600">
+                                    {event.countsTowardAnnualLeave ? 'Deducted from annual leave' : 'Not deducted'}
+                                  </p>
+                                </div>
+                              )
+                            })}
+                          </div>
+                          {dayOff.length > 0 ? (
+                            <p className="mt-2 text-[10px] text-slate-500">Off: {dayOff.length} staff</p>
+                          ) : null}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="overflow-x-auto">
+                <div className="min-w-[1100px] rounded-lg border border-slate-200">
+                  <div
+                    className="grid"
+                    style={{ gridTemplateColumns: '72px repeat(7, minmax(0, 1fr))' }}
+                  >
+                    <div className="border-b border-r border-slate-200 bg-slate-50 px-2 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                      Time
                     </div>
-                    {dayOff.length > 0 ? (
-                      <p className="mt-2 text-[10px] text-slate-500">Off: {dayOff.length} staff</p>
-                    ) : null}
-                  </button>
-                )
-              })}
+                    {weekDays.map((day) => {
+                      const isToday = day === todayIso
+                      return (
+                        <button
+                          key={`week-head-${day}`}
+                          type="button"
+                          onClick={() => {
+                            setSelectedCalendarDate(day)
+                            setCalendarViewDate(day)
+                          }}
+                          className={`border-b border-slate-200 px-2 py-2 text-left ${
+                            isToday ? 'bg-blue-50' : 'bg-slate-50'
+                          }`}
+                        >
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                            {new Date(`${day}T00:00:00`).toLocaleDateString('en-GB', { weekday: 'short' })}
+                          </p>
+                          <div className="mt-1 flex items-center justify-between gap-2">
+                            <p className="text-xs font-semibold text-slate-800">{formatReadableDate(day)}</p>
+                            {isToday ? (
+                              <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-700">
+                                Today
+                              </span>
+                            ) : null}
+                          </div>
+                        </button>
+                      )
+                    })}
+
+                    <div className="border-b border-r border-slate-200 bg-slate-50 px-2 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                      All day
+                    </div>
+                    {weekDays.map((day) => {
+                      const dayEvents = calendarEventsByDate[day] || []
+                      const dayOff = staffOffByDate[day] || []
+                      const isToday = day === todayIso
+                      return (
+                        <button
+                          key={`week-allday-${day}`}
+                          type="button"
+                          onClick={() => {
+                            setSelectedCalendarDate(day)
+                            setCalendarViewDate(day)
+                          }}
+                          onDragOver={(event) => event.preventDefault()}
+                          onDrop={(event) => handleCalendarDrop(event, day)}
+                          className={`min-h-[74px] border-b px-2 py-2 text-left ${
+                            isToday ? 'bg-blue-50/40' : 'bg-white'
+                          } ${selectedCalendarDate === day ? 'ring-1 ring-inset ring-slate-400' : ''}`}
+                        >
+                          <div className="space-y-1">
+                            {dayEvents.map((event) => {
+                              const theme = getHolidayTheme(
+                                event.holidayKey,
+                                event.isPaid,
+                                event.countsTowardAnnualLeave,
+                              )
+
+                              return (
+                                <div
+                                  key={event.id}
+                                  draggable
+                                  onDragStart={(dragEvent) => {
+                                    dragEvent.dataTransfer.setData(
+                                      'text/plain',
+                                      JSON.stringify({ type: 'event', eventId: event.id }),
+                                    )
+                                  }}
+                                  className={`rounded border px-2 py-1 text-[11px] font-semibold ${theme.blockClass}`}
+                                >
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span>{normalizeHolidayName(event.holidayName)}</span>
+                                    <span
+                                      role="button"
+                                      onClick={(clickEvent) => {
+                                        clickEvent.stopPropagation()
+                                        void deleteCalendarEvent(event.id).catch((error) => {
+                                          toast.error(
+                                            error instanceof Error
+                                              ? error.message
+                                              : 'Failed to delete calendar event',
+                                          )
+                                        })
+                                      }}
+                                      className="text-[10px] text-slate-700 hover:text-rose-700"
+                                    >
+                                      x
+                                    </span>
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                          {dayOff.length > 0 ? (
+                            <p className="mt-1 text-[10px] text-slate-500">Off: {dayOff.length}</p>
+                          ) : null}
+                        </button>
+                      )
+                    })}
+
+                    {weekHourSlots.map((hour) => {
+                      const hourDate = new Date()
+                      hourDate.setHours(hour, 0, 0, 0)
+                      const hourLabel = hourDate.toLocaleTimeString('en-GB', {
+                        hour: 'numeric',
+                        hour12: true,
+                      })
+
+                      return (
+                        <Fragment key={`hour-row-${hour}`}>
+                          <div
+                            className="border-r border-slate-200 bg-slate-50 px-2 py-3 text-[11px] font-semibold text-slate-500"
+                          >
+                            {hourLabel}
+                          </div>
+                          {weekDays.map((day) => {
+                            const isToday = day === todayIso
+                            return (
+                              <button
+                                key={`hour-${hour}-${day}`}
+                                type="button"
+                                onClick={() => {
+                                  setSelectedCalendarDate(day)
+                                  setCalendarViewDate(day)
+                                }}
+                                onDragOver={(event) => event.preventDefault()}
+                                onDrop={(event) => handleCalendarDrop(event, day)}
+                                className={`min-h-[44px] border-b border-slate-100 text-left transition ${
+                                  isToday ? 'bg-blue-50/30' : 'bg-white hover:bg-slate-50'
+                                }`}
+                              >
+                                <span className="sr-only">{hourLabel} {formatReadableDate(day)}</span>
+                              </button>
+                            )
+                          })}
+                        </Fragment>
+                      )
+                    })}
+                  </div>
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
