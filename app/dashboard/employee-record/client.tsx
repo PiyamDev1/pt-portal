@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
 export type QuickStats = {
@@ -13,13 +13,29 @@ export type EmployeeSummary = {
   full_name: string
   email: string
   is_active?: boolean
+  pay_basis?: 'salaried' | 'hourly' | null
+  hourly_source?: 'contracted' | 'timeclock' | null
   hourly_rate?: number | null
   annual_salary?: number | null
   working_hours_per_week?: number | null
+  salary_currency?: string | null
+  payroll_effective_from?: string | null
   employment_type?: string | null
   employment_start_date?: string | null
   employment_end_date?: string | null
   payroll_notes?: string | null
+}
+
+type EmployeePolicy = {
+  sickPayMode: 'none' | 'statutory' | 'full'
+  paidBreakMinutesPerShift: string
+  holidayEntitlementDays: string
+  bankHolidaysIncluded: boolean
+  overtimeMode: 'none' | 'flat' | 'tiered'
+  overtimeThresholdHours: string
+  overtimeRateMultiplier: string
+  effectiveFrom: string
+  notes: string
 }
 
 export type EmployeeDocument = {
@@ -86,7 +102,9 @@ export default function EmployeeRecordClient({
   const [documentType, setDocumentType] = useState<'contract' | 'payslip' | 'other'>('contract')
   const [uploading, setUploading] = useState(false)
   const [savingPayroll, setSavingPayroll] = useState(false)
+  const [savingPolicy, setSavingPolicy] = useState(false)
   const [payrollError, setPayrollError] = useState<string | null>(null)
+  const [policyError, setPolicyError] = useState<string | null>(null)
 
   const selectedEmployee = useMemo(
     () => employees.find((employee) => employee.id === selectedEmployeeId) || null,
@@ -94,13 +112,29 @@ export default function EmployeeRecordClient({
   )
 
   const [payrollForm, setPayrollForm] = useState({
+    payBasis: selectedEmployee?.pay_basis || 'salaried',
+    hourlySource: selectedEmployee?.hourly_source || 'contracted',
     hourlyRate: selectedEmployee?.hourly_rate?.toString() || '',
     annualSalary: selectedEmployee?.annual_salary?.toString() || '',
     workingHoursPerWeek: selectedEmployee?.working_hours_per_week?.toString() || '',
+    salaryCurrency: selectedEmployee?.salary_currency || 'GBP',
+    payrollEffectiveFrom: selectedEmployee?.payroll_effective_from || '',
     employmentType: selectedEmployee?.employment_type || '',
     employmentStartDate: selectedEmployee?.employment_start_date || '',
     employmentEndDate: selectedEmployee?.employment_end_date || '',
     payrollNotes: selectedEmployee?.payroll_notes || '',
+  })
+
+  const [policyForm, setPolicyForm] = useState<EmployeePolicy>({
+    sickPayMode: 'statutory',
+    paidBreakMinutesPerShift: '',
+    holidayEntitlementDays: '28',
+    bankHolidaysIncluded: true,
+    overtimeMode: 'none',
+    overtimeThresholdHours: '',
+    overtimeRateMultiplier: '1',
+    effectiveFrom: '',
+    notes: '',
   })
 
   const compensationSummary = useMemo(() => {
@@ -142,9 +176,13 @@ export default function EmployeeRecordClient({
     setSelectedEmployeeId(employeeId)
     const nextEmployee = employees.find((employee) => employee.id === employeeId)
     setPayrollForm({
+      payBasis: nextEmployee?.pay_basis || 'salaried',
+      hourlySource: nextEmployee?.hourly_source || 'contracted',
       hourlyRate: nextEmployee?.hourly_rate?.toString() || '',
       annualSalary: nextEmployee?.annual_salary?.toString() || '',
       workingHoursPerWeek: nextEmployee?.working_hours_per_week?.toString() || '',
+      salaryCurrency: nextEmployee?.salary_currency || 'GBP',
+      payrollEffectiveFrom: nextEmployee?.payroll_effective_from || '',
       employmentType: nextEmployee?.employment_type || '',
       employmentStartDate: nextEmployee?.employment_start_date || '',
       employmentEndDate: nextEmployee?.employment_end_date || '',
@@ -153,10 +191,72 @@ export default function EmployeeRecordClient({
 
     try {
       await refreshDocuments(employeeId)
+      if (isHrView) {
+        await loadPolicy(employeeId)
+      }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to load employee documents')
     }
   }
+
+  const loadPolicy = async (employeeId = selectedEmployeeId) => {
+    if (!isHrView) return
+
+    const response = await fetch(`/api/employee-record/policy/${employeeId}`)
+    const payload = await response.json().catch(() => ({}))
+
+    if (!response.ok) {
+      throw new Error(payload?.error || 'Failed to load policy settings')
+    }
+
+    if (payload?.supported === false || !payload?.policy) {
+      setPolicyForm((current) => ({
+        ...current,
+        sickPayMode: 'statutory',
+        paidBreakMinutesPerShift: '',
+        holidayEntitlementDays: '28',
+        bankHolidaysIncluded: true,
+        overtimeMode: 'none',
+        overtimeThresholdHours: '',
+        overtimeRateMultiplier: '1',
+        effectiveFrom: '',
+        notes: '',
+      }))
+      return
+    }
+
+    const policy = payload.policy
+    setPolicyForm({
+      sickPayMode: policy.sickPayMode || 'statutory',
+      paidBreakMinutesPerShift:
+        typeof policy.paidBreakMinutesPerShift === 'number'
+          ? String(policy.paidBreakMinutesPerShift)
+          : '',
+      holidayEntitlementDays:
+        typeof policy.holidayEntitlementDays === 'number'
+          ? String(policy.holidayEntitlementDays)
+          : '28',
+      bankHolidaysIncluded: Boolean(policy.bankHolidaysIncluded ?? true),
+      overtimeMode: policy.overtimeMode || 'none',
+      overtimeThresholdHours:
+        typeof policy.overtimeThresholdHours === 'number'
+          ? String(policy.overtimeThresholdHours)
+          : '',
+      overtimeRateMultiplier:
+        typeof policy.overtimeRateMultiplier === 'number'
+          ? String(policy.overtimeRateMultiplier)
+          : '1',
+      effectiveFrom: policy.effectiveFrom || '',
+      notes: policy.notes || '',
+    })
+  }
+
+  useEffect(() => {
+    if (!isHrView || !selectedEmployeeId) return
+    void loadPolicy(selectedEmployeeId).catch((error) => {
+      toast.error(error instanceof Error ? error.message : 'Failed to load policy settings')
+    })
+  }, [isHrView, selectedEmployeeId])
 
   const handleSavePayroll = async () => {
     if (!selectedEmployeeId) {
@@ -167,6 +267,16 @@ export default function EmployeeRecordClient({
     const hourlyRate = toNumberOrNull(payrollForm.hourlyRate)
     const annualSalary = toNumberOrNull(payrollForm.annualSalary)
     const hoursPerWeek = toNumberOrNull(payrollForm.workingHoursPerWeek)
+
+    if (payrollForm.payBasis === 'salaried' && annualSalary === null) {
+      setPayrollError('Annual salary is required for salaried employees')
+      return
+    }
+
+    if (payrollForm.payBasis === 'hourly' && hourlyRate === null) {
+      setPayrollError('Hourly rate is required for hourly employees')
+      return
+    }
 
     if (hourlyRate !== null && hourlyRate < 0) {
       setPayrollError('Hourly rate cannot be negative')
@@ -200,9 +310,13 @@ export default function EmployeeRecordClient({
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          payBasis: payrollForm.payBasis,
+          hourlySource: payrollForm.payBasis === 'hourly' ? payrollForm.hourlySource : null,
           hourlyRate: payrollForm.hourlyRate,
           annualSalary: payrollForm.annualSalary,
           workingHoursPerWeek: payrollForm.workingHoursPerWeek,
+          salaryCurrency: payrollForm.salaryCurrency,
+          payrollEffectiveFrom: payrollForm.payrollEffectiveFrom || null,
           employmentType: payrollForm.employmentType,
           employmentStartDate: payrollForm.employmentStartDate || null,
           employmentEndDate: payrollForm.employmentEndDate || null,
@@ -221,9 +335,13 @@ export default function EmployeeRecordClient({
           employee.id === selectedEmployeeId
             ? {
                 ...employee,
+                pay_basis: updated.payBasis ?? 'salaried',
+                hourly_source: updated.hourlySource ?? null,
                 hourly_rate: updated.hourlyRate ?? null,
                 annual_salary: updated.annualSalary ?? null,
                 working_hours_per_week: updated.workingHoursPerWeek ?? null,
+                salary_currency: updated.salaryCurrency ?? 'GBP',
+                payroll_effective_from: updated.payrollEffectiveFrom ?? null,
                 employment_type: updated.employmentType ?? null,
                 employment_start_date: updated.employmentStartDate ?? null,
                 employment_end_date: updated.employmentEndDate ?? null,
@@ -239,6 +357,71 @@ export default function EmployeeRecordClient({
       setPayrollError(error instanceof Error ? error.message : 'Failed to save payroll details')
     } finally {
       setSavingPayroll(false)
+    }
+  }
+
+  const handleSavePolicy = async () => {
+    if (!selectedEmployeeId) {
+      toast.error('Select an employee first')
+      return
+    }
+
+    const paidBreakMinutes = toNumberOrNull(policyForm.paidBreakMinutesPerShift)
+    const holidayEntitlement = toNumberOrNull(policyForm.holidayEntitlementDays)
+    const overtimeThreshold = toNumberOrNull(policyForm.overtimeThresholdHours)
+    const overtimeMultiplier = toNumberOrNull(policyForm.overtimeRateMultiplier)
+
+    if (paidBreakMinutes !== null && paidBreakMinutes < 0) {
+      setPolicyError('Paid break minutes cannot be negative')
+      return
+    }
+
+    if (holidayEntitlement !== null && holidayEntitlement < 0) {
+      setPolicyError('Holiday entitlement cannot be negative')
+      return
+    }
+
+    if (overtimeThreshold !== null && overtimeThreshold < 0) {
+      setPolicyError('Overtime threshold cannot be negative')
+      return
+    }
+
+    if (overtimeMultiplier !== null && overtimeMultiplier < 1) {
+      setPolicyError('Overtime multiplier must be at least 1')
+      return
+    }
+
+    setPolicyError(null)
+    setSavingPolicy(true)
+
+    try {
+      const response = await fetch(`/api/employee-record/policy/${selectedEmployeeId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sickPayMode: policyForm.sickPayMode,
+          paidBreakMinutesPerShift: policyForm.paidBreakMinutesPerShift || null,
+          holidayEntitlementDays: policyForm.holidayEntitlementDays || null,
+          bankHolidaysIncluded: policyForm.bankHolidaysIncluded,
+          overtimeMode: policyForm.overtimeMode,
+          overtimeThresholdHours: policyForm.overtimeThresholdHours || null,
+          overtimeRateMultiplier: policyForm.overtimeRateMultiplier || null,
+          effectiveFrom: policyForm.effectiveFrom || null,
+          notes: policyForm.notes || null,
+        }),
+      })
+
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Failed to save policy settings')
+      }
+
+      toast.success('Policy settings updated')
+    } catch (error) {
+      setPolicyError(error instanceof Error ? error.message : 'Failed to save policy settings')
+      toast.error(error instanceof Error ? error.message : 'Failed to save policy settings')
+    } finally {
+      setSavingPolicy(false)
     }
   }
 
@@ -436,6 +619,42 @@ export default function EmployeeRecordClient({
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <label className="text-sm text-slate-700">
+              Pay Basis
+              <select
+                value={payrollForm.payBasis}
+                onChange={(event) =>
+                  setPayrollForm((current) => ({
+                    ...current,
+                    payBasis: event.target.value as 'salaried' | 'hourly',
+                  }))
+                }
+                className={fieldClass}
+              >
+                <option value="salaried">Salaried (Annual)</option>
+                <option value="hourly">Hourly</option>
+              </select>
+            </label>
+
+            {payrollForm.payBasis === 'hourly' && (
+              <label className="text-sm text-slate-700">
+                Hour Source
+                <select
+                  value={payrollForm.hourlySource}
+                  onChange={(event) =>
+                    setPayrollForm((current) => ({
+                      ...current,
+                      hourlySource: event.target.value as 'contracted' | 'timeclock',
+                    }))
+                  }
+                  className={fieldClass}
+                >
+                  <option value="contracted">Contracted Hours</option>
+                  <option value="timeclock">Timeclock Punches</option>
+                </select>
+              </label>
+            )}
+
+            <label className="text-sm text-slate-700">
               Employee
               <select
                 value={selectedEmployeeId}
@@ -488,6 +707,37 @@ export default function EmployeeRecordClient({
                 value={payrollForm.annualSalary}
                 onChange={(event) =>
                   setPayrollForm((current) => ({ ...current, annualSalary: event.target.value }))
+                }
+                className={fieldClass}
+              />
+            </label>
+
+            <label className="text-sm text-slate-700">
+              Salary Currency
+              <input
+                type="text"
+                maxLength={3}
+                value={payrollForm.salaryCurrency}
+                onChange={(event) =>
+                  setPayrollForm((current) => ({
+                    ...current,
+                    salaryCurrency: event.target.value.toUpperCase(),
+                  }))
+                }
+                className={fieldClass}
+              />
+            </label>
+
+            <label className="text-sm text-slate-700">
+              Payroll Effective From
+              <input
+                type="date"
+                value={payrollForm.payrollEffectiveFrom}
+                onChange={(event) =>
+                  setPayrollForm((current) => ({
+                    ...current,
+                    payrollEffectiveFrom: event.target.value,
+                  }))
                 }
                 className={fieldClass}
               />
@@ -578,6 +828,176 @@ export default function EmployeeRecordClient({
           >
             {savingPayroll ? 'Saving...' : 'Save Payroll Details'}
           </button>
+
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+            <h3 className="text-sm font-bold text-slate-900">Contract Policy (Foundations)</h3>
+            <p className="text-xs text-slate-500">
+              This config models employee contract terms used by payroll calculations and future payslips.
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <label className="text-sm text-slate-700">
+                Sick Pay Mode
+                <select
+                  value={policyForm.sickPayMode}
+                  onChange={(event) =>
+                    setPolicyForm((current) => ({
+                      ...current,
+                      sickPayMode: event.target.value as 'none' | 'statutory' | 'full',
+                    }))
+                  }
+                  className={fieldClass}
+                >
+                  <option value="none">None</option>
+                  <option value="statutory">Statutory</option>
+                  <option value="full">Full Pay</option>
+                </select>
+              </label>
+
+              <label className="text-sm text-slate-700">
+                Paid Break Minutes / Shift
+                <input
+                  type="number"
+                  step="1"
+                  min={0}
+                  value={policyForm.paidBreakMinutesPerShift}
+                  onChange={(event) =>
+                    setPolicyForm((current) => ({
+                      ...current,
+                      paidBreakMinutesPerShift: event.target.value,
+                    }))
+                  }
+                  className={fieldClass}
+                />
+              </label>
+
+              <label className="text-sm text-slate-700">
+                Holiday Entitlement (Days)
+                <input
+                  type="number"
+                  step="0.5"
+                  min={0}
+                  value={policyForm.holidayEntitlementDays}
+                  onChange={(event) =>
+                    setPolicyForm((current) => ({
+                      ...current,
+                      holidayEntitlementDays: event.target.value,
+                    }))
+                  }
+                  className={fieldClass}
+                />
+              </label>
+
+              <label className="text-sm text-slate-700">
+                Overtime Mode
+                <select
+                  value={policyForm.overtimeMode}
+                  onChange={(event) =>
+                    setPolicyForm((current) => ({
+                      ...current,
+                      overtimeMode: event.target.value as 'none' | 'flat' | 'tiered',
+                    }))
+                  }
+                  className={fieldClass}
+                >
+                  <option value="none">None</option>
+                  <option value="flat">Flat Rate</option>
+                  <option value="tiered">Tiered</option>
+                </select>
+              </label>
+
+              <label className="text-sm text-slate-700">
+                Overtime Threshold Hours
+                <input
+                  type="number"
+                  step="0.5"
+                  min={0}
+                  value={policyForm.overtimeThresholdHours}
+                  onChange={(event) =>
+                    setPolicyForm((current) => ({
+                      ...current,
+                      overtimeThresholdHours: event.target.value,
+                    }))
+                  }
+                  className={fieldClass}
+                />
+              </label>
+
+              <label className="text-sm text-slate-700">
+                Overtime Rate Multiplier
+                <input
+                  type="number"
+                  step="0.1"
+                  min={1}
+                  value={policyForm.overtimeRateMultiplier}
+                  onChange={(event) =>
+                    setPolicyForm((current) => ({
+                      ...current,
+                      overtimeRateMultiplier: event.target.value,
+                    }))
+                  }
+                  className={fieldClass}
+                />
+              </label>
+
+              <label className="text-sm text-slate-700">
+                Effective From
+                <input
+                  type="date"
+                  value={policyForm.effectiveFrom}
+                  onChange={(event) =>
+                    setPolicyForm((current) => ({
+                      ...current,
+                      effectiveFrom: event.target.value,
+                    }))
+                  }
+                  className={fieldClass}
+                />
+              </label>
+            </div>
+
+            <label className="inline-flex items-center gap-2 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                checked={policyForm.bankHolidaysIncluded}
+                onChange={(event) =>
+                  setPolicyForm((current) => ({
+                    ...current,
+                    bankHolidaysIncluded: event.target.checked,
+                  }))
+                }
+                className="h-4 w-4 rounded border-slate-300"
+              />
+              Bank holidays included in entitlement
+            </label>
+
+            <label className="block text-sm text-slate-700">
+              Policy Notes
+              <textarea
+                value={policyForm.notes}
+                onChange={(event) =>
+                  setPolicyForm((current) => ({ ...current, notes: event.target.value }))
+                }
+                rows={2}
+                className={fieldClass}
+              />
+            </label>
+
+            {policyError && (
+              <p className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                {policyError}
+              </p>
+            )}
+
+            <button
+              type="button"
+              onClick={() => void handleSavePolicy()}
+              disabled={savingPolicy}
+              className="px-4 py-2 rounded-lg bg-slate-700 text-white font-semibold hover:bg-slate-600 disabled:opacity-60"
+            >
+              {savingPolicy ? 'Saving Policy...' : 'Save Policy Settings'}
+            </button>
+          </div>
         </div>
       )}
 
@@ -745,7 +1165,9 @@ export default function EmployeeRecordClient({
           <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3 text-sm text-slate-700">
             <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">Hourly Rate: {formatCurrency(selectedEmployee.hourly_rate)}</p>
             <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">Annual Salary: {formatCurrency(selectedEmployee.annual_salary)}</p>
+            <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">Pay Basis: {selectedEmployee.pay_basis || 'salaried'}</p>
             <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">Working Hours/Week: {selectedEmployee.working_hours_per_week ?? 'Not set'}</p>
+            <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">Hourly Source: {selectedEmployee.hourly_source || 'N/A'}</p>
             <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">Employment Type: {selectedEmployee.employment_type || 'Not set'}</p>
             <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">Start Date: {formatDate(selectedEmployee.employment_start_date)}</p>
             <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">End Date: {formatDate(selectedEmployee.employment_end_date)}</p>
