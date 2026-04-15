@@ -41,6 +41,8 @@ type EmployeePolicy = {
   overtimeRateMultiplier: string
   effectiveFrom: string
   notes: string
+  policySource: 'manual' | 'uk-default'
+  policyContractType: string
 }
 
 export type EmployeeDocument = {
@@ -157,7 +159,10 @@ export default function EmployeeRecordClient({
     overtimeRateMultiplier: '1',
     effectiveFrom: '',
     notes: '',
+    policySource: 'manual',
+    policyContractType: '',
   })
+  const [recommendedPolicy, setRecommendedPolicy] = useState<EmployeePolicy | null>(null)
 
   const compensationSummary = useMemo(() => {
     const hoursPerWeek = toNumberOrNull(payrollForm.workingHoursPerWeek)
@@ -231,24 +236,82 @@ export default function EmployeeRecordClient({
       throw new Error(payload?.error || 'Failed to load policy settings')
     }
 
+    const recommended: EmployeePolicy | null = payload?.recommendedPolicy
+      ? {
+          sickPayMode:
+            payload.recommendedPolicy.sickPayMode === 'none' ||
+            payload.recommendedPolicy.sickPayMode === 'full'
+              ? payload.recommendedPolicy.sickPayMode
+              : 'statutory',
+          sspEligibility:
+            payload.recommendedPolicy.sspEligibility === 'eligible' ||
+            payload.recommendedPolicy.sspEligibility === 'not-eligible'
+              ? payload.recommendedPolicy.sspEligibility
+              : 'not-assessed',
+          sspWeeklyRate:
+            typeof payload.recommendedPolicy.sspWeeklyRate === 'number'
+              ? String(payload.recommendedPolicy.sspWeeklyRate)
+              : '',
+          paidBreakMinutesPerShift:
+            typeof payload.recommendedPolicy.paidBreakMinutesPerShift === 'number'
+              ? String(payload.recommendedPolicy.paidBreakMinutesPerShift)
+              : '',
+          holidayEntitlementDays:
+            typeof payload.recommendedPolicy.holidayEntitlementDays === 'number'
+              ? String(payload.recommendedPolicy.holidayEntitlementDays)
+              : '28',
+          bankHolidaysIncluded: Boolean(payload.recommendedPolicy.bankHolidaysIncluded ?? true),
+          pensionStatus:
+            payload.recommendedPolicy.pensionStatus === 'eligible' ||
+            payload.recommendedPolicy.pensionStatus === 'enrolled' ||
+            payload.recommendedPolicy.pensionStatus === 'opted-out' ||
+            payload.recommendedPolicy.pensionStatus === 'postponed'
+              ? payload.recommendedPolicy.pensionStatus
+              : 'not-assessed',
+          pensionProviderName: payload.recommendedPolicy.pensionProviderName || '',
+          pensionEnrolmentDate: payload.recommendedPolicy.pensionEnrolmentDate || '',
+          overtimeMode:
+            payload.recommendedPolicy.overtimeMode === 'flat' ||
+            payload.recommendedPolicy.overtimeMode === 'tiered'
+              ? payload.recommendedPolicy.overtimeMode
+              : 'none',
+          overtimeThresholdHours:
+            typeof payload.recommendedPolicy.overtimeThresholdHours === 'number'
+              ? String(payload.recommendedPolicy.overtimeThresholdHours)
+              : '',
+          overtimeRateMultiplier:
+            typeof payload.recommendedPolicy.overtimeRateMultiplier === 'number'
+              ? String(payload.recommendedPolicy.overtimeRateMultiplier)
+              : '1',
+          effectiveFrom: payload.recommendedPolicy.effectiveFrom || '',
+          notes: payload.recommendedPolicy.notes || '',
+          policySource: payload.recommendedPolicy.policySource === 'uk-default' ? 'uk-default' : 'manual',
+          policyContractType: payload.recommendedPolicy.policyContractType || '',
+        }
+      : null
+    setRecommendedPolicy(recommended)
+
     if (payload?.supported === false || !payload?.policy) {
-      setPolicyForm((current) => ({
-        ...current,
-        sickPayMode: 'statutory',
-        sspEligibility: 'not-assessed',
-        sspWeeklyRate: '',
-        paidBreakMinutesPerShift: '',
-        holidayEntitlementDays: '28',
-        bankHolidaysIncluded: true,
-        pensionStatus: 'not-assessed',
-        pensionProviderName: '',
-        pensionEnrolmentDate: '',
-        overtimeMode: 'none',
-        overtimeThresholdHours: '',
-        overtimeRateMultiplier: '1',
-        effectiveFrom: '',
-        notes: '',
-      }))
+      setPolicyForm(
+        recommended || {
+          sickPayMode: 'statutory',
+          sspEligibility: 'not-assessed',
+          sspWeeklyRate: '',
+          paidBreakMinutesPerShift: '',
+          holidayEntitlementDays: '28',
+          bankHolidaysIncluded: true,
+          pensionStatus: 'not-assessed',
+          pensionProviderName: '',
+          pensionEnrolmentDate: '',
+          overtimeMode: 'none',
+          overtimeThresholdHours: '',
+          overtimeRateMultiplier: '1',
+          effectiveFrom: '',
+          notes: '',
+          policySource: 'manual',
+          policyContractType: '',
+        },
+      )
       return
     }
 
@@ -280,7 +343,20 @@ export default function EmployeeRecordClient({
           : '1',
       effectiveFrom: policy.effectiveFrom || '',
       notes: policy.notes || '',
+      policySource: policy.policySource === 'uk-default' ? 'uk-default' : 'manual',
+      policyContractType: policy.policyContractType || '',
     })
+  }
+
+  const applyRecommendedPolicy = () => {
+    if (!recommendedPolicy) {
+      toast.error('No UK recommendation available for this employee yet')
+      return
+    }
+
+    setPolicyForm(recommendedPolicy)
+    setPolicyError(null)
+    toast.success('Applied UK baseline policy. You can still edit any field before saving.')
   }
 
   useEffect(() => {
@@ -459,6 +535,8 @@ export default function EmployeeRecordClient({
           overtimeRateMultiplier: policyForm.overtimeRateMultiplier || null,
           effectiveFrom: policyForm.effectiveFrom || null,
           notes: policyForm.notes || null,
+          policySource: policyForm.policySource,
+          policyContractType: policyForm.policyContractType || null,
         }),
       })
 
@@ -917,6 +995,35 @@ export default function EmployeeRecordClient({
             <p className="text-xs text-slate-500">
               Use these fields to record SSP, pension auto-enrolment and leave terms used in payroll checks.
             </p>
+
+            <div className="rounded-lg border border-indigo-200 bg-indigo-50 p-3 space-y-2">
+              <p className="text-xs text-indigo-900 font-semibold">Automation mode</p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={applyRecommendedPolicy}
+                  className="px-3 py-1.5 rounded-md bg-indigo-700 text-white text-xs font-semibold hover:bg-indigo-600"
+                >
+                  Apply UK Defaults
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setPolicyForm((current) => ({
+                      ...current,
+                      policySource: 'manual',
+                    }))
+                  }
+                  className="px-3 py-1.5 rounded-md border border-indigo-300 text-indigo-800 text-xs font-semibold hover:bg-indigo-100"
+                >
+                  Mark as Manual Override
+                </button>
+              </div>
+              <p className="text-[11px] text-indigo-800">
+                Current mode: {policyForm.policySource === 'uk-default' ? 'UK default template' : 'Manual override'}
+                {policyForm.policyContractType ? ` (${policyForm.policyContractType})` : ''}
+              </p>
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <label className="text-sm text-slate-700">

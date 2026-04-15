@@ -164,9 +164,13 @@ CREATE TABLE IF NOT EXISTS public.contract_policies (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   contract_type TEXT NOT NULL UNIQUE,
   sick_pay_mode TEXT NOT NULL DEFAULT 'statutory',
+  ssp_eligibility_default TEXT,
+  ssp_weekly_rate_default NUMERIC(8,2),
   paid_break_minutes_per_shift INTEGER NOT NULL DEFAULT 0,
   holiday_entitlement_days NUMERIC(6,2) NOT NULL DEFAULT 28,
   bank_holidays_included BOOLEAN NOT NULL DEFAULT TRUE,
+  pension_status_default TEXT,
+  pension_provider_name_default TEXT,
   overtime_mode TEXT NOT NULL DEFAULT 'none',
   overtime_threshold_hours NUMERIC(6,2),
   overtime_rate_multiplier NUMERIC(6,2) NOT NULL DEFAULT 1.00,
@@ -191,17 +195,27 @@ CREATE TABLE IF NOT EXISTS public.employee_policy_overrides (
   overtime_rate_multiplier NUMERIC(6,2),
   effective_from DATE,
   notes TEXT,
+  policy_source TEXT,
+  policy_contract_type TEXT,
   updated_by UUID,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE public.contract_policies
+  ADD COLUMN IF NOT EXISTS ssp_eligibility_default TEXT,
+  ADD COLUMN IF NOT EXISTS ssp_weekly_rate_default NUMERIC(8,2),
+  ADD COLUMN IF NOT EXISTS pension_status_default TEXT,
+  ADD COLUMN IF NOT EXISTS pension_provider_name_default TEXT;
 
 ALTER TABLE public.employee_policy_overrides
   ADD COLUMN IF NOT EXISTS ssp_eligibility TEXT,
   ADD COLUMN IF NOT EXISTS ssp_weekly_rate NUMERIC(8,2),
   ADD COLUMN IF NOT EXISTS pension_status TEXT,
   ADD COLUMN IF NOT EXISTS pension_provider_name TEXT,
-  ADD COLUMN IF NOT EXISTS pension_enrolment_date DATE;
+  ADD COLUMN IF NOT EXISTS pension_enrolment_date DATE,
+  ADD COLUMN IF NOT EXISTS policy_source TEXT,
+  ADD COLUMN IF NOT EXISTS policy_contract_type TEXT;
 
 CREATE UNIQUE INDEX IF NOT EXISTS employee_policy_overrides_employee_id_uq
   ON public.employee_policy_overrides(employee_id);
@@ -231,6 +245,39 @@ BEGIN
     ALTER TABLE public.contract_policies
       ADD CONSTRAINT contract_policies_overtime_mode_check
       CHECK (overtime_mode IN ('none', 'flat', 'tiered'));
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'contract_policies_ssp_eligibility_default_check'
+      AND conrelid = 'public.contract_policies'::regclass
+  ) THEN
+    ALTER TABLE public.contract_policies
+      ADD CONSTRAINT contract_policies_ssp_eligibility_default_check
+      CHECK (ssp_eligibility_default IS NULL OR ssp_eligibility_default IN ('not-assessed', 'eligible', 'not-eligible'));
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'contract_policies_pension_status_default_check'
+      AND conrelid = 'public.contract_policies'::regclass
+  ) THEN
+    ALTER TABLE public.contract_policies
+      ADD CONSTRAINT contract_policies_pension_status_default_check
+      CHECK (pension_status_default IS NULL OR pension_status_default IN ('not-assessed', 'eligible', 'enrolled', 'opted-out', 'postponed'));
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'contract_policies_ssp_weekly_rate_default_check'
+      AND conrelid = 'public.contract_policies'::regclass
+  ) THEN
+    ALTER TABLE public.contract_policies
+      ADD CONSTRAINT contract_policies_ssp_weekly_rate_default_check
+      CHECK (ssp_weekly_rate_default IS NULL OR ssp_weekly_rate_default >= 0);
   END IF;
 
   IF NOT EXISTS (
@@ -298,7 +345,37 @@ BEGIN
       ADD CONSTRAINT employee_policy_overrides_holiday_entitlement_min_check
       CHECK (holiday_entitlement_days IS NULL OR holiday_entitlement_days >= 5.6);
   END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'employee_policy_overrides_policy_source_check'
+      AND conrelid = 'public.employee_policy_overrides'::regclass
+  ) THEN
+    ALTER TABLE public.employee_policy_overrides
+      ADD CONSTRAINT employee_policy_overrides_policy_source_check
+      CHECK (policy_source IS NULL OR policy_source IN ('manual', 'uk-default'));
+  END IF;
 END $$;
+
+INSERT INTO public.contract_policies (
+  contract_type,
+  sick_pay_mode,
+  ssp_eligibility_default,
+  paid_break_minutes_per_shift,
+  holiday_entitlement_days,
+  bank_holidays_included,
+  pension_status_default,
+  overtime_mode,
+  overtime_threshold_hours,
+  overtime_rate_multiplier
+)
+VALUES
+  ('permanent', 'statutory', 'eligible', 0, 28, TRUE, 'eligible', 'none', NULL, 1.00),
+  ('fixed-term', 'statutory', 'eligible', 0, 28, TRUE, 'eligible', 'none', NULL, 1.00),
+  ('part-time', 'statutory', 'eligible', 0, 16.80, TRUE, 'eligible', 'none', NULL, 1.00),
+  ('contractor', 'none', 'not-eligible', 0, 0, FALSE, 'not-assessed', 'none', NULL, 1.00)
+ON CONFLICT (contract_type) DO NOTHING;
 
 ALTER TABLE public.contract_policies ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.employee_policy_overrides ENABLE ROW LEVEL SECURITY;
