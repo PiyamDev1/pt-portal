@@ -321,54 +321,69 @@ export default function EmployeeRecordClient({
     window.open(`/api/documents/download?key=${encodeURIComponent(key)}`, '_blank', 'noopener,noreferrer')
   }
 
+  const fieldClass =
+    'mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-slate-800 shadow-sm outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-200'
+
+  const tabItems: Array<{ key: TabKey; label: string; icon: string }> = [
+    { key: 'overview', label: 'Overview', icon: '▦' },
+    ...(isHrView ? [{ key: 'hr' as TabKey, label: 'HR Setup', icon: '⚙' }] : []),
+    { key: 'documents', label: 'Documents', icon: '⛃' },
+    { key: 'payslips', label: 'Payslips', icon: '£' },
+    { key: 'leave', label: 'Book Leave', icon: '◷' },
+  ]
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-xs font-semibold uppercase text-slate-500">My Role</p>
-          <p className="mt-2 text-sm font-semibold text-slate-800">{roleName || 'Employee'}</p>
+        <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-4 shadow-sm">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">My Role</p>
+          <p className="mt-2 text-base font-bold text-slate-900">{roleName || 'Employee'}</p>
+          <p className="mt-1 text-xs text-slate-500">Access profile</p>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-xs font-semibold uppercase text-slate-500">Events (7 days)</p>
-          <p className="mt-2 text-2xl font-bold text-slate-900">{quickStats.attendanceEventsLast7Days}</p>
+        <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-blue-50 to-white p-4 shadow-sm">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Events (7 days)</p>
+          <p className="mt-2 text-3xl font-black text-slate-900">{quickStats.attendanceEventsLast7Days}</p>
+          <p className="mt-1 text-xs text-slate-500">Timeclock activity</p>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-xs font-semibold uppercase text-slate-500">My Documents</p>
-          <p className="mt-2 text-2xl font-bold text-slate-900">{quickStats.myDocumentCount}</p>
+        <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-emerald-50 to-white p-4 shadow-sm">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">My Documents</p>
+          <p className="mt-2 text-3xl font-black text-slate-900">{quickStats.myDocumentCount}</p>
+          <p className="mt-1 text-xs text-slate-500">Uploaded files</p>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-xs font-semibold uppercase text-slate-500">Book Leave</p>
-          <p className="mt-2 text-sm font-semibold text-amber-700">Planned next milestone</p>
+        <div className="rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50 to-white p-4 shadow-sm">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Book Leave</p>
+          <p className="mt-2 text-sm font-semibold text-amber-800">Planned next milestone</p>
+          <p className="mt-1 text-xs text-amber-700">Coming soon</p>
         </div>
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-2 shadow-sm flex flex-wrap gap-2">
-        {[
-          { key: 'overview', label: 'Overview' },
-          ...(isHrView ? [{ key: 'hr', label: 'HR Setup' }] : []),
-          { key: 'documents', label: 'Documents' },
-          { key: 'payslips', label: 'Payslips' },
-          { key: 'leave', label: 'Book Leave' },
-        ].map((tab) => (
+      <div className="rounded-2xl border border-slate-200 bg-white p-2 shadow-sm sticky top-3 z-10">
+        <div className="flex flex-wrap gap-2">
+        {tabItems.map((tab) => (
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key as TabKey)}
             type="button"
-            className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${
+            className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition inline-flex items-center gap-2 ${
               activeTab === tab.key
-                ? 'bg-slate-900 text-white'
+                ? 'bg-slate-900 text-white shadow-sm'
                 : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
             }`}
           >
+            <span className="text-xs opacity-90">{tab.icon}</span>
             {tab.label}
           </button>
         ))}
+        </div>
       </div>
 
       {activeTab === 'overview' && (
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm space-y-3">
-          <h2 className="text-lg font-bold text-slate-900">Employee Record Dashboard</h2>
-          <p className="text-sm text-slate-600">
+        <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-6 shadow-sm space-y-4">
+          <div>
+            <p className="text-[11px] uppercase tracking-wide font-semibold text-slate-500">Control Center</p>
+            <h2 className="text-xl font-black text-slate-900">Employee Record Dashboard</h2>
+          </div>
+          <p className="text-sm text-slate-600 max-w-3xl">
             Quick actions and snapshots are now active. HR can configure compensation and upload
             contracts/payslips. Staff can review their own documents and payslips.
           </p>
@@ -377,7 +392,7 @@ export default function EmployeeRecordClient({
               <button
                 type="button"
                 onClick={() => setActiveTab('hr')}
-                className="px-3 py-1.5 rounded-md bg-slate-900 text-white text-sm hover:bg-slate-800"
+                className="px-3 py-2 rounded-lg bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800"
               >
                 Edit HR Setup
               </button>
@@ -387,7 +402,7 @@ export default function EmployeeRecordClient({
                   setDocumentType('contract')
                   setActiveTab('documents')
                 }}
-                className="px-3 py-1.5 rounded-md bg-blue-700 text-white text-sm hover:bg-blue-600"
+                className="px-3 py-2 rounded-lg bg-blue-700 text-white text-sm font-semibold hover:bg-blue-600"
               >
                 Upload Contract
               </button>
@@ -397,7 +412,7 @@ export default function EmployeeRecordClient({
                   setDocumentType('payslip')
                   setActiveTab('documents')
                 }}
-                className="px-3 py-1.5 rounded-md bg-emerald-700 text-white text-sm hover:bg-emerald-600"
+                className="px-3 py-2 rounded-lg bg-emerald-700 text-white text-sm font-semibold hover:bg-emerald-600"
               >
                 Upload Payslip
               </button>
@@ -413,8 +428,11 @@ export default function EmployeeRecordClient({
       )}
 
       {activeTab === 'hr' && isHrView && (
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
-          <h2 className="text-lg font-bold text-slate-900">HR Setup</h2>
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
+          <div>
+            <p className="text-[11px] uppercase tracking-wide font-semibold text-slate-500">Compensation</p>
+            <h2 className="text-xl font-black text-slate-900">HR Setup</h2>
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <label className="text-sm text-slate-700">
@@ -422,7 +440,7 @@ export default function EmployeeRecordClient({
               <select
                 value={selectedEmployeeId}
                 onChange={(event) => void handleSelectEmployee(event.target.value)}
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+                className={fieldClass}
               >
                 {employees.map((employee) => (
                   <option key={employee.id} value={employee.id}>
@@ -439,7 +457,7 @@ export default function EmployeeRecordClient({
                 onChange={(event) =>
                   setPayrollForm((current) => ({ ...current, employmentType: event.target.value }))
                 }
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+                className={fieldClass}
               >
                 <option value="">Not set</option>
                 <option value="permanent">Permanent</option>
@@ -458,7 +476,7 @@ export default function EmployeeRecordClient({
                 onChange={(event) =>
                   setPayrollForm((current) => ({ ...current, hourlyRate: event.target.value }))
                 }
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+                className={fieldClass}
               />
             </label>
 
@@ -471,7 +489,7 @@ export default function EmployeeRecordClient({
                 onChange={(event) =>
                   setPayrollForm((current) => ({ ...current, annualSalary: event.target.value }))
                 }
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+                className={fieldClass}
               />
             </label>
 
@@ -484,7 +502,7 @@ export default function EmployeeRecordClient({
                 onChange={(event) =>
                   setPayrollForm((current) => ({ ...current, workingHoursPerWeek: event.target.value }))
                 }
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+                className={fieldClass}
               />
             </label>
 
@@ -496,7 +514,7 @@ export default function EmployeeRecordClient({
                 onChange={(event) =>
                   setPayrollForm((current) => ({ ...current, employmentStartDate: event.target.value }))
                 }
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+                className={fieldClass}
               />
             </label>
 
@@ -508,27 +526,27 @@ export default function EmployeeRecordClient({
                 onChange={(event) =>
                   setPayrollForm((current) => ({ ...current, employmentEndDate: event.target.value }))
                 }
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+                className={fieldClass}
               />
             </label>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+            <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-3">
               <p className="text-[11px] uppercase font-semibold text-slate-500">Weekly Estimate</p>
-              <p className="mt-1 text-sm font-bold text-slate-800">
+              <p className="mt-1 text-base font-black text-slate-900">
                 {formatCurrency(compensationSummary.weeklyFromHourly)}
               </p>
             </div>
-            <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+            <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-3">
               <p className="text-[11px] uppercase font-semibold text-slate-500">Yearly from Hourly</p>
-              <p className="mt-1 text-sm font-bold text-slate-800">
+              <p className="mt-1 text-base font-black text-slate-900">
                 {formatCurrency(compensationSummary.yearlyFromHourly)}
               </p>
             </div>
-            <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+            <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-3">
               <p className="text-[11px] uppercase font-semibold text-slate-500">Monthly from Salary</p>
-              <p className="mt-1 text-sm font-bold text-slate-800">
+              <p className="mt-1 text-base font-black text-slate-900">
                 {formatCurrency(compensationSummary.monthlyFromAnnual)}
               </p>
             </div>
@@ -548,7 +566,7 @@ export default function EmployeeRecordClient({
                 setPayrollForm((current) => ({ ...current, payrollNotes: event.target.value }))
               }
               rows={3}
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+              className={fieldClass}
             />
           </label>
 
@@ -556,7 +574,7 @@ export default function EmployeeRecordClient({
             onClick={() => void handleSavePayroll()}
             disabled={savingPayroll}
             type="button"
-            className="px-4 py-2 rounded-md bg-slate-900 text-white hover:bg-slate-800 disabled:opacity-60"
+            className="px-4 py-2.5 rounded-lg bg-slate-900 text-white font-semibold hover:bg-slate-800 disabled:opacity-60"
           >
             {savingPayroll ? 'Saving...' : 'Save Payroll Details'}
           </button>
@@ -564,7 +582,7 @@ export default function EmployeeRecordClient({
       )}
 
       {activeTab === 'documents' && (
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
           <h2 className="text-lg font-bold text-slate-900">
             {isHrView ? 'Employee Documents (HR)' : 'My Documents'}
           </h2>
@@ -576,7 +594,7 @@ export default function EmployeeRecordClient({
                 <select
                   value={selectedEmployeeId}
                   onChange={(event) => void handleSelectEmployee(event.target.value)}
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+                  className={fieldClass}
                 >
                   {employees.map((employee) => (
                     <option key={employee.id} value={employee.id}>
@@ -593,7 +611,7 @@ export default function EmployeeRecordClient({
                   onChange={(event) =>
                     setDocumentType(event.target.value as 'contract' | 'payslip' | 'other')
                   }
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+                  className={fieldClass}
                 >
                   <option value="contract">Contract</option>
                   <option value="payslip">Payslip</option>
@@ -607,7 +625,7 @@ export default function EmployeeRecordClient({
                   type="file"
                   onChange={(event) => void handleUploadDocument(event)}
                   disabled={uploading || !documentsSupported}
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+                  className={fieldClass}
                 />
               </label>
             </div>
@@ -622,38 +640,38 @@ export default function EmployeeRecordClient({
             <p className="text-sm text-slate-500">No documents uploaded yet.</p>
           ) : (
             <div className="overflow-auto">
-              <table className="w-full text-sm">
-                <thead className="text-left text-slate-500 border-b border-slate-200">
+              <table className="w-full text-sm rounded-xl overflow-hidden">
+                <thead className="text-left text-slate-500 border-b border-slate-200 bg-slate-50">
                   <tr>
-                    <th className="py-2">Type</th>
-                    <th className="py-2">File</th>
-                    <th className="py-2">Uploaded</th>
-                    <th className="py-2 text-right">Actions</th>
+                    <th className="py-3 px-2">Type</th>
+                    <th className="py-3 px-2">File</th>
+                    <th className="py-3 px-2">Uploaded</th>
+                    <th className="py-3 px-2 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {documents.map((doc) => (
-                    <tr key={doc.id}>
-                      <td className="py-2 pr-2 uppercase text-xs font-semibold text-slate-600">
+                    <tr key={doc.id} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="py-3 px-2 uppercase text-xs font-semibold text-slate-600">
                         {doc.documentType}
                       </td>
-                      <td className="py-2 pr-2 text-slate-800">{doc.fileName}</td>
-                      <td className="py-2 text-slate-500">
+                      <td className="py-3 px-2 text-slate-800 font-medium">{doc.fileName}</td>
+                      <td className="py-3 px-2 text-slate-500">
                         {new Date(doc.uploadedAt).toLocaleString('en-GB')}
                       </td>
-                      <td className="py-2 text-right">
+                      <td className="py-3 px-2 text-right">
                         <div className="inline-flex gap-2">
                           <button
                             type="button"
                             onClick={() => openPreview(doc)}
-                            className="px-2 py-1 text-xs rounded border border-slate-300 text-slate-700 hover:bg-slate-50"
+                            className="px-2.5 py-1.5 text-xs rounded-md border border-slate-300 text-slate-700 hover:bg-slate-50"
                           >
                             Preview
                           </button>
                           <button
                             type="button"
                             onClick={() => openDownload(doc)}
-                            className="px-2 py-1 text-xs rounded border border-slate-300 text-slate-700 hover:bg-slate-50"
+                            className="px-2.5 py-1.5 text-xs rounded-md border border-slate-300 text-slate-700 hover:bg-slate-50"
                           >
                             Download
                           </button>
@@ -669,14 +687,17 @@ export default function EmployeeRecordClient({
       )}
 
       {activeTab === 'payslips' && (
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
           <h2 className="text-lg font-bold text-slate-900">Payslips</h2>
           {payslips.length === 0 ? (
             <p className="text-sm text-slate-500">No payslips available yet.</p>
           ) : (
-            <ul className="space-y-2">
+            <ul className="space-y-3">
               {payslips.map((payslip) => (
-                <li key={payslip.id} className="rounded-md border border-slate-200 px-3 py-2">
+                <li
+                  key={payslip.id}
+                  className="rounded-xl border border-slate-200 bg-gradient-to-r from-white to-slate-50 px-4 py-3"
+                >
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <p className="text-sm font-semibold text-slate-800">{payslip.fileName}</p>
@@ -688,14 +709,14 @@ export default function EmployeeRecordClient({
                       <button
                         type="button"
                         onClick={() => openPreview(payslip)}
-                        className="px-2 py-1 text-xs rounded border border-slate-300 text-slate-700 hover:bg-slate-50"
+                        className="px-2.5 py-1.5 text-xs rounded-md border border-slate-300 text-slate-700 hover:bg-slate-50"
                       >
                         Preview
                       </button>
                       <button
                         type="button"
                         onClick={() => openDownload(payslip)}
-                        className="px-2 py-1 text-xs rounded border border-slate-300 text-slate-700 hover:bg-slate-50"
+                        className="px-2.5 py-1.5 text-xs rounded-md border border-slate-300 text-slate-700 hover:bg-slate-50"
                       >
                         Download
                       </button>
@@ -709,7 +730,7 @@ export default function EmployeeRecordClient({
       )}
 
       {activeTab === 'leave' && (
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm space-y-2">
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-2">
           <h2 className="text-lg font-bold text-slate-900">Book Leave</h2>
           <p className="text-sm text-slate-600">
             Leave request workflow is planned for the next milestone. This phase delivers Employee
@@ -719,15 +740,15 @@ export default function EmployeeRecordClient({
       )}
 
       {isHrView && selectedEmployee && activeTab === 'overview' && (
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h3 className="text-md font-bold text-slate-900">Selected Employee Snapshot</h3>
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h3 className="text-md font-black text-slate-900">Selected Employee Snapshot</h3>
           <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3 text-sm text-slate-700">
-            <p>Hourly Rate: {formatCurrency(selectedEmployee.hourly_rate)}</p>
-            <p>Annual Salary: {formatCurrency(selectedEmployee.annual_salary)}</p>
-            <p>Working Hours/Week: {selectedEmployee.working_hours_per_week ?? 'Not set'}</p>
-            <p>Employment Type: {selectedEmployee.employment_type || 'Not set'}</p>
-            <p>Start Date: {formatDate(selectedEmployee.employment_start_date)}</p>
-            <p>End Date: {formatDate(selectedEmployee.employment_end_date)}</p>
+            <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">Hourly Rate: {formatCurrency(selectedEmployee.hourly_rate)}</p>
+            <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">Annual Salary: {formatCurrency(selectedEmployee.annual_salary)}</p>
+            <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">Working Hours/Week: {selectedEmployee.working_hours_per_week ?? 'Not set'}</p>
+            <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">Employment Type: {selectedEmployee.employment_type || 'Not set'}</p>
+            <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">Start Date: {formatDate(selectedEmployee.employment_start_date)}</p>
+            <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">End Date: {formatDate(selectedEmployee.employment_end_date)}</p>
           </div>
         </div>
       )}
