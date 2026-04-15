@@ -28,6 +28,9 @@ export type EmployeeSummary = {
   work_end_time?: string | null
   national_insurance_number?: string | null
   payroll_notes?: string | null
+  location_name?: string | null
+  branch_name?: string | null
+  branch_code?: string | null
 }
 
 type EmployeePolicy = {
@@ -151,6 +154,16 @@ function normalizeHourlySource(value: string | null | undefined): 'contracted' |
   const raw = String(value || '').trim().toLowerCase()
   if (['timeclock', 'clock', 'clocked'].includes(raw)) return 'timeclock'
   return 'contracted'
+}
+
+function getEmployeeBranchLabel(employee: EmployeeSummary) {
+  const code = String(employee.branch_code || '').trim().toUpperCase()
+  const name = String(employee.branch_name || employee.location_name || '').trim()
+
+  if (code && name) return `${name} (${code})`
+  if (name) return name
+  if (code) return code
+  return 'Unassigned branch'
 }
 
 function getMonthBounds(month: string) {
@@ -334,6 +347,7 @@ export default function EmployeeRecordClient({
 }: Props) {
   const [activeTab, setActiveTab] = useState<TabKey>('overview')
   const [employees, setEmployees] = useState<EmployeeSummary[]>(initialEmployees)
+  const [selectedBranch, setSelectedBranch] = useState<string>('all')
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>(
     initialEmployees[0]?.id || currentUserId,
   )
@@ -363,6 +377,16 @@ export default function EmployeeRecordClient({
     () => employees.find((employee) => employee.id === selectedEmployeeId) || null,
     [employees, selectedEmployeeId],
   )
+
+  const branchOptions = useMemo(() => {
+    const labels = Array.from(new Set(employees.map((employee) => getEmployeeBranchLabel(employee))))
+    return labels.sort((a, b) => a.localeCompare(b))
+  }, [employees])
+
+  const filteredEmployees = useMemo(() => {
+    if (selectedBranch === 'all') return employees
+    return employees.filter((employee) => getEmployeeBranchLabel(employee) === selectedBranch)
+  }, [employees, selectedBranch])
 
   const [payrollForm, setPayrollForm] = useState({
     payBasis: normalizePayBasis(selectedEmployee?.pay_basis),
@@ -866,6 +890,12 @@ export default function EmployeeRecordClient({
   }, [isHrView, selectedEmployeeId])
 
   useEffect(() => {
+    if (filteredEmployees.length === 0) return
+    if (filteredEmployees.some((employee) => employee.id === selectedEmployeeId)) return
+    void handleSelectEmployee(filteredEmployees[0].id)
+  }, [filteredEmployees, selectedEmployeeId])
+
+  useEffect(() => {
     if (!isHrView) return
     if (activeTab !== 'calendar') return
     void loadCompanyCalendar(visibleCalendarMonths).catch((error) => {
@@ -1343,6 +1373,18 @@ export default function EmployeeRecordClient({
             <h2 className="text-xl font-black text-slate-900">HR Setup</h2>
           </div>
 
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 space-y-2">
+            <h3 className="text-sm font-bold text-emerald-900">HR setup flow</h3>
+            <p className="text-xs text-emerald-800">Use the sections in this order so payroll and policy data stay consistent.</p>
+            <ul className="text-xs text-emerald-900 list-disc pl-5 space-y-1">
+              <li>A) Select Branch, then select the employee you are updating.</li>
+              <li>1) Employee Information and Data: contract basics, dates, and NI number.</li>
+              <li>2) Working Days and Hours: normal weekly hours and shift timings.</li>
+              <li>3) Pay and Role Model: pay basis, rate/salary, and payroll effective date.</li>
+              <li>4) Sick Pay, SSP and Annual Leave: statutory and company leave/sick policy settings.</li>
+            </ul>
+          </div>
+
           <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 space-y-2">
             <h3 className="text-sm font-bold text-blue-900">UK minimum checklist (quick guide)</h3>
             <p className="text-xs text-blue-800">
@@ -1361,8 +1403,28 @@ export default function EmployeeRecordClient({
           </div>
 
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
-            <h3 className="text-sm font-bold text-slate-900">1) Employee and Pay Model</h3>
+            <h3 className="text-sm font-bold text-slate-900">A) Select Branch then Employee</h3>
+            <p className="text-xs text-slate-500">
+              Start here for every update. Pick a branch first to reduce errors, then choose the employee.
+            </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <label className="text-sm text-slate-700">
+                Branch
+                <select
+                  value={selectedBranch}
+                  onChange={(event) => setSelectedBranch(event.target.value)}
+                  className={fieldClass}
+                >
+                  <option value="all">All branches</option>
+                  {branchOptions.map((branch) => (
+                    <option key={branch} value={branch}>
+                      {branch}
+                    </option>
+                  ))}
+                </select>
+                <p className={helpTextClass}>Filter the employee list by branch before editing records.</p>
+              </label>
+
               <label className="text-sm text-slate-700">
                 Employee
                 <select
@@ -1370,7 +1432,7 @@ export default function EmployeeRecordClient({
                   onChange={(event) => void handleSelectEmployee(event.target.value)}
                   className={fieldClass}
                 >
-                  {employees.map((employee) => (
+                  {filteredEmployees.map((employee) => (
                     <option key={employee.id} value={employee.id}>
                       {employee.full_name} ({employee.email})
                     </option>
@@ -1378,6 +1440,13 @@ export default function EmployeeRecordClient({
                 </select>
                 <p className={helpTextClass}>Choose who this payroll setup applies to.</p>
               </label>
+
+              <div className="md:col-span-2 rounded-lg border border-slate-200 bg-white p-3">
+                <p className="text-sm font-bold text-slate-900">1) Employee Information and Data</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Record core employment details used in compliance checks and employee records.
+                </p>
+              </div>
 
               <label className="text-sm text-slate-700">
                 Employment Type
@@ -1416,6 +1485,13 @@ export default function EmployeeRecordClient({
                   Required. If salaried, annual salary must be filled. If hourly, hourly rate must be filled.
                 </p>
               </label>
+
+              <div className="md:col-span-2 rounded-lg border border-slate-200 bg-white p-3">
+                <p className="text-sm font-bold text-slate-900">2) Working Days and Hours</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Define standard hours and daily timings so leave, attendance, and payroll calculations align.
+                </p>
+              </div>
 
               {payrollForm.payBasis === 'hourly' && (
                 <label className="text-sm text-slate-700">
@@ -1562,6 +1638,13 @@ export default function EmployeeRecordClient({
                 <p className={helpTextClass}>Must be later than start time.</p>
               </label>
 
+              <div className="md:col-span-2 rounded-lg border border-slate-200 bg-white p-3">
+                <p className="text-sm font-bold text-slate-900">3) Pay and Role Model</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Finalize the employee's pay model and effective payroll settings before saving payroll details.
+                </p>
+              </div>
+
               <label className="text-sm text-slate-700 md:col-span-2">
                 National Insurance Number
                 <input
@@ -1629,9 +1712,9 @@ export default function EmployeeRecordClient({
           </button>
 
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
-            <h3 className="text-sm font-bold text-slate-900">2) UK Statutory and Contract Policy</h3>
+            <h3 className="text-sm font-bold text-slate-900">4) Sick Pay, SSP and Annual Leave</h3>
             <p className="text-xs text-slate-500">
-              Use these fields to record SSP, pension auto-enrolment and leave terms used in payroll checks.
+              Use this section to set statutory sick pay, company sick pay, and annual leave entitlement rules.
             </p>
 
             <div className="rounded-lg border border-indigo-200 bg-indigo-50 p-3 space-y-2">
