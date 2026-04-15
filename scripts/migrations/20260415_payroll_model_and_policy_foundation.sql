@@ -318,11 +318,32 @@ CREATE TABLE IF NOT EXISTS public.employee_company_holiday_assignments (
   UNIQUE(employee_id, company_holiday_id)
 );
 
+CREATE TABLE IF NOT EXISTS public.company_calendar_events (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_holiday_id UUID NOT NULL REFERENCES public.company_holiday_calendar(id) ON DELETE CASCADE,
+  event_date DATE NOT NULL,
+  is_paid BOOLEAN NOT NULL,
+  counts_toward_annual_leave BOOLEAN NOT NULL,
+  applies_to_all_staff BOOLEAN NOT NULL DEFAULT TRUE,
+  notes TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 CREATE INDEX IF NOT EXISTS employee_company_holiday_assignments_employee_id_idx
   ON public.employee_company_holiday_assignments(employee_id);
 
 CREATE INDEX IF NOT EXISTS company_holiday_calendar_holiday_date_idx
   ON public.company_holiday_calendar(holiday_date);
+
+CREATE INDEX IF NOT EXISTS company_calendar_events_event_date_idx
+  ON public.company_calendar_events(event_date);
+
+CREATE INDEX IF NOT EXISTS company_calendar_events_holiday_id_idx
+  ON public.company_calendar_events(company_holiday_id);
+
+CREATE UNIQUE INDEX IF NOT EXISTS company_calendar_events_holiday_date_uq
+  ON public.company_calendar_events(company_holiday_id, event_date);
 
 DO $$
 BEGIN
@@ -602,6 +623,7 @@ ALTER TABLE public.contract_policies ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.employee_policy_overrides ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.company_holiday_calendar ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.employee_company_holiday_assignments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.company_calendar_events ENABLE ROW LEVEL SECURITY;
 
 DO $$
 BEGIN
@@ -659,6 +681,21 @@ BEGIN
   ) THEN
     CREATE POLICY "Service role has full access to employee_company_holiday_assignments"
       ON public.employee_company_holiday_assignments
+      FOR ALL
+      TO service_role
+      USING (TRUE)
+      WITH CHECK (TRUE);
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'company_calendar_events'
+      AND policyname = 'Service role has full access to company_calendar_events'
+  ) THEN
+    CREATE POLICY "Service role has full access to company_calendar_events"
+      ON public.company_calendar_events
       FOR ALL
       TO service_role
       USING (TRUE)

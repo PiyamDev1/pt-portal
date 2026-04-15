@@ -91,7 +91,35 @@ type Props = {
   documentsSupported: boolean
 }
 
-type TabKey = 'overview' | 'hr' | 'documents' | 'payslips' | 'leave'
+type CompanyCalendarTemplate = {
+  id: string
+  holidayKey: string
+  holidayName: string
+  isPaid: boolean
+  countsTowardAnnualLeave: boolean
+  active: boolean
+  notes: string | null
+}
+
+type CompanyCalendarEvent = {
+  id: string
+  companyHolidayId: string
+  eventDate: string
+  isPaid: boolean
+  countsTowardAnnualLeave: boolean
+  appliesToAllStaff: boolean
+  notes: string | null
+  holidayName: string
+  holidayKey: string | null
+}
+
+type StaffOffEntry = {
+  id: string
+  fullName: string
+  email: string
+}
+
+type TabKey = 'overview' | 'hr' | 'calendar' | 'documents' | 'payslips' | 'leave'
 
 function formatCurrency(value: number | null | undefined) {
   if (typeof value !== 'number' || Number.isNaN(value)) return 'Not set'
@@ -124,6 +152,23 @@ function normalizeHourlySource(value: string | null | undefined): 'contracted' |
   return 'contracted'
 }
 
+function getMonthBounds(month: string) {
+  const parsed = new Date(`${month}-01T00:00:00`)
+  if (Number.isNaN(parsed.getTime())) return [] as string[]
+
+  const year = parsed.getFullYear()
+  const mon = parsed.getMonth()
+  const first = new Date(year, mon, 1)
+  const last = new Date(year, mon + 1, 0)
+  const days = [] as string[]
+
+  for (let day = 1; day <= last.getDate(); day += 1) {
+    days.push(`${year}-${String(mon + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`)
+  }
+
+  return days
+}
+
 export default function EmployeeRecordClient({
   currentUserId,
   roleName,
@@ -145,10 +190,15 @@ export default function EmployeeRecordClient({
   const [savingPolicy, setSavingPolicy] = useState(false)
   const [payrollError, setPayrollError] = useState<string | null>(null)
   const [policyError, setPolicyError] = useState<string | null>(null)
-  const [companyCalendar, setCompanyCalendar] = useState<CompanyHolidayEntry[]>([])
-  const [assignedCompanyHolidayIds, setAssignedCompanyHolidayIds] = useState<string[]>([])
-  const [recommendedAssignedCompanyHolidayIds, setRecommendedAssignedCompanyHolidayIds] =
-    useState<string[]>([])
+  const [calendarTemplates, setCalendarTemplates] = useState<CompanyCalendarTemplate[]>([])
+  const [calendarEvents, setCalendarEvents] = useState<CompanyCalendarEvent[]>([])
+  const [staffOffByDate, setStaffOffByDate] = useState<Record<string, StaffOffEntry[]>>({})
+  const [calendarMonth, setCalendarMonth] = useState(() => {
+    const now = new Date()
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  })
+  const [selectedCalendarDate, setSelectedCalendarDate] = useState<string | null>(null)
+  const [savingCalendar, setSavingCalendar] = useState(false)
 
   const selectedEmployee = useMemo(
     () => employees.find((employee) => employee.id === selectedEmployeeId) || null,
@@ -215,6 +265,90 @@ export default function EmployeeRecordClient({
       monthlyFromAnnual,
     }
   }, [payrollForm.annualSalary, payrollForm.hourlyRate, payrollForm.workingHoursPerWeek])
+
+  const monthDays = useMemo(() => getMonthBounds(calendarMonth), [calendarMonth])
+  const calendarEventsByDate = useMemo(() => {
+    const map: Record<string, CompanyCalendarEvent[]> = {}
+    for (const event of calendarEvents) {
+      const key = event.eventDate
+      if (!map[key]) map[key] = []
+      map[key].push(event)
+    }
+    return map
+  }, [calendarEvents])
+
+  const loadCompanyCalendar = async (month = calendarMonth) => {
+    if (!isHrView) return
+    const response = await fetch(`/api/employee-record/company-calendar?month=${encodeURIComponent(month)}`)
+    const payload = await response.json().catch(() => ({}))
+
+    if (!response.ok) {
+      throw new Error(payload?.error || 'Failed to load company calendar')
+    }
+
+    setCalendarTemplates(payload?.templates || [])
+    setCalendarEvents(payload?.events || [])
+    setStaffOffByDate(payload?.staffOffByDate || {})
+  }
+
+  const createCalendarEvent = async (templateId: string, eventDate: string) => {
+    const response = await fetch('/api/employee-record/company-calendar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ companyHolidayId: templateId, eventDate, appliesToAllStaff: true }),
+    })
+    const payload = await response.json().catch(() => ({}))
+    if (!response.ok) throw new Error(payload?.error || 'Failed to create calendar event')
+    await loadCompanyCalendar(calendarMonth)
+  }
+
+  const moveCalendarEvent = async (eventId: string, eventDate: string) => {
+    const response = await fetch('/api/employee-record/company-calendar', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ events: [{ id: eventId, eventDate }] }),
+    })
+    const payload = await response.json().catch(() => ({}))
+    if (!response.ok) throw new Error(payload?.error || 'Failed to move calendar event')
+    await loadCompanyCalendar(calendarMonth)
+  }
+
+  const deleteCalendarEvent = async (eventId: string) => {
+    const response = await fetch(`/api/employee-record/company-calendar?eventId=${encodeURIComponent(eventId)}`, {
+      method: 'DELETE',
+    })
+    const payload = await response.json().catch(() => ({}))
+    if (!response.ok) throw new Error(payload?.error || 'Failed to delete calendar event')
+    await loadCompanyCalendar(calendarMonth)
+  }
+
+  const saveCalendarTemplateSettings = async () => {
+    setSavingCalendar(true)
+    try {
+      const response = await fetch('/api/employee-record/company-calendar', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          templates: calendarTemplates.map((template) => ({
+            id: template.id,
+            holidayName: template.holidayName,
+            isPaid: template.isPaid,
+            countsTowardAnnualLeave: template.countsTowardAnnualLeave,
+            active: template.active,
+            notes: template.notes,
+          })),
+        }),
+      })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(payload?.error || 'Failed to save calendar settings')
+      toast.success('Company calendar settings updated')
+      await loadCompanyCalendar(calendarMonth)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to save calendar settings')
+    } finally {
+      setSavingCalendar(false)
+    }
+  }
 
   const refreshDocuments = async (employeeId = selectedEmployeeId) => {
     const params = new URLSearchParams({ employeeId })
@@ -354,11 +488,6 @@ export default function EmployeeRecordClient({
         }
       : null
     setRecommendedPolicy(recommended)
-    setCompanyCalendar((payload?.companyCalendar || []) as CompanyHolidayEntry[])
-    setRecommendedAssignedCompanyHolidayIds(payload?.recommendedAssignedCompanyHolidayIds || [])
-    setAssignedCompanyHolidayIds(
-      payload?.assignedCompanyHolidayIds || payload?.recommendedAssignedCompanyHolidayIds || [],
-    )
 
     if (payload?.supported === false || !payload?.policy) {
       setPolicyForm(
@@ -444,9 +573,6 @@ export default function EmployeeRecordClient({
     }
 
     setPolicyForm(recommendedPolicy)
-    if (recommendedAssignedCompanyHolidayIds.length > 0) {
-      setAssignedCompanyHolidayIds(recommendedAssignedCompanyHolidayIds)
-    }
     setPolicyError(null)
     toast.success('Applied UK baseline policy. You can still edit any field before saving.')
   }
@@ -457,6 +583,14 @@ export default function EmployeeRecordClient({
       toast.error(error instanceof Error ? error.message : 'Failed to load policy settings')
     })
   }, [isHrView, selectedEmployeeId])
+
+  useEffect(() => {
+    if (!isHrView) return
+    if (activeTab !== 'calendar') return
+    void loadCompanyCalendar(calendarMonth).catch((error) => {
+      toast.error(error instanceof Error ? error.message : 'Failed to load company calendar')
+    })
+  }, [isHrView, activeTab, calendarMonth])
 
   const handleSavePayroll = async () => {
     if (!selectedEmployeeId) {
@@ -593,13 +727,6 @@ export default function EmployeeRecordClient({
     const leaveAccruedDays = toNumberOrNull(policyForm.leaveAccruedDays)
     const overtimeThreshold = toNumberOrNull(policyForm.overtimeThresholdHours)
     const overtimeMultiplier = toNumberOrNull(policyForm.overtimeRateMultiplier)
-    const selectedPaidHolidayDays = companyCalendar.filter(
-      (entry) =>
-        assignedCompanyHolidayIds.includes(entry.id) && entry.active && entry.isPaid && entry.countsTowardAnnualLeave,
-    ).length
-    const selectedUnpaidHolidayDays = companyCalendar.filter(
-      (entry) => assignedCompanyHolidayIds.includes(entry.id) && entry.active && !entry.isPaid,
-    ).length
 
     if (sspWeeklyRate !== null && sspWeeklyRate < 0) {
       setPolicyError('SSP weekly rate cannot be negative')
@@ -645,17 +772,6 @@ export default function EmployeeRecordClient({
       return
     }
 
-    if (
-      companyPaidHolidayDays !== null &&
-      selectedPaidHolidayDays > 0 &&
-      companyPaidHolidayDays !== selectedPaidHolidayDays
-    ) {
-      setPolicyError(
-        `Company paid holiday days should match selected paid calendar days (${selectedPaidHolidayDays}).`,
-      )
-      return
-    }
-
     if (leaveAccruedDays !== null && leaveAccruedDays < 0) {
       setPolicyError('Accrued leave days cannot be negative')
       return
@@ -686,10 +802,8 @@ export default function EmployeeRecordClient({
           sspRateMode: policyForm.sspRateMode,
           paidBreakMinutesPerShift: policyForm.paidBreakMinutesPerShift || null,
           holidayEntitlementDays: policyForm.holidayEntitlementDays || null,
-          companyPaidHolidayDays:
-            policyForm.companyPaidHolidayDays || String(selectedPaidHolidayDays || 0),
-          companyUnpaidHolidayDays:
-            policyForm.companyUnpaidHolidayDays || String(selectedUnpaidHolidayDays || 0),
+          companyPaidHolidayDays: policyForm.companyPaidHolidayDays || null,
+          companyUnpaidHolidayDays: policyForm.companyUnpaidHolidayDays || null,
           bankHolidaysIncluded: policyForm.bankHolidaysIncluded,
           pensionStatus: policyForm.pensionStatus,
           pensionProviderName: policyForm.pensionProviderName || null,
@@ -704,15 +818,6 @@ export default function EmployeeRecordClient({
           notes: policyForm.notes || null,
           policySource: policyForm.policySource,
           policyContractType: policyForm.policyContractType || null,
-          assignedCompanyHolidayIds,
-          companyCalendarEntries: companyCalendar.map((entry) => ({
-            id: entry.id,
-            holidayDate: entry.holidayDate,
-            isPaid: entry.isPaid,
-            countsTowardAnnualLeave: entry.countsTowardAnnualLeave,
-            notes: entry.notes,
-            active: entry.active,
-          })),
         }),
       })
 
@@ -816,6 +921,7 @@ export default function EmployeeRecordClient({
   const tabItems: Array<{ key: TabKey; label: string; icon: string }> = [
     { key: 'overview', label: 'Overview', icon: '▦' },
     ...(isHrView ? [{ key: 'hr' as TabKey, label: 'HR Setup', icon: '⚙' }] : []),
+    ...(isHrView ? [{ key: 'calendar' as TabKey, label: 'Company Calendar', icon: '◩' }] : []),
     { key: 'documents', label: 'Documents', icon: '⛃' },
     { key: 'payslips', label: 'Payslips', icon: '£' },
     { key: 'leave', label: 'Book Leave', icon: '◷' },
@@ -1569,89 +1675,6 @@ export default function EmployeeRecordClient({
               </label>
             </div>
 
-            <div className="rounded-lg border border-slate-200 bg-white p-3 space-y-2">
-              <h4 className="text-sm font-semibold text-slate-900">Company Lunar Holiday Calendar</h4>
-              <p className="text-xs text-slate-500">
-                Set holiday dates manually each year and assign applicable days to this employee.
-              </p>
-              <div className="space-y-3">
-                {companyCalendar.map((entry) => (
-                  <div key={entry.id} className="rounded-md border border-slate-200 p-3">
-                    <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
-                      <label className="text-xs text-slate-700 md:col-span-2">
-                        {entry.holidayName}
-                        <input
-                          type="date"
-                          value={entry.holidayDate || ''}
-                          onChange={(event) =>
-                            setCompanyCalendar((current) =>
-                              current.map((item) =>
-                                item.id === entry.id
-                                  ? { ...item, holidayDate: event.target.value || null }
-                                  : item,
-                              ),
-                            )
-                          }
-                          className={fieldClass}
-                        />
-                      </label>
-
-                      <label className="inline-flex items-center gap-2 text-xs text-slate-700">
-                        <input
-                          type="checkbox"
-                          checked={entry.isPaid}
-                          onChange={(event) =>
-                            setCompanyCalendar((current) =>
-                              current.map((item) =>
-                                item.id === entry.id ? { ...item, isPaid: event.target.checked } : item,
-                              ),
-                            )
-                          }
-                          className="h-4 w-4 rounded border-slate-300"
-                        />
-                        Paid
-                      </label>
-
-                      <label className="inline-flex items-center gap-2 text-xs text-slate-700">
-                        <input
-                          type="checkbox"
-                          checked={entry.countsTowardAnnualLeave}
-                          onChange={(event) =>
-                            setCompanyCalendar((current) =>
-                              current.map((item) =>
-                                item.id === entry.id
-                                  ? { ...item, countsTowardAnnualLeave: event.target.checked }
-                                  : item,
-                              ),
-                            )
-                          }
-                          className="h-4 w-4 rounded border-slate-300"
-                        />
-                        Deduct from annual leave
-                      </label>
-
-                      <label className="inline-flex items-center gap-2 text-xs text-slate-700">
-                        <input
-                          type="checkbox"
-                          checked={assignedCompanyHolidayIds.includes(entry.id)}
-                          onChange={(event) =>
-                            setAssignedCompanyHolidayIds((current) =>
-                              event.target.checked
-                                ? [...current, entry.id]
-                                : current.filter((holidayId) => holidayId !== entry.id),
-                            )
-                          }
-                          className="h-4 w-4 rounded border-slate-300"
-                        />
-                        Assign to employee
-                      </label>
-                    </div>
-                    {entry.notes ? <p className="mt-2 text-xs text-slate-500">{entry.notes}</p> : null}
-                  </div>
-                ))}
-              </div>
-            </div>
-
             <label className="inline-flex items-center gap-2 text-sm text-slate-700">
               <input
                 type="checkbox"
@@ -1693,6 +1716,252 @@ export default function EmployeeRecordClient({
             >
               {savingPolicy ? 'Saving Policy...' : 'Save Policy Settings'}
             </button>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'calendar' && isHrView && (
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-xl font-black text-slate-900">Company Calendar</h2>
+              <p className="text-sm text-slate-500">
+                Drag holiday options into dates, schedule in advance, and view staff who are off.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-slate-700">Month</label>
+              <input
+                type="month"
+                value={calendarMonth}
+                onChange={(event) => setCalendarMonth(event.target.value)}
+                className={fieldClass}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className="lg:col-span-2 rounded-xl border border-slate-200 p-3">
+              <div className="grid grid-cols-7 gap-2 text-xs font-semibold text-slate-500 px-1 pb-2">
+                <span>Mon</span>
+                <span>Tue</span>
+                <span>Wed</span>
+                <span>Thu</span>
+                <span>Fri</span>
+                <span>Sat</span>
+                <span>Sun</span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-7 gap-2">
+                {monthDays.map((day) => {
+                  const dayEvents = calendarEventsByDate[day] || []
+                  const dayOff = staffOffByDate[day] || []
+                  return (
+                    <button
+                      key={day}
+                      type="button"
+                      onClick={() => setSelectedCalendarDate(day)}
+                      onDragOver={(event) => event.preventDefault()}
+                      onDrop={(event) => {
+                        event.preventDefault()
+                        const raw = event.dataTransfer.getData('text/plain')
+                        if (!raw) return
+
+                        try {
+                          const parsed = JSON.parse(raw) as
+                            | { type: 'template'; templateId: string }
+                            | { type: 'event'; eventId: string }
+
+                          if (parsed.type === 'template') {
+                            void createCalendarEvent(parsed.templateId, day).catch((error) => {
+                              toast.error(
+                                error instanceof Error ? error.message : 'Failed to create calendar event',
+                              )
+                            })
+                          } else if (parsed.type === 'event') {
+                            void moveCalendarEvent(parsed.eventId, day).catch((error) => {
+                              toast.error(
+                                error instanceof Error ? error.message : 'Failed to move calendar event',
+                              )
+                            })
+                          }
+                        } catch {
+                          toast.error('Invalid drag data')
+                        }
+                      }}
+                      className={`min-h-[142px] rounded-lg border p-2 text-left transition ${
+                        selectedCalendarDate === day
+                          ? 'border-slate-700 bg-slate-50'
+                          : 'border-slate-200 bg-white hover:bg-slate-50'
+                      }`}
+                    >
+                      <p className="text-xs font-semibold text-slate-700">{day}</p>
+                      <div className="mt-2 space-y-1">
+                        {dayEvents.map((event) => (
+                          <div
+                            key={event.id}
+                            draggable
+                            onDragStart={(dragEvent) => {
+                              dragEvent.dataTransfer.setData(
+                                'text/plain',
+                                JSON.stringify({ type: 'event', eventId: event.id }),
+                              )
+                            }}
+                            className={`rounded-md px-2 py-1 text-[11px] font-semibold ${
+                              event.isPaid
+                                ? 'bg-emerald-100 text-emerald-900'
+                                : 'bg-amber-100 text-amber-900'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span>{event.holidayName}</span>
+                              <span
+                                role="button"
+                                onClick={(clickEvent) => {
+                                  clickEvent.stopPropagation()
+                                  void deleteCalendarEvent(event.id).catch((error) => {
+                                    toast.error(
+                                      error instanceof Error
+                                        ? error.message
+                                        : 'Failed to delete calendar event',
+                                    )
+                                  })
+                                }}
+                                className="text-[10px] text-slate-700 hover:text-rose-700"
+                              >
+                                x
+                              </span>
+                            </div>
+                            <p className="text-[10px] font-normal text-slate-600">
+                              {event.countsTowardAnnualLeave ? 'Deducted from annual leave' : 'Not deducted'}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                      {dayOff.length > 0 ? (
+                        <p className="mt-2 text-[10px] text-slate-500">Off: {dayOff.length} staff</p>
+                      ) : null}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 p-3 space-y-3">
+              <h3 className="text-sm font-bold text-slate-900">Calendar Settings</h3>
+              <p className="text-xs text-slate-500">
+                Drag these holiday options onto the calendar. Defaults: Ashura unpaid, Eid days paid and deducted.
+              </p>
+
+              <div className="space-y-2">
+                {calendarTemplates.map((template) => (
+                  <div
+                    key={template.id}
+                    draggable
+                    onDragStart={(event) => {
+                      event.dataTransfer.setData(
+                        'text/plain',
+                        JSON.stringify({ type: 'template', templateId: template.id }),
+                      )
+                    }}
+                    className="rounded-md border border-slate-200 p-2 bg-white"
+                  >
+                    <input
+                      type="text"
+                      value={template.holidayName}
+                      onChange={(event) =>
+                        setCalendarTemplates((current) =>
+                          current.map((row) =>
+                            row.id === template.id ? { ...row, holidayName: event.target.value } : row,
+                          ),
+                        )
+                      }
+                      className={fieldClass}
+                    />
+                    <div className="mt-2 flex flex-wrap gap-3 text-xs text-slate-700">
+                      <label className="inline-flex items-center gap-1">
+                        <input
+                          type="checkbox"
+                          checked={template.isPaid}
+                          onChange={(event) =>
+                            setCalendarTemplates((current) =>
+                              current.map((row) =>
+                                row.id === template.id ? { ...row, isPaid: event.target.checked } : row,
+                              ),
+                            )
+                          }
+                          className="h-4 w-4 rounded border-slate-300"
+                        />
+                        Paid
+                      </label>
+
+                      <label className="inline-flex items-center gap-1">
+                        <input
+                          type="checkbox"
+                          checked={template.countsTowardAnnualLeave}
+                          onChange={(event) =>
+                            setCalendarTemplates((current) =>
+                              current.map((row) =>
+                                row.id === template.id
+                                  ? { ...row, countsTowardAnnualLeave: event.target.checked }
+                                  : row,
+                              ),
+                            )
+                          }
+                          className="h-4 w-4 rounded border-slate-300"
+                        />
+                        Deduct annual leave
+                      </label>
+
+                      <label className="inline-flex items-center gap-1">
+                        <input
+                          type="checkbox"
+                          checked={template.active}
+                          onChange={(event) =>
+                            setCalendarTemplates((current) =>
+                              current.map((row) =>
+                                row.id === template.id ? { ...row, active: event.target.checked } : row,
+                              ),
+                            )
+                          }
+                          className="h-4 w-4 rounded border-slate-300"
+                        />
+                        Active
+                      </label>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => void saveCalendarTemplateSettings()}
+                disabled={savingCalendar}
+                className="px-4 py-2 rounded-lg bg-slate-800 text-white text-sm font-semibold hover:bg-slate-700 disabled:opacity-60"
+              >
+                {savingCalendar ? 'Saving...' : 'Save Calendar Settings'}
+              </button>
+
+              <div className="rounded-md border border-slate-200 bg-slate-50 p-2">
+                <p className="text-xs font-semibold text-slate-700">Who is off</p>
+                {selectedCalendarDate ? (
+                  <div className="mt-2 space-y-1">
+                    <p className="text-xs text-slate-500">{selectedCalendarDate}</p>
+                    {(staffOffByDate[selectedCalendarDate] || []).length === 0 ? (
+                      <p className="text-xs text-slate-500">No staff off for this date.</p>
+                    ) : (
+                      (staffOffByDate[selectedCalendarDate] || []).map((staff) => (
+                        <p key={staff.id} className="text-xs text-slate-700">
+                          {staff.fullName}
+                        </p>
+                      ))
+                    )}
+                  </div>
+                ) : (
+                  <p className="mt-2 text-xs text-slate-500">Select a date to view staff off.</p>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       )}
