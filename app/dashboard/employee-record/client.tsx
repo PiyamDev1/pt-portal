@@ -28,9 +28,14 @@ export type EmployeeSummary = {
 
 type EmployeePolicy = {
   sickPayMode: 'none' | 'statutory' | 'full'
+  sspEligibility: 'not-assessed' | 'eligible' | 'not-eligible'
+  sspWeeklyRate: string
   paidBreakMinutesPerShift: string
   holidayEntitlementDays: string
   bankHolidaysIncluded: boolean
+  pensionStatus: 'not-assessed' | 'eligible' | 'enrolled' | 'opted-out' | 'postponed'
+  pensionProviderName: string
+  pensionEnrolmentDate: string
   overtimeMode: 'none' | 'flat' | 'tiered'
   overtimeThresholdHours: string
   overtimeRateMultiplier: string
@@ -84,6 +89,18 @@ function toNumberOrNull(value: string) {
   return Number.isFinite(parsed) ? parsed : null
 }
 
+function normalizePayBasis(value: string | null | undefined): 'salaried' | 'hourly' {
+  const raw = String(value || '').trim().toLowerCase()
+  if (['hourly', 'hours', 'timeclock'].includes(raw)) return 'hourly'
+  return 'salaried'
+}
+
+function normalizeHourlySource(value: string | null | undefined): 'contracted' | 'timeclock' {
+  const raw = String(value || '').trim().toLowerCase()
+  if (['timeclock', 'clock', 'clocked'].includes(raw)) return 'timeclock'
+  return 'contracted'
+}
+
 export default function EmployeeRecordClient({
   currentUserId,
   roleName,
@@ -112,8 +129,8 @@ export default function EmployeeRecordClient({
   )
 
   const [payrollForm, setPayrollForm] = useState({
-    payBasis: selectedEmployee?.pay_basis || 'salaried',
-    hourlySource: selectedEmployee?.hourly_source || 'contracted',
+    payBasis: normalizePayBasis(selectedEmployee?.pay_basis),
+    hourlySource: normalizeHourlySource(selectedEmployee?.hourly_source),
     hourlyRate: selectedEmployee?.hourly_rate?.toString() || '',
     annualSalary: selectedEmployee?.annual_salary?.toString() || '',
     workingHoursPerWeek: selectedEmployee?.working_hours_per_week?.toString() || '',
@@ -127,9 +144,14 @@ export default function EmployeeRecordClient({
 
   const [policyForm, setPolicyForm] = useState<EmployeePolicy>({
     sickPayMode: 'statutory',
+    sspEligibility: 'not-assessed',
+    sspWeeklyRate: '',
     paidBreakMinutesPerShift: '',
     holidayEntitlementDays: '28',
     bankHolidaysIncluded: true,
+    pensionStatus: 'not-assessed',
+    pensionProviderName: '',
+    pensionEnrolmentDate: '',
     overtimeMode: 'none',
     overtimeThresholdHours: '',
     overtimeRateMultiplier: '1',
@@ -176,8 +198,8 @@ export default function EmployeeRecordClient({
     setSelectedEmployeeId(employeeId)
     const nextEmployee = employees.find((employee) => employee.id === employeeId)
     setPayrollForm({
-      payBasis: nextEmployee?.pay_basis || 'salaried',
-      hourlySource: nextEmployee?.hourly_source || 'contracted',
+      payBasis: normalizePayBasis(nextEmployee?.pay_basis),
+      hourlySource: normalizeHourlySource(nextEmployee?.hourly_source),
       hourlyRate: nextEmployee?.hourly_rate?.toString() || '',
       annualSalary: nextEmployee?.annual_salary?.toString() || '',
       workingHoursPerWeek: nextEmployee?.working_hours_per_week?.toString() || '',
@@ -213,9 +235,14 @@ export default function EmployeeRecordClient({
       setPolicyForm((current) => ({
         ...current,
         sickPayMode: 'statutory',
+        sspEligibility: 'not-assessed',
+        sspWeeklyRate: '',
         paidBreakMinutesPerShift: '',
         holidayEntitlementDays: '28',
         bankHolidaysIncluded: true,
+        pensionStatus: 'not-assessed',
+        pensionProviderName: '',
+        pensionEnrolmentDate: '',
         overtimeMode: 'none',
         overtimeThresholdHours: '',
         overtimeRateMultiplier: '1',
@@ -228,6 +255,8 @@ export default function EmployeeRecordClient({
     const policy = payload.policy
     setPolicyForm({
       sickPayMode: policy.sickPayMode || 'statutory',
+      sspEligibility: policy.sspEligibility || 'not-assessed',
+      sspWeeklyRate: typeof policy.sspWeeklyRate === 'number' ? String(policy.sspWeeklyRate) : '',
       paidBreakMinutesPerShift:
         typeof policy.paidBreakMinutesPerShift === 'number'
           ? String(policy.paidBreakMinutesPerShift)
@@ -237,6 +266,9 @@ export default function EmployeeRecordClient({
           ? String(policy.holidayEntitlementDays)
           : '28',
       bankHolidaysIncluded: Boolean(policy.bankHolidaysIncluded ?? true),
+      pensionStatus: policy.pensionStatus || 'not-assessed',
+      pensionProviderName: policy.pensionProviderName || '',
+      pensionEnrolmentDate: policy.pensionEnrolmentDate || '',
       overtimeMode: policy.overtimeMode || 'none',
       overtimeThresholdHours:
         typeof policy.overtimeThresholdHours === 'number'
@@ -269,12 +301,12 @@ export default function EmployeeRecordClient({
     const hoursPerWeek = toNumberOrNull(payrollForm.workingHoursPerWeek)
 
     if (payrollForm.payBasis === 'salaried' && annualSalary === null) {
-      setPayrollError('Annual salary is required for salaried employees')
+      setPayrollError('Base pay required: enter Annual Salary for a salaried employee.')
       return
     }
 
     if (payrollForm.payBasis === 'hourly' && hourlyRate === null) {
-      setPayrollError('Hourly rate is required for hourly employees')
+      setPayrollError('Base pay required: enter Hourly Rate for an hourly employee.')
       return
     }
 
@@ -310,8 +342,11 @@ export default function EmployeeRecordClient({
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          payBasis: payrollForm.payBasis,
-          hourlySource: payrollForm.payBasis === 'hourly' ? payrollForm.hourlySource : null,
+          payBasis: normalizePayBasis(payrollForm.payBasis),
+          hourlySource:
+            normalizePayBasis(payrollForm.payBasis) === 'hourly'
+              ? normalizeHourlySource(payrollForm.hourlySource)
+              : null,
           hourlyRate: payrollForm.hourlyRate,
           annualSalary: payrollForm.annualSalary,
           workingHoursPerWeek: payrollForm.workingHoursPerWeek,
@@ -366,10 +401,16 @@ export default function EmployeeRecordClient({
       return
     }
 
+    const sspWeeklyRate = toNumberOrNull(policyForm.sspWeeklyRate)
     const paidBreakMinutes = toNumberOrNull(policyForm.paidBreakMinutesPerShift)
     const holidayEntitlement = toNumberOrNull(policyForm.holidayEntitlementDays)
     const overtimeThreshold = toNumberOrNull(policyForm.overtimeThresholdHours)
     const overtimeMultiplier = toNumberOrNull(policyForm.overtimeRateMultiplier)
+
+    if (sspWeeklyRate !== null && sspWeeklyRate < 0) {
+      setPolicyError('SSP weekly rate cannot be negative')
+      return
+    }
 
     if (paidBreakMinutes !== null && paidBreakMinutes < 0) {
       setPolicyError('Paid break minutes cannot be negative')
@@ -378,6 +419,11 @@ export default function EmployeeRecordClient({
 
     if (holidayEntitlement !== null && holidayEntitlement < 0) {
       setPolicyError('Holiday entitlement cannot be negative')
+      return
+    }
+
+    if (holidayEntitlement !== null && holidayEntitlement < 5.6) {
+      setPolicyError('Holiday entitlement is too low. Enter annual days equivalent to at least 5.6 weeks (pro-rated if part-time).')
       return
     }
 
@@ -400,9 +446,14 @@ export default function EmployeeRecordClient({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sickPayMode: policyForm.sickPayMode,
+          sspEligibility: policyForm.sspEligibility,
+          sspWeeklyRate: policyForm.sspWeeklyRate || null,
           paidBreakMinutesPerShift: policyForm.paidBreakMinutesPerShift || null,
           holidayEntitlementDays: policyForm.holidayEntitlementDays || null,
           bankHolidaysIncluded: policyForm.bankHolidaysIncluded,
+          pensionStatus: policyForm.pensionStatus,
+          pensionProviderName: policyForm.pensionProviderName || null,
+          pensionEnrolmentDate: policyForm.pensionEnrolmentDate || null,
           overtimeMode: policyForm.overtimeMode,
           overtimeThresholdHours: policyForm.overtimeThresholdHours || null,
           overtimeRateMultiplier: policyForm.overtimeRateMultiplier || null,
@@ -506,6 +557,7 @@ export default function EmployeeRecordClient({
 
   const fieldClass =
     'mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-slate-800 shadow-sm outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-200'
+  const helpTextClass = 'mt-1 text-xs text-slate-500'
 
   const tabItems: Array<{ key: TabKey; label: string; icon: string }> = [
     { key: 'overview', label: 'Overview', icon: '▦' },
@@ -613,172 +665,203 @@ export default function EmployeeRecordClient({
       {activeTab === 'hr' && isHrView && (
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
           <div>
-            <p className="text-[11px] uppercase tracking-wide font-semibold text-slate-500">Compensation</p>
+            <p className="text-[11px] uppercase tracking-wide font-semibold text-slate-500">Compensation & Compliance</p>
             <h2 className="text-xl font-black text-slate-900">HR Setup</h2>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <label className="text-sm text-slate-700">
-              Pay Basis
-              <select
-                value={payrollForm.payBasis}
-                onChange={(event) =>
-                  setPayrollForm((current) => ({
-                    ...current,
-                    payBasis: event.target.value as 'salaried' | 'hourly',
-                  }))
-                }
-                className={fieldClass}
-              >
-                <option value="salaried">Salaried (Annual)</option>
-                <option value="hourly">Hourly</option>
-              </select>
-            </label>
+          <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 space-y-2">
+            <h3 className="text-sm font-bold text-blue-900">UK minimum checklist (quick guide)</h3>
+            <p className="text-xs text-blue-800">
+              This setup captures payroll basics and common statutory items for UK employers: base pay,
+              SSP handling, pension auto-enrolment tracking, and annual leave baseline.
+            </p>
+            <ul className="text-xs text-blue-900 list-disc pl-5 space-y-1">
+              <li>Set pay basis and base pay amount (annual salary or hourly rate).</li>
+              <li>Track SSP decision and weekly SSP rate used for this employee.</li>
+              <li>Track pension auto-enrolment status and provider details.</li>
+              <li>Set annual leave entitlement with minimum 5.6 weeks (pro-rated for part-time).</li>
+            </ul>
+            <p className="text-[11px] text-blue-700">
+              Verify current statutory rates/thresholds on GOV.UK before each payroll cycle.
+            </p>
+          </div>
 
-            {payrollForm.payBasis === 'hourly' && (
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+            <h3 className="text-sm font-bold text-slate-900">1) Employee and Pay Model</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <label className="text-sm text-slate-700">
-                Hour Source
+                Employee
                 <select
-                  value={payrollForm.hourlySource}
+                  value={selectedEmployeeId}
+                  onChange={(event) => void handleSelectEmployee(event.target.value)}
+                  className={fieldClass}
+                >
+                  {employees.map((employee) => (
+                    <option key={employee.id} value={employee.id}>
+                      {employee.full_name} ({employee.email})
+                    </option>
+                  ))}
+                </select>
+                <p className={helpTextClass}>Choose who this payroll setup applies to.</p>
+              </label>
+
+              <label className="text-sm text-slate-700">
+                Employment Type
+                <select
+                  value={payrollForm.employmentType}
+                  onChange={(event) =>
+                    setPayrollForm((current) => ({ ...current, employmentType: event.target.value }))
+                  }
+                  className={fieldClass}
+                >
+                  <option value="">Not set</option>
+                  <option value="permanent">Permanent</option>
+                  <option value="fixed-term">Fixed Term</option>
+                  <option value="part-time">Part Time</option>
+                  <option value="contractor">Contractor</option>
+                </select>
+                <p className={helpTextClass}>Contract type influences pension and leave expectations.</p>
+              </label>
+
+              <label className="text-sm text-slate-700">
+                Pay Basis
+                <select
+                  value={payrollForm.payBasis}
                   onChange={(event) =>
                     setPayrollForm((current) => ({
                       ...current,
-                      hourlySource: event.target.value as 'contracted' | 'timeclock',
+                      payBasis: event.target.value as 'salaried' | 'hourly',
                     }))
                   }
                   className={fieldClass}
                 >
-                  <option value="contracted">Contracted Hours</option>
-                  <option value="timeclock">Timeclock Punches</option>
+                  <option value="salaried">Salaried (Annual)</option>
+                  <option value="hourly">Hourly</option>
                 </select>
+                <p className={helpTextClass}>
+                  Required. If salaried, annual salary must be filled. If hourly, hourly rate must be filled.
+                </p>
               </label>
-            )}
 
-            <label className="text-sm text-slate-700">
-              Employee
-              <select
-                value={selectedEmployeeId}
-                onChange={(event) => void handleSelectEmployee(event.target.value)}
-                className={fieldClass}
-              >
-                {employees.map((employee) => (
-                  <option key={employee.id} value={employee.id}>
-                    {employee.full_name} ({employee.email})
-                  </option>
-                ))}
-              </select>
-            </label>
+              {payrollForm.payBasis === 'hourly' && (
+                <label className="text-sm text-slate-700">
+                  Hour Source
+                  <select
+                    value={payrollForm.hourlySource}
+                    onChange={(event) =>
+                      setPayrollForm((current) => ({
+                        ...current,
+                        hourlySource: event.target.value as 'contracted' | 'timeclock',
+                      }))
+                    }
+                    className={fieldClass}
+                  >
+                    <option value="contracted">Contracted Hours</option>
+                    <option value="timeclock">Timeclock Punches</option>
+                  </select>
+                  <p className={helpTextClass}>Choose where payable hours come from each period.</p>
+                </label>
+              )}
 
-            <label className="text-sm text-slate-700">
-              Employment Type
-              <select
-                value={payrollForm.employmentType}
-                onChange={(event) =>
-                  setPayrollForm((current) => ({ ...current, employmentType: event.target.value }))
-                }
-                className={fieldClass}
-              >
-                <option value="">Not set</option>
-                <option value="permanent">Permanent</option>
-                <option value="fixed-term">Fixed Term</option>
-                <option value="part-time">Part Time</option>
-                <option value="contractor">Contractor</option>
-              </select>
-            </label>
+              <label className="text-sm text-slate-700">
+                Annual Salary (GBP)
+                <input
+                  type="number"
+                  step="0.01"
+                  value={payrollForm.annualSalary}
+                  onChange={(event) =>
+                    setPayrollForm((current) => ({ ...current, annualSalary: event.target.value }))
+                  }
+                  className={fieldClass}
+                />
+                <p className={helpTextClass}>Required when pay basis is Salaried.</p>
+              </label>
 
-            <label className="text-sm text-slate-700">
-              Hourly Rate (GBP)
-              <input
-                type="number"
-                step="0.01"
-                value={payrollForm.hourlyRate}
-                onChange={(event) =>
-                  setPayrollForm((current) => ({ ...current, hourlyRate: event.target.value }))
-                }
-                className={fieldClass}
-              />
-            </label>
+              <label className="text-sm text-slate-700">
+                Hourly Rate (GBP)
+                <input
+                  type="number"
+                  step="0.01"
+                  value={payrollForm.hourlyRate}
+                  onChange={(event) =>
+                    setPayrollForm((current) => ({ ...current, hourlyRate: event.target.value }))
+                  }
+                  className={fieldClass}
+                />
+                <p className={helpTextClass}>Required when pay basis is Hourly.</p>
+              </label>
 
-            <label className="text-sm text-slate-700">
-              Annual Salary (GBP)
-              <input
-                type="number"
-                step="0.01"
-                value={payrollForm.annualSalary}
-                onChange={(event) =>
-                  setPayrollForm((current) => ({ ...current, annualSalary: event.target.value }))
-                }
-                className={fieldClass}
-              />
-            </label>
+              <label className="text-sm text-slate-700">
+                Working Hours / Week
+                <input
+                  type="number"
+                  step="0.5"
+                  value={payrollForm.workingHoursPerWeek}
+                  onChange={(event) =>
+                    setPayrollForm((current) => ({ ...current, workingHoursPerWeek: event.target.value }))
+                  }
+                  className={fieldClass}
+                />
+                <p className={helpTextClass}>Used for annualized hourly estimates and leave pro-rating.</p>
+              </label>
 
-            <label className="text-sm text-slate-700">
-              Salary Currency
-              <input
-                type="text"
-                maxLength={3}
-                value={payrollForm.salaryCurrency}
-                onChange={(event) =>
-                  setPayrollForm((current) => ({
-                    ...current,
-                    salaryCurrency: event.target.value.toUpperCase(),
-                  }))
-                }
-                className={fieldClass}
-              />
-            </label>
+              <label className="text-sm text-slate-700">
+                Salary Currency
+                <input
+                  type="text"
+                  maxLength={3}
+                  value={payrollForm.salaryCurrency}
+                  onChange={(event) =>
+                    setPayrollForm((current) => ({
+                      ...current,
+                      salaryCurrency: event.target.value.toUpperCase(),
+                    }))
+                  }
+                  className={fieldClass}
+                />
+                <p className={helpTextClass}>Use ISO code (for UK payroll this is usually GBP).</p>
+              </label>
 
-            <label className="text-sm text-slate-700">
-              Payroll Effective From
-              <input
-                type="date"
-                value={payrollForm.payrollEffectiveFrom}
-                onChange={(event) =>
-                  setPayrollForm((current) => ({
-                    ...current,
-                    payrollEffectiveFrom: event.target.value,
-                  }))
-                }
-                className={fieldClass}
-              />
-            </label>
+              <label className="text-sm text-slate-700">
+                Payroll Effective From
+                <input
+                  type="date"
+                  value={payrollForm.payrollEffectiveFrom}
+                  onChange={(event) =>
+                    setPayrollForm((current) => ({
+                      ...current,
+                      payrollEffectiveFrom: event.target.value,
+                    }))
+                  }
+                  className={fieldClass}
+                />
+                <p className={helpTextClass}>Date this setup starts being used for payroll runs.</p>
+              </label>
 
-            <label className="text-sm text-slate-700">
-              Working Hours / Week
-              <input
-                type="number"
-                step="0.5"
-                value={payrollForm.workingHoursPerWeek}
-                onChange={(event) =>
-                  setPayrollForm((current) => ({ ...current, workingHoursPerWeek: event.target.value }))
-                }
-                className={fieldClass}
-              />
-            </label>
+              <label className="text-sm text-slate-700">
+                Employment Start Date
+                <input
+                  type="date"
+                  value={payrollForm.employmentStartDate}
+                  onChange={(event) =>
+                    setPayrollForm((current) => ({ ...current, employmentStartDate: event.target.value }))
+                  }
+                  className={fieldClass}
+                />
+              </label>
 
-            <label className="text-sm text-slate-700">
-              Employment Start Date
-              <input
-                type="date"
-                value={payrollForm.employmentStartDate}
-                onChange={(event) =>
-                  setPayrollForm((current) => ({ ...current, employmentStartDate: event.target.value }))
-                }
-                className={fieldClass}
-              />
-            </label>
-
-            <label className="text-sm text-slate-700">
-              Employment End Date
-              <input
-                type="date"
-                value={payrollForm.employmentEndDate}
-                onChange={(event) =>
-                  setPayrollForm((current) => ({ ...current, employmentEndDate: event.target.value }))
-                }
-                className={fieldClass}
-              />
-            </label>
+              <label className="text-sm text-slate-700">
+                Employment End Date
+                <input
+                  type="date"
+                  value={payrollForm.employmentEndDate}
+                  onChange={(event) =>
+                    setPayrollForm((current) => ({ ...current, employmentEndDate: event.target.value }))
+                  }
+                  className={fieldClass}
+                />
+              </label>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -830,9 +913,9 @@ export default function EmployeeRecordClient({
           </button>
 
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
-            <h3 className="text-sm font-bold text-slate-900">Contract Policy (Foundations)</h3>
+            <h3 className="text-sm font-bold text-slate-900">2) UK Statutory and Contract Policy</h3>
             <p className="text-xs text-slate-500">
-              This config models employee contract terms used by payroll calculations and future payslips.
+              Use these fields to record SSP, pension auto-enrolment and leave terms used in payroll checks.
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -852,6 +935,91 @@ export default function EmployeeRecordClient({
                   <option value="statutory">Statutory</option>
                   <option value="full">Full Pay</option>
                 </select>
+                <p className={helpTextClass}>Statutory means SSP rules apply; Full means contractual sick pay.</p>
+              </label>
+
+              <label className="text-sm text-slate-700">
+                SSP Eligibility
+                <select
+                  value={policyForm.sspEligibility}
+                  onChange={(event) =>
+                    setPolicyForm((current) => ({
+                      ...current,
+                      sspEligibility: event.target.value as 'not-assessed' | 'eligible' | 'not-eligible',
+                    }))
+                  }
+                  className={fieldClass}
+                >
+                  <option value="not-assessed">Not Assessed</option>
+                  <option value="eligible">Eligible</option>
+                  <option value="not-eligible">Not Eligible</option>
+                </select>
+                <p className={helpTextClass}>Track your assessment result for statutory sick pay.</p>
+              </label>
+
+              <label className="text-sm text-slate-700">
+                SSP Weekly Rate (GBP)
+                <input
+                  type="number"
+                  step="0.01"
+                  min={0}
+                  value={policyForm.sspWeeklyRate}
+                  onChange={(event) =>
+                    setPolicyForm((current) => ({ ...current, sspWeeklyRate: event.target.value }))
+                  }
+                  className={fieldClass}
+                />
+                <p className={helpTextClass}>Enter the SSP weekly rate used for this employee/pay period.</p>
+              </label>
+
+              <label className="text-sm text-slate-700">
+                Pension Auto-enrolment Status
+                <select
+                  value={policyForm.pensionStatus}
+                  onChange={(event) =>
+                    setPolicyForm((current) => ({
+                      ...current,
+                      pensionStatus: event.target.value as
+                        | 'not-assessed'
+                        | 'eligible'
+                        | 'enrolled'
+                        | 'opted-out'
+                        | 'postponed',
+                    }))
+                  }
+                  className={fieldClass}
+                >
+                  <option value="not-assessed">Not Assessed</option>
+                  <option value="eligible">Eligible Jobholder</option>
+                  <option value="enrolled">Enrolled</option>
+                  <option value="opted-out">Opted Out</option>
+                  <option value="postponed">Postponed</option>
+                </select>
+                <p className={helpTextClass}>Required for pension compliance tracking and re-enrolment cycles.</p>
+              </label>
+
+              <label className="text-sm text-slate-700">
+                Pension Provider
+                <input
+                  type="text"
+                  value={policyForm.pensionProviderName}
+                  onChange={(event) =>
+                    setPolicyForm((current) => ({ ...current, pensionProviderName: event.target.value }))
+                  }
+                  className={fieldClass}
+                />
+              </label>
+
+              <label className="text-sm text-slate-700">
+                Pension Enrolment Date
+                <input
+                  type="date"
+                  value={policyForm.pensionEnrolmentDate}
+                  onChange={(event) =>
+                    setPolicyForm((current) => ({ ...current, pensionEnrolmentDate: event.target.value }))
+                  }
+                  className={fieldClass}
+                />
               </label>
 
               <label className="text-sm text-slate-700">
@@ -869,6 +1037,9 @@ export default function EmployeeRecordClient({
                   }
                   className={fieldClass}
                 />
+                <p className={helpTextClass}>
+                  UK legal minimum is 5.6 weeks per leave year (28 days for a 5-day worker, pro-rated for part-time).
+                </p>
               </label>
 
               <label className="text-sm text-slate-700">

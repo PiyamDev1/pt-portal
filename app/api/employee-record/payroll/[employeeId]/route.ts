@@ -21,6 +21,26 @@ const ALLOWED_EMPLOYMENT_TYPES = ['permanent', 'fixed-term', 'part-time', 'contr
 const ALLOWED_PAY_BASIS = ['salaried', 'hourly'] as const
 const ALLOWED_HOURLY_SOURCE = ['contracted', 'timeclock'] as const
 
+function normalizePayBasis(value: unknown): 'salaried' | 'hourly' | null {
+  const raw = String(value || '').trim().toLowerCase()
+  if (!raw) return 'salaried'
+
+  if (['salaried', 'salary', 'annual', 'fixed', 'fixed-salary'].includes(raw)) return 'salaried'
+  if (['hourly', 'hours', 'timeclock'].includes(raw)) return 'hourly'
+
+  return null
+}
+
+function normalizeHourlySource(value: unknown): 'contracted' | 'timeclock' | null {
+  const raw = String(value || '').trim().toLowerCase()
+  if (!raw) return null
+
+  if (['contracted', 'contract', 'scheduled'].includes(raw)) return 'contracted'
+  if (['timeclock', 'clock', 'clocked'].includes(raw)) return 'timeclock'
+
+  return null
+}
+
 function toNumberOrNull(value: unknown) {
   if (value === null || value === undefined || value === '') return null
   const num = Number(value)
@@ -57,8 +77,8 @@ export async function PATCH(
 
   const body = (await request.json().catch(() => ({}))) as PayrollBody
 
-  const payBasis = body.payBasis ? String(body.payBasis).trim() : 'salaried'
-  const hourlySource = body.hourlySource ? String(body.hourlySource).trim() : null
+  const payBasis = normalizePayBasis(body.payBasis)
+  const hourlySource = normalizeHourlySource(body.hourlySource)
 
   const hourlyRate = toNumberOrNull(body.hourlyRate)
   const annualSalary = toNumberOrNull(body.annualSalary)
@@ -70,8 +90,11 @@ export async function PATCH(
   const employmentEndDate = toIsoDateOrNull(body.employmentEndDate)
   const payrollNotes = body.payrollNotes ? String(body.payrollNotes).trim() : null
 
-  if (!ALLOWED_PAY_BASIS.includes(payBasis as (typeof ALLOWED_PAY_BASIS)[number])) {
-    return apiError('Invalid pay basis', 400)
+  if (!payBasis || !ALLOWED_PAY_BASIS.includes(payBasis as (typeof ALLOWED_PAY_BASIS)[number])) {
+    return apiError(
+      "Invalid base pay type. Choose 'Salaried (Annual)' or 'Hourly' in HR Setup, then save again.",
+      400,
+    )
   }
 
   if (hourlySource && !ALLOWED_HOURLY_SOURCE.includes(hourlySource as (typeof ALLOWED_HOURLY_SOURCE)[number])) {
@@ -154,6 +177,13 @@ export async function PATCH(
     const message = String(error.message || '').toLowerCase()
     if (error.code === '42703' || message.includes('column')) {
       return apiError('Payroll columns are not available yet. Run latest migration first.', 400)
+    }
+
+    if (error.code === '22P02' && message.includes('pay_basis')) {
+      return apiError(
+        "Pay basis value is not accepted by your database type. Select Pay Basis again in HR Setup and save, or run the latest migration.",
+        400,
+      )
     }
 
     return apiError(error.message || 'Failed to update payroll details', 500)
