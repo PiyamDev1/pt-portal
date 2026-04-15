@@ -257,10 +257,12 @@ export async function PATCH(request: NextRequest) {
       })
       .filter((row): row is NonNullable<typeof row> => Boolean(row))
 
-    if (rows.length > 0) {
+    for (const row of rows) {
+      const { id, ...updates } = row
       const { error } = await supabase
         .from('company_holiday_calendar')
-        .upsert(rows, { onConflict: 'id' })
+        .update(updates)
+        .eq('id', id)
 
       if (error) {
         return apiError(error.message || 'Failed to update templates', 400)

@@ -246,6 +246,28 @@ function normalizeHolidayName(value: string | null | undefined) {
     .trim()
 }
 
+function getOrdinalSuffix(day: number) {
+  if (day % 100 >= 11 && day % 100 <= 13) return 'th'
+  switch (day % 10) {
+    case 1:
+      return 'st'
+    case 2:
+      return 'nd'
+    case 3:
+      return 'rd'
+    default:
+      return 'th'
+  }
+}
+
+function formatReadableDate(isoDate: string) {
+  const parsed = new Date(`${isoDate}T00:00:00`)
+  if (Number.isNaN(parsed.getTime())) return isoDate
+  const day = parsed.getDate()
+  const month = parsed.toLocaleDateString('en-GB', { month: 'long' })
+  return `${day}${getOrdinalSuffix(day)} ${month}`
+}
+
 function getHolidayTheme(
   holidayKey: string | null | undefined,
   isPaid: boolean,
@@ -335,6 +357,7 @@ export default function EmployeeRecordClient({
   const [savingCalendar, setSavingCalendar] = useState(false)
   const [calendarSettingsOpen, setCalendarSettingsOpen] = useState(false)
   const [deletedCalendarTemplateIds, setDeletedCalendarTemplateIds] = useState<string[]>([])
+  const todayIso = useMemo(() => formatIsoDateLocal(new Date()), [])
 
   const selectedEmployee = useMemo(
     () => employees.find((employee) => employee.id === selectedEmployeeId) || null,
@@ -2110,6 +2133,7 @@ export default function EmployeeRecordClient({
 
                 const dayEvents = calendarEventsByDate[day] || []
                 const dayOff = staffOffByDate[day] || []
+                const isToday = day === todayIso
                 return (
                   <button
                     key={day}
@@ -2149,6 +2173,8 @@ export default function EmployeeRecordClient({
                     className={`min-h-[152px] rounded-lg border p-2 text-left transition ${
                       selectedCalendarDate === day
                         ? 'border-slate-700 bg-slate-50'
+                        : isToday
+                          ? 'border-blue-300 bg-blue-50/40'
                         : 'border-slate-200 bg-white hover:bg-slate-50'
                     }`}
                   >
@@ -2157,9 +2183,13 @@ export default function EmployeeRecordClient({
                         <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                           {new Date(`${day}T00:00:00`).toLocaleDateString('en-GB', { weekday: 'short' })}
                         </p>
-                        <p className="text-xs font-semibold text-slate-700">{day}</p>
+                        <p className="text-xs font-semibold text-slate-700">{formatReadableDate(day)}</p>
                       </div>
-                      {visibleCalendarMonths.length > 1 ? (
+                      {isToday ? (
+                        <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-700">
+                          Today
+                        </span>
+                      ) : visibleCalendarMonths.length > 1 ? (
                         <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
                           {day.slice(5, 7)}
                         </span>
@@ -2226,7 +2256,7 @@ export default function EmployeeRecordClient({
               <p className="text-xs font-semibold text-slate-700">Who is off</p>
               {selectedCalendarDate ? (
                 <div className="mt-2 space-y-1">
-                  <p className="text-xs text-slate-500">{selectedCalendarDate}</p>
+                  <p className="text-xs text-slate-500">{formatReadableDate(selectedCalendarDate)}</p>
                   {(staffOffByDate[selectedCalendarDate] || []).length === 0 ? (
                     <p className="text-xs text-slate-500">No staff off for this date.</p>
                   ) : (
