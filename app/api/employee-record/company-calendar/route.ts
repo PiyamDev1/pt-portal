@@ -12,6 +12,14 @@ type UpdateTemplateInput = {
   notes?: string | null
 }
 
+type CreateTemplateInput = {
+  holidayName?: string
+  isPaid?: boolean
+  countsTowardAnnualLeave?: boolean
+  active?: boolean
+  notes?: string | null
+}
+
 type UpdateEventInput = {
   id: string
   eventDate?: string | null
@@ -27,6 +35,14 @@ function toIsoDateOrNull(value: unknown) {
   const parsed = new Date(raw)
   if (Number.isNaN(parsed.getTime())) return null
   return raw
+}
+
+function slugifyHolidayName(value: string) {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
 }
 
 export async function GET(request: NextRequest) {
@@ -203,13 +219,22 @@ export async function PATCH(request: NextRequest) {
 
   const body = (await request.json().catch(() => ({}))) as {
     templates?: UpdateTemplateInput[]
+    createTemplates?: CreateTemplateInput[]
+    deleteTemplateIds?: string[]
     events?: UpdateEventInput[]
   }
 
   const templates = Array.isArray(body.templates) ? body.templates : []
+  const createTemplates = Array.isArray(body.createTemplates) ? body.createTemplates : []
+  const deleteTemplateIds = Array.isArray(body.deleteTemplateIds) ? body.deleteTemplateIds : []
   const events = Array.isArray(body.events) ? body.events : []
 
-  if (templates.length === 0 && events.length === 0) {
+  if (
+    templates.length === 0 &&
+    createTemplates.length === 0 &&
+    deleteTemplateIds.length === 0 &&
+    events.length === 0
+  ) {
     return apiError('No updates provided', 400)
   }
 
@@ -239,6 +264,52 @@ export async function PATCH(request: NextRequest) {
 
       if (error) {
         return apiError(error.message || 'Failed to update templates', 400)
+      }
+    }
+  }
+
+  if (createTemplates.length > 0) {
+    const rows = createTemplates
+      .map((item) => {
+        const holidayName = String(item.holidayName || '').trim()
+        if (!holidayName) return null
+
+        const keyBase = slugifyHolidayName(holidayName) || 'holiday'
+        const uniqueSuffix = Math.random().toString(36).slice(2, 8)
+
+        return {
+          holiday_key: `${keyBase}-${uniqueSuffix}`,
+          holiday_name: holidayName,
+          is_paid: typeof item.isPaid === 'boolean' ? item.isPaid : true,
+          counts_toward_annual_leave:
+            typeof item.countsTowardAnnualLeave === 'boolean' ? item.countsTowardAnnualLeave : true,
+          active: typeof item.active === 'boolean' ? item.active : true,
+          notes: item.notes ?? null,
+        }
+      })
+      .filter((row): row is NonNullable<typeof row> => Boolean(row))
+
+    if (rows.length > 0) {
+      const { error } = await supabase.from('company_holiday_calendar').insert(rows)
+      if (error) {
+        return apiError(error.message || 'Failed to create templates', 400)
+      }
+    }
+  }
+
+  if (deleteTemplateIds.length > 0) {
+    const ids = deleteTemplateIds
+      .map((id) => String(id || '').trim())
+      .filter(Boolean)
+
+    if (ids.length > 0) {
+      const { error } = await supabase
+        .from('company_holiday_calendar')
+        .delete()
+        .in('id', ids)
+
+      if (error) {
+        return apiError(error.message || 'Failed to delete templates', 400)
       }
     }
   }

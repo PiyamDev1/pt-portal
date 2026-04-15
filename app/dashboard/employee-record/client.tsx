@@ -240,6 +240,12 @@ function getVisibleCalendarMonths(view: 'month' | 'week', month: string, viewDat
   return Array.from(new Set(getWeekDays(viewDate).map((day) => day.slice(0, 7))))
 }
 
+function normalizeHolidayName(value: string | null | undefined) {
+  return String(value || '')
+    .replace(/\s*-\s*day\s*\d+\s*$/i, '')
+    .trim()
+}
+
 function getHolidayTheme(
   holidayKey: string | null | undefined,
   isPaid: boolean,
@@ -328,6 +334,7 @@ export default function EmployeeRecordClient({
   const [selectedCalendarDate, setSelectedCalendarDate] = useState<string | null>(null)
   const [savingCalendar, setSavingCalendar] = useState(false)
   const [calendarSettingsOpen, setCalendarSettingsOpen] = useState(false)
+  const [deletedCalendarTemplateIds, setDeletedCalendarTemplateIds] = useState<string[]>([])
 
   const selectedEmployee = useMemo(
     () => employees.find((employee) => employee.id === selectedEmployeeId) || null,
@@ -444,7 +451,10 @@ export default function EmployeeRecordClient({
     for (const payload of results) {
       for (const template of payload?.templates || []) {
         if (!mergedTemplates.has(template.id)) {
-          mergedTemplates.set(template.id, template)
+          mergedTemplates.set(template.id, {
+            ...template,
+            holidayName: normalizeHolidayName(template.holidayName),
+          })
         }
       }
 
@@ -466,6 +476,7 @@ export default function EmployeeRecordClient({
     }
 
     setCalendarTemplates(Array.from(mergedTemplates.values()))
+    setDeletedCalendarTemplateIds([])
     setCalendarEvents(
       Array.from(mergedEvents.values()).sort((left, right) => left.eventDate.localeCompare(right.eventDate)),
     )
@@ -506,18 +517,31 @@ export default function EmployeeRecordClient({
   const saveCalendarTemplateSettings = async () => {
     setSavingCalendar(true)
     try {
+      const existingTemplates = calendarTemplates.filter((template) => !template.id.startsWith('new-'))
+      const newTemplates = calendarTemplates.filter((template) => template.id.startsWith('new-'))
+
       const response = await fetch('/api/employee-record/company-calendar', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          templates: calendarTemplates.map((template) => ({
+          templates: existingTemplates.map((template) => ({
             id: template.id,
-            holidayName: template.holidayName,
+            holidayName: normalizeHolidayName(template.holidayName),
             isPaid: template.isPaid,
             countsTowardAnnualLeave: template.countsTowardAnnualLeave,
             active: template.active,
             notes: template.notes,
           })),
+          createTemplates: newTemplates
+            .map((template) => ({
+              holidayName: normalizeHolidayName(template.holidayName),
+              isPaid: template.isPaid,
+              countsTowardAnnualLeave: template.countsTowardAnnualLeave,
+              active: template.active,
+              notes: template.notes,
+            }))
+            .filter((template) => template.holidayName),
+          deleteTemplateIds: deletedCalendarTemplateIds,
         }),
       })
       const payload = await response.json().catch(() => ({}))
@@ -531,6 +555,28 @@ export default function EmployeeRecordClient({
     } finally {
       setSavingCalendar(false)
     }
+  }
+
+  const addCalendarTemplateDraft = () => {
+    const draftId = `new-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`
+    setCalendarTemplates((current) => [
+      ...current,
+      {
+        id: draftId,
+        holidayKey: draftId,
+        holidayName: 'New Holiday',
+        isPaid: true,
+        countsTowardAnnualLeave: true,
+        active: true,
+        notes: null,
+      },
+    ])
+  }
+
+  const removeCalendarTemplate = (templateId: string) => {
+    setCalendarTemplates((current) => current.filter((template) => template.id !== templateId))
+    if (templateId.startsWith('new-')) return
+    setDeletedCalendarTemplateIds((current) => (current.includes(templateId) ? current : [...current, templateId]))
   }
 
   const refreshDocuments = async (employeeId = selectedEmployeeId) => {
@@ -2006,222 +2052,212 @@ export default function EmployeeRecordClient({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <div className="lg:col-span-2 rounded-xl border border-slate-200 p-3 space-y-3">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Holiday blocks</p>
-                <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                  {activeCalendarTemplates.map((template) => {
-                    const theme = getHolidayTheme(
-                      template.holidayKey,
-                      template.isPaid,
-                      template.countsTowardAnnualLeave,
-                    )
+          <div className="rounded-xl border border-slate-200 p-3 space-y-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Holiday blocks</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {activeCalendarTemplates.map((template) => {
+                  const theme = getHolidayTheme(
+                    template.holidayKey,
+                    template.isPaid,
+                    template.countsTowardAnnualLeave,
+                  )
 
-                    return (
-                      <button
-                        key={template.id}
-                        type="button"
-                        draggable
-                        onDragStart={(event) => {
-                          event.dataTransfer.setData(
-                            'text/plain',
-                            JSON.stringify({ type: 'template', templateId: template.id }),
-                          )
-                        }}
-                        className={`rounded-xl border px-3 py-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${theme.blockClass}`}
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <span className="text-sm font-bold">{template.holidayName}</span>
-                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${theme.chipClass}`}>
-                            Drag
-                          </span>
-                        </div>
-                        <p className="mt-2 text-[11px] opacity-80">
-                          {template.isPaid ? 'Paid' : 'Unpaid'}
-                          {' · '}
-                          {template.countsTowardAnnualLeave ? 'Deduct annual leave' : 'Do not deduct leave'}
-                        </p>
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-7 gap-2 text-xs font-semibold text-slate-500 px-1 pb-2">
-                <span>Mon</span>
-                <span>Tue</span>
-                <span>Wed</span>
-                <span>Thu</span>
-                <span>Fri</span>
-                <span>Sat</span>
-                <span>Sun</span>
-              </div>
-
-              <div className="overflow-x-auto">
-                <div className="grid min-w-[820px] grid-cols-7 gap-2">
-                {(calendarView === 'month' ? monthGridDays : visibleCalendarDays).map((day, index) => {
-                  if (!day) {
-                    return (
-                      <div
-                        key={`empty-${index}`}
-                        className="min-h-[142px] rounded-lg border border-dashed border-slate-200 bg-slate-50/60"
-                      />
-                    )
-                  }
-
-                  const dayEvents = calendarEventsByDate[day] || []
-                  const dayOff = staffOffByDate[day] || []
                   return (
                     <button
-                      key={day}
+                      key={template.id}
                       type="button"
-                      onClick={() => {
-                        setSelectedCalendarDate(day)
-                        setCalendarViewDate(day)
+                      draggable
+                      onDragStart={(event) => {
+                        event.dataTransfer.setData(
+                          'text/plain',
+                          JSON.stringify({ type: 'template', templateId: template.id }),
+                        )
                       }}
-                      onDragOver={(event) => event.preventDefault()}
-                      onDrop={(event) => {
-                        event.preventDefault()
-                        const raw = event.dataTransfer.getData('text/plain')
-                        if (!raw) return
-
-                        try {
-                          const parsed = JSON.parse(raw) as
-                            | { type: 'template'; templateId: string }
-                            | { type: 'event'; eventId: string }
-
-                          if (parsed.type === 'template') {
-                            void createCalendarEvent(parsed.templateId, day).catch((error) => {
-                              toast.error(
-                                error instanceof Error ? error.message : 'Failed to create calendar event',
-                              )
-                            })
-                          } else if (parsed.type === 'event') {
-                            void moveCalendarEvent(parsed.eventId, day).catch((error) => {
-                              toast.error(
-                                error instanceof Error ? error.message : 'Failed to move calendar event',
-                              )
-                            })
-                          }
-                        } catch {
-                          toast.error('Invalid drag data')
-                        }
-                      }}
-                      className={`min-h-[142px] rounded-lg border p-2 text-left transition ${
-                        selectedCalendarDate === day
-                          ? 'border-slate-700 bg-slate-50'
-                          : 'border-slate-200 bg-white hover:bg-slate-50'
-                      }`}
+                      className={`inline-flex items-center gap-2 rounded-md border px-2 py-1 text-xs font-semibold shadow-sm transition hover:-translate-y-0.5 hover:shadow ${theme.blockClass}`}
                     >
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                            {new Date(`${day}T00:00:00`).toLocaleDateString('en-GB', { weekday: 'short' })}
-                          </p>
-                          <p className="text-xs font-semibold text-slate-700">{day}</p>
-                        </div>
-                        {visibleCalendarMonths.length > 1 ? (
-                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
-                            {day.slice(5, 7)}
-                          </span>
-                        ) : null}
-                      </div>
-                      <div className="mt-2 space-y-1">
-                        {dayEvents.map((event) => (
-                          (() => {
-                            const theme = getHolidayTheme(
-                              event.holidayKey,
-                              event.isPaid,
-                              event.countsTowardAnnualLeave,
-                            )
-
-                            return (
-                          <div
-                            key={event.id}
-                            draggable
-                            onDragStart={(dragEvent) => {
-                              dragEvent.dataTransfer.setData(
-                                'text/plain',
-                                JSON.stringify({ type: 'event', eventId: event.id }),
-                              )
-                            }}
-                            className={`rounded-md border px-2 py-1 text-[11px] font-semibold ${theme.blockClass}`}
-                          >
-                            <div className="flex items-center justify-between gap-2">
-                              <span>{event.holidayName}</span>
-                              <span
-                                role="button"
-                                onClick={(clickEvent) => {
-                                  clickEvent.stopPropagation()
-                                  void deleteCalendarEvent(event.id).catch((error) => {
-                                    toast.error(
-                                      error instanceof Error
-                                        ? error.message
-                                        : 'Failed to delete calendar event',
-                                    )
-                                  })
-                                }}
-                                className="text-[10px] text-slate-700 hover:text-rose-700"
-                              >
-                                x
-                              </span>
-                            </div>
-                            <p className="text-[10px] font-normal text-slate-600">
-                              {event.countsTowardAnnualLeave ? 'Deducted from annual leave' : 'Not deducted'}
-                            </p>
-                          </div>
-                            )
-                          })()
-                        ))}
-                      </div>
-                      {dayOff.length > 0 ? (
-                        <p className="mt-2 text-[10px] text-slate-500">Off: {dayOff.length} staff</p>
-                      ) : null}
+                      <span>{normalizeHolidayName(template.holidayName)}</span>
+                      <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${theme.chipClass}`}>
+                        Drag
+                      </span>
                     </button>
                   )
                 })}
-                </div>
               </div>
             </div>
 
-            <div className="rounded-xl border border-slate-200 p-3 space-y-3">
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Planning notes</p>
-                <ul className="mt-2 space-y-1 text-xs text-slate-600">
-                  <li>Use the colored blocks above to place recurring company holidays.</li>
-                  <li>Ashura stays unpaid by default.</li>
-                  <li>Eid days stay paid and deducted from annual leave unless settings change.</li>
-                </ul>
-              </div>
-              <div className="rounded-md border border-slate-200 bg-slate-50 p-2">
-                <p className="text-xs font-semibold text-slate-700">Who is off</p>
-                {selectedCalendarDate ? (
-                  <div className="mt-2 space-y-1">
-                    <p className="text-xs text-slate-500">{selectedCalendarDate}</p>
-                    {(staffOffByDate[selectedCalendarDate] || []).length === 0 ? (
-                      <p className="text-xs text-slate-500">No staff off for this date.</p>
-                    ) : (
-                      (staffOffByDate[selectedCalendarDate] || []).map((staff) => (
-                        <p key={staff.id} className="text-xs text-slate-700">
-                          {staff.fullName}
+            <div className="grid grid-cols-7 gap-2 text-xs font-semibold text-slate-500 px-1 pb-2">
+              <span>Mon</span>
+              <span>Tue</span>
+              <span>Wed</span>
+              <span>Thu</span>
+              <span>Fri</span>
+              <span>Sat</span>
+              <span>Sun</span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <div className="grid min-w-[940px] grid-cols-7 gap-2">
+              {(calendarView === 'month' ? monthGridDays : visibleCalendarDays).map((day, index) => {
+                if (!day) {
+                  return (
+                    <div
+                      key={`empty-${index}`}
+                      className="min-h-[152px] rounded-lg border border-dashed border-slate-200 bg-slate-50/60"
+                    />
+                  )
+                }
+
+                const dayEvents = calendarEventsByDate[day] || []
+                const dayOff = staffOffByDate[day] || []
+                return (
+                  <button
+                    key={day}
+                    type="button"
+                    onClick={() => {
+                      setSelectedCalendarDate(day)
+                      setCalendarViewDate(day)
+                    }}
+                    onDragOver={(event) => event.preventDefault()}
+                    onDrop={(event) => {
+                      event.preventDefault()
+                      const raw = event.dataTransfer.getData('text/plain')
+                      if (!raw) return
+
+                      try {
+                        const parsed = JSON.parse(raw) as
+                          | { type: 'template'; templateId: string }
+                          | { type: 'event'; eventId: string }
+
+                        if (parsed.type === 'template') {
+                          void createCalendarEvent(parsed.templateId, day).catch((error) => {
+                            toast.error(
+                              error instanceof Error ? error.message : 'Failed to create calendar event',
+                            )
+                          })
+                        } else if (parsed.type === 'event') {
+                          void moveCalendarEvent(parsed.eventId, day).catch((error) => {
+                            toast.error(
+                              error instanceof Error ? error.message : 'Failed to move calendar event',
+                            )
+                          })
+                        }
+                      } catch {
+                        toast.error('Invalid drag data')
+                      }
+                    }}
+                    className={`min-h-[152px] rounded-lg border p-2 text-left transition ${
+                      selectedCalendarDate === day
+                        ? 'border-slate-700 bg-slate-50'
+                        : 'border-slate-200 bg-white hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                          {new Date(`${day}T00:00:00`).toLocaleDateString('en-GB', { weekday: 'short' })}
                         </p>
-                      ))
-                    )}
-                  </div>
-                ) : (
-                  <p className="mt-2 text-xs text-slate-500">Select a date to view staff off.</p>
-                )}
-              </div>
+                        <p className="text-xs font-semibold text-slate-700">{day}</p>
+                      </div>
+                      {visibleCalendarMonths.length > 1 ? (
+                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+                          {day.slice(5, 7)}
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className="mt-2 space-y-1">
+                      {dayEvents.map((event) => {
+                        const theme = getHolidayTheme(
+                          event.holidayKey,
+                          event.isPaid,
+                          event.countsTowardAnnualLeave,
+                        )
 
-              <div className="rounded-md border border-slate-200 bg-white p-3">
-                <p className="text-xs font-semibold text-slate-700">Visible days</p>
-                <p className="mt-1 text-xs text-slate-500">
-                  {visibleCalendarDays.length} day{visibleCalendarDays.length === 1 ? '' : 's'} loaded across{' '}
-                  {visibleCalendarMonths.length} month{visibleCalendarMonths.length === 1 ? '' : 's'}.
-                </p>
+                        return (
+                        <div
+                          key={event.id}
+                          draggable
+                          onDragStart={(dragEvent) => {
+                            dragEvent.dataTransfer.setData(
+                              'text/plain',
+                              JSON.stringify({ type: 'event', eventId: event.id }),
+                            )
+                          }}
+                          className={`rounded-md border px-2 py-1 text-[11px] font-semibold ${theme.blockClass}`}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span>{normalizeHolidayName(event.holidayName)}</span>
+                            <span
+                              role="button"
+                              onClick={(clickEvent) => {
+                                clickEvent.stopPropagation()
+                                void deleteCalendarEvent(event.id).catch((error) => {
+                                  toast.error(
+                                    error instanceof Error
+                                      ? error.message
+                                      : 'Failed to delete calendar event',
+                                  )
+                                })
+                              }}
+                              className="text-[10px] text-slate-700 hover:text-rose-700"
+                            >
+                              x
+                            </span>
+                          </div>
+                          <p className="text-[10px] font-normal text-slate-600">
+                            {event.countsTowardAnnualLeave ? 'Deducted from annual leave' : 'Not deducted'}
+                          </p>
+                        </div>
+                        )
+                      })}
+                    </div>
+                    {dayOff.length > 0 ? (
+                      <p className="mt-2 text-[10px] text-slate-500">Off: {dayOff.length} staff</p>
+                    ) : null}
+                  </button>
+                )
+              })}
               </div>
             </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+              <p className="text-xs font-semibold text-slate-700">Who is off</p>
+              {selectedCalendarDate ? (
+                <div className="mt-2 space-y-1">
+                  <p className="text-xs text-slate-500">{selectedCalendarDate}</p>
+                  {(staffOffByDate[selectedCalendarDate] || []).length === 0 ? (
+                    <p className="text-xs text-slate-500">No staff off for this date.</p>
+                  ) : (
+                    (staffOffByDate[selectedCalendarDate] || []).map((staff) => (
+                      <p key={staff.id} className="text-xs text-slate-700">
+                        {staff.fullName}
+                      </p>
+                    ))
+                  )}
+                </div>
+              ) : (
+                <p className="mt-2 text-xs text-slate-500">Select a date to view staff off.</p>
+              )}
+            </div>
+
+            <div className="rounded-md border border-slate-200 bg-white p-3">
+              <p className="text-xs font-semibold text-slate-700">Visible days</p>
+              <p className="mt-1 text-xs text-slate-500">
+                {visibleCalendarDays.length} day{visibleCalendarDays.length === 1 ? '' : 's'} loaded across{' '}
+                {visibleCalendarMonths.length} month{visibleCalendarMonths.length === 1 ? '' : 's'}.
+              </p>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Planning notes</p>
+            <ul className="mt-2 space-y-1 text-xs text-slate-600">
+              <li>Use the small colored holiday blocks to place recurring company holidays.</li>
+              <li>Ashura stays unpaid by default.</li>
+              <li>Eid holidays stay paid and deducted from annual leave unless settings change.</li>
+            </ul>
           </div>
 
           <ModalBase
@@ -2233,6 +2269,17 @@ export default function EmployeeRecordClient({
             isLoading={savingCalendar}
           >
             <div className="space-y-4">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm font-semibold text-slate-700">Holiday templates</p>
+                <button
+                  type="button"
+                  onClick={addCalendarTemplateDraft}
+                  className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  + Add Holiday
+                </button>
+              </div>
+
               <div className="space-y-2">
                 {calendarTemplates.map((template) => {
                   const theme = getHolidayTheme(
@@ -2246,15 +2293,27 @@ export default function EmployeeRecordClient({
                       key={template.id}
                       className={`rounded-xl border p-3 ${theme.blockClass}`}
                     >
+                      <div className="mb-2 flex items-center justify-between gap-2">
+                        <p className="text-xs font-semibold uppercase tracking-wide opacity-75">Holiday</p>
+                        <button
+                          type="button"
+                          onClick={() => removeCalendarTemplate(template.id)}
+                          className="rounded border border-rose-200 bg-white px-2 py-1 text-[11px] font-semibold text-rose-700 hover:bg-rose-50"
+                        >
+                          Remove
+                        </button>
+                      </div>
                       <label className="block text-sm font-semibold text-slate-800">
                         Holiday Name
                         <input
                           type="text"
-                          value={template.holidayName}
+                          value={normalizeHolidayName(template.holidayName)}
                           onChange={(event) =>
                             setCalendarTemplates((current) =>
                               current.map((row) =>
-                                row.id === template.id ? { ...row, holidayName: event.target.value } : row,
+                                row.id === template.id
+                                  ? { ...row, holidayName: normalizeHolidayName(event.target.value) }
+                                  : row,
                               ),
                             )
                           }
@@ -2314,6 +2373,12 @@ export default function EmployeeRecordClient({
                   )
                 })}
               </div>
+
+              {deletedCalendarTemplateIds.length > 0 ? (
+                <p className="text-xs text-rose-700">
+                  {deletedCalendarTemplateIds.length} template{deletedCalendarTemplateIds.length === 1 ? '' : 's'} scheduled for removal.
+                </p>
+              ) : null}
 
               <div className="flex justify-end gap-2 border-t border-slate-200 pt-4">
                 <button
