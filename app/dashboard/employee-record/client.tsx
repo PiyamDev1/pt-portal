@@ -61,6 +61,13 @@ function formatDate(value?: string | null) {
   return parsed.toLocaleDateString('en-GB')
 }
 
+function toNumberOrNull(value: string) {
+  const raw = String(value || '').trim()
+  if (!raw) return null
+  const parsed = Number(raw)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
 export default function EmployeeRecordClient({
   currentUserId,
   roleName,
@@ -79,6 +86,7 @@ export default function EmployeeRecordClient({
   const [documentType, setDocumentType] = useState<'contract' | 'payslip' | 'other'>('contract')
   const [uploading, setUploading] = useState(false)
   const [savingPayroll, setSavingPayroll] = useState(false)
+  const [payrollError, setPayrollError] = useState<string | null>(null)
 
   const selectedEmployee = useMemo(
     () => employees.find((employee) => employee.id === selectedEmployeeId) || null,
@@ -94,6 +102,23 @@ export default function EmployeeRecordClient({
     employmentEndDate: selectedEmployee?.employment_end_date || '',
     payrollNotes: selectedEmployee?.payroll_notes || '',
   })
+
+  const compensationSummary = useMemo(() => {
+    const hoursPerWeek = toNumberOrNull(payrollForm.workingHoursPerWeek)
+    const hourlyRate = toNumberOrNull(payrollForm.hourlyRate)
+    const annualSalary = toNumberOrNull(payrollForm.annualSalary)
+
+    const weeklyFromHourly =
+      hourlyRate !== null && hoursPerWeek !== null ? hourlyRate * hoursPerWeek : null
+    const yearlyFromHourly = weeklyFromHourly !== null ? weeklyFromHourly * 52 : null
+    const monthlyFromAnnual = annualSalary !== null ? annualSalary / 12 : null
+
+    return {
+      weeklyFromHourly,
+      yearlyFromHourly,
+      monthlyFromAnnual,
+    }
+  }, [payrollForm.annualSalary, payrollForm.hourlyRate, payrollForm.workingHoursPerWeek])
 
   const refreshDocuments = async (employeeId = selectedEmployeeId) => {
     const params = new URLSearchParams({ employeeId })
@@ -139,6 +164,36 @@ export default function EmployeeRecordClient({
       return
     }
 
+    const hourlyRate = toNumberOrNull(payrollForm.hourlyRate)
+    const annualSalary = toNumberOrNull(payrollForm.annualSalary)
+    const hoursPerWeek = toNumberOrNull(payrollForm.workingHoursPerWeek)
+
+    if (hourlyRate !== null && hourlyRate < 0) {
+      setPayrollError('Hourly rate cannot be negative')
+      return
+    }
+
+    if (annualSalary !== null && annualSalary < 0) {
+      setPayrollError('Annual salary cannot be negative')
+      return
+    }
+
+    if (hoursPerWeek !== null && (hoursPerWeek < 0 || hoursPerWeek > 168)) {
+      setPayrollError('Working hours per week must be between 0 and 168')
+      return
+    }
+
+    if (
+      payrollForm.employmentStartDate &&
+      payrollForm.employmentEndDate &&
+      payrollForm.employmentEndDate < payrollForm.employmentStartDate
+    ) {
+      setPayrollError('Employment end date cannot be before start date')
+      return
+    }
+
+    setPayrollError(null)
+
     setSavingPayroll(true)
     try {
       const response = await fetch(`/api/employee-record/payroll/${selectedEmployeeId}`, {
@@ -181,6 +236,7 @@ export default function EmployeeRecordClient({
       toast.success('Payroll details updated')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to save payroll details')
+      setPayrollError(error instanceof Error ? error.message : 'Failed to save payroll details')
     } finally {
       setSavingPayroll(false)
     }
@@ -456,6 +512,33 @@ export default function EmployeeRecordClient({
               />
             </label>
           </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+              <p className="text-[11px] uppercase font-semibold text-slate-500">Weekly Estimate</p>
+              <p className="mt-1 text-sm font-bold text-slate-800">
+                {formatCurrency(compensationSummary.weeklyFromHourly)}
+              </p>
+            </div>
+            <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+              <p className="text-[11px] uppercase font-semibold text-slate-500">Yearly from Hourly</p>
+              <p className="mt-1 text-sm font-bold text-slate-800">
+                {formatCurrency(compensationSummary.yearlyFromHourly)}
+              </p>
+            </div>
+            <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+              <p className="text-[11px] uppercase font-semibold text-slate-500">Monthly from Salary</p>
+              <p className="mt-1 text-sm font-bold text-slate-800">
+                {formatCurrency(compensationSummary.monthlyFromAnnual)}
+              </p>
+            </div>
+          </div>
+
+          {payrollError && (
+            <p className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+              {payrollError}
+            </p>
+          )}
 
           <label className="block text-sm text-slate-700">
             Payroll Notes

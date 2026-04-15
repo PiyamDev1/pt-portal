@@ -13,10 +13,20 @@ type PayrollBody = {
   payrollNotes?: string | null
 }
 
+const ALLOWED_EMPLOYMENT_TYPES = ['permanent', 'fixed-term', 'part-time', 'contractor'] as const
+
 function toNumberOrNull(value: unknown) {
   if (value === null || value === undefined || value === '') return null
   const num = Number(value)
   return Number.isFinite(num) ? num : null
+}
+
+function toIsoDateOrNull(value: unknown) {
+  const raw = String(value || '').trim()
+  if (!raw) return null
+  const parsed = new Date(raw)
+  if (Number.isNaN(parsed.getTime())) return null
+  return raw
 }
 
 export async function PATCH(
@@ -34,14 +44,50 @@ export async function PATCH(
 
   const body = (await request.json().catch(() => ({}))) as PayrollBody
 
+  const hourlyRate = toNumberOrNull(body.hourlyRate)
+  const annualSalary = toNumberOrNull(body.annualSalary)
+  const workingHoursPerWeek = toNumberOrNull(body.workingHoursPerWeek)
+  const employmentType = body.employmentType ? String(body.employmentType).trim() : null
+  const employmentStartDate = toIsoDateOrNull(body.employmentStartDate)
+  const employmentEndDate = toIsoDateOrNull(body.employmentEndDate)
+  const payrollNotes = body.payrollNotes ? String(body.payrollNotes).trim() : null
+
+  if (hourlyRate !== null && hourlyRate < 0) {
+    return apiError('Hourly rate cannot be negative', 400)
+  }
+
+  if (annualSalary !== null && annualSalary < 0) {
+    return apiError('Annual salary cannot be negative', 400)
+  }
+
+  if (workingHoursPerWeek !== null && (workingHoursPerWeek < 0 || workingHoursPerWeek > 168)) {
+    return apiError('Working hours per week must be between 0 and 168', 400)
+  }
+
+  if (employmentType && !ALLOWED_EMPLOYMENT_TYPES.includes(employmentType as (typeof ALLOWED_EMPLOYMENT_TYPES)[number])) {
+    return apiError('Invalid employment type', 400)
+  }
+
+  if (body.employmentStartDate && !employmentStartDate) {
+    return apiError('Invalid employment start date', 400)
+  }
+
+  if (body.employmentEndDate && !employmentEndDate) {
+    return apiError('Invalid employment end date', 400)
+  }
+
+  if (employmentStartDate && employmentEndDate && employmentEndDate < employmentStartDate) {
+    return apiError('Employment end date cannot be before start date', 400)
+  }
+
   const updatePayload = {
-    hourly_rate: toNumberOrNull(body.hourlyRate),
-    annual_salary: toNumberOrNull(body.annualSalary),
-    working_hours_per_week: toNumberOrNull(body.workingHoursPerWeek),
-    employment_type: body.employmentType ? String(body.employmentType).trim() : null,
-    employment_start_date: body.employmentStartDate || null,
-    employment_end_date: body.employmentEndDate || null,
-    payroll_notes: body.payrollNotes ? String(body.payrollNotes).trim() : null,
+    hourly_rate: hourlyRate,
+    annual_salary: annualSalary,
+    working_hours_per_week: workingHoursPerWeek,
+    employment_type: employmentType,
+    employment_start_date: employmentStartDate,
+    employment_end_date: employmentEndDate,
+    payroll_notes: payrollNotes,
   }
 
   const supabase = getSupabaseClient()
