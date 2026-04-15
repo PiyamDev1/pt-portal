@@ -33,8 +33,12 @@ type EmployeePolicy = {
   sickPayMode: 'none' | 'statutory' | 'full'
   sspEligibility: 'not-assessed' | 'eligible' | 'not-eligible'
   sspWeeklyRate: string
+  sspMaxWeeks: string
+  sspRateMode: 'lower-of-cap-or-80pct' | 'fixed'
   paidBreakMinutesPerShift: string
   holidayEntitlementDays: string
+  companyPaidHolidayDays: string
+  companyUnpaidHolidayDays: string
   bankHolidaysIncluded: boolean
   pensionStatus: 'not-assessed' | 'eligible' | 'enrolled' | 'opted-out' | 'postponed'
   pensionProviderName: string
@@ -49,6 +53,17 @@ type EmployeePolicy = {
   notes: string
   policySource: 'manual' | 'uk-default'
   policyContractType: string
+}
+
+type CompanyHolidayEntry = {
+  id: string
+  holidayKey: string
+  holidayName: string
+  holidayDate: string | null
+  isPaid: boolean
+  countsTowardAnnualLeave: boolean
+  active: boolean
+  notes: string | null
 }
 
 export type EmployeeDocument = {
@@ -130,6 +145,10 @@ export default function EmployeeRecordClient({
   const [savingPolicy, setSavingPolicy] = useState(false)
   const [payrollError, setPayrollError] = useState<string | null>(null)
   const [policyError, setPolicyError] = useState<string | null>(null)
+  const [companyCalendar, setCompanyCalendar] = useState<CompanyHolidayEntry[]>([])
+  const [assignedCompanyHolidayIds, setAssignedCompanyHolidayIds] = useState<string[]>([])
+  const [recommendedAssignedCompanyHolidayIds, setRecommendedAssignedCompanyHolidayIds] =
+    useState<string[]>([])
 
   const selectedEmployee = useMemo(
     () => employees.find((employee) => employee.id === selectedEmployeeId) || null,
@@ -157,8 +176,12 @@ export default function EmployeeRecordClient({
     sickPayMode: 'statutory',
     sspEligibility: 'not-assessed',
     sspWeeklyRate: '',
+    sspMaxWeeks: '28',
+    sspRateMode: 'lower-of-cap-or-80pct',
     paidBreakMinutesPerShift: '',
     holidayEntitlementDays: '28',
+    companyPaidHolidayDays: '4',
+    companyUnpaidHolidayDays: '1',
     bankHolidaysIncluded: true,
     pensionStatus: 'not-assessed',
     pensionProviderName: '',
@@ -267,6 +290,14 @@ export default function EmployeeRecordClient({
             typeof payload.recommendedPolicy.sspWeeklyRate === 'number'
               ? String(payload.recommendedPolicy.sspWeeklyRate)
               : '',
+          sspMaxWeeks:
+            typeof payload.recommendedPolicy.sspMaxWeeks === 'number'
+              ? String(payload.recommendedPolicy.sspMaxWeeks)
+              : '28',
+          sspRateMode:
+            payload.recommendedPolicy.sspRateMode === 'fixed'
+              ? 'fixed'
+              : 'lower-of-cap-or-80pct',
           paidBreakMinutesPerShift:
             typeof payload.recommendedPolicy.paidBreakMinutesPerShift === 'number'
               ? String(payload.recommendedPolicy.paidBreakMinutesPerShift)
@@ -275,6 +306,14 @@ export default function EmployeeRecordClient({
             typeof payload.recommendedPolicy.holidayEntitlementDays === 'number'
               ? String(payload.recommendedPolicy.holidayEntitlementDays)
               : '28',
+          companyPaidHolidayDays:
+            typeof payload.recommendedPolicy.companyPaidHolidayDays === 'number'
+              ? String(payload.recommendedPolicy.companyPaidHolidayDays)
+              : '4',
+          companyUnpaidHolidayDays:
+            typeof payload.recommendedPolicy.companyUnpaidHolidayDays === 'number'
+              ? String(payload.recommendedPolicy.companyUnpaidHolidayDays)
+              : '1',
           bankHolidaysIncluded: Boolean(payload.recommendedPolicy.bankHolidaysIncluded ?? true),
           pensionStatus:
             payload.recommendedPolicy.pensionStatus === 'eligible' ||
@@ -315,6 +354,11 @@ export default function EmployeeRecordClient({
         }
       : null
     setRecommendedPolicy(recommended)
+    setCompanyCalendar((payload?.companyCalendar || []) as CompanyHolidayEntry[])
+    setRecommendedAssignedCompanyHolidayIds(payload?.recommendedAssignedCompanyHolidayIds || [])
+    setAssignedCompanyHolidayIds(
+      payload?.assignedCompanyHolidayIds || payload?.recommendedAssignedCompanyHolidayIds || [],
+    )
 
     if (payload?.supported === false || !payload?.policy) {
       setPolicyForm(
@@ -322,8 +366,12 @@ export default function EmployeeRecordClient({
           sickPayMode: 'statutory',
           sspEligibility: 'not-assessed',
           sspWeeklyRate: '',
+          sspMaxWeeks: '28',
+          sspRateMode: 'lower-of-cap-or-80pct',
           paidBreakMinutesPerShift: '',
           holidayEntitlementDays: '28',
+          companyPaidHolidayDays: '4',
+          companyUnpaidHolidayDays: '1',
           bankHolidaysIncluded: true,
           pensionStatus: 'not-assessed',
           pensionProviderName: '',
@@ -348,6 +396,8 @@ export default function EmployeeRecordClient({
       sickPayMode: policy.sickPayMode || 'statutory',
       sspEligibility: policy.sspEligibility || 'not-assessed',
       sspWeeklyRate: typeof policy.sspWeeklyRate === 'number' ? String(policy.sspWeeklyRate) : '',
+      sspMaxWeeks: typeof policy.sspMaxWeeks === 'number' ? String(policy.sspMaxWeeks) : '28',
+      sspRateMode: policy.sspRateMode === 'fixed' ? 'fixed' : 'lower-of-cap-or-80pct',
       paidBreakMinutesPerShift:
         typeof policy.paidBreakMinutesPerShift === 'number'
           ? String(policy.paidBreakMinutesPerShift)
@@ -356,6 +406,10 @@ export default function EmployeeRecordClient({
         typeof policy.holidayEntitlementDays === 'number'
           ? String(policy.holidayEntitlementDays)
           : '28',
+      companyPaidHolidayDays:
+        typeof policy.companyPaidHolidayDays === 'number' ? String(policy.companyPaidHolidayDays) : '4',
+      companyUnpaidHolidayDays:
+        typeof policy.companyUnpaidHolidayDays === 'number' ? String(policy.companyUnpaidHolidayDays) : '1',
       bankHolidaysIncluded: Boolean(policy.bankHolidaysIncluded ?? true),
       pensionStatus: policy.pensionStatus || 'not-assessed',
       pensionProviderName: policy.pensionProviderName || '',
@@ -390,6 +444,9 @@ export default function EmployeeRecordClient({
     }
 
     setPolicyForm(recommendedPolicy)
+    if (recommendedAssignedCompanyHolidayIds.length > 0) {
+      setAssignedCompanyHolidayIds(recommendedAssignedCompanyHolidayIds)
+    }
     setPolicyError(null)
     toast.success('Applied UK baseline policy. You can still edit any field before saving.')
   }
@@ -528,14 +585,29 @@ export default function EmployeeRecordClient({
     }
 
     const sspWeeklyRate = toNumberOrNull(policyForm.sspWeeklyRate)
+    const sspMaxWeeks = toNumberOrNull(policyForm.sspMaxWeeks)
     const paidBreakMinutes = toNumberOrNull(policyForm.paidBreakMinutesPerShift)
     const holidayEntitlement = toNumberOrNull(policyForm.holidayEntitlementDays)
+    const companyPaidHolidayDays = toNumberOrNull(policyForm.companyPaidHolidayDays)
+    const companyUnpaidHolidayDays = toNumberOrNull(policyForm.companyUnpaidHolidayDays)
     const leaveAccruedDays = toNumberOrNull(policyForm.leaveAccruedDays)
     const overtimeThreshold = toNumberOrNull(policyForm.overtimeThresholdHours)
     const overtimeMultiplier = toNumberOrNull(policyForm.overtimeRateMultiplier)
+    const selectedPaidHolidayDays = companyCalendar.filter(
+      (entry) =>
+        assignedCompanyHolidayIds.includes(entry.id) && entry.active && entry.isPaid && entry.countsTowardAnnualLeave,
+    ).length
+    const selectedUnpaidHolidayDays = companyCalendar.filter(
+      (entry) => assignedCompanyHolidayIds.includes(entry.id) && entry.active && !entry.isPaid,
+    ).length
 
     if (sspWeeklyRate !== null && sspWeeklyRate < 0) {
       setPolicyError('SSP weekly rate cannot be negative')
+      return
+    }
+
+    if (sspMaxWeeks !== null && (sspMaxWeeks <= 0 || sspMaxWeeks > 28)) {
+      setPolicyError('SSP max weeks must be between 1 and 28')
       return
     }
 
@@ -549,8 +621,38 @@ export default function EmployeeRecordClient({
       return
     }
 
+    if (companyPaidHolidayDays !== null && companyPaidHolidayDays < 0) {
+      setPolicyError('Company paid holiday days cannot be negative')
+      return
+    }
+
+    if (companyUnpaidHolidayDays !== null && companyUnpaidHolidayDays < 0) {
+      setPolicyError('Company unpaid holiday days cannot be negative')
+      return
+    }
+
     if (holidayEntitlement !== null && holidayEntitlement < 5.6) {
       setPolicyError('Holiday entitlement is too low. Enter annual days equivalent to at least 5.6 weeks (pro-rated if part-time).')
+      return
+    }
+
+    if (
+      holidayEntitlement !== null &&
+      companyPaidHolidayDays !== null &&
+      companyPaidHolidayDays > holidayEntitlement
+    ) {
+      setPolicyError('Company paid holiday days cannot exceed annual leave entitlement')
+      return
+    }
+
+    if (
+      companyPaidHolidayDays !== null &&
+      selectedPaidHolidayDays > 0 &&
+      companyPaidHolidayDays !== selectedPaidHolidayDays
+    ) {
+      setPolicyError(
+        `Company paid holiday days should match selected paid calendar days (${selectedPaidHolidayDays}).`,
+      )
       return
     }
 
@@ -580,8 +682,14 @@ export default function EmployeeRecordClient({
           sickPayMode: policyForm.sickPayMode,
           sspEligibility: policyForm.sspEligibility,
           sspWeeklyRate: policyForm.sspWeeklyRate || null,
+          sspMaxWeeks: policyForm.sspMaxWeeks || null,
+          sspRateMode: policyForm.sspRateMode,
           paidBreakMinutesPerShift: policyForm.paidBreakMinutesPerShift || null,
           holidayEntitlementDays: policyForm.holidayEntitlementDays || null,
+          companyPaidHolidayDays:
+            policyForm.companyPaidHolidayDays || String(selectedPaidHolidayDays || 0),
+          companyUnpaidHolidayDays:
+            policyForm.companyUnpaidHolidayDays || String(selectedUnpaidHolidayDays || 0),
           bankHolidaysIncluded: policyForm.bankHolidaysIncluded,
           pensionStatus: policyForm.pensionStatus,
           pensionProviderName: policyForm.pensionProviderName || null,
@@ -596,6 +704,15 @@ export default function EmployeeRecordClient({
           notes: policyForm.notes || null,
           policySource: policyForm.policySource,
           policyContractType: policyForm.policyContractType || null,
+          assignedCompanyHolidayIds,
+          companyCalendarEntries: companyCalendar.map((entry) => ({
+            id: entry.id,
+            holidayDate: entry.holidayDate,
+            isPaid: entry.isPaid,
+            countsTowardAnnualLeave: entry.countsTowardAnnualLeave,
+            notes: entry.notes,
+            active: entry.active,
+          })),
         }),
       })
 
@@ -1181,6 +1298,40 @@ export default function EmployeeRecordClient({
               </label>
 
               <label className="text-sm text-slate-700">
+                SSP Rate Rule
+                <select
+                  value={policyForm.sspRateMode}
+                  onChange={(event) =>
+                    setPolicyForm((current) => ({
+                      ...current,
+                      sspRateMode: event.target.value as 'lower-of-cap-or-80pct' | 'fixed',
+                    }))
+                  }
+                  className={fieldClass}
+                >
+                  <option value="lower-of-cap-or-80pct">Lower of GBP 123.25 or 80% weekly earnings</option>
+                  <option value="fixed">Fixed weekly SSP value</option>
+                </select>
+                <p className={helpTextClass}>UK statutory default is lower of cap or 80% of normal weekly earnings.</p>
+              </label>
+
+              <label className="text-sm text-slate-700">
+                SSP Maximum Weeks
+                <input
+                  type="number"
+                  min={1}
+                  max={28}
+                  step="1"
+                  value={policyForm.sspMaxWeeks}
+                  onChange={(event) =>
+                    setPolicyForm((current) => ({ ...current, sspMaxWeeks: event.target.value }))
+                  }
+                  className={fieldClass}
+                />
+                <p className={helpTextClass}>Statutory maximum is 28 weeks.</p>
+              </label>
+
+              <label className="text-sm text-slate-700">
                 Pension Auto-enrolment Status
                 <select
                   value={policyForm.pensionStatus}
@@ -1266,6 +1417,42 @@ export default function EmployeeRecordClient({
                 <p className={helpTextClass}>
                   Annual entitlement baseline. UK legal minimum is 5.6 weeks (pro-rated for part-time).
                 </p>
+              </label>
+
+              <label className="text-sm text-slate-700">
+                Company Paid Holiday Days
+                <input
+                  type="number"
+                  min={0}
+                  step="1"
+                  value={policyForm.companyPaidHolidayDays}
+                  onChange={(event) =>
+                    setPolicyForm((current) => ({
+                      ...current,
+                      companyPaidHolidayDays: event.target.value,
+                    }))
+                  }
+                  className={fieldClass}
+                />
+                <p className={helpTextClass}>Default is 4 days (for example: Eid Fitr x2, Eid Adha x1, re-allocation x1).</p>
+              </label>
+
+              <label className="text-sm text-slate-700">
+                Company Unpaid Holiday Days
+                <input
+                  type="number"
+                  min={0}
+                  step="1"
+                  value={policyForm.companyUnpaidHolidayDays}
+                  onChange={(event) =>
+                    setPolicyForm((current) => ({
+                      ...current,
+                      companyUnpaidHolidayDays: event.target.value,
+                    }))
+                  }
+                  className={fieldClass}
+                />
+                <p className={helpTextClass}>Ashura can be recorded as unpaid and not deducted from annual paid leave.</p>
               </label>
 
               <label className="text-sm text-slate-700">
@@ -1380,6 +1567,89 @@ export default function EmployeeRecordClient({
                   className={fieldClass}
                 />
               </label>
+            </div>
+
+            <div className="rounded-lg border border-slate-200 bg-white p-3 space-y-2">
+              <h4 className="text-sm font-semibold text-slate-900">Company Lunar Holiday Calendar</h4>
+              <p className="text-xs text-slate-500">
+                Set holiday dates manually each year and assign applicable days to this employee.
+              </p>
+              <div className="space-y-3">
+                {companyCalendar.map((entry) => (
+                  <div key={entry.id} className="rounded-md border border-slate-200 p-3">
+                    <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
+                      <label className="text-xs text-slate-700 md:col-span-2">
+                        {entry.holidayName}
+                        <input
+                          type="date"
+                          value={entry.holidayDate || ''}
+                          onChange={(event) =>
+                            setCompanyCalendar((current) =>
+                              current.map((item) =>
+                                item.id === entry.id
+                                  ? { ...item, holidayDate: event.target.value || null }
+                                  : item,
+                              ),
+                            )
+                          }
+                          className={fieldClass}
+                        />
+                      </label>
+
+                      <label className="inline-flex items-center gap-2 text-xs text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={entry.isPaid}
+                          onChange={(event) =>
+                            setCompanyCalendar((current) =>
+                              current.map((item) =>
+                                item.id === entry.id ? { ...item, isPaid: event.target.checked } : item,
+                              ),
+                            )
+                          }
+                          className="h-4 w-4 rounded border-slate-300"
+                        />
+                        Paid
+                      </label>
+
+                      <label className="inline-flex items-center gap-2 text-xs text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={entry.countsTowardAnnualLeave}
+                          onChange={(event) =>
+                            setCompanyCalendar((current) =>
+                              current.map((item) =>
+                                item.id === entry.id
+                                  ? { ...item, countsTowardAnnualLeave: event.target.checked }
+                                  : item,
+                              ),
+                            )
+                          }
+                          className="h-4 w-4 rounded border-slate-300"
+                        />
+                        Deduct from annual leave
+                      </label>
+
+                      <label className="inline-flex items-center gap-2 text-xs text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={assignedCompanyHolidayIds.includes(entry.id)}
+                          onChange={(event) =>
+                            setAssignedCompanyHolidayIds((current) =>
+                              event.target.checked
+                                ? [...current, entry.id]
+                                : current.filter((holidayId) => holidayId !== entry.id),
+                            )
+                          }
+                          className="h-4 w-4 rounded border-slate-300"
+                        />
+                        Assign to employee
+                      </label>
+                    </div>
+                    {entry.notes ? <p className="mt-2 text-xs text-slate-500">{entry.notes}</p> : null}
+                  </div>
+                ))}
+              </div>
             </div>
 
             <label className="inline-flex items-center gap-2 text-sm text-slate-700">

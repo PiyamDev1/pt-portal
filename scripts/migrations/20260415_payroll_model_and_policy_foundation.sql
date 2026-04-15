@@ -191,8 +191,12 @@ CREATE TABLE IF NOT EXISTS public.contract_policies (
   sick_pay_mode TEXT NOT NULL DEFAULT 'statutory',
   ssp_eligibility_default TEXT,
   ssp_weekly_rate_default NUMERIC(8,2),
+  ssp_max_weeks_default INTEGER NOT NULL DEFAULT 28,
+  ssp_rate_mode_default TEXT NOT NULL DEFAULT 'lower-of-cap-or-80pct',
   paid_break_minutes_per_shift INTEGER NOT NULL DEFAULT 0,
   holiday_entitlement_days NUMERIC(6,2) NOT NULL DEFAULT 28,
+  company_paid_holiday_days_default INTEGER NOT NULL DEFAULT 4,
+  company_unpaid_holiday_days_default INTEGER NOT NULL DEFAULT 1,
   bank_holidays_included BOOLEAN NOT NULL DEFAULT TRUE,
   pension_status_default TEXT,
   pension_provider_name_default TEXT,
@@ -210,8 +214,12 @@ CREATE TABLE IF NOT EXISTS public.employee_policy_overrides (
   sick_pay_mode TEXT,
   ssp_eligibility TEXT,
   ssp_weekly_rate NUMERIC(8,2),
+  ssp_max_weeks INTEGER,
+  ssp_rate_mode TEXT,
   paid_break_minutes_per_shift INTEGER,
   holiday_entitlement_days NUMERIC(6,2),
+  company_paid_holiday_days INTEGER,
+  company_unpaid_holiday_days INTEGER,
   bank_holidays_included BOOLEAN,
   pension_status TEXT,
   pension_provider_name TEXT,
@@ -234,9 +242,31 @@ CREATE TABLE IF NOT EXISTS public.employee_policy_overrides (
 ALTER TABLE public.contract_policies
   ADD COLUMN IF NOT EXISTS ssp_eligibility_default TEXT,
   ADD COLUMN IF NOT EXISTS ssp_weekly_rate_default NUMERIC(8,2),
+  ADD COLUMN IF NOT EXISTS ssp_max_weeks_default INTEGER,
+  ADD COLUMN IF NOT EXISTS ssp_rate_mode_default TEXT,
   ADD COLUMN IF NOT EXISTS pension_status_default TEXT,
   ADD COLUMN IF NOT EXISTS pension_provider_name_default TEXT,
+  ADD COLUMN IF NOT EXISTS company_paid_holiday_days_default INTEGER,
+  ADD COLUMN IF NOT EXISTS company_unpaid_holiday_days_default INTEGER,
   ADD COLUMN IF NOT EXISTS leave_accrual_mode_default TEXT;
+
+UPDATE public.contract_policies
+SET
+  ssp_max_weeks_default = COALESCE(ssp_max_weeks_default, 28),
+  ssp_rate_mode_default = COALESCE(NULLIF(ssp_rate_mode_default, ''), 'lower-of-cap-or-80pct'),
+  company_paid_holiday_days_default = COALESCE(company_paid_holiday_days_default, 4),
+  company_unpaid_holiday_days_default = COALESCE(company_unpaid_holiday_days_default, 1)
+WHERE ssp_max_weeks_default IS NULL
+  OR ssp_rate_mode_default IS NULL
+  OR btrim(ssp_rate_mode_default) = ''
+  OR company_paid_holiday_days_default IS NULL
+  OR company_unpaid_holiday_days_default IS NULL;
+
+ALTER TABLE public.contract_policies
+  ALTER COLUMN ssp_max_weeks_default SET DEFAULT 28,
+  ALTER COLUMN ssp_rate_mode_default SET DEFAULT 'lower-of-cap-or-80pct',
+  ALTER COLUMN company_paid_holiday_days_default SET DEFAULT 4,
+  ALTER COLUMN company_unpaid_holiday_days_default SET DEFAULT 1;
 
 UPDATE public.contract_policies
 SET leave_accrual_mode_default = COALESCE(NULLIF(leave_accrual_mode_default, ''), 'monthly')
@@ -248,9 +278,13 @@ ALTER TABLE public.contract_policies
 ALTER TABLE public.employee_policy_overrides
   ADD COLUMN IF NOT EXISTS ssp_eligibility TEXT,
   ADD COLUMN IF NOT EXISTS ssp_weekly_rate NUMERIC(8,2),
+  ADD COLUMN IF NOT EXISTS ssp_max_weeks INTEGER,
+  ADD COLUMN IF NOT EXISTS ssp_rate_mode TEXT,
   ADD COLUMN IF NOT EXISTS pension_status TEXT,
   ADD COLUMN IF NOT EXISTS pension_provider_name TEXT,
   ADD COLUMN IF NOT EXISTS pension_enrolment_date DATE,
+  ADD COLUMN IF NOT EXISTS company_paid_holiday_days INTEGER,
+  ADD COLUMN IF NOT EXISTS company_unpaid_holiday_days INTEGER,
   ADD COLUMN IF NOT EXISTS leave_accrual_mode TEXT,
   ADD COLUMN IF NOT EXISTS leave_accrued_days NUMERIC(6,2),
   ADD COLUMN IF NOT EXISTS leave_accrual_as_of DATE,
@@ -262,6 +296,33 @@ CREATE UNIQUE INDEX IF NOT EXISTS employee_policy_overrides_employee_id_uq
 
 CREATE INDEX IF NOT EXISTS employee_policy_overrides_effective_from_idx
   ON public.employee_policy_overrides(effective_from DESC);
+
+CREATE TABLE IF NOT EXISTS public.company_holiday_calendar (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  holiday_key TEXT NOT NULL UNIQUE,
+  holiday_name TEXT NOT NULL,
+  holiday_date DATE,
+  is_paid BOOLEAN NOT NULL DEFAULT TRUE,
+  counts_toward_annual_leave BOOLEAN NOT NULL DEFAULT TRUE,
+  active BOOLEAN NOT NULL DEFAULT TRUE,
+  notes TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.employee_company_holiday_assignments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  employee_id UUID NOT NULL REFERENCES public.employees(id) ON DELETE CASCADE,
+  company_holiday_id UUID NOT NULL REFERENCES public.company_holiday_calendar(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(employee_id, company_holiday_id)
+);
+
+CREATE INDEX IF NOT EXISTS employee_company_holiday_assignments_employee_id_idx
+  ON public.employee_company_holiday_assignments(employee_id);
+
+CREATE INDEX IF NOT EXISTS company_holiday_calendar_holiday_date_idx
+  ON public.company_holiday_calendar(holiday_date);
 
 DO $$
 BEGIN
@@ -313,6 +374,46 @@ BEGIN
     ALTER TABLE public.contract_policies
       ADD CONSTRAINT contract_policies_ssp_weekly_rate_default_check
       CHECK (ssp_weekly_rate_default IS NULL OR ssp_weekly_rate_default >= 0);
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'contract_policies_ssp_max_weeks_default_check'
+      AND conrelid = 'public.contract_policies'::regclass
+  ) THEN
+    ALTER TABLE public.contract_policies
+      ADD CONSTRAINT contract_policies_ssp_max_weeks_default_check
+      CHECK (ssp_max_weeks_default > 0 AND ssp_max_weeks_default <= 52);
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'contract_policies_ssp_rate_mode_default_check'
+      AND conrelid = 'public.contract_policies'::regclass
+  ) THEN
+    ALTER TABLE public.contract_policies
+      ADD CONSTRAINT contract_policies_ssp_rate_mode_default_check
+      CHECK (ssp_rate_mode_default IN ('lower-of-cap-or-80pct', 'fixed'));
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'contract_policies_company_paid_holiday_days_default_check'
+      AND conrelid = 'public.contract_policies'::regclass
+  ) THEN
+    ALTER TABLE public.contract_policies
+      ADD CONSTRAINT contract_policies_company_paid_holiday_days_default_check
+      CHECK (company_paid_holiday_days_default >= 0 AND company_paid_holiday_days_default <= 10);
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'contract_policies_company_unpaid_holiday_days_default_check'
+      AND conrelid = 'public.contract_policies'::regclass
+  ) THEN
+    ALTER TABLE public.contract_policies
+      ADD CONSTRAINT contract_policies_company_unpaid_holiday_days_default_check
+      CHECK (company_unpaid_holiday_days_default >= 0 AND company_unpaid_holiday_days_default <= 10);
   END IF;
 
   IF NOT EXISTS (
@@ -377,6 +478,46 @@ BEGIN
 
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint
+    WHERE conname = 'employee_policy_overrides_ssp_max_weeks_check'
+      AND conrelid = 'public.employee_policy_overrides'::regclass
+  ) THEN
+    ALTER TABLE public.employee_policy_overrides
+      ADD CONSTRAINT employee_policy_overrides_ssp_max_weeks_check
+      CHECK (ssp_max_weeks IS NULL OR (ssp_max_weeks > 0 AND ssp_max_weeks <= 52));
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'employee_policy_overrides_ssp_rate_mode_check'
+      AND conrelid = 'public.employee_policy_overrides'::regclass
+  ) THEN
+    ALTER TABLE public.employee_policy_overrides
+      ADD CONSTRAINT employee_policy_overrides_ssp_rate_mode_check
+      CHECK (ssp_rate_mode IS NULL OR ssp_rate_mode IN ('lower-of-cap-or-80pct', 'fixed'));
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'employee_policy_overrides_company_paid_holiday_days_check'
+      AND conrelid = 'public.employee_policy_overrides'::regclass
+  ) THEN
+    ALTER TABLE public.employee_policy_overrides
+      ADD CONSTRAINT employee_policy_overrides_company_paid_holiday_days_check
+      CHECK (company_paid_holiday_days IS NULL OR (company_paid_holiday_days >= 0 AND company_paid_holiday_days <= 10));
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'employee_policy_overrides_company_unpaid_holiday_days_check'
+      AND conrelid = 'public.employee_policy_overrides'::regclass
+  ) THEN
+    ALTER TABLE public.employee_policy_overrides
+      ADD CONSTRAINT employee_policy_overrides_company_unpaid_holiday_days_check
+      CHECK (company_unpaid_holiday_days IS NULL OR (company_unpaid_holiday_days >= 0 AND company_unpaid_holiday_days <= 10));
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
     WHERE conname = 'employee_policy_overrides_holiday_entitlement_min_check'
       AND conrelid = 'public.employee_policy_overrides'::regclass
   ) THEN
@@ -420,8 +561,12 @@ INSERT INTO public.contract_policies (
   contract_type,
   sick_pay_mode,
   ssp_eligibility_default,
+  ssp_max_weeks_default,
+  ssp_rate_mode_default,
   paid_break_minutes_per_shift,
   holiday_entitlement_days,
+  company_paid_holiday_days_default,
+  company_unpaid_holiday_days_default,
   bank_holidays_included,
   pension_status_default,
   leave_accrual_mode_default,
@@ -430,14 +575,33 @@ INSERT INTO public.contract_policies (
   overtime_rate_multiplier
 )
 VALUES
-  ('permanent', 'statutory', 'eligible', 0, 28, TRUE, 'eligible', 'monthly', 'none', NULL, 1.00),
-  ('fixed-term', 'statutory', 'eligible', 0, 28, TRUE, 'eligible', 'monthly', 'none', NULL, 1.00),
-  ('part-time', 'statutory', 'eligible', 0, 16.80, TRUE, 'eligible', 'pro-rata-hours', 'none', NULL, 1.00),
-  ('contractor', 'none', 'not-eligible', 0, 0, FALSE, 'not-assessed', 'none', 'none', NULL, 1.00)
+  ('permanent', 'statutory', 'eligible', 28, 'lower-of-cap-or-80pct', 0, 28, 4, 1, TRUE, 'eligible', 'monthly', 'none', NULL, 1.00),
+  ('fixed-term', 'statutory', 'eligible', 28, 'lower-of-cap-or-80pct', 0, 28, 4, 1, TRUE, 'eligible', 'monthly', 'none', NULL, 1.00),
+  ('part-time', 'statutory', 'eligible', 28, 'lower-of-cap-or-80pct', 0, 16.80, 4, 1, TRUE, 'eligible', 'pro-rata-hours', 'none', NULL, 1.00),
+  ('contractor', 'none', 'not-eligible', 28, 'fixed', 0, 0, 0, 1, FALSE, 'not-assessed', 'none', 'none', NULL, 1.00)
 ON CONFLICT (contract_type) DO NOTHING;
+
+INSERT INTO public.company_holiday_calendar (
+  holiday_key,
+  holiday_name,
+  holiday_date,
+  is_paid,
+  counts_toward_annual_leave,
+  active,
+  notes
+)
+VALUES
+  ('eid-ul-fitr-day-1', 'Eid ul Fitr - Day 1', NULL, TRUE, TRUE, TRUE, 'Manual lunar date assignment required each year'),
+  ('eid-ul-fitr-day-2', 'Eid ul Fitr - Day 2', NULL, TRUE, TRUE, TRUE, 'Manual lunar date assignment required each year'),
+  ('eid-ul-adha-day-1', 'Eid ul Adha - Day 1', NULL, TRUE, TRUE, TRUE, 'Manual lunar date assignment required each year'),
+  ('ashura-10-muharram', 'Ashura (10th Muharram)', NULL, FALSE, FALSE, TRUE, 'Unpaid holiday by company policy'),
+  ('holiday-reallocation', 'Holiday Re-allocation Day', NULL, TRUE, TRUE, TRUE, 'Use when lunar holiday timing needs an extra paid day')
+ON CONFLICT (holiday_key) DO NOTHING;
 
 ALTER TABLE public.contract_policies ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.employee_policy_overrides ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.company_holiday_calendar ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.employee_company_holiday_assignments ENABLE ROW LEVEL SECURITY;
 
 DO $$
 BEGIN
@@ -465,6 +629,36 @@ BEGIN
   ) THEN
     CREATE POLICY "Service role has full access to employee_policy_overrides"
       ON public.employee_policy_overrides
+      FOR ALL
+      TO service_role
+      USING (TRUE)
+      WITH CHECK (TRUE);
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'company_holiday_calendar'
+      AND policyname = 'Service role has full access to company_holiday_calendar'
+  ) THEN
+    CREATE POLICY "Service role has full access to company_holiday_calendar"
+      ON public.company_holiday_calendar
+      FOR ALL
+      TO service_role
+      USING (TRUE)
+      WITH CHECK (TRUE);
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'employee_company_holiday_assignments'
+      AND policyname = 'Service role has full access to employee_company_holiday_assignments'
+  ) THEN
+    CREATE POLICY "Service role has full access to employee_company_holiday_assignments"
+      ON public.employee_company_holiday_assignments
       FOR ALL
       TO service_role
       USING (TRUE)
