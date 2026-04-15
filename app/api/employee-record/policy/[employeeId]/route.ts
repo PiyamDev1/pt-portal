@@ -13,6 +13,9 @@ type PolicyBody = {
   pensionStatus?: string | null
   pensionProviderName?: string | null
   pensionEnrolmentDate?: string | null
+  leaveAccrualMode?: string | null
+  leaveAccruedDays?: number | null
+  leaveAccrualAsOf?: string | null
   overtimeMode?: string | null
   overtimeThresholdHours?: number | null
   overtimeRateMultiplier?: number | null
@@ -26,6 +29,7 @@ type EmployeePolicyContext = {
   employmentType: string | null
   payBasis: string | null
   hourlySource: string | null
+  employmentStartDate: string | null
   workingHoursPerWeek: number | null
 }
 
@@ -39,6 +43,7 @@ type ContractPolicyDefaults = {
   bank_holidays_included: boolean | null
   pension_status_default: string | null
   pension_provider_name_default: string | null
+  leave_accrual_mode_default: string | null
   overtime_mode: string | null
   overtime_threshold_hours: number | null
   overtime_rate_multiplier: number | null
@@ -49,6 +54,7 @@ const ALLOWED_OVERTIME_MODES = ['none', 'flat', 'tiered'] as const
 const ALLOWED_SSP_ELIGIBILITY = ['not-assessed', 'eligible', 'not-eligible'] as const
 const ALLOWED_PENSION_STATUS = ['not-assessed', 'eligible', 'enrolled', 'opted-out', 'postponed'] as const
 const ALLOWED_POLICY_SOURCE = ['manual', 'uk-default'] as const
+const ALLOWED_LEAVE_ACCRUAL_MODE = ['none', 'monthly', 'pro-rata-hours'] as const
 
 function toNumberOrNull(value: unknown) {
   if (value === null || value === undefined || value === '') return null
@@ -75,26 +81,63 @@ function computeRecommendedHolidayDays(workingHoursPerWeek: number | null) {
   return roundTo2(5.6 * effectiveDaysPerWeek)
 }
 
+function computeAccruedLeaveDays(
+  employmentStartDate: string | null,
+  annualEntitlementDays: number,
+  leaveAccrualMode: string,
+) {
+  if (leaveAccrualMode === 'none') return 0
+  if (!employmentStartDate) return 0
+
+  const start = new Date(employmentStartDate)
+  if (Number.isNaN(start.getTime())) return 0
+
+  const today = new Date()
+  if (today <= start) return 0
+
+  const elapsedMs = today.getTime() - start.getTime()
+  const elapsedDays = elapsedMs / (1000 * 60 * 60 * 24)
+
+  if (leaveAccrualMode === 'monthly') {
+    const months = Math.min(12, Math.max(0, elapsedDays / 30.4375))
+    return roundTo2((annualEntitlementDays / 12) * months)
+  }
+
+  const fractionOfYear = Math.min(1, Math.max(0, elapsedDays / 365))
+  return roundTo2(annualEntitlementDays * fractionOfYear)
+}
+
 function computeRecommendedPolicy(
   employee: EmployeePolicyContext,
   contractDefaults: ContractPolicyDefaults | null,
 ) {
   const isContractor = employee.employmentType === 'contractor'
+  const leaveAccrualMode = contractDefaults?.leave_accrual_mode_default || 'monthly'
+  const holidayEntitlementDays =
+    contractDefaults?.holiday_entitlement_days ??
+    computeRecommendedHolidayDays(employee.workingHoursPerWeek)
+  const leaveAccruedDays = computeAccruedLeaveDays(
+    employee.employmentStartDate,
+    holidayEntitlementDays,
+    leaveAccrualMode,
+  )
 
   const recommended = {
+    // Contractual sick pay setting is separate from SSP eligibility/rate below.
     sickPayMode: contractDefaults?.sick_pay_mode || 'statutory',
     sspEligibility:
       contractDefaults?.ssp_eligibility_default || (isContractor ? 'not-eligible' : 'eligible'),
     sspWeeklyRate: contractDefaults?.ssp_weekly_rate_default ?? null,
     paidBreakMinutesPerShift: contractDefaults?.paid_break_minutes_per_shift ?? 0,
-    holidayEntitlementDays:
-      contractDefaults?.holiday_entitlement_days ??
-      computeRecommendedHolidayDays(employee.workingHoursPerWeek),
+    holidayEntitlementDays,
     bankHolidaysIncluded: contractDefaults?.bank_holidays_included ?? true,
     pensionStatus:
       contractDefaults?.pension_status_default || (isContractor ? 'not-assessed' : 'eligible'),
     pensionProviderName: contractDefaults?.pension_provider_name_default || null,
     pensionEnrolmentDate: null,
+    leaveAccrualMode,
+    leaveAccruedDays,
+    leaveAccrualAsOf: new Date().toISOString().slice(0, 10),
     overtimeMode: contractDefaults?.overtime_mode || 'none',
     overtimeThresholdHours: contractDefaults?.overtime_threshold_hours ?? null,
     overtimeRateMultiplier: contractDefaults?.overtime_rate_multiplier ?? 1,
@@ -123,7 +166,7 @@ export async function GET(
 
   const { data: employeeData } = await supabase
     .from('employees')
-    .select('employment_type, pay_basis, hourly_source, working_hours_per_week')
+    .select('employment_type, pay_basis, hourly_source, working_hours_per_week, employment_start_date')
     .eq('id', normalizedEmployeeId)
     .maybeSingle()
 
@@ -134,7 +177,7 @@ export async function GET(
     const { data: contractData } = await supabase
       .from('contract_policies')
       .select(
-        'contract_type, sick_pay_mode, ssp_eligibility_default, ssp_weekly_rate_default, paid_break_minutes_per_shift, holiday_entitlement_days, bank_holidays_included, pension_status_default, pension_provider_name_default, overtime_mode, overtime_threshold_hours, overtime_rate_multiplier',
+        'contract_type, sick_pay_mode, ssp_eligibility_default, ssp_weekly_rate_default, paid_break_minutes_per_shift, holiday_entitlement_days, bank_holidays_included, pension_status_default, pension_provider_name_default, leave_accrual_mode_default, overtime_mode, overtime_threshold_hours, overtime_rate_multiplier',
       )
       .eq('contract_type', employmentType)
       .maybeSingle()
@@ -147,6 +190,9 @@ export async function GET(
       employmentType,
       payBasis: employeeData?.pay_basis ? String(employeeData.pay_basis) : null,
       hourlySource: employeeData?.hourly_source ? String(employeeData.hourly_source) : null,
+      employmentStartDate: employeeData?.employment_start_date
+        ? String(employeeData.employment_start_date)
+        : null,
       workingHoursPerWeek:
         typeof employeeData?.working_hours_per_week === 'number'
           ? employeeData.working_hours_per_week
@@ -158,7 +204,7 @@ export async function GET(
   const { data, error } = await supabase
     .from('employee_policy_overrides')
     .select(
-      'employee_id, sick_pay_mode, ssp_eligibility, ssp_weekly_rate, paid_break_minutes_per_shift, holiday_entitlement_days, bank_holidays_included, pension_status, pension_provider_name, pension_enrolment_date, overtime_mode, overtime_threshold_hours, overtime_rate_multiplier, effective_from, notes, policy_source, policy_contract_type',
+      'employee_id, sick_pay_mode, ssp_eligibility, ssp_weekly_rate, paid_break_minutes_per_shift, holiday_entitlement_days, bank_holidays_included, pension_status, pension_provider_name, pension_enrolment_date, leave_accrual_mode, leave_accrued_days, leave_accrual_as_of, overtime_mode, overtime_threshold_hours, overtime_rate_multiplier, effective_from, notes, policy_source, policy_contract_type',
     )
     .eq('employee_id', normalizedEmployeeId)
     .maybeSingle()
@@ -194,6 +240,9 @@ export async function GET(
       pensionStatus: data.pension_status,
       pensionProviderName: data.pension_provider_name,
       pensionEnrolmentDate: data.pension_enrolment_date,
+      leaveAccrualMode: data.leave_accrual_mode,
+      leaveAccruedDays: data.leave_accrued_days,
+      leaveAccrualAsOf: data.leave_accrual_as_of,
       overtimeMode: data.overtime_mode,
       overtimeThresholdHours: data.overtime_threshold_hours,
       overtimeRateMultiplier: data.overtime_rate_multiplier,
@@ -227,6 +276,9 @@ export async function PATCH(
   const pensionStatus = body.pensionStatus ? String(body.pensionStatus).trim() : null
   const pensionProviderName = body.pensionProviderName ? String(body.pensionProviderName).trim() : null
   const pensionEnrolmentDate = toIsoDateOrNull(body.pensionEnrolmentDate)
+  const leaveAccrualMode = body.leaveAccrualMode ? String(body.leaveAccrualMode).trim() : null
+  const leaveAccruedDays = toNumberOrNull(body.leaveAccruedDays)
+  const leaveAccrualAsOf = toIsoDateOrNull(body.leaveAccrualAsOf)
   const overtimeThresholdHours = toNumberOrNull(body.overtimeThresholdHours)
   const overtimeRateMultiplier = toNumberOrNull(body.overtimeRateMultiplier)
   const effectiveFrom = toIsoDateOrNull(body.effectiveFrom)
@@ -254,6 +306,15 @@ export async function PATCH(
     return apiError('Invalid policy source', 400)
   }
 
+  if (
+    leaveAccrualMode &&
+    !ALLOWED_LEAVE_ACCRUAL_MODE.includes(
+      leaveAccrualMode as (typeof ALLOWED_LEAVE_ACCRUAL_MODE)[number],
+    )
+  ) {
+    return apiError('Invalid leave accrual mode', 400)
+  }
+
   if (sspWeeklyRate !== null && sspWeeklyRate < 0) {
     return apiError('SSP weekly rate cannot be negative', 400)
   }
@@ -278,12 +339,20 @@ export async function PATCH(
     return apiError('Overtime multiplier must be at least 1', 400)
   }
 
+  if (leaveAccruedDays !== null && leaveAccruedDays < 0) {
+    return apiError('Accrued leave days cannot be negative', 400)
+  }
+
   if (body.effectiveFrom && !effectiveFrom) {
     return apiError('Invalid policy effective-from date', 400)
   }
 
   if (body.pensionEnrolmentDate && !pensionEnrolmentDate) {
     return apiError('Invalid pension enrolment date', 400)
+  }
+
+  if (body.leaveAccrualAsOf && !leaveAccrualAsOf) {
+    return apiError('Invalid leave accrual as-of date', 400)
   }
 
   const supabase = getSupabaseClient()
@@ -299,6 +368,9 @@ export async function PATCH(
     pension_status: pensionStatus,
     pension_provider_name: pensionProviderName,
     pension_enrolment_date: pensionEnrolmentDate,
+    leave_accrual_mode: leaveAccrualMode,
+    leave_accrued_days: leaveAccruedDays,
+    leave_accrual_as_of: leaveAccrualAsOf,
     overtime_mode: overtimeMode,
     overtime_threshold_hours: overtimeThresholdHours,
     overtime_rate_multiplier: overtimeRateMultiplier,
@@ -314,7 +386,7 @@ export async function PATCH(
     .from('employee_policy_overrides')
     .upsert(payload, { onConflict: 'employee_id' })
     .select(
-      'employee_id, sick_pay_mode, ssp_eligibility, ssp_weekly_rate, paid_break_minutes_per_shift, holiday_entitlement_days, bank_holidays_included, pension_status, pension_provider_name, pension_enrolment_date, overtime_mode, overtime_threshold_hours, overtime_rate_multiplier, effective_from, notes, policy_source, policy_contract_type',
+      'employee_id, sick_pay_mode, ssp_eligibility, ssp_weekly_rate, paid_break_minutes_per_shift, holiday_entitlement_days, bank_holidays_included, pension_status, pension_provider_name, pension_enrolment_date, leave_accrual_mode, leave_accrued_days, leave_accrual_as_of, overtime_mode, overtime_threshold_hours, overtime_rate_multiplier, effective_from, notes, policy_source, policy_contract_type',
     )
     .maybeSingle()
 
@@ -345,6 +417,9 @@ export async function PATCH(
       pensionStatus: data?.pension_status,
       pensionProviderName: data?.pension_provider_name,
       pensionEnrolmentDate: data?.pension_enrolment_date,
+      leaveAccrualMode: data?.leave_accrual_mode,
+      leaveAccruedDays: data?.leave_accrued_days,
+      leaveAccrualAsOf: data?.leave_accrual_as_of,
       overtimeMode: data?.overtime_mode,
       overtimeThresholdHours: data?.overtime_threshold_hours,
       overtimeRateMultiplier: data?.overtime_rate_multiplier,

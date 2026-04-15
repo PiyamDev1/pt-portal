@@ -23,6 +23,9 @@ export type EmployeeSummary = {
   employment_type?: string | null
   employment_start_date?: string | null
   employment_end_date?: string | null
+  work_start_time?: string | null
+  work_end_time?: string | null
+  national_insurance_number?: string | null
   payroll_notes?: string | null
 }
 
@@ -36,6 +39,9 @@ type EmployeePolicy = {
   pensionStatus: 'not-assessed' | 'eligible' | 'enrolled' | 'opted-out' | 'postponed'
   pensionProviderName: string
   pensionEnrolmentDate: string
+  leaveAccrualMode: 'none' | 'monthly' | 'pro-rata-hours'
+  leaveAccruedDays: string
+  leaveAccrualAsOf: string
   overtimeMode: 'none' | 'flat' | 'tiered'
   overtimeThresholdHours: string
   overtimeRateMultiplier: string
@@ -141,6 +147,9 @@ export default function EmployeeRecordClient({
     employmentType: selectedEmployee?.employment_type || '',
     employmentStartDate: selectedEmployee?.employment_start_date || '',
     employmentEndDate: selectedEmployee?.employment_end_date || '',
+    workStartTime: selectedEmployee?.work_start_time || '',
+    workEndTime: selectedEmployee?.work_end_time || '',
+    nationalInsuranceNumber: selectedEmployee?.national_insurance_number || '',
     payrollNotes: selectedEmployee?.payroll_notes || '',
   })
 
@@ -154,6 +163,9 @@ export default function EmployeeRecordClient({
     pensionStatus: 'not-assessed',
     pensionProviderName: '',
     pensionEnrolmentDate: '',
+    leaveAccrualMode: 'monthly',
+    leaveAccruedDays: '0',
+    leaveAccrualAsOf: '',
     overtimeMode: 'none',
     overtimeThresholdHours: '',
     overtimeRateMultiplier: '1',
@@ -213,6 +225,9 @@ export default function EmployeeRecordClient({
       employmentType: nextEmployee?.employment_type || '',
       employmentStartDate: nextEmployee?.employment_start_date || '',
       employmentEndDate: nextEmployee?.employment_end_date || '',
+      workStartTime: nextEmployee?.work_start_time || '',
+      workEndTime: nextEmployee?.work_end_time || '',
+      nationalInsuranceNumber: nextEmployee?.national_insurance_number || '',
       payrollNotes: nextEmployee?.payroll_notes || '',
     })
 
@@ -270,6 +285,16 @@ export default function EmployeeRecordClient({
               : 'not-assessed',
           pensionProviderName: payload.recommendedPolicy.pensionProviderName || '',
           pensionEnrolmentDate: payload.recommendedPolicy.pensionEnrolmentDate || '',
+          leaveAccrualMode:
+            payload.recommendedPolicy.leaveAccrualMode === 'none' ||
+            payload.recommendedPolicy.leaveAccrualMode === 'pro-rata-hours'
+              ? payload.recommendedPolicy.leaveAccrualMode
+              : 'monthly',
+          leaveAccruedDays:
+            typeof payload.recommendedPolicy.leaveAccruedDays === 'number'
+              ? String(payload.recommendedPolicy.leaveAccruedDays)
+              : '0',
+          leaveAccrualAsOf: payload.recommendedPolicy.leaveAccrualAsOf || '',
           overtimeMode:
             payload.recommendedPolicy.overtimeMode === 'flat' ||
             payload.recommendedPolicy.overtimeMode === 'tiered'
@@ -303,6 +328,9 @@ export default function EmployeeRecordClient({
           pensionStatus: 'not-assessed',
           pensionProviderName: '',
           pensionEnrolmentDate: '',
+          leaveAccrualMode: 'monthly',
+          leaveAccruedDays: '0',
+          leaveAccrualAsOf: '',
           overtimeMode: 'none',
           overtimeThresholdHours: '',
           overtimeRateMultiplier: '1',
@@ -332,6 +360,13 @@ export default function EmployeeRecordClient({
       pensionStatus: policy.pensionStatus || 'not-assessed',
       pensionProviderName: policy.pensionProviderName || '',
       pensionEnrolmentDate: policy.pensionEnrolmentDate || '',
+      leaveAccrualMode:
+        policy.leaveAccrualMode === 'none' || policy.leaveAccrualMode === 'pro-rata-hours'
+          ? policy.leaveAccrualMode
+          : 'monthly',
+      leaveAccruedDays:
+        typeof policy.leaveAccruedDays === 'number' ? String(policy.leaveAccruedDays) : '0',
+      leaveAccrualAsOf: policy.leaveAccrualAsOf || '',
       overtimeMode: policy.overtimeMode || 'none',
       overtimeThresholdHours:
         typeof policy.overtimeThresholdHours === 'number'
@@ -410,6 +445,15 @@ export default function EmployeeRecordClient({
       return
     }
 
+    if (
+      payrollForm.workStartTime &&
+      payrollForm.workEndTime &&
+      payrollForm.workEndTime <= payrollForm.workStartTime
+    ) {
+      setPayrollError('Work finish time must be after start time')
+      return
+    }
+
     setPayrollError(null)
 
     setSavingPayroll(true)
@@ -431,6 +475,9 @@ export default function EmployeeRecordClient({
           employmentType: payrollForm.employmentType,
           employmentStartDate: payrollForm.employmentStartDate || null,
           employmentEndDate: payrollForm.employmentEndDate || null,
+          workStartTime: payrollForm.workStartTime || null,
+          workEndTime: payrollForm.workEndTime || null,
+          nationalInsuranceNumber: payrollForm.nationalInsuranceNumber || null,
           payrollNotes: payrollForm.payrollNotes,
         }),
       })
@@ -456,6 +503,9 @@ export default function EmployeeRecordClient({
                 employment_type: updated.employmentType ?? null,
                 employment_start_date: updated.employmentStartDate ?? null,
                 employment_end_date: updated.employmentEndDate ?? null,
+                work_start_time: updated.workStartTime ?? null,
+                work_end_time: updated.workEndTime ?? null,
+                national_insurance_number: updated.nationalInsuranceNumber ?? null,
                 payroll_notes: updated.payrollNotes ?? null,
               }
             : employee,
@@ -480,6 +530,7 @@ export default function EmployeeRecordClient({
     const sspWeeklyRate = toNumberOrNull(policyForm.sspWeeklyRate)
     const paidBreakMinutes = toNumberOrNull(policyForm.paidBreakMinutesPerShift)
     const holidayEntitlement = toNumberOrNull(policyForm.holidayEntitlementDays)
+    const leaveAccruedDays = toNumberOrNull(policyForm.leaveAccruedDays)
     const overtimeThreshold = toNumberOrNull(policyForm.overtimeThresholdHours)
     const overtimeMultiplier = toNumberOrNull(policyForm.overtimeRateMultiplier)
 
@@ -500,6 +551,11 @@ export default function EmployeeRecordClient({
 
     if (holidayEntitlement !== null && holidayEntitlement < 5.6) {
       setPolicyError('Holiday entitlement is too low. Enter annual days equivalent to at least 5.6 weeks (pro-rated if part-time).')
+      return
+    }
+
+    if (leaveAccruedDays !== null && leaveAccruedDays < 0) {
+      setPolicyError('Accrued leave days cannot be negative')
       return
     }
 
@@ -530,6 +586,9 @@ export default function EmployeeRecordClient({
           pensionStatus: policyForm.pensionStatus,
           pensionProviderName: policyForm.pensionProviderName || null,
           pensionEnrolmentDate: policyForm.pensionEnrolmentDate || null,
+          leaveAccrualMode: policyForm.leaveAccrualMode,
+          leaveAccruedDays: policyForm.leaveAccruedDays || null,
+          leaveAccrualAsOf: policyForm.leaveAccrualAsOf || null,
           overtimeMode: policyForm.overtimeMode,
           overtimeThresholdHours: policyForm.overtimeThresholdHours || null,
           overtimeRateMultiplier: policyForm.overtimeRateMultiplier || null,
@@ -939,6 +998,48 @@ export default function EmployeeRecordClient({
                   className={fieldClass}
                 />
               </label>
+
+              <label className="text-sm text-slate-700">
+                Work Start Time
+                <input
+                  type="time"
+                  value={payrollForm.workStartTime}
+                  onChange={(event) =>
+                    setPayrollForm((current) => ({ ...current, workStartTime: event.target.value }))
+                  }
+                  className={fieldClass}
+                />
+                <p className={helpTextClass}>Normal daily shift start used for scheduling and leave context.</p>
+              </label>
+
+              <label className="text-sm text-slate-700">
+                Work Finish Time
+                <input
+                  type="time"
+                  value={payrollForm.workEndTime}
+                  onChange={(event) =>
+                    setPayrollForm((current) => ({ ...current, workEndTime: event.target.value }))
+                  }
+                  className={fieldClass}
+                />
+                <p className={helpTextClass}>Must be later than start time.</p>
+              </label>
+
+              <label className="text-sm text-slate-700 md:col-span-2">
+                National Insurance Number
+                <input
+                  type="text"
+                  value={payrollForm.nationalInsuranceNumber}
+                  onChange={(event) =>
+                    setPayrollForm((current) => ({
+                      ...current,
+                      nationalInsuranceNumber: event.target.value.toUpperCase(),
+                    }))
+                  }
+                  className={fieldClass}
+                />
+                <p className={helpTextClass}>Required for payroll reporting. Example format: QQ123456C.</p>
+              </label>
             </div>
           </div>
 
@@ -1027,7 +1128,7 @@ export default function EmployeeRecordClient({
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <label className="text-sm text-slate-700">
-                Sick Pay Mode
+                Contractual Sick Pay (Company Policy)
                 <select
                   value={policyForm.sickPayMode}
                   onChange={(event) =>
@@ -1042,7 +1143,7 @@ export default function EmployeeRecordClient({
                   <option value="statutory">Statutory</option>
                   <option value="full">Full Pay</option>
                 </select>
-                <p className={helpTextClass}>Statutory means SSP rules apply; Full means contractual sick pay.</p>
+                <p className={helpTextClass}>This is company sick pay policy. SSP settings are captured separately below.</p>
               </label>
 
               <label className="text-sm text-slate-700">
@@ -1144,9 +1245,7 @@ export default function EmployeeRecordClient({
                   }
                   className={fieldClass}
                 />
-                <p className={helpTextClass}>
-                  UK legal minimum is 5.6 weeks per leave year (28 days for a 5-day worker, pro-rated for part-time).
-                </p>
+                <p className={helpTextClass}>Set paid break minutes included per normal shift.</p>
               </label>
 
               <label className="text-sm text-slate-700">
@@ -1161,6 +1260,55 @@ export default function EmployeeRecordClient({
                       ...current,
                       holidayEntitlementDays: event.target.value,
                     }))
+                  }
+                  className={fieldClass}
+                />
+                <p className={helpTextClass}>
+                  Annual entitlement baseline. UK legal minimum is 5.6 weeks (pro-rated for part-time).
+                </p>
+              </label>
+
+              <label className="text-sm text-slate-700">
+                Leave Accrual Method
+                <select
+                  value={policyForm.leaveAccrualMode}
+                  onChange={(event) =>
+                    setPolicyForm((current) => ({
+                      ...current,
+                      leaveAccrualMode: event.target.value as 'none' | 'monthly' | 'pro-rata-hours',
+                    }))
+                  }
+                  className={fieldClass}
+                >
+                  <option value="monthly">Monthly Build-up</option>
+                  <option value="pro-rata-hours">Pro-rata Build-up</option>
+                  <option value="none">No Automatic Build-up</option>
+                </select>
+                <p className={helpTextClass}>Controls how annual leave accumulates over time.</p>
+              </label>
+
+              <label className="text-sm text-slate-700">
+                Leave Accrued Days
+                <input
+                  type="number"
+                  step="0.1"
+                  min={0}
+                  value={policyForm.leaveAccruedDays}
+                  onChange={(event) =>
+                    setPolicyForm((current) => ({ ...current, leaveAccruedDays: event.target.value }))
+                  }
+                  className={fieldClass}
+                />
+                <p className={helpTextClass}>Current earned leave balance used for payroll/leave checks.</p>
+              </label>
+
+              <label className="text-sm text-slate-700">
+                Leave Accrual As Of
+                <input
+                  type="date"
+                  value={policyForm.leaveAccrualAsOf}
+                  onChange={(event) =>
+                    setPolicyForm((current) => ({ ...current, leaveAccrualAsOf: event.target.value }))
                   }
                   className={fieldClass}
                 />

@@ -14,6 +14,9 @@ type PayrollBody = {
   employmentType?: string | null
   employmentStartDate?: string | null
   employmentEndDate?: string | null
+  workStartTime?: string | null
+  workEndTime?: string | null
+  nationalInsuranceNumber?: string | null
   payrollNotes?: string | null
 }
 
@@ -62,6 +65,24 @@ function normalizeCurrency(value: unknown) {
   return raw
 }
 
+function normalizeTimeOrNull(value: unknown) {
+  const raw = String(value || '').trim()
+  if (!raw) return null
+  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(raw)) return null
+  return raw
+}
+
+function normalizeNationalInsuranceNumber(value: unknown) {
+  const raw = String(value || '').trim().toUpperCase().replace(/\s+/g, '')
+  if (!raw) return null
+
+  // Basic UK NINO shape validation: AA999999A (suffix A-D)
+  const ninoRegex = /^[A-CEGHJ-PR-TW-Z]{2}\d{6}[A-D]$/
+  if (!ninoRegex.test(raw)) return null
+
+  return raw
+}
+
 export async function PATCH(
   request: NextRequest,
   context: { params: Promise<{ employeeId: string }> },
@@ -88,6 +109,9 @@ export async function PATCH(
   const employmentType = body.employmentType ? String(body.employmentType).trim() : null
   const employmentStartDate = toIsoDateOrNull(body.employmentStartDate)
   const employmentEndDate = toIsoDateOrNull(body.employmentEndDate)
+  const workStartTime = normalizeTimeOrNull(body.workStartTime)
+  const workEndTime = normalizeTimeOrNull(body.workEndTime)
+  const nationalInsuranceNumber = normalizeNationalInsuranceNumber(body.nationalInsuranceNumber)
   const payrollNotes = body.payrollNotes ? String(body.payrollNotes).trim() : null
 
   if (!payBasis || !ALLOWED_PAY_BASIS.includes(payBasis as (typeof ALLOWED_PAY_BASIS)[number])) {
@@ -145,8 +169,24 @@ export async function PATCH(
     return apiError('Invalid employment end date', 400)
   }
 
+  if (body.workStartTime && !workStartTime) {
+    return apiError('Invalid work start time (use HH:MM)', 400)
+  }
+
+  if (body.workEndTime && !workEndTime) {
+    return apiError('Invalid work end time (use HH:MM)', 400)
+  }
+
+  if (body.nationalInsuranceNumber && !nationalInsuranceNumber) {
+    return apiError('Invalid National Insurance number format (example: QQ123456C)', 400)
+  }
+
   if (employmentStartDate && employmentEndDate && employmentEndDate < employmentStartDate) {
     return apiError('Employment end date cannot be before start date', 400)
+  }
+
+  if (workStartTime && workEndTime && workEndTime <= workStartTime) {
+    return apiError('Work finish time must be after start time', 400)
   }
 
   const updatePayload = {
@@ -160,6 +200,9 @@ export async function PATCH(
     employment_type: employmentType,
     employment_start_date: employmentStartDate,
     employment_end_date: employmentEndDate,
+    work_start_time: workStartTime,
+    work_end_time: workEndTime,
+    national_insurance_number: nationalInsuranceNumber,
     payroll_notes: payrollNotes,
   }
 
@@ -169,7 +212,7 @@ export async function PATCH(
     .update(updatePayload)
     .eq('id', normalizedEmployeeId)
     .select(
-      'id, pay_basis, hourly_source, hourly_rate, annual_salary, working_hours_per_week, salary_currency, payroll_effective_from, employment_type, employment_start_date, employment_end_date, payroll_notes',
+      'id, pay_basis, hourly_source, hourly_rate, annual_salary, working_hours_per_week, salary_currency, payroll_effective_from, employment_type, employment_start_date, employment_end_date, work_start_time, work_end_time, national_insurance_number, payroll_notes',
     )
     .maybeSingle()
 
@@ -206,6 +249,9 @@ export async function PATCH(
       employmentType: data.employment_type,
       employmentStartDate: data.employment_start_date,
       employmentEndDate: data.employment_end_date,
+      workStartTime: data.work_start_time,
+      workEndTime: data.work_end_time,
+      nationalInsuranceNumber: data.national_insurance_number,
       payrollNotes: data.payroll_notes,
     },
   })

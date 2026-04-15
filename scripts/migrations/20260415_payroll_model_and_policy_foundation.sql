@@ -5,7 +5,10 @@ ALTER TABLE public.employees
   ADD COLUMN IF NOT EXISTS pay_basis TEXT,
   ADD COLUMN IF NOT EXISTS hourly_source TEXT,
   ADD COLUMN IF NOT EXISTS salary_currency TEXT,
-  ADD COLUMN IF NOT EXISTS payroll_effective_from DATE;
+  ADD COLUMN IF NOT EXISTS payroll_effective_from DATE,
+  ADD COLUMN IF NOT EXISTS work_start_time TIME,
+  ADD COLUMN IF NOT EXISTS work_end_time TIME,
+  ADD COLUMN IF NOT EXISTS national_insurance_number TEXT;
 
 DO $$
 DECLARE
@@ -124,14 +127,12 @@ END $$;
 DO $$
 BEGIN
   IF NOT EXISTS (
-    SELECT 1
-    FROM pg_constraint
+    SELECT 1 FROM pg_constraint
     WHERE conname = 'employees_pay_basis_check'
       AND conrelid = 'public.employees'::regclass
   ) THEN
     IF NOT EXISTS (
-      SELECT 1
-      FROM public.employees
+      SELECT 1 FROM public.employees
       WHERE pay_basis IS NOT NULL
         AND pay_basis::text NOT IN ('salaried', 'hourly')
     ) THEN
@@ -142,14 +143,12 @@ BEGIN
   END IF;
 
   IF NOT EXISTS (
-    SELECT 1
-    FROM pg_constraint
+    SELECT 1 FROM pg_constraint
     WHERE conname = 'employees_hourly_source_check'
       AND conrelid = 'public.employees'::regclass
   ) THEN
     IF NOT EXISTS (
-      SELECT 1
-      FROM public.employees
+      SELECT 1 FROM public.employees
       WHERE hourly_source IS NOT NULL
         AND hourly_source::text NOT IN ('contracted', 'timeclock')
     ) THEN
@@ -157,6 +156,32 @@ BEGIN
         ADD CONSTRAINT employees_hourly_source_check
         CHECK (hourly_source IS NULL OR hourly_source::text IN ('contracted', 'timeclock'));
     END IF;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'employees_work_time_range_check'
+      AND conrelid = 'public.employees'::regclass
+  ) THEN
+    ALTER TABLE public.employees
+      ADD CONSTRAINT employees_work_time_range_check
+      CHECK (
+        (work_start_time IS NULL AND work_end_time IS NULL)
+        OR (work_start_time IS NOT NULL AND work_end_time IS NOT NULL AND work_end_time > work_start_time)
+      );
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'employees_national_insurance_number_check'
+      AND conrelid = 'public.employees'::regclass
+  ) THEN
+    ALTER TABLE public.employees
+      ADD CONSTRAINT employees_national_insurance_number_check
+      CHECK (
+        national_insurance_number IS NULL
+        OR upper(regexp_replace(national_insurance_number, '\\s+', '', 'g')) ~ '^[A-CEGHJ-PR-TW-Z]{2}[0-9]{6}[A-D]$'
+      );
   END IF;
 END $$;
 
@@ -171,6 +196,7 @@ CREATE TABLE IF NOT EXISTS public.contract_policies (
   bank_holidays_included BOOLEAN NOT NULL DEFAULT TRUE,
   pension_status_default TEXT,
   pension_provider_name_default TEXT,
+  leave_accrual_mode_default TEXT NOT NULL DEFAULT 'monthly',
   overtime_mode TEXT NOT NULL DEFAULT 'none',
   overtime_threshold_hours NUMERIC(6,2),
   overtime_rate_multiplier NUMERIC(6,2) NOT NULL DEFAULT 1.00,
@@ -190,6 +216,9 @@ CREATE TABLE IF NOT EXISTS public.employee_policy_overrides (
   pension_status TEXT,
   pension_provider_name TEXT,
   pension_enrolment_date DATE,
+  leave_accrual_mode TEXT,
+  leave_accrued_days NUMERIC(6,2),
+  leave_accrual_as_of DATE,
   overtime_mode TEXT,
   overtime_threshold_hours NUMERIC(6,2),
   overtime_rate_multiplier NUMERIC(6,2),
@@ -206,7 +235,15 @@ ALTER TABLE public.contract_policies
   ADD COLUMN IF NOT EXISTS ssp_eligibility_default TEXT,
   ADD COLUMN IF NOT EXISTS ssp_weekly_rate_default NUMERIC(8,2),
   ADD COLUMN IF NOT EXISTS pension_status_default TEXT,
-  ADD COLUMN IF NOT EXISTS pension_provider_name_default TEXT;
+  ADD COLUMN IF NOT EXISTS pension_provider_name_default TEXT,
+  ADD COLUMN IF NOT EXISTS leave_accrual_mode_default TEXT;
+
+UPDATE public.contract_policies
+SET leave_accrual_mode_default = COALESCE(NULLIF(leave_accrual_mode_default, ''), 'monthly')
+WHERE leave_accrual_mode_default IS NULL OR btrim(leave_accrual_mode_default) = '';
+
+ALTER TABLE public.contract_policies
+  ALTER COLUMN leave_accrual_mode_default SET DEFAULT 'monthly';
 
 ALTER TABLE public.employee_policy_overrides
   ADD COLUMN IF NOT EXISTS ssp_eligibility TEXT,
@@ -214,6 +251,9 @@ ALTER TABLE public.employee_policy_overrides
   ADD COLUMN IF NOT EXISTS pension_status TEXT,
   ADD COLUMN IF NOT EXISTS pension_provider_name TEXT,
   ADD COLUMN IF NOT EXISTS pension_enrolment_date DATE,
+  ADD COLUMN IF NOT EXISTS leave_accrual_mode TEXT,
+  ADD COLUMN IF NOT EXISTS leave_accrued_days NUMERIC(6,2),
+  ADD COLUMN IF NOT EXISTS leave_accrual_as_of DATE,
   ADD COLUMN IF NOT EXISTS policy_source TEXT,
   ADD COLUMN IF NOT EXISTS policy_contract_type TEXT;
 
@@ -226,8 +266,7 @@ CREATE INDEX IF NOT EXISTS employee_policy_overrides_effective_from_idx
 DO $$
 BEGIN
   IF NOT EXISTS (
-    SELECT 1
-    FROM pg_constraint
+    SELECT 1 FROM pg_constraint
     WHERE conname = 'contract_policies_sick_pay_mode_check'
       AND conrelid = 'public.contract_policies'::regclass
   ) THEN
@@ -237,8 +276,7 @@ BEGIN
   END IF;
 
   IF NOT EXISTS (
-    SELECT 1
-    FROM pg_constraint
+    SELECT 1 FROM pg_constraint
     WHERE conname = 'contract_policies_overtime_mode_check'
       AND conrelid = 'public.contract_policies'::regclass
   ) THEN
@@ -248,8 +286,7 @@ BEGIN
   END IF;
 
   IF NOT EXISTS (
-    SELECT 1
-    FROM pg_constraint
+    SELECT 1 FROM pg_constraint
     WHERE conname = 'contract_policies_ssp_eligibility_default_check'
       AND conrelid = 'public.contract_policies'::regclass
   ) THEN
@@ -259,8 +296,7 @@ BEGIN
   END IF;
 
   IF NOT EXISTS (
-    SELECT 1
-    FROM pg_constraint
+    SELECT 1 FROM pg_constraint
     WHERE conname = 'contract_policies_pension_status_default_check'
       AND conrelid = 'public.contract_policies'::regclass
   ) THEN
@@ -270,8 +306,7 @@ BEGIN
   END IF;
 
   IF NOT EXISTS (
-    SELECT 1
-    FROM pg_constraint
+    SELECT 1 FROM pg_constraint
     WHERE conname = 'contract_policies_ssp_weekly_rate_default_check'
       AND conrelid = 'public.contract_policies'::regclass
   ) THEN
@@ -281,8 +316,17 @@ BEGIN
   END IF;
 
   IF NOT EXISTS (
-    SELECT 1
-    FROM pg_constraint
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'contract_policies_leave_accrual_mode_default_check'
+      AND conrelid = 'public.contract_policies'::regclass
+  ) THEN
+    ALTER TABLE public.contract_policies
+      ADD CONSTRAINT contract_policies_leave_accrual_mode_default_check
+      CHECK (leave_accrual_mode_default IN ('none', 'monthly', 'pro-rata-hours'));
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
     WHERE conname = 'employee_policy_overrides_sick_pay_mode_check'
       AND conrelid = 'public.employee_policy_overrides'::regclass
   ) THEN
@@ -292,8 +336,7 @@ BEGIN
   END IF;
 
   IF NOT EXISTS (
-    SELECT 1
-    FROM pg_constraint
+    SELECT 1 FROM pg_constraint
     WHERE conname = 'employee_policy_overrides_overtime_mode_check'
       AND conrelid = 'public.employee_policy_overrides'::regclass
   ) THEN
@@ -303,8 +346,7 @@ BEGIN
   END IF;
 
   IF NOT EXISTS (
-    SELECT 1
-    FROM pg_constraint
+    SELECT 1 FROM pg_constraint
     WHERE conname = 'employee_policy_overrides_ssp_eligibility_check'
       AND conrelid = 'public.employee_policy_overrides'::regclass
   ) THEN
@@ -314,8 +356,7 @@ BEGIN
   END IF;
 
   IF NOT EXISTS (
-    SELECT 1
-    FROM pg_constraint
+    SELECT 1 FROM pg_constraint
     WHERE conname = 'employee_policy_overrides_pension_status_check'
       AND conrelid = 'public.employee_policy_overrides'::regclass
   ) THEN
@@ -325,8 +366,7 @@ BEGIN
   END IF;
 
   IF NOT EXISTS (
-    SELECT 1
-    FROM pg_constraint
+    SELECT 1 FROM pg_constraint
     WHERE conname = 'employee_policy_overrides_ssp_weekly_rate_check'
       AND conrelid = 'public.employee_policy_overrides'::regclass
   ) THEN
@@ -336,8 +376,7 @@ BEGIN
   END IF;
 
   IF NOT EXISTS (
-    SELECT 1
-    FROM pg_constraint
+    SELECT 1 FROM pg_constraint
     WHERE conname = 'employee_policy_overrides_holiday_entitlement_min_check'
       AND conrelid = 'public.employee_policy_overrides'::regclass
   ) THEN
@@ -347,14 +386,33 @@ BEGIN
   END IF;
 
   IF NOT EXISTS (
-    SELECT 1
-    FROM pg_constraint
+    SELECT 1 FROM pg_constraint
     WHERE conname = 'employee_policy_overrides_policy_source_check'
       AND conrelid = 'public.employee_policy_overrides'::regclass
   ) THEN
     ALTER TABLE public.employee_policy_overrides
       ADD CONSTRAINT employee_policy_overrides_policy_source_check
       CHECK (policy_source IS NULL OR policy_source IN ('manual', 'uk-default'));
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'employee_policy_overrides_leave_accrual_mode_check'
+      AND conrelid = 'public.employee_policy_overrides'::regclass
+  ) THEN
+    ALTER TABLE public.employee_policy_overrides
+      ADD CONSTRAINT employee_policy_overrides_leave_accrual_mode_check
+      CHECK (leave_accrual_mode IS NULL OR leave_accrual_mode IN ('none', 'monthly', 'pro-rata-hours'));
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'employee_policy_overrides_leave_accrued_days_check'
+      AND conrelid = 'public.employee_policy_overrides'::regclass
+  ) THEN
+    ALTER TABLE public.employee_policy_overrides
+      ADD CONSTRAINT employee_policy_overrides_leave_accrued_days_check
+      CHECK (leave_accrued_days IS NULL OR leave_accrued_days >= 0);
   END IF;
 END $$;
 
@@ -366,15 +424,16 @@ INSERT INTO public.contract_policies (
   holiday_entitlement_days,
   bank_holidays_included,
   pension_status_default,
+  leave_accrual_mode_default,
   overtime_mode,
   overtime_threshold_hours,
   overtime_rate_multiplier
 )
 VALUES
-  ('permanent', 'statutory', 'eligible', 0, 28, TRUE, 'eligible', 'none', NULL, 1.00),
-  ('fixed-term', 'statutory', 'eligible', 0, 28, TRUE, 'eligible', 'none', NULL, 1.00),
-  ('part-time', 'statutory', 'eligible', 0, 16.80, TRUE, 'eligible', 'none', NULL, 1.00),
-  ('contractor', 'none', 'not-eligible', 0, 0, FALSE, 'not-assessed', 'none', NULL, 1.00)
+  ('permanent', 'statutory', 'eligible', 0, 28, TRUE, 'eligible', 'monthly', 'none', NULL, 1.00),
+  ('fixed-term', 'statutory', 'eligible', 0, 28, TRUE, 'eligible', 'monthly', 'none', NULL, 1.00),
+  ('part-time', 'statutory', 'eligible', 0, 16.80, TRUE, 'eligible', 'pro-rata-hours', 'none', NULL, 1.00),
+  ('contractor', 'none', 'not-eligible', 0, 0, FALSE, 'not-assessed', 'none', 'none', NULL, 1.00)
 ON CONFLICT (contract_type) DO NOTHING;
 
 ALTER TABLE public.contract_policies ENABLE ROW LEVEL SECURITY;
