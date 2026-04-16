@@ -7,7 +7,7 @@
 import { useRef, useState } from 'react'
 import { ModalBase } from '@/components/ModalBase'
 import { toast } from 'sonner'
-import { toPng } from 'html-to-image'
+import { toBlob } from 'html-to-image'
 import { useReceipt, type GeneratedReceipt } from '@/hooks'
 import ReceiptHistoryModal from './ReceiptHistoryModal'
 
@@ -55,6 +55,16 @@ const SERVICE_TYPE_LABELS: Record<GeneratedReceipt['serviceType'], string> = {
   gb_passport: 'GB Passport',
 }
 
+function supportsImageClipboard() {
+  return (
+    typeof navigator !== 'undefined' &&
+    !!navigator.clipboard &&
+    typeof navigator.clipboard.write === 'function' &&
+    typeof window !== 'undefined' &&
+    typeof window.ClipboardItem !== 'undefined'
+  )
+}
+
 export default function ReceiptViewerModal({ isOpen, onClose, receipt }: ReceiptViewerModalProps) {
   const { markReceiptShared } = useReceipt()
   const [historyOpen, setHistoryOpen] = useState(false)
@@ -79,34 +89,41 @@ export default function ReceiptViewerModal({ isOpen, onClose, receipt }: Receipt
       return
     }
 
-    if (
-      typeof navigator === 'undefined' ||
-      !navigator.clipboard ||
-      typeof navigator.clipboard.write !== 'function' ||
-      typeof ClipboardItem === 'undefined'
-    ) {
+    if (!supportsImageClipboard()) {
       toast.error('Clipboard is unavailable on this device')
       return
     }
 
     try {
-      const dataUrl = await toPng(card, {
+      const blob = await toBlob(card, {
         cacheBust: true,
         pixelRatio: 2,
         backgroundColor: '#ffffff',
       })
 
-      const blob = await (await fetch(dataUrl)).blob()
+      if (!blob) {
+        throw new Error('Screenshot generation returned no image data')
+      }
+
+      const ClipboardItemCtor = window.ClipboardItem
       await navigator.clipboard.write([
-        new ClipboardItem({
-          [blob.type || 'image/png']: blob,
+        new ClipboardItemCtor({
+          'image/png': blob,
         }),
       ])
 
       await markReceiptShared({ receiptId: receipt.id, channel: 'clipboard-image' })
       toast.success('Receipt screenshot copied to clipboard')
-    } catch (error) {
-      toast.error('Failed to copy receipt screenshot')
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Unknown clipboard error'
+      if (process.env.NODE_ENV !== 'production') {
+        console.error('Receipt screenshot copy failed:', error)
+      }
+      if (/NotAllowedError|permission/i.test(message)) {
+        toast.error('Clipboard permission denied. Please allow clipboard access and try again.')
+        return
+      }
+      toast.error('Failed to copy receipt screenshot. Try again or use a supported browser.')
     }
   }
 
