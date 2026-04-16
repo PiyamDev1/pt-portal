@@ -1,7 +1,7 @@
 import PageHeader from '@/app/components/PageHeader.client'
 import DashboardClientWrapper from '@/app/dashboard/client-wrapper'
 import EmployeeRecordClient from './client'
-import type { EmployeeDocument, EmployeeSummary } from './client'
+import type { BranchOption, EmployeeDocument, EmployeeSummary } from './client'
 import { createServerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
@@ -77,13 +77,52 @@ export default async function EmployeeRecordPage() {
     : []
 
   let initialEmployees: EmployeeSummary[] = []
-  if (isHrView) {
-    const { data: employeeRows } = await supabase
-      .from('employees')
-      .select('*')
-      .order('full_name', { ascending: true })
+  let initialBranches: BranchOption[] = []
 
-    initialEmployees = (employeeRows || []) as EmployeeSummary[]
+  if (isHrView) {
+    const [{ data: employeeRows }, { data: locationRows }] = await Promise.all([
+      supabase
+        .from('employees')
+        .select('id, full_name, email, is_active, pay_basis, hourly_source, hourly_rate, annual_salary, working_hours_per_week, salary_currency, payroll_effective_from, employment_type, employment_start_date, employment_end_date, work_start_time, work_end_time, national_insurance_number, payroll_notes, locations(id, name, branch_code)')
+        .order('full_name', { ascending: true }),
+      supabase
+        .from('locations')
+        .select('id, name, branch_code')
+        .order('name', { ascending: true }),
+    ])
+
+    initialBranches = (locationRows || []).map((row) => ({
+      id: row.id as string,
+      name: (row.name as string) || '',
+      branch_code: (row.branch_code as string | null) ?? null,
+    }))
+
+    initialEmployees = (employeeRows || []).map((row) => {
+      const loc = Array.isArray(row.locations) ? row.locations[0] : (row.locations as { id?: string; name?: string; branch_code?: string | null } | null)
+      return {
+        id: row.id,
+        full_name: row.full_name,
+        email: row.email,
+        is_active: row.is_active,
+        pay_basis: row.pay_basis,
+        hourly_source: row.hourly_source,
+        hourly_rate: row.hourly_rate,
+        annual_salary: row.annual_salary,
+        working_hours_per_week: row.working_hours_per_week,
+        salary_currency: row.salary_currency,
+        payroll_effective_from: row.payroll_effective_from,
+        employment_type: row.employment_type,
+        employment_start_date: row.employment_start_date,
+        employment_end_date: row.employment_end_date,
+        work_start_time: row.work_start_time,
+        work_end_time: row.work_end_time,
+        national_insurance_number: row.national_insurance_number,
+        payroll_notes: row.payroll_notes,
+        location_id: loc?.id ?? null,
+        location_name: loc?.name ?? null,
+        branch_code: loc?.branch_code ?? null,
+      } as EmployeeSummary
+    })
   } else {
     initialEmployees =
       employee?.id
@@ -127,6 +166,7 @@ export default async function EmployeeRecordPage() {
               myDocumentCount: initialDocuments.length,
             }}
             initialEmployees={initialEmployees}
+            initialBranches={initialBranches}
             initialDocuments={initialDocuments}
             documentsSupported={documentsSupported}
           />

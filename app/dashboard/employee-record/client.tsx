@@ -9,6 +9,12 @@ export type QuickStats = {
   myDocumentCount: number
 }
 
+export type BranchOption = {
+  id: string
+  name: string
+  branch_code: string | null
+}
+
 export type EmployeeSummary = {
   id: string
   full_name: string
@@ -28,8 +34,8 @@ export type EmployeeSummary = {
   work_end_time?: string | null
   national_insurance_number?: string | null
   payroll_notes?: string | null
+  location_id?: string | null
   location_name?: string | null
-  branch_name?: string | null
   branch_code?: string | null
 }
 
@@ -91,6 +97,7 @@ type Props = {
   isHrView: boolean
   quickStats: QuickStats
   initialEmployees: EmployeeSummary[]
+  initialBranches?: BranchOption[]
   initialDocuments: EmployeeDocument[]
   documentsSupported: boolean
 }
@@ -154,16 +161,6 @@ function normalizeHourlySource(value: string | null | undefined): 'contracted' |
   const raw = String(value || '').trim().toLowerCase()
   if (['timeclock', 'clock', 'clocked'].includes(raw)) return 'timeclock'
   return 'contracted'
-}
-
-function getEmployeeBranchLabel(employee: EmployeeSummary) {
-  const code = String(employee.branch_code || '').trim().toUpperCase()
-  const name = String(employee.branch_name || employee.location_name || '').trim()
-
-  if (code && name) return `${name} (${code})`
-  if (name) return name
-  if (code) return code
-  return 'Unassigned branch'
 }
 
 function getMonthBounds(month: string) {
@@ -342,6 +339,7 @@ export default function EmployeeRecordClient({
   isHrView,
   quickStats,
   initialEmployees,
+  initialBranches = [],
   initialDocuments,
   documentsSupported,
 }: Props) {
@@ -378,14 +376,11 @@ export default function EmployeeRecordClient({
     [employees, selectedEmployeeId],
   )
 
-  const branchOptions = useMemo(() => {
-    const labels = Array.from(new Set(employees.map((employee) => getEmployeeBranchLabel(employee))))
-    return labels.sort((a, b) => a.localeCompare(b))
-  }, [employees])
+  const branchOptions = initialBranches
 
   const filteredEmployees = useMemo(() => {
     if (selectedBranch === 'all') return employees
-    return employees.filter((employee) => getEmployeeBranchLabel(employee) === selectedBranch)
+    return employees.filter((employee) => employee.location_id === selectedBranch)
   }, [employees, selectedBranch])
 
   const [payrollForm, setPayrollForm] = useState({
@@ -1417,8 +1412,8 @@ export default function EmployeeRecordClient({
                 >
                   <option value="all">All branches</option>
                   {branchOptions.map((branch) => (
-                    <option key={branch} value={branch}>
-                      {branch}
+                    <option key={branch.id} value={branch.id}>
+                      {branch.name}{branch.branch_code ? ` (${branch.branch_code})` : ''}
                     </option>
                   ))}
                 </select>
