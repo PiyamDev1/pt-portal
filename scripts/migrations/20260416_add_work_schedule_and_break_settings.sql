@@ -5,7 +5,8 @@ ALTER TABLE public.employees
   ADD COLUMN IF NOT EXISTS work_schedule JSONB,
   ADD COLUMN IF NOT EXISTS statutory_break_paid BOOLEAN,
   ADD COLUMN IF NOT EXISTS company_lunch_break_minutes INTEGER,
-  ADD COLUMN IF NOT EXISTS company_lunch_break_paid BOOLEAN;
+  ADD COLUMN IF NOT EXISTS company_lunch_break_paid BOOLEAN,
+  ADD COLUMN IF NOT EXISTS work_pattern TEXT;
 
 UPDATE public.employees
 SET statutory_break_paid = FALSE
@@ -19,10 +20,15 @@ UPDATE public.employees
 SET company_lunch_break_paid = FALSE
 WHERE company_lunch_break_paid IS NULL;
 
+UPDATE public.employees
+SET work_pattern = 'fixed'
+WHERE work_pattern IS NULL OR btrim(work_pattern) = '';
+
 ALTER TABLE public.employees
   ALTER COLUMN statutory_break_paid SET DEFAULT FALSE,
   ALTER COLUMN company_lunch_break_minutes SET DEFAULT 30,
-  ALTER COLUMN company_lunch_break_paid SET DEFAULT FALSE;
+  ALTER COLUMN company_lunch_break_paid SET DEFAULT FALSE,
+  ALTER COLUMN work_pattern SET DEFAULT 'fixed';
 
 DO $$
 BEGIN
@@ -37,5 +43,15 @@ BEGIN
         company_lunch_break_minutes IS NULL
         OR (company_lunch_break_minutes >= 0 AND company_lunch_break_minutes <= 180)
       );
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'employees_work_pattern_check'
+      AND conrelid = 'public.employees'::regclass
+  ) THEN
+    ALTER TABLE public.employees
+      ADD CONSTRAINT employees_work_pattern_check
+      CHECK (work_pattern IS NULL OR work_pattern IN ('fixed', 'flexible', 'on-call'));
   END IF;
 END $$;

@@ -43,7 +43,10 @@ export type EmployeeSummary = {
   statutory_break_paid?: boolean | null
   company_lunch_break_minutes?: number | null
   company_lunch_break_paid?: boolean | null
+  work_pattern?: 'fixed' | 'flexible' | 'on-call' | null
 }
+
+type WorkPattern = 'fixed' | 'flexible' | 'on-call'
 
 type WorkDayKey = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun'
 
@@ -189,6 +192,13 @@ function normalizeHourlySource(value: string | null | undefined): 'contracted' |
   return 'contracted'
 }
 
+function normalizeWorkPattern(value: string | null | undefined): WorkPattern {
+  const raw = String(value || '').trim().toLowerCase()
+  if (raw === 'flexible') return 'flexible'
+  if (raw === 'on-call' || raw === 'on call' || raw === 'oncall') return 'on-call'
+  return 'fixed'
+}
+
 function toMinutes(value: string) {
   const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(String(value || '').trim())
   if (!match) return null
@@ -302,6 +312,7 @@ function createPayrollFormState(employee: EmployeeSummary | null | undefined) {
     statutoryBreakPaid: Boolean(employee?.statutory_break_paid ?? false),
     companyLunchBreakMinutes: String(employee?.company_lunch_break_minutes ?? 30),
     companyLunchBreakPaid: Boolean(employee?.company_lunch_break_paid ?? false),
+    workPattern: normalizeWorkPattern(employee?.work_pattern),
   }
 }
 
@@ -571,9 +582,11 @@ export default function EmployeeRecordClient({
   ])
 
   const effectiveWorkingHoursPerWeek = useMemo(() => {
-    if (weeklyWorkSummary.payableHours > 0) return weeklyWorkSummary.payableHours
+    if (payrollForm.workPattern === 'fixed' && weeklyWorkSummary.payableHours > 0) {
+      return weeklyWorkSummary.payableHours
+    }
     return toNumberOrNull(payrollForm.workingHoursPerWeek)
-  }, [payrollForm.workingHoursPerWeek, weeklyWorkSummary.payableHours])
+  }, [payrollForm.workPattern, payrollForm.workingHoursPerWeek, weeklyWorkSummary.payableHours])
 
   const compensationSummary = useMemo(() => {
     const hoursPerWeek = effectiveWorkingHoursPerWeek
@@ -1084,7 +1097,8 @@ export default function EmployeeRecordClient({
 
     const hourlyRate = toNumberOrNull(payrollForm.hourlyRate)
     const annualSalary = toNumberOrNull(payrollForm.annualSalary)
-    const hoursPerWeek = effectiveWorkingHoursPerWeek
+    const manualHoursPerWeek = toNumberOrNull(payrollForm.workingHoursPerWeek)
+    const hoursPerWeek = payrollForm.workPattern === 'fixed' ? effectiveWorkingHoursPerWeek : manualHoursPerWeek
     const companyLunchBreakMinutes = toNumberOrNull(payrollForm.companyLunchBreakMinutes)
 
     if (payrollForm.payBasis === 'salaried' && annualSalary === null) {
@@ -1151,6 +1165,7 @@ export default function EmployeeRecordClient({
           hourlyRate: payrollForm.hourlyRate,
           annualSalary: payrollForm.annualSalary,
           workingHoursPerWeek: hoursPerWeek,
+          workPattern: payrollForm.workPattern,
           workSchedule: payrollForm.workSchedule.map((day) => ({
             day: day.day,
             enabled: day.enabled,
@@ -1192,6 +1207,7 @@ export default function EmployeeRecordClient({
                 statutory_break_paid: updated.statutoryBreakPaid ?? false,
                 company_lunch_break_minutes: updated.companyLunchBreakMinutes ?? 30,
                 company_lunch_break_paid: updated.companyLunchBreakPaid ?? false,
+                work_pattern: updated.workPattern ?? 'fixed',
                 salary_currency: updated.salaryCurrency ?? 'GBP',
                 payroll_effective_from: updated.payrollEffectiveFrom ?? null,
                 employment_type: updated.employmentType ?? null,
@@ -1697,7 +1713,32 @@ export default function EmployeeRecordClient({
                 </p>
               </div>
 
-            <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <label className="text-sm text-slate-700">
+                Work Pattern
+                <select
+                  value={payrollForm.workPattern}
+                  onChange={(event) =>
+                    setPayrollForm((current) => ({
+                      ...current,
+                      workPattern: normalizeWorkPattern(event.target.value),
+                    }))
+                  }
+                  className={fieldClass}
+                >
+                  <option value="fixed">Fixed Schedule</option>
+                  <option value="flexible">Flexible</option>
+                  <option value="on-call">On-Call</option>
+                </select>
+                <p className={helpTextClass}>
+                  Use Fixed for planned weekly shifts. Use Flexible/On-Call for variable work where actual worked hours drive payroll.
+                </p>
+              </label>
+            </div>
+
+            {payrollForm.workPattern === 'fixed' ? (
+              <>
+                <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
               <div className="min-w-[760px]">
                 <div className="grid grid-cols-[90px_120px_1fr_1fr_150px] gap-x-3 border-b border-slate-200 bg-slate-50 px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                   <span>Day</span>
@@ -1816,6 +1857,19 @@ export default function EmployeeRecordClient({
                 <p className="mt-1 text-xs text-slate-500">Stored as Working Hours / Week for payroll calculations.</p>
               </div>
             </div>
+              </>
+            ) : (
+              <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-2">
+                <p className="text-sm font-bold text-slate-900">
+                  {payrollForm.workPattern === 'on-call'
+                    ? 'On-call payroll mode'
+                    : 'Flexible payroll mode'}
+                </p>
+                <p className="text-xs text-slate-500">
+                  Fixed schedule is optional in this mode. Payroll should typically use actual worked hours (for example, from timeclock) and your agreed hourly rate.
+                </p>
+              </div>
+            )}
           </div>
 
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-4">
@@ -1920,10 +1974,17 @@ export default function EmployeeRecordClient({
                   type="number"
                   step="0.01"
                   value={effectiveWorkingHoursPerWeek ?? ''}
-                  readOnly
-                  className={`${fieldClass} bg-slate-50`}
+                  readOnly={payrollForm.workPattern === 'fixed'}
+                  onChange={(event) =>
+                    setPayrollForm((current) => ({ ...current, workingHoursPerWeek: event.target.value }))
+                  }
+                  className={`${fieldClass} ${payrollForm.workPattern === 'fixed' ? 'bg-slate-50' : ''}`}
                 />
-                <p className={helpTextClass}>Automatically calculated from the 7-day schedule and break settings.</p>
+                <p className={helpTextClass}>
+                  {payrollForm.workPattern === 'fixed'
+                    ? 'Automatically calculated from the 7-day schedule and break settings.'
+                    : 'Optional estimate for reporting when working hours are variable.'}
+                </p>
               </label>
 
               <label className="text-sm text-slate-700">

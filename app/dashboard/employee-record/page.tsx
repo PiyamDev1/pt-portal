@@ -83,7 +83,7 @@ export default async function EmployeeRecordPage() {
     const [{ data: employeeRows }, { data: locationRows }] = await Promise.all([
       supabase
         .from('employees')
-        .select('id, full_name, email, is_active, pay_basis, hourly_source, hourly_rate, annual_salary, working_hours_per_week, salary_currency, payroll_effective_from, employment_type, employment_start_date, employment_end_date, work_start_time, work_end_time, national_insurance_number, payroll_notes, work_schedule, statutory_break_paid, company_lunch_break_minutes, company_lunch_break_paid, locations(id, name, branch_code)')
+        .select('id, full_name, email, is_active, pay_basis, hourly_source, work_pattern, hourly_rate, annual_salary, working_hours_per_week, salary_currency, payroll_effective_from, employment_type, employment_start_date, employment_end_date, work_start_time, work_end_time, national_insurance_number, payroll_notes, work_schedule, statutory_break_paid, company_lunch_break_minutes, company_lunch_break_paid, locations(id, name, branch_code)')
         .order('full_name', { ascending: true }),
       supabase
         .from('locations')
@@ -106,6 +106,7 @@ export default async function EmployeeRecordPage() {
         is_active: row.is_active,
         pay_basis: row.pay_basis,
         hourly_source: row.hourly_source,
+        work_pattern: row.work_pattern,
         hourly_rate: row.hourly_rate,
         annual_salary: row.annual_salary,
         working_hours_per_week: row.working_hours_per_week,

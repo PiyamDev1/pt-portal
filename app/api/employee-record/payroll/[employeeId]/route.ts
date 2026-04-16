@@ -6,6 +6,7 @@ import { getSupabaseClient } from '@/lib/supabaseClient'
 type PayrollBody = {
   payBasis?: string | null
   hourlySource?: string | null
+  workPattern?: string | null
   hourlyRate?: number | null
   annualSalary?: number | null
   workingHoursPerWeek?: number | null
@@ -32,6 +33,7 @@ type PayrollBody = {
 const ALLOWED_EMPLOYMENT_TYPES = ['permanent', 'fixed-term', 'part-time', 'contractor'] as const
 const ALLOWED_PAY_BASIS = ['salaried', 'hourly'] as const
 const ALLOWED_HOURLY_SOURCE = ['contracted', 'timeclock'] as const
+const ALLOWED_WORK_PATTERNS = ['fixed', 'flexible', 'on-call'] as const
 const ALLOWED_WORK_DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const
 
 type WorkScheduleRow = {
@@ -57,6 +59,17 @@ function normalizeHourlySource(value: unknown): 'contracted' | 'timeclock' | nul
 
   if (['contracted', 'contract', 'scheduled'].includes(raw)) return 'contracted'
   if (['timeclock', 'clock', 'clocked'].includes(raw)) return 'timeclock'
+
+  return null
+}
+
+function normalizeWorkPattern(value: unknown): 'fixed' | 'flexible' | 'on-call' | null {
+  const raw = String(value || '').trim().toLowerCase()
+  if (!raw) return 'fixed'
+
+  if (raw === 'fixed') return 'fixed'
+  if (raw === 'flexible') return 'flexible'
+  if (raw === 'on-call' || raw === 'oncall' || raw === 'on call') return 'on-call'
 
   return null
 }
@@ -183,6 +196,7 @@ export async function PATCH(
 
   const payBasis = normalizePayBasis(body.payBasis)
   const hourlySource = normalizeHourlySource(body.hourlySource)
+  const workPattern = normalizeWorkPattern(body.workPattern)
 
   const hourlyRate = toNumberOrNull(body.hourlyRate)
   const annualSalary = toNumberOrNull(body.annualSalary)
@@ -196,7 +210,10 @@ export async function PATCH(
     companyLunchBreakMinutes !== null && companyLunchBreakMinutes > 0 ? companyLunchBreakMinutes : 0,
     companyLunchBreakPaid,
   )
-  const workingHoursPerWeek = workSchedule.length > 0 ? derivedWorkingHoursPerWeek : toNumberOrNull(body.workingHoursPerWeek)
+  const workingHoursPerWeek =
+    workPattern === 'fixed'
+      ? (workSchedule.length > 0 ? derivedWorkingHoursPerWeek : toNumberOrNull(body.workingHoursPerWeek))
+      : toNumberOrNull(body.workingHoursPerWeek)
   const salaryCurrency = normalizeCurrency(body.salaryCurrency)
   const payrollEffectiveFrom = toIsoDateOrNull(body.payrollEffectiveFrom)
   const employmentType = body.employmentType ? String(body.employmentType).trim() : null
@@ -216,6 +233,10 @@ export async function PATCH(
 
   if (hourlySource && !ALLOWED_HOURLY_SOURCE.includes(hourlySource as (typeof ALLOWED_HOURLY_SOURCE)[number])) {
     return apiError('Invalid hourly source', 400)
+  }
+
+  if (!workPattern || !ALLOWED_WORK_PATTERNS.includes(workPattern as (typeof ALLOWED_WORK_PATTERNS)[number])) {
+    return apiError('Invalid work pattern', 400)
   }
 
   if (!salaryCurrency) {
@@ -286,25 +307,31 @@ export async function PATCH(
     return apiError('Work finish time must be after start time', 400)
   }
 
-  for (const row of workSchedule) {
-    if (!row.enabled) continue
-    if (!row.startTime || !row.endTime) {
-      return apiError(`Each enabled work day must have a start and finish time`, 400)
-    }
-    if (row.endTime <= row.startTime) {
-      return apiError(`Each enabled work day must finish after it starts`, 400)
+  if (workPattern === 'fixed') {
+    for (const row of workSchedule) {
+      if (!row.enabled) continue
+      if (!row.startTime || !row.endTime) {
+        return apiError(`Each enabled work day must have a start and finish time`, 400)
+      }
+      if (row.endTime <= row.startTime) {
+        return apiError(`Each enabled work day must finish after it starts`, 400)
+      }
     }
   }
 
-  const firstEnabledDay = workSchedule.find((row) => row.enabled && row.startTime && row.endTime)
+  const firstEnabledDay =
+    workPattern === 'fixed'
+      ? workSchedule.find((row) => row.enabled && row.startTime && row.endTime)
+      : null
 
   const updatePayload = {
     pay_basis: payBasis,
     hourly_source: payBasis === 'hourly' ? hourlySource : null,
+    work_pattern: workPattern,
     hourly_rate: hourlyRate,
     annual_salary: annualSalary,
     working_hours_per_week: workingHoursPerWeek,
-    work_schedule: workSchedule,
+    work_schedule: workPattern === 'fixed' ? workSchedule : null,
     statutory_break_paid: statutoryBreakPaid,
     company_lunch_break_minutes: companyLunchBreakMinutes,
     company_lunch_break_paid: companyLunchBreakPaid,
@@ -325,7 +352,7 @@ export async function PATCH(
     .update(updatePayload)
     .eq('id', normalizedEmployeeId)
     .select(
-      'id, pay_basis, hourly_source, hourly_rate, annual_salary, working_hours_per_week, work_schedule, statutory_break_paid, company_lunch_break_minutes, company_lunch_break_paid, salary_currency, payroll_effective_from, employment_type, employment_start_date, employment_end_date, work_start_time, work_end_time, national_insurance_number, payroll_notes',
+      'id, pay_basis, hourly_source, work_pattern, hourly_rate, annual_salary, working_hours_per_week, work_schedule, statutory_break_paid, company_lunch_break_minutes, company_lunch_break_paid, salary_currency, payroll_effective_from, employment_type, employment_start_date, employment_end_date, work_start_time, work_end_time, national_insurance_number, payroll_notes',
     )
     .maybeSingle()
 
@@ -354,6 +381,7 @@ export async function PATCH(
       id: data.id,
       payBasis: data.pay_basis,
       hourlySource: data.hourly_source,
+      workPattern: data.work_pattern,
       hourlyRate: data.hourly_rate,
       annualSalary: data.annual_salary,
       workingHoursPerWeek: data.working_hours_per_week,
