@@ -57,10 +57,42 @@ BEGIN
   END IF;
 END $$;
 
--- Re-apply defaults and CHECK constraints now that columns are plain TEXT.
+-- Normalize existing data first so constraints can be added safely.
+-- Every UPDATE is scoped with a WHERE clause to avoid touching unaffected rows.
 
+UPDATE public.employees
+SET pay_basis = CASE
+  WHEN pay_basis IS NULL OR btrim(pay_basis) = '' THEN 'salaried'
+  WHEN lower(pay_basis) IN ('salaried', 'salary', 'annual', 'fixed', 'fixed-salary') THEN 'salaried'
+  WHEN lower(pay_basis) IN ('hourly', 'hours', 'timeclock', 'clock', 'clocked') THEN 'hourly'
+  ELSE 'salaried'
+END
+WHERE pay_basis IS NULL
+   OR btrim(pay_basis) = ''
+   OR lower(pay_basis) NOT IN ('salaried', 'hourly');
+
+UPDATE public.employees
+SET hourly_source = CASE
+  WHEN hourly_source IS NULL OR btrim(hourly_source) = '' THEN NULL
+  WHEN lower(hourly_source) IN ('contracted', 'contract', 'scheduled') THEN 'contracted'
+  WHEN lower(hourly_source) IN ('timeclock', 'clock', 'clocked', 'hours') THEN 'timeclock'
+  ELSE NULL
+END
+WHERE hourly_source IS NOT NULL
+  AND (
+    btrim(hourly_source) = ''
+    OR lower(hourly_source) NOT IN ('contracted', 'timeclock')
+  );
+
+UPDATE public.employees
+SET salary_currency = 'GBP'
+WHERE salary_currency IS NULL
+   OR btrim(salary_currency) = ''
+   OR length(btrim(salary_currency)) <> 3;
+
+-- Re-apply defaults and CHECK constraints now that values are normalized.
 ALTER TABLE public.employees
-  ALTER COLUMN pay_basis      SET DEFAULT 'salaried',
+  ALTER COLUMN pay_basis SET DEFAULT 'salaried',
   ALTER COLUMN salary_currency SET DEFAULT 'GBP';
 
 DO $$
@@ -85,13 +117,3 @@ BEGIN
       CHECK (hourly_source IS NULL OR hourly_source IN ('contracted', 'timeclock'));
   END IF;
 END $$;
-
--- Backfill any NULL pay_basis rows to the default.
-UPDATE public.employees
-SET pay_basis = 'salaried'
-WHERE pay_basis IS NULL OR btrim(pay_basis) = '';
-
--- Backfill any NULL salary_currency rows.
-UPDATE public.employees
-SET salary_currency = 'GBP'
-WHERE salary_currency IS NULL OR btrim(salary_currency) = '';
