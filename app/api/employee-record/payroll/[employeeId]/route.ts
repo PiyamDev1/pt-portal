@@ -222,9 +222,9 @@ export async function PATCH(
       return apiError('Payroll columns are not available yet. Run latest migration first.', 400)
     }
 
-    if (error.code === '22P02' && message.includes('pay_basis')) {
+    if (error.code === '22P02' && (message.includes('pay_basis') || message.includes('hourly_source') || message.includes('salary_currency'))) {
       return apiError(
-        "Pay basis value is not accepted by your database type. Select Pay Basis again in HR Setup and save, or run the latest migration.",
+        "A payroll column is still using a database enum type. Run migration scripts/migrations/20260416_convert_pay_basis_to_text.sql in Supabase SQL Editor to fix this, then try saving again.",
         400,
       )
     }
