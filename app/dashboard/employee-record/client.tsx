@@ -886,8 +886,28 @@ export default function EmployeeRecordClient({
 
   useEffect(() => {
     if (filteredEmployees.length === 0) return
-    if (filteredEmployees.some((employee) => employee.id === selectedEmployeeId)) return
-    void handleSelectEmployee(filteredEmployees[0].id)
+    const stillValid = filteredEmployees.some((employee) => employee.id === selectedEmployeeId)
+    if (stillValid) return
+    const firstId = filteredEmployees[0].id
+    setSelectedEmployeeId(firstId)
+    const nextEmployee = filteredEmployees[0]
+    setPayrollForm({
+      payBasis: normalizePayBasis(nextEmployee?.pay_basis),
+      hourlySource: normalizeHourlySource(nextEmployee?.hourly_source),
+      hourlyRate: nextEmployee?.hourly_rate?.toString() || '',
+      annualSalary: nextEmployee?.annual_salary?.toString() || '',
+      workingHoursPerWeek: nextEmployee?.working_hours_per_week?.toString() || '',
+      salaryCurrency: nextEmployee?.salary_currency || 'GBP',
+      payrollEffectiveFrom: nextEmployee?.payroll_effective_from || '',
+      employmentType: nextEmployee?.employment_type || '',
+      employmentStartDate: nextEmployee?.employment_start_date || '',
+      employmentEndDate: nextEmployee?.employment_end_date || '',
+      workStartTime: nextEmployee?.work_start_time || '',
+      workEndTime: nextEmployee?.work_end_time || '',
+      nationalInsuranceNumber: nextEmployee?.national_insurance_number || '',
+      payrollNotes: nextEmployee?.payroll_notes || '',
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filteredEmployees, selectedEmployeeId])
 
   useEffect(() => {
@@ -2688,9 +2708,9 @@ export default function EmployeeRecordClient({
                   onChange={(event) => void handleSelectEmployee(event.target.value)}
                   className={fieldClass}
                 >
-                  {employees.map((employee) => (
+                  {filteredEmployees.map((employee) => (
                     <option key={employee.id} value={employee.id}>
-                      {employee.full_name}
+                      {employee.full_name} {employee.location_name ? `— ${employee.location_name}` : ''}
                     </option>
                   ))}
                 </select>
