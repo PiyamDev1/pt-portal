@@ -69,7 +69,7 @@ SET pay_basis = CASE
 END
 WHERE pay_basis IS NULL
    OR btrim(pay_basis) = ''
-   OR lower(pay_basis) NOT IN ('salaried', 'hourly');
+  OR pay_basis NOT IN ('salaried', 'hourly');
 
 UPDATE public.employees
 SET hourly_source = CASE
@@ -81,7 +81,7 @@ END
 WHERE hourly_source IS NOT NULL
   AND (
     btrim(hourly_source) = ''
-    OR lower(hourly_source) NOT IN ('contracted', 'timeclock')
+    OR hourly_source NOT IN ('contracted', 'timeclock')
   );
 
 UPDATE public.employees
