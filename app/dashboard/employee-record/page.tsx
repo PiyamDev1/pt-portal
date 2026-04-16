@@ -83,7 +83,7 @@ export default async function EmployeeRecordPage() {
     const [{ data: employeeRows }, { data: locationRows }] = await Promise.all([
       supabase
         .from('employees')
-        .select('id, full_name, email, is_active, pay_basis, hourly_source, hourly_rate, annual_salary, working_hours_per_week, salary_currency, payroll_effective_from, employment_type, employment_start_date, employment_end_date, work_start_time, work_end_time, national_insurance_number, payroll_notes, locations(id, name, branch_code)')
+        .select('id, full_name, email, is_active, pay_basis, hourly_source, hourly_rate, annual_salary, working_hours_per_week, salary_currency, payroll_effective_from, employment_type, employment_start_date, employment_end_date, work_start_time, work_end_time, national_insurance_number, payroll_notes, work_schedule, statutory_break_paid, company_lunch_break_minutes, company_lunch_break_paid, locations(id, name, branch_code)')
         .order('full_name', { ascending: true }),
       supabase
         .from('locations')
@@ -118,6 +118,10 @@ export default async function EmployeeRecordPage() {
         work_end_time: row.work_end_time,
         national_insurance_number: row.national_insurance_number,
         payroll_notes: row.payroll_notes,
+        work_schedule: row.work_schedule,
+        statutory_break_paid: row.statutory_break_paid,
+        company_lunch_break_minutes: row.company_lunch_break_minutes,
+        company_lunch_break_paid: row.company_lunch_break_paid,
         location_id: loc?.id ?? null,
         location_name: loc?.name ?? null,
         branch_code: loc?.branch_code ?? null,

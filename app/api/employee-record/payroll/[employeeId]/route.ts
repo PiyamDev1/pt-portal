@@ -9,6 +9,15 @@ type PayrollBody = {
   hourlyRate?: number | null
   annualSalary?: number | null
   workingHoursPerWeek?: number | null
+  workSchedule?: Array<{
+    day?: string | null
+    enabled?: boolean | null
+    startTime?: string | null
+    endTime?: string | null
+  }> | null
+  statutoryBreakPaid?: boolean | null
+  companyLunchBreakMinutes?: number | null
+  companyLunchBreakPaid?: boolean | null
   salaryCurrency?: string | null
   payrollEffectiveFrom?: string | null
   employmentType?: string | null
@@ -23,6 +32,14 @@ type PayrollBody = {
 const ALLOWED_EMPLOYMENT_TYPES = ['permanent', 'fixed-term', 'part-time', 'contractor'] as const
 const ALLOWED_PAY_BASIS = ['salaried', 'hourly'] as const
 const ALLOWED_HOURLY_SOURCE = ['contracted', 'timeclock'] as const
+const ALLOWED_WORK_DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const
+
+type WorkScheduleRow = {
+  day: (typeof ALLOWED_WORK_DAYS)[number]
+  enabled: boolean
+  startTime: string | null
+  endTime: string | null
+}
 
 function normalizePayBasis(value: unknown): 'salaried' | 'hourly' | null {
   const raw = String(value || '').trim().toLowerCase()
@@ -83,6 +100,72 @@ function normalizeNationalInsuranceNumber(value: unknown) {
   return raw
 }
 
+function toMinutes(value: string) {
+  const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(String(value || '').trim())
+  if (!match) return null
+  const hours = Number(match[1])
+  const minutes = Number(match[2])
+  return hours * 60 + minutes
+}
+
+function roundTo2(value: number) {
+  return Math.round(value * 100) / 100
+}
+
+function normalizeWorkSchedule(value: PayrollBody['workSchedule']) {
+  if (!Array.isArray(value)) return [] as WorkScheduleRow[]
+
+  const normalized: WorkScheduleRow[] = []
+  for (const row of value) {
+    const day = String(row?.day || '').trim().toLowerCase()
+    if (!ALLOWED_WORK_DAYS.includes(day as (typeof ALLOWED_WORK_DAYS)[number])) continue
+
+    const startTime = normalizeTimeOrNull(row?.startTime)
+    const endTime = normalizeTimeOrNull(row?.endTime)
+    normalized.push({
+      day: day as (typeof ALLOWED_WORK_DAYS)[number],
+      enabled: Boolean(row?.enabled),
+      startTime,
+      endTime,
+    })
+  }
+
+  return normalized.sort(
+    (left, right) => ALLOWED_WORK_DAYS.indexOf(left.day) - ALLOWED_WORK_DAYS.indexOf(right.day),
+  )
+}
+
+function calculatePayableHours(
+  schedule: WorkScheduleRow[],
+  statutoryBreakPaid: boolean,
+  companyLunchBreakMinutes: number,
+  companyLunchBreakPaid: boolean,
+) {
+  let payableHours = 0
+
+  for (const day of schedule) {
+    if (!day.enabled || !day.startTime || !day.endTime) continue
+    const start = toMinutes(day.startTime)
+    const end = toMinutes(day.endTime)
+    if (start === null || end === null || end <= start) continue
+
+    const grossHours = (end - start) / 60
+    let netHours = grossHours
+
+    if (grossHours > 6 && !statutoryBreakPaid) {
+      netHours -= 20 / 60
+    }
+
+    if (companyLunchBreakMinutes > 0 && !companyLunchBreakPaid) {
+      netHours -= companyLunchBreakMinutes / 60
+    }
+
+    payableHours += Math.max(0, netHours)
+  }
+
+  return roundTo2(payableHours)
+}
+
 export async function PATCH(
   request: NextRequest,
   context: { params: Promise<{ employeeId: string }> },
@@ -103,7 +186,17 @@ export async function PATCH(
 
   const hourlyRate = toNumberOrNull(body.hourlyRate)
   const annualSalary = toNumberOrNull(body.annualSalary)
-  const workingHoursPerWeek = toNumberOrNull(body.workingHoursPerWeek)
+  const statutoryBreakPaid = Boolean(body.statutoryBreakPaid ?? false)
+  const companyLunchBreakMinutes = toNumberOrNull(body.companyLunchBreakMinutes)
+  const companyLunchBreakPaid = Boolean(body.companyLunchBreakPaid ?? false)
+  const workSchedule = normalizeWorkSchedule(body.workSchedule)
+  const derivedWorkingHoursPerWeek = calculatePayableHours(
+    workSchedule,
+    statutoryBreakPaid,
+    companyLunchBreakMinutes !== null && companyLunchBreakMinutes > 0 ? companyLunchBreakMinutes : 0,
+    companyLunchBreakPaid,
+  )
+  const workingHoursPerWeek = workSchedule.length > 0 ? derivedWorkingHoursPerWeek : toNumberOrNull(body.workingHoursPerWeek)
   const salaryCurrency = normalizeCurrency(body.salaryCurrency)
   const payrollEffectiveFrom = toIsoDateOrNull(body.payrollEffectiveFrom)
   const employmentType = body.employmentType ? String(body.employmentType).trim() : null
@@ -143,6 +236,10 @@ export async function PATCH(
 
   if (workingHoursPerWeek !== null && (workingHoursPerWeek < 0 || workingHoursPerWeek > 168)) {
     return apiError('Working hours per week must be between 0 and 168', 400)
+  }
+
+  if (companyLunchBreakMinutes !== null && (companyLunchBreakMinutes < 0 || companyLunchBreakMinutes > 180)) {
+    return apiError('Company lunch break must be between 0 and 180 minutes', 400)
   }
 
   if (payBasis === 'salaried' && annualSalary === null) {
@@ -189,19 +286,35 @@ export async function PATCH(
     return apiError('Work finish time must be after start time', 400)
   }
 
+  for (const row of workSchedule) {
+    if (!row.enabled) continue
+    if (!row.startTime || !row.endTime) {
+      return apiError(`Each enabled work day must have a start and finish time`, 400)
+    }
+    if (row.endTime <= row.startTime) {
+      return apiError(`Each enabled work day must finish after it starts`, 400)
+    }
+  }
+
+  const firstEnabledDay = workSchedule.find((row) => row.enabled && row.startTime && row.endTime)
+
   const updatePayload = {
     pay_basis: payBasis,
     hourly_source: payBasis === 'hourly' ? hourlySource : null,
     hourly_rate: hourlyRate,
     annual_salary: annualSalary,
     working_hours_per_week: workingHoursPerWeek,
+    work_schedule: workSchedule,
+    statutory_break_paid: statutoryBreakPaid,
+    company_lunch_break_minutes: companyLunchBreakMinutes,
+    company_lunch_break_paid: companyLunchBreakPaid,
     salary_currency: salaryCurrency,
     payroll_effective_from: payrollEffectiveFrom,
     employment_type: employmentType,
     employment_start_date: employmentStartDate,
     employment_end_date: employmentEndDate,
-    work_start_time: workStartTime,
-    work_end_time: workEndTime,
+    work_start_time: firstEnabledDay?.startTime ?? workStartTime,
+    work_end_time: firstEnabledDay?.endTime ?? workEndTime,
     national_insurance_number: nationalInsuranceNumber,
     payroll_notes: payrollNotes,
   }
@@ -212,7 +325,7 @@ export async function PATCH(
     .update(updatePayload)
     .eq('id', normalizedEmployeeId)
     .select(
-      'id, pay_basis, hourly_source, hourly_rate, annual_salary, working_hours_per_week, salary_currency, payroll_effective_from, employment_type, employment_start_date, employment_end_date, work_start_time, work_end_time, national_insurance_number, payroll_notes',
+      'id, pay_basis, hourly_source, hourly_rate, annual_salary, working_hours_per_week, work_schedule, statutory_break_paid, company_lunch_break_minutes, company_lunch_break_paid, salary_currency, payroll_effective_from, employment_type, employment_start_date, employment_end_date, work_start_time, work_end_time, national_insurance_number, payroll_notes',
     )
     .maybeSingle()
 
@@ -244,6 +357,10 @@ export async function PATCH(
       hourlyRate: data.hourly_rate,
       annualSalary: data.annual_salary,
       workingHoursPerWeek: data.working_hours_per_week,
+      workSchedule: data.work_schedule,
+      statutoryBreakPaid: data.statutory_break_paid,
+      companyLunchBreakMinutes: data.company_lunch_break_minutes,
+      companyLunchBreakPaid: data.company_lunch_break_paid,
       salaryCurrency: data.salary_currency,
       payrollEffectiveFrom: data.payroll_effective_from,
       employmentType: data.employment_type,

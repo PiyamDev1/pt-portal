@@ -37,7 +37,33 @@ export type EmployeeSummary = {
   location_id?: string | null
   location_name?: string | null
   branch_code?: string | null
+  work_schedule?:
+    | Array<{ day: string; enabled: boolean; startTime: string | null; endTime: string | null }>
+    | null
+  statutory_break_paid?: boolean | null
+  company_lunch_break_minutes?: number | null
+  company_lunch_break_paid?: boolean | null
 }
+
+type WorkDayKey = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun'
+
+type WorkDaySchedule = {
+  day: WorkDayKey
+  label: string
+  enabled: boolean
+  startTime: string
+  endTime: string
+}
+
+const WORK_DAY_ORDER: Array<{ day: WorkDayKey; label: string }> = [
+  { day: 'mon', label: 'Mon' },
+  { day: 'tue', label: 'Tue' },
+  { day: 'wed', label: 'Wed' },
+  { day: 'thu', label: 'Thu' },
+  { day: 'fri', label: 'Fri' },
+  { day: 'sat', label: 'Sat' },
+  { day: 'sun', label: 'Sun' },
+]
 
 type EmployeePolicy = {
   sickPayMode: 'none' | 'statutory' | 'full'
@@ -161,6 +187,122 @@ function normalizeHourlySource(value: string | null | undefined): 'contracted' |
   const raw = String(value || '').trim().toLowerCase()
   if (['timeclock', 'clock', 'clocked'].includes(raw)) return 'timeclock'
   return 'contracted'
+}
+
+function toMinutes(value: string) {
+  const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(String(value || '').trim())
+  if (!match) return null
+  const hours = Number(match[1])
+  const minutes = Number(match[2])
+  return hours * 60 + minutes
+}
+
+function createDefaultWorkSchedule(
+  fallbackStartTime: string | null | undefined,
+  fallbackEndTime: string | null | undefined,
+) {
+  const startTime = toMinutes(String(fallbackStartTime || '')) !== null ? String(fallbackStartTime) : '09:00'
+  const endTime = toMinutes(String(fallbackEndTime || '')) !== null ? String(fallbackEndTime) : '17:00'
+  return WORK_DAY_ORDER.map((item, index) => ({
+    day: item.day,
+    label: item.label,
+    enabled: index < 5,
+    startTime,
+    endTime,
+  }))
+}
+
+function normalizeWorkSchedule(
+  value: EmployeeSummary['work_schedule'],
+  fallbackStartTime: string | null | undefined,
+  fallbackEndTime: string | null | undefined,
+) {
+  const defaults = createDefaultWorkSchedule(fallbackStartTime, fallbackEndTime)
+  if (!Array.isArray(value)) return defaults
+
+  const byDay = new Map<WorkDayKey, WorkDaySchedule>()
+  for (const row of value) {
+    const day = String(row?.day || '').trim().toLowerCase() as WorkDayKey
+    if (!WORK_DAY_ORDER.some((item) => item.day === day)) continue
+    const startTime = toMinutes(String(row?.startTime || '')) !== null ? String(row?.startTime) : defaults.find((d) => d.day === day)?.startTime || '09:00'
+    const endTime = toMinutes(String(row?.endTime || '')) !== null ? String(row?.endTime) : defaults.find((d) => d.day === day)?.endTime || '17:00'
+    byDay.set(day, {
+      day,
+      label: defaults.find((d) => d.day === day)?.label || day.toUpperCase(),
+      enabled: Boolean(row?.enabled),
+      startTime,
+      endTime,
+    })
+  }
+
+  return defaults.map((item) => byDay.get(item.day) || item)
+}
+
+function roundTo2(value: number) {
+  return Math.round(value * 100) / 100
+}
+
+function calculateWeeklyWorkSummary(
+  schedule: WorkDaySchedule[],
+  statutoryBreakPaid: boolean,
+  companyLunchBreakMinutes: number,
+  companyLunchBreakPaid: boolean,
+) {
+  let scheduledHours = 0
+  let payableHours = 0
+
+  for (const day of schedule) {
+    if (!day.enabled) continue
+    const start = toMinutes(day.startTime)
+    const end = toMinutes(day.endTime)
+    if (start === null || end === null || end <= start) continue
+
+    const grossHours = (end - start) / 60
+    let netHours = grossHours
+
+    if (grossHours > 6 && !statutoryBreakPaid) {
+      netHours -= 20 / 60
+    }
+
+    if (companyLunchBreakMinutes > 0 && !companyLunchBreakPaid) {
+      netHours -= companyLunchBreakMinutes / 60
+    }
+
+    scheduledHours += grossHours
+    payableHours += Math.max(0, netHours)
+  }
+
+  return {
+    scheduledHours: roundTo2(scheduledHours),
+    payableHours: roundTo2(payableHours),
+  }
+}
+
+function createPayrollFormState(employee: EmployeeSummary | null | undefined) {
+  return {
+    payBasis: normalizePayBasis(employee?.pay_basis),
+    hourlySource: normalizeHourlySource(employee?.hourly_source),
+    hourlyRate: employee?.hourly_rate?.toString() || '',
+    annualSalary: employee?.annual_salary?.toString() || '',
+    workingHoursPerWeek: employee?.working_hours_per_week?.toString() || '',
+    salaryCurrency: employee?.salary_currency || 'GBP',
+    payrollEffectiveFrom: employee?.payroll_effective_from || '',
+    employmentType: employee?.employment_type || '',
+    employmentStartDate: employee?.employment_start_date || '',
+    employmentEndDate: employee?.employment_end_date || '',
+    workStartTime: employee?.work_start_time || '',
+    workEndTime: employee?.work_end_time || '',
+    nationalInsuranceNumber: employee?.national_insurance_number || '',
+    payrollNotes: employee?.payroll_notes || '',
+    workSchedule: normalizeWorkSchedule(
+      employee?.work_schedule || null,
+      employee?.work_start_time,
+      employee?.work_end_time,
+    ),
+    statutoryBreakPaid: Boolean(employee?.statutory_break_paid ?? false),
+    companyLunchBreakMinutes: String(employee?.company_lunch_break_minutes ?? 30),
+    companyLunchBreakPaid: Boolean(employee?.company_lunch_break_paid ?? false),
+  }
 }
 
 function getMonthBounds(month: string) {
@@ -383,22 +525,7 @@ export default function EmployeeRecordClient({
     return employees.filter((employee) => employee.location_id === selectedBranch)
   }, [employees, selectedBranch])
 
-  const [payrollForm, setPayrollForm] = useState({
-    payBasis: normalizePayBasis(selectedEmployee?.pay_basis),
-    hourlySource: normalizeHourlySource(selectedEmployee?.hourly_source),
-    hourlyRate: selectedEmployee?.hourly_rate?.toString() || '',
-    annualSalary: selectedEmployee?.annual_salary?.toString() || '',
-    workingHoursPerWeek: selectedEmployee?.working_hours_per_week?.toString() || '',
-    salaryCurrency: selectedEmployee?.salary_currency || 'GBP',
-    payrollEffectiveFrom: selectedEmployee?.payroll_effective_from || '',
-    employmentType: selectedEmployee?.employment_type || '',
-    employmentStartDate: selectedEmployee?.employment_start_date || '',
-    employmentEndDate: selectedEmployee?.employment_end_date || '',
-    workStartTime: selectedEmployee?.work_start_time || '',
-    workEndTime: selectedEmployee?.work_end_time || '',
-    nationalInsuranceNumber: selectedEmployee?.national_insurance_number || '',
-    payrollNotes: selectedEmployee?.payroll_notes || '',
-  })
+  const [payrollForm, setPayrollForm] = useState(() => createPayrollFormState(selectedEmployee))
 
   const [policyForm, setPolicyForm] = useState<EmployeePolicy>({
     sickPayMode: 'statutory',
@@ -427,22 +554,50 @@ export default function EmployeeRecordClient({
   })
   const [recommendedPolicy, setRecommendedPolicy] = useState<EmployeePolicy | null>(null)
 
+  const weeklyWorkSummary = useMemo(() => {
+    const lunchMinutesRaw = toNumberOrNull(payrollForm.companyLunchBreakMinutes)
+    const companyLunchBreakMinutes = lunchMinutesRaw !== null && lunchMinutesRaw > 0 ? lunchMinutesRaw : 0
+    return calculateWeeklyWorkSummary(
+      payrollForm.workSchedule,
+      payrollForm.statutoryBreakPaid,
+      companyLunchBreakMinutes,
+      payrollForm.companyLunchBreakPaid,
+    )
+  }, [
+    payrollForm.companyLunchBreakMinutes,
+    payrollForm.companyLunchBreakPaid,
+    payrollForm.statutoryBreakPaid,
+    payrollForm.workSchedule,
+  ])
+
+  const effectiveWorkingHoursPerWeek = useMemo(() => {
+    if (weeklyWorkSummary.payableHours > 0) return weeklyWorkSummary.payableHours
+    return toNumberOrNull(payrollForm.workingHoursPerWeek)
+  }, [payrollForm.workingHoursPerWeek, weeklyWorkSummary.payableHours])
+
   const compensationSummary = useMemo(() => {
-    const hoursPerWeek = toNumberOrNull(payrollForm.workingHoursPerWeek)
+    const hoursPerWeek = effectiveWorkingHoursPerWeek
     const hourlyRate = toNumberOrNull(payrollForm.hourlyRate)
     const annualSalary = toNumberOrNull(payrollForm.annualSalary)
 
     const weeklyFromHourly =
       hourlyRate !== null && hoursPerWeek !== null ? hourlyRate * hoursPerWeek : null
     const yearlyFromHourly = weeklyFromHourly !== null ? weeklyFromHourly * 52 : null
+    const monthlyFromHourly = yearlyFromHourly !== null ? yearlyFromHourly / 12 : null
     const monthlyFromAnnual = annualSalary !== null ? annualSalary / 12 : null
+    const hourlyFromAnnual =
+      annualSalary !== null && hoursPerWeek !== null && hoursPerWeek > 0
+        ? annualSalary / 52 / hoursPerWeek
+        : null
 
     return {
       weeklyFromHourly,
       yearlyFromHourly,
+      monthlyFromHourly,
       monthlyFromAnnual,
+      hourlyFromAnnual,
     }
-  }, [payrollForm.annualSalary, payrollForm.hourlyRate, payrollForm.workingHoursPerWeek])
+  }, [effectiveWorkingHoursPerWeek, payrollForm.annualSalary, payrollForm.hourlyRate])
 
   const monthDays = useMemo(() => getMonthBounds(calendarMonth), [calendarMonth])
   const monthGridDays = useMemo(() => getMonthGridDays(calendarMonth), [calendarMonth])
@@ -671,22 +826,7 @@ export default function EmployeeRecordClient({
   const handleSelectEmployee = async (employeeId: string) => {
     setSelectedEmployeeId(employeeId)
     const nextEmployee = employees.find((employee) => employee.id === employeeId)
-    setPayrollForm({
-      payBasis: normalizePayBasis(nextEmployee?.pay_basis),
-      hourlySource: normalizeHourlySource(nextEmployee?.hourly_source),
-      hourlyRate: nextEmployee?.hourly_rate?.toString() || '',
-      annualSalary: nextEmployee?.annual_salary?.toString() || '',
-      workingHoursPerWeek: nextEmployee?.working_hours_per_week?.toString() || '',
-      salaryCurrency: nextEmployee?.salary_currency || 'GBP',
-      payrollEffectiveFrom: nextEmployee?.payroll_effective_from || '',
-      employmentType: nextEmployee?.employment_type || '',
-      employmentStartDate: nextEmployee?.employment_start_date || '',
-      employmentEndDate: nextEmployee?.employment_end_date || '',
-      workStartTime: nextEmployee?.work_start_time || '',
-      workEndTime: nextEmployee?.work_end_time || '',
-      nationalInsuranceNumber: nextEmployee?.national_insurance_number || '',
-      payrollNotes: nextEmployee?.payroll_notes || '',
-    })
+    setPayrollForm(createPayrollFormState(nextEmployee))
 
     try {
       await refreshDocuments(employeeId)
@@ -891,22 +1031,7 @@ export default function EmployeeRecordClient({
     const firstId = filteredEmployees[0].id
     setSelectedEmployeeId(firstId)
     const nextEmployee = filteredEmployees[0]
-    setPayrollForm({
-      payBasis: normalizePayBasis(nextEmployee?.pay_basis),
-      hourlySource: normalizeHourlySource(nextEmployee?.hourly_source),
-      hourlyRate: nextEmployee?.hourly_rate?.toString() || '',
-      annualSalary: nextEmployee?.annual_salary?.toString() || '',
-      workingHoursPerWeek: nextEmployee?.working_hours_per_week?.toString() || '',
-      salaryCurrency: nextEmployee?.salary_currency || 'GBP',
-      payrollEffectiveFrom: nextEmployee?.payroll_effective_from || '',
-      employmentType: nextEmployee?.employment_type || '',
-      employmentStartDate: nextEmployee?.employment_start_date || '',
-      employmentEndDate: nextEmployee?.employment_end_date || '',
-      workStartTime: nextEmployee?.work_start_time || '',
-      workEndTime: nextEmployee?.work_end_time || '',
-      nationalInsuranceNumber: nextEmployee?.national_insurance_number || '',
-      payrollNotes: nextEmployee?.payroll_notes || '',
-    })
+    setPayrollForm(createPayrollFormState(nextEmployee))
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filteredEmployees, selectedEmployeeId])
 
@@ -959,7 +1084,8 @@ export default function EmployeeRecordClient({
 
     const hourlyRate = toNumberOrNull(payrollForm.hourlyRate)
     const annualSalary = toNumberOrNull(payrollForm.annualSalary)
-    const hoursPerWeek = toNumberOrNull(payrollForm.workingHoursPerWeek)
+    const hoursPerWeek = effectiveWorkingHoursPerWeek
+    const companyLunchBreakMinutes = toNumberOrNull(payrollForm.companyLunchBreakMinutes)
 
     if (payrollForm.payBasis === 'salaried' && annualSalary === null) {
       setPayrollError('Base pay required: enter Annual Salary for a salaried employee.')
@@ -983,6 +1109,11 @@ export default function EmployeeRecordClient({
 
     if (hoursPerWeek !== null && (hoursPerWeek < 0 || hoursPerWeek > 168)) {
       setPayrollError('Working hours per week must be between 0 and 168')
+      return
+    }
+
+    if (companyLunchBreakMinutes !== null && (companyLunchBreakMinutes < 0 || companyLunchBreakMinutes > 180)) {
+      setPayrollError('Company lunch break must be between 0 and 180 minutes')
       return
     }
 
@@ -1019,7 +1150,16 @@ export default function EmployeeRecordClient({
               : null,
           hourlyRate: payrollForm.hourlyRate,
           annualSalary: payrollForm.annualSalary,
-          workingHoursPerWeek: payrollForm.workingHoursPerWeek,
+          workingHoursPerWeek: hoursPerWeek,
+          workSchedule: payrollForm.workSchedule.map((day) => ({
+            day: day.day,
+            enabled: day.enabled,
+            startTime: day.startTime || null,
+            endTime: day.endTime || null,
+          })),
+          statutoryBreakPaid: payrollForm.statutoryBreakPaid,
+          companyLunchBreakMinutes: payrollForm.companyLunchBreakMinutes,
+          companyLunchBreakPaid: payrollForm.companyLunchBreakPaid,
           salaryCurrency: payrollForm.salaryCurrency,
           payrollEffectiveFrom: payrollForm.payrollEffectiveFrom || null,
           employmentType: payrollForm.employmentType,
@@ -1048,6 +1188,10 @@ export default function EmployeeRecordClient({
                 hourly_rate: updated.hourlyRate ?? null,
                 annual_salary: updated.annualSalary ?? null,
                 working_hours_per_week: updated.workingHoursPerWeek ?? null,
+                work_schedule: updated.workSchedule ?? null,
+                statutory_break_paid: updated.statutoryBreakPaid ?? false,
+                company_lunch_break_minutes: updated.companyLunchBreakMinutes ?? 30,
+                company_lunch_break_paid: updated.companyLunchBreakPaid ?? false,
                 salary_currency: updated.salaryCurrency ?? 'GBP',
                 payroll_effective_from: updated.payrollEffectiveFrom ?? null,
                 employment_type: updated.employmentType ?? null,
@@ -1062,6 +1206,11 @@ export default function EmployeeRecordClient({
         ),
       )
 
+      setPayrollForm((current) => ({
+        ...current,
+        workingHoursPerWeek: updated.workingHoursPerWeek != null ? String(updated.workingHoursPerWeek) : current.workingHoursPerWeek,
+      }))
+
       toast.success('Payroll details updated')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to save payroll details')
@@ -1069,6 +1218,23 @@ export default function EmployeeRecordClient({
     } finally {
       setSavingPayroll(false)
     }
+  }
+
+  const updateWorkScheduleDay = (
+    day: WorkDayKey,
+    updates: Partial<Pick<WorkDaySchedule, 'enabled' | 'startTime' | 'endTime'>>,
+  ) => {
+    setPayrollForm((current) => ({
+      ...current,
+      workSchedule: current.workSchedule.map((row) =>
+        row.day === day
+          ? {
+              ...row,
+              ...updates,
+            }
+          : row,
+      ),
+    }))
   }
 
   const handleSavePolicy = async () => {
@@ -1482,128 +1648,6 @@ export default function EmployeeRecordClient({
               </label>
 
               <label className="text-sm text-slate-700">
-                Pay Basis
-                <select
-                  value={payrollForm.payBasis}
-                  onChange={(event) =>
-                    setPayrollForm((current) => ({
-                      ...current,
-                      payBasis: event.target.value as 'salaried' | 'hourly',
-                    }))
-                  }
-                  className={fieldClass}
-                >
-                  <option value="salaried">Salaried (Annual)</option>
-                  <option value="hourly">Hourly</option>
-                </select>
-                <p className={helpTextClass}>
-                  Required. If salaried, annual salary must be filled. If hourly, hourly rate must be filled.
-                </p>
-              </label>
-
-              <div className="md:col-span-2 rounded-lg border border-slate-200 bg-white p-3">
-                <p className="text-sm font-bold text-slate-900">2) Working Days and Hours</p>
-                <p className="mt-1 text-xs text-slate-500">
-                  Define standard hours and daily timings so leave, attendance, and payroll calculations align.
-                </p>
-              </div>
-
-              {payrollForm.payBasis === 'hourly' && (
-                <label className="text-sm text-slate-700">
-                  Hour Source
-                  <select
-                    value={payrollForm.hourlySource}
-                    onChange={(event) =>
-                      setPayrollForm((current) => ({
-                        ...current,
-                        hourlySource: event.target.value as 'contracted' | 'timeclock',
-                      }))
-                    }
-                    className={fieldClass}
-                  >
-                    <option value="contracted">Contracted Hours</option>
-                    <option value="timeclock">Timeclock Punches</option>
-                  </select>
-                  <p className={helpTextClass}>Choose where payable hours come from each period.</p>
-                </label>
-              )}
-
-              <label className="text-sm text-slate-700">
-                Annual Salary (GBP)
-                <input
-                  type="number"
-                  step="0.01"
-                  value={payrollForm.annualSalary}
-                  onChange={(event) =>
-                    setPayrollForm((current) => ({ ...current, annualSalary: event.target.value }))
-                  }
-                  className={fieldClass}
-                />
-                <p className={helpTextClass}>Required when pay basis is Salaried.</p>
-              </label>
-
-              <label className="text-sm text-slate-700">
-                Hourly Rate (GBP)
-                <input
-                  type="number"
-                  step="0.01"
-                  value={payrollForm.hourlyRate}
-                  onChange={(event) =>
-                    setPayrollForm((current) => ({ ...current, hourlyRate: event.target.value }))
-                  }
-                  className={fieldClass}
-                />
-                <p className={helpTextClass}>Required when pay basis is Hourly.</p>
-              </label>
-
-              <label className="text-sm text-slate-700">
-                Working Hours / Week
-                <input
-                  type="number"
-                  step="0.5"
-                  value={payrollForm.workingHoursPerWeek}
-                  onChange={(event) =>
-                    setPayrollForm((current) => ({ ...current, workingHoursPerWeek: event.target.value }))
-                  }
-                  className={fieldClass}
-                />
-                <p className={helpTextClass}>Used for annualized hourly estimates and leave pro-rating.</p>
-              </label>
-
-              <label className="text-sm text-slate-700">
-                Salary Currency
-                <input
-                  type="text"
-                  maxLength={3}
-                  value={payrollForm.salaryCurrency}
-                  onChange={(event) =>
-                    setPayrollForm((current) => ({
-                      ...current,
-                      salaryCurrency: event.target.value.toUpperCase(),
-                    }))
-                  }
-                  className={fieldClass}
-                />
-                <p className={helpTextClass}>Use ISO code (for UK payroll this is usually GBP).</p>
-              </label>
-
-              <label className="text-sm text-slate-700">
-                Payroll Effective From
-                <input
-                  type="date"
-                  value={payrollForm.payrollEffectiveFrom}
-                  onChange={(event) =>
-                    setPayrollForm((current) => ({
-                      ...current,
-                      payrollEffectiveFrom: event.target.value,
-                    }))
-                  }
-                  className={fieldClass}
-                />
-                <p className={helpTextClass}>Date this setup starts being used for payroll runs.</p>
-              </label>
-
-              <label className="text-sm text-slate-700">
                 Employment Start Date
                 <input
                   type="date"
@@ -1627,39 +1671,6 @@ export default function EmployeeRecordClient({
                 />
               </label>
 
-              <label className="text-sm text-slate-700">
-                Work Start Time
-                <input
-                  type="time"
-                  value={payrollForm.workStartTime}
-                  onChange={(event) =>
-                    setPayrollForm((current) => ({ ...current, workStartTime: event.target.value }))
-                  }
-                  className={fieldClass}
-                />
-                <p className={helpTextClass}>Normal daily shift start used for scheduling and leave context.</p>
-              </label>
-
-              <label className="text-sm text-slate-700">
-                Work Finish Time
-                <input
-                  type="time"
-                  value={payrollForm.workEndTime}
-                  onChange={(event) =>
-                    setPayrollForm((current) => ({ ...current, workEndTime: event.target.value }))
-                  }
-                  className={fieldClass}
-                />
-                <p className={helpTextClass}>Must be later than start time.</p>
-              </label>
-
-              <div className="md:col-span-2 rounded-lg border border-slate-200 bg-white p-3">
-                <p className="text-sm font-bold text-slate-900">3) Pay and Role Model</p>
-                <p className="mt-1 text-xs text-slate-500">
-                  Finalize the employee's pay model and effective payroll settings before saving payroll details.
-                </p>
-              </div>
-
               <label className="text-sm text-slate-700 md:col-span-2">
                 National Insurance Number
                 <input
@@ -1678,7 +1689,266 @@ export default function EmployeeRecordClient({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-4">
+            <div className="rounded-lg border border-slate-200 bg-white p-3">
+                <p className="text-sm font-bold text-slate-900">2) Working Days and Hours</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Set the weekly schedule once. Working hours are calculated from this grid and stored in the database.
+                </p>
+              </div>
+
+            <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+              <div className="min-w-[760px]">
+                <div className="grid grid-cols-[90px_120px_1fr_1fr_150px] gap-x-3 border-b border-slate-200 bg-slate-50 px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  <span>Day</span>
+                  <span>Working</span>
+                  <span>Start</span>
+                  <span>Finish</span>
+                  <span>Gross hours</span>
+                </div>
+                {payrollForm.workSchedule.map((day) => {
+                  const startMinutes = toMinutes(day.startTime)
+                  const endMinutes = toMinutes(day.endTime)
+                  const grossHours =
+                    day.enabled && startMinutes !== null && endMinutes !== null && endMinutes > startMinutes
+                      ? roundTo2((endMinutes - startMinutes) / 60)
+                      : 0
+
+                  return (
+                    <div
+                      key={day.day}
+                      className="grid grid-cols-[90px_120px_1fr_1fr_150px] items-center gap-x-3 border-b border-slate-100 px-4 py-3 text-sm text-slate-700 last:border-b-0"
+                    >
+                      <span className="font-semibold text-slate-900">{day.label}</span>
+                      <label className="inline-flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={day.enabled}
+                          onChange={(event) => updateWorkScheduleDay(day.day, { enabled: event.target.checked })}
+                          className="h-4 w-4 rounded border-slate-300"
+                        />
+                        <span>{day.enabled ? 'On' : 'Off'}</span>
+                      </label>
+                      <input
+                        type="time"
+                        value={day.startTime}
+                        disabled={!day.enabled}
+                        onChange={(event) => updateWorkScheduleDay(day.day, { startTime: event.target.value })}
+                        className={`${fieldClass} mt-0 disabled:bg-slate-100 disabled:text-slate-400`}
+                      />
+                      <input
+                        type="time"
+                        value={day.endTime}
+                        disabled={!day.enabled}
+                        onChange={(event) => updateWorkScheduleDay(day.day, { endTime: event.target.value })}
+                        className={`${fieldClass} mt-0 disabled:bg-slate-100 disabled:text-slate-400`}
+                      />
+                      <span className="font-semibold text-slate-900">{grossHours > 0 ? `${grossHours} hrs` : '-'}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
+                <p className="text-sm font-bold text-slate-900">Break rules</p>
+                <label className="inline-flex items-start gap-2 text-sm text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={payrollForm.statutoryBreakPaid}
+                    onChange={(event) =>
+                      setPayrollForm((current) => ({ ...current, statutoryBreakPaid: event.target.checked }))
+                    }
+                    className="mt-0.5 h-4 w-4 rounded border-slate-300"
+                  />
+                  <span>
+                    20-minute statutory break is paid
+                    <span className="mt-1 block text-xs text-slate-500">
+                      UK rule: if a scheduled shift is more than 6 hours, a 20 minute break must be given.
+                    </span>
+                  </span>
+                </label>
+
+                <label className="text-sm text-slate-700">
+                  Company lunch break (minutes)
+                  <input
+                    type="number"
+                    min={0}
+                    max={180}
+                    step="5"
+                    value={payrollForm.companyLunchBreakMinutes}
+                    onChange={(event) =>
+                      setPayrollForm((current) => ({ ...current, companyLunchBreakMinutes: event.target.value }))
+                    }
+                    className={fieldClass}
+                  />
+                  <p className={helpTextClass}>Default is unpaid. Set to 0 if the company lunch break does not apply.</p>
+                </label>
+
+                <label className="inline-flex items-start gap-2 text-sm text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={payrollForm.companyLunchBreakPaid}
+                    onChange={(event) =>
+                      setPayrollForm((current) => ({ ...current, companyLunchBreakPaid: event.target.checked }))
+                    }
+                    className="mt-0.5 h-4 w-4 rounded border-slate-300"
+                  />
+                  <span>
+                    Company lunch break is paid
+                    <span className="mt-1 block text-xs text-slate-500">
+                      Leave this unticked if lunch should be deducted from payable hours.
+                    </span>
+                  </span>
+                </label>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white p-4">
+                <p className="text-[11px] uppercase font-semibold text-slate-500">Scheduled Hours / Week</p>
+                <p className="mt-2 text-3xl font-black text-slate-900">{weeklyWorkSummary.scheduledHours}</p>
+                <p className="mt-1 text-xs text-slate-500">Before unpaid statutory or lunch deductions.</p>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white p-4">
+                <p className="text-[11px] uppercase font-semibold text-slate-500">Payable Hours / Week</p>
+                <p className="mt-2 text-3xl font-black text-slate-900">{weeklyWorkSummary.payableHours}</p>
+                <p className="mt-1 text-xs text-slate-500">Stored as Working Hours / Week for payroll calculations.</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-4">
+            <div className="rounded-lg border border-slate-200 bg-white p-3">
+                <p className="text-sm font-bold text-slate-900">3) Pay and Role Model</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Use the calculated weekly hours to estimate salary or hourly cost automatically.
+                </p>
+              </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <label className="text-sm text-slate-700">
+                Pay Basis
+                <select
+                  value={payrollForm.payBasis}
+                  onChange={(event) =>
+                    setPayrollForm((current) => ({
+                      ...current,
+                      payBasis: event.target.value as 'salaried' | 'hourly',
+                    }))
+                  }
+                  className={fieldClass}
+                >
+                  <option value="salaried">Salaried (Annual)</option>
+                  <option value="hourly">Hourly</option>
+                </select>
+                <p className={helpTextClass}>Choose whether payroll is led by annual salary or hourly rate.</p>
+              </label>
+
+              {payrollForm.payBasis === 'hourly' ? (
+                <label className="text-sm text-slate-700">
+                  Hour Source
+                  <select
+                    value={payrollForm.hourlySource}
+                    onChange={(event) =>
+                      setPayrollForm((current) => ({
+                        ...current,
+                        hourlySource: event.target.value as 'contracted' | 'timeclock',
+                      }))
+                    }
+                    className={fieldClass}
+                  >
+                    <option value="contracted">Contracted Hours</option>
+                    <option value="timeclock">Timeclock Punches</option>
+                  </select>
+                  <p className={helpTextClass}>Choose where payable hours come from each period.</p>
+                </label>
+              ) : (
+                <div className="hidden md:block" />
+              )}
+
+              <label className="text-sm text-slate-700">
+                Salary Currency
+                <input
+                  type="text"
+                  maxLength={3}
+                  value={payrollForm.salaryCurrency}
+                  onChange={(event) =>
+                    setPayrollForm((current) => ({
+                      ...current,
+                      salaryCurrency: event.target.value.toUpperCase(),
+                    }))
+                  }
+                  className={fieldClass}
+                />
+                <p className={helpTextClass}>Use ISO code. For UK payroll this is normally GBP.</p>
+              </label>
+
+              {payrollForm.payBasis === 'salaried' ? (
+                <label className="text-sm text-slate-700">
+                  Annual Salary (GBP)
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={payrollForm.annualSalary}
+                    onChange={(event) =>
+                      setPayrollForm((current) => ({ ...current, annualSalary: event.target.value }))
+                    }
+                    className={fieldClass}
+                  />
+                  <p className={helpTextClass}>Enter the agreed annual salary. Hourly equivalent is calculated below.</p>
+                </label>
+              ) : (
+                <label className="text-sm text-slate-700">
+                  Hourly Rate (GBP)
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={payrollForm.hourlyRate}
+                    onChange={(event) =>
+                      setPayrollForm((current) => ({ ...current, hourlyRate: event.target.value }))
+                    }
+                    className={fieldClass}
+                  />
+                  <p className={helpTextClass}>Annual and monthly estimate are calculated from the weekly schedule.</p>
+                </label>
+              )}
+
+              <label className="text-sm text-slate-700">
+                Working Hours / Week
+                <input
+                  type="number"
+                  step="0.01"
+                  value={effectiveWorkingHoursPerWeek ?? ''}
+                  readOnly
+                  className={`${fieldClass} bg-slate-50`}
+                />
+                <p className={helpTextClass}>Automatically calculated from the 7-day schedule and break settings.</p>
+              </label>
+
+              <label className="text-sm text-slate-700">
+                Payroll Effective From
+                <input
+                  type="date"
+                  value={payrollForm.payrollEffectiveFrom}
+                  onChange={(event) =>
+                    setPayrollForm((current) => ({
+                      ...current,
+                      payrollEffectiveFrom: event.target.value,
+                    }))
+                  }
+                  className={fieldClass}
+                />
+                <p className={helpTextClass}>Date this setup starts being used for payroll runs.</p>
+              </label>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-3">
+              <p className="text-[11px] uppercase font-semibold text-slate-500">Payable Hours / Week</p>
+              <p className="mt-1 text-base font-black text-slate-900">{effectiveWorkingHoursPerWeek ?? 'Not set'}</p>
+            </div>
             <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-3">
               <p className="text-[11px] uppercase font-semibold text-slate-500">Weekly Estimate</p>
               <p className="mt-1 text-base font-black text-slate-900">
@@ -1686,15 +1956,25 @@ export default function EmployeeRecordClient({
               </p>
             </div>
             <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-3">
-              <p className="text-[11px] uppercase font-semibold text-slate-500">Yearly from Hourly</p>
+              <p className="text-[11px] uppercase font-semibold text-slate-500">Monthly Estimate</p>
               <p className="mt-1 text-base font-black text-slate-900">
-                {formatCurrency(compensationSummary.yearlyFromHourly)}
+                {formatCurrency(
+                  payrollForm.payBasis === 'hourly'
+                    ? compensationSummary.monthlyFromHourly
+                    : compensationSummary.monthlyFromAnnual,
+                )}
               </p>
             </div>
             <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-3">
-              <p className="text-[11px] uppercase font-semibold text-slate-500">Monthly from Salary</p>
+              <p className="text-[11px] uppercase font-semibold text-slate-500">
+                {payrollForm.payBasis === 'hourly' ? 'Yearly Estimate' : 'Hourly Equivalent'}
+              </p>
               <p className="mt-1 text-base font-black text-slate-900">
-                {formatCurrency(compensationSummary.monthlyFromAnnual)}
+                {formatCurrency(
+                  payrollForm.payBasis === 'hourly'
+                    ? compensationSummary.yearlyFromHourly
+                    : compensationSummary.hourlyFromAnnual,
+                )}
               </p>
             </div>
           </div>
