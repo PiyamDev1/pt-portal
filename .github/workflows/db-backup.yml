@@ -1,4 +1,4 @@
-name: Database Backup to S3
+name: Database Backup to S3/MinIO
 
 on:
   schedule:
@@ -61,24 +61,27 @@ jobs:
           echo "TIMESTAMP=$TIMESTAMP" >> "$GITHUB_ENV"
           sha256sum "$ARCHIVE" > "${ARCHIVE}.sha256"
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
-
-      - name: Upload to S3
+      - name: Upload to S3/MinIO
         run: |
-          aws s3 cp "$ARCHIVE" "s3://${{ secrets.S3_BACKUP_BUCKET }}/supabase/${ARCHIVE}"
-          aws s3 cp "${ARCHIVE}.sha256" "s3://${{ secrets.S3_BACKUP_BUCKET }}/supabase/${ARCHIVE}.sha256"
+          aws configure set default.region "${{ secrets.AWS_REGION }}"
+          aws configure set default.s3.addressing_style path
+          aws s3 cp "$ARCHIVE" "s3://${{ secrets.S3_BACKUP_BUCKET }}/supabase/${ARCHIVE}" --endpoint-url "$S3_ENDPOINT_URL"
+          aws s3 cp "${ARCHIVE}.sha256" "s3://${{ secrets.S3_BACKUP_BUCKET }}/supabase/${ARCHIVE}.sha256" --endpoint-url "$S3_ENDPOINT_URL"
           echo "Uploaded $ARCHIVE to s3://${{ secrets.S3_BACKUP_BUCKET }}/supabase/"
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
+          AWS_EC2_METADATA_DISABLED: "true"
+          S3_ENDPOINT_URL: ${{ secrets.S3_ENDPOINT_URL }}
 
       - name: Prune old backups from S3
         run: |
           CUTOFF=$(date -u -d "${BACKUP_RETENTION_DAYS} days ago" +"%Y-%m-%dT%H:%M:%SZ")
           echo "Removing backups older than $CUTOFF (>${BACKUP_RETENTION_DAYS} days)"
-          aws s3 ls "s3://${{ secrets.S3_BACKUP_BUCKET }}/supabase/" \
+          aws configure set default.region "${{ secrets.AWS_REGION }}"
+          aws configure set default.s3.addressing_style path
+          aws s3 ls "s3://${{ secrets.S3_BACKUP_BUCKET }}/supabase/" --endpoint-url "$S3_ENDPOINT_URL" \
             | awk '{print $4}' \
             | grep '^db_backup_' \
             | while read -r key; do
@@ -86,9 +89,15 @@ jobs:
                 FILE_ISO="${FILE_DATE:0:4}-${FILE_DATE:4:2}-${FILE_DATE:6:2}T${FILE_DATE:9:2}:${FILE_DATE:11:2}:${FILE_DATE:13:2}Z"
                 if [[ "$FILE_ISO" < "$CUTOFF" ]]; then
                   echo "Deleting old backup: $key"
-                  aws s3 rm "s3://${{ secrets.S3_BACKUP_BUCKET }}/supabase/$key"
+                  aws s3 rm "s3://${{ secrets.S3_BACKUP_BUCKET }}/supabase/$key" --endpoint-url "$S3_ENDPOINT_URL"
                 fi
               done
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
+          AWS_EC2_METADATA_DISABLED: "true"
+          S3_ENDPOINT_URL: ${{ secrets.S3_ENDPOINT_URL }}
 
       - name: Summary
         run: |
