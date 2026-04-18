@@ -1,0 +1,100 @@
+name: Database Backup to S3
+
+on:
+  schedule:
+    # Runs at 02:00 UTC every day
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+    inputs:
+      retention_days:
+        description: "Override backup retention (days)"
+        required: false
+        default: "30"
+
+env:
+  SUPABASE_PROJECT_REF: ckubfbjfjbhuotyfwmac
+  BACKUP_RETENTION_DAYS: ${{ github.event.inputs.retention_days || '30' }}
+
+jobs:
+  backup:
+    name: Dump & Upload
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Install Supabase CLI
+        run: |
+          curl -Lo /tmp/supabase.deb \
+            "https://github.com/supabase/cli/releases/latest/download/supabase_linux_amd64.deb"
+          sudo dpkg -i /tmp/supabase.deb
+
+      - name: Authenticate Supabase CLI
+        run: |
+          supabase login --token "${{ secrets.SUPABASE_ACCESS_TOKEN }}"
+
+      - name: Link project
+        run: |
+          supabase link --project-ref "$SUPABASE_PROJECT_REF" \
+            --password "${{ secrets.SUPABASE_DB_PASSWORD }}"
+
+      - name: Dump schema
+        run: |
+          supabase db dump \
+            --linked \
+            --schema public \
+            --file schema.sql
+
+      - name: Dump data
+        run: |
+          supabase db dump \
+            --linked \
+            --data-only \
+            --schema public \
+            --file data.sql
+
+      - name: Package backup
+        run: |
+          TIMESTAMP=$(date -u +"%Y%m%dT%H%M%SZ")
+          ARCHIVE="db_backup_${TIMESTAMP}.tar.gz"
+          tar -czf "$ARCHIVE" schema.sql data.sql
+          echo "ARCHIVE=$ARCHIVE" >> "$GITHUB_ENV"
+          echo "TIMESTAMP=$TIMESTAMP" >> "$GITHUB_ENV"
+          sha256sum "$ARCHIVE" > "${ARCHIVE}.sha256"
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Upload to S3
+        run: |
+          aws s3 cp "$ARCHIVE" "s3://${{ secrets.S3_BACKUP_BUCKET }}/supabase/${ARCHIVE}"
+          aws s3 cp "${ARCHIVE}.sha256" "s3://${{ secrets.S3_BACKUP_BUCKET }}/supabase/${ARCHIVE}.sha256"
+          echo "Uploaded $ARCHIVE to s3://${{ secrets.S3_BACKUP_BUCKET }}/supabase/"
+
+      - name: Prune old backups from S3
+        run: |
+          CUTOFF=$(date -u -d "${BACKUP_RETENTION_DAYS} days ago" +"%Y-%m-%dT%H:%M:%SZ")
+          echo "Removing backups older than $CUTOFF (>${BACKUP_RETENTION_DAYS} days)"
+          aws s3 ls "s3://${{ secrets.S3_BACKUP_BUCKET }}/supabase/" \
+            | awk '{print $4}' \
+            | grep '^db_backup_' \
+            | while read -r key; do
+                FILE_DATE=$(echo "$key" | grep -oP '\d{8}T\d{6}Z')
+                FILE_ISO="${FILE_DATE:0:4}-${FILE_DATE:4:2}-${FILE_DATE:6:2}T${FILE_DATE:9:2}:${FILE_DATE:11:2}:${FILE_DATE:13:2}Z"
+                if [[ "$FILE_ISO" < "$CUTOFF" ]]; then
+                  echo "Deleting old backup: $key"
+                  aws s3 rm "s3://${{ secrets.S3_BACKUP_BUCKET }}/supabase/$key"
+                fi
+              done
+
+      - name: Summary
+        run: |
+          echo "### Backup Complete" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **File:** \`${ARCHIVE}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Timestamp:** \`${TIMESTAMP}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Bucket:** \`s3://${{ secrets.S3_BACKUP_BUCKET }}/supabase/\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Retention:** ${BACKUP_RETENTION_DAYS} days" >> "$GITHUB_STEP_SUMMARY"
+          sha256sum "$ARCHIVE"
