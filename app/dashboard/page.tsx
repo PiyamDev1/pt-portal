@@ -59,14 +59,6 @@ const ALL_MODULES = [
     href: '/dashboard/commissions',
   },
   {
-    id: 'employee',
-    title: 'Employee Record',
-    desc: 'Payslips, Leaves & Docs',
-    icon: '📁',
-    color: 'bg-indigo-600 text-white',
-    href: '/dashboard/employee-record',
-  },
-  {
     id: 'timeclock',
     title: 'Timeclock',
     desc: 'QR clock in and out',

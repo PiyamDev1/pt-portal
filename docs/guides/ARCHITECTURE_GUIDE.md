@@ -137,7 +137,6 @@ pt-portal/
 │   │   │   ├── passports-gb/   GB passports
 │   │   │   └── visa/           Visa applications
 │   │   ├── commissions/        Commission tracking
-│   │   ├── employee-record/    Employee HR records
 │   │   ├── lms/                Loan management & statements
 │   │   ├── pricing/            Pricing management
 │   │   ├── settings/           System settings
@@ -288,7 +287,6 @@ documents (
 | LMS                 | `/dashboard/lms`                               | Loan management, installments, statements        |
 | Timeclock           | `/dashboard/timeclock`                         | QR clock-in/out, manual entry, team view         |
 | Commissions         | `/dashboard/commissions`                       | Agent commission tracking                        |
-| Employee Records    | `/dashboard/employee-record`                   | HR records                                       |
 | Pricing             | `/dashboard/pricing`                           | Service pricing management                       |
 | Settings            | `/dashboard/settings`                          | System configuration                             |
 | Ticketing           | `/dashboard/ticketing`                         | Support tickets                                  |
