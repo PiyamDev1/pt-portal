@@ -22,31 +22,25 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      - name: Install Supabase CLI
-        run: |
-          curl -Lo /tmp/supabase.deb \
-            "https://github.com/supabase/cli/releases/latest/download/supabase_linux_amd64.deb"
-          sudo dpkg -i /tmp/supabase.deb
-
       - name: Authenticate Supabase CLI
         run: |
-          supabase login --token "${{ secrets.SUPABASE_ACCESS_TOKEN }}"
+          npx --yes supabase@latest login --token "${{ secrets.SUPABASE_ACCESS_TOKEN }}"
 
       - name: Link project
         run: |
-          supabase link --project-ref "$SUPABASE_PROJECT_REF" \
+          npx --yes supabase@latest link --project-ref "$SUPABASE_PROJECT_REF" \
             --password "${{ secrets.SUPABASE_DB_PASSWORD }}"
 
       - name: Dump schema
         run: |
-          supabase db dump \
+          npx --yes supabase@latest db dump \
             --linked \
             --schema public \
             --file schema.sql
 
       - name: Dump data
         run: |
-          supabase db dump \
+          npx --yes supabase@latest db dump \
             --linked \
             --data-only \
             --schema public \
