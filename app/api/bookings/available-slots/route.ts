@@ -141,24 +141,11 @@ function generateAvailableSlots(
   const [openHour, openMin] = openTime.split(':').map(Number);
   const [closeHour, closeMin] = closeTime.split(':').map(Number);
 
-  let [lunchStartHour, lunchStartMin] = lunchStartTime
-    ? lunchStartTime.split(':').map(Number)
-    : [null, null];
-  let [lunchEndHour, lunchEndMin] = lunchEndTime
-    ? lunchEndTime.split(':').map(Number)
-    : [null, null];
-
   // Convert everything to minutes from midnight
   const openMinutes = openHour * 60 + openMin;
   const closeMinutes = closeHour * 60 + closeMin;
-  const lunchStartMinutes =
-    lunchStartTime && lunchStartHour !== null
-      ? lunchStartHour * 60 + lunchStartMin
-      : null;
-  const lunchEndMinutes =
-    lunchEndTime && lunchEndHour !== null
-      ? lunchEndHour * 60 + lunchEndMin
-      : null;
+  const lunchStartMinutes = lunchStartTime ? timeToMinutes(lunchStartTime) : null;
+  const lunchEndMinutes = lunchEndTime ? timeToMinutes(lunchEndTime) : null;
 
   const slotDurationMinutes = durationMinutes + bufferMinutes;
 
@@ -207,6 +194,14 @@ function generateAvailableSlots(
   }
 
   return slots;
+}
+
+/**
+ * Convert HH:MM:SS time string to minutes from midnight
+ */
+function timeToMinutes(time: string): number {
+  const [hours, minutes] = time.split(':').map(Number);
+  return hours * 60 + minutes;
 }
 
 /**
