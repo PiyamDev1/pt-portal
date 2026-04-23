@@ -2,6 +2,10 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { BookingStatus, BookingSource } from '@/app/types/bookings'
+import BookingSettingsTab, {
+  type BookingServiceRow,
+  type BranchSettingRow,
+} from '@/app/dashboard/settings/components/BookingSettingsTab'
 
 interface BookingWithService {
   id: string
@@ -110,7 +114,17 @@ function statusDotClass(status: BookingStatus): string {
   }
 }
 
-export default function BookingsClient() {
+interface BookingsClientProps {
+  isAdmin: boolean
+  initialBranchSettings: BranchSettingRow[]
+  initialBookingServices: BookingServiceRow[]
+}
+
+export default function BookingsClient({
+  isAdmin,
+  initialBranchSettings,
+  initialBookingServices,
+}: BookingsClientProps) {
   const today = new Date()
   today.setUTCHours(0, 0, 0, 0)
 
@@ -125,6 +139,8 @@ export default function BookingsClient() {
   const [updatingId, setUpdatingId] = useState<string | null>(null)
   const [autoRefresh, setAutoRefresh] = useState(true)
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null)
+  const [adminLoading, setAdminLoading] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
 
   const weekDays = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(weekStart)
@@ -180,6 +196,8 @@ export default function BookingsClient() {
   }, [fetchBookings])
 
   useEffect(() => {
+    if (showSettings) return
+
     if (!autoRefresh) return
 
     const intervalId = setInterval(() => {
@@ -201,7 +219,7 @@ export default function BookingsClient() {
       window.removeEventListener('focus', onFocus)
       document.removeEventListener('visibilitychange', onVisibility)
     }
-  }, [autoRefresh, fetchBookings])
+  }, [autoRefresh, fetchBookings, showSettings])
 
   const goToPrev = () => {
     if (view === 'multi') {
@@ -360,6 +378,19 @@ export default function BookingsClient() {
               />
               Auto refresh (10s)
             </label>
+
+            {isAdmin && (
+              <button
+                onClick={() => setShowSettings((prev) => !prev)}
+                className={`px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                  showSettings
+                    ? 'border-indigo-600 bg-indigo-600 text-white'
+                    : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                {showSettings ? 'Back to Appointments' : 'Booking Settings'}
+              </button>
+            )}
           </div>
         </div>
 
@@ -383,7 +414,16 @@ export default function BookingsClient() {
           </div>
         </div>
 
-        {view === 'multi' && (
+        {showSettings && isAdmin ? (
+          <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+            <BookingSettingsTab
+              initialBranchSettings={initialBranchSettings}
+              initialServices={initialBookingServices}
+              loading={adminLoading}
+              setLoading={setAdminLoading}
+            />
+          </div>
+        ) : view === 'multi' && (
           <div className="space-y-4">
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
               <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50">

@@ -43,7 +43,7 @@ export interface BookingServiceRow {
 interface BookingSettingsTabProps {
   initialBranchSettings: BranchSettingRow[]
   initialServices: BookingServiceRow[]
-  supabase: SupabaseClient
+  supabase?: SupabaseClient
   loading: boolean
   setLoading: (v: boolean) => void
 }
