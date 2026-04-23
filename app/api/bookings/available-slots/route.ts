@@ -2,6 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase';
 import { AvailableSlot, AvailableSlotsResponse } from '@/app/types/bookings';
 
+const SCHEMA_HINT = 'Booking schema is out of date. Run scripts/create-bookings-schema.sql in Supabase SQL editor.';
+
+function isSchemaError(error: unknown): boolean {
+  const code = (error as { code?: string } | null)?.code;
+  return code === '42P01' || code === '42703' || code === '42P10';
+}
+
 /**
  * GET /api/bookings/available-slots
  * Query params: date=YYYY-MM-DD&service_id=UUID
@@ -45,6 +52,17 @@ export async function GET(request: NextRequest) {
       .single();
 
     if (settingsError || !branchSettings) {
+      if (isSchemaError(settingsError)) {
+        return NextResponse.json(
+          {
+            date,
+            service_id,
+            slots: [],
+            warning: SCHEMA_HINT,
+          },
+          { status: 200 }
+        );
+      }
       // If no settings for this day, return empty slots
       return NextResponse.json({
         date,
@@ -96,6 +114,9 @@ export async function GET(request: NextRequest) {
       .single();
 
     if (serviceError || !service) {
+      if (isSchemaError(serviceError)) {
+        return NextResponse.json({ error: SCHEMA_HINT }, { status: 503 });
+      }
       return NextResponse.json(
         { error: 'Service not found' },
         { status: 404 }
@@ -116,6 +137,9 @@ export async function GET(request: NextRequest) {
 
     if (bookingsError) {
       console.error('Error fetching bookings:', bookingsError);
+      if (isSchemaError(bookingsError)) {
+        return NextResponse.json({ error: SCHEMA_HINT }, { status: 503 });
+      }
       return NextResponse.json(
         { error: 'Failed to fetch bookings' },
         { status: 500 }

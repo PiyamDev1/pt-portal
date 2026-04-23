@@ -183,6 +183,11 @@ export default function BookingsClient({
       }
 
       const res = await fetch(`/api/bookings?${params.toString()}`, { cache: 'no-store' })
+      if (res.status === 429) {
+        setAutoRefresh(false)
+        setLastUpdatedAt(new Date())
+        return
+      }
       const json = await res.json()
       setBookings(json.bookings || [])
       setLastUpdatedAt(new Date())

@@ -7,6 +7,13 @@ import {
   CreateBookingResponse,
 } from '@/app/types/bookings';
 
+const SCHEMA_HINT = 'Booking schema is out of date. Run scripts/create-bookings-schema.sql in Supabase SQL editor.';
+
+function isSchemaError(error: unknown): boolean {
+  const code = (error as { code?: string } | null)?.code;
+  return code === '42P01' || code === '42703' || code === '42P10';
+}
+
 /**
  * GET /api/bookings?from=ISO&to=ISO
  * Fetch all bookings in a date range (for the dashboard week view)
@@ -38,6 +45,9 @@ export async function GET(request: NextRequest) {
     const { data, error } = await query;
 
     if (error) {
+      if (isSchemaError(error)) {
+        return NextResponse.json({ bookings: [], warning: SCHEMA_HINT }, { status: 200 });
+      }
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
@@ -94,6 +104,15 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (serviceError || !service) {
+      if (isSchemaError(serviceError)) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: SCHEMA_HINT,
+          } as CreateBookingResponse,
+          { status: 503 }
+        );
+      }
       return NextResponse.json(
         {
           success: false,
@@ -130,6 +149,15 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (settingsError || !branchSettings) {
+      if (isSchemaError(settingsError)) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: SCHEMA_HINT,
+          } as CreateBookingResponse,
+          { status: 503 }
+        );
+      }
       return NextResponse.json(
         {
           success: false,
@@ -160,6 +188,15 @@ export async function POST(request: NextRequest) {
 
     if (overlapError) {
       console.error('Error checking for overlapping bookings:', overlapError);
+      if (isSchemaError(overlapError)) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: SCHEMA_HINT,
+          } as CreateBookingResponse,
+          { status: 503 }
+        );
+      }
       return NextResponse.json(
         {
           success: false,
@@ -200,6 +237,15 @@ export async function POST(request: NextRequest) {
 
     if (insertError || !newBooking) {
       console.error('Error creating booking:', insertError);
+      if (isSchemaError(insertError)) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: SCHEMA_HINT,
+          } as CreateBookingResponse,
+          { status: 503 }
+        );
+      }
       return NextResponse.json(
         {
           success: false,

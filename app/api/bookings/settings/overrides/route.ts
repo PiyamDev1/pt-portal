@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase';
 
+const SCHEMA_HINT = 'Booking schema is out of date. Run scripts/create-bookings-schema.sql in Supabase SQL editor.';
+
+function isSchemaError(error: unknown): boolean {
+  const code = (error as { code?: string } | null)?.code;
+  return code === '42P01' || code === '42703' || code === '42P10';
+}
+
 /**
  * GET /api/bookings/settings/overrides?location_id=...&from=YYYY-MM-DD&to=YYYY-MM-DD
  * POST /api/bookings/settings/overrides
@@ -30,6 +37,9 @@ export async function GET(request: NextRequest) {
     const { data, error } = await query;
 
     if (error) {
+      if (isSchemaError(error)) {
+        return NextResponse.json({ overrides: [], warning: SCHEMA_HINT }, { status: 200 });
+      }
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
@@ -99,6 +109,9 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error) {
+      if (isSchemaError(error)) {
+        return NextResponse.json({ error: SCHEMA_HINT }, { status: 503 });
+      }
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
