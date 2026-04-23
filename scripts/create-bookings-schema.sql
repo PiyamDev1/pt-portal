@@ -1,5 +1,6 @@
 -- ============================================================
--- Booking System Schema (Branch-Aware)
+-- Booking System Schema (Branch-Aware) — Idempotent Migration
+-- Safe to re-run: uses IF NOT EXISTS and ADD COLUMN IF NOT EXISTS
 -- Run this in your Supabase SQL Editor
 -- ============================================================
 
@@ -19,91 +20,95 @@ EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
 -- ============================================================
--- 2) WEEKLY BRANCH SETTINGS (PER LOCATION + DAY)
+-- 2) WEEKLY BRANCH SETTINGS
 -- ============================================================
+
+-- Create fresh if it doesn't exist yet
 CREATE TABLE IF NOT EXISTS branch_settings (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  location_id UUID NOT NULL REFERENCES locations(id) ON DELETE CASCADE,
-  day_of_week INTEGER NOT NULL CHECK (day_of_week BETWEEN 0 AND 6),
-
-  open_time TIME NOT NULL,
-  close_time TIME NOT NULL,
-
-  lunch_start_time TIME,
-  lunch_end_time TIME,
-
-  prayer_start_time TIME,
-  prayer_end_time TIME,
-
-  is_closed BOOLEAN NOT NULL DEFAULT false,
-  concurrent_staff INTEGER NOT NULL DEFAULT 1,
-  slot_interval_minutes INTEGER NOT NULL DEFAULT 30,
-
-  UNIQUE (location_id, day_of_week)
+  id                    UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  day_of_week           INTEGER NOT NULL CHECK (day_of_week BETWEEN 0 AND 6),
+  open_time             TIME NOT NULL DEFAULT '09:00',
+  close_time            TIME NOT NULL DEFAULT '17:00',
+  lunch_start_time      TIME,
+  lunch_end_time        TIME,
+  is_closed             BOOLEAN NOT NULL DEFAULT false,
+  concurrent_staff      INTEGER NOT NULL DEFAULT 1,
+  slot_interval_minutes INTEGER NOT NULL DEFAULT 30
 );
 
+-- Add new columns if table already existed without them
+ALTER TABLE branch_settings
+  ADD COLUMN IF NOT EXISTS location_id        UUID REFERENCES locations(id) ON DELETE CASCADE,
+  ADD COLUMN IF NOT EXISTS prayer_start_time  TIME,
+  ADD COLUMN IF NOT EXISTS prayer_end_time    TIME;
+
+-- Add unique constraint on (location_id, day_of_week) if it doesn't exist
+DO $$ BEGIN
+  ALTER TABLE branch_settings ADD CONSTRAINT branch_settings_location_day_uq UNIQUE (location_id, day_of_week);
+EXCEPTION WHEN duplicate_table THEN NULL;
+END $$;
+
 -- ============================================================
--- 3) ONE-OFF SCHEDULE OVERRIDES (PER LOCATION + DATE)
+-- 3) ONE-OFF SCHEDULE OVERRIDES
 -- ============================================================
+
 CREATE TABLE IF NOT EXISTS branch_schedule_overrides (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  location_id UUID NOT NULL REFERENCES locations(id) ON DELETE CASCADE,
-  date DATE NOT NULL,
-
-  open_time TIME,
-  close_time TIME,
-
-  lunch_start_time TIME,
-  lunch_end_time TIME,
-
-  prayer_start_time TIME,
-  prayer_end_time TIME,
-
-  is_closed BOOLEAN NOT NULL DEFAULT false,
-  concurrent_staff INTEGER NOT NULL DEFAULT 1,
+  id                    UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  location_id           UUID NOT NULL REFERENCES locations(id) ON DELETE CASCADE,
+  date                  DATE NOT NULL,
+  open_time             TIME,
+  close_time            TIME,
+  lunch_start_time      TIME,
+  lunch_end_time        TIME,
+  prayer_start_time     TIME,
+  prayer_end_time       TIME,
+  is_closed             BOOLEAN NOT NULL DEFAULT false,
+  concurrent_staff      INTEGER NOT NULL DEFAULT 1,
   slot_interval_minutes INTEGER NOT NULL DEFAULT 30,
-  notes TEXT,
-
+  notes                 TEXT,
   UNIQUE (location_id, date)
 );
 
 -- ============================================================
 -- 4) SERVICES (PER LOCATION)
 -- ============================================================
+
 CREATE TABLE IF NOT EXISTS booking_services (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  location_id UUID NOT NULL REFERENCES locations(id) ON DELETE CASCADE,
-  name TEXT NOT NULL,
+  id               UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  name             TEXT NOT NULL,
   duration_minutes INTEGER NOT NULL,
-  buffer_minutes INTEGER NOT NULL DEFAULT 15,
-  is_active BOOLEAN NOT NULL DEFAULT true,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  buffer_minutes   INTEGER NOT NULL DEFAULT 15,
+  is_active        BOOLEAN NOT NULL DEFAULT true,
+  created_at       TIMESTAMPTZ DEFAULT NOW()
 );
 
--- avoid accidental duplicate services per branch
+ALTER TABLE booking_services
+  ADD COLUMN IF NOT EXISTS location_id UUID REFERENCES locations(id) ON DELETE CASCADE;
+
+-- Unique index per branch name (skip if already exists)
 CREATE UNIQUE INDEX IF NOT EXISTS uq_booking_services_branch_name
   ON booking_services (location_id, lower(name));
 
 -- ============================================================
 -- 5) BOOKINGS (PER LOCATION)
 -- ============================================================
+
 CREATE TABLE IF NOT EXISTS bookings (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  location_id UUID NOT NULL REFERENCES locations(id) ON DELETE RESTRICT,
-  customer_name TEXT NOT NULL,
+  id             UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  customer_name  TEXT NOT NULL,
   customer_phone TEXT NOT NULL,
-  service_id UUID NOT NULL REFERENCES booking_services(id) ON DELETE RESTRICT,
-
-  start_time TIMESTAMPTZ NOT NULL,
-  end_time TIMESTAMPTZ NOT NULL,
-
-  status booking_status NOT NULL DEFAULT 'pending',
-  source booking_source NOT NULL DEFAULT 'portal',
-  notes TEXT,
-
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+  service_id     UUID NOT NULL REFERENCES booking_services(id) ON DELETE RESTRICT,
+  start_time     TIMESTAMPTZ NOT NULL,
+  end_time       TIMESTAMPTZ NOT NULL,
+  status         booking_status NOT NULL DEFAULT 'pending',
+  source         booking_source NOT NULL DEFAULT 'portal',
+  notes          TEXT,
+  created_at     TIMESTAMPTZ DEFAULT NOW(),
+  updated_at     TIMESTAMPTZ DEFAULT NOW()
 );
+
+ALTER TABLE bookings
+  ADD COLUMN IF NOT EXISTS location_id UUID REFERENCES locations(id) ON DELETE RESTRICT;
 
 -- ============================================================
 -- 6) INDEXES
@@ -132,12 +137,22 @@ CREATE TRIGGER bookings_updated_at
 -- ============================================================
 -- 8) RLS
 -- ============================================================
-ALTER TABLE branch_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE branch_settings           ENABLE ROW LEVEL SECURITY;
 ALTER TABLE branch_schedule_overrides ENABLE ROW LEVEL SECURITY;
-ALTER TABLE booking_services ENABLE ROW LEVEL SECURITY;
-ALTER TABLE bookings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE booking_services          ENABLE ROW LEVEL SECURITY;
+ALTER TABLE bookings                  ENABLE ROW LEVEL SECURITY;
 
--- staff/admin: read all booking config and bookings
+-- Drop old policies before recreating to avoid duplicate errors
+DO $$ DECLARE r RECORD; BEGIN
+  FOR r IN
+    SELECT policyname, tablename FROM pg_policies
+    WHERE tablename IN ('branch_settings','branch_schedule_overrides','booking_services','bookings')
+  LOOP
+    EXECUTE 'DROP POLICY IF EXISTS ' || quote_ident(r.policyname) || ' ON ' || quote_ident(r.tablename);
+  END LOOP;
+END $$;
+
+-- Authenticated staff can read everything
 CREATE POLICY "Authenticated can read branch settings"
   ON branch_settings FOR SELECT TO authenticated USING (true);
 
@@ -150,11 +165,11 @@ CREATE POLICY "Authenticated can read booking services"
 CREATE POLICY "Authenticated can read bookings"
   ON bookings FOR SELECT TO authenticated USING (true);
 
--- authenticated staff/admin can manage bookings
+-- Authenticated staff can manage bookings
 CREATE POLICY "Authenticated can manage bookings"
   ON bookings FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
--- service role can manage scheduling config
+-- Service role can manage all scheduling config
 CREATE POLICY "Service role can manage branch settings"
   ON branch_settings FOR ALL TO service_role USING (true) WITH CHECK (true);
 
@@ -164,7 +179,7 @@ CREATE POLICY "Service role can manage branch overrides"
 CREATE POLICY "Service role can manage booking services"
   ON booking_services FOR ALL TO service_role USING (true) WITH CHECK (true);
 
--- anon channels (website/WhatsApp)
+-- Anon (WhatsApp/website)
 CREATE POLICY "Anon can read branch settings"
   ON branch_settings FOR SELECT TO anon USING (true);
 
