@@ -50,7 +50,7 @@ export default async function SettingsPage() {
   if (!session) redirect('/login')
 
   // 2. Fetch Hierarchy Data in Parallel (Fast)
-  const [locations, departments, roles, employees, employeeData] = await Promise.all([
+  const [locations, departments, roles, employees, employeeData, branchSettings, bookingServices] = await Promise.all([
     supabase.from('locations').select('*').order('name'),
     supabase.from('departments').select('*').order('name'),
     supabase.from('roles').select('*').order('level'), // Level 1 = Boss
@@ -62,6 +62,8 @@ export default async function SettingsPage() {
       .select('full_name, roles(name), locations(name, branch_code)')
       .eq('id', session.user.id)
       .single(),
+    supabase.from('branch_settings').select('*').order('day_of_week'),
+    supabase.from('booking_services').select('*').order('name'),
   ])
 
   const location = Array.isArray(employeeData?.data?.locations)
@@ -106,6 +108,8 @@ export default async function SettingsPage() {
             initialDepts={departments.data || []}
             initialRoles={roles.data || []}
             initialEmployees={employees.data || []}
+            initialBranchSettings={branchSettings.data || []}
+            initialBookingServices={bookingServices.data || []}
           />
         </main>
       </div>
