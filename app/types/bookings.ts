@@ -27,6 +27,7 @@ export interface BranchSettings {
   lunch_end_time: string | null; // HH:MM:SS
   is_closed: boolean;
   concurrent_staff: number;
+  slot_interval_minutes: number;
 }
 
 // Booking Services

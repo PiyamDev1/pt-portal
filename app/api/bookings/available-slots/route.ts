@@ -102,6 +102,7 @@ export async function GET(request: NextRequest) {
       branchSettings.lunch_end_time,
       service.duration_minutes,
       service.buffer_minutes,
+      branchSettings.slot_interval_minutes ?? 30,
       branchSettings.concurrent_staff,
       existingBookings || []
     );
@@ -132,6 +133,7 @@ function generateAvailableSlots(
   lunchEndTime: string | null,
   durationMinutes: number,
   bufferMinutes: number,
+  slotIntervalMinutes: number,
   concurrentStaff: number,
   existingBookings: any[]
 ): AvailableSlot[] {
@@ -147,11 +149,8 @@ function generateAvailableSlots(
   const lunchStartMinutes = lunchStartTime ? timeToMinutes(lunchStartTime) : null;
   const lunchEndMinutes = lunchEndTime ? timeToMinutes(lunchEndTime) : null;
 
-  const slotDurationMinutes = durationMinutes + bufferMinutes;
-
-  // Walk through the day in 30-minute increments (common appointment interval)
-  // Adjust interval as needed (15, 30, 60 minutes, etc.)
-  const INTERVAL_MINUTES = 30;
+  // Use admin-configured slot interval, with a safe minimum.
+  const intervalMinutes = Math.max(5, Number(slotIntervalMinutes || 30));
 
   let currentMinutes = openMinutes;
 
@@ -190,7 +189,9 @@ function generateAvailableSlots(
       });
     }
 
-    currentMinutes += INTERVAL_MINUTES;
+    // Move to the next candidate start time.
+    // Keep the service+buffer rule on availability overlap checks.
+    currentMinutes += intervalMinutes;
   }
 
   return slots;
