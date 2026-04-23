@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { toast } from 'sonner'
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
@@ -61,6 +61,21 @@ interface BookingSettingsTabProps {
   branchLocations: BranchLocationOption[]
   selectedLocationId: string
   onLocationChange: (locationId: string) => void
+}
+
+function LabeledInput({
+  label,
+  children,
+}: {
+  label: string
+  children: ReactNode
+}) {
+  return (
+    <label className="space-y-1 block">
+      <span className="text-xs font-medium text-slate-600">{label}</span>
+      {children}
+    </label>
+  )
 }
 
 function buildDefaultWeek(locationId: string): BranchSettingRow[] {
@@ -439,7 +454,6 @@ export default function BookingSettingsTab({
                   <th className="px-3 py-2 text-left">Lunch End</th>
                   <th className="px-3 py-2 text-left">Prayer Start</th>
                   <th className="px-3 py-2 text-left">Prayer End</th>
-                  <th className="px-3 py-2 text-left">Default Slot Every</th>
                   <th className="px-3 py-2 text-left">Staff</th>
                   <th className="px-3 py-2 text-center">Closed</th>
                 </tr>
@@ -454,11 +468,6 @@ export default function BookingSettingsTab({
                     <td className="px-3 py-2"><input type="time" value={row.lunch_end_time || ''} onChange={(e) => updateDay(row.day_of_week, 'lunch_end_time', e.target.value || null)} className="border border-slate-300 rounded px-2 py-1" /></td>
                     <td className="px-3 py-2"><input type="time" value={row.prayer_start_time || ''} onChange={(e) => updateDay(row.day_of_week, 'prayer_start_time', e.target.value || null)} className="border border-slate-300 rounded px-2 py-1" /></td>
                     <td className="px-3 py-2"><input type="time" value={row.prayer_end_time || ''} onChange={(e) => updateDay(row.day_of_week, 'prayer_end_time', e.target.value || null)} className="border border-slate-300 rounded px-2 py-1" /></td>
-                    <td className="px-3 py-2">
-                      <select value={row.slot_interval_minutes} onChange={(e) => updateDay(row.day_of_week, 'slot_interval_minutes', Number(e.target.value))} className="border border-slate-300 rounded px-2 py-1">
-                        {INTERVAL_OPTIONS.map((v) => <option key={v} value={v}>{v} min</option>)}
-                      </select>
-                    </td>
                     <td className="px-3 py-2"><input type="number" min={1} value={row.concurrent_staff} onChange={(e) => updateDay(row.day_of_week, 'concurrent_staff', Math.max(1, Number(e.target.value)))} className="w-16 border border-slate-300 rounded px-2 py-1" /></td>
                     <td className="px-3 py-2 text-center"><input type="checkbox" checked={row.is_closed} onChange={(e) => updateDay(row.day_of_week, 'is_closed', e.target.checked)} /></td>
                   </tr>
@@ -474,17 +483,35 @@ export default function BookingSettingsTab({
           <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-3">
             <h3 className="text-sm font-semibold text-slate-700">Add One-off Schedule (special date)</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <input type="date" value={newOverrideDate} onChange={(e) => setNewOverrideDate(e.target.value)} className="border border-slate-300 rounded px-3 py-2 text-sm" />
-              <input type="time" value={newOverride.open_time || ''} onChange={(e) => setNewOverride((p) => ({ ...p, open_time: e.target.value || null }))} className="border border-slate-300 rounded px-3 py-2 text-sm" />
-              <input type="time" value={newOverride.close_time || ''} onChange={(e) => setNewOverride((p) => ({ ...p, close_time: e.target.value || null }))} className="border border-slate-300 rounded px-3 py-2 text-sm" />
-              <input type="time" value={newOverride.lunch_start_time || ''} onChange={(e) => setNewOverride((p) => ({ ...p, lunch_start_time: e.target.value || null }))} className="border border-slate-300 rounded px-3 py-2 text-sm" placeholder="Lunch Start" />
-              <input type="time" value={newOverride.lunch_end_time || ''} onChange={(e) => setNewOverride((p) => ({ ...p, lunch_end_time: e.target.value || null }))} className="border border-slate-300 rounded px-3 py-2 text-sm" placeholder="Lunch End" />
-              <input type="time" value={newOverride.prayer_start_time || ''} onChange={(e) => setNewOverride((p) => ({ ...p, prayer_start_time: e.target.value || null }))} className="border border-slate-300 rounded px-3 py-2 text-sm" placeholder="Prayer Start" />
-              <input type="time" value={newOverride.prayer_end_time || ''} onChange={(e) => setNewOverride((p) => ({ ...p, prayer_end_time: e.target.value || null }))} className="border border-slate-300 rounded px-3 py-2 text-sm" placeholder="Prayer End" />
-              <input type="number" min={1} value={newOverride.concurrent_staff} onChange={(e) => setNewOverride((p) => ({ ...p, concurrent_staff: Math.max(1, Number(e.target.value)) }))} className="border border-slate-300 rounded px-3 py-2 text-sm" placeholder="Concurrent staff" />
-              <select value={newOverride.slot_interval_minutes} onChange={(e) => setNewOverride((p) => ({ ...p, slot_interval_minutes: Number(e.target.value) }))} className="border border-slate-300 rounded px-3 py-2 text-sm">
-                {INTERVAL_OPTIONS.map((v) => <option key={v} value={v}>{v} min interval</option>)}
-              </select>
+              <LabeledInput label="Date">
+                <input type="date" value={newOverrideDate} onChange={(e) => setNewOverrideDate(e.target.value)} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
+              </LabeledInput>
+              <LabeledInput label="Branch Open Time">
+                <input type="time" value={newOverride.open_time || ''} onChange={(e) => setNewOverride((p) => ({ ...p, open_time: e.target.value || null }))} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
+              </LabeledInput>
+              <LabeledInput label="Branch Close Time">
+                <input type="time" value={newOverride.close_time || ''} onChange={(e) => setNewOverride((p) => ({ ...p, close_time: e.target.value || null }))} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
+              </LabeledInput>
+              <LabeledInput label="Lunch Break Start">
+                <input type="time" value={newOverride.lunch_start_time || ''} onChange={(e) => setNewOverride((p) => ({ ...p, lunch_start_time: e.target.value || null }))} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
+              </LabeledInput>
+              <LabeledInput label="Lunch Break End">
+                <input type="time" value={newOverride.lunch_end_time || ''} onChange={(e) => setNewOverride((p) => ({ ...p, lunch_end_time: e.target.value || null }))} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
+              </LabeledInput>
+              <LabeledInput label="Prayer Break Start">
+                <input type="time" value={newOverride.prayer_start_time || ''} onChange={(e) => setNewOverride((p) => ({ ...p, prayer_start_time: e.target.value || null }))} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
+              </LabeledInput>
+              <LabeledInput label="Prayer Break End">
+                <input type="time" value={newOverride.prayer_end_time || ''} onChange={(e) => setNewOverride((p) => ({ ...p, prayer_end_time: e.target.value || null }))} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
+              </LabeledInput>
+              <LabeledInput label="Concurrent Staff">
+                <input type="number" min={1} value={newOverride.concurrent_staff} onChange={(e) => setNewOverride((p) => ({ ...p, concurrent_staff: Math.max(1, Number(e.target.value)) }))} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
+              </LabeledInput>
+              <LabeledInput label="Slot Interval (deprecated: use service slots)">
+                <select value={newOverride.slot_interval_minutes} onChange={(e) => setNewOverride((p) => ({ ...p, slot_interval_minutes: Number(e.target.value) }))} className="w-full border border-slate-300 rounded px-3 py-2 text-sm">
+                  {INTERVAL_OPTIONS.map((v) => <option key={v} value={v}>{v} min interval</option>)}
+                </select>
+              </LabeledInput>
             </div>
             <div className="flex items-center gap-3">
               <label className="inline-flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" checked={newOverride.is_closed} onChange={(e) => setNewOverride((p) => ({ ...p, is_closed: e.target.checked }))} /> Closed all day</label>
@@ -524,14 +551,26 @@ export default function BookingSettingsTab({
 
           {showAddService && (
             <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
-              <input type="text" value={newService.name} onChange={(e) => setNewService((p) => ({ ...p, name: e.target.value }))} placeholder="Service name" className="border border-slate-300 rounded px-3 py-2 text-sm" />
-              <input type="number" min={5} value={newService.duration_minutes} onChange={(e) => setNewService((p) => ({ ...p, duration_minutes: Number(e.target.value) }))} className="border border-slate-300 rounded px-3 py-2 text-sm" placeholder="Duration" />
-              <input type="number" min={0} value={newService.buffer_minutes} onChange={(e) => setNewService((p) => ({ ...p, buffer_minutes: Number(e.target.value) }))} className="border border-slate-300 rounded px-3 py-2 text-sm" placeholder="Buffer" />
-              <input type="time" value={newService.service_start_time} onChange={(e) => setNewService((p) => ({ ...p, service_start_time: e.target.value }))} className="border border-slate-300 rounded px-3 py-2 text-sm" placeholder="Start" />
-              <input type="time" value={newService.service_end_time} onChange={(e) => setNewService((p) => ({ ...p, service_end_time: e.target.value }))} className="border border-slate-300 rounded px-3 py-2 text-sm" placeholder="End" />
-              <select value={newService.slot_interval_minutes} onChange={(e) => setNewService((p) => ({ ...p, slot_interval_minutes: Number(e.target.value) }))} className="border border-slate-300 rounded px-3 py-2 text-sm">
-                {INTERVAL_OPTIONS.map((v) => <option key={v} value={v}>{v} min slot</option>)}
-              </select>
+              <LabeledInput label="Service Name">
+                <input type="text" value={newService.name} onChange={(e) => setNewService((p) => ({ ...p, name: e.target.value }))} placeholder="e.g. Medical" className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
+              </LabeledInput>
+              <LabeledInput label="Duration (minutes)">
+                <input type="number" min={5} value={newService.duration_minutes} onChange={(e) => setNewService((p) => ({ ...p, duration_minutes: Number(e.target.value) }))} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
+              </LabeledInput>
+              <LabeledInput label="Buffer (minutes)">
+                <input type="number" min={0} value={newService.buffer_minutes} onChange={(e) => setNewService((p) => ({ ...p, buffer_minutes: Number(e.target.value) }))} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
+              </LabeledInput>
+              <LabeledInput label="Service Start Time">
+                <input type="time" value={newService.service_start_time} onChange={(e) => setNewService((p) => ({ ...p, service_start_time: e.target.value }))} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
+              </LabeledInput>
+              <LabeledInput label="Service End Time">
+                <input type="time" value={newService.service_end_time} onChange={(e) => setNewService((p) => ({ ...p, service_end_time: e.target.value }))} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
+              </LabeledInput>
+              <LabeledInput label="Slot Every (minutes)">
+                <select value={newService.slot_interval_minutes} onChange={(e) => setNewService((p) => ({ ...p, slot_interval_minutes: Number(e.target.value) }))} className="w-full border border-slate-300 rounded px-3 py-2 text-sm">
+                  {INTERVAL_OPTIONS.map((v) => <option key={v} value={v}>{v} min slot</option>)}
+                </select>
+              </LabeledInput>
               <div className="md:col-span-3 rounded border border-slate-200 bg-white px-3 py-2">
                 <p className="text-xs font-medium text-slate-500 mb-2">Available days</p>
                 <div className="flex flex-wrap gap-2">
@@ -562,14 +601,26 @@ export default function BookingSettingsTab({
               <div key={service.id} className="rounded-lg border border-slate-200 bg-white p-4">
                 {editingService?.id === service.id ? (
                   <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
-                    <input type="text" value={editingService.name} onChange={(e) => setEditingService((p) => (p ? { ...p, name: e.target.value } : p))} className="border border-slate-300 rounded px-3 py-2 text-sm" />
-                    <input type="number" min={5} value={editingService.duration_minutes} onChange={(e) => setEditingService((p) => (p ? { ...p, duration_minutes: Number(e.target.value) } : p))} className="border border-slate-300 rounded px-3 py-2 text-sm" />
-                    <input type="number" min={0} value={editingService.buffer_minutes} onChange={(e) => setEditingService((p) => (p ? { ...p, buffer_minutes: Number(e.target.value) } : p))} className="border border-slate-300 rounded px-3 py-2 text-sm" />
-                    <input type="time" value={editingService.service_start_time || ''} onChange={(e) => setEditingService((p) => (p ? { ...p, service_start_time: e.target.value || null } : p))} className="border border-slate-300 rounded px-3 py-2 text-sm" />
-                    <input type="time" value={editingService.service_end_time || ''} onChange={(e) => setEditingService((p) => (p ? { ...p, service_end_time: e.target.value || null } : p))} className="border border-slate-300 rounded px-3 py-2 text-sm" />
-                    <select value={editingService.slot_interval_minutes ?? 30} onChange={(e) => setEditingService((p) => (p ? { ...p, slot_interval_minutes: Number(e.target.value) } : p))} className="border border-slate-300 rounded px-3 py-2 text-sm">
-                      {INTERVAL_OPTIONS.map((v) => <option key={v} value={v}>{v} min slot</option>)}
-                    </select>
+                    <LabeledInput label="Service Name">
+                      <input type="text" value={editingService.name} onChange={(e) => setEditingService((p) => (p ? { ...p, name: e.target.value } : p))} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
+                    </LabeledInput>
+                    <LabeledInput label="Duration (minutes)">
+                      <input type="number" min={5} value={editingService.duration_minutes} onChange={(e) => setEditingService((p) => (p ? { ...p, duration_minutes: Number(e.target.value) } : p))} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
+                    </LabeledInput>
+                    <LabeledInput label="Buffer (minutes)">
+                      <input type="number" min={0} value={editingService.buffer_minutes} onChange={(e) => setEditingService((p) => (p ? { ...p, buffer_minutes: Number(e.target.value) } : p))} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
+                    </LabeledInput>
+                    <LabeledInput label="Service Start Time">
+                      <input type="time" value={editingService.service_start_time || ''} onChange={(e) => setEditingService((p) => (p ? { ...p, service_start_time: e.target.value || null } : p))} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
+                    </LabeledInput>
+                    <LabeledInput label="Service End Time">
+                      <input type="time" value={editingService.service_end_time || ''} onChange={(e) => setEditingService((p) => (p ? { ...p, service_end_time: e.target.value || null } : p))} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
+                    </LabeledInput>
+                    <LabeledInput label="Slot Every (minutes)">
+                      <select value={editingService.slot_interval_minutes ?? 30} onChange={(e) => setEditingService((p) => (p ? { ...p, slot_interval_minutes: Number(e.target.value) } : p))} className="w-full border border-slate-300 rounded px-3 py-2 text-sm">
+                        {INTERVAL_OPTIONS.map((v) => <option key={v} value={v}>{v} min slot</option>)}
+                      </select>
+                    </LabeledInput>
                     <div className="md:col-span-3 rounded border border-slate-200 bg-slate-50 px-3 py-2">
                       <p className="text-xs font-medium text-slate-500 mb-2">Available days</p>
                       <div className="flex flex-wrap gap-2">
