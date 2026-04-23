@@ -15,8 +15,6 @@ import { DocumentMigrationOverviewTab } from './components/DocumentMigrationOver
 import { ReceiptMetricsTab } from './components/ReceiptMetricsTab'
 import { MaintenanceTab } from './components/MaintenanceTab'
 import { IssueReportsTab } from './components/IssueReportsTab'
-import BookingSettingsTab from './components/BookingSettingsTab'
-import type { BranchSettingRow, BookingServiceRow } from './components/BookingSettingsTab'
 import Link from 'next/link'
 import type { AuthUser } from '@/app/types/auth'
 
@@ -31,8 +29,6 @@ interface SettingsClientProps {
   initialDepts: unknown[]
   initialRoles: unknown[]
   initialEmployees: EmployeeSummary[]
-  initialBranchSettings: BranchSettingRow[]
-  initialBookingServices: BookingServiceRow[]
 }
 
 export default function SettingsClient({
@@ -42,8 +38,6 @@ export default function SettingsClient({
   initialDepts,
   initialRoles,
   initialEmployees,
-  initialBranchSettings,
-  initialBookingServices,
 }: SettingsClientProps) {
   // Organization admins can manage hierarchy/staff/branches.
   const isOrgAdmin = ['Admin', 'Master Admin'].includes(userRole)
@@ -203,16 +197,6 @@ export default function SettingsClient({
                   >
                     Pricing Management
                   </Link>
-                  <button
-                    onClick={() => setActiveTab('booking-settings')}
-                    className={`w-full text-left px-4 py-3 border-l-4 transition-colors ${
-                      activeTab === 'booking-settings'
-                        ? 'border-indigo-600 bg-indigo-50 font-medium text-indigo-700'
-                        : 'border-transparent hover:bg-slate-50 text-slate-600'
-                    }`}
-                  >
-                    📅 Booking Settings
-                  </button>
                 </>
               )}
             </>
@@ -287,15 +271,6 @@ export default function SettingsClient({
 
         {activeTab === 'maintenance' && canAccessMaintenance && <MaintenanceTab />}
 
-        {activeTab === 'booking-settings' && isOrgAdmin && (
-          <BookingSettingsTab
-            initialBranchSettings={initialBranchSettings}
-            initialServices={initialBookingServices}
-            supabase={supabase}
-            loading={loading}
-            setLoading={setLoading}
-          />
-        )}
       </div>
     </div>
   )

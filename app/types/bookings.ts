@@ -20,19 +20,39 @@ export enum BookingSource {
 // Branch Settings
 export interface BranchSettings {
   id: string;
+  location_id: string;
   day_of_week: number; // 0=Sunday, 6=Saturday
   open_time: string; // HH:MM:SS
   close_time: string; // HH:MM:SS
   lunch_start_time: string | null; // HH:MM:SS
   lunch_end_time: string | null; // HH:MM:SS
+  prayer_start_time: string | null; // HH:MM:SS (e.g. Friday prayer)
+  prayer_end_time: string | null; // HH:MM:SS
   is_closed: boolean;
   concurrent_staff: number;
   slot_interval_minutes: number;
 }
 
+export interface BranchScheduleOverride {
+  id: string;
+  location_id: string;
+  date: string; // YYYY-MM-DD
+  open_time: string | null;
+  close_time: string | null;
+  lunch_start_time: string | null;
+  lunch_end_time: string | null;
+  prayer_start_time: string | null;
+  prayer_end_time: string | null;
+  is_closed: boolean;
+  concurrent_staff: number;
+  slot_interval_minutes: number;
+  notes: string | null;
+}
+
 // Booking Services
 export interface BookingService {
   id: string;
+  location_id: string;
   name: string;
   duration_minutes: number;
   buffer_minutes: number;
@@ -42,6 +62,7 @@ export interface BookingService {
 // Bookings
 export interface Booking {
   id: string;
+  location_id: string;
   customer_name: string;
   customer_phone: string;
   service_id: string;
@@ -59,6 +80,7 @@ export interface AvailableSlot {
 }
 
 export interface CreateBookingRequest {
+  location_id: string;
   customer_name: string;
   customer_phone: string;
   service_id: string;

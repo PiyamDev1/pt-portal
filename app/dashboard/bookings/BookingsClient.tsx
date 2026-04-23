@@ -3,8 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { BookingStatus, BookingSource } from '@/app/types/bookings'
 import BookingSettingsTab, {
-  type BookingServiceRow,
-  type BranchSettingRow,
+  type BranchLocationOption,
 } from '@/app/dashboard/settings/components/BookingSettingsTab'
 
 interface BookingWithService {
@@ -116,14 +115,14 @@ function statusDotClass(status: BookingStatus): string {
 
 interface BookingsClientProps {
   isAdmin: boolean
-  initialBranchSettings: BranchSettingRow[]
-  initialBookingServices: BookingServiceRow[]
+  userLocationId: string | null
+  branchLocations: BranchLocationOption[]
 }
 
 export default function BookingsClient({
   isAdmin,
-  initialBranchSettings,
-  initialBookingServices,
+  userLocationId,
+  branchLocations,
 }: BookingsClientProps) {
   const today = new Date()
   today.setUTCHours(0, 0, 0, 0)
@@ -139,8 +138,10 @@ export default function BookingsClient({
   const [updatingId, setUpdatingId] = useState<string | null>(null)
   const [autoRefresh, setAutoRefresh] = useState(true)
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null)
-  const [adminLoading, setAdminLoading] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  const [selectedLocationId, setSelectedLocationId] = useState<string>(
+    userLocationId || branchLocations[0]?.id || ''
+  )
 
   const weekDays = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(weekStart)
@@ -176,7 +177,12 @@ export default function BookingsClient({
     }
 
     try {
-      const res = await fetch(`/api/bookings?from=${fromISO}&to=${toISO}`, { cache: 'no-store' })
+      const params = new URLSearchParams({ from: fromISO, to: toISO })
+      if (selectedLocationId) {
+        params.set('location_id', selectedLocationId)
+      }
+
+      const res = await fetch(`/api/bookings?${params.toString()}`, { cache: 'no-store' })
       const json = await res.json()
       setBookings(json.bookings || [])
       setLastUpdatedAt(new Date())
@@ -189,7 +195,7 @@ export default function BookingsClient({
         setLoading(false)
       }
     }
-  }, [fromISO, toISO])
+  }, [fromISO, toISO, selectedLocationId])
 
   useEffect(() => {
     fetchBookings(false)
@@ -391,6 +397,20 @@ export default function BookingsClient({
                 {showSettings ? 'Back to Appointments' : 'Booking Settings'}
               </button>
             )}
+
+            {isAdmin && !showSettings && branchLocations.length > 0 && (
+              <select
+                value={selectedLocationId}
+                onChange={(e) => setSelectedLocationId(e.target.value)}
+                className="px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm text-slate-700"
+              >
+                {branchLocations.map((location) => (
+                  <option key={location.id} value={location.id}>
+                    {location.name}{location.branch_code ? ` (${location.branch_code})` : ''}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
         </div>
 
@@ -417,10 +437,9 @@ export default function BookingsClient({
         {showSettings && isAdmin ? (
           <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
             <BookingSettingsTab
-              initialBranchSettings={initialBranchSettings}
-              initialServices={initialBookingServices}
-              loading={adminLoading}
-              setLoading={setAdminLoading}
+              branchLocations={branchLocations}
+              selectedLocationId={selectedLocationId}
+              onLocationChange={setSelectedLocationId}
             />
           </div>
         ) : view === 'multi' && (

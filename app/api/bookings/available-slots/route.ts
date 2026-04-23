@@ -12,11 +12,12 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const date = searchParams.get('date');
     const service_id = searchParams.get('service_id');
+    const location_id = searchParams.get('location_id');
 
     // Validate inputs
-    if (!date || !service_id) {
+    if (!date || !service_id || !location_id) {
       return NextResponse.json(
-        { error: 'Missing required parameters: date and service_id' },
+        { error: 'Missing required parameters: date, service_id and location_id' },
         { status: 400 }
       );
     }
@@ -35,10 +36,11 @@ export async function GET(request: NextRequest) {
     const dateObj = new Date(`${date}T00:00:00Z`);
     const dayOfWeek = dateObj.getUTCDay();
 
-    // Step 1: Fetch branch settings for this day
+    // Step 1: Fetch branch settings for this day and location
     const { data: branchSettings, error: settingsError } = await supabase
       .from('branch_settings')
       .select('*')
+      .eq('location_id', location_id)
       .eq('day_of_week', dayOfWeek)
       .single();
 
@@ -60,11 +62,37 @@ export async function GET(request: NextRequest) {
       } as AvailableSlotsResponse);
     }
 
+    // Optional one-off override (per location + specific date)
+    const { data: override } = await supabase
+      .from('branch_schedule_overrides')
+      .select('*')
+      .eq('location_id', location_id)
+      .eq('date', date)
+      .single();
+
+    if (override?.is_closed) {
+      return NextResponse.json({
+        date,
+        service_id,
+        slots: [],
+      } as AvailableSlotsResponse);
+    }
+
+    const openTime = override?.open_time ?? branchSettings.open_time;
+    const closeTime = override?.close_time ?? branchSettings.close_time;
+    const lunchStartTime = override?.lunch_start_time ?? branchSettings.lunch_start_time;
+    const lunchEndTime = override?.lunch_end_time ?? branchSettings.lunch_end_time;
+    const prayerStartTime = override?.prayer_start_time ?? branchSettings.prayer_start_time;
+    const prayerEndTime = override?.prayer_end_time ?? branchSettings.prayer_end_time;
+    const concurrentStaff = override?.concurrent_staff ?? branchSettings.concurrent_staff;
+    const slotInterval = override?.slot_interval_minutes ?? branchSettings.slot_interval_minutes ?? 30;
+
     // Step 2: Fetch service details
     const { data: service, error: serviceError } = await supabase
       .from('booking_services')
       .select('*')
       .eq('id', service_id)
+      .eq('location_id', location_id)
       .single();
 
     if (serviceError || !service) {
@@ -81,6 +109,7 @@ export async function GET(request: NextRequest) {
     const { data: existingBookings, error: bookingsError } = await supabase
       .from('bookings')
       .select('*')
+      .eq('location_id', location_id)
       .gte('start_time', startOfDay)
       .lte('start_time', endOfDay)
       .neq('status', 'cancelled');
@@ -96,14 +125,16 @@ export async function GET(request: NextRequest) {
     // Step 4: Generate available slots
     const slots = generateAvailableSlots(
       date,
-      branchSettings.open_time,
-      branchSettings.close_time,
-      branchSettings.lunch_start_time,
-      branchSettings.lunch_end_time,
+      openTime,
+      closeTime,
+      lunchStartTime,
+      lunchEndTime,
+      prayerStartTime,
+      prayerEndTime,
       service.duration_minutes,
       service.buffer_minutes,
-      branchSettings.slot_interval_minutes ?? 30,
-      branchSettings.concurrent_staff,
+      slotInterval,
+      concurrentStaff,
       existingBookings || []
     );
 
@@ -131,6 +162,8 @@ function generateAvailableSlots(
   closeTime: string,
   lunchStartTime: string | null,
   lunchEndTime: string | null,
+  prayerStartTime: string | null,
+  prayerEndTime: string | null,
   durationMinutes: number,
   bufferMinutes: number,
   slotIntervalMinutes: number,
@@ -148,6 +181,8 @@ function generateAvailableSlots(
   const closeMinutes = closeHour * 60 + closeMin;
   const lunchStartMinutes = lunchStartTime ? timeToMinutes(lunchStartTime) : null;
   const lunchEndMinutes = lunchEndTime ? timeToMinutes(lunchEndTime) : null;
+  const prayerStartMinutes = prayerStartTime ? timeToMinutes(prayerStartTime) : null;
+  const prayerEndMinutes = prayerEndTime ? timeToMinutes(prayerEndTime) : null;
 
   // Use admin-configured slot interval, with a safe minimum.
   const intervalMinutes = Math.max(5, Number(slotIntervalMinutes || 30));
@@ -155,17 +190,23 @@ function generateAvailableSlots(
   let currentMinutes = openMinutes;
 
   while (currentMinutes + durationMinutes <= closeMinutes) {
-    // Check if this slot overlaps with lunch
-    if (lunchStartMinutes !== null && lunchEndMinutes !== null) {
-      // If slot starts or ends during lunch, skip it
-      const slotEndMinutes = currentMinutes + durationMinutes;
+    const slotEndMinutes = currentMinutes + durationMinutes;
 
-      if (
-        (currentMinutes < lunchEndMinutes && slotEndMinutes > lunchStartMinutes)
-      ) {
-        // Overlap with lunch, skip to after lunch
+    // Skip slots overlapping lunch break
+    if (lunchStartMinutes !== null && lunchEndMinutes !== null) {
+      if (currentMinutes < lunchEndMinutes && slotEndMinutes > lunchStartMinutes) {
         if (currentMinutes < lunchEndMinutes) {
           currentMinutes = lunchEndMinutes;
+          continue;
+        }
+      }
+    }
+
+    // Skip slots overlapping Friday prayer or any configured prayer break
+    if (prayerStartMinutes !== null && prayerEndMinutes !== null) {
+      if (currentMinutes < prayerEndMinutes && slotEndMinutes > prayerStartMinutes) {
+        if (currentMinutes < prayerEndMinutes) {
+          currentMinutes = prayerEndMinutes;
           continue;
         }
       }

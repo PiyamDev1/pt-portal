@@ -16,6 +16,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = request.nextUrl;
     const from = searchParams.get('from');
     const to = searchParams.get('to');
+    const locationId = searchParams.get('location_id');
 
     if (!from || !to) {
       return NextResponse.json({ error: 'from and to query params are required' }, { status: 400 });
@@ -23,12 +24,18 @@ export async function GET(request: NextRequest) {
 
     const supabase = await getRouteSupabaseClient();
 
-    const { data, error } = await supabase
+    let query = supabase
       .from('bookings')
       .select(`*, booking_services:service_id(name, duration_minutes)`)
       .gte('start_time', from)
       .lt('start_time', to)
       .order('start_time', { ascending: true });
+
+    if (locationId) {
+      query = query.eq('location_id', locationId);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
@@ -50,14 +57,14 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as CreateBookingRequest;
 
     // Step 1: Validate input
-    const { customer_name, customer_phone, service_id, start_time } = body;
+    const { location_id, customer_name, customer_phone, service_id, start_time } = body;
     const source = body.source || BookingSource.PORTAL;
 
-    if (!customer_name || !customer_phone || !service_id || !start_time) {
+    if (!location_id || !customer_name || !customer_phone || !service_id || !start_time) {
       return NextResponse.json(
         {
           success: false,
-          error: 'Missing required fields: customer_name, customer_phone, service_id, start_time',
+          error: 'Missing required fields: location_id, customer_name, customer_phone, service_id, start_time',
         } as CreateBookingResponse,
         { status: 400 }
       );
@@ -83,6 +90,7 @@ export async function POST(request: NextRequest) {
       .from('booking_services')
       .select('*')
       .eq('id', service_id)
+      .eq('location_id', location_id)
       .single();
 
     if (serviceError || !service) {
@@ -117,6 +125,7 @@ export async function POST(request: NextRequest) {
     const { data: branchSettings, error: settingsError } = await supabase
       .from('branch_settings')
       .select('*')
+      .eq('location_id', location_id)
       .eq('day_of_week', dayOfWeek)
       .single();
 
@@ -144,6 +153,7 @@ export async function POST(request: NextRequest) {
     const { data: overlappingBookings, error: overlapError } = await supabase
       .from('bookings')
       .select('*')
+      .eq('location_id', location_id)
       .lt('start_time', end_time)
       .gt('end_time', start_time)
       .neq('status', 'cancelled');
@@ -176,6 +186,7 @@ export async function POST(request: NextRequest) {
     const { data: newBooking, error: insertError } = await supabase
       .from('bookings')
       .insert({
+        location_id,
         customer_name,
         customer_phone,
         service_id,

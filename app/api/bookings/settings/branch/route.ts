@@ -9,14 +9,21 @@ import { getRouteSupabaseClient } from '@/lib/api/serverSupabase';
  * Body: Array of branch_settings rows to upsert
  */
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const locationId = request.nextUrl.searchParams.get('location_id');
     const supabase = await getRouteSupabaseClient();
 
-    const { data, error } = await supabase
+    let query = supabase
       .from('branch_settings')
       .select('*')
       .order('day_of_week');
+
+    if (locationId) {
+      query = query.eq('location_id', locationId);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
@@ -31,19 +38,27 @@ export async function GET() {
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json();
-    const { settings } = body as {
+    const { location_id, settings } = body as {
+      location_id: string;
       settings: {
         id: string;
+        location_id: string;
         day_of_week: number;
         open_time: string;
         close_time: string;
         lunch_start_time: string | null;
         lunch_end_time: string | null;
+        prayer_start_time: string | null;
+        prayer_end_time: string | null;
         is_closed: boolean;
         concurrent_staff: number;
         slot_interval_minutes: number;
       }[];
     };
+
+    if (!location_id) {
+      return NextResponse.json({ error: 'location_id is required' }, { status: 400 });
+    }
 
     if (!Array.isArray(settings) || settings.length === 0) {
       return NextResponse.json({ error: 'settings array is required' }, { status: 400 });
@@ -67,9 +82,11 @@ export async function PATCH(request: NextRequest) {
 
     const supabase = await getRouteSupabaseClient();
 
+    const payload = settings.map((row) => ({ ...row, location_id }));
+
     const { error } = await supabase
       .from('branch_settings')
-      .upsert(settings, { onConflict: 'day_of_week' });
+      .upsert(payload, { onConflict: 'location_id,day_of_week' });
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });

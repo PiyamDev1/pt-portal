@@ -9,13 +9,20 @@ import { getRouteSupabaseClient } from '@/lib/api/serverSupabase';
  * Creates a new service
  */
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const locationId = request.nextUrl.searchParams.get('location_id');
+
+    if (!locationId) {
+      return NextResponse.json({ error: 'location_id is required' }, { status: 400 });
+    }
+
     const supabase = await getRouteSupabaseClient();
 
     const { data, error } = await supabase
       .from('booking_services')
       .select('*')
+      .eq('location_id', locationId)
       .order('name');
 
     if (error) {
@@ -31,15 +38,16 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, duration_minutes, buffer_minutes } = body as {
+    const { location_id, name, duration_minutes, buffer_minutes } = body as {
+      location_id: string;
       name: string;
       duration_minutes: number;
       buffer_minutes: number;
     };
 
-    if (!name || !duration_minutes) {
+    if (!location_id || !name || !duration_minutes) {
       return NextResponse.json(
-        { error: 'name and duration_minutes are required' },
+        { error: 'location_id, name and duration_minutes are required' },
         { status: 400 }
       );
     }
@@ -55,7 +63,7 @@ export async function POST(request: NextRequest) {
 
     const { data, error } = await supabase
       .from('booking_services')
-      .insert({ name, duration_minutes, buffer_minutes: buffer_minutes ?? 15 })
+      .insert({ location_id, name, duration_minutes, buffer_minutes: buffer_minutes ?? 15 })
       .select()
       .single();
 

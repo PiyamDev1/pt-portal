@@ -4,7 +4,12 @@ import { redirect } from 'next/navigation'
 import PageHeader from '@/app/components/PageHeader.client'
 import DashboardClientWrapper from '@/app/dashboard/client-wrapper'
 import BookingsClient from './BookingsClient'
-import type { BranchSettingRow, BookingServiceRow } from '@/app/dashboard/settings/components/BookingSettingsTab'
+
+interface BranchLocationOption {
+  id: string
+  name: string
+  branch_code?: string | null
+}
 
 export default async function BookingsDashboard() {
   const cookieStore = await cookies()
@@ -26,7 +31,7 @@ export default async function BookingsDashboard() {
 
   const { data: employee } = await supabase
     .from('employees')
-    .select('full_name, roles(name), locations(name, branch_code)')
+    .select('full_name, roles(name), locations(id, name, branch_code)')
     .eq('id', session.user.id)
     .single()
 
@@ -35,17 +40,17 @@ export default async function BookingsDashboard() {
   const userRole = role?.name || 'Employee'
   const isAdmin = ['Admin', 'Master Admin'].includes(userRole)
 
-  let initialBranchSettings: BranchSettingRow[] = []
-  let initialBookingServices: BookingServiceRow[] = []
+  const userLocationId = location?.id || null
+
+  let branchLocations: BranchLocationOption[] = []
 
   if (isAdmin) {
-    const [branchSettingsResult, bookingServicesResult] = await Promise.all([
-      supabase.from('branch_settings').select('*').order('day_of_week'),
-      supabase.from('booking_services').select('*').order('name'),
-    ])
-
-    initialBranchSettings = (branchSettingsResult.data || []) as BranchSettingRow[]
-    initialBookingServices = (bookingServicesResult.data || []) as BookingServiceRow[]
+    const { data: locationsData } = await supabase
+      .from('locations')
+      .select('id, name, branch_code')
+      .eq('type', 'Branch')
+      .order('name')
+    branchLocations = (locationsData || []) as BranchLocationOption[]
   }
 
   return (
@@ -60,8 +65,8 @@ export default async function BookingsDashboard() {
         />
         <BookingsClient
           isAdmin={isAdmin}
-          initialBranchSettings={initialBranchSettings}
-          initialBookingServices={initialBookingServices}
+          userLocationId={userLocationId}
+          branchLocations={branchLocations}
         />
       </div>
     </DashboardClientWrapper>
