@@ -18,24 +18,42 @@ interface BookingWithService {
 }
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const CALENDAR_DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+
 const STATUS_CONFIG: Record<string, { bg: string; text: string; label: string }> = {
-  pending:   { bg: 'bg-yellow-100', text: 'text-yellow-800', label: 'Pending' },
-  confirmed: { bg: 'bg-green-100',  text: 'text-green-800',  label: 'Confirmed' },
-  completed: { bg: 'bg-slate-100',  text: 'text-slate-600',  label: 'Completed' },
-  cancelled: { bg: 'bg-red-100',    text: 'text-red-700',    label: 'Cancelled' },
+  pending: { bg: 'bg-yellow-100', text: 'text-yellow-800', label: 'Pending' },
+  confirmed: { bg: 'bg-green-100', text: 'text-green-800', label: 'Confirmed' },
+  completed: { bg: 'bg-slate-100', text: 'text-slate-600', label: 'Completed' },
+  cancelled: { bg: 'bg-red-100', text: 'text-red-700', label: 'Cancelled' },
 }
+
 const SOURCE_CONFIG: Record<string, string> = {
-  portal:    'bg-indigo-100 text-indigo-700',
-  whatsapp:  'bg-green-100 text-green-700',
-  website:   'bg-blue-100 text-blue-700',
+  portal: 'bg-indigo-100 text-indigo-700',
+  whatsapp: 'bg-green-100 text-green-700',
+  website: 'bg-blue-100 text-blue-700',
 }
 
 function startOfWeek(date: Date): Date {
   const d = new Date(date)
   d.setUTCHours(0, 0, 0, 0)
   const day = d.getUTCDay()
-  d.setUTCDate(d.getUTCDate() - day + 1) // Start on Monday
+  d.setUTCDate(d.getUTCDate() - day + 1) // Monday start
   return d
+}
+
+function startOfMonth(date: Date): Date {
+  const d = new Date(date)
+  d.setUTCHours(0, 0, 0, 0)
+  d.setUTCDate(1)
+  return d
+}
+
+function startOfCalendarGrid(monthStart: Date): Date {
+  const start = startOfWeek(monthStart)
+  if (start.getUTCMonth() === monthStart.getUTCMonth() && start.getUTCDate() === 1) {
+    return start
+  }
+  return start
 }
 
 function formatDateLabel(date: Date): string {
@@ -56,6 +74,14 @@ function formatHeaderDate(date: Date): string {
   })
 }
 
+function formatMonthLabel(date: Date): string {
+  return date.toLocaleDateString('en-GB', {
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  })
+}
+
 function isSameUTCDay(a: Date, b: Date): boolean {
   return (
     a.getUTCFullYear() === b.getUTCFullYear() &&
@@ -69,35 +95,56 @@ function formatTime(iso: string): string {
   return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`
 }
 
+function statusDotClass(status: BookingStatus): string {
+  switch (status) {
+    case BookingStatus.CONFIRMED:
+      return 'bg-green-500'
+    case BookingStatus.PENDING:
+      return 'bg-yellow-400'
+    case BookingStatus.COMPLETED:
+      return 'bg-slate-400'
+    case BookingStatus.CANCELLED:
+      return 'bg-red-400'
+    default:
+      return 'bg-slate-300'
+  }
+}
+
 export default function BookingsClient() {
   const today = new Date()
   today.setUTCHours(0, 0, 0, 0)
 
+  const [view, setView] = useState<'week' | 'list' | 'multi'>('multi')
   const [weekStart, setWeekStart] = useState<Date>(() => startOfWeek(today))
+  const [monthStart, setMonthStart] = useState<Date>(() => startOfMonth(today))
   const [selectedDate, setSelectedDate] = useState<Date>(today)
+
   const [bookings, setBookings] = useState<BookingWithService[]>([])
   const [loading, setLoading] = useState(false)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
-  const [view, setView] = useState<'week' | 'list'>('week')
 
-  // Build 7-day range for current week view
   const weekDays = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(weekStart)
     d.setUTCDate(weekStart.getUTCDate() + i)
     return d
   })
 
-  // Fetch bookings for the whole visible week
+  const calendarGridStart = startOfCalendarGrid(monthStart)
+  const calendarDays = Array.from({ length: 42 }, (_, i) => {
+    const d = new Date(calendarGridStart)
+    d.setUTCDate(calendarGridStart.getUTCDate() + i)
+    return d
+  })
+
   const fetchBookings = useCallback(async () => {
     setLoading(true)
-    const from = new Date(weekStart)
-    const to = new Date(weekStart)
-    to.setUTCDate(to.getUTCDate() + 7)
+
+    const from = view === 'multi' ? new Date(calendarGridStart) : new Date(weekStart)
+    const to = new Date(from)
+    to.setUTCDate(to.getUTCDate() + (view === 'multi' ? 42 : 7))
 
     try {
-      const res = await fetch(
-        `/api/bookings?from=${from.toISOString()}&to=${to.toISOString()}`
-      )
+      const res = await fetch(`/api/bookings?from=${from.toISOString()}&to=${to.toISOString()}`)
       const json = await res.json()
       setBookings(json.bookings || [])
     } catch {
@@ -105,13 +152,22 @@ export default function BookingsClient() {
     } finally {
       setLoading(false)
     }
-  }, [weekStart])
+  }, [view, weekStart, calendarGridStart])
 
   useEffect(() => {
     fetchBookings()
   }, [fetchBookings])
 
-  const goToPrevWeek = () => {
+  const goToPrev = () => {
+    if (view === 'multi') {
+      setMonthStart((prev) => {
+        const d = new Date(prev)
+        d.setUTCMonth(d.getUTCMonth() - 1)
+        return d
+      })
+      return
+    }
+
     setWeekStart((prev) => {
       const d = new Date(prev)
       d.setUTCDate(d.getUTCDate() - 7)
@@ -119,7 +175,16 @@ export default function BookingsClient() {
     })
   }
 
-  const goToNextWeek = () => {
+  const goToNext = () => {
+    if (view === 'multi') {
+      setMonthStart((prev) => {
+        const d = new Date(prev)
+        d.setUTCMonth(d.getUTCMonth() + 1)
+        return d
+      })
+      return
+    }
+
     setWeekStart((prev) => {
       const d = new Date(prev)
       d.setUTCDate(d.getUTCDate() + 7)
@@ -128,8 +193,9 @@ export default function BookingsClient() {
   }
 
   const goToToday = () => {
-    setWeekStart(startOfWeek(today))
     setSelectedDate(today)
+    setWeekStart(startOfWeek(today))
+    setMonthStart(startOfMonth(today))
   }
 
   const bookingsForDate = (date: Date) =>
@@ -153,33 +219,43 @@ export default function BookingsClient() {
     }
   }
 
-  // Stats for the week
-  const totalWeek = bookings.filter((b) => b.status !== BookingStatus.CANCELLED).length
-  const pendingWeek = bookings.filter((b) => b.status === BookingStatus.PENDING).length
-  const confirmedWeek = bookings.filter((b) => b.status === BookingStatus.CONFIRMED).length
+  const totalVisible = bookings.filter((b) => b.status !== BookingStatus.CANCELLED).length
+  const pendingVisible = bookings.filter((b) => b.status === BookingStatus.PENDING).length
+  const confirmedVisible = bookings.filter((b) => b.status === BookingStatus.CONFIRMED).length
 
   const weekLabel = `${formatHeaderDate(weekStart)} — ${formatHeaderDate(weekDays[6])}`
-  const isCurrentWeek = isSameUTCDay(weekStart, startOfWeek(today))
+  const monthLabel = formatMonthLabel(monthStart)
+
+  const isCurrentPeriod =
+    view === 'multi'
+      ? monthStart.getUTCFullYear() === today.getUTCFullYear() &&
+        monthStart.getUTCMonth() === today.getUTCMonth()
+      : isSameUTCDay(weekStart, startOfWeek(today))
+
+  const selectedDateCount = selectedBookings.length
 
   return (
     <div className="min-h-screen bg-slate-50">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-6">
-
-        {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-slate-800">Appointments</h1>
-            <p className="text-sm text-slate-500 mt-0.5">{weekLabel}</p>
+            <p className="text-sm text-slate-500 mt-0.5">{view === 'multi' ? monthLabel : weekLabel}</p>
           </div>
-          <div className="flex items-center gap-2">
-            {/* View toggle */}
+          <div className="flex items-center gap-2 flex-wrap">
             <div className="flex rounded-lg border border-slate-200 overflow-hidden bg-white">
               <button
-                onClick={() => setView('week')}
+                onClick={() => setView('multi')}
                 className={`px-3 py-1.5 text-sm font-medium transition-colors ${
-                  view === 'week'
-                    ? 'bg-indigo-600 text-white'
-                    : 'text-slate-600 hover:bg-slate-50'
+                  view === 'multi' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                Calendar
+              </button>
+              <button
+                onClick={() => setView('week')}
+                className={`px-3 py-1.5 text-sm font-medium border-l border-slate-200 transition-colors ${
+                  view === 'week' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-50'
                 }`}
               >
                 Week
@@ -187,23 +263,22 @@ export default function BookingsClient() {
               <button
                 onClick={() => setView('list')}
                 className={`px-3 py-1.5 text-sm font-medium border-l border-slate-200 transition-colors ${
-                  view === 'list'
-                    ? 'bg-indigo-600 text-white'
-                    : 'text-slate-600 hover:bg-slate-50'
+                  view === 'list' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-50'
                 }`}
               >
                 List
               </button>
             </div>
-            {/* Navigation */}
+
             <button
-              onClick={goToPrevWeek}
+              onClick={goToPrev}
               className="p-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition-colors"
-              title="Previous week"
+              title={view === 'multi' ? 'Previous month' : 'Previous week'}
             >
               ←
             </button>
-            {!isCurrentWeek && (
+
+            {!isCurrentPeriod && (
               <button
                 onClick={goToToday}
                 className="px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors"
@@ -211,36 +286,119 @@ export default function BookingsClient() {
                 Today
               </button>
             )}
+
             <button
-              onClick={goToNextWeek}
+              onClick={goToNext}
               className="p-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition-colors"
-              title="Next week"
+              title={view === 'multi' ? 'Next month' : 'Next week'}
             >
               →
             </button>
           </div>
         </div>
 
-        {/* Week Stats */}
         <div className="grid grid-cols-3 gap-3">
           <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">This Week</p>
-            <p className="text-2xl font-bold text-slate-800 mt-1">{totalWeek}</p>
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Visible Range</p>
+            <p className="text-2xl font-bold text-slate-800 mt-1">{totalVisible}</p>
           </div>
           <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
             <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Pending</p>
-            <p className="text-2xl font-bold text-yellow-500 mt-1">{pendingWeek}</p>
+            <p className="text-2xl font-bold text-yellow-500 mt-1">{pendingVisible}</p>
           </div>
           <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
             <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Confirmed</p>
-            <p className="text-2xl font-bold text-green-600 mt-1">{confirmedWeek}</p>
+            <p className="text-2xl font-bold text-green-600 mt-1">{confirmedVisible}</p>
           </div>
         </div>
 
-        {/* ─── WEEK VIEW ─── */}
+        {view === 'multi' && (
+          <div className="space-y-4">
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50">
+                {CALENDAR_DAY_LABELS.map((label) => (
+                  <div key={label} className="px-3 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider text-center">
+                    {label}
+                  </div>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-7">
+                {calendarDays.map((day) => {
+                  const dayBookings = bookingsForDate(day)
+                  const isToday = isSameUTCDay(day, today)
+                  const isSelected = isSameUTCDay(day, selectedDate)
+                  const isOutsideMonth = day.getUTCMonth() !== monthStart.getUTCMonth()
+
+                  return (
+                    <button
+                      key={day.toISOString()}
+                      onClick={() => {
+                        setSelectedDate(day)
+                        setWeekStart(startOfWeek(day))
+                      }}
+                      className={`min-h-[108px] p-2 border-r border-b border-slate-100 text-left transition-colors ${
+                        isSelected
+                          ? 'bg-indigo-50'
+                          : isToday
+                          ? 'bg-blue-50'
+                          : 'bg-white hover:bg-slate-50'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span
+                          className={`text-sm font-semibold ${
+                            isSelected
+                              ? 'text-indigo-700'
+                              : isToday
+                              ? 'text-blue-700'
+                              : isOutsideMonth
+                              ? 'text-slate-300'
+                              : 'text-slate-700'
+                          }`}
+                        >
+                          {day.getUTCDate()}
+                        </span>
+                        {dayBookings.length > 0 && (
+                          <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700">
+                            {dayBookings.length}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="mt-2 space-y-1">
+                        {dayBookings.slice(0, 3).map((booking) => (
+                          <div key={booking.id} className="flex items-center gap-1.5">
+                            <span className={`h-1.5 w-1.5 rounded-full ${statusDotClass(booking.status)}`} />
+                            <span className="text-[11px] text-slate-500 truncate">
+                              {formatTime(booking.start_time)} {booking.customer_name}
+                            </span>
+                          </div>
+                        ))}
+                        {dayBookings.length > 3 && (
+                          <p className="text-[11px] text-slate-400">+{dayBookings.length - 3} more</p>
+                        )}
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            <SelectedDayPanel
+              selectedDate={selectedDate}
+              today={today}
+              selectedBookings={selectedBookings}
+              loading={loading}
+              updatingId={updatingId}
+              onStatusChange={updateStatus}
+              selectedDateCount={selectedDateCount}
+            />
+          </div>
+        )}
+
         {view === 'week' && (
           <div className="space-y-4">
-            {/* 7-day strip */}
             <div className="grid grid-cols-7 gap-2">
               {weekDays.map((day) => {
                 const dayBookings = bookingsForDate(day)
@@ -277,47 +435,18 @@ export default function BookingsClient() {
               })}
             </div>
 
-            {/* Selected day panel */}
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
-              <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-                <h2 className="font-semibold text-slate-800">
-                  {formatDateLabel(selectedDate)}
-                  {isSameUTCDay(selectedDate, today) && (
-                    <span className="ml-2 text-xs bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full font-medium">
-                      Today
-                    </span>
-                  )}
-                </h2>
-                <span className="text-sm text-slate-400">
-                  {loading ? 'Loading…' : `${selectedBookings.length} appointment${selectedBookings.length !== 1 ? 's' : ''}`}
-                </span>
-              </div>
-
-              {loading ? (
-                <div className="py-12 text-center text-slate-400 text-sm">Loading appointments…</div>
-              ) : selectedBookings.length === 0 ? (
-                <div className="py-12 text-center">
-                  <p className="text-slate-400 text-sm">No appointments on this day</p>
-                </div>
-              ) : (
-                <div className="divide-y divide-slate-100">
-                  {selectedBookings
-                    .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())
-                    .map((booking) => (
-                      <BookingRow
-                        key={booking.id}
-                        booking={booking}
-                        onStatusChange={updateStatus}
-                        updatingId={updatingId}
-                      />
-                    ))}
-                </div>
-              )}
-            </div>
+            <SelectedDayPanel
+              selectedDate={selectedDate}
+              today={today}
+              selectedBookings={selectedBookings}
+              loading={loading}
+              updatingId={updatingId}
+              onStatusChange={updateStatus}
+              selectedDateCount={selectedDateCount}
+            />
           </div>
         )}
 
-        {/* ─── LIST VIEW ─── */}
         {view === 'list' && (
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
             {loading ? (
@@ -367,7 +496,63 @@ export default function BookingsClient() {
   )
 }
 
-// ─── Shared Booking Row ───
+function SelectedDayPanel({
+  selectedDate,
+  today,
+  selectedBookings,
+  loading,
+  updatingId,
+  onStatusChange,
+  selectedDateCount,
+}: {
+  selectedDate: Date
+  today: Date
+  selectedBookings: BookingWithService[]
+  loading: boolean
+  updatingId: string | null
+  onStatusChange: (id: string, status: string) => void
+  selectedDateCount: number
+}) {
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+      <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+        <h2 className="font-semibold text-slate-800">
+          {formatDateLabel(selectedDate)}
+          {isSameUTCDay(selectedDate, today) && (
+            <span className="ml-2 text-xs bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full font-medium">
+              Today
+            </span>
+          )}
+        </h2>
+        <span className="text-sm text-slate-400">
+          {loading ? 'Loading…' : `${selectedDateCount} appointment${selectedDateCount !== 1 ? 's' : ''}`}
+        </span>
+      </div>
+
+      {loading ? (
+        <div className="py-12 text-center text-slate-400 text-sm">Loading appointments…</div>
+      ) : selectedBookings.length === 0 ? (
+        <div className="py-12 text-center">
+          <p className="text-slate-400 text-sm">No appointments on this day</p>
+        </div>
+      ) : (
+        <div className="divide-y divide-slate-100">
+          {selectedBookings
+            .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())
+            .map((booking) => (
+              <BookingRow
+                key={booking.id}
+                booking={booking}
+                onStatusChange={onStatusChange}
+                updatingId={updatingId}
+              />
+            ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function BookingRow({
   booking,
   onStatusChange,
@@ -383,12 +568,10 @@ function BookingRow({
 
   return (
     <div className="px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-3">
-      {/* Time */}
       <div className="w-14 flex-shrink-0 text-sm font-bold text-slate-700 tabular-nums">
         {formatTime(booking.start_time)}
       </div>
 
-      {/* Details */}
       <div className="flex-1 min-w-0">
         <p className="text-sm font-semibold text-slate-800 truncate">{booking.customer_name}</p>
         <div className="flex items-center gap-2 mt-0.5 flex-wrap">
@@ -404,7 +587,6 @@ function BookingRow({
         </div>
       </div>
 
-      {/* Badges + Actions */}
       <div className="flex items-center gap-2 flex-wrap flex-shrink-0">
         <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${status.bg} ${status.text}`}>
           {status.label}
@@ -413,7 +595,6 @@ function BookingRow({
           {booking.source}
         </span>
 
-        {/* Status Action Buttons */}
         {booking.status === BookingStatus.PENDING && (
           <button
             onClick={() => onStatusChange(booking.id, 'confirmed')}
