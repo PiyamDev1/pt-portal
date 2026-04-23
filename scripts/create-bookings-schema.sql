@@ -78,12 +78,20 @@ CREATE TABLE IF NOT EXISTS booking_services (
   name             TEXT NOT NULL,
   duration_minutes INTEGER NOT NULL,
   buffer_minutes   INTEGER NOT NULL DEFAULT 15,
+  available_days   SMALLINT[],
+  service_start_time TIME,
+  service_end_time TIME,
+  slot_interval_minutes INTEGER,
   is_active        BOOLEAN NOT NULL DEFAULT true,
   created_at       TIMESTAMPTZ DEFAULT NOW()
 );
 
 ALTER TABLE booking_services
-  ADD COLUMN IF NOT EXISTS location_id UUID REFERENCES locations(id) ON DELETE CASCADE;
+  ADD COLUMN IF NOT EXISTS location_id UUID REFERENCES locations(id) ON DELETE CASCADE,
+  ADD COLUMN IF NOT EXISTS available_days SMALLINT[],
+  ADD COLUMN IF NOT EXISTS service_start_time TIME,
+  ADD COLUMN IF NOT EXISTS service_end_time TIME,
+  ADD COLUMN IF NOT EXISTS slot_interval_minutes INTEGER;
 
 -- Unique index per branch name (skip if already exists)
 CREATE UNIQUE INDEX IF NOT EXISTS uq_booking_services_branch_name

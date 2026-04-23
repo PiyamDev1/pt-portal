@@ -14,6 +14,27 @@ function isSchemaError(error: unknown): boolean {
   return code === '42P01' || code === '42703' || code === '42P10';
 }
 
+function timeToMinutes(time: string): number {
+  const [hours, minutes] = time.split(':').map(Number);
+  return hours * 60 + minutes;
+}
+
+function extractUtcTimeHHMMSS(date: Date): string {
+  return `${String(date.getUTCHours()).padStart(2, '0')}:${String(date.getUTCMinutes()).padStart(2, '0')}:${String(date.getUTCSeconds()).padStart(2, '0')}`;
+}
+
+function overlapsRange(
+  startMinutes: number,
+  endMinutes: number,
+  rangeStart: string | null,
+  rangeEnd: string | null
+): boolean {
+  if (!rangeStart || !rangeEnd) return false;
+  const rs = timeToMinutes(rangeStart);
+  const re = timeToMinutes(rangeEnd);
+  return startMinutes < re && endMinutes > rs;
+}
+
 /**
  * GET /api/bookings?from=ISO&to=ISO
  * Fetch all bookings in a date range (for the dashboard week view)
@@ -132,6 +153,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const bookingDayOfWeek = new Date(start_time).getUTCDay();
+    if (
+      Array.isArray(service.available_days) &&
+      service.available_days.length > 0 &&
+      !service.available_days.includes(bookingDayOfWeek)
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Selected service is not available on this day',
+        } as CreateBookingResponse,
+        { status: 400 }
+      );
+    }
+
     // Step 3: Calculate end_time
     const startTimeDate = new Date(start_time);
     const endTimeDate = new Date(
@@ -172,6 +208,69 @@ export async function POST(request: NextRequest) {
         {
           success: false,
           error: 'Branch is closed on this day',
+        } as CreateBookingResponse,
+        { status: 400 }
+      );
+    }
+
+    const dateKey = startTimeDate.toISOString().slice(0, 10);
+    const { data: override } = await supabase
+      .from('branch_schedule_overrides')
+      .select('*')
+      .eq('location_id', location_id)
+      .eq('date', dateKey)
+      .single();
+
+    if (override?.is_closed) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Branch is closed on this date',
+        } as CreateBookingResponse,
+        { status: 400 }
+      );
+    }
+
+    const openTime = override?.open_time ?? branchSettings.open_time;
+    const closeTime = override?.close_time ?? branchSettings.close_time;
+    const lunchStart = override?.lunch_start_time ?? branchSettings.lunch_start_time;
+    const lunchEnd = override?.lunch_end_time ?? branchSettings.lunch_end_time;
+    const prayerStart = override?.prayer_start_time ?? branchSettings.prayer_start_time;
+    const prayerEnd = override?.prayer_end_time ?? branchSettings.prayer_end_time;
+
+    const serviceStartBound = service.service_start_time ?? openTime;
+    const serviceEndBound = service.service_end_time ?? closeTime;
+
+    const bookingStartMinutes = timeToMinutes(extractUtcTimeHHMMSS(startTimeDate));
+    const bookingEndMinutes = timeToMinutes(extractUtcTimeHHMMSS(endTimeDate));
+    const serviceStartMinutes = timeToMinutes(serviceStartBound);
+    const serviceEndMinutes = timeToMinutes(serviceEndBound);
+
+    if (bookingStartMinutes < serviceStartMinutes || bookingEndMinutes > serviceEndMinutes) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Selected time is outside service operating hours',
+        } as CreateBookingResponse,
+        { status: 400 }
+      );
+    }
+
+    if (overlapsRange(bookingStartMinutes, bookingEndMinutes, lunchStart, lunchEnd)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Selected time overlaps lunch break',
+        } as CreateBookingResponse,
+        { status: 400 }
+      );
+    }
+
+    if (overlapsRange(bookingStartMinutes, bookingEndMinutes, prayerStart, prayerEnd)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Selected time overlaps prayer break',
         } as CreateBookingResponse,
         { status: 400 }
       );

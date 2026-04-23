@@ -34,6 +34,10 @@ export interface BookingServiceRow {
   name: string
   duration_minutes: number
   buffer_minutes: number
+  available_days: number[] | null
+  service_start_time: string | null
+  service_end_time: string | null
+  slot_interval_minutes: number | null
   is_active: boolean
 }
 
@@ -88,7 +92,15 @@ export default function BookingSettingsTab({
   const [overrides, setOverrides] = useState<BranchScheduleOverride[]>([])
   const [services, setServices] = useState<BookingServiceRow[]>([])
 
-  const [newService, setNewService] = useState({ name: '', duration_minutes: 30, buffer_minutes: 15 })
+  const [newService, setNewService] = useState({
+    name: '',
+    duration_minutes: 30,
+    buffer_minutes: 15,
+    available_days: [] as number[],
+    service_start_time: '',
+    service_end_time: '',
+    slot_interval_minutes: 30,
+  })
   const [showAddService, setShowAddService] = useState(false)
   const [editingService, setEditingService] = useState<BookingServiceRow | null>(null)
 
@@ -164,6 +176,14 @@ export default function BookingSettingsTab({
     setWeeklySettings((prev) =>
       prev.map((row) => (row.day_of_week === day ? { ...row, [field]: value } : row))
     )
+  }
+
+  const toggleServiceDay = (days: number[] | null, day: number): number[] => {
+    const base = Array.isArray(days) ? days : []
+    if (base.includes(day)) {
+      return base.filter((d) => d !== day)
+    }
+    return [...base, day].sort((a, b) => a - b)
   }
 
   const saveWeekly = async () => {
@@ -251,12 +271,29 @@ export default function BookingSettingsTab({
       const res = await fetch('/api/bookings/settings/services', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ location_id: selectedLocationId, ...newService }),
+        body: JSON.stringify({
+          location_id: selectedLocationId,
+          name: newService.name,
+          duration_minutes: newService.duration_minutes,
+          buffer_minutes: newService.buffer_minutes,
+          available_days: newService.available_days,
+          service_start_time: newService.service_start_time || null,
+          service_end_time: newService.service_end_time || null,
+          slot_interval_minutes: newService.slot_interval_minutes || null,
+        }),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error)
       setServices((prev) => [...prev, json.service])
-      setNewService({ name: '', duration_minutes: 30, buffer_minutes: 15 })
+      setNewService({
+        name: '',
+        duration_minutes: 30,
+        buffer_minutes: 15,
+        available_days: [],
+        service_start_time: '',
+        service_end_time: '',
+        slot_interval_minutes: 30,
+      })
       setShowAddService(false)
       toast.success('Service added')
     } catch (error) {
@@ -280,6 +317,10 @@ export default function BookingSettingsTab({
           name: editingService.name,
           duration_minutes: editingService.duration_minutes,
           buffer_minutes: editingService.buffer_minutes,
+          available_days: editingService.available_days,
+          service_start_time: editingService.service_start_time,
+          service_end_time: editingService.service_end_time,
+          slot_interval_minutes: editingService.slot_interval_minutes,
         }),
       })
       const json = await res.json()
@@ -377,7 +418,7 @@ export default function BookingSettingsTab({
       {activeSection === 'hours' && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <p className="text-sm text-slate-600">Configure work hours, lunch break, Friday prayer break, slot interval, and staff concurrency.</p>
+            <p className="text-sm text-slate-600">Configure branch opening hours and breaks. Slot interval here is the default; services can override it with their own timing window.</p>
             <button
               onClick={saveWeekly}
               disabled={loading}
@@ -398,7 +439,7 @@ export default function BookingSettingsTab({
                   <th className="px-3 py-2 text-left">Lunch End</th>
                   <th className="px-3 py-2 text-left">Prayer Start</th>
                   <th className="px-3 py-2 text-left">Prayer End</th>
-                  <th className="px-3 py-2 text-left">Slot Every</th>
+                  <th className="px-3 py-2 text-left">Default Slot Every</th>
                   <th className="px-3 py-2 text-left">Staff</th>
                   <th className="px-3 py-2 text-center">Closed</th>
                 </tr>
@@ -477,15 +518,38 @@ export default function BookingSettingsTab({
       {activeSection === 'services' && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <p className="text-sm text-slate-600">Services define appointment duration + break gap (buffer) between appointments.</p>
+            <p className="text-sm text-slate-600">Define service-specific days, service hours, and slot intervals. All service timings are still clipped to branch opening/break rules.</p>
             <button onClick={() => setShowAddService(true)} className="px-4 py-2 rounded bg-indigo-600 text-white text-sm font-medium">+ Add Service</button>
           </div>
 
           {showAddService && (
-            <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+            <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
               <input type="text" value={newService.name} onChange={(e) => setNewService((p) => ({ ...p, name: e.target.value }))} placeholder="Service name" className="border border-slate-300 rounded px-3 py-2 text-sm" />
               <input type="number" min={5} value={newService.duration_minutes} onChange={(e) => setNewService((p) => ({ ...p, duration_minutes: Number(e.target.value) }))} className="border border-slate-300 rounded px-3 py-2 text-sm" placeholder="Duration" />
               <input type="number" min={0} value={newService.buffer_minutes} onChange={(e) => setNewService((p) => ({ ...p, buffer_minutes: Number(e.target.value) }))} className="border border-slate-300 rounded px-3 py-2 text-sm" placeholder="Buffer" />
+              <input type="time" value={newService.service_start_time} onChange={(e) => setNewService((p) => ({ ...p, service_start_time: e.target.value }))} className="border border-slate-300 rounded px-3 py-2 text-sm" placeholder="Start" />
+              <input type="time" value={newService.service_end_time} onChange={(e) => setNewService((p) => ({ ...p, service_end_time: e.target.value }))} className="border border-slate-300 rounded px-3 py-2 text-sm" placeholder="End" />
+              <select value={newService.slot_interval_minutes} onChange={(e) => setNewService((p) => ({ ...p, slot_interval_minutes: Number(e.target.value) }))} className="border border-slate-300 rounded px-3 py-2 text-sm">
+                {INTERVAL_OPTIONS.map((v) => <option key={v} value={v}>{v} min slot</option>)}
+              </select>
+              <div className="md:col-span-3 rounded border border-slate-200 bg-white px-3 py-2">
+                <p className="text-xs font-medium text-slate-500 mb-2">Available days</p>
+                <div className="flex flex-wrap gap-2">
+                  {DAY_NAMES.map((name, day) => {
+                    const active = newService.available_days.includes(day)
+                    return (
+                      <button
+                        key={name}
+                        type="button"
+                        onClick={() => setNewService((p) => ({ ...p, available_days: toggleServiceDay(p.available_days, day) }))}
+                        className={`px-2 py-1 rounded text-xs border ${active ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-300'}`}
+                      >
+                        {name.slice(0, 3)}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
               <div className="flex gap-2">
                 <button onClick={addService} disabled={loading} className="px-3 py-2 rounded bg-indigo-600 text-white text-sm disabled:opacity-50">Add</button>
                 <button onClick={() => setShowAddService(false)} className="px-3 py-2 rounded border border-slate-300 text-sm">Cancel</button>
@@ -497,10 +561,33 @@ export default function BookingSettingsTab({
             {services.map((service) => (
               <div key={service.id} className="rounded-lg border border-slate-200 bg-white p-4">
                 {editingService?.id === service.id ? (
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+                  <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
                     <input type="text" value={editingService.name} onChange={(e) => setEditingService((p) => (p ? { ...p, name: e.target.value } : p))} className="border border-slate-300 rounded px-3 py-2 text-sm" />
                     <input type="number" min={5} value={editingService.duration_minutes} onChange={(e) => setEditingService((p) => (p ? { ...p, duration_minutes: Number(e.target.value) } : p))} className="border border-slate-300 rounded px-3 py-2 text-sm" />
                     <input type="number" min={0} value={editingService.buffer_minutes} onChange={(e) => setEditingService((p) => (p ? { ...p, buffer_minutes: Number(e.target.value) } : p))} className="border border-slate-300 rounded px-3 py-2 text-sm" />
+                    <input type="time" value={editingService.service_start_time || ''} onChange={(e) => setEditingService((p) => (p ? { ...p, service_start_time: e.target.value || null } : p))} className="border border-slate-300 rounded px-3 py-2 text-sm" />
+                    <input type="time" value={editingService.service_end_time || ''} onChange={(e) => setEditingService((p) => (p ? { ...p, service_end_time: e.target.value || null } : p))} className="border border-slate-300 rounded px-3 py-2 text-sm" />
+                    <select value={editingService.slot_interval_minutes ?? 30} onChange={(e) => setEditingService((p) => (p ? { ...p, slot_interval_minutes: Number(e.target.value) } : p))} className="border border-slate-300 rounded px-3 py-2 text-sm">
+                      {INTERVAL_OPTIONS.map((v) => <option key={v} value={v}>{v} min slot</option>)}
+                    </select>
+                    <div className="md:col-span-3 rounded border border-slate-200 bg-slate-50 px-3 py-2">
+                      <p className="text-xs font-medium text-slate-500 mb-2">Available days</p>
+                      <div className="flex flex-wrap gap-2">
+                        {DAY_NAMES.map((name, day) => {
+                          const active = Array.isArray(editingService.available_days) && editingService.available_days.includes(day)
+                          return (
+                            <button
+                              key={name}
+                              type="button"
+                              onClick={() => setEditingService((p) => (p ? { ...p, available_days: toggleServiceDay(p.available_days, day) } : p))}
+                              className={`px-2 py-1 rounded text-xs border ${active ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-300'}`}
+                            >
+                              {name.slice(0, 3)}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
                     <div className="flex gap-2">
                       <button onClick={saveService} className="px-3 py-2 rounded bg-indigo-600 text-white text-sm">Save</button>
                       <button onClick={() => setEditingService(null)} className="px-3 py-2 rounded border border-slate-300 text-sm">Cancel</button>
@@ -510,7 +597,13 @@ export default function BookingSettingsTab({
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <p className="text-sm font-semibold text-slate-700">{service.name}</p>
-                      <p className="text-xs text-slate-500">Duration {service.duration_minutes} min · Buffer {service.buffer_minutes} min</p>
+                      <p className="text-xs text-slate-500">
+                        Duration {service.duration_minutes} min · Buffer {service.buffer_minutes} min · Slot {service.slot_interval_minutes ?? 'Branch default'}
+                      </p>
+                      <p className="text-xs text-slate-400 mt-1">
+                        Days: {Array.isArray(service.available_days) && service.available_days.length > 0 ? service.available_days.map((d) => DAY_NAMES[d].slice(0, 3)).join(', ') : 'All'} ·
+                        Time: {service.service_start_time || 'Branch open'} - {service.service_end_time || 'Branch close'}
+                      </p>
                     </div>
                     <div className="flex items-center gap-2">
                       <button onClick={() => setEditingService(service)} className="px-3 py-1.5 rounded border border-slate-300 text-xs">Edit</button>

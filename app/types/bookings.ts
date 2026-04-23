@@ -56,6 +56,10 @@ export interface BookingService {
   name: string;
   duration_minutes: number;
   buffer_minutes: number;
+  available_days: number[] | null; // 0=Sunday, 6=Saturday
+  service_start_time: string | null; // HH:MM:SS
+  service_end_time: string | null; // HH:MM:SS
+  slot_interval_minutes: number | null; // per-service slot interval override
   is_active: boolean;
 }
 

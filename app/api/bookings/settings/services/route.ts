@@ -48,11 +48,24 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { location_id, name, duration_minutes, buffer_minutes } = body as {
+    const {
+      location_id,
+      name,
+      duration_minutes,
+      buffer_minutes,
+      available_days,
+      service_start_time,
+      service_end_time,
+      slot_interval_minutes,
+    } = body as {
       location_id: string;
       name: string;
       duration_minutes: number;
       buffer_minutes: number;
+      available_days?: number[] | null;
+      service_start_time?: string | null;
+      service_end_time?: string | null;
+      slot_interval_minutes?: number | null;
     };
 
     if (!location_id || !name || !duration_minutes) {
@@ -69,11 +82,34 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (slot_interval_minutes !== undefined && slot_interval_minutes !== null && slot_interval_minutes < 5) {
+      return NextResponse.json(
+        { error: 'slot_interval_minutes must be at least 5 when provided' },
+        { status: 400 }
+      );
+    }
+
+    if (available_days && available_days.some((d) => d < 0 || d > 6)) {
+      return NextResponse.json(
+        { error: 'available_days values must be between 0 and 6' },
+        { status: 400 }
+      );
+    }
+
     const supabase = await getRouteSupabaseClient();
 
     const { data, error } = await supabase
       .from('booking_services')
-      .insert({ location_id, name, duration_minutes, buffer_minutes: buffer_minutes ?? 15 })
+      .insert({
+        location_id,
+        name,
+        duration_minutes,
+        buffer_minutes: buffer_minutes ?? 15,
+        available_days: available_days ?? null,
+        service_start_time: service_start_time ?? null,
+        service_end_time: service_end_time ?? null,
+        slot_interval_minutes: slot_interval_minutes ?? null,
+      })
       .select()
       .single();
 

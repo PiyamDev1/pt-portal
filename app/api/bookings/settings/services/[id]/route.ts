@@ -16,16 +16,43 @@ export async function PATCH(
   try {
     const { id } = await params;
     const body = await request.json();
-    const { name, duration_minutes, buffer_minutes, is_active } = body as {
+    const {
+      name,
+      duration_minutes,
+      buffer_minutes,
+      is_active,
+      available_days,
+      service_start_time,
+      service_end_time,
+      slot_interval_minutes,
+    } = body as {
       name?: string;
       duration_minutes?: number;
       buffer_minutes?: number;
       is_active?: boolean;
+      available_days?: number[] | null;
+      service_start_time?: string | null;
+      service_end_time?: string | null;
+      slot_interval_minutes?: number | null;
     };
 
     if (duration_minutes !== undefined && duration_minutes < 5) {
       return NextResponse.json(
         { error: 'duration_minutes must be at least 5' },
+        { status: 400 }
+      );
+    }
+
+    if (slot_interval_minutes !== undefined && slot_interval_minutes !== null && slot_interval_minutes < 5) {
+      return NextResponse.json(
+        { error: 'slot_interval_minutes must be at least 5 when provided' },
+        { status: 400 }
+      );
+    }
+
+    if (available_days && available_days.some((d) => d < 0 || d > 6)) {
+      return NextResponse.json(
+        { error: 'available_days values must be between 0 and 6' },
         { status: 400 }
       );
     }
@@ -37,6 +64,10 @@ export async function PATCH(
     if (duration_minutes !== undefined) updates.duration_minutes = duration_minutes;
     if (buffer_minutes !== undefined) updates.buffer_minutes = buffer_minutes;
     if (is_active !== undefined) updates.is_active = is_active;
+    if (available_days !== undefined) updates.available_days = available_days;
+    if (service_start_time !== undefined) updates.service_start_time = service_start_time;
+    if (service_end_time !== undefined) updates.service_end_time = service_end_time;
+    if (slot_interval_minutes !== undefined) updates.slot_interval_minutes = slot_interval_minutes;
 
     const { data, error } = await supabase
       .from('booking_services')

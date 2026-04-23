@@ -123,6 +123,37 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    if (!service.is_active) {
+      return NextResponse.json({
+        date,
+        service_id,
+        slots: [],
+      } as AvailableSlotsResponse);
+    }
+
+    if (
+      Array.isArray(service.available_days) &&
+      service.available_days.length > 0 &&
+      !service.available_days.includes(dayOfWeek)
+    ) {
+      return NextResponse.json({
+        date,
+        service_id,
+        slots: [],
+      } as AvailableSlotsResponse);
+    }
+
+    const effectiveOpenTime = maxTime(openTime, service.service_start_time);
+    const effectiveCloseTime = minTime(closeTime, service.service_end_time);
+
+    if (!effectiveOpenTime || !effectiveCloseTime || effectiveOpenTime >= effectiveCloseTime) {
+      return NextResponse.json({
+        date,
+        service_id,
+        slots: [],
+      } as AvailableSlotsResponse);
+    }
+
     // Step 3: Fetch all non-cancelled bookings for this date
     const startOfDay = new Date(`${date}T00:00:00Z`).toISOString();
     const endOfDay = new Date(`${date}T23:59:59Z`).toISOString();
@@ -149,15 +180,15 @@ export async function GET(request: NextRequest) {
     // Step 4: Generate available slots
     const slots = generateAvailableSlots(
       date,
-      openTime,
-      closeTime,
+      effectiveOpenTime,
+      effectiveCloseTime,
       lunchStartTime,
       lunchEndTime,
       prayerStartTime,
       prayerEndTime,
       service.duration_minutes,
       service.buffer_minutes,
-      slotInterval,
+      service.slot_interval_minutes ?? slotInterval,
       concurrentStaff,
       existingBookings || []
     );
@@ -268,6 +299,18 @@ function generateAvailableSlots(
 function timeToMinutes(time: string): number {
   const [hours, minutes] = time.split(':').map(Number);
   return hours * 60 + minutes;
+}
+
+function maxTime(a: string | null, b: string | null): string | null {
+  if (!a) return b;
+  if (!b) return a;
+  return timeToMinutes(a) >= timeToMinutes(b) ? a : b;
+}
+
+function minTime(a: string | null, b: string | null): string | null {
+  if (!a) return b;
+  if (!b) return a;
+  return timeToMinutes(a) <= timeToMinutes(b) ? a : b;
 }
 
 /**
