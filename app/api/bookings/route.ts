@@ -8,6 +8,39 @@ import {
 } from '@/app/types/bookings';
 
 /**
+ * GET /api/bookings?from=ISO&to=ISO
+ * Fetch all bookings in a date range (for the dashboard week view)
+ */
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = request.nextUrl;
+    const from = searchParams.get('from');
+    const to = searchParams.get('to');
+
+    if (!from || !to) {
+      return NextResponse.json({ error: 'from and to query params are required' }, { status: 400 });
+    }
+
+    const supabase = await getRouteSupabaseClient();
+
+    const { data, error } = await supabase
+      .from('bookings')
+      .select(`*, booking_services:service_id(name, duration_minutes)`)
+      .gte('start_time', from)
+      .lt('start_time', to)
+      .order('start_time', { ascending: true });
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ bookings: data || [] });
+  } catch {
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+/**
  * POST /api/bookings
  * Creates a new booking
  * Expected JSON body: { customer_name, customer_phone, service_id, start_time, source? }
