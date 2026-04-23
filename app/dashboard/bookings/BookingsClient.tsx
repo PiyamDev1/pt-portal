@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { BookingStatus, BookingSource } from '@/app/types/bookings'
 
 interface BookingWithService {
@@ -121,7 +121,10 @@ export default function BookingsClient() {
 
   const [bookings, setBookings] = useState<BookingWithService[]>([])
   const [loading, setLoading] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
+  const [autoRefresh, setAutoRefresh] = useState(true)
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null)
 
   const weekDays = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(weekStart)
@@ -129,34 +132,76 @@ export default function BookingsClient() {
     return d
   })
 
-  const calendarGridStart = startOfCalendarGrid(monthStart)
-  const calendarDays = Array.from({ length: 42 }, (_, i) => {
+  const calendarGridStart = useMemo(() => startOfCalendarGrid(monthStart), [monthStart])
+  const calendarDays = useMemo(() => Array.from({ length: 42 }, (_, i) => {
     const d = new Date(calendarGridStart)
     d.setUTCDate(calendarGridStart.getUTCDate() + i)
     return d
-  })
+  }), [calendarGridStart])
 
-  const fetchBookings = useCallback(async () => {
-    setLoading(true)
-
-    const from = view === 'multi' ? new Date(calendarGridStart) : new Date(weekStart)
-    const to = new Date(from)
+  const rangeStart = useMemo(
+    () => (view === 'multi' ? new Date(calendarGridStart) : new Date(weekStart)),
+    [view, calendarGridStart, weekStart]
+  )
+  const rangeEnd = useMemo(() => {
+    const to = new Date(rangeStart)
     to.setUTCDate(to.getUTCDate() + (view === 'multi' ? 42 : 7))
+    return to
+  }, [rangeStart, view])
+
+  const fromISO = useMemo(() => rangeStart.toISOString(), [rangeStart])
+  const toISO = useMemo(() => rangeEnd.toISOString(), [rangeEnd])
+
+  const fetchBookings = useCallback(async (background = false) => {
+    if (background) {
+      setRefreshing(true)
+    } else {
+      setLoading(true)
+    }
 
     try {
-      const res = await fetch(`/api/bookings?from=${from.toISOString()}&to=${to.toISOString()}`)
+      const res = await fetch(`/api/bookings?from=${fromISO}&to=${toISO}`, { cache: 'no-store' })
       const json = await res.json()
       setBookings(json.bookings || [])
+      setLastUpdatedAt(new Date())
     } catch {
       setBookings([])
     } finally {
-      setLoading(false)
+      if (background) {
+        setRefreshing(false)
+      } else {
+        setLoading(false)
+      }
     }
-  }, [view, weekStart, calendarGridStart])
+  }, [fromISO, toISO])
 
   useEffect(() => {
-    fetchBookings()
+    fetchBookings(false)
   }, [fetchBookings])
+
+  useEffect(() => {
+    if (!autoRefresh) return
+
+    const intervalId = setInterval(() => {
+      fetchBookings(true)
+    }, 10000)
+
+    const onFocus = () => fetchBookings(true)
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        fetchBookings(true)
+      }
+    }
+
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onVisibility)
+
+    return () => {
+      clearInterval(intervalId)
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
+  }, [autoRefresh, fetchBookings])
 
   const goToPrev = () => {
     if (view === 'multi') {
@@ -233,6 +278,9 @@ export default function BookingsClient() {
       : isSameUTCDay(weekStart, startOfWeek(today))
 
   const selectedDateCount = selectedBookings.length
+  const refreshLabel = lastUpdatedAt
+    ? lastUpdatedAt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    : 'Never'
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -294,7 +342,30 @@ export default function BookingsClient() {
             >
               →
             </button>
+
+            <button
+              onClick={() => fetchBookings(true)}
+              disabled={refreshing}
+              className="px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors"
+            >
+              {refreshing ? 'Refreshing...' : 'Refresh'}
+            </button>
+
+            <label className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm text-slate-600">
+              <input
+                type="checkbox"
+                checked={autoRefresh}
+                onChange={(e) => setAutoRefresh(e.target.checked)}
+                className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+              />
+              Auto refresh (10s)
+            </label>
           </div>
+        </div>
+
+        <div className="text-xs text-slate-500 flex items-center gap-2">
+          <span>Last updated: {refreshLabel}</span>
+          {refreshing && <span className="text-indigo-600">Checking for changes...</span>}
         </div>
 
         <div className="grid grid-cols-3 gap-3">
