@@ -90,10 +90,18 @@ const ALL_MODULES = [
     color: 'bg-emerald-700 text-white',
     href: '/dashboard/pricing',
   },
+  {
+    id: 'bookings',
+    title: 'Bookings',
+    desc: 'Manage branch appointments',
+    icon: '📅',
+    color: 'bg-indigo-600 text-white',
+    href: '/dashboard/bookings',
+  },
 ]
 
 // Mock User Preferences (In future, fetch these from DB)
-const PINNED_IDS = ['ticketing', 'visas', 'nadra']
+const PINNED_IDS = ['ticketing', 'visas', 'nadra', 'bookings']
 const RECENT_IDS = ['pak-passport', 'lms', 'pricing']
 
 const PINNED_ID_SET = new Set(PINNED_IDS)

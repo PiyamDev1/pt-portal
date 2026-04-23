@@ -4,7 +4,6 @@ import {
   BookingStatus,
   BookingSource,
 } from '@/app/types/bookings';
-import { format } from 'date-fns';
 
 /**
  * Bookings Dashboard
@@ -68,7 +67,9 @@ function getSourceLabel(source: string): string {
 function formatTime(isoString: string): string {
   try {
     const date = new Date(isoString);
-    return format(date, 'HH:mm');
+    const hours = String(date.getUTCHours()).padStart(2, '0');
+    const minutes = String(date.getUTCMinutes()).padStart(2, '0');
+    return `${hours}:${minutes}`;
   } catch {
     return 'Invalid date';
   }
@@ -216,7 +217,7 @@ export default async function BookingsDashboard() {
 
         {/* Footer */}
         <div className="mt-8 text-center text-sm text-gray-500">
-          <p>Last updated: {format(new Date(), 'HH:mm:ss')}</p>
+          <p>Last updated: {new Date().toLocaleTimeString('en-GB')}</p>
         </div>
       </div>
     </div>
