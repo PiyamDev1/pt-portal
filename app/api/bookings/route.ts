@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const supabase = getRouteSupabaseClient();
+    const supabase = await getRouteSupabaseClient();
 
     // Step 2: Fetch service details to get duration
     const { data: service, error: serviceError } = await supabase

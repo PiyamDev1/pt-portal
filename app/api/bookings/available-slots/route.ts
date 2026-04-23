@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const supabase = getRouteSupabaseClient();
+    const supabase = await getRouteSupabaseClient();
 
     // Parse the date and get day of week (0=Sunday, 1=Monday, etc.)
     const dateObj = new Date(`${date}T00:00:00Z`);

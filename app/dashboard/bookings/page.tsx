@@ -13,7 +13,7 @@ import {
 export const revalidate = 60; // Revalidate every 60 seconds
 
 async function getTodayBookings(): Promise<Booking[]> {
-  const supabase = getRouteSupabaseClient();
+  const supabase = await getRouteSupabaseClient();
 
   // Get today's date in UTC
   const today = new Date();
