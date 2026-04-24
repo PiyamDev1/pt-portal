@@ -9,6 +9,55 @@ const INTERVAL_OPTIONS = [15, 20, 30, 45, 60]
 const TEMPLATE_VARIABLES = ['[Customer Name]', '[date booked]', '[time booked]', '[service booked]', '[branch name]']
 type TemplateField = 'confirmation_template' | 'modification_template' | 'cancellation_template'
 
+const TEMPLATE_SAMPLE_VALUES: Record<string, string> = {
+  '[Customer Name]': 'Alex Carter',
+  '[date booked]': '24 Apr 2026',
+  '[time booked]': '10:30',
+  '[service booked]': 'Visa Consultation',
+  '[branch name]': 'London Branch',
+}
+
+function withPresetEmailTemplate(content: string): string {
+  return `<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Booking Email Preview</title>
+  </head>
+  <body style="margin:0;padding:24px;background:#f1f5f9;font-family:Arial,Helvetica,sans-serif;color:#0f172a;">
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">
+      <tr>
+        <td style="padding:18px 24px;background:#1e3a8a;color:#ffffff;font-size:14px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;">
+          Piyam Travel
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:24px;font-size:14px;line-height:1.65;white-space:pre-wrap;">${content}</td>
+      </tr>
+      <tr>
+        <td style="padding:16px 24px;background:#f8fafc;color:#64748b;font-size:12px;line-height:1.4;">
+          This is an automated preview of your booking email template.
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`
+}
+
+function buildTemplatePreviewHtml(rawTemplate: string | null | undefined): string {
+  const base = (rawTemplate || '').trim()
+  if (!base) {
+    return withPresetEmailTemplate('Start typing a template to preview it here.')
+  }
+
+  const resolved = TEMPLATE_VARIABLES.reduce((acc, token) => {
+    return acc.split(token).join(TEMPLATE_SAMPLE_VALUES[token] || token)
+  }, base)
+
+  return withPresetEmailTemplate(resolved)
+}
+
 export interface BranchLocationOption {
   id: string
   name: string
@@ -80,6 +129,26 @@ function LabeledInput({
       <span className="text-xs font-medium text-slate-600">{label}</span>
       {children}
     </label>
+  )
+}
+
+function TemplatePreview({
+  title,
+  template,
+}: {
+  title: string
+  template: string | null | undefined
+}) {
+  return (
+    <div className="mt-2 rounded border border-slate-200 bg-white p-2">
+      <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">{title} Preview</p>
+      <iframe
+        title={`${title} preview`}
+        srcDoc={buildTemplatePreviewHtml(template)}
+        className="h-56 w-full rounded border border-slate-200"
+        sandbox=""
+      />
+    </div>
   )
 }
 
@@ -639,6 +708,7 @@ export default function BookingSettingsTab({
                       ))}
                     </div>
                     <textarea ref={(el) => { newTemplateRefs.current.confirmation_template = el }} value={newService.confirmation_template} onFocus={() => setActiveNewTemplateField('confirmation_template')} onChange={(e) => setNewService((p) => ({ ...p, confirmation_template: e.target.value }))} rows={6} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" placeholder="Dear [Customer Name],\n\nYour appointment has been booked for [date booked] at [time booked] for [service booked]." />
+                    <TemplatePreview title="Confirmation" template={newService.confirmation_template} />
                   </>
                 </LabeledInput>
                 <LabeledInput label="Booking Modification Email Template">
@@ -649,6 +719,7 @@ export default function BookingSettingsTab({
                       ))}
                     </div>
                     <textarea ref={(el) => { newTemplateRefs.current.modification_template = el }} value={newService.modification_template} onFocus={() => setActiveNewTemplateField('modification_template')} onChange={(e) => setNewService((p) => ({ ...p, modification_template: e.target.value }))} rows={6} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" placeholder="Dear [Customer Name],\n\nYour appointment has been updated to [date booked] at [time booked] for [service booked]." />
+                    <TemplatePreview title="Modification" template={newService.modification_template} />
                   </>
                 </LabeledInput>
                 <LabeledInput label="Booking Cancellation Email Template">
@@ -659,6 +730,7 @@ export default function BookingSettingsTab({
                       ))}
                     </div>
                     <textarea ref={(el) => { newTemplateRefs.current.cancellation_template = el }} value={newService.cancellation_template} onFocus={() => setActiveNewTemplateField('cancellation_template')} onChange={(e) => setNewService((p) => ({ ...p, cancellation_template: e.target.value }))} rows={6} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" placeholder="Dear [Customer Name],\n\nYour appointment for [service booked] on [date booked] at [time booked] has been cancelled." />
+                    <TemplatePreview title="Cancellation" template={newService.cancellation_template} />
                   </>
                 </LabeledInput>
               </div>
@@ -720,6 +792,7 @@ export default function BookingSettingsTab({
                             ))}
                           </div>
                           <textarea ref={(el) => { editTemplateRefs.current.confirmation_template = el }} value={editingService.confirmation_template || ''} onFocus={() => setActiveEditTemplateField('confirmation_template')} onChange={(e) => setEditingService((p) => (p ? { ...p, confirmation_template: e.target.value || null } : p))} rows={6} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
+                          <TemplatePreview title="Confirmation" template={editingService.confirmation_template} />
                         </>
                       </LabeledInput>
                       <LabeledInput label="Booking Modification Email Template">
@@ -730,6 +803,7 @@ export default function BookingSettingsTab({
                             ))}
                           </div>
                           <textarea ref={(el) => { editTemplateRefs.current.modification_template = el }} value={editingService.modification_template || ''} onFocus={() => setActiveEditTemplateField('modification_template')} onChange={(e) => setEditingService((p) => (p ? { ...p, modification_template: e.target.value || null } : p))} rows={6} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
+                          <TemplatePreview title="Modification" template={editingService.modification_template} />
                         </>
                       </LabeledInput>
                       <LabeledInput label="Booking Cancellation Email Template">
@@ -740,6 +814,7 @@ export default function BookingSettingsTab({
                             ))}
                           </div>
                           <textarea ref={(el) => { editTemplateRefs.current.cancellation_template = el }} value={editingService.cancellation_template || ''} onFocus={() => setActiveEditTemplateField('cancellation_template')} onChange={(e) => setEditingService((p) => (p ? { ...p, cancellation_template: e.target.value || null } : p))} rows={6} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
+                          <TemplatePreview title="Cancellation" template={editingService.cancellation_template} />
                         </>
                       </LabeledInput>
                     </div>

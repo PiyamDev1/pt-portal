@@ -269,13 +269,19 @@ export default function BookingsClient({
   }, [fetchServices])
 
   useEffect(() => {
+    if (!showSettings) {
+      fetchServices()
+    }
+  }, [showSettings, fetchServices])
+
+  useEffect(() => {
     if (showSettings) return
 
     if (!autoRefresh) return
 
     const intervalId = setInterval(() => {
       fetchBookings(true)
-    }, 10000)
+    }, 120000)
 
     const onFocus = () => fetchBookings(true)
     const onVisibility = () => {
@@ -607,7 +613,7 @@ export default function BookingsClient({
                 onChange={(e) => setAutoRefresh(e.target.checked)}
                 className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
               />
-              Auto refresh (10s)
+              Auto refresh (120s)
             </label>
 
             {isAdmin && (
