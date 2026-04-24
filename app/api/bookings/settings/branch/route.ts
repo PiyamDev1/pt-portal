@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase';
+import { getSupabaseClient } from '@/lib/supabaseClient';
 
 const SCHEMA_HINT = 'Booking schema is out of date. Run scripts/create-bookings-schema.sql in Supabase SQL editor.';
 
@@ -90,7 +91,15 @@ export async function PATCH(request: NextRequest) {
       }
     }
 
-    const supabase = await getRouteSupabaseClient();
+    // Auth check with session client
+    const sessionClient = await getRouteSupabaseClient();
+    const { data: { user } } = await sessionClient.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Use service-role client to bypass RLS
+    const supabase = getSupabaseClient();
 
     const payload = settings.map((row) => ({
       location_id,
