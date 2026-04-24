@@ -1,42 +1,22 @@
 import formData from 'form-data';
 import Mailgun from 'mailgun.js';
+import {
+  ALLOWED_TEMPLATE_VARIABLES,
+  type BookingTemplateValues,
+  findTemplateTokens,
+  validateBookingTemplate,
+  renderBookingTemplate,
+  buildBookingEmailHtmlFromTemplate,
+} from '@/lib/bookingEmailTemplate';
+
+export {
+  ALLOWED_TEMPLATE_VARIABLES,
+  findTemplateTokens,
+  validateBookingTemplate,
+  renderBookingTemplate,
+};
 
 const BOOKING_SENDER_EMAIL = 'noreply.appointments@piyamtravel.com';
-const TEMPLATE_TOKEN_REGEX = /\[[^\]]+\]/g;
-export const ALLOWED_TEMPLATE_VARIABLES = [
-  '[Customer Name]',
-  '[date booked]',
-  '[time booked]',
-  '[service booked]',
-  '[branch name]',
-] as const;
-
-export interface BookingTemplateValues {
-  'Customer Name': string;
-  'date booked': string;
-  'time booked': string;
-  'service booked': string;
-  'branch name'?: string;
-}
-
-export function findTemplateTokens(template: string): string[] {
-  const matches = template.match(TEMPLATE_TOKEN_REGEX) || [];
-  return [...new Set(matches)];
-}
-
-export function validateBookingTemplate(template: string): {
-  valid: boolean;
-  invalidTokens: string[];
-} {
-  const tokens = findTemplateTokens(template);
-  const invalidTokens = tokens.filter(
-    (token) => !ALLOWED_TEMPLATE_VARIABLES.includes(token as (typeof ALLOWED_TEMPLATE_VARIABLES)[number])
-  );
-  return {
-    valid: invalidTokens.length === 0,
-    invalidTokens,
-  };
-}
 
 function formatDateTime(isoString: string): { date: string; time: string } {
   const d = new Date(isoString);
@@ -55,20 +35,6 @@ function formatDateTime(isoString: string): { date: string; time: string } {
       timeZone: 'UTC',
     }),
   };
-}
-
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-export function renderBookingTemplate(template: string, values: BookingTemplateValues): string {
-  let output = template;
-  for (const [key, rawValue] of Object.entries(values)) {
-    const value = rawValue ?? '';
-    const token = new RegExp(`\\[${escapeRegExp(key)}\\]`, 'g');
-    output = output.replace(token, value);
-  }
-  return output;
 }
 
 export function defaultTemplate(kind: 'confirmation' | 'modification' | 'cancellation'): string {
@@ -137,6 +103,10 @@ export async function sendBookingEmail(params: {
     params.template?.trim() || defaultTemplate(params.kind),
     values
   );
+  const html = buildBookingEmailHtmlFromTemplate(
+    params.template?.trim() || defaultTemplate(params.kind),
+    values
+  );
 
   try {
     await mg.messages.create(senderDomain, {
@@ -144,6 +114,7 @@ export async function sendBookingEmail(params: {
       to: params.to,
       subject: params.subject,
       text: body,
+      html,
     });
     return { sent: true, senderEmail };
   } catch (error) {

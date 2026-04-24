@@ -2,11 +2,16 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { toast } from 'sonner'
+import {
+  ALLOWED_TEMPLATE_VARIABLES,
+  type BookingTemplateValues,
+  buildBookingEmailHtmlFromTemplate,
+} from '@/lib/bookingEmailTemplate'
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
 const INTERVAL_OPTIONS = [15, 20, 30, 45, 60]
-const TEMPLATE_VARIABLES = ['[Customer Name]', '[date booked]', '[time booked]', '[service booked]', '[branch name]']
+const TEMPLATE_VARIABLES = [...ALLOWED_TEMPLATE_VARIABLES]
 type TemplateField = 'confirmation_template' | 'modification_template' | 'cancellation_template'
 
 const TEMPLATE_SAMPLE_VALUES: Record<string, string> = {
@@ -17,45 +22,21 @@ const TEMPLATE_SAMPLE_VALUES: Record<string, string> = {
   '[branch name]': 'London Branch',
 }
 
-function withPresetEmailTemplate(content: string): string {
-  return `<!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Booking Email Preview</title>
-  </head>
-  <body style="margin:0;padding:24px;background:#f1f5f9;font-family:Arial,Helvetica,sans-serif;color:#0f172a;">
-    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">
-      <tr>
-        <td style="padding:18px 24px;background:#1e3a8a;color:#ffffff;font-size:14px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;">
-          Piyam Travel
-        </td>
-      </tr>
-      <tr>
-        <td style="padding:24px;font-size:14px;line-height:1.65;white-space:pre-wrap;">${content}</td>
-      </tr>
-      <tr>
-        <td style="padding:16px 24px;background:#f8fafc;color:#64748b;font-size:12px;line-height:1.4;">
-          This is an automated preview of your booking email template.
-        </td>
-      </tr>
-    </table>
-  </body>
-</html>`
-}
-
 function buildTemplatePreviewHtml(rawTemplate: string | null | undefined): string {
   const base = (rawTemplate || '').trim()
-  if (!base) {
-    return withPresetEmailTemplate('Start typing a template to preview it here.')
+  const sampleValues: BookingTemplateValues = {
+    'Customer Name': TEMPLATE_SAMPLE_VALUES['[Customer Name]'],
+    'date booked': TEMPLATE_SAMPLE_VALUES['[date booked]'],
+    'time booked': TEMPLATE_SAMPLE_VALUES['[time booked]'],
+    'service booked': TEMPLATE_SAMPLE_VALUES['[service booked]'],
+    'branch name': TEMPLATE_SAMPLE_VALUES['[branch name]'],
   }
 
-  const resolved = TEMPLATE_VARIABLES.reduce((acc, token) => {
-    return acc.split(token).join(TEMPLATE_SAMPLE_VALUES[token] || token)
-  }, base)
+  if (!base) {
+    return buildBookingEmailHtmlFromTemplate('Start typing a template to preview it here.', sampleValues)
+  }
 
-  return withPresetEmailTemplate(resolved)
+  return buildBookingEmailHtmlFromTemplate(base, sampleValues)
 }
 
 export interface BranchLocationOption {
