@@ -6,7 +6,13 @@ const SCHEMA_HINT = 'Booking schema is out of date. Run scripts/create-bookings-
 
 function isSchemaError(error: unknown): boolean {
   const code = (error as { code?: string } | null)?.code;
-  return code === '42P01' || code === '42703' || code === '42P10';
+  return code === '42P01' || code === '42703' || code === '42P10' || code === 'PGRST204';
+}
+
+function isMissingAdditionalPersonColumn(error: unknown): boolean {
+  const payload = error as { message?: string; details?: string; hint?: string } | null;
+  const haystack = `${payload?.message ?? ''} ${payload?.details ?? ''} ${payload?.hint ?? ''}`.toLowerCase();
+  return haystack.includes('duration_per_additional_person_minutes') && haystack.includes('schema cache');
 }
 
 type TemplateValidationError = { field: string; invalidTokens: string[] };
@@ -136,23 +142,40 @@ export async function POST(request: NextRequest) {
 
     const supabase = await getRouteSupabaseClient();
 
-    const { data, error } = await supabase
+    const insertPayload = {
+      location_id,
+      name,
+      confirmation_template: confirmation_template ?? null,
+      modification_template: modification_template ?? null,
+      cancellation_template: cancellation_template ?? null,
+      duration_per_additional_person_minutes: duration_per_additional_person_minutes ?? 0,
+      duration_minutes,
+      buffer_minutes: buffer_minutes ?? 15,
+      available_days: available_days ?? null,
+      service_start_time: service_start_time ?? null,
+      service_end_time: service_end_time ?? null,
+    };
+
+    let { data, error } = await supabase
       .from('booking_services')
-      .insert({
-        location_id,
-        name,
-        confirmation_template: confirmation_template ?? null,
-        modification_template: modification_template ?? null,
-        cancellation_template: cancellation_template ?? null,
-        duration_per_additional_person_minutes: duration_per_additional_person_minutes ?? 0,
-        duration_minutes,
-        buffer_minutes: buffer_minutes ?? 15,
-        available_days: available_days ?? null,
-        service_start_time: service_start_time ?? null,
-        service_end_time: service_end_time ?? null,
-      })
+      .insert(insertPayload)
       .select()
       .single();
+
+    // Backward compatibility while DB migration is pending.
+    if (error && isMissingAdditionalPersonColumn(error)) {
+      const fallbackPayload = { ...insertPayload } as Record<string, unknown>;
+      delete fallbackPayload.duration_per_additional_person_minutes;
+
+      const retry = await supabase
+        .from('booking_services')
+        .insert(fallbackPayload)
+        .select()
+        .single();
+
+      data = retry.data;
+      error = retry.error;
+    }
 
     if (error) {
       if (isSchemaError(error)) {

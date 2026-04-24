@@ -2,6 +2,19 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase';
 import { validateBookingTemplate } from '@/lib/bookingEmail';
 
+const SCHEMA_HINT = 'Booking schema is out of date. Run scripts/create-bookings-schema.sql in Supabase SQL editor.';
+
+function isSchemaError(error: unknown): boolean {
+  const code = (error as { code?: string } | null)?.code;
+  return code === '42P01' || code === '42703' || code === '42P10' || code === 'PGRST204';
+}
+
+function isMissingAdditionalPersonColumn(error: unknown): boolean {
+  const payload = error as { message?: string; details?: string; hint?: string } | null;
+  const haystack = `${payload?.message ?? ''} ${payload?.details ?? ''} ${payload?.hint ?? ''}`.toLowerCase();
+  return haystack.includes('duration_per_additional_person_minutes') && haystack.includes('schema cache');
+}
+
 type TemplateValidationError = { field: string; invalidTokens: string[] };
 
 function validateServiceTemplates(input: {
@@ -110,14 +123,31 @@ export async function PATCH(
     if (cancellation_template !== undefined) updates.cancellation_template = cancellation_template;
     if (duration_per_additional_person_minutes !== undefined) updates.duration_per_additional_person_minutes = Math.max(0, duration_per_additional_person_minutes);
 
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('booking_services')
       .update(updates)
       .eq('id', id)
       .select()
       .single();
 
+    // Backward compatibility while DB migration is pending.
+    if (error && isMissingAdditionalPersonColumn(error)) {
+      const fallbackUpdates = { ...updates };
+      delete fallbackUpdates.duration_per_additional_person_minutes;
+      const retry = await supabase
+        .from('booking_services')
+        .update(fallbackUpdates)
+        .eq('id', id)
+        .select()
+        .single();
+      data = retry.data;
+      error = retry.error;
+    }
+
     if (error) {
+      if (isSchemaError(error)) {
+        return NextResponse.json({ error: SCHEMA_HINT }, { status: 503 });
+      }
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
