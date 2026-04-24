@@ -42,6 +42,9 @@ ALTER TABLE branch_settings
   ADD COLUMN IF NOT EXISTS prayer_start_time  TIME,
   ADD COLUMN IF NOT EXISTS prayer_end_time    TIME;
 
+-- Drop old single-column unique constraint if it exists (pre-branch-aware schema)
+ALTER TABLE branch_settings DROP CONSTRAINT IF EXISTS branch_settings_day_of_week_key;
+
 -- Add unique constraint on (location_id, day_of_week) if it doesn't exist
 DO $$ BEGIN
   ALTER TABLE branch_settings ADD CONSTRAINT branch_settings_location_day_uq UNIQUE (location_id, day_of_week);
