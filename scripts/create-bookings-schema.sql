@@ -138,7 +138,8 @@ ALTER TABLE locations
   ADD COLUMN IF NOT EXISTS postcode      TEXT,
   ADD COLUMN IF NOT EXISTS country       TEXT,
   ADD COLUMN IF NOT EXISTS phone         TEXT,
-  ADD COLUMN IF NOT EXISTS email         TEXT;
+  ADD COLUMN IF NOT EXISTS email         TEXT,
+  ADD COLUMN IF NOT EXISTS appointments_enabled BOOLEAN NOT NULL DEFAULT true;
 
 -- ============================================================
 -- 6) BOOKING EMAIL AUDIT LOGS

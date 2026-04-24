@@ -19,6 +19,7 @@ interface BranchLocation {
   name: string
   branch_code: string | null
   type: string
+  appointments_enabled?: boolean | null
   address_line1?: string | null
   address_line2?: string | null
   city?: string | null
@@ -160,7 +161,7 @@ export default function BranchesTab({
     setLoading(true)
     const { data, error } = await supabase
       .from('locations')
-      .insert({ name: newBranchName, branch_code: newBranchCode, type: 'Branch' })
+      .insert({ name: newBranchName, branch_code: newBranchCode, type: 'Branch', appointments_enabled: true })
       .select()
 
     if (!error && data) {
@@ -180,6 +181,7 @@ export default function BranchesTab({
     const { error } = await supabase.from('locations').update({
       name: editDetails.name,
       branch_code: editDetails.branch_code,
+      appointments_enabled: editDetails.appointments_enabled ?? true,
       address_line1: editDetails.address_line1 ?? null,
       address_line2: editDetails.address_line2 ?? null,
       city: editDetails.city ?? null,
@@ -408,6 +410,17 @@ export default function BranchesTab({
                       value={editDetails.country ?? ''}
                       onChange={(e) => setEditDetails({ ...editDetails, country: e.target.value || null })}
                     />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Appointments</label>
+                    <label className="inline-flex items-center gap-2 rounded border border-slate-300 px-3 py-2 text-sm text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={editDetails.appointments_enabled ?? true}
+                        onChange={(e) => setEditDetails({ ...editDetails, appointments_enabled: e.target.checked })}
+                      />
+                      This branch accepts appointments
+                    </label>
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Phone</label>

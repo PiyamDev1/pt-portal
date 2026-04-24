@@ -9,6 +9,7 @@ interface BranchLocationOption {
   id: string
   name: string
   branch_code?: string | null
+  appointments_enabled?: boolean | null
 }
 
 export default async function BookingsDashboard() {
@@ -31,7 +32,7 @@ export default async function BookingsDashboard() {
 
   const { data: employee } = await supabase
     .from('employees')
-    .select('full_name, roles(name), locations(id, name, branch_code)')
+    .select('full_name, roles(name), locations(id, name, branch_code, appointments_enabled)')
     .eq('id', session.user.id)
     .single()
 
@@ -47,11 +48,16 @@ export default async function BookingsDashboard() {
   if (isAdmin) {
     const { data: locationsData } = await supabase
       .from('locations')
-      .select('id, name, branch_code')
+      .select('id, name, branch_code, appointments_enabled')
       .eq('type', 'Branch')
+      .eq('appointments_enabled', true)
       .order('name')
     branchLocations = (locationsData || []) as BranchLocationOption[]
   }
+
+  const effectiveUserLocationId = location?.appointments_enabled === false
+    ? branchLocations[0]?.id || null
+    : location?.id || null
 
   return (
     <DashboardClientWrapper>
@@ -65,7 +71,7 @@ export default async function BookingsDashboard() {
         />
         <BookingsClient
           isAdmin={isAdmin}
-          userLocationId={userLocationId}
+          userLocationId={effectiveUserLocationId}
           branchLocations={branchLocations}
         />
       </div>

@@ -234,7 +234,7 @@ export default function SettingsClient({
 
         {activeTab === 'branches' && isOrgAdmin && (
           <BranchesTab
-            initialLocations={initialLocations as { id: string; name: string; branch_code: string | null; type: string }[]}
+            initialLocations={initialLocations as { id: string; name: string; branch_code: string | null; type: string; appointments_enabled?: boolean | null }[]}
             supabase={supabase}
             loading={loading}
             setLoading={setLoading}

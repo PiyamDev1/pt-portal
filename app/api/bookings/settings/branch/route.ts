@@ -92,7 +92,19 @@ export async function PATCH(request: NextRequest) {
 
     const supabase = await getRouteSupabaseClient();
 
-    const payload = settings.map((row) => ({ ...row, location_id }));
+    const payload = settings.map((row) => ({
+      location_id,
+      day_of_week: row.day_of_week,
+      open_time: row.open_time,
+      close_time: row.close_time,
+      lunch_start_time: row.lunch_start_time,
+      lunch_end_time: row.lunch_end_time,
+      prayer_start_time: row.prayer_start_time,
+      prayer_end_time: row.prayer_end_time,
+      is_closed: row.is_closed,
+      concurrent_staff: row.concurrent_staff,
+      slot_interval_minutes: row.slot_interval_minutes,
+    }));
 
     const { error } = await supabase
       .from('branch_settings')

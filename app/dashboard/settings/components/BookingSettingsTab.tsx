@@ -43,6 +43,7 @@ export interface BranchLocationOption {
   id: string
   name: string
   branch_code?: string | null
+  appointments_enabled?: boolean | null
 }
 
 export interface BranchSettingRow {
