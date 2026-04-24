@@ -48,11 +48,9 @@ export async function PATCH(
       available_days,
       service_start_time,
       service_end_time,
-      slot_interval_minutes,
       confirmation_template,
       modification_template,
       cancellation_template,
-      max_group_size,
       duration_per_additional_person_minutes,
     } = body as {
       name?: string;
@@ -62,24 +60,15 @@ export async function PATCH(
       available_days?: number[] | null;
       service_start_time?: string | null;
       service_end_time?: string | null;
-      slot_interval_minutes?: number | null;
       confirmation_template?: string | null;
       modification_template?: string | null;
       cancellation_template?: string | null;
-      max_group_size?: number;
       duration_per_additional_person_minutes?: number;
     };
 
     if (duration_minutes !== undefined && duration_minutes < 5) {
       return NextResponse.json(
         { error: 'duration_minutes must be at least 5' },
-        { status: 400 }
-      );
-    }
-
-    if (slot_interval_minutes !== undefined && slot_interval_minutes !== null && slot_interval_minutes < 5) {
-      return NextResponse.json(
-        { error: 'slot_interval_minutes must be at least 5 when provided' },
         { status: 400 }
       );
     }
@@ -116,11 +105,9 @@ export async function PATCH(
     if (available_days !== undefined) updates.available_days = available_days;
     if (service_start_time !== undefined) updates.service_start_time = service_start_time;
     if (service_end_time !== undefined) updates.service_end_time = service_end_time;
-    if (slot_interval_minutes !== undefined) updates.slot_interval_minutes = slot_interval_minutes;
     if (confirmation_template !== undefined) updates.confirmation_template = confirmation_template;
     if (modification_template !== undefined) updates.modification_template = modification_template;
     if (cancellation_template !== undefined) updates.cancellation_template = cancellation_template;
-    if (max_group_size !== undefined) updates.max_group_size = Math.max(1, max_group_size);
     if (duration_per_additional_person_minutes !== undefined) updates.duration_per_additional_person_minutes = Math.max(0, duration_per_additional_person_minutes);
 
     const { data, error } = await supabase

@@ -39,11 +39,9 @@ export interface BookingServiceRow {
   available_days: number[] | null
   service_start_time: string | null
   service_end_time: string | null
-  slot_interval_minutes: number | null
   confirmation_template: string | null
   modification_template: string | null
   cancellation_template: string | null
-  max_group_size: number
   duration_per_additional_person_minutes: number
   is_active: boolean
 }

@@ -59,12 +59,9 @@ export interface BookingService {
   available_days: number[] | null; // 0=Sunday, 6=Saturday
   service_start_time: string | null; // HH:MM:SS
   service_end_time: string | null; // HH:MM:SS
-  slot_interval_minutes: number | null; // per-service slot interval override
   confirmation_template: string | null;
   modification_template: string | null;
   cancellation_template: string | null;
-  /** Maximum persons in a single group/family booking (1 = no group bookings) */
-  max_group_size: number;
   /** Extra minutes added per person beyond the first (0 = same as 1-person) */
   duration_per_additional_person_minutes: number;
   is_active: boolean;

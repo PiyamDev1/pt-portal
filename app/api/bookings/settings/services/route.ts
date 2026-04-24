@@ -80,11 +80,9 @@ export async function POST(request: NextRequest) {
       available_days,
       service_start_time,
       service_end_time,
-      slot_interval_minutes,
       confirmation_template,
       modification_template,
       cancellation_template,
-      max_group_size,
       duration_per_additional_person_minutes,
     } = body as {
       location_id: string;
@@ -94,11 +92,9 @@ export async function POST(request: NextRequest) {
       available_days?: number[] | null;
       service_start_time?: string | null;
       service_end_time?: string | null;
-      slot_interval_minutes?: number | null;
       confirmation_template?: string | null;
       modification_template?: string | null;
       cancellation_template?: string | null;
-      max_group_size?: number;
       duration_per_additional_person_minutes?: number;
     };
 
@@ -112,13 +108,6 @@ export async function POST(request: NextRequest) {
     if (duration_minutes < 5) {
       return NextResponse.json(
         { error: 'duration_minutes must be at least 5' },
-        { status: 400 }
-      );
-    }
-
-    if (slot_interval_minutes !== undefined && slot_interval_minutes !== null && slot_interval_minutes < 5) {
-      return NextResponse.json(
-        { error: 'slot_interval_minutes must be at least 5 when provided' },
         { status: 400 }
       );
     }
@@ -155,14 +144,12 @@ export async function POST(request: NextRequest) {
         confirmation_template: confirmation_template ?? null,
         modification_template: modification_template ?? null,
         cancellation_template: cancellation_template ?? null,
-        max_group_size: max_group_size ?? 1,
         duration_per_additional_person_minutes: duration_per_additional_person_minutes ?? 0,
         duration_minutes,
         buffer_minutes: buffer_minutes ?? 15,
         available_days: available_days ?? null,
         service_start_time: service_start_time ?? null,
         service_end_time: service_end_time ?? null,
-        slot_interval_minutes: slot_interval_minutes ?? null,
       })
       .select()
       .single();

@@ -82,11 +82,9 @@ CREATE TABLE IF NOT EXISTS booking_services (
   available_days                      SMALLINT[],
   service_start_time                  TIME,
   service_end_time                    TIME,
-  slot_interval_minutes               INTEGER,
   confirmation_template               TEXT,
   modification_template               TEXT,
   cancellation_template               TEXT,
-  max_group_size                      INTEGER NOT NULL DEFAULT 1,
   duration_per_additional_person_minutes INTEGER NOT NULL DEFAULT 0,
   is_active                           BOOLEAN NOT NULL DEFAULT true,
   created_at                          TIMESTAMPTZ DEFAULT NOW()
@@ -100,8 +98,6 @@ ALTER TABLE booking_services
   ADD COLUMN IF NOT EXISTS cancellation_template TEXT,
   ADD COLUMN IF NOT EXISTS service_start_time TIME,
   ADD COLUMN IF NOT EXISTS service_end_time TIME,
-  ADD COLUMN IF NOT EXISTS slot_interval_minutes INTEGER,
-  ADD COLUMN IF NOT EXISTS max_group_size INTEGER NOT NULL DEFAULT 1,
   ADD COLUMN IF NOT EXISTS duration_per_additional_person_minutes INTEGER NOT NULL DEFAULT 0;
 
 -- Unique index per branch name (skip if already exists)
