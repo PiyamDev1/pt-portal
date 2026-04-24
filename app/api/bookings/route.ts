@@ -11,6 +11,7 @@ import { sendBookingEmail } from '@/lib/bookingEmail';
 export const runtime = 'nodejs';
 
 const SCHEMA_HINT = 'Booking schema is out of date. Run scripts/create-bookings-schema.sql in Supabase SQL editor.';
+const BOUNDARY_TOLERANCE_MINUTES = 5;
 
 function isSchemaError(error: unknown): boolean {
   const code = (error as { code?: string } | null)?.code;
@@ -26,16 +27,22 @@ function extractUtcTimeHHMMSS(date: Date): string {
   return `${String(date.getUTCHours()).padStart(2, '0')}:${String(date.getUTCMinutes()).padStart(2, '0')}:${String(date.getUTCSeconds()).padStart(2, '0')}`;
 }
 
-function overlapsRange(
+function overlapsRangeBeyondTolerance(
   startMinutes: number,
-  endMinutes: number,
+  occupiedUntilMinutes: number,
   rangeStart: string | null,
-  rangeEnd: string | null
+  rangeEnd: string | null,
+  toleranceMinutes: number
 ): boolean {
   if (!rangeStart || !rangeEnd) return false;
   const rs = timeToMinutes(rangeStart);
   const re = timeToMinutes(rangeEnd);
-  return startMinutes < re && endMinutes > rs;
+
+  if (occupiedUntilMinutes <= rs || startMinutes >= re) return false;
+  if (startMinutes >= rs && startMinutes < re) return true;
+
+  const overrun = occupiedUntilMinutes - rs;
+  return overrun > toleranceMinutes;
 }
 
 function isValidEmail(value: string): boolean {
@@ -196,13 +203,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const endTimeDate = new Date(
-      startTimeDate.getTime() + (
-        service.duration_minutes +
-        Math.max(0, personCount - 1) * (service.duration_per_additional_person_minutes ?? 0)
-      ) * 60 * 1000
-    );
+    const serviceDurationMinutes =
+      service.duration_minutes +
+      Math.max(0, personCount - 1) * (service.duration_per_additional_person_minutes ?? 0);
+    const occupancyMinutes = serviceDurationMinutes + Math.max(0, service.buffer_minutes ?? 0);
+
+    const endTimeDate = new Date(startTimeDate.getTime() + serviceDurationMinutes * 60 * 1000);
+    const occupiedUntilDate = new Date(startTimeDate.getTime() + occupancyMinutes * 60 * 1000);
     const end_time = endTimeDate.toISOString();
+    const occupied_until = occupiedUntilDate.toISOString();
 
     const dayOfWeek = startTimeDate.getUTCDay();
     const { data: branchSettings, error: settingsError } = await supabase
@@ -271,10 +280,14 @@ export async function POST(request: NextRequest) {
 
     const bookingStartMinutes = timeToMinutes(extractUtcTimeHHMMSS(startTimeDate));
     const bookingEndMinutes = timeToMinutes(extractUtcTimeHHMMSS(endTimeDate));
+    const bookingOccupiedUntilMinutes = timeToMinutes(extractUtcTimeHHMMSS(occupiedUntilDate));
     const serviceStartMinutes = timeToMinutes(serviceStartBound);
     const serviceEndMinutes = timeToMinutes(serviceEndBound);
 
-    if (bookingStartMinutes < serviceStartMinutes || bookingEndMinutes > serviceEndMinutes) {
+    if (
+      bookingStartMinutes < serviceStartMinutes ||
+      bookingOccupiedUntilMinutes > serviceEndMinutes + BOUNDARY_TOLERANCE_MINUTES
+    ) {
       return NextResponse.json(
         {
           success: false,
@@ -284,7 +297,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (overlapsRange(bookingStartMinutes, bookingEndMinutes, lunchStart, lunchEnd)) {
+    if (
+      overlapsRangeBeyondTolerance(
+        bookingStartMinutes,
+        bookingOccupiedUntilMinutes,
+        lunchStart,
+        lunchEnd,
+        BOUNDARY_TOLERANCE_MINUTES
+      )
+    ) {
       return NextResponse.json(
         {
           success: false,
@@ -294,7 +315,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (overlapsRange(bookingStartMinutes, bookingEndMinutes, prayerStart, prayerEnd)) {
+    if (
+      overlapsRangeBeyondTolerance(
+        bookingStartMinutes,
+        bookingOccupiedUntilMinutes,
+        prayerStart,
+        prayerEnd,
+        BOUNDARY_TOLERANCE_MINUTES
+      )
+    ) {
       return NextResponse.json(
         {
           success: false,
@@ -308,7 +337,7 @@ export async function POST(request: NextRequest) {
       .from('bookings')
       .select('*')
       .eq('location_id', location_id)
-      .lt('start_time', end_time)
+      .lt('start_time', occupied_until)
       .gt('end_time', start_time)
       .neq('status', 'cancelled');
 

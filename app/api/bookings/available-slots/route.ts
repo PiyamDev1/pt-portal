@@ -3,6 +3,7 @@ import { getRouteSupabaseClient } from '@/lib/api/serverSupabase';
 import { AvailableSlot, AvailableSlotsResponse } from '@/app/types/bookings';
 
 const SCHEMA_HINT = 'Booking schema is out of date. Run scripts/create-bookings-schema.sql in Supabase SQL editor.';
+const BOUNDARY_TOLERANCE_MINUTES = 5;
 
 function isSchemaError(error: unknown): boolean {
   const code = (error as { code?: string } | null)?.code;
@@ -105,7 +106,6 @@ export async function GET(request: NextRequest) {
     const prayerStartTime = override?.prayer_start_time ?? branchSettings.prayer_start_time;
     const prayerEndTime = override?.prayer_end_time ?? branchSettings.prayer_end_time;
     const concurrentStaff = override?.concurrent_staff ?? branchSettings.concurrent_staff;
-    const slotInterval = override?.slot_interval_minutes ?? branchSettings.slot_interval_minutes ?? 30;
 
     // Step 2: Fetch service details
     const { data: service, error: serviceError } = await supabase
@@ -195,7 +195,6 @@ export async function GET(request: NextRequest) {
       prayerEndTime,
       groupDuration,
       service.buffer_minutes,
-      service.slot_interval_minutes ?? slotInterval,
       concurrentStaff,
       existingBookings || []
     );
@@ -228,7 +227,6 @@ function generateAvailableSlots(
   prayerEndTime: string | null,
   durationMinutes: number,
   bufferMinutes: number,
-  slotIntervalMinutes: number,
   concurrentStaff: number,
   existingBookings: any[]
 ): AvailableSlot[] {
@@ -246,37 +244,33 @@ function generateAvailableSlots(
   const prayerStartMinutes = prayerStartTime ? timeToMinutes(prayerStartTime) : null;
   const prayerEndMinutes = prayerEndTime ? timeToMinutes(prayerEndTime) : null;
 
-  // Use admin-configured slot interval, with a safe minimum.
-  const intervalMinutes = Math.max(5, Number(slotIntervalMinutes || 30));
+  // Duration + buffer defines when the next appointment can start.
+  const occupancyMinutes = Math.max(5, durationMinutes + Math.max(0, bufferMinutes));
+  const intervalMinutes = occupancyMinutes;
 
   let currentMinutes = openMinutes;
 
-  while (currentMinutes + durationMinutes <= closeMinutes) {
-    const slotEndMinutes = currentMinutes + durationMinutes;
+  while (currentMinutes + durationMinutes <= closeMinutes + BOUNDARY_TOLERANCE_MINUTES) {
+    const occupiedUntilMinutes = currentMinutes + occupancyMinutes;
 
-    // Skip slots overlapping lunch break
-    if (lunchStartMinutes !== null && lunchEndMinutes !== null) {
-      if (currentMinutes < lunchEndMinutes && slotEndMinutes > lunchStartMinutes) {
-        if (currentMinutes < lunchEndMinutes) {
-          currentMinutes = lunchEndMinutes;
-          continue;
-        }
-      }
+    // Allow slight overrun (<= 5 min) past breaks and service end; larger overruns are blocked.
+    if (occupiedUntilMinutes > closeMinutes + BOUNDARY_TOLERANCE_MINUTES) {
+      break;
     }
 
-    // Skip slots overlapping Friday prayer or any configured prayer break
-    if (prayerStartMinutes !== null && prayerEndMinutes !== null) {
-      if (currentMinutes < prayerEndMinutes && slotEndMinutes > prayerStartMinutes) {
-        if (currentMinutes < prayerEndMinutes) {
-          currentMinutes = prayerEndMinutes;
-          continue;
-        }
-      }
+    if (overlapsBreakBeyondTolerance(currentMinutes, occupiedUntilMinutes, lunchStartMinutes, lunchEndMinutes)) {
+      currentMinutes += intervalMinutes;
+      continue;
+    }
+
+    if (overlapsBreakBeyondTolerance(currentMinutes, occupiedUntilMinutes, prayerStartMinutes, prayerEndMinutes)) {
+      currentMinutes += intervalMinutes;
+      continue;
     }
 
     // Count overlapping bookings at this slot time
     const slotStartISO = minutesToISO(date, currentMinutes);
-    const slotEndISO = minutesToISO(date, currentMinutes + durationMinutes);
+    const slotEndISO = minutesToISO(date, occupiedUntilMinutes);
 
     const overlappingCount = countOverlappingBookings(
       existingBookings,
@@ -298,6 +292,31 @@ function generateAvailableSlots(
   }
 
   return slots;
+}
+
+function overlapsBreakBeyondTolerance(
+  startMinutes: number,
+  occupiedUntilMinutes: number,
+  breakStartMinutes: number | null,
+  breakEndMinutes: number | null
+): boolean {
+  if (breakStartMinutes === null || breakEndMinutes === null) {
+    return false;
+  }
+
+  // No overlap with break window.
+  if (occupiedUntilMinutes <= breakStartMinutes || startMinutes >= breakEndMinutes) {
+    return false;
+  }
+
+  // Starting inside a break is always invalid.
+  if (startMinutes >= breakStartMinutes && startMinutes < breakEndMinutes) {
+    return true;
+  }
+
+  // Crossing into a break is allowed only up to the tolerance.
+  const overrunMinutes = occupiedUntilMinutes - breakStartMinutes;
+  return overrunMinutes > BOUNDARY_TOLERANCE_MINUTES;
 }
 
 /**

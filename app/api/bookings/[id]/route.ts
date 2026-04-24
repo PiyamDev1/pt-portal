@@ -7,6 +7,7 @@ export const runtime = 'nodejs';
 
 const VALID_STATUSES = Object.values(BookingStatus) as string[];
 const SCHEMA_HINT = 'Booking schema is out of date. Run scripts/create-bookings-schema.sql in Supabase SQL editor.';
+const BOUNDARY_TOLERANCE_MINUTES = 5;
 
 function isSchemaError(error: unknown): boolean {
   const code = (error as { code?: string } | null)?.code;
@@ -22,16 +23,22 @@ function extractUtcTimeHHMMSS(date: Date): string {
   return `${String(date.getUTCHours()).padStart(2, '0')}:${String(date.getUTCMinutes()).padStart(2, '0')}:${String(date.getUTCSeconds()).padStart(2, '0')}`;
 }
 
-function overlapsRange(
+function overlapsRangeBeyondTolerance(
   startMinutes: number,
-  endMinutes: number,
+  occupiedUntilMinutes: number,
   rangeStart: string | null,
-  rangeEnd: string | null
+  rangeEnd: string | null,
+  toleranceMinutes: number
 ): boolean {
   if (!rangeStart || !rangeEnd) return false;
   const rs = timeToMinutes(rangeStart);
   const re = timeToMinutes(rangeEnd);
-  return startMinutes < re && endMinutes > rs;
+
+  if (occupiedUntilMinutes <= rs || startMinutes >= re) return false;
+  if (startMinutes >= rs && startMinutes < re) return true;
+
+  const overrun = occupiedUntilMinutes - rs;
+  return overrun > toleranceMinutes;
 }
 
 function isValidEmail(value: string): boolean {
@@ -150,13 +157,15 @@ export async function PATCH(
       return NextResponse.json({ error: 'Invalid start_time format' }, { status: 400 });
     }
 
-    const endTimeDate = new Date(
-      startTimeDate.getTime() + (
-        service.duration_minutes +
-        Math.max(0, nextPersonCount - 1) * (service.duration_per_additional_person_minutes ?? 0)
-      ) * 60 * 1000
-    );
+    const serviceDurationMinutes =
+      service.duration_minutes +
+      Math.max(0, nextPersonCount - 1) * (service.duration_per_additional_person_minutes ?? 0);
+    const occupancyMinutes = serviceDurationMinutes + Math.max(0, service.buffer_minutes ?? 0);
+
+    const endTimeDate = new Date(startTimeDate.getTime() + serviceDurationMinutes * 60 * 1000);
+    const occupiedUntilDate = new Date(startTimeDate.getTime() + occupancyMinutes * 60 * 1000);
     const nextEndISO = endTimeDate.toISOString();
+    const nextOccupiedUntilISO = occupiedUntilDate.toISOString();
 
     if (nextStatus !== BookingStatus.CANCELLED) {
       const bookingDayOfWeek = startTimeDate.getUTCDay();
@@ -210,18 +219,38 @@ export async function PATCH(
 
       const bookingStartMinutes = timeToMinutes(extractUtcTimeHHMMSS(startTimeDate));
       const bookingEndMinutes = timeToMinutes(extractUtcTimeHHMMSS(endTimeDate));
+      const bookingOccupiedUntilMinutes = timeToMinutes(extractUtcTimeHHMMSS(occupiedUntilDate));
       const serviceStartMinutes = timeToMinutes(serviceStartBound);
       const serviceEndMinutes = timeToMinutes(serviceEndBound);
 
-      if (bookingStartMinutes < serviceStartMinutes || bookingEndMinutes > serviceEndMinutes) {
+      if (
+        bookingStartMinutes < serviceStartMinutes ||
+        bookingOccupiedUntilMinutes > serviceEndMinutes + BOUNDARY_TOLERANCE_MINUTES
+      ) {
         return NextResponse.json({ error: 'Selected time is outside service operating hours' }, { status: 400 });
       }
 
-      if (overlapsRange(bookingStartMinutes, bookingEndMinutes, lunchStart, lunchEnd)) {
+      if (
+        overlapsRangeBeyondTolerance(
+          bookingStartMinutes,
+          bookingOccupiedUntilMinutes,
+          lunchStart,
+          lunchEnd,
+          BOUNDARY_TOLERANCE_MINUTES
+        )
+      ) {
         return NextResponse.json({ error: 'Selected time overlaps lunch break' }, { status: 400 });
       }
 
-      if (overlapsRange(bookingStartMinutes, bookingEndMinutes, prayerStart, prayerEnd)) {
+      if (
+        overlapsRangeBeyondTolerance(
+          bookingStartMinutes,
+          bookingOccupiedUntilMinutes,
+          prayerStart,
+          prayerEnd,
+          BOUNDARY_TOLERANCE_MINUTES
+        )
+      ) {
         return NextResponse.json({ error: 'Selected time overlaps prayer break' }, { status: 400 });
       }
 
@@ -229,7 +258,7 @@ export async function PATCH(
         .from('bookings')
         .select('id')
         .eq('location_id', existing.location_id)
-        .lt('start_time', nextEndISO)
+        .lt('start_time', nextOccupiedUntilISO)
         .gt('end_time', nextStartISO)
         .neq('status', 'cancelled')
         .neq('id', id);

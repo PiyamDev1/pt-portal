@@ -124,8 +124,6 @@ export default function BookingSettingsTab({
     cancellation_template: '',
     service_start_time: '',
     service_end_time: '',
-    slot_interval_minutes: 30,
-    max_group_size: 1,
     duration_per_additional_person_minutes: 0,
   })
   const [showAddService, setShowAddService] = useState(false)
@@ -375,11 +373,9 @@ export default function BookingSettingsTab({
           available_days: newService.available_days,
           service_start_time: newService.service_start_time || null,
           service_end_time: newService.service_end_time || null,
-          slot_interval_minutes: newService.slot_interval_minutes || null,
           confirmation_template: newService.confirmation_template || null,
           modification_template: newService.modification_template || null,
           cancellation_template: newService.cancellation_template || null,
-          max_group_size: newService.max_group_size,
           duration_per_additional_person_minutes: newService.duration_per_additional_person_minutes,
         }),
       })
@@ -393,11 +389,9 @@ export default function BookingSettingsTab({
         available_days: [],
         service_start_time: '',
         service_end_time: '',
-        slot_interval_minutes: 30,
         confirmation_template: '',
         modification_template: '',
         cancellation_template: '',
-        max_group_size: 1,
         duration_per_additional_person_minutes: 0,
       })
       setShowAddService(false)
@@ -426,11 +420,9 @@ export default function BookingSettingsTab({
           available_days: editingService.available_days,
           service_start_time: editingService.service_start_time,
           service_end_time: editingService.service_end_time,
-          slot_interval_minutes: editingService.slot_interval_minutes,
           confirmation_template: editingService.confirmation_template,
           modification_template: editingService.modification_template,
           cancellation_template: editingService.cancellation_template,
-          max_group_size: editingService.max_group_size,
           duration_per_additional_person_minutes: editingService.duration_per_additional_person_minutes,
         }),
       })
@@ -587,7 +579,7 @@ export default function BookingSettingsTab({
       {activeSection === 'services' && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <p className="text-sm text-slate-600">Define service-specific days, service hours, slot intervals, and customer email templates for booked/modified/cancelled events.</p>
+            <p className="text-sm text-slate-600">Define service-specific duration, buffer before next appointment, service hours, and customer email templates for booked/modified/cancelled events.</p>
             <button onClick={() => setShowAddService(true)} className="px-4 py-2 rounded bg-indigo-600 text-white text-sm font-medium">+ Add Service</button>
           </div>
 
@@ -617,15 +609,6 @@ export default function BookingSettingsTab({
               </LabeledInput>
               <LabeledInput label="Service End Time">
                 <input type="time" value={newService.service_end_time} onChange={(e) => setNewService((p) => ({ ...p, service_end_time: e.target.value }))} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
-              </LabeledInput>
-              <LabeledInput label="Slot Every (minutes)">
-                <select value={newService.slot_interval_minutes} onChange={(e) => setNewService((p) => ({ ...p, slot_interval_minutes: Number(e.target.value) }))} className="w-full border border-slate-300 rounded px-3 py-2 text-sm">
-                  {INTERVAL_OPTIONS.map((v) => <option key={v} value={v}>{v} min slot</option>)}
-                </select>
-              </LabeledInput>
-              <LabeledInput label="Max Group Size">
-                <input type="number" min={1} max={20} value={newService.max_group_size} onChange={(e) => setNewService((p) => ({ ...p, max_group_size: Math.max(1, Number(e.target.value)) }))} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
-                <p className="mt-1 text-[11px] text-slate-400">1 = no group bookings</p>
               </LabeledInput>
               <LabeledInput label="Extra Time per Additional Person (minutes)">
                 <input type="number" min={0} value={newService.duration_per_additional_person_minutes} onChange={(e) => setNewService((p) => ({ ...p, duration_per_additional_person_minutes: Math.max(0, Number(e.target.value)) }))} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
@@ -708,15 +691,6 @@ export default function BookingSettingsTab({
                     <LabeledInput label="Service End Time">
                       <input type="time" value={editingService.service_end_time || ''} onChange={(e) => setEditingService((p) => (p ? { ...p, service_end_time: e.target.value || null } : p))} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
                     </LabeledInput>
-                    <LabeledInput label="Slot Every (minutes)">
-                      <select value={editingService.slot_interval_minutes ?? 30} onChange={(e) => setEditingService((p) => (p ? { ...p, slot_interval_minutes: Number(e.target.value) } : p))} className="w-full border border-slate-300 rounded px-3 py-2 text-sm">
-                        {INTERVAL_OPTIONS.map((v) => <option key={v} value={v}>{v} min slot</option>)}
-                      </select>
-                    </LabeledInput>
-                    <LabeledInput label="Max Group Size">
-                      <input type="number" min={1} max={20} value={editingService.max_group_size ?? 1} onChange={(e) => setEditingService((p) => (p ? { ...p, max_group_size: Math.max(1, Number(e.target.value)) } : p))} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
-                      <p className="mt-1 text-[11px] text-slate-400">1 = no group bookings</p>
-                    </LabeledInput>
                     <LabeledInput label="Extra Time per Additional Person (minutes)">
                       <input type="number" min={0} value={editingService.duration_per_additional_person_minutes ?? 0} onChange={(e) => setEditingService((p) => (p ? { ...p, duration_per_additional_person_minutes: Math.max(0, Number(e.target.value)) } : p))} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
                       <p className="mt-1 text-[11px] text-slate-400">e.g. 22 mins → 3 people ≈ 2.5 slots</p>
@@ -781,14 +755,14 @@ export default function BookingSettingsTab({
                     <div>
                       <p className="text-sm font-semibold text-slate-700">{service.name}</p>
                       <p className="text-xs text-slate-500">
-                        Duration {service.duration_minutes} min · Buffer {service.buffer_minutes} min · Slot {service.slot_interval_minutes ?? 'Branch default'}
+                        Duration {service.duration_minutes} min · Buffer {service.buffer_minutes} min
                       </p>
                       <p className="text-xs text-slate-400 mt-1">
                         Days: {Array.isArray(service.available_days) && service.available_days.length > 0 ? service.available_days.map((d) => DAY_NAMES[d].slice(0, 3)).join(', ') : 'All'} ·
                         Time: {service.service_start_time || 'Branch open'} - {service.service_end_time || 'Branch close'}
                       </p>
                       <p className="text-xs text-slate-400 mt-1">
-                        Group: max {service.max_group_size ?? 1} {(service.max_group_size ?? 1) > 1 ? `person(s) · +${service.duration_per_additional_person_minutes ?? 0} min/extra person` : '(individual only)'}
+                        Additional person time: +{service.duration_per_additional_person_minutes ?? 0} min per extra person
                       </p>
                       <p className="text-xs text-slate-400 mt-1">
                         Templates: {service.confirmation_template ? 'Booked' : '--'} / {service.modification_template ? 'Modified' : '--'} / {service.cancellation_template ? 'Cancelled' : '--'}

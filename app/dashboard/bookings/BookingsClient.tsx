@@ -13,6 +13,7 @@ interface BookingWithService {
   customer_phone: string
   customer_email: string
   service_id: string
+  person_count?: number
   start_time: string
   end_time: string
   status: BookingStatus
@@ -26,7 +27,8 @@ interface BookingServiceOption {
   id: string
   name: string
   is_active: boolean
-  max_group_size: number
+  duration_minutes: number
+  buffer_minutes: number
   duration_per_additional_person_minutes: number
 }
 
@@ -377,7 +379,7 @@ export default function BookingsClient({
       service_id: booking.service_id,
       date: booking.start_time.slice(0, 10),
       start_time: booking.start_time,
-      person_count: (booking as any).person_count ?? 1,
+      person_count: booking.person_count ?? 1,
     })
     setShowAppointmentModal(true)
   }
@@ -927,33 +929,38 @@ export default function BookingsClient({
 
             {(() => {
               const selectedService = serviceOptions.find((s) => s.id === appointmentForm.service_id)
-              const maxGroup = selectedService?.max_group_size ?? 1
-              return maxGroup > 1 ? (
-                <div className="text-sm text-slate-700">
-                  <span className="block mb-1 font-medium">Number of persons</span>
-                  <div className="flex gap-2 flex-wrap">
-                    {Array.from({ length: maxGroup }, (_, i) => i + 1).map((n) => (
-                      <button
-                        key={n}
-                        type="button"
-                        onClick={() => setAppointmentForm((p) => ({ ...p, person_count: n, start_time: '' }))}
-                        className={`w-10 h-10 rounded-lg border text-sm font-medium transition-colors ${
-                          appointmentForm.person_count === n
-                            ? 'bg-indigo-600 text-white border-indigo-600'
-                            : 'bg-white text-slate-700 border-slate-300 hover:border-indigo-400'
-                        }`}
-                      >
-                        {n}
-                      </button>
-                    ))}
-                  </div>
-                  {selectedService && selectedService.duration_per_additional_person_minutes > 0 && appointmentForm.person_count > 1 && (
-                    <p className="mt-1 text-xs text-slate-500">
-                      Appointment duration: {selectedService.duration_per_additional_person_minutes * (appointmentForm.person_count - 1) + (serviceOptions.find((s) => s.id === appointmentForm.service_id) as any)?.duration_minutes} min
-                    </p>
+              const effectiveDuration = selectedService
+                ? selectedService.duration_minutes + Math.max(0, appointmentForm.person_count - 1) * selectedService.duration_per_additional_person_minutes
+                : null
+              const nextStartGap = selectedService
+                ? effectiveDuration! + Math.max(0, selectedService.buffer_minutes)
+                : null
+
+              return (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <label className="text-sm text-slate-700">
+                    Number of persons
+                    <input
+                      type="number"
+                      min={1}
+                      value={appointmentForm.person_count}
+                      onChange={(e) => {
+                        const value = Math.max(1, Number(e.target.value) || 1)
+                        setAppointmentForm((p) => ({ ...p, person_count: value, start_time: '' }))
+                      }}
+                      className="mt-1 w-full border border-slate-300 rounded px-3 py-2"
+                    />
+                  </label>
+
+                  {selectedService && (
+                    <div className="text-xs text-slate-600 rounded border border-slate-200 bg-slate-50 px-3 py-2">
+                      <p>Effective duration: <span className="font-semibold">{effectiveDuration} min</span></p>
+                      <p className="mt-1">Buffer: <span className="font-semibold">{selectedService.buffer_minutes} min</span></p>
+                      <p className="mt-1">Next appointment gap: <span className="font-semibold">{nextStartGap} min</span></p>
+                    </div>
                   )}
                 </div>
-              ) : null
+              )
             })()}
 
             <div className="text-sm text-slate-700">
