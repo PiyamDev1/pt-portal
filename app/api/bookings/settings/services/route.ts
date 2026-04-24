@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase';
+import { getSupabaseClient } from '@/lib/supabaseClient';
 import { validateBookingTemplate } from '@/lib/bookingEmail';
 
 const SCHEMA_HINT = 'Booking schema is out of date. Run scripts/create-bookings-schema.sql in Supabase SQL editor.';
@@ -77,6 +78,16 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const routeSupabase = await getRouteSupabaseClient();
+    const {
+      data: { user },
+      error: authError,
+    } = await routeSupabase.auth.getUser();
+
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const body = await request.json();
     const {
       location_id,
@@ -140,7 +151,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const supabase = await getRouteSupabaseClient();
+    const supabase = getSupabaseClient();
 
     const insertPayload = {
       location_id,

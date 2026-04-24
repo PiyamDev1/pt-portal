@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase';
+import { getSupabaseClient } from '@/lib/supabaseClient';
 import { validateBookingTemplate } from '@/lib/bookingEmail';
 
 const SCHEMA_HINT = 'Booking schema is out of date. Run scripts/create-bookings-schema.sql in Supabase SQL editor.';
@@ -51,6 +52,16 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const routeSupabase = await getRouteSupabaseClient();
+    const {
+      data: { user },
+      error: authError,
+    } = await routeSupabase.auth.getUser();
+
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { id } = await params;
     const body = await request.json();
     const {
@@ -108,7 +119,7 @@ export async function PATCH(
       );
     }
 
-    const supabase = await getRouteSupabaseClient();
+    const supabase = getSupabaseClient();
 
     const updates: Record<string, unknown> = {};
     if (name !== undefined) updates.name = name;
@@ -162,8 +173,18 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const routeSupabase = await getRouteSupabaseClient();
+    const {
+      data: { user },
+      error: authError,
+    } = await routeSupabase.auth.getUser();
+
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { id } = await params;
-    const supabase = await getRouteSupabaseClient();
+    const supabase = getSupabaseClient();
 
     // Check if any non-cancelled bookings reference this service
     const { count, error: countError } = await supabase
