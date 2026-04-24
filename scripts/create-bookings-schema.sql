@@ -75,6 +75,7 @@ CREATE TABLE IF NOT EXISTS branch_schedule_overrides (
 
 CREATE TABLE IF NOT EXISTS booking_services (
   id                    UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  location_id           UUID REFERENCES locations(id) ON DELETE CASCADE,
   name                  TEXT NOT NULL,
   duration_minutes      INTEGER NOT NULL,
   buffer_minutes        INTEGER NOT NULL DEFAULT 15,
@@ -91,10 +92,10 @@ CREATE TABLE IF NOT EXISTS booking_services (
 
 ALTER TABLE booking_services
   ADD COLUMN IF NOT EXISTS location_id UUID REFERENCES locations(id) ON DELETE CASCADE,
-  ADD COLUMN IF NOT EXISTS available_days SMALLINT[],,
+  ADD COLUMN IF NOT EXISTS available_days SMALLINT[],
   ADD COLUMN IF NOT EXISTS confirmation_template TEXT,
   ADD COLUMN IF NOT EXISTS modification_template TEXT,
-  ADD COLUMN IF NOT EXISTS cancellation_template TEXT
+  ADD COLUMN IF NOT EXISTS cancellation_template TEXT,
   ADD COLUMN IF NOT EXISTS service_start_time TIME,
   ADD COLUMN IF NOT EXISTS service_end_time TIME,
   ADD COLUMN IF NOT EXISTS slot_interval_minutes INTEGER;
@@ -105,37 +106,58 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_booking_services_branch_name
 
 -- ============================================================
 -- 5) BOOKINGS (PER LOCATION)
---customer_email TEXT NOT NULL,
-   ============================================================
+-- ============================================================
 
 CREATE TABLE IF NOT EXISTS bookings (
-  id             UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  customer_name  TEXT NOT NULL,
-  customer_phone TEXT NOT NULL,
-  service_id     UUID NOT NULL REFERENCES booking_services(id) ON DELETE RESTRICT,
-  start_time     TIMESTAMPTZ NOT NULL,
-  end_time       TIMESTAMPTZ NOT NULL,
-  status         booking_status NOT NULL DEFAULT 'pending',
-  source         booking_source NOT NULL DEFAULT 'portal',,
-  ADD COLUMN IF NOT EXISTS customer_email TEXT
-  notes          TEXT,
-  created_at     TIMESTAMPTZ DEFAULT NOW(),
-  updated_at     TIMESTAMPTZ DEFAULT NOW()
+  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  location_id     UUID REFERENCES locations(id) ON DELETE RESTRICT,
+  customer_name   TEXT NOT NULL,
+  customer_phone  TEXT NOT NULL,
+  customer_email  TEXT,
+  service_id      UUID NOT NULL REFERENCES booking_services(id) ON DELETE RESTRICT,
+  start_time      TIMESTAMPTZ NOT NULL,
+  end_time        TIMESTAMPTZ NOT NULL,
+  status          booking_status NOT NULL DEFAULT 'pending',
+  source          booking_source NOT NULL DEFAULT 'portal',
+  notes           TEXT,
+  created_at      TIMESTAMPTZ DEFAULT NOW(),
+  updated_at      TIMESTAMPTZ DEFAULT NOW()
 );
 
 ALTER TABLE bookings
-  ADD COLUMN IF NOT EXISTS location_id UUID REFERENCES locations(id) ON DELETE RESTRICT;
+  ADD COLUMN IF NOT EXISTS location_id UUID REFERENCES locations(id) ON DELETE RESTRICT,
+  ADD COLUMN IF NOT EXISTS customer_email TEXT;
 
 -- ============================================================
--- 6) INDEXES
+-- 6) BOOKING EMAIL AUDIT LOGS
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS booking_email_logs (
+  id             UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  booking_id     UUID NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+  location_id    UUID REFERENCES locations(id) ON DELETE SET NULL,
+  customer_email TEXT NOT NULL,
+  email_kind     TEXT NOT NULL CHECK (email_kind IN ('confirmation', 'modification', 'cancellation')),
+  email_subject  TEXT NOT NULL,
+  sender_email   TEXT NOT NULL,
+  status         TEXT NOT NULL CHECK (status IN ('sent', 'failed')),
+  failure_reason TEXT,
+  metadata       JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at     TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ============================================================
+-- 7) INDEXES
 -- ============================================================
 CREATE INDEX IF NOT EXISTS idx_bookings_location_start ON bookings (location_id, start_time);
 CREATE INDEX IF NOT EXISTS idx_bookings_status         ON bookings (status);
 CREATE INDEX IF NOT EXISTS idx_bookings_service_id     ON bookings (service_id);
 CREATE INDEX IF NOT EXISTS idx_overrides_location_date ON branch_schedule_overrides (location_id, date);
+CREATE INDEX IF NOT EXISTS idx_booking_email_logs_booking_id ON booking_email_logs (booking_id);
+CREATE INDEX IF NOT EXISTS idx_booking_email_logs_location_created ON booking_email_logs (location_id, created_at DESC);
 
 -- ============================================================
--- 7) AUTO-UPDATE updated_at TRIGGER
+-- 8) AUTO-UPDATE updated_at TRIGGER
 -- ============================================================
 CREATE OR REPLACE FUNCTION update_updated_at()
 RETURNS TRIGGER AS $$
@@ -151,18 +173,19 @@ CREATE TRIGGER bookings_updated_at
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
 -- ============================================================
--- 8) RLS
+-- 9) RLS
 -- ============================================================
 ALTER TABLE branch_settings           ENABLE ROW LEVEL SECURITY;
 ALTER TABLE branch_schedule_overrides ENABLE ROW LEVEL SECURITY;
 ALTER TABLE booking_services          ENABLE ROW LEVEL SECURITY;
 ALTER TABLE bookings                  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE booking_email_logs        ENABLE ROW LEVEL SECURITY;
 
 -- Drop old policies before recreating to avoid duplicate errors
 DO $$ DECLARE r RECORD; BEGIN
   FOR r IN
     SELECT policyname, tablename FROM pg_policies
-    WHERE tablename IN ('branch_settings','branch_schedule_overrides','booking_services','bookings')
+    WHERE tablename IN ('branch_settings','branch_schedule_overrides','booking_services','bookings','booking_email_logs')
   LOOP
     EXECUTE 'DROP POLICY IF EXISTS ' || quote_ident(r.policyname) || ' ON ' || quote_ident(r.tablename);
   END LOOP;
@@ -181,9 +204,15 @@ CREATE POLICY "Authenticated can read booking services"
 CREATE POLICY "Authenticated can read bookings"
   ON bookings FOR SELECT TO authenticated USING (true);
 
+CREATE POLICY "Authenticated can read booking email logs"
+  ON booking_email_logs FOR SELECT TO authenticated USING (true);
+
 -- Authenticated staff can manage bookings
 CREATE POLICY "Authenticated can manage bookings"
   ON bookings FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+CREATE POLICY "Authenticated can manage booking email logs"
+  ON booking_email_logs FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
 -- Service role can manage all scheduling config
 CREATE POLICY "Service role can manage branch settings"
@@ -194,6 +223,9 @@ CREATE POLICY "Service role can manage branch overrides"
 
 CREATE POLICY "Service role can manage booking services"
   ON booking_services FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+CREATE POLICY "Service role can manage booking email logs"
+  ON booking_email_logs FOR ALL TO service_role USING (true) WITH CHECK (true);
 
 -- Anon (WhatsApp/website)
 CREATE POLICY "Anon can read branch settings"

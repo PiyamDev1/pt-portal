@@ -42,6 +42,10 @@ function isValidEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
+function isValidPhone(value: string): boolean {
+  return /^\+\d{1,4}\s[\d\s()-]{6,20}$/.test(value.trim());
+}
+
 /**
  * GET /api/bookings?from=ISO&to=ISO
  * Fetch all bookings in a date range (for the dashboard week view)
@@ -112,6 +116,16 @@ export async function POST(request: NextRequest) {
         {
           success: false,
           error: 'Invalid email address',
+        } as CreateBookingResponse,
+        { status: 400 }
+      );
+    }
+
+    if (!isValidPhone(customer_phone)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Invalid phone number format. Use country code and number, e.g. +44 7123456789',
         } as CreateBookingResponse,
         { status: 400 }
       );
@@ -376,6 +390,21 @@ export async function POST(request: NextRequest) {
       serviceName: service.name,
       startTimeISO: start_time,
       branchName: location?.name,
+    });
+
+    await supabase.from('booking_email_logs').insert({
+      booking_id: newBooking.id,
+      location_id,
+      customer_email,
+      email_kind: 'confirmation',
+      email_subject: 'Your appointment is booked',
+      sender_email: emailResult.senderEmail,
+      status: emailResult.sent ? 'sent' : 'failed',
+      failure_reason: emailResult.sent ? null : emailResult.reason ?? null,
+      metadata: {
+        service_id: service.id,
+        service_name: service.name,
+      },
     });
 
     return NextResponse.json(

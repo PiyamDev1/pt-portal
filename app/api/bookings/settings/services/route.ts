@@ -1,11 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase';
+import { validateBookingTemplate } from '@/lib/bookingEmail';
 
 const SCHEMA_HINT = 'Booking schema is out of date. Run scripts/create-bookings-schema.sql in Supabase SQL editor.';
 
 function isSchemaError(error: unknown): boolean {
   const code = (error as { code?: string } | null)?.code;
   return code === '42P01' || code === '42703' || code === '42P10';
+}
+
+type TemplateValidationError = { field: string; invalidTokens: string[] };
+
+function validateServiceTemplates(input: {
+  confirmation_template?: string | null;
+  modification_template?: string | null;
+  cancellation_template?: string | null;
+}): TemplateValidationError[] {
+  const checks: Array<{ field: string; value: string | null | undefined }> = [
+    { field: 'confirmation_template', value: input.confirmation_template },
+    { field: 'modification_template', value: input.modification_template },
+    { field: 'cancellation_template', value: input.cancellation_template },
+  ];
+
+  return checks
+    .map(({ field, value }) => {
+      if (!value?.trim()) return null;
+      const result = validateBookingTemplate(value);
+      if (result.valid) return null;
+      return { field, invalidTokens: result.invalidTokens };
+    })
+    .filter((item): item is TemplateValidationError => item !== null);
 }
 
 /**
@@ -98,6 +122,21 @@ export async function POST(request: NextRequest) {
     if (available_days && available_days.some((d) => d < 0 || d > 6)) {
       return NextResponse.json(
         { error: 'available_days values must be between 0 and 6' },
+        { status: 400 }
+      );
+    }
+
+    const templateErrors = validateServiceTemplates({
+      confirmation_template,
+      modification_template,
+      cancellation_template,
+    });
+    if (templateErrors.length > 0) {
+      return NextResponse.json(
+        {
+          error: 'Template contains unsupported placeholders',
+          template_errors: templateErrors,
+        },
         { status: 400 }
       );
     }

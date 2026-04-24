@@ -38,6 +38,10 @@ function isValidEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
+function isValidPhone(value: string): boolean {
+  return /^\+\d{1,4}\s[\d\s()-]{6,20}$/.test(value.trim());
+}
+
 /**
  * PATCH /api/bookings/[id]
  * Update a booking's status and/or details.
@@ -89,6 +93,13 @@ export async function PATCH(
 
     if (customer_email !== undefined && !isValidEmail(customer_email)) {
       return NextResponse.json({ error: 'Invalid email address' }, { status: 400 });
+    }
+
+    if (customer_phone !== undefined && !isValidPhone(customer_phone)) {
+      return NextResponse.json(
+        { error: 'Invalid phone number format. Use country code and number, e.g. +44 7123456789' },
+        { status: 400 }
+      );
     }
 
     const supabase = await getRouteSupabaseClient();
@@ -275,6 +286,27 @@ export async function PATCH(
       serviceName: service.name,
       startTimeISO: nextStartISO,
       branchName: location?.name,
+    });
+
+    const emailSubject =
+      emailKind === 'cancellation'
+        ? 'Your appointment was cancelled'
+        : 'Your appointment was updated';
+
+    await supabase.from('booking_email_logs').insert({
+      booking_id: id,
+      location_id: existing.location_id,
+      customer_email: nextCustomerEmail,
+      email_kind: emailKind,
+      email_subject: emailSubject,
+      sender_email: emailResult.senderEmail,
+      status: emailResult.sent ? 'sent' : 'failed',
+      failure_reason: emailResult.sent ? null : emailResult.reason ?? null,
+      metadata: {
+        service_id: service.id,
+        service_name: service.name,
+        booking_status: nextStatus,
+      },
     });
 
     return NextResponse.json({

@@ -53,6 +53,15 @@ const SOURCE_CONFIG: Record<string, string> = {
   website: 'bg-blue-100 text-blue-700',
 }
 
+function isValidLocalPhone(phone: string): boolean {
+  const normalized = phone.replace(/[^\d]/g, '')
+  return normalized.length >= 6 && normalized.length <= 14
+}
+
+function normalizeLocalPhone(phone: string): string {
+  return phone.replace(/[^\d]/g, '')
+}
+
 function startOfWeek(date: Date): Date {
   const d = new Date(date)
   d.setUTCHours(0, 0, 0, 0)
@@ -398,6 +407,29 @@ export default function BookingsClient({
     fetchAvailableSlots()
   }, [fetchAvailableSlots])
 
+  useEffect(() => {
+    if (!showAppointmentModal || loadingSlots) return
+    if (availableSlots.length === 0) {
+      if (appointmentForm.start_time) {
+        setAppointmentForm((prev) => ({ ...prev, start_time: '' }))
+      }
+      return
+    }
+
+    const hasCurrentSelection = availableSlots.some((slot) => slot.isoString === appointmentForm.start_time)
+    if (hasCurrentSelection) return
+
+    if (editingBooking) {
+      const stillAvailable = availableSlots.find((slot) => slot.isoString === editingBooking.start_time)
+      if (stillAvailable) {
+        setAppointmentForm((prev) => ({ ...prev, start_time: stillAvailable.isoString }))
+        return
+      }
+    }
+
+    setAppointmentForm((prev) => ({ ...prev, start_time: availableSlots[0].isoString }))
+  }, [availableSlots, appointmentForm.start_time, editingBooking, loadingSlots, showAppointmentModal])
+
   const saveAppointment = async () => {
     if (!selectedLocationId) return
 
@@ -406,9 +438,14 @@ export default function BookingsClient({
       return
     }
 
+    if (!isValidLocalPhone(appointmentForm.phone_local)) {
+      toast.error('Phone number must contain between 6 and 14 digits')
+      return
+    }
+
     setSavingBooking(true)
     try {
-      const customer_phone = `${appointmentForm.phone_country_code} ${appointmentForm.phone_local}`.trim()
+      const customer_phone = `${appointmentForm.phone_country_code} ${normalizeLocalPhone(appointmentForm.phone_local)}`.trim()
 
       if (editingBooking) {
         const res = await fetch(`/api/bookings/${editingBooking.id}`, {
@@ -469,6 +506,7 @@ export default function BookingsClient({
   const totalVisible = bookings.filter((b) => b.status !== BookingStatus.CANCELLED).length
   const pendingVisible = bookings.filter((b) => b.status === BookingStatus.PENDING).length
   const confirmedVisible = bookings.filter((b) => b.status === BookingStatus.CONFIRMED).length
+  const invalidLocalPhone = appointmentForm.phone_local.length > 0 && !isValidLocalPhone(appointmentForm.phone_local)
 
   const weekLabel = `${formatHeaderDate(weekStart)} — ${formatHeaderDate(weekDays[6])}`
   const monthLabel = formatMonthLabel(monthStart)
@@ -860,6 +898,7 @@ export default function BookingsClient({
               <label className="text-sm text-slate-700">
                 Phone number
                 <input value={appointmentForm.phone_local} onChange={(e) => setAppointmentForm((p) => ({ ...p, phone_local: e.target.value }))} className="mt-1 w-full border border-slate-300 rounded px-3 py-2" />
+                {invalidLocalPhone && <p className="mt-1 text-xs text-red-600">Enter 6-14 digits (spaces and dashes are allowed).</p>}
               </label>
 
               <label className="text-sm text-slate-700">
@@ -891,7 +930,7 @@ export default function BookingsClient({
 
             <div className="flex items-center justify-end gap-2">
               <button onClick={() => setShowAppointmentModal(false)} className="px-4 py-2 rounded border border-slate-300 text-sm">Cancel</button>
-              <button onClick={saveAppointment} disabled={savingBooking} className="px-4 py-2 rounded bg-indigo-600 text-white text-sm disabled:opacity-50">
+              <button onClick={saveAppointment} disabled={savingBooking || invalidLocalPhone} className="px-4 py-2 rounded bg-indigo-600 text-white text-sm disabled:opacity-50">
                 {savingBooking ? 'Saving...' : editingBooking ? 'Save Changes' : 'Create Appointment'}
               </button>
             </div>

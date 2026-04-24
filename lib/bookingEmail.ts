@@ -1,12 +1,41 @@
 import formData from 'form-data';
 import Mailgun from 'mailgun.js';
 
+const BOOKING_SENDER_EMAIL = 'noreply.appointments@piyamtravel.com';
+const TEMPLATE_TOKEN_REGEX = /\[[^\]]+\]/g;
+export const ALLOWED_TEMPLATE_VARIABLES = [
+  '[Customer Name]',
+  '[date booked]',
+  '[time booked]',
+  '[service booked]',
+  '[branch name]',
+] as const;
+
 export interface BookingTemplateValues {
   'Customer Name': string;
   'date booked': string;
   'time booked': string;
   'service booked': string;
   'branch name'?: string;
+}
+
+export function findTemplateTokens(template: string): string[] {
+  const matches = template.match(TEMPLATE_TOKEN_REGEX) || [];
+  return [...new Set(matches)];
+}
+
+export function validateBookingTemplate(template: string): {
+  valid: boolean;
+  invalidTokens: string[];
+} {
+  const tokens = findTemplateTokens(template);
+  const invalidTokens = tokens.filter(
+    (token) => !ALLOWED_TEMPLATE_VARIABLES.includes(token as (typeof ALLOWED_TEMPLATE_VARIABLES)[number])
+  );
+  return {
+    valid: invalidTokens.length === 0,
+    invalidTokens,
+  };
 }
 
 function formatDateTime(isoString: string): { date: string; time: string } {
@@ -72,14 +101,14 @@ export async function sendBookingEmail(params: {
   serviceName: string;
   startTimeISO: string;
   branchName?: string;
-}): Promise<{ sent: boolean; reason?: string }> {
+}): Promise<{ sent: boolean; reason?: string; senderEmail: string }> {
   const apiKey = process.env.MAILGUN_API_KEY;
   const rawDomain = process.env.MAILGUN_DOMAIN;
-  const senderEmail = process.env.MAILGUN_SENDER_EMAIL || process.env.MAIL_FROM_ADDRESS;
+  const senderEmail = BOOKING_SENDER_EMAIL;
 
-  if (!params.to) return { sent: false, reason: 'Missing recipient email' };
-  if (!apiKey || !rawDomain || !senderEmail) {
-    return { sent: false, reason: 'Mailgun environment variables are not configured' };
+  if (!params.to) return { sent: false, reason: 'Missing recipient email', senderEmail };
+  if (!apiKey || !rawDomain) {
+    return { sent: false, reason: 'Mailgun environment variables are not configured', senderEmail };
   }
 
   const senderDomain = rawDomain.replace(/^https?:\/\//, '').replace(/\/$/, '');
@@ -116,8 +145,12 @@ export async function sendBookingEmail(params: {
       subject: params.subject,
       text: body,
     });
-    return { sent: true };
+    return { sent: true, senderEmail };
   } catch (error) {
-    return { sent: false, reason: error instanceof Error ? error.message : 'Unknown email send error' };
+    return {
+      sent: false,
+      reason: error instanceof Error ? error.message : 'Unknown email send error',
+      senderEmail,
+    };
   }
 }
