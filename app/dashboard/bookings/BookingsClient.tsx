@@ -26,6 +26,8 @@ interface BookingServiceOption {
   id: string
   name: string
   is_active: boolean
+  max_group_size: number
+  duration_per_additional_person_minutes: number
 }
 
 const COUNTRY_CODE_OPTIONS = [
@@ -182,6 +184,7 @@ export default function BookingsClient({
     service_id: '',
     date: '',
     start_time: '',
+    person_count: 1,
   })
 
   const weekDays = Array.from({ length: 7 }, (_, i) => {
@@ -374,6 +377,7 @@ export default function BookingsClient({
       service_id: booking.service_id,
       date: booking.start_time.slice(0, 10),
       start_time: booking.start_time,
+      person_count: (booking as any).person_count ?? 1,
     })
     setShowAppointmentModal(true)
   }
@@ -390,6 +394,7 @@ export default function BookingsClient({
         date: appointmentForm.date,
         service_id: appointmentForm.service_id,
         location_id: selectedLocationId,
+        person_count: String(appointmentForm.person_count),
       })
       const res = await fetch(`/api/bookings/available-slots?${params.toString()}`)
       const json = await res.json()
@@ -401,7 +406,7 @@ export default function BookingsClient({
     } finally {
       setLoadingSlots(false)
     }
-  }, [appointmentForm.date, appointmentForm.service_id, selectedLocationId, showAppointmentModal])
+  }, [appointmentForm.date, appointmentForm.service_id, appointmentForm.person_count, selectedLocationId, showAppointmentModal])
 
   useEffect(() => {
     fetchAvailableSlots()
@@ -457,6 +462,7 @@ export default function BookingsClient({
             customer_email: appointmentForm.customer_email,
             service_id: appointmentForm.service_id,
             start_time: appointmentForm.start_time,
+            person_count: appointmentForm.person_count,
           }),
         })
         const json = await res.json()
@@ -480,6 +486,7 @@ export default function BookingsClient({
             customer_email: appointmentForm.customer_email,
             service_id: appointmentForm.service_id,
             start_time: appointmentForm.start_time,
+            person_count: appointmentForm.person_count,
           }),
         })
         const json = await res.json()
@@ -627,6 +634,7 @@ export default function BookingsClient({
                     service_id: serviceOptions[0]?.id || '',
                     date: selectedDate.toISOString().slice(0, 10),
                     start_time: '',
+                    person_count: 1,
                   }))
                   setAvailableSlots([])
                   setShowAppointmentModal(true)
@@ -903,7 +911,7 @@ export default function BookingsClient({
 
               <label className="text-sm text-slate-700">
                 Service
-                <select value={appointmentForm.service_id} onChange={(e) => setAppointmentForm((p) => ({ ...p, service_id: e.target.value, start_time: '' }))} className="mt-1 w-full border border-slate-300 rounded px-3 py-2">
+                <select value={appointmentForm.service_id} onChange={(e) => setAppointmentForm((p) => ({ ...p, service_id: e.target.value, start_time: '', person_count: 1 }))} className="mt-1 w-full border border-slate-300 rounded px-3 py-2">
                   <option value="">Select service</option>
                   {serviceOptions.map((service) => (
                     <option key={service.id} value={service.id}>{service.name}</option>
@@ -917,16 +925,63 @@ export default function BookingsClient({
               </label>
             </div>
 
-            <label className="text-sm text-slate-700 block">
-              Available start times
-              <select value={appointmentForm.start_time} onChange={(e) => setAppointmentForm((p) => ({ ...p, start_time: e.target.value }))} className="mt-1 w-full border border-slate-300 rounded px-3 py-2" disabled={loadingSlots || availableSlots.length === 0}>
-                <option value="">{loadingSlots ? 'Loading slots...' : 'Select start time'}</option>
-                {availableSlots.map((slot) => (
-                  <option key={slot.isoString} value={slot.isoString}>{slot.time}</option>
-                ))}
-              </select>
+            {(() => {
+              const selectedService = serviceOptions.find((s) => s.id === appointmentForm.service_id)
+              const maxGroup = selectedService?.max_group_size ?? 1
+              return maxGroup > 1 ? (
+                <div className="text-sm text-slate-700">
+                  <span className="block mb-1 font-medium">Number of persons</span>
+                  <div className="flex gap-2 flex-wrap">
+                    {Array.from({ length: maxGroup }, (_, i) => i + 1).map((n) => (
+                      <button
+                        key={n}
+                        type="button"
+                        onClick={() => setAppointmentForm((p) => ({ ...p, person_count: n, start_time: '' }))}
+                        className={`w-10 h-10 rounded-lg border text-sm font-medium transition-colors ${
+                          appointmentForm.person_count === n
+                            ? 'bg-indigo-600 text-white border-indigo-600'
+                            : 'bg-white text-slate-700 border-slate-300 hover:border-indigo-400'
+                        }`}
+                      >
+                        {n}
+                      </button>
+                    ))}
+                  </div>
+                  {selectedService && selectedService.duration_per_additional_person_minutes > 0 && appointmentForm.person_count > 1 && (
+                    <p className="mt-1 text-xs text-slate-500">
+                      Appointment duration: {selectedService.duration_per_additional_person_minutes * (appointmentForm.person_count - 1) + (serviceOptions.find((s) => s.id === appointmentForm.service_id) as any)?.duration_minutes} min
+                    </p>
+                  )}
+                </div>
+              ) : null
+            })()}
+
+            <div className="text-sm text-slate-700">
+              <span className="block mb-1 font-medium">Available start times</span>
+              {loadingSlots ? (
+                <p className="text-slate-400 text-sm">Loading slots...</p>
+              ) : availableSlots.length === 0 ? (
+                <p className="text-slate-400 text-sm">{appointmentForm.date && appointmentForm.service_id ? 'No slots available for this date.' : 'Select a service and date.'}</p>
+              ) : (
+                <div className="flex gap-2 flex-wrap mt-1">
+                  {availableSlots.map((slot) => (
+                    <button
+                      key={slot.isoString}
+                      type="button"
+                      onClick={() => setAppointmentForm((p) => ({ ...p, start_time: slot.isoString }))}
+                      className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors ${
+                        appointmentForm.start_time === slot.isoString
+                          ? 'bg-indigo-600 text-white border-indigo-600'
+                          : 'bg-white text-slate-700 border-slate-300 hover:border-indigo-400'
+                      }`}
+                    >
+                      {slot.time}
+                    </button>
+                  ))}
+                </div>
+              )}
               {editingBooking && <p className="mt-1 text-xs text-slate-500">Current booking time is preselected when available. Choose a different slot to modify.</p>}
-            </label>
+            </div>
 
             <div className="flex items-center justify-end gap-2">
               <button onClick={() => setShowAppointmentModal(false)} className="px-4 py-2 rounded border border-slate-300 text-sm">Cancel</button>

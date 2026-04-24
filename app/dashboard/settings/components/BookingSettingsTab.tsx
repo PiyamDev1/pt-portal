@@ -43,6 +43,8 @@ export interface BookingServiceRow {
   confirmation_template: string | null
   modification_template: string | null
   cancellation_template: string | null
+  max_group_size: number
+  duration_per_additional_person_minutes: number
   is_active: boolean
 }
 
@@ -106,7 +108,7 @@ export default function BookingSettingsTab({
   onLocationChange,
 }: BookingSettingsTabProps) {
   const [loading, setLoading] = useState(false)
-  const [activeSection, setActiveSection] = useState<'hours' | 'overrides' | 'services'>('hours')
+  const [activeSection, setActiveSection] = useState<'overrides' | 'services'>('overrides')
 
   const [weeklySettings, setWeeklySettings] = useState<BranchSettingRow[]>([])
   const [overrides, setOverrides] = useState<BranchScheduleOverride[]>([])
@@ -123,6 +125,8 @@ export default function BookingSettingsTab({
     service_start_time: '',
     service_end_time: '',
     slot_interval_minutes: 30,
+    max_group_size: 1,
+    duration_per_additional_person_minutes: 0,
   })
   const [showAddService, setShowAddService] = useState(false)
   const [editingService, setEditingService] = useState<BookingServiceRow | null>(null)
@@ -375,6 +379,8 @@ export default function BookingSettingsTab({
           confirmation_template: newService.confirmation_template || null,
           modification_template: newService.modification_template || null,
           cancellation_template: newService.cancellation_template || null,
+          max_group_size: newService.max_group_size,
+          duration_per_additional_person_minutes: newService.duration_per_additional_person_minutes,
         }),
       })
       const json = await res.json()
@@ -391,6 +397,8 @@ export default function BookingSettingsTab({
         confirmation_template: '',
         modification_template: '',
         cancellation_template: '',
+        max_group_size: 1,
+        duration_per_additional_person_minutes: 0,
       })
       setShowAddService(false)
       toast.success('Service added')
@@ -422,6 +430,8 @@ export default function BookingSettingsTab({
           confirmation_template: editingService.confirmation_template,
           modification_template: editingService.modification_template,
           cancellation_template: editingService.cancellation_template,
+          max_group_size: editingService.max_group_size,
+          duration_per_additional_person_minutes: editingService.duration_per_additional_person_minutes,
         }),
       })
       const json = await res.json()
@@ -497,12 +507,6 @@ export default function BookingSettingsTab({
 
       <div className="flex gap-2 flex-wrap">
         <button
-          onClick={() => setActiveSection('hours')}
-          className={`px-4 py-2 rounded-lg text-sm font-medium ${activeSection === 'hours' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600'}`}
-        >
-          Weekly Hours & Breaks
-        </button>
-        <button
           onClick={() => setActiveSection('overrides')}
           className={`px-4 py-2 rounded-lg text-sm font-medium ${activeSection === 'overrides' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600'}`}
         >
@@ -515,54 +519,6 @@ export default function BookingSettingsTab({
           Services & Slot Gaps
         </button>
       </div>
-
-      {activeSection === 'hours' && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-slate-600">Configure branch opening hours and breaks. Slot interval here is the default; services can override it with their own timing window.</p>
-            <button
-              onClick={saveWeekly}
-              disabled={loading}
-              className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium disabled:opacity-50"
-            >
-              {loading ? 'Saving...' : 'Save Weekly Settings'}
-            </button>
-          </div>
-
-          <div className="overflow-x-auto rounded-lg border border-slate-200">
-            <table className="w-full text-sm bg-white">
-              <thead className="bg-slate-50 border-b border-slate-200">
-                <tr>
-                  <th className="px-3 py-2 text-left">Day</th>
-                  <th className="px-3 py-2 text-left">Open</th>
-                  <th className="px-3 py-2 text-left">Close</th>
-                  <th className="px-3 py-2 text-left">Lunch Start</th>
-                  <th className="px-3 py-2 text-left">Lunch End</th>
-                  <th className="px-3 py-2 text-left">Prayer Start</th>
-                  <th className="px-3 py-2 text-left">Prayer End</th>
-                  <th className="px-3 py-2 text-left">Staff</th>
-                  <th className="px-3 py-2 text-center">Closed</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {weeklySettings.map((row) => (
-                  <tr key={row.day_of_week}>
-                    <td className="px-3 py-2 font-medium text-slate-700">{DAY_NAMES[row.day_of_week]}</td>
-                    <td className="px-3 py-2"><input type="time" value={row.open_time} onChange={(e) => updateDay(row.day_of_week, 'open_time', e.target.value)} className="border border-slate-300 rounded px-2 py-1" /></td>
-                    <td className="px-3 py-2"><input type="time" value={row.close_time} onChange={(e) => updateDay(row.day_of_week, 'close_time', e.target.value)} className="border border-slate-300 rounded px-2 py-1" /></td>
-                    <td className="px-3 py-2"><input type="time" value={row.lunch_start_time || ''} onChange={(e) => updateDay(row.day_of_week, 'lunch_start_time', e.target.value || null)} className="border border-slate-300 rounded px-2 py-1" /></td>
-                    <td className="px-3 py-2"><input type="time" value={row.lunch_end_time || ''} onChange={(e) => updateDay(row.day_of_week, 'lunch_end_time', e.target.value || null)} className="border border-slate-300 rounded px-2 py-1" /></td>
-                    <td className="px-3 py-2"><input type="time" value={row.prayer_start_time || ''} onChange={(e) => updateDay(row.day_of_week, 'prayer_start_time', e.target.value || null)} className="border border-slate-300 rounded px-2 py-1" /></td>
-                    <td className="px-3 py-2"><input type="time" value={row.prayer_end_time || ''} onChange={(e) => updateDay(row.day_of_week, 'prayer_end_time', e.target.value || null)} className="border border-slate-300 rounded px-2 py-1" /></td>
-                    <td className="px-3 py-2"><input type="number" min={1} value={row.concurrent_staff} onChange={(e) => updateDay(row.day_of_week, 'concurrent_staff', Math.max(1, Number(e.target.value)))} className="w-16 border border-slate-300 rounded px-2 py-1" /></td>
-                    <td className="px-3 py-2 text-center"><input type="checkbox" checked={row.is_closed} onChange={(e) => updateDay(row.day_of_week, 'is_closed', e.target.checked)} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
 
       {activeSection === 'overrides' && (
         <div className="space-y-4">
@@ -667,6 +623,14 @@ export default function BookingSettingsTab({
                   {INTERVAL_OPTIONS.map((v) => <option key={v} value={v}>{v} min slot</option>)}
                 </select>
               </LabeledInput>
+              <LabeledInput label="Max Group Size">
+                <input type="number" min={1} max={20} value={newService.max_group_size} onChange={(e) => setNewService((p) => ({ ...p, max_group_size: Math.max(1, Number(e.target.value)) }))} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
+                <p className="mt-1 text-[11px] text-slate-400">1 = no group bookings</p>
+              </LabeledInput>
+              <LabeledInput label="Extra Time per Additional Person (minutes)">
+                <input type="number" min={0} value={newService.duration_per_additional_person_minutes} onChange={(e) => setNewService((p) => ({ ...p, duration_per_additional_person_minutes: Math.max(0, Number(e.target.value)) }))} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
+                <p className="mt-1 text-[11px] text-slate-400">e.g. 22 mins → 3 people ≈ 2.5 slots</p>
+              </LabeledInput>
               <div className="md:col-span-3 rounded border border-slate-200 bg-white px-3 py-2">
                 <p className="text-xs font-medium text-slate-500 mb-2">Available days</p>
                 <div className="flex flex-wrap gap-2">
@@ -749,6 +713,14 @@ export default function BookingSettingsTab({
                         {INTERVAL_OPTIONS.map((v) => <option key={v} value={v}>{v} min slot</option>)}
                       </select>
                     </LabeledInput>
+                    <LabeledInput label="Max Group Size">
+                      <input type="number" min={1} max={20} value={editingService.max_group_size ?? 1} onChange={(e) => setEditingService((p) => (p ? { ...p, max_group_size: Math.max(1, Number(e.target.value)) } : p))} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
+                      <p className="mt-1 text-[11px] text-slate-400">1 = no group bookings</p>
+                    </LabeledInput>
+                    <LabeledInput label="Extra Time per Additional Person (minutes)">
+                      <input type="number" min={0} value={editingService.duration_per_additional_person_minutes ?? 0} onChange={(e) => setEditingService((p) => (p ? { ...p, duration_per_additional_person_minutes: Math.max(0, Number(e.target.value)) } : p))} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
+                      <p className="mt-1 text-[11px] text-slate-400">e.g. 22 mins → 3 people ≈ 2.5 slots</p>
+                    </LabeledInput>
                     <div className="md:col-span-3 rounded border border-slate-200 bg-slate-50 px-3 py-2">
                       <p className="text-xs font-medium text-slate-500 mb-2">Available days</p>
                       <div className="flex flex-wrap gap-2">
@@ -814,6 +786,9 @@ export default function BookingSettingsTab({
                       <p className="text-xs text-slate-400 mt-1">
                         Days: {Array.isArray(service.available_days) && service.available_days.length > 0 ? service.available_days.map((d) => DAY_NAMES[d].slice(0, 3)).join(', ') : 'All'} ·
                         Time: {service.service_start_time || 'Branch open'} - {service.service_end_time || 'Branch close'}
+                      </p>
+                      <p className="text-xs text-slate-400 mt-1">
+                        Group: max {service.max_group_size ?? 1} {(service.max_group_size ?? 1) > 1 ? `person(s) · +${service.duration_per_additional_person_minutes ?? 0} min/extra person` : '(individual only)'}
                       </p>
                       <p className="text-xs text-slate-400 mt-1">
                         Templates: {service.confirmation_template ? 'Booked' : '--'} / {service.modification_template ? 'Modified' : '--'} / {service.cancellation_template ? 'Cancelled' : '--'}

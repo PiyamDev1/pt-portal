@@ -61,6 +61,7 @@ export async function PATCH(
       service_id,
       start_time,
       notes,
+      person_count: rawPersonCount,
     } = body as {
       status?: string;
       customer_name?: string;
@@ -69,7 +70,11 @@ export async function PATCH(
       service_id?: string;
       start_time?: string;
       notes?: string | null;
+      person_count?: number;
     };
+    const personCount = rawPersonCount !== undefined
+      ? Math.max(1, parseInt(String(rawPersonCount), 10) || 1)
+      : undefined;
 
     if (status && !VALID_STATUSES.includes(status)) {
       return NextResponse.json(
@@ -85,7 +90,8 @@ export async function PATCH(
       customer_email !== undefined ||
       service_id !== undefined ||
       start_time !== undefined ||
-      notes !== undefined;
+      notes !== undefined ||
+      personCount !== undefined;
 
     if (!hasAnyChange) {
       return NextResponse.json({ error: 'No fields provided to update' }, { status: 400 });
@@ -123,6 +129,7 @@ export async function PATCH(
     const nextCustomerName = customer_name ?? existing.customer_name;
     const nextCustomerPhone = customer_phone ?? existing.customer_phone;
     const nextCustomerEmail = customer_email ?? existing.customer_email;
+    const nextPersonCount = personCount ?? existing.person_count ?? 1;
 
     const { data: service, error: serviceError } = await supabase
       .from('booking_services')
@@ -143,7 +150,12 @@ export async function PATCH(
       return NextResponse.json({ error: 'Invalid start_time format' }, { status: 400 });
     }
 
-    const endTimeDate = new Date(startTimeDate.getTime() + service.duration_minutes * 60 * 1000);
+    const endTimeDate = new Date(
+      startTimeDate.getTime() + (
+        service.duration_minutes +
+        Math.max(0, nextPersonCount - 1) * (service.duration_per_additional_person_minutes ?? 0)
+      ) * 60 * 1000
+    );
     const nextEndISO = endTimeDate.toISOString();
 
     if (nextStatus !== BookingStatus.CANCELLED) {
@@ -241,6 +253,7 @@ export async function PATCH(
       customer_phone: nextCustomerPhone,
       customer_email: nextCustomerEmail,
       service_id: nextServiceId,
+      person_count: nextPersonCount,
       start_time: nextStartISO,
       end_time: nextEndISO,
     };

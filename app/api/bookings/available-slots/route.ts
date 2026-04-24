@@ -20,6 +20,8 @@ export async function GET(request: NextRequest) {
     const date = searchParams.get('date');
     const service_id = searchParams.get('service_id');
     const location_id = searchParams.get('location_id');
+    const rawPersonCount = searchParams.get('person_count');
+    const personCount = Math.max(1, parseInt(rawPersonCount ?? '1', 10) || 1);
 
     // Validate inputs
     if (!date || !service_id || !location_id) {
@@ -178,6 +180,11 @@ export async function GET(request: NextRequest) {
     }
 
     // Step 4: Generate available slots
+    // Compute effective duration for the requested group size.
+    const groupDuration =
+      service.duration_minutes +
+      Math.max(0, personCount - 1) * (service.duration_per_additional_person_minutes ?? 0);
+
     const slots = generateAvailableSlots(
       date,
       effectiveOpenTime,
@@ -186,7 +193,7 @@ export async function GET(request: NextRequest) {
       lunchEndTime,
       prayerStartTime,
       prayerEndTime,
-      service.duration_minutes,
+      groupDuration,
       service.buffer_minutes,
       service.slot_interval_minutes ?? slotInterval,
       concurrentStaff,

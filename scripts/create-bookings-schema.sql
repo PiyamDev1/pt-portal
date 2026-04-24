@@ -74,20 +74,22 @@ CREATE TABLE IF NOT EXISTS branch_schedule_overrides (
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS booking_services (
-  id                    UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  location_id           UUID REFERENCES locations(id) ON DELETE CASCADE,
-  name                  TEXT NOT NULL,
-  duration_minutes      INTEGER NOT NULL,
-  buffer_minutes        INTEGER NOT NULL DEFAULT 15,
-  available_days        SMALLINT[],
-  service_start_time    TIME,
-  service_end_time      TIME,
-  slot_interval_minutes INTEGER,
-  confirmation_template TEXT,
-  modification_template TEXT,
-  cancellation_template TEXT,
-  is_active             BOOLEAN NOT NULL DEFAULT true,
-  created_at            TIMESTAMPTZ DEFAULT NOW()
+  id                                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  location_id                         UUID REFERENCES locations(id) ON DELETE CASCADE,
+  name                                TEXT NOT NULL,
+  duration_minutes                    INTEGER NOT NULL,
+  buffer_minutes                      INTEGER NOT NULL DEFAULT 15,
+  available_days                      SMALLINT[],
+  service_start_time                  TIME,
+  service_end_time                    TIME,
+  slot_interval_minutes               INTEGER,
+  confirmation_template               TEXT,
+  modification_template               TEXT,
+  cancellation_template               TEXT,
+  max_group_size                      INTEGER NOT NULL DEFAULT 1,
+  duration_per_additional_person_minutes INTEGER NOT NULL DEFAULT 0,
+  is_active                           BOOLEAN NOT NULL DEFAULT true,
+  created_at                          TIMESTAMPTZ DEFAULT NOW()
 );
 
 ALTER TABLE booking_services
@@ -98,7 +100,9 @@ ALTER TABLE booking_services
   ADD COLUMN IF NOT EXISTS cancellation_template TEXT,
   ADD COLUMN IF NOT EXISTS service_start_time TIME,
   ADD COLUMN IF NOT EXISTS service_end_time TIME,
-  ADD COLUMN IF NOT EXISTS slot_interval_minutes INTEGER;
+  ADD COLUMN IF NOT EXISTS slot_interval_minutes INTEGER,
+  ADD COLUMN IF NOT EXISTS max_group_size INTEGER NOT NULL DEFAULT 1,
+  ADD COLUMN IF NOT EXISTS duration_per_additional_person_minutes INTEGER NOT NULL DEFAULT 0;
 
 -- Unique index per branch name (skip if already exists)
 CREATE UNIQUE INDEX IF NOT EXISTS uq_booking_services_branch_name
@@ -115,6 +119,7 @@ CREATE TABLE IF NOT EXISTS bookings (
   customer_phone  TEXT NOT NULL,
   customer_email  TEXT,
   service_id      UUID NOT NULL REFERENCES booking_services(id) ON DELETE RESTRICT,
+  person_count    INTEGER NOT NULL DEFAULT 1,
   start_time      TIMESTAMPTZ NOT NULL,
   end_time        TIMESTAMPTZ NOT NULL,
   status          booking_status NOT NULL DEFAULT 'pending',
@@ -126,7 +131,18 @@ CREATE TABLE IF NOT EXISTS bookings (
 
 ALTER TABLE bookings
   ADD COLUMN IF NOT EXISTS location_id UUID REFERENCES locations(id) ON DELETE RESTRICT,
-  ADD COLUMN IF NOT EXISTS customer_email TEXT;
+  ADD COLUMN IF NOT EXISTS customer_email TEXT,
+  ADD COLUMN IF NOT EXISTS person_count INTEGER NOT NULL DEFAULT 1;
+
+-- Add address/contact fields to locations if not already present
+ALTER TABLE locations
+  ADD COLUMN IF NOT EXISTS address_line1 TEXT,
+  ADD COLUMN IF NOT EXISTS address_line2 TEXT,
+  ADD COLUMN IF NOT EXISTS city          TEXT,
+  ADD COLUMN IF NOT EXISTS postcode      TEXT,
+  ADD COLUMN IF NOT EXISTS country       TEXT,
+  ADD COLUMN IF NOT EXISTS phone         TEXT,
+  ADD COLUMN IF NOT EXISTS email         TEXT;
 
 -- ============================================================
 -- 6) BOOKING EMAIL AUDIT LOGS

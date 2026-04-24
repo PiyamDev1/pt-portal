@@ -84,6 +84,8 @@ export async function POST(request: NextRequest) {
       confirmation_template,
       modification_template,
       cancellation_template,
+      max_group_size,
+      duration_per_additional_person_minutes,
     } = body as {
       location_id: string;
       name: string;
@@ -96,6 +98,8 @@ export async function POST(request: NextRequest) {
       confirmation_template?: string | null;
       modification_template?: string | null;
       cancellation_template?: string | null;
+      max_group_size?: number;
+      duration_per_additional_person_minutes?: number;
     };
 
     if (!location_id || !name || !duration_minutes) {
@@ -151,6 +155,8 @@ export async function POST(request: NextRequest) {
         confirmation_template: confirmation_template ?? null,
         modification_template: modification_template ?? null,
         cancellation_template: cancellation_template ?? null,
+        max_group_size: max_group_size ?? 1,
+        duration_per_additional_person_minutes: duration_per_additional_person_minutes ?? 0,
         duration_minutes,
         buffer_minutes: buffer_minutes ?? 15,
         available_days: available_days ?? null,

@@ -63,6 +63,10 @@ export interface BookingService {
   confirmation_template: string | null;
   modification_template: string | null;
   cancellation_template: string | null;
+  /** Maximum persons in a single group/family booking (1 = no group bookings) */
+  max_group_size: number;
+  /** Extra minutes added per person beyond the first (0 = same as 1-person) */
+  duration_per_additional_person_minutes: number;
   is_active: boolean;
 }
 
@@ -74,6 +78,7 @@ export interface Booking {
   customer_name: string;
   customer_phone: string;
   service_id: string;
+  person_count: number;
   start_time: string; // ISO string
   end_time: string; // ISO string
   status: BookingStatus;
@@ -94,6 +99,7 @@ export interface CreateBookingRequest {
   customer_email: string;
   service_id: string;
   start_time: string; // ISO string
+  person_count?: number; // 1 = individual; >1 = family/group
   source?: BookingSource;
 }
 

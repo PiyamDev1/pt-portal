@@ -100,6 +100,7 @@ export async function POST(request: NextRequest) {
 
     const { location_id, customer_name, customer_phone, customer_email, service_id, start_time } = body;
     const source = body.source || BookingSource.PORTAL;
+    const personCount = Math.max(1, parseInt(String(body.person_count ?? 1), 10) || 1);
 
     if (!location_id || !customer_name || !customer_phone || !customer_email || !service_id || !start_time) {
       return NextResponse.json(
@@ -196,7 +197,10 @@ export async function POST(request: NextRequest) {
     }
 
     const endTimeDate = new Date(
-      startTimeDate.getTime() + service.duration_minutes * 60 * 1000
+      startTimeDate.getTime() + (
+        service.duration_minutes +
+        Math.max(0, personCount - 1) * (service.duration_per_additional_person_minutes ?? 0)
+      ) * 60 * 1000
     );
     const end_time = endTimeDate.toISOString();
 
@@ -348,6 +352,7 @@ export async function POST(request: NextRequest) {
         customer_phone,
         customer_email,
         service_id,
+        person_count: personCount,
         start_time,
         end_time,
         status: BookingStatus.PENDING,

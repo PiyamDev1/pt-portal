@@ -52,6 +52,8 @@ export async function PATCH(
       confirmation_template,
       modification_template,
       cancellation_template,
+      max_group_size,
+      duration_per_additional_person_minutes,
     } = body as {
       name?: string;
       duration_minutes?: number;
@@ -64,6 +66,8 @@ export async function PATCH(
       confirmation_template?: string | null;
       modification_template?: string | null;
       cancellation_template?: string | null;
+      max_group_size?: number;
+      duration_per_additional_person_minutes?: number;
     };
 
     if (duration_minutes !== undefined && duration_minutes < 5) {
@@ -116,6 +120,8 @@ export async function PATCH(
     if (confirmation_template !== undefined) updates.confirmation_template = confirmation_template;
     if (modification_template !== undefined) updates.modification_template = modification_template;
     if (cancellation_template !== undefined) updates.cancellation_template = cancellation_template;
+    if (max_group_size !== undefined) updates.max_group_size = Math.max(1, max_group_size);
+    if (duration_per_additional_person_minutes !== undefined) updates.duration_per_additional_person_minutes = Math.max(0, duration_per_additional_person_minutes);
 
     const { data, error } = await supabase
       .from('booking_services')

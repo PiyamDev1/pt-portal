@@ -24,7 +24,7 @@ const MINIO_BUCKET =
 const MINIO_REGION = process.env.MINIO_REGION || 'eu-west-1'
 
 // Constants
-const MAX_FILE_SIZE = 1500000 // 1.5 MB in bytes
+const MAX_FILE_SIZE = 2000000 // 2 MB in bytes
 const ALLOWED_MIME_TYPES = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp']
 
 /**
