@@ -74,21 +74,27 @@ CREATE TABLE IF NOT EXISTS branch_schedule_overrides (
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS booking_services (
-  id               UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  name             TEXT NOT NULL,
-  duration_minutes INTEGER NOT NULL,
-  buffer_minutes   INTEGER NOT NULL DEFAULT 15,
-  available_days   SMALLINT[],
-  service_start_time TIME,
-  service_end_time TIME,
+  id                    UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  name                  TEXT NOT NULL,
+  duration_minutes      INTEGER NOT NULL,
+  buffer_minutes        INTEGER NOT NULL DEFAULT 15,
+  available_days        SMALLINT[],
+  service_start_time    TIME,
+  service_end_time      TIME,
   slot_interval_minutes INTEGER,
-  is_active        BOOLEAN NOT NULL DEFAULT true,
-  created_at       TIMESTAMPTZ DEFAULT NOW()
+  confirmation_template TEXT,
+  modification_template TEXT,
+  cancellation_template TEXT,
+  is_active             BOOLEAN NOT NULL DEFAULT true,
+  created_at            TIMESTAMPTZ DEFAULT NOW()
 );
 
 ALTER TABLE booking_services
   ADD COLUMN IF NOT EXISTS location_id UUID REFERENCES locations(id) ON DELETE CASCADE,
-  ADD COLUMN IF NOT EXISTS available_days SMALLINT[],
+  ADD COLUMN IF NOT EXISTS available_days SMALLINT[],,
+  ADD COLUMN IF NOT EXISTS confirmation_template TEXT,
+  ADD COLUMN IF NOT EXISTS modification_template TEXT,
+  ADD COLUMN IF NOT EXISTS cancellation_template TEXT
   ADD COLUMN IF NOT EXISTS service_start_time TIME,
   ADD COLUMN IF NOT EXISTS service_end_time TIME,
   ADD COLUMN IF NOT EXISTS slot_interval_minutes INTEGER;
@@ -99,7 +105,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_booking_services_branch_name
 
 -- ============================================================
 -- 5) BOOKINGS (PER LOCATION)
--- ============================================================
+--customer_email TEXT NOT NULL,
+   ============================================================
 
 CREATE TABLE IF NOT EXISTS bookings (
   id             UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -109,7 +116,8 @@ CREATE TABLE IF NOT EXISTS bookings (
   start_time     TIMESTAMPTZ NOT NULL,
   end_time       TIMESTAMPTZ NOT NULL,
   status         booking_status NOT NULL DEFAULT 'pending',
-  source         booking_source NOT NULL DEFAULT 'portal',
+  source         booking_source NOT NULL DEFAULT 'portal',,
+  ADD COLUMN IF NOT EXISTS customer_email TEXT
   notes          TEXT,
   created_at     TIMESTAMPTZ DEFAULT NOW(),
   updated_at     TIMESTAMPTZ DEFAULT NOW()

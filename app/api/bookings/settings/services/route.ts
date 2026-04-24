@@ -57,6 +57,9 @@ export async function POST(request: NextRequest) {
       service_start_time,
       service_end_time,
       slot_interval_minutes,
+      confirmation_template,
+      modification_template,
+      cancellation_template,
     } = body as {
       location_id: string;
       name: string;
@@ -66,6 +69,9 @@ export async function POST(request: NextRequest) {
       service_start_time?: string | null;
       service_end_time?: string | null;
       slot_interval_minutes?: number | null;
+      confirmation_template?: string | null;
+      modification_template?: string | null;
+      cancellation_template?: string | null;
     };
 
     if (!location_id || !name || !duration_minutes) {
@@ -103,6 +109,9 @@ export async function POST(request: NextRequest) {
       .insert({
         location_id,
         name,
+        confirmation_template: confirmation_template ?? null,
+        modification_template: modification_template ?? null,
+        cancellation_template: cancellation_template ?? null,
         duration_minutes,
         buffer_minutes: buffer_minutes ?? 15,
         available_days: available_days ?? null,

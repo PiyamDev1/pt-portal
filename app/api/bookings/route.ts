@@ -6,6 +6,9 @@ import {
   CreateBookingRequest,
   CreateBookingResponse,
 } from '@/app/types/bookings';
+import { sendBookingEmail } from '@/lib/bookingEmail';
+
+export const runtime = 'nodejs';
 
 const SCHEMA_HINT = 'Booking schema is out of date. Run scripts/create-bookings-schema.sql in Supabase SQL editor.';
 
@@ -33,6 +36,10 @@ function overlapsRange(
   const rs = timeToMinutes(rangeStart);
   const re = timeToMinutes(rangeEnd);
   return startMinutes < re && endMinutes > rs;
+}
+
+function isValidEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
 /**
@@ -81,30 +88,37 @@ export async function GET(request: NextRequest) {
 /**
  * POST /api/bookings
  * Creates a new booking
- * Expected JSON body: { customer_name, customer_phone, service_id, start_time, source? }
+ * Expected JSON body: { location_id, customer_name, customer_phone, customer_email, service_id, start_time, source? }
  */
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as CreateBookingRequest;
 
-    // Step 1: Validate input
-    const { location_id, customer_name, customer_phone, service_id, start_time } = body;
+    const { location_id, customer_name, customer_phone, customer_email, service_id, start_time } = body;
     const source = body.source || BookingSource.PORTAL;
 
-    if (!location_id || !customer_name || !customer_phone || !service_id || !start_time) {
+    if (!location_id || !customer_name || !customer_phone || !customer_email || !service_id || !start_time) {
       return NextResponse.json(
         {
           success: false,
-          error: 'Missing required fields: location_id, customer_name, customer_phone, service_id, start_time',
+          error: 'Missing required fields: location_id, customer_name, customer_phone, customer_email, service_id, start_time',
         } as CreateBookingResponse,
         { status: 400 }
       );
     }
 
-    // Validate ISO format for start_time
-    try {
-      new Date(start_time);
-    } catch {
+    if (!isValidEmail(customer_email)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Invalid email address',
+        } as CreateBookingResponse,
+        { status: 400 }
+      );
+    }
+
+    const startTimeDate = new Date(start_time);
+    if (Number.isNaN(startTimeDate.getTime())) {
       return NextResponse.json(
         {
           success: false,
@@ -116,7 +130,6 @@ export async function POST(request: NextRequest) {
 
     const supabase = await getRouteSupabaseClient();
 
-    // Step 2: Fetch service details to get duration
     const { data: service, error: serviceError } = await supabase
       .from('booking_services')
       .select('*')
@@ -168,14 +181,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Step 3: Calculate end_time
-    const startTimeDate = new Date(start_time);
     const endTimeDate = new Date(
       startTimeDate.getTime() + service.duration_minutes * 60 * 1000
     );
     const end_time = endTimeDate.toISOString();
 
-    // Step 4: Get branch settings for concurrency check
     const dayOfWeek = startTimeDate.getUTCDay();
     const { data: branchSettings, error: settingsError } = await supabase
       .from('branch_settings')
@@ -276,7 +286,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Step 5: Double-booking check - count overlapping bookings
     const { data: overlappingBookings, error: overlapError } = await supabase
       .from('bookings')
       .select('*')
@@ -286,7 +295,6 @@ export async function POST(request: NextRequest) {
       .neq('status', 'cancelled');
 
     if (overlapError) {
-      console.error('Error checking for overlapping bookings:', overlapError);
       if (isSchemaError(overlapError)) {
         return NextResponse.json(
           {
@@ -318,13 +326,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Step 6: Insert the booking
     const { data: newBooking, error: insertError } = await supabase
       .from('bookings')
       .insert({
         location_id,
         customer_name,
         customer_phone,
+        customer_email,
         service_id,
         start_time,
         end_time,
@@ -335,7 +343,6 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (insertError || !newBooking) {
-      console.error('Error creating booking:', insertError);
       if (isSchemaError(insertError)) {
         return NextResponse.json(
           {
@@ -354,11 +361,29 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const { data: location } = await supabase
+      .from('locations')
+      .select('name')
+      .eq('id', location_id)
+      .single();
+
+    const emailResult = await sendBookingEmail({
+      to: customer_email,
+      subject: 'Your appointment is booked',
+      kind: 'confirmation',
+      template: service.confirmation_template,
+      customerName: customer_name,
+      serviceName: service.name,
+      startTimeISO: start_time,
+      branchName: location?.name,
+    });
+
     return NextResponse.json(
       {
         success: true,
         booking: newBooking,
-      } as CreateBookingResponse,
+        email_warning: emailResult.sent ? undefined : emailResult.reason,
+      } as CreateBookingResponse & { email_warning?: string },
       { status: 201 }
     );
   } catch (error) {

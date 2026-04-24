@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
 const INTERVAL_OPTIONS = [15, 20, 30, 45, 60]
+const TEMPLATE_VARIABLES = ['[Customer Name]', '[date booked]', '[time booked]', '[service booked]', '[branch name]']
 
 export interface BranchLocationOption {
   id: string
@@ -38,6 +39,9 @@ export interface BookingServiceRow {
   service_start_time: string | null
   service_end_time: string | null
   slot_interval_minutes: number | null
+  confirmation_template: string | null
+  modification_template: string | null
+  cancellation_template: string | null
   is_active: boolean
 }
 
@@ -112,6 +116,9 @@ export default function BookingSettingsTab({
     duration_minutes: 30,
     buffer_minutes: 15,
     available_days: [] as number[],
+    confirmation_template: '',
+    modification_template: '',
+    cancellation_template: '',
     service_start_time: '',
     service_end_time: '',
     slot_interval_minutes: 30,
@@ -295,6 +302,9 @@ export default function BookingSettingsTab({
           service_start_time: newService.service_start_time || null,
           service_end_time: newService.service_end_time || null,
           slot_interval_minutes: newService.slot_interval_minutes || null,
+          confirmation_template: newService.confirmation_template || null,
+          modification_template: newService.modification_template || null,
+          cancellation_template: newService.cancellation_template || null,
         }),
       })
       const json = await res.json()
@@ -308,6 +318,9 @@ export default function BookingSettingsTab({
         service_start_time: '',
         service_end_time: '',
         slot_interval_minutes: 30,
+        confirmation_template: '',
+        modification_template: '',
+        cancellation_template: '',
       })
       setShowAddService(false)
       toast.success('Service added')
@@ -336,6 +349,9 @@ export default function BookingSettingsTab({
           service_start_time: editingService.service_start_time,
           service_end_time: editingService.service_end_time,
           slot_interval_minutes: editingService.slot_interval_minutes,
+          confirmation_template: editingService.confirmation_template,
+          modification_template: editingService.modification_template,
+          cancellation_template: editingService.cancellation_template,
         }),
       })
       const json = await res.json()
@@ -545,8 +561,18 @@ export default function BookingSettingsTab({
       {activeSection === 'services' && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <p className="text-sm text-slate-600">Define service-specific days, service hours, and slot intervals. All service timings are still clipped to branch opening/break rules.</p>
+            <p className="text-sm text-slate-600">Define service-specific days, service hours, slot intervals, and customer email templates for booked/modified/cancelled events.</p>
             <button onClick={() => setShowAddService(true)} className="px-4 py-2 rounded bg-indigo-600 text-white text-sm font-medium">+ Add Service</button>
+          </div>
+
+          <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+            <p className="font-semibold">Template Variables</p>
+            <p className="mt-1">Use square brackets exactly as shown, for example: Dear [Customer Name].</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {TEMPLATE_VARIABLES.map((token) => (
+                <span key={token} className="rounded bg-white border border-blue-200 px-2 py-1 text-xs text-blue-800">{token}</span>
+              ))}
+            </div>
           </div>
 
           {showAddService && (
@@ -588,6 +614,17 @@ export default function BookingSettingsTab({
                     )
                   })}
                 </div>
+              </div>
+              <div className="md:col-span-5 grid grid-cols-1 md:grid-cols-3 gap-3">
+                <LabeledInput label="Booking Confirmation Email Template">
+                  <textarea value={newService.confirmation_template} onChange={(e) => setNewService((p) => ({ ...p, confirmation_template: e.target.value }))} rows={6} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" placeholder="Dear [Customer Name],\n\nYour appointment has been booked for [date booked] at [time booked] for [service booked]." />
+                </LabeledInput>
+                <LabeledInput label="Booking Modification Email Template">
+                  <textarea value={newService.modification_template} onChange={(e) => setNewService((p) => ({ ...p, modification_template: e.target.value }))} rows={6} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" placeholder="Dear [Customer Name],\n\nYour appointment has been updated to [date booked] at [time booked] for [service booked]." />
+                </LabeledInput>
+                <LabeledInput label="Booking Cancellation Email Template">
+                  <textarea value={newService.cancellation_template} onChange={(e) => setNewService((p) => ({ ...p, cancellation_template: e.target.value }))} rows={6} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" placeholder="Dear [Customer Name],\n\nYour appointment for [service booked] on [date booked] at [time booked] has been cancelled." />
+                </LabeledInput>
               </div>
               <div className="flex gap-2">
                 <button onClick={addService} disabled={loading} className="px-3 py-2 rounded bg-indigo-600 text-white text-sm disabled:opacity-50">Add</button>
@@ -639,6 +676,17 @@ export default function BookingSettingsTab({
                         })}
                       </div>
                     </div>
+                    <div className="md:col-span-5 grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <LabeledInput label="Booking Confirmation Email Template">
+                        <textarea value={editingService.confirmation_template || ''} onChange={(e) => setEditingService((p) => (p ? { ...p, confirmation_template: e.target.value || null } : p))} rows={6} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
+                      </LabeledInput>
+                      <LabeledInput label="Booking Modification Email Template">
+                        <textarea value={editingService.modification_template || ''} onChange={(e) => setEditingService((p) => (p ? { ...p, modification_template: e.target.value || null } : p))} rows={6} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
+                      </LabeledInput>
+                      <LabeledInput label="Booking Cancellation Email Template">
+                        <textarea value={editingService.cancellation_template || ''} onChange={(e) => setEditingService((p) => (p ? { ...p, cancellation_template: e.target.value || null } : p))} rows={6} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
+                      </LabeledInput>
+                    </div>
                     <div className="flex gap-2">
                       <button onClick={saveService} className="px-3 py-2 rounded bg-indigo-600 text-white text-sm">Save</button>
                       <button onClick={() => setEditingService(null)} className="px-3 py-2 rounded border border-slate-300 text-sm">Cancel</button>
@@ -654,6 +702,9 @@ export default function BookingSettingsTab({
                       <p className="text-xs text-slate-400 mt-1">
                         Days: {Array.isArray(service.available_days) && service.available_days.length > 0 ? service.available_days.map((d) => DAY_NAMES[d].slice(0, 3)).join(', ') : 'All'} ·
                         Time: {service.service_start_time || 'Branch open'} - {service.service_end_time || 'Branch close'}
+                      </p>
+                      <p className="text-xs text-slate-400 mt-1">
+                        Templates: {service.confirmation_template ? 'Booked' : '--'} / {service.modification_template ? 'Modified' : '--'} / {service.cancellation_template ? 'Cancelled' : '--'}
                       </p>
                     </div>
                     <div className="flex items-center gap-2">

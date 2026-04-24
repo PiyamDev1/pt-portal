@@ -25,6 +25,9 @@ export async function PATCH(
       service_start_time,
       service_end_time,
       slot_interval_minutes,
+      confirmation_template,
+      modification_template,
+      cancellation_template,
     } = body as {
       name?: string;
       duration_minutes?: number;
@@ -34,6 +37,9 @@ export async function PATCH(
       service_start_time?: string | null;
       service_end_time?: string | null;
       slot_interval_minutes?: number | null;
+      confirmation_template?: string | null;
+      modification_template?: string | null;
+      cancellation_template?: string | null;
     };
 
     if (duration_minutes !== undefined && duration_minutes < 5) {
@@ -68,6 +74,9 @@ export async function PATCH(
     if (service_start_time !== undefined) updates.service_start_time = service_start_time;
     if (service_end_time !== undefined) updates.service_end_time = service_end_time;
     if (slot_interval_minutes !== undefined) updates.slot_interval_minutes = slot_interval_minutes;
+    if (confirmation_template !== undefined) updates.confirmation_template = confirmation_template;
+    if (modification_template !== undefined) updates.modification_template = modification_template;
+    if (cancellation_template !== undefined) updates.cancellation_template = cancellation_template;
 
     const { data, error } = await supabase
       .from('booking_services')

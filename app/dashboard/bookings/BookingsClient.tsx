@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { toast } from 'sonner'
 import { BookingStatus, BookingSource } from '@/app/types/bookings'
 import BookingSettingsTab, {
   type BranchLocationOption,
@@ -10,6 +11,7 @@ interface BookingWithService {
   id: string
   customer_name: string
   customer_phone: string
+  customer_email: string
   service_id: string
   start_time: string
   end_time: string
@@ -19,6 +21,21 @@ interface BookingWithService {
   created_at: string
   booking_services: { name: string; duration_minutes: number } | null
 }
+
+interface BookingServiceOption {
+  id: string
+  name: string
+  is_active: boolean
+}
+
+const COUNTRY_CODE_OPTIONS = [
+  { code: '+44', label: 'United Kingdom (+44)' },
+  { code: '+1', label: 'United States (+1)' },
+  { code: '+971', label: 'UAE (+971)' },
+  { code: '+92', label: 'Pakistan (+92)' },
+  { code: '+91', label: 'India (+91)' },
+  { code: '+880', label: 'Bangladesh (+880)' },
+]
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const CALENDAR_DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
@@ -142,6 +159,21 @@ export default function BookingsClient({
   const [selectedLocationId, setSelectedLocationId] = useState<string>(
     userLocationId || branchLocations[0]?.id || ''
   )
+  const [serviceOptions, setServiceOptions] = useState<BookingServiceOption[]>([])
+  const [showAppointmentModal, setShowAppointmentModal] = useState(false)
+  const [editingBooking, setEditingBooking] = useState<BookingWithService | null>(null)
+  const [savingBooking, setSavingBooking] = useState(false)
+  const [availableSlots, setAvailableSlots] = useState<Array<{ time: string; isoString: string }>>([])
+  const [loadingSlots, setLoadingSlots] = useState(false)
+  const [appointmentForm, setAppointmentForm] = useState({
+    customer_name: '',
+    customer_email: '',
+    phone_country_code: '+44',
+    phone_local: '',
+    service_id: '',
+    date: '',
+    start_time: '',
+  })
 
   const weekDays = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(weekStart)
@@ -202,9 +234,25 @@ export default function BookingsClient({
     }
   }, [fromISO, toISO, selectedLocationId])
 
+  const fetchServices = useCallback(async () => {
+    if (!selectedLocationId) return
+    try {
+      const res = await fetch(`/api/bookings/settings/services?location_id=${selectedLocationId}`)
+      const json = await res.json()
+      if (!res.ok) return
+      setServiceOptions((json.services || []).filter((s: BookingServiceOption) => s.is_active))
+    } catch {
+      setServiceOptions([])
+    }
+  }, [selectedLocationId])
+
   useEffect(() => {
     fetchBookings(false)
   }, [fetchBookings])
+
+  useEffect(() => {
+    fetchServices()
+  }, [fetchServices])
 
   useEffect(() => {
     if (showSettings) return
@@ -280,16 +328,141 @@ export default function BookingsClient({
   const updateStatus = async (id: string, status: string) => {
     setUpdatingId(id)
     try {
-      await fetch(`/api/bookings/${id}`, {
+      const res = await fetch(`/api/bookings/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
       })
+      const json = await res.json()
+      if (!res.ok) {
+        toast.error(json.error || 'Failed to update appointment')
+        return
+      }
+      if (json.email_warning) {
+        toast.warning(`Appointment updated but email warning: ${json.email_warning}`)
+      }
       setBookings((prev) =>
         prev.map((b) => (b.id === id ? { ...b, status: status as BookingStatus } : b))
       )
     } finally {
       setUpdatingId(null)
+    }
+  }
+
+  const openEditBooking = (booking: BookingWithService) => {
+    const matchedCode = COUNTRY_CODE_OPTIONS.find((c) => booking.customer_phone.startsWith(c.code))
+    const code = matchedCode?.code || '+44'
+    const local = booking.customer_phone.startsWith(code)
+      ? booking.customer_phone.slice(code.length).trim()
+      : booking.customer_phone
+
+    setEditingBooking(booking)
+    setAppointmentForm({
+      customer_name: booking.customer_name,
+      customer_email: booking.customer_email || '',
+      phone_country_code: code,
+      phone_local: local,
+      service_id: booking.service_id,
+      date: booking.start_time.slice(0, 10),
+      start_time: booking.start_time,
+    })
+    setShowAppointmentModal(true)
+  }
+
+  const fetchAvailableSlots = useCallback(async () => {
+    if (!showAppointmentModal || !appointmentForm.date || !appointmentForm.service_id || !selectedLocationId) {
+      setAvailableSlots([])
+      return
+    }
+
+    setLoadingSlots(true)
+    try {
+      const params = new URLSearchParams({
+        date: appointmentForm.date,
+        service_id: appointmentForm.service_id,
+        location_id: selectedLocationId,
+      })
+      const res = await fetch(`/api/bookings/available-slots?${params.toString()}`)
+      const json = await res.json()
+      if (!res.ok) {
+        setAvailableSlots([])
+        return
+      }
+      setAvailableSlots(json.slots || [])
+    } finally {
+      setLoadingSlots(false)
+    }
+  }, [appointmentForm.date, appointmentForm.service_id, selectedLocationId, showAppointmentModal])
+
+  useEffect(() => {
+    fetchAvailableSlots()
+  }, [fetchAvailableSlots])
+
+  const saveAppointment = async () => {
+    if (!selectedLocationId) return
+
+    if (!appointmentForm.customer_name || !appointmentForm.customer_email || !appointmentForm.phone_local || !appointmentForm.service_id || !appointmentForm.start_time) {
+      toast.error('Fill in all appointment fields')
+      return
+    }
+
+    setSavingBooking(true)
+    try {
+      const customer_phone = `${appointmentForm.phone_country_code} ${appointmentForm.phone_local}`.trim()
+
+      if (editingBooking) {
+        const res = await fetch(`/api/bookings/${editingBooking.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            customer_name: appointmentForm.customer_name,
+            customer_phone,
+            customer_email: appointmentForm.customer_email,
+            service_id: appointmentForm.service_id,
+            start_time: appointmentForm.start_time,
+          }),
+        })
+        const json = await res.json()
+        if (!res.ok) {
+          toast.error(json.error || 'Failed to update appointment')
+          return
+        }
+        if (json.email_warning) {
+          toast.warning(`Appointment updated but email warning: ${json.email_warning}`)
+        } else {
+          toast.success('Appointment updated')
+        }
+      } else {
+        const res = await fetch('/api/bookings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            location_id: selectedLocationId,
+            customer_name: appointmentForm.customer_name,
+            customer_phone,
+            customer_email: appointmentForm.customer_email,
+            service_id: appointmentForm.service_id,
+            start_time: appointmentForm.start_time,
+          }),
+        })
+        const json = await res.json()
+        if (!res.ok) {
+          toast.error(json.error || 'Failed to create appointment')
+          return
+        }
+        if (json.email_warning) {
+          toast.warning(`Appointment created but email warning: ${json.email_warning}`)
+        } else {
+          toast.success('Appointment created')
+        }
+      }
+
+      setShowAppointmentModal(false)
+      setEditingBooking(null)
+      setAvailableSlots([])
+      await fetchBookings(false)
+    } finally {
+      setSavingBooking(false)
     }
   }
 
@@ -400,6 +573,29 @@ export default function BookingsClient({
                 }`}
               >
                 {showSettings ? 'Back to Appointments' : 'Booking Settings'}
+              </button>
+            )}
+
+            {!showSettings && (
+              <button
+                onClick={() => {
+                  setEditingBooking(null)
+                  setAppointmentForm((prev) => ({
+                    ...prev,
+                    customer_name: '',
+                    customer_email: '',
+                    phone_country_code: '+44',
+                    phone_local: '',
+                    service_id: serviceOptions[0]?.id || '',
+                    date: selectedDate.toISOString().slice(0, 10),
+                    start_time: '',
+                  }))
+                  setAvailableSlots([])
+                  setShowAppointmentModal(true)
+                }}
+                className="px-3 py-2 rounded-lg border border-indigo-600 bg-indigo-600 text-sm font-medium text-white hover:bg-indigo-700"
+              >
+                + Add Appointment
               </button>
             )}
 
@@ -527,6 +723,7 @@ export default function BookingsClient({
               loading={loading}
               updatingId={updatingId}
               onStatusChange={updateStatus}
+              onEditBooking={openEditBooking}
               selectedDateCount={selectedDateCount}
             />
           </div>
@@ -577,6 +774,7 @@ export default function BookingsClient({
               loading={loading}
               updatingId={updatingId}
               onStatusChange={updateStatus}
+              onEditBooking={openEditBooking}
               selectedDateCount={selectedDateCount}
             />
           </div>
@@ -616,6 +814,7 @@ export default function BookingsClient({
                             key={booking.id}
                             booking={booking}
                             onStatusChange={updateStatus}
+                            onEditBooking={openEditBooking}
                             updatingId={updatingId}
                           />
                         ))}
@@ -627,6 +826,78 @@ export default function BookingsClient({
           </div>
         )}
       </div>
+
+      {showAppointmentModal && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+          <div className="w-full max-w-3xl bg-white rounded-xl shadow-xl border border-slate-200 p-5 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-slate-800">
+                {editingBooking ? 'Modify Appointment' : 'Add Appointment'}
+              </h2>
+              <button onClick={() => setShowAppointmentModal(false)} className="text-sm text-slate-500 hover:text-slate-700">Close</button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <label className="text-sm text-slate-700">
+                Name
+                <input value={appointmentForm.customer_name} onChange={(e) => setAppointmentForm((p) => ({ ...p, customer_name: e.target.value }))} className="mt-1 w-full border border-slate-300 rounded px-3 py-2" />
+              </label>
+
+              <label className="text-sm text-slate-700">
+                Email address
+                <input type="email" value={appointmentForm.customer_email} onChange={(e) => setAppointmentForm((p) => ({ ...p, customer_email: e.target.value }))} className="mt-1 w-full border border-slate-300 rounded px-3 py-2" />
+              </label>
+
+              <label className="text-sm text-slate-700">
+                Country code
+                <select value={appointmentForm.phone_country_code} onChange={(e) => setAppointmentForm((p) => ({ ...p, phone_country_code: e.target.value }))} className="mt-1 w-full border border-slate-300 rounded px-3 py-2">
+                  {COUNTRY_CODE_OPTIONS.map((item) => (
+                    <option key={item.code} value={item.code}>{item.label}</option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="text-sm text-slate-700">
+                Phone number
+                <input value={appointmentForm.phone_local} onChange={(e) => setAppointmentForm((p) => ({ ...p, phone_local: e.target.value }))} className="mt-1 w-full border border-slate-300 rounded px-3 py-2" />
+              </label>
+
+              <label className="text-sm text-slate-700">
+                Service
+                <select value={appointmentForm.service_id} onChange={(e) => setAppointmentForm((p) => ({ ...p, service_id: e.target.value, start_time: '' }))} className="mt-1 w-full border border-slate-300 rounded px-3 py-2">
+                  <option value="">Select service</option>
+                  {serviceOptions.map((service) => (
+                    <option key={service.id} value={service.id}>{service.name}</option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="text-sm text-slate-700">
+                Date
+                <input type="date" value={appointmentForm.date} onChange={(e) => setAppointmentForm((p) => ({ ...p, date: e.target.value, start_time: '' }))} className="mt-1 w-full border border-slate-300 rounded px-3 py-2" />
+              </label>
+            </div>
+
+            <label className="text-sm text-slate-700 block">
+              Available start times
+              <select value={appointmentForm.start_time} onChange={(e) => setAppointmentForm((p) => ({ ...p, start_time: e.target.value }))} className="mt-1 w-full border border-slate-300 rounded px-3 py-2" disabled={loadingSlots || availableSlots.length === 0}>
+                <option value="">{loadingSlots ? 'Loading slots...' : 'Select start time'}</option>
+                {availableSlots.map((slot) => (
+                  <option key={slot.isoString} value={slot.isoString}>{slot.time}</option>
+                ))}
+              </select>
+              {editingBooking && <p className="mt-1 text-xs text-slate-500">Current booking time is preselected when available. Choose a different slot to modify.</p>}
+            </label>
+
+            <div className="flex items-center justify-end gap-2">
+              <button onClick={() => setShowAppointmentModal(false)} className="px-4 py-2 rounded border border-slate-300 text-sm">Cancel</button>
+              <button onClick={saveAppointment} disabled={savingBooking} className="px-4 py-2 rounded bg-indigo-600 text-white text-sm disabled:opacity-50">
+                {savingBooking ? 'Saving...' : editingBooking ? 'Save Changes' : 'Create Appointment'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -638,6 +909,7 @@ function SelectedDayPanel({
   loading,
   updatingId,
   onStatusChange,
+  onEditBooking,
   selectedDateCount,
 }: {
   selectedDate: Date
@@ -646,6 +918,7 @@ function SelectedDayPanel({
   loading: boolean
   updatingId: string | null
   onStatusChange: (id: string, status: string) => void
+  onEditBooking: (booking: BookingWithService) => void
   selectedDateCount: number
 }) {
   return (
@@ -679,6 +952,7 @@ function SelectedDayPanel({
                 key={booking.id}
                 booking={booking}
                 onStatusChange={onStatusChange}
+                onEditBooking={onEditBooking}
                 updatingId={updatingId}
               />
             ))}
@@ -691,10 +965,12 @@ function SelectedDayPanel({
 function BookingRow({
   booking,
   onStatusChange,
+  onEditBooking,
   updatingId,
 }: {
   booking: BookingWithService
   onStatusChange: (id: string, status: string) => void
+  onEditBooking: (booking: BookingWithService) => void
   updatingId: string | null
 }) {
   const status = STATUS_CONFIG[booking.status] ?? STATUS_CONFIG.pending
@@ -729,6 +1005,13 @@ function BookingRow({
         <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${sourceClass} capitalize`}>
           {booking.source}
         </span>
+
+        <button
+          onClick={() => onEditBooking(booking)}
+          className="text-xs font-medium px-2.5 py-1 rounded-full border border-slate-300 text-slate-700 bg-white hover:bg-slate-50 transition-colors"
+        >
+          Edit
+        </button>
 
         {booking.status === BookingStatus.PENDING && (
           <button

@@ -60,12 +60,16 @@ export interface BookingService {
   service_start_time: string | null; // HH:MM:SS
   service_end_time: string | null; // HH:MM:SS
   slot_interval_minutes: number | null; // per-service slot interval override
+  confirmation_template: string | null;
+  modification_template: string | null;
+  cancellation_template: string | null;
   is_active: boolean;
 }
 
 // Bookings
 export interface Booking {
   id: string;
+  customer_email: string;
   location_id: string;
   customer_name: string;
   customer_phone: string;
@@ -87,6 +91,7 @@ export interface CreateBookingRequest {
   location_id: string;
   customer_name: string;
   customer_phone: string;
+  customer_email: string;
   service_id: string;
   start_time: string; // ISO string
   source?: BookingSource;
