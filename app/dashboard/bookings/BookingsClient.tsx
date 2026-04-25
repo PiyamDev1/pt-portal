@@ -277,6 +277,11 @@ export default function BookingsClient({
   const [dayAgendaSlots, setDayAgendaSlots] = useState<SlotOption[]>([])
   const [loadingDayAgendaSlots, setLoadingDayAgendaSlots] = useState(false)
   const [dayAgendaSlotsError, setDayAgendaSlotsError] = useState<string | null>(null)
+  const [panelServiceId, setPanelServiceId] = useState('')
+  const [panelPersonCount, setPanelPersonCount] = useState(1)
+  const [panelSlots, setPanelSlots] = useState<SlotOption[]>([])
+  const [loadingPanelSlots, setLoadingPanelSlots] = useState(false)
+  const [panelSlotsError, setPanelSlotsError] = useState<string | null>(null)
   const [appointmentForm, setAppointmentForm] = useState({
     customer_name: '',
     customer_email: '',
@@ -737,6 +742,38 @@ export default function BookingsClient({
     ? lastUpdatedAt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
     : 'Never'
 
+  useEffect(() => {
+    if (!panelServiceId && serviceOptions.length > 0) {
+      setPanelServiceId(serviceOptions[0].id)
+    }
+  }, [panelServiceId, serviceOptions])
+
+  useEffect(() => {
+    if (view !== 'week') return
+    if (!selectedDateKey || !panelServiceId || selectedBookings.length > 0) {
+      setPanelSlots([])
+      setPanelSlotsError(null)
+      return
+    }
+
+    let cancelled = false
+
+    const run = async () => {
+      setLoadingPanelSlots(true)
+      const result = await loadSlotsFor(selectedDateKey, panelServiceId, panelPersonCount)
+      if (cancelled) return
+      setPanelSlots(result.slots)
+      setPanelSlotsError(result.error)
+      setLoadingPanelSlots(false)
+    }
+
+    run()
+
+    return () => {
+      cancelled = true
+    }
+  }, [loadSlotsFor, panelPersonCount, panelServiceId, selectedBookings.length, selectedDateKey, view])
+
   return (
     <div className="min-h-screen bg-slate-50">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-6">
@@ -969,6 +1006,21 @@ export default function BookingsClient({
               onEditBooking={openEditBooking}
               selectedDateCount={selectedDateCount}
               onOpenDayAgenda={() => openDayAgenda(selectedDate)}
+              enableQuickAvailability={false}
+              serviceOptions={serviceOptions}
+              quickServiceId={panelServiceId}
+              quickPersonCount={panelPersonCount}
+              quickSlots={panelSlots}
+              quickSlotsLoading={loadingPanelSlots}
+              quickSlotsError={panelSlotsError}
+              onQuickServiceChange={setPanelServiceId}
+              onQuickPersonCountChange={(value) => setPanelPersonCount(Math.max(1, value))}
+              onQuickSelectSlot={(slot) => openCreateAppointment({
+                date: selectedDateKey,
+                service_id: panelServiceId,
+                person_count: panelPersonCount,
+                start_time: slot.isoString,
+              })}
             />
           </div>
         )}
@@ -1026,6 +1078,21 @@ export default function BookingsClient({
               onEditBooking={openEditBooking}
               selectedDateCount={selectedDateCount}
               onOpenDayAgenda={() => openDayAgenda(selectedDate)}
+              enableQuickAvailability={true}
+              serviceOptions={serviceOptions}
+              quickServiceId={panelServiceId}
+              quickPersonCount={panelPersonCount}
+              quickSlots={panelSlots}
+              quickSlotsLoading={loadingPanelSlots}
+              quickSlotsError={panelSlotsError}
+              onQuickServiceChange={setPanelServiceId}
+              onQuickPersonCountChange={(value) => setPanelPersonCount(Math.max(1, value))}
+              onQuickSelectSlot={(slot) => openCreateAppointment({
+                date: selectedDateKey,
+                service_id: panelServiceId,
+                person_count: panelPersonCount,
+                start_time: slot.isoString,
+              })}
             />
           </div>
         )}
@@ -1273,6 +1340,16 @@ function SelectedDayPanel({
   onEditBooking,
   selectedDateCount,
   onOpenDayAgenda,
+  enableQuickAvailability,
+  serviceOptions,
+  quickServiceId,
+  quickPersonCount,
+  quickSlots,
+  quickSlotsLoading,
+  quickSlotsError,
+  onQuickServiceChange,
+  onQuickPersonCountChange,
+  onQuickSelectSlot,
 }: {
   selectedDate: Date
   today: Date
@@ -1283,6 +1360,16 @@ function SelectedDayPanel({
   onEditBooking: (booking: BookingWithService) => void
   selectedDateCount: number
   onOpenDayAgenda: () => void
+  enableQuickAvailability: boolean
+  serviceOptions: BookingServiceOption[]
+  quickServiceId: string
+  quickPersonCount: number
+  quickSlots: SlotOption[]
+  quickSlotsLoading: boolean
+  quickSlotsError: string | null
+  onQuickServiceChange: (value: string) => void
+  onQuickPersonCountChange: (value: number) => void
+  onQuickSelectSlot: (slot: SlotOption) => void
 }) {
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
@@ -1305,8 +1392,53 @@ function SelectedDayPanel({
       {loading ? (
         <div className="py-12 text-center text-slate-400 text-sm">Loading appointments…</div>
       ) : selectedBookings.length === 0 ? (
-        <div className="py-12 text-center">
+        <div className="py-8 px-5 text-center">
           <p className="text-slate-400 text-sm">No appointments on this day</p>
+          {enableQuickAvailability && (
+            <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-left">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Available appointments</p>
+              <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+                <label className="text-sm text-slate-700">
+                  Service
+                  <select value={quickServiceId} onChange={(e) => onQuickServiceChange(e.target.value)} className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2">
+                    <option value="">Select service</option>
+                    {serviceOptions.map((service) => (
+                      <option key={service.id} value={service.id}>{service.name}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="text-sm text-slate-700">
+                  Number of persons
+                  <input type="number" min={1} value={quickPersonCount} onChange={(e) => onQuickPersonCountChange(Number(e.target.value) || 1)} className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2" />
+                </label>
+              </div>
+
+              <div className="mt-3 min-h-[88px] rounded border border-slate-200 bg-white p-3">
+                {quickSlotsLoading ? (
+                  <p className="text-sm text-slate-400">Loading slots...</p>
+                ) : quickSlotsError ? (
+                  <p className="text-sm text-amber-700">{quickSlotsError}</p>
+                ) : !quickServiceId ? (
+                  <p className="text-sm text-slate-400">Select a service to see slots.</p>
+                ) : quickSlots.length === 0 ? (
+                  <p className="text-sm text-slate-400">No slots available for this date.</p>
+                ) : (
+                  <div className="flex gap-2 flex-wrap">
+                    {quickSlots.slice(0, 12).map((slot) => (
+                      <button
+                        key={slot.isoString}
+                        type="button"
+                        onClick={() => onQuickSelectSlot(slot)}
+                        className="px-3 py-1.5 rounded-lg border border-indigo-200 bg-white text-sm text-slate-700 hover:border-indigo-400"
+                      >
+                        {slot.time}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       ) : (
         <div className="divide-y divide-slate-100">

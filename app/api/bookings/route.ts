@@ -9,6 +9,20 @@ import {
 import { sendBookingEmail } from '@/lib/bookingEmail';
 import { buildDefaultBranchSchedule } from '@/lib/bookingBranchSchedule';
 
+function buildBranchAddress(location: {
+  address_line1?: string | null;
+  address_line2?: string | null;
+  city?: string | null;
+  postcode?: string | null;
+  country?: string | null;
+} | null): string {
+  if (!location) return 'Address unavailable';
+  const parts = [location.address_line1, location.address_line2, location.city, location.postcode, location.country]
+    .map((value) => value?.trim())
+    .filter((value): value is string => Boolean(value));
+  return parts.length > 0 ? parts.join(', ') : 'Address unavailable';
+}
+
 export const runtime = 'nodejs';
 
 const SCHEMA_HINT = 'Booking schema is out of date. Run scripts/create-bookings-schema.sql in Supabase SQL editor.';
@@ -433,7 +447,7 @@ export async function POST(request: NextRequest) {
 
     const { data: location } = await supabase
       .from('locations')
-      .select('name')
+      .select('name,address_line1,address_line2,city,postcode,country,phone')
       .eq('id', location_id)
       .single();
 
@@ -446,6 +460,8 @@ export async function POST(request: NextRequest) {
       serviceName: service.name,
       startTimeISO: start_time,
       branchName: location?.name,
+      branchAddress: buildBranchAddress(location),
+      branchContactNumber: location?.phone || 'Contact unavailable',
     });
 
     await supabase.from('booking_email_logs').insert({

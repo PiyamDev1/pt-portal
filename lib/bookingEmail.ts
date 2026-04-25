@@ -53,6 +53,8 @@ export function defaultTemplate(kind: 'confirmation' | 'modification' | 'cancell
     'Date: [date booked]',
     'Time: [time booked]',
     'Service: [service booked]',
+    'Location: [branch address]',
+    'Branch contact: [branch contact number]',
     '',
     'If you have questions, please contact [branch name].',
   ].join('\n');
@@ -67,6 +69,8 @@ export async function sendBookingEmail(params: {
   serviceName: string;
   startTimeISO: string;
   branchName?: string;
+  branchAddress?: string;
+  branchContactNumber?: string;
 }): Promise<{ sent: boolean; reason?: string; senderEmail: string }> {
   const apiKey = process.env.MAILGUN_API_KEY;
   const rawDomain = process.env.MAILGUN_DOMAIN;
@@ -97,6 +101,8 @@ export async function sendBookingEmail(params: {
     'time booked': time,
     'service booked': params.serviceName,
     'branch name': params.branchName || 'our branch',
+    'branch address': params.branchAddress || 'Address unavailable',
+    'branch contact number': params.branchContactNumber || 'Contact unavailable',
   };
 
   const body = renderBookingTemplate(

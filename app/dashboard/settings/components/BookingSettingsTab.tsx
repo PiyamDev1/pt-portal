@@ -89,6 +89,8 @@ const TEMPLATE_SAMPLE_VALUES: Record<string, string> = {
   '[time booked]': '10:30',
   '[service booked]': 'Visa Consultation',
   '[branch name]': 'London Branch',
+  '[branch address]': '12 Station Road, London, SW1A 1AA, United Kingdom',
+  '[branch contact number]': '+44 2071234567',
 }
 
 function buildTemplatePreviewHtml(rawTemplate: string | null | undefined): string {
@@ -99,6 +101,8 @@ function buildTemplatePreviewHtml(rawTemplate: string | null | undefined): strin
     'time booked': TEMPLATE_SAMPLE_VALUES['[time booked]'],
     'service booked': TEMPLATE_SAMPLE_VALUES['[service booked]'],
     'branch name': TEMPLATE_SAMPLE_VALUES['[branch name]'],
+    'branch address': TEMPLATE_SAMPLE_VALUES['[branch address]'],
+    'branch contact number': TEMPLATE_SAMPLE_VALUES['[branch contact number]'],
   }
 
   if (!base) {

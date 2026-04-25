@@ -4,6 +4,20 @@ import { BookingStatus } from '@/app/types/bookings';
 import { sendBookingEmail } from '@/lib/bookingEmail';
 import { buildDefaultBranchSchedule } from '@/lib/bookingBranchSchedule';
 
+function buildBranchAddress(location: {
+  address_line1?: string | null;
+  address_line2?: string | null;
+  city?: string | null;
+  postcode?: string | null;
+  country?: string | null;
+} | null): string {
+  if (!location) return 'Address unavailable';
+  const parts = [location.address_line1, location.address_line2, location.city, location.postcode, location.country]
+    .map((value) => value?.trim())
+    .filter((value): value is string => Boolean(value));
+  return parts.length > 0 ? parts.join(', ') : 'Address unavailable';
+}
+
 export const runtime = 'nodejs';
 
 const VALID_STATUSES = Object.values(BookingStatus) as string[];
@@ -315,7 +329,7 @@ export async function PATCH(
 
     const { data: location } = await supabase
       .from('locations')
-      .select('name')
+      .select('name,address_line1,address_line2,city,postcode,country,phone')
       .eq('id', existing.location_id)
       .single();
 
@@ -338,6 +352,8 @@ export async function PATCH(
       serviceName: service.name,
       startTimeISO: nextStartISO,
       branchName: location?.name,
+      branchAddress: buildBranchAddress(location),
+      branchContactNumber: location?.phone || 'Contact unavailable',
     });
 
     const emailSubject =

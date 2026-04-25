@@ -4,6 +4,8 @@ export const ALLOWED_TEMPLATE_VARIABLES = [
   '[time booked]',
   '[service booked]',
   '[branch name]',
+  '[branch address]',
+  '[branch contact number]',
 ] as const;
 
 export interface BookingTemplateValues {
@@ -12,6 +14,8 @@ export interface BookingTemplateValues {
   'time booked': string;
   'service booked': string;
   'branch name'?: string;
+  'branch address'?: string;
+  'branch contact number'?: string;
 }
 
 const TEMPLATE_TOKEN_REGEX = /\[[^\]]+\]/g;
