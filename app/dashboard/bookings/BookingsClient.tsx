@@ -427,8 +427,11 @@ export default function BookingsClient({
     setShowDayAgendaModal(true)
   }, [appointmentForm.person_count, appointmentForm.service_id, serviceOptions])
 
+  const activeBookings = bookings.filter((b) => b.status !== BookingStatus.CANCELLED)
+  const cancelledBookings = bookings.filter((b) => b.status === BookingStatus.CANCELLED)
+
   const bookingsForDate = (date: Date) =>
-    bookings.filter((b) => isSameUTCDay(new Date(b.start_time), date))
+    activeBookings.filter((b) => isSameUTCDay(new Date(b.start_time), date))
 
   const selectedBookings = bookingsForDate(selectedDate)
 
@@ -643,9 +646,9 @@ export default function BookingsClient({
     setEditingBooking(null)
   }
 
-  const totalVisible = bookings.filter((b) => b.status !== BookingStatus.CANCELLED).length
-  const pendingVisible = bookings.filter((b) => b.status === BookingStatus.PENDING).length
-  const confirmedVisible = bookings.filter((b) => b.status === BookingStatus.CONFIRMED).length
+  const totalVisible = activeBookings.length
+  const pendingVisible = activeBookings.filter((b) => b.status === BookingStatus.PENDING).length
+  const confirmedVisible = activeBookings.filter((b) => b.status === BookingStatus.CONFIRMED).length
   const invalidLocalPhone = appointmentForm.phone_local.length > 0 && !isValidLocalPhone(appointmentForm.phone_local)
 
   const weekLabel = `${formatHeaderDate(weekStart)} — ${formatHeaderDate(weekDays[6])}`
@@ -959,15 +962,13 @@ export default function BookingsClient({
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
             {loading ? (
               <div className="py-12 text-center text-slate-400 text-sm">Loading appointments…</div>
-            ) : bookings.filter((b) => b.status !== BookingStatus.CANCELLED).length === 0 ? (
+            ) : activeBookings.length === 0 ? (
               <div className="py-12 text-center text-slate-400 text-sm">
                 No appointments this week
               </div>
             ) : (
               weekDays.map((day) => {
-                const dayBookings = bookingsForDate(day).filter(
-                  (b) => b.status !== BookingStatus.CANCELLED
-                )
+                const dayBookings = bookingsForDate(day)
                 if (dayBookings.length === 0) return null
                 const isToday = isSameUTCDay(day, today)
                 return (
@@ -998,6 +999,33 @@ export default function BookingsClient({
                 )
               })
             )}
+          </div>
+        )}
+
+        {!showSettings && cancelledBookings.length > 0 && (
+          <div className="bg-white rounded-xl border border-red-200 shadow-sm overflow-hidden">
+            <div className="px-5 py-3 border-b border-red-100 bg-red-50 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-red-700">Cancelled Appointment Logs</h3>
+              <span className="text-xs text-red-600">{cancelledBookings.length} cancelled</span>
+            </div>
+            <div className="divide-y divide-red-50 max-h-72 overflow-y-auto">
+              {cancelledBookings
+                .slice()
+                .sort((a, b) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime())
+                .map((booking) => (
+                  <div key={booking.id} className="px-5 py-3 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium text-slate-700">
+                        {formatDateLabel(new Date(booking.start_time))} {formatTime(booking.start_time)} · {booking.customer_name}
+                      </p>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        {booking.booking_services?.name || 'Service'} · {booking.customer_phone}
+                      </p>
+                    </div>
+                    <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-red-100 text-red-700">Cancelled</span>
+                  </div>
+                ))}
+            </div>
           </div>
         )}
       </div>
