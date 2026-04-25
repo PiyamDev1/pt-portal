@@ -1120,30 +1120,32 @@ export default function BookingsClient({
 
             <div className="text-sm text-slate-700">
               <span className="block mb-1 font-medium">Available start times</span>
-              {loadingSlots ? (
-                <p className="text-slate-400 text-sm">Loading slots...</p>
-              ) : slotsError ? (
-                <p className="text-amber-700 text-sm">{slotsError}</p>
-              ) : availableSlots.length === 0 ? (
-                <p className="text-slate-400 text-sm">{appointmentForm.date && appointmentForm.service_id ? 'No slots available for this date.' : 'Select a service and date.'}</p>
-              ) : (
-                <div className="flex gap-2 flex-wrap mt-1">
-                  {availableSlots.map((slot) => (
-                    <button
-                      key={slot.isoString}
-                      type="button"
-                      onClick={() => setAppointmentForm((p) => ({ ...p, start_time: slot.isoString }))}
-                      className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors ${
-                        appointmentForm.start_time === slot.isoString
-                          ? 'bg-indigo-600 text-white border-indigo-600'
-                          : 'bg-white text-slate-700 border-slate-300 hover:border-indigo-400'
-                      }`}
-                    >
-                      {slot.time}
-                    </button>
-                  ))}
-                </div>
-              )}
+              <div className="mt-1 min-h-[112px] max-h-[168px] overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-3">
+                {loadingSlots ? (
+                  <p className="text-slate-400 text-sm">Loading slots...</p>
+                ) : slotsError ? (
+                  <p className="text-amber-700 text-sm">{slotsError}</p>
+                ) : availableSlots.length === 0 ? (
+                  <p className="text-slate-400 text-sm">{appointmentForm.date && appointmentForm.service_id ? 'No slots available for this date.' : 'Select a service and date.'}</p>
+                ) : (
+                  <div className="flex gap-2 flex-wrap">
+                    {availableSlots.map((slot) => (
+                      <button
+                        key={slot.isoString}
+                        type="button"
+                        onClick={() => setAppointmentForm((p) => ({ ...p, start_time: slot.isoString }))}
+                        className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors ${
+                          appointmentForm.start_time === slot.isoString
+                            ? 'bg-indigo-600 text-white border-indigo-600'
+                            : 'bg-white text-slate-700 border-slate-300 hover:border-indigo-400'
+                        }`}
+                      >
+                        {slot.time}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
               {editingBooking && <p className="mt-1 text-xs text-slate-500">Current booking time is preselected when available. Choose a different slot to modify.</p>}
             </div>
 
