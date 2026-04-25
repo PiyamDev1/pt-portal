@@ -14,6 +14,75 @@ const INTERVAL_OPTIONS = [15, 20, 30, 45, 60]
 const TEMPLATE_VARIABLES = [...ALLOWED_TEMPLATE_VARIABLES]
 type TemplateField = 'confirmation_template' | 'modification_template' | 'cancellation_template'
 
+const TEMPLATE_PRESETS: Record<TemplateField, Array<{ label: string; template: string }>> = {
+  confirmation_template: [
+    {
+      label: 'Formal',
+      template:
+        'Dear [Customer Name],\n\nYour appointment for [service booked] has been confirmed for [date booked] at [time booked] at [branch name].\n\nPlease arrive 10 minutes early and bring any required documents.\n\nKind regards,\nPiyam Travel',
+    },
+    {
+      label: 'Friendly',
+      template:
+        'Hi [Customer Name],\n\nYou are booked in for [service booked] on [date booked] at [time booked] with [branch name].\n\nIf you need to change anything, just let us know.\n\nThanks,\nPiyam Travel',
+    },
+    {
+      label: 'Short',
+      template:
+        'Booking confirmed: [service booked] on [date booked] at [time booked] - [branch name].',
+    },
+  ],
+  modification_template: [
+    {
+      label: 'Formal',
+      template:
+        'Dear [Customer Name],\n\nYour appointment for [service booked] has been updated. The new time is [date booked] at [time booked] at [branch name].\n\nPlease contact us if this change does not suit you.\n\nKind regards,\nPiyam Travel',
+    },
+    {
+      label: 'Friendly',
+      template:
+        'Hi [Customer Name],\n\nWe have updated your [service booked] appointment to [date booked] at [time booked] with [branch name].\n\nReply if you need anything else.\n\nThanks,\nPiyam Travel',
+    },
+    {
+      label: 'Short',
+      template:
+        'Appointment updated: [service booked] is now on [date booked] at [time booked] - [branch name].',
+    },
+  ],
+  cancellation_template: [
+    {
+      label: 'Formal',
+      template:
+        'Dear [Customer Name],\n\nYour appointment for [service booked] on [date booked] at [time booked] at [branch name] has been cancelled.\n\nIf you would like to rebook, please contact us and we will be happy to help.\n\nKind regards,\nPiyam Travel',
+    },
+    {
+      label: 'Friendly',
+      template:
+        'Hi [Customer Name],\n\nYour [service booked] booking for [date booked] at [time booked] with [branch name] has been cancelled.\n\nIf you want a new slot, let us know.\n\nThanks,\nPiyam Travel',
+    },
+    {
+      label: 'Short',
+      template:
+        'Appointment cancelled: [service booked] on [date booked] at [time booked] - [branch name].',
+    },
+  ],
+}
+
+function buildNewServiceDraft() {
+  return {
+    name: '',
+    duration_minutes: 30,
+    buffer_minutes: 15,
+    available_days: [] as number[],
+    confirmation_template: TEMPLATE_PRESETS.confirmation_template[0].template,
+    modification_template: TEMPLATE_PRESETS.modification_template[0].template,
+    cancellation_template: TEMPLATE_PRESETS.cancellation_template[0].template,
+    service_start_time: '',
+    service_end_time: '',
+    duration_per_additional_person_minutes: 0,
+  }
+}
+
 const TEMPLATE_SAMPLE_VALUES: Record<string, string> = {
   '[Customer Name]': 'Alex Carter',
   '[date booked]': '24 Apr 2026',
@@ -134,6 +203,37 @@ function TemplatePreview({
   )
 }
 
+function TemplatePresetButtons({
+  field,
+  onApply,
+}: {
+  field: TemplateField
+  onApply: (template: string) => void
+}) {
+  return (
+    <div className="mb-2 flex flex-wrap items-center gap-1.5">
+      <span className="text-[11px] font-medium uppercase tracking-wide text-slate-400">Presets</span>
+      {TEMPLATE_PRESETS[field].map((preset) => (
+        <button
+          key={`${field}-${preset.label}`}
+          type="button"
+          onClick={() => onApply(preset.template)}
+          className="rounded border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] text-emerald-800"
+        >
+          {preset.label}
+        </button>
+      ))}
+      <button
+        type="button"
+        onClick={() => onApply('')}
+        className="rounded border border-slate-200 bg-white px-2 py-0.5 text-[11px] text-slate-500"
+      >
+        Clear
+      </button>
+    </div>
+  )
+}
+
 function buildDefaultWeek(locationId: string): BranchSettingRow[] {
   return DAY_NAMES.map((_, day) => ({
     id: `temp-${day}`,
@@ -163,18 +263,7 @@ export default function BookingSettingsTab({
   const [overrides, setOverrides] = useState<BranchScheduleOverride[]>([])
   const [services, setServices] = useState<BookingServiceRow[]>([])
 
-  const [newService, setNewService] = useState({
-    name: '',
-    duration_minutes: 30,
-    buffer_minutes: 15,
-    available_days: [] as number[],
-    confirmation_template: '',
-    modification_template: '',
-    cancellation_template: '',
-    service_start_time: '',
-    service_end_time: '',
-    duration_per_additional_person_minutes: 0,
-  })
+  const [newService, setNewService] = useState(() => buildNewServiceDraft())
   const [showAddService, setShowAddService] = useState(false)
   const [editingService, setEditingService] = useState<BookingServiceRow | null>(null)
   const [activeNewTemplateField, setActiveNewTemplateField] = useState<TemplateField>('confirmation_template')
@@ -321,6 +410,17 @@ export default function BookingSettingsTab({
     moveCursorAfterInsert(textarea, token.length)
   }
 
+  const applyTemplatePreset = (mode: 'new' | 'edit', field: TemplateField, template: string) => {
+    if (mode === 'new') {
+      setActiveNewTemplateField(field)
+      setNewService((prev) => ({ ...prev, [field]: template }))
+      return
+    }
+
+    setActiveEditTemplateField(field)
+    setEditingService((prev) => (prev ? { ...prev, [field]: template || null } : prev))
+  }
+
   const buildTemplateErrorMessage = (json: any): string => {
     if (!Array.isArray(json?.template_errors)) return json?.error || 'Invalid template variables'
     const details = json.template_errors
@@ -431,18 +531,7 @@ export default function BookingSettingsTab({
       const json = await res.json()
       if (!res.ok) throw new Error(buildTemplateErrorMessage(json))
       setServices((prev) => [...prev, json.service])
-      setNewService({
-        name: '',
-        duration_minutes: 30,
-        buffer_minutes: 15,
-        available_days: [],
-        service_start_time: '',
-        service_end_time: '',
-        confirmation_template: '',
-        modification_template: '',
-        cancellation_template: '',
-        duration_per_additional_person_minutes: 0,
-      })
+      setNewService(buildNewServiceDraft())
       setShowAddService(false)
       toast.success('Service added')
     } catch (error) {
@@ -629,7 +718,7 @@ export default function BookingSettingsTab({
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <p className="text-sm text-slate-600">Define service-specific duration, buffer before next appointment, service hours, and customer email templates for booked/modified/cancelled events.</p>
-            <button onClick={() => setShowAddService(true)} className="px-4 py-2 rounded bg-indigo-600 text-white text-sm font-medium">+ Add Service</button>
+            <button onClick={() => { setNewService(buildNewServiceDraft()); setShowAddService(true) }} className="px-4 py-2 rounded bg-indigo-600 text-white text-sm font-medium">+ Add Service</button>
           </div>
 
           <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
@@ -684,6 +773,7 @@ export default function BookingSettingsTab({
               <div className="md:col-span-5 grid grid-cols-1 md:grid-cols-3 gap-3">
                 <LabeledInput label="Booking Confirmation Email Template">
                   <>
+                    <TemplatePresetButtons field="confirmation_template" onApply={(template) => applyTemplatePreset('new', 'confirmation_template', template)} />
                     <div className="mb-2 flex flex-wrap gap-1.5">
                       {TEMPLATE_VARIABLES.map((token) => (
                         <button key={`new-confirmation-${token}`} type="button" onClick={() => insertTemplateToken('new', token)} className="rounded border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] text-blue-800">{token}</button>
@@ -695,6 +785,7 @@ export default function BookingSettingsTab({
                 </LabeledInput>
                 <LabeledInput label="Booking Modification Email Template">
                   <>
+                    <TemplatePresetButtons field="modification_template" onApply={(template) => applyTemplatePreset('new', 'modification_template', template)} />
                     <div className="mb-2 flex flex-wrap gap-1.5">
                       {TEMPLATE_VARIABLES.map((token) => (
                         <button key={`new-modification-${token}`} type="button" onClick={() => insertTemplateToken('new', token)} className="rounded border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] text-blue-800">{token}</button>
@@ -706,6 +797,7 @@ export default function BookingSettingsTab({
                 </LabeledInput>
                 <LabeledInput label="Booking Cancellation Email Template">
                   <>
+                    <TemplatePresetButtons field="cancellation_template" onApply={(template) => applyTemplatePreset('new', 'cancellation_template', template)} />
                     <div className="mb-2 flex flex-wrap gap-1.5">
                       {TEMPLATE_VARIABLES.map((token) => (
                         <button key={`new-cancellation-${token}`} type="button" onClick={() => insertTemplateToken('new', token)} className="rounded border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] text-blue-800">{token}</button>
@@ -768,6 +860,7 @@ export default function BookingSettingsTab({
                     <div className="md:col-span-5 grid grid-cols-1 md:grid-cols-3 gap-3">
                       <LabeledInput label="Booking Confirmation Email Template">
                         <>
+                          <TemplatePresetButtons field="confirmation_template" onApply={(template) => applyTemplatePreset('edit', 'confirmation_template', template)} />
                           <div className="mb-2 flex flex-wrap gap-1.5">
                             {TEMPLATE_VARIABLES.map((token) => (
                               <button key={`edit-confirmation-${service.id}-${token}`} type="button" onClick={() => insertTemplateToken('edit', token)} className="rounded border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] text-blue-800">{token}</button>
@@ -779,6 +872,7 @@ export default function BookingSettingsTab({
                       </LabeledInput>
                       <LabeledInput label="Booking Modification Email Template">
                         <>
+                          <TemplatePresetButtons field="modification_template" onApply={(template) => applyTemplatePreset('edit', 'modification_template', template)} />
                           <div className="mb-2 flex flex-wrap gap-1.5">
                             {TEMPLATE_VARIABLES.map((token) => (
                               <button key={`edit-modification-${service.id}-${token}`} type="button" onClick={() => insertTemplateToken('edit', token)} className="rounded border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] text-blue-800">{token}</button>
@@ -790,6 +884,7 @@ export default function BookingSettingsTab({
                       </LabeledInput>
                       <LabeledInput label="Booking Cancellation Email Template">
                         <>
+                          <TemplatePresetButtons field="cancellation_template" onApply={(template) => applyTemplatePreset('edit', 'cancellation_template', template)} />
                           <div className="mb-2 flex flex-wrap gap-1.5">
                             {TEMPLATE_VARIABLES.map((token) => (
                               <button key={`edit-cancellation-${service.id}-${token}`} type="button" onClick={() => insertTemplateToken('edit', token)} className="rounded border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] text-blue-800">{token}</button>

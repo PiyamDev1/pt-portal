@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase';
 import { AvailableSlot, AvailableSlotsResponse } from '@/app/types/bookings';
+import { buildDefaultBranchSchedule } from '@/lib/bookingBranchSchedule';
 
 const SCHEMA_HINT = 'Booking schema is out of date. Run scripts/create-bookings-schema.sql in Supabase SQL editor.';
 const BOUNDARY_TOLERANCE_MINUTES = 5;
@@ -47,14 +48,14 @@ export async function GET(request: NextRequest) {
     const dayOfWeek = dateObj.getUTCDay();
 
     // Step 1: Fetch branch settings for this day and location
-    const { data: branchSettings, error: settingsError } = await supabase
+    const { data: branchSettingsRow, error: settingsError } = await supabase
       .from('branch_settings')
       .select('*')
       .eq('location_id', location_id)
       .eq('day_of_week', dayOfWeek)
-      .single();
+      .maybeSingle();
 
-    if (settingsError || !branchSettings) {
+    if (settingsError) {
       if (isSchemaError(settingsError)) {
         return NextResponse.json(
           {
@@ -66,13 +67,10 @@ export async function GET(request: NextRequest) {
           { status: 200 }
         );
       }
-      // If no settings for this day, return empty slots
-      return NextResponse.json({
-        date,
-        service_id,
-        slots: [],
-      } as AvailableSlotsResponse);
+      return NextResponse.json({ error: 'Failed to load branch settings' }, { status: 500 });
     }
+
+    const branchSettings = branchSettingsRow ?? buildDefaultBranchSchedule(dayOfWeek);
 
     // Check if branch is closed
     if (branchSettings.is_closed) {
@@ -84,12 +82,19 @@ export async function GET(request: NextRequest) {
     }
 
     // Optional one-off override (per location + specific date)
-    const { data: override } = await supabase
+    const { data: override, error: overrideError } = await supabase
       .from('branch_schedule_overrides')
       .select('*')
       .eq('location_id', location_id)
       .eq('date', date)
-      .single();
+      .maybeSingle();
+
+    if (overrideError) {
+      if (isSchemaError(overrideError)) {
+        return NextResponse.json({ error: SCHEMA_HINT }, { status: 503 });
+      }
+      return NextResponse.json({ error: 'Failed to load branch overrides' }, { status: 500 });
+    }
 
     if (override?.is_closed) {
       return NextResponse.json({

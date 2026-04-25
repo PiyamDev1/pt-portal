@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase';
 import { BookingStatus } from '@/app/types/bookings';
 import { sendBookingEmail } from '@/lib/bookingEmail';
+import { buildDefaultBranchSchedule } from '@/lib/bookingBranchSchedule';
 
 export const runtime = 'nodejs';
 
@@ -177,31 +178,40 @@ export async function PATCH(
         return NextResponse.json({ error: 'Selected service is not available on this day' }, { status: 400 });
       }
 
-      const { data: branchSettings, error: settingsError } = await supabase
+      const { data: branchSettingsRow, error: settingsError } = await supabase
         .from('branch_settings')
         .select('*')
         .eq('location_id', existing.location_id)
         .eq('day_of_week', bookingDayOfWeek)
-        .single();
+        .maybeSingle();
 
-      if (settingsError || !branchSettings) {
+      if (settingsError) {
         if (isSchemaError(settingsError)) {
           return NextResponse.json({ error: SCHEMA_HINT }, { status: 503 });
         }
-        return NextResponse.json({ error: 'Branch is not available on this day' }, { status: 400 });
+        return NextResponse.json({ error: 'Failed to load branch settings' }, { status: 500 });
       }
+
+      const branchSettings = branchSettingsRow ?? buildDefaultBranchSchedule(bookingDayOfWeek);
 
       if (branchSettings.is_closed) {
         return NextResponse.json({ error: 'Branch is closed on this day' }, { status: 400 });
       }
 
       const dateKey = startTimeDate.toISOString().slice(0, 10);
-      const { data: override } = await supabase
+      const { data: override, error: overrideError } = await supabase
         .from('branch_schedule_overrides')
         .select('*')
         .eq('location_id', existing.location_id)
         .eq('date', dateKey)
-        .single();
+        .maybeSingle();
+
+      if (overrideError) {
+        if (isSchemaError(overrideError)) {
+          return NextResponse.json({ error: SCHEMA_HINT }, { status: 503 });
+        }
+        return NextResponse.json({ error: 'Failed to load branch overrides' }, { status: 500 });
+      }
 
       if (override?.is_closed) {
         return NextResponse.json({ error: 'Branch is closed on this date' }, { status: 400 });

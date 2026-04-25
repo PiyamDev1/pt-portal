@@ -7,6 +7,7 @@ import {
   CreateBookingResponse,
 } from '@/app/types/bookings';
 import { sendBookingEmail } from '@/lib/bookingEmail';
+import { buildDefaultBranchSchedule } from '@/lib/bookingBranchSchedule';
 
 export const runtime = 'nodejs';
 
@@ -214,14 +215,14 @@ export async function POST(request: NextRequest) {
     const occupied_until = occupiedUntilDate.toISOString();
 
     const dayOfWeek = startTimeDate.getUTCDay();
-    const { data: branchSettings, error: settingsError } = await supabase
+    const { data: branchSettingsRow, error: settingsError } = await supabase
       .from('branch_settings')
       .select('*')
       .eq('location_id', location_id)
       .eq('day_of_week', dayOfWeek)
-      .single();
+      .maybeSingle();
 
-    if (settingsError || !branchSettings) {
+    if (settingsError) {
       if (isSchemaError(settingsError)) {
         return NextResponse.json(
           {
@@ -234,11 +235,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          error: 'Branch is not available on this day',
+          error: 'Failed to load branch settings',
         } as CreateBookingResponse,
-        { status: 400 }
+        { status: 500 }
       );
     }
+
+    const branchSettings = branchSettingsRow ?? buildDefaultBranchSchedule(dayOfWeek);
 
     if (branchSettings.is_closed) {
       return NextResponse.json(
@@ -251,12 +254,31 @@ export async function POST(request: NextRequest) {
     }
 
     const dateKey = startTimeDate.toISOString().slice(0, 10);
-    const { data: override } = await supabase
+    const { data: override, error: overrideError } = await supabase
       .from('branch_schedule_overrides')
       .select('*')
       .eq('location_id', location_id)
       .eq('date', dateKey)
-      .single();
+      .maybeSingle();
+
+    if (overrideError) {
+      if (isSchemaError(overrideError)) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: SCHEMA_HINT,
+          } as CreateBookingResponse,
+          { status: 503 }
+        );
+      }
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Failed to load branch overrides',
+        } as CreateBookingResponse,
+        { status: 500 }
+      );
+    }
 
     if (override?.is_closed) {
       return NextResponse.json(

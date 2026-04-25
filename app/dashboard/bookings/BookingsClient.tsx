@@ -32,6 +32,16 @@ interface BookingServiceOption {
   duration_per_additional_person_minutes: number
 }
 
+interface SlotOption {
+  time: string
+  isoString: string
+}
+
+interface SlotLoadResult {
+  slots: SlotOption[]
+  error: string | null
+}
+
 const COUNTRY_CODE_OPTIONS = [
   { code: '+44', label: 'United Kingdom (+44)' },
   { code: '+1', label: 'United States (+1)' },
@@ -100,6 +110,16 @@ function formatDateLabel(date: Date): string {
 
 function formatHeaderDate(date: Date): string {
   return date.toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  })
+}
+
+function formatLongDateLabel(date: Date): string {
+  return date.toLocaleDateString('en-GB', {
+    weekday: 'long',
     day: 'numeric',
     month: 'long',
     year: 'numeric',
@@ -176,8 +196,15 @@ export default function BookingsClient({
   const [showAppointmentModal, setShowAppointmentModal] = useState(false)
   const [editingBooking, setEditingBooking] = useState<BookingWithService | null>(null)
   const [savingBooking, setSavingBooking] = useState(false)
-  const [availableSlots, setAvailableSlots] = useState<Array<{ time: string; isoString: string }>>([])
+  const [availableSlots, setAvailableSlots] = useState<SlotOption[]>([])
   const [loadingSlots, setLoadingSlots] = useState(false)
+  const [slotsError, setSlotsError] = useState<string | null>(null)
+  const [showDayAgendaModal, setShowDayAgendaModal] = useState(false)
+  const [dayAgendaServiceId, setDayAgendaServiceId] = useState('')
+  const [dayAgendaPersonCount, setDayAgendaPersonCount] = useState(1)
+  const [dayAgendaSlots, setDayAgendaSlots] = useState<SlotOption[]>([])
+  const [loadingDayAgendaSlots, setLoadingDayAgendaSlots] = useState(false)
+  const [dayAgendaSlotsError, setDayAgendaSlotsError] = useState<string | null>(null)
   const [appointmentForm, setAppointmentForm] = useState({
     customer_name: '',
     customer_email: '',
@@ -214,6 +241,7 @@ export default function BookingsClient({
 
   const fromISO = useMemo(() => rangeStart.toISOString(), [rangeStart])
   const toISO = useMemo(() => rangeEnd.toISOString(), [rangeEnd])
+  const selectedDateKey = useMemo(() => selectedDate.toISOString().slice(0, 10), [selectedDate])
 
   const fetchBookings = useCallback(async (background = false) => {
     if (background) {
@@ -340,6 +368,65 @@ export default function BookingsClient({
     setMonthStart(startOfMonth(today))
   }
 
+  const loadSlotsFor = useCallback(async (date: string, serviceId: string, personCount: number): Promise<SlotLoadResult> => {
+    if (!date || !serviceId || !selectedLocationId) {
+      return { slots: [], error: null }
+    }
+
+    try {
+      const params = new URLSearchParams({
+        date,
+        service_id: serviceId,
+        location_id: selectedLocationId,
+        person_count: String(personCount),
+      })
+      const res = await fetch(`/api/bookings/available-slots?${params.toString()}`)
+      const json = await res.json()
+      if (!res.ok) {
+        return { slots: [], error: json.error || 'Failed to load available slots' }
+      }
+      return {
+        slots: (json.slots || []) as SlotOption[],
+        error: json.error || json.message || json.warning || null,
+      }
+    } catch {
+      return { slots: [], error: 'Failed to load available slots' }
+    }
+  }, [selectedLocationId])
+
+  const openCreateAppointment = useCallback((options?: {
+    date?: string
+    service_id?: string
+    person_count?: number
+    start_time?: string
+  }) => {
+    setEditingBooking(null)
+    setSlotsError(null)
+    setAvailableSlots([])
+    setShowDayAgendaModal(false)
+    setAppointmentForm({
+      customer_name: '',
+      customer_email: '',
+      phone_country_code: '+44',
+      phone_local: '',
+      service_id: options?.service_id ?? serviceOptions[0]?.id ?? '',
+      date: options?.date ?? selectedDateKey,
+      start_time: options?.start_time ?? '',
+      person_count: options?.person_count ?? 1,
+    })
+    setShowAppointmentModal(true)
+  }, [selectedDateKey, serviceOptions])
+
+  const openDayAgenda = useCallback((day: Date) => {
+    setSelectedDate(day)
+    setWeekStart(startOfWeek(day))
+    setDayAgendaServiceId((current) => current || appointmentForm.service_id || serviceOptions[0]?.id || '')
+    setDayAgendaPersonCount(appointmentForm.person_count || 1)
+    setDayAgendaSlots([])
+    setDayAgendaSlotsError(null)
+    setShowDayAgendaModal(true)
+  }, [appointmentForm.person_count, appointmentForm.service_id, serviceOptions])
+
   const bookingsForDate = (date: Date) =>
     bookings.filter((b) => isSameUTCDay(new Date(b.start_time), date))
 
@@ -377,6 +464,8 @@ export default function BookingsClient({
       : booking.customer_phone
 
     setEditingBooking(booking)
+    setSlotsError(null)
+    setShowDayAgendaModal(false)
     setAppointmentForm({
       customer_name: booking.customer_name,
       customer_email: booking.customer_email || '',
@@ -393,32 +482,60 @@ export default function BookingsClient({
   const fetchAvailableSlots = useCallback(async () => {
     if (!showAppointmentModal || !appointmentForm.date || !appointmentForm.service_id || !selectedLocationId) {
       setAvailableSlots([])
+      setSlotsError(null)
       return
     }
 
     setLoadingSlots(true)
     try {
-      const params = new URLSearchParams({
-        date: appointmentForm.date,
-        service_id: appointmentForm.service_id,
-        location_id: selectedLocationId,
-        person_count: String(appointmentForm.person_count),
-      })
-      const res = await fetch(`/api/bookings/available-slots?${params.toString()}`)
-      const json = await res.json()
-      if (!res.ok) {
-        setAvailableSlots([])
-        return
-      }
-      setAvailableSlots(json.slots || [])
+      const result = await loadSlotsFor(
+        appointmentForm.date,
+        appointmentForm.service_id,
+        appointmentForm.person_count
+      )
+      setAvailableSlots(result.slots)
+      setSlotsError(result.error)
     } finally {
       setLoadingSlots(false)
     }
-  }, [appointmentForm.date, appointmentForm.service_id, appointmentForm.person_count, selectedLocationId, showAppointmentModal])
+  }, [appointmentForm.date, appointmentForm.person_count, appointmentForm.service_id, loadSlotsFor, selectedLocationId, showAppointmentModal])
 
   useEffect(() => {
     fetchAvailableSlots()
   }, [fetchAvailableSlots])
+
+  useEffect(() => {
+    if (!showDayAgendaModal) return
+    if (!dayAgendaServiceId && serviceOptions.length > 0) {
+      setDayAgendaServiceId(serviceOptions[0].id)
+    }
+  }, [dayAgendaServiceId, serviceOptions, showDayAgendaModal])
+
+  useEffect(() => {
+    if (!showDayAgendaModal) return
+    if (!selectedDateKey || !dayAgendaServiceId || !selectedLocationId) {
+      setDayAgendaSlots([])
+      setDayAgendaSlotsError(null)
+      return
+    }
+
+    let cancelled = false
+
+    const run = async () => {
+      setLoadingDayAgendaSlots(true)
+      const result = await loadSlotsFor(selectedDateKey, dayAgendaServiceId, dayAgendaPersonCount)
+      if (cancelled) return
+      setDayAgendaSlots(result.slots)
+      setDayAgendaSlotsError(result.error)
+      setLoadingDayAgendaSlots(false)
+    }
+
+    run()
+
+    return () => {
+      cancelled = true
+    }
+  }, [dayAgendaPersonCount, dayAgendaServiceId, loadSlotsFor, selectedDateKey, selectedLocationId, showDayAgendaModal])
 
   useEffect(() => {
     if (!showAppointmentModal || loadingSlots) return
@@ -511,11 +628,19 @@ export default function BookingsClient({
 
       setShowAppointmentModal(false)
       setEditingBooking(null)
+      setSlotsError(null)
       setAvailableSlots([])
       await fetchBookings(false)
     } finally {
       setSavingBooking(false)
     }
+  }
+
+  const cancelEditingBooking = async () => {
+    if (!editingBooking) return
+    await updateStatus(editingBooking.id, BookingStatus.CANCELLED)
+    setShowAppointmentModal(false)
+    setEditingBooking(null)
   }
 
   const totalVisible = bookings.filter((b) => b.status !== BookingStatus.CANCELLED).length
@@ -631,22 +756,7 @@ export default function BookingsClient({
 
             {!showSettings && (
               <button
-                onClick={() => {
-                  setEditingBooking(null)
-                  setAppointmentForm((prev) => ({
-                    ...prev,
-                    customer_name: '',
-                    customer_email: '',
-                    phone_country_code: '+44',
-                    phone_local: '',
-                    service_id: serviceOptions[0]?.id || '',
-                    date: selectedDate.toISOString().slice(0, 10),
-                    start_time: '',
-                    person_count: 1,
-                  }))
-                  setAvailableSlots([])
-                  setShowAppointmentModal(true)
-                }}
+                onClick={() => openCreateAppointment()}
                 className="px-3 py-2 rounded-lg border border-indigo-600 bg-indigo-600 text-sm font-medium text-white hover:bg-indigo-700"
               >
                 + Add Appointment
@@ -718,32 +828,36 @@ export default function BookingsClient({
                   return (
                     <button
                       key={day.toISOString()}
-                      onClick={() => {
-                        setSelectedDate(day)
-                        setWeekStart(startOfWeek(day))
-                      }}
+                      onClick={() => openDayAgenda(day)}
                       className={`min-h-[108px] p-2 border-r border-b border-slate-100 text-left transition-colors ${
                         isSelected
-                          ? 'bg-indigo-50'
+                          ? 'bg-indigo-50 ring-2 ring-inset ring-indigo-300'
                           : isToday
-                          ? 'bg-blue-50'
+                          ? 'bg-amber-50 ring-2 ring-inset ring-amber-300'
                           : 'bg-white hover:bg-slate-50'
                       }`}
                     >
                       <div className="flex items-center justify-between">
-                        <span
-                          className={`text-sm font-semibold ${
-                            isSelected
-                              ? 'text-indigo-700'
-                              : isToday
-                              ? 'text-blue-700'
-                              : isOutsideMonth
-                              ? 'text-slate-300'
-                              : 'text-slate-700'
-                          }`}
-                        >
-                          {day.getUTCDate()}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`text-sm font-semibold ${
+                              isSelected
+                                ? 'text-indigo-700'
+                                : isToday
+                                ? 'text-amber-700'
+                                : isOutsideMonth
+                                ? 'text-slate-300'
+                                : 'text-slate-700'
+                            }`}
+                          >
+                            {day.getUTCDate()}
+                          </span>
+                          {isToday && (
+                            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
+                              Today
+                            </span>
+                          )}
+                        </div>
                         {dayBookings.length > 0 && (
                           <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700">
                             {dayBookings.length}
@@ -779,6 +893,7 @@ export default function BookingsClient({
               onStatusChange={updateStatus}
               onEditBooking={openEditBooking}
               selectedDateCount={selectedDateCount}
+              onOpenDayAgenda={() => openDayAgenda(selectedDate)}
             />
           </div>
         )}
@@ -794,21 +909,26 @@ export default function BookingsClient({
                 return (
                   <button
                     key={day.toISOString()}
-                    onClick={() => setSelectedDate(day)}
+                    onClick={() => openDayAgenda(day)}
                     className={`rounded-xl p-3 flex flex-col items-center gap-1 border transition-all ${
                       isSelected
                         ? 'bg-indigo-600 border-indigo-600 text-white shadow-md'
                         : isToday
-                        ? 'bg-indigo-50 border-indigo-300 text-indigo-700'
+                        ? 'bg-amber-50 border-amber-300 text-amber-800 ring-2 ring-amber-200'
                         : isPast
                         ? 'bg-white border-slate-100 text-slate-400'
                         : 'bg-white border-slate-200 text-slate-700 hover:border-indigo-300 hover:bg-indigo-50'
                     }`}
                   >
-                    <span className={`text-xs font-semibold uppercase tracking-wider ${isSelected ? 'text-indigo-200' : 'text-slate-400'}`}>
+                    <span className={`text-xs font-semibold uppercase tracking-wider ${isSelected ? 'text-indigo-200' : isToday ? 'text-amber-600' : 'text-slate-400'}`}>
                       {DAY_LABELS[day.getUTCDay()]}
                     </span>
                     <span className="text-lg font-bold leading-none">{day.getUTCDate()}</span>
+                    {isToday && !isSelected && (
+                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
+                        Today
+                      </span>
+                    )}
                     {dayBookings.length > 0 && (
                       <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ${
                         isSelected ? 'bg-white text-indigo-600' : 'bg-indigo-100 text-indigo-600'
@@ -830,6 +950,7 @@ export default function BookingsClient({
               onStatusChange={updateStatus}
               onEditBooking={openEditBooking}
               selectedDateCount={selectedDateCount}
+              onOpenDayAgenda={() => openDayAgenda(selectedDate)}
             />
           </div>
         )}
@@ -973,6 +1094,8 @@ export default function BookingsClient({
               <span className="block mb-1 font-medium">Available start times</span>
               {loadingSlots ? (
                 <p className="text-slate-400 text-sm">Loading slots...</p>
+              ) : slotsError ? (
+                <p className="text-amber-700 text-sm">{slotsError}</p>
               ) : availableSlots.length === 0 ? (
                 <p className="text-slate-400 text-sm">{appointmentForm.date && appointmentForm.service_id ? 'No slots available for this date.' : 'Select a service and date.'}</p>
               ) : (
@@ -997,6 +1120,11 @@ export default function BookingsClient({
             </div>
 
             <div className="flex items-center justify-end gap-2">
+              {editingBooking && (editingBooking.status === BookingStatus.PENDING || editingBooking.status === BookingStatus.CONFIRMED) && (
+                <button onClick={cancelEditingBooking} disabled={savingBooking || updatingId === editingBooking.id} className="px-4 py-2 rounded border border-red-200 bg-red-50 text-sm text-red-600 disabled:opacity-50">
+                  {updatingId === editingBooking.id ? 'Cancelling...' : 'Cancel Appointment'}
+                </button>
+              )}
               <button onClick={() => setShowAppointmentModal(false)} className="px-4 py-2 rounded border border-slate-300 text-sm">Cancel</button>
               <button onClick={saveAppointment} disabled={savingBooking || invalidLocalPhone} className="px-4 py-2 rounded bg-indigo-600 text-white text-sm disabled:opacity-50">
                 {savingBooking ? 'Saving...' : editingBooking ? 'Save Changes' : 'Create Appointment'}
@@ -1004,6 +1132,30 @@ export default function BookingsClient({
             </div>
           </div>
         </div>
+      )}
+
+      {showDayAgendaModal && (
+        <DayAgendaModal
+          selectedDate={selectedDate}
+          today={today}
+          bookings={selectedBookings}
+          serviceOptions={serviceOptions}
+          serviceId={dayAgendaServiceId}
+          personCount={dayAgendaPersonCount}
+          loadingSlots={loadingDayAgendaSlots}
+          slots={dayAgendaSlots}
+          slotsError={dayAgendaSlotsError}
+          onClose={() => setShowDayAgendaModal(false)}
+          onServiceChange={setDayAgendaServiceId}
+          onPersonCountChange={(value) => setDayAgendaPersonCount(Math.max(1, value))}
+          onSelectSlot={(slot) => openCreateAppointment({
+            date: selectedDateKey,
+            service_id: dayAgendaServiceId,
+            person_count: dayAgendaPersonCount,
+            start_time: slot.isoString,
+          })}
+          onSelectBooking={openEditBooking}
+        />
       )}
     </div>
   )
@@ -1018,6 +1170,7 @@ function SelectedDayPanel({
   onStatusChange,
   onEditBooking,
   selectedDateCount,
+  onOpenDayAgenda,
 }: {
   selectedDate: Date
   today: Date
@@ -1027,18 +1180,21 @@ function SelectedDayPanel({
   onStatusChange: (id: string, status: string) => void
   onEditBooking: (booking: BookingWithService) => void
   selectedDateCount: number
+  onOpenDayAgenda: () => void
 }) {
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
       <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-        <h2 className="font-semibold text-slate-800">
+        <button onClick={onOpenDayAgenda} className="text-left">
+          <h2 className="font-semibold text-slate-800 hover:text-indigo-700 transition-colors">
           {formatDateLabel(selectedDate)}
           {isSameUTCDay(selectedDate, today) && (
             <span className="ml-2 text-xs bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full font-medium">
               Today
             </span>
           )}
-        </h2>
+          </h2>
+        </button>
         <span className="text-sm text-slate-400">
           {loading ? 'Loading…' : `${selectedDateCount} appointment${selectedDateCount !== 1 ? 's' : ''}`}
         </span>
@@ -1065,6 +1221,168 @@ function SelectedDayPanel({
             ))}
         </div>
       )}
+    </div>
+  )
+}
+
+function DayAgendaModal({
+  selectedDate,
+  today,
+  bookings,
+  serviceOptions,
+  serviceId,
+  personCount,
+  loadingSlots,
+  slots,
+  slotsError,
+  onClose,
+  onServiceChange,
+  onPersonCountChange,
+  onSelectSlot,
+  onSelectBooking,
+}: {
+  selectedDate: Date
+  today: Date
+  bookings: BookingWithService[]
+  serviceOptions: BookingServiceOption[]
+  serviceId: string
+  personCount: number
+  loadingSlots: boolean
+  slots: SlotOption[]
+  slotsError: string | null
+  onClose: () => void
+  onServiceChange: (value: string) => void
+  onPersonCountChange: (value: number) => void
+  onSelectSlot: (slot: SlotOption) => void
+  onSelectBooking: (booking: BookingWithService) => void
+}) {
+  const selectedService = serviceOptions.find((service) => service.id === serviceId)
+  const effectiveDuration = selectedService
+    ? selectedService.duration_minutes + Math.max(0, personCount - 1) * selectedService.duration_per_additional_person_minutes
+    : null
+  const nextStartGap = selectedService
+    ? effectiveDuration! + Math.max(0, selectedService.buffer_minutes)
+    : null
+
+  return (
+    <div className="fixed inset-0 z-40 bg-slate-950/45 flex items-center justify-center p-4">
+      <div className="w-full max-w-6xl rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden">
+        <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-5 py-4">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900">{formatLongDateLabel(selectedDate)}</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              {bookings.length} booked appointment{bookings.length !== 1 ? 's' : ''}
+              {isSameUTCDay(selectedDate, today) ? ' · Today' : ''}
+            </p>
+          </div>
+          <button onClick={onClose} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-600 hover:bg-slate-100">
+            Close
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr]">
+          <div className="border-r border-slate-200 p-5">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Booked appointments</h3>
+              <span className="text-xs text-slate-400">Click a booking to modify or cancel</span>
+            </div>
+            {bookings.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-10 text-center text-sm text-slate-400">
+                No appointments booked for this day.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {bookings
+                  .slice()
+                  .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())
+                  .map((booking) => {
+                    const status = STATUS_CONFIG[booking.status] ?? STATUS_CONFIG.pending
+                    return (
+                      <button
+                        key={booking.id}
+                        type="button"
+                        onClick={() => onSelectBooking(booking)}
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-left hover:border-indigo-300 hover:bg-indigo-50/40"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-base font-semibold text-slate-800">{formatTime(booking.start_time)} · {booking.customer_name}</p>
+                            <p className="mt-1 text-sm text-slate-500">
+                              {booking.booking_services?.name || 'Service'}
+                              {booking.person_count && booking.person_count > 1 ? ` · ${booking.person_count} people` : ''}
+                            </p>
+                            <p className="mt-1 text-xs text-slate-400">{booking.customer_phone}</p>
+                          </div>
+                          <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${status.bg} ${status.text}`}>
+                            {status.label}
+                          </span>
+                        </div>
+                      </button>
+                    )
+                  })}
+              </div>
+            )}
+          </div>
+
+          <div className="bg-slate-50 p-5">
+            <div className="mb-4">
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Available appointments</h3>
+              <p className="mt-1 text-xs text-slate-400">Choose a service and person count, then click a time to create a booking.</p>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <label className="text-sm text-slate-700">
+                Service
+                <select value={serviceId} onChange={(e) => onServiceChange(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2">
+                  <option value="">Select service</option>
+                  {serviceOptions.map((service) => (
+                    <option key={service.id} value={service.id}>{service.name}</option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="text-sm text-slate-700">
+                Number of persons
+                <input type="number" min={1} value={personCount} onChange={(e) => onPersonCountChange(Number(e.target.value) || 1)} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2" />
+              </label>
+            </div>
+
+            {selectedService && (
+              <div className="mt-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs text-slate-600">
+                <p>Effective duration: <span className="font-semibold text-slate-800">{effectiveDuration} min</span></p>
+                <p className="mt-1">Buffer: <span className="font-semibold text-slate-800">{selectedService.buffer_minutes} min</span></p>
+                <p className="mt-1">Next appointment gap: <span className="font-semibold text-slate-800">{nextStartGap} min</span></p>
+              </div>
+            )}
+
+            <div className="mt-4">
+              {loadingSlots ? (
+                <p className="text-sm text-slate-400">Loading slots...</p>
+              ) : slotsError ? (
+                <p className="text-sm text-amber-700">{slotsError}</p>
+              ) : !serviceId ? (
+                <p className="text-sm text-slate-400">Select a service to see available times.</p>
+              ) : slots.length === 0 ? (
+                <p className="text-sm text-slate-400">No available times for this day.</p>
+              ) : (
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  {slots.map((slot) => (
+                    <button
+                      key={slot.isoString}
+                      type="button"
+                      onClick={() => onSelectSlot(slot)}
+                      className="rounded-xl border border-emerald-200 bg-white px-3 py-3 text-left hover:border-emerald-400 hover:bg-emerald-50"
+                    >
+                      <span className="block text-base font-semibold text-slate-800">{slot.time}</span>
+                      <span className="mt-1 block text-xs text-emerald-700">Create booking</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
