@@ -14,7 +14,10 @@ let s3Client: S3Client | null = null
  */
 export function getS3Client(): S3Client {
   if (!s3Client) {
+    // 1. Grab the endpoint from the environment
     const rawEndpoint = process.env.MINIO_ENDPOINT || ''
+
+    // 2. Force the AWS SDK to use HTTPS if it's missing (Crucial for Cloudflare Tunnels)
     const formattedEndpoint = rawEndpoint.startsWith('http') 
       ? rawEndpoint 
       : `https://${rawEndpoint}`
@@ -27,7 +30,7 @@ export function getS3Client(): S3Client {
         secretAccessKey: process.env.MINIO_SECRET_KEY!,
       },
       forcePathStyle: true, 
-      // REMOVED CHECKSUMS - Let Cloudflare handle data integrity
+      // CHECKSUMS COMPLETELY REMOVED
     })
   }
   return s3Client
