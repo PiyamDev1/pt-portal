@@ -34,7 +34,10 @@ export async function POST(request: NextRequest) {
 
     // 4. Sign the URL
     const s3Client = getS3Client()
-    const signedUrl = await getSignedUrl(s3Client, command, { expiresIn: 600 })
+    const signedUrl = await getSignedUrl(s3Client, command, {
+      expiresIn: 600,
+      unhoistableHeaders: new Set(['x-amz-decoded-content-length']),
+    })
 
     return apiOk({
       uploadUrl: signedUrl,

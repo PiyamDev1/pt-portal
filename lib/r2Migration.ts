@@ -32,6 +32,27 @@ type DocumentKeyRow = {
   minio_key: string | null
 }
 
+async function toBufferFromSdkBody(body: unknown): Promise<Buffer> {
+  if (body && typeof body === 'object' && 'transformToByteArray' in body) {
+    const bytes = await (body as { transformToByteArray: () => Promise<Uint8Array> }).transformToByteArray()
+    return Buffer.from(bytes)
+  }
+
+  if (body && typeof body === 'object' && Symbol.asyncIterator in body) {
+    const chunks: Buffer[] = []
+    for await (const chunk of body as AsyncIterable<Uint8Array | Buffer | string>) {
+      if (typeof chunk === 'string') {
+        chunks.push(Buffer.from(chunk))
+      } else {
+        chunks.push(Buffer.from(chunk))
+      }
+    }
+    return Buffer.concat(chunks)
+  }
+
+  throw new Error('Unsupported R2 object body type')
+}
+
 /**
  * Migrate a single object from R2 to MinIO, then delete from R2.
  * Database metadata is updated only after transfer + delete succeed.
@@ -58,11 +79,14 @@ export async function migrateObjectFromR2ToMinio(
 
     if (!r2Object.Body) return false
 
+    const fileBuffer = await toBufferFromSdkBody(r2Object.Body)
+
     const putResult = await minioClient.send(
       new PutObjectCommand({
         Bucket: MINIO_BUCKET,
         Key: key,
-        Body: r2Object.Body,
+        Body: fileBuffer,
+        ContentLength: fileBuffer.byteLength,
         ContentType: r2Object.ContentType || 'application/octet-stream',
       }),
     )
