@@ -26,7 +26,7 @@ function buildBranchAddress(location: {
 export const runtime = 'nodejs';
 
 const SCHEMA_HINT = 'Booking schema is out of date. Run scripts/create-bookings-schema.sql in Supabase SQL editor.';
-const DEFAULT_BOUNDARY_TOLERANCE_MINUTES = 5;
+const DEFAULT_BOUNDARY_TOLERANCE_MINUTES = 15;
 
 function isSchemaError(error: unknown): boolean {
   const code = (error as { code?: string } | null)?.code;
