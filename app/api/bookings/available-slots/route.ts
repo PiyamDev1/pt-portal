@@ -4,6 +4,7 @@ import { AvailableSlot, AvailableSlotsResponse } from '@/app/types/bookings';
 import { buildDefaultBranchSchedule } from '@/lib/bookingBranchSchedule';
 
 const SCHEMA_HINT = 'Booking schema is out of date. Run scripts/create-bookings-schema.sql in Supabase SQL editor.';
+const CANDIDATE_SLOT_STEP_MINUTES = 5;
 
 function isSchemaError(error: unknown): boolean {
   const code = (error as { code?: string } | null)?.code;
@@ -275,9 +276,9 @@ function generateAvailableSlots(
   const prayerStartMinutes = prayerStartTime ? timeToMinutes(prayerStartTime) : null;
   const prayerEndMinutes = prayerEndTime ? timeToMinutes(prayerEndTime) : null;
 
-  // Duration + buffer defines when the next appointment can start.
+  // Duration + buffer defines how long a booking occupies staff capacity.
   const occupancyMinutes = Math.max(5, durationMinutes + Math.max(0, bufferMinutes));
-  const intervalMinutes = occupancyMinutes;
+  const intervalMinutes = CANDIDATE_SLOT_STEP_MINUTES;
 
   let currentMinutes = openMinutes;
 
@@ -317,8 +318,8 @@ function generateAvailableSlots(
       });
     }
 
-    // Move to the next candidate start time.
-    // Keep the service+buffer rule on availability overlap checks.
+    // Move to the next candidate start time in small increments so valid times
+    // (for example 17:05) are not skipped due to coarse stepping.
     currentMinutes += intervalMinutes;
   }
 
