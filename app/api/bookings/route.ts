@@ -411,12 +411,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { data: overlappingBookings, error: overlapError } = await supabase
+    const startOfDay = new Date(`${dateKey}T00:00:00Z`).toISOString();
+    const endOfDay = new Date(`${dateKey}T23:59:59Z`).toISOString();
+
+    const { data: overlappingCandidates, error: overlapError } = await supabase
       .from('bookings')
-      .select('*')
+      .select(`
+        id,
+        service_id,
+        person_count,
+        start_time,
+        end_time,
+        booking_services:service_id(
+          duration_minutes,
+          buffer_minutes,
+          duration_per_additional_person_minutes,
+          person_count_excludes_family_head
+        )
+      `)
       .eq('location_id', location_id)
-      .lt('start_time', occupied_until)
-      .gt('end_time', start_time)
+      .gte('start_time', startOfDay)
+      .lte('start_time', endOfDay)
       .neq('status', 'cancelled');
 
     if (overlapError) {
@@ -438,10 +453,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (
-      overlappingBookings &&
-      overlappingBookings.length >= branchSettings.concurrent_staff
-    ) {
+    const overlapCount = countBufferedOverlaps(overlappingCandidates || [], start_time, occupied_until);
+    if (overlapCount >= branchSettings.concurrent_staff) {
       return NextResponse.json(
         {
           success: false,
@@ -539,4 +552,35 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+function countBufferedOverlaps(bookings: any[], slotStartISO: string, slotEndISO: string): number {
+  const slotStart = new Date(slotStartISO).getTime();
+  const slotEnd = new Date(slotEndISO).getTime();
+  return bookings.filter((booking) => {
+    const bookingStart = new Date(booking.start_time).getTime();
+    const bookingEnd = getBookingOccupiedUntilMs(booking);
+    return bookingStart < slotEnd && bookingEnd > slotStart;
+  }).length;
+}
+
+function getBookingOccupiedUntilMs(booking: any): number {
+  const service = booking?.booking_services ?? null;
+  if (!service) {
+    return new Date(booking.end_time).getTime();
+  }
+
+  const personCount = Math.max(1, Number(booking.person_count ?? 1) || 1);
+  const personUnits = getServicePersonUnits(service, personCount);
+  const durationMinutes =
+    Number(service.duration_minutes ?? 0) +
+    personUnits * Number(service.duration_per_additional_person_minutes ?? 0);
+  const occupancyMinutes = durationMinutes + Math.max(0, Number(service.buffer_minutes ?? 0));
+
+  const bookingStartMs = new Date(booking.start_time).getTime();
+  if (Number.isNaN(bookingStartMs)) {
+    return new Date(booking.end_time).getTime();
+  }
+
+  return bookingStartMs + occupancyMinutes * 60 * 1000;
 }

@@ -189,7 +189,19 @@ export async function GET(request: NextRequest) {
 
     const { data: existingBookings, error: bookingsError } = await supabase
       .from('bookings')
-      .select('*')
+      .select(`
+        id,
+        service_id,
+        person_count,
+        start_time,
+        end_time,
+        booking_services:service_id(
+          duration_minutes,
+          buffer_minutes,
+          duration_per_additional_person_minutes,
+          person_count_excludes_family_head
+        )
+      `)
       .eq('location_id', location_id)
       .gte('start_time', startOfDay)
       .lte('start_time', endOfDay)
@@ -401,9 +413,30 @@ function countOverlappingBookings(
 
   return bookings.filter((booking) => {
     const bookingStart = new Date(booking.start_time).getTime();
-    const bookingEnd = new Date(booking.end_time).getTime();
+    const bookingEnd = getBookingOccupiedUntilMs(booking);
 
     // Check if there's any overlap
     return bookingStart < slotEnd && bookingEnd > slotStart;
   }).length;
+}
+
+function getBookingOccupiedUntilMs(booking: any): number {
+  const service = booking?.booking_services ?? null;
+  if (!service) {
+    return new Date(booking.end_time).getTime();
+  }
+
+  const personCount = Math.max(1, Number(booking.person_count ?? 1) || 1);
+  const personUnits = getServicePersonUnits(service, personCount);
+  const durationMinutes =
+    Number(service.duration_minutes ?? 0) +
+    personUnits * Number(service.duration_per_additional_person_minutes ?? 0);
+  const occupancyMinutes = durationMinutes + Math.max(0, Number(service.buffer_minutes ?? 0));
+
+  const bookingStartMs = new Date(booking.start_time).getTime();
+  if (Number.isNaN(bookingStartMs)) {
+    return new Date(booking.end_time).getTime();
+  }
+
+  return bookingStartMs + occupancyMinutes * 60 * 1000;
 }
