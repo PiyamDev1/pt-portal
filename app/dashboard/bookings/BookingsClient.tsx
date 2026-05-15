@@ -356,6 +356,11 @@ export default function BookingsClient({
   const fromISO = useMemo(() => rangeStart.toISOString(), [rangeStart])
   const toISO = useMemo(() => rangeEnd.toISOString(), [rangeEnd])
   const selectedDateKey = useMemo(() => selectedDate.toISOString().slice(0, 10), [selectedDate])
+  const todayDateKey = useMemo(() => {
+    const now = new Date()
+    now.setUTCHours(0, 0, 0, 0)
+    return now.toISOString().slice(0, 10)
+  }, [])
 
   const fetchBookings = useCallback(async (background = false) => {
     if (background) {
@@ -514,6 +519,17 @@ export default function BookingsClient({
     person_count?: number
     start_time?: string
   }) => {
+    const requestedDate = options?.date ?? selectedDateKey
+    const safeDate = requestedDate < todayDateKey ? todayDateKey : requestedDate
+    const requestedStartTime = options?.start_time ?? ''
+    let safeStartTime = requestedStartTime
+    if (requestedStartTime) {
+      const requestedStartDate = new Date(requestedStartTime)
+      if (Number.isNaN(requestedStartDate.getTime()) || requestedStartDate.toISOString().slice(0, 10) !== safeDate) {
+        safeStartTime = ''
+      }
+    }
+
     setEditingBooking(null)
     setSlotsError(null)
     setAvailableSlots([])
@@ -524,12 +540,12 @@ export default function BookingsClient({
       phone_country_code: '+44',
       phone_local: '',
       service_id: options?.service_id ?? serviceOptions[0]?.id ?? '',
-      date: options?.date ?? selectedDateKey,
-      start_time: options?.start_time ?? '',
+      date: safeDate,
+      start_time: safeStartTime,
       person_count: options?.person_count ?? 1,
     })
     setShowAppointmentModal(true)
-  }, [selectedDateKey, serviceOptions])
+  }, [selectedDateKey, serviceOptions, todayDateKey])
 
   const openDayAgenda = useCallback((day: Date) => {
     setSelectedDate(day)
@@ -689,6 +705,11 @@ export default function BookingsClient({
 
   const saveAppointment = async () => {
     if (!selectedLocationId) return
+
+    if (!editingBooking && appointmentForm.date && appointmentForm.date < todayDateKey) {
+      toast.error('Cannot create appointments for past dates')
+      return
+    }
 
     if (!appointmentForm.customer_name || !appointmentForm.customer_email || !appointmentForm.phone_local || !appointmentForm.service_id || !appointmentForm.start_time) {
       toast.error('Fill in all appointment fields')
@@ -1264,7 +1285,7 @@ export default function BookingsClient({
 
               <label className="text-sm text-slate-700">
                 Date
-                <input type="date" value={appointmentForm.date} onChange={(e) => setAppointmentForm((p) => ({ ...p, date: e.target.value, start_time: '' }))} className="mt-1 w-full border border-slate-300 rounded px-3 py-2" />
+                <input type="date" min={editingBooking ? undefined : todayDateKey} value={appointmentForm.date} onChange={(e) => setAppointmentForm((p) => ({ ...p, date: e.target.value, start_time: '' }))} className="mt-1 w-full border border-slate-300 rounded px-3 py-2" />
               </label>
             </div>
 

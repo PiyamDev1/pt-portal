@@ -172,6 +172,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const bookingDateKey = startTimeDate.toISOString().slice(0, 10);
+    const todayUtc = new Date();
+    todayUtc.setUTCHours(0, 0, 0, 0);
+    const todayDateKey = todayUtc.toISOString().slice(0, 10);
+    if (bookingDateKey < todayDateKey) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Cannot create appointments for past dates',
+        } as CreateBookingResponse,
+        { status: 400 }
+      );
+    }
+
     const supabase = await getRouteSupabaseClient();
 
     const { data: service, error: serviceError } = await supabase
