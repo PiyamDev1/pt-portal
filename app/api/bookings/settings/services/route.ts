@@ -10,10 +10,15 @@ function isSchemaError(error: unknown): boolean {
   return code === '42P01' || code === '42703' || code === '42P10' || code === 'PGRST204';
 }
 
-function isMissingAdditionalPersonColumn(error: unknown): boolean {
+function isMissingServiceTimingColumns(error: unknown): boolean {
   const payload = error as { message?: string; details?: string; hint?: string } | null;
   const haystack = `${payload?.message ?? ''} ${payload?.details ?? ''} ${payload?.hint ?? ''}`.toLowerCase();
-  return haystack.includes('duration_per_additional_person_minutes') && haystack.includes('schema cache');
+  if (!haystack.includes('schema cache')) return false;
+  return (
+    haystack.includes('duration_per_additional_person_minutes') ||
+    haystack.includes('person_count_excludes_family_head') ||
+    haystack.includes('close_overrun_tolerance_minutes')
+  );
 }
 
 type TemplateValidationError = { field: string; invalidTokens: string[] };
@@ -101,6 +106,8 @@ export async function POST(request: NextRequest) {
       modification_template,
       cancellation_template,
       duration_per_additional_person_minutes,
+      person_count_excludes_family_head,
+      close_overrun_tolerance_minutes,
     } = body as {
       location_id: string;
       name: string;
@@ -113,6 +120,8 @@ export async function POST(request: NextRequest) {
       modification_template?: string | null;
       cancellation_template?: string | null;
       duration_per_additional_person_minutes?: number;
+      person_count_excludes_family_head?: boolean;
+      close_overrun_tolerance_minutes?: number;
     };
 
     if (!location_id || !name || !duration_minutes) {
@@ -160,6 +169,8 @@ export async function POST(request: NextRequest) {
       modification_template: modification_template ?? null,
       cancellation_template: cancellation_template ?? null,
       duration_per_additional_person_minutes: duration_per_additional_person_minutes ?? 0,
+      person_count_excludes_family_head: person_count_excludes_family_head ?? true,
+      close_overrun_tolerance_minutes: Math.max(0, close_overrun_tolerance_minutes ?? 15),
       duration_minutes,
       buffer_minutes: buffer_minutes ?? 15,
       available_days: available_days ?? null,
@@ -174,9 +185,11 @@ export async function POST(request: NextRequest) {
       .single();
 
     // Backward compatibility while DB migration is pending.
-    if (error && isMissingAdditionalPersonColumn(error)) {
+    if (error && isMissingServiceTimingColumns(error)) {
       const fallbackPayload = { ...insertPayload } as Record<string, unknown>;
       delete fallbackPayload.duration_per_additional_person_minutes;
+      delete fallbackPayload.person_count_excludes_family_head;
+      delete fallbackPayload.close_overrun_tolerance_minutes;
 
       const retry = await supabase
         .from('booking_services')

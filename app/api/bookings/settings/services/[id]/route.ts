@@ -10,10 +10,15 @@ function isSchemaError(error: unknown): boolean {
   return code === '42P01' || code === '42703' || code === '42P10' || code === 'PGRST204';
 }
 
-function isMissingAdditionalPersonColumn(error: unknown): boolean {
+function isMissingServiceTimingColumns(error: unknown): boolean {
   const payload = error as { message?: string; details?: string; hint?: string } | null;
   const haystack = `${payload?.message ?? ''} ${payload?.details ?? ''} ${payload?.hint ?? ''}`.toLowerCase();
-  return haystack.includes('duration_per_additional_person_minutes') && haystack.includes('schema cache');
+  if (!haystack.includes('schema cache')) return false;
+  return (
+    haystack.includes('duration_per_additional_person_minutes') ||
+    haystack.includes('person_count_excludes_family_head') ||
+    haystack.includes('close_overrun_tolerance_minutes')
+  );
 }
 
 type TemplateValidationError = { field: string; invalidTokens: string[] };
@@ -76,6 +81,8 @@ export async function PATCH(
       modification_template,
       cancellation_template,
       duration_per_additional_person_minutes,
+      person_count_excludes_family_head,
+      close_overrun_tolerance_minutes,
     } = body as {
       name?: string;
       duration_minutes?: number;
@@ -88,6 +95,8 @@ export async function PATCH(
       modification_template?: string | null;
       cancellation_template?: string | null;
       duration_per_additional_person_minutes?: number;
+      person_count_excludes_family_head?: boolean;
+      close_overrun_tolerance_minutes?: number;
     };
 
     if (duration_minutes !== undefined && duration_minutes < 5) {
@@ -133,6 +142,8 @@ export async function PATCH(
     if (modification_template !== undefined) updates.modification_template = modification_template;
     if (cancellation_template !== undefined) updates.cancellation_template = cancellation_template;
     if (duration_per_additional_person_minutes !== undefined) updates.duration_per_additional_person_minutes = Math.max(0, duration_per_additional_person_minutes);
+    if (person_count_excludes_family_head !== undefined) updates.person_count_excludes_family_head = person_count_excludes_family_head;
+    if (close_overrun_tolerance_minutes !== undefined) updates.close_overrun_tolerance_minutes = Math.max(0, close_overrun_tolerance_minutes);
 
     let { data, error } = await supabase
       .from('booking_services')
@@ -142,9 +153,11 @@ export async function PATCH(
       .single();
 
     // Backward compatibility while DB migration is pending.
-    if (error && isMissingAdditionalPersonColumn(error)) {
+    if (error && isMissingServiceTimingColumns(error)) {
       const fallbackUpdates = { ...updates };
       delete fallbackUpdates.duration_per_additional_person_minutes;
+      delete fallbackUpdates.person_count_excludes_family_head;
+      delete fallbackUpdates.close_overrun_tolerance_minutes;
       const retry = await supabase
         .from('booking_services')
         .update(fallbackUpdates)

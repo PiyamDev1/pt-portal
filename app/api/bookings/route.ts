@@ -26,11 +26,18 @@ function buildBranchAddress(location: {
 export const runtime = 'nodejs';
 
 const SCHEMA_HINT = 'Booking schema is out of date. Run scripts/create-bookings-schema.sql in Supabase SQL editor.';
-const BOUNDARY_TOLERANCE_MINUTES = 15;
+const DEFAULT_BOUNDARY_TOLERANCE_MINUTES = 5;
 
 function isSchemaError(error: unknown): boolean {
   const code = (error as { code?: string } | null)?.code;
   return code === '42P01' || code === '42703' || code === '42P10';
+}
+
+function getServicePersonUnits(service: { person_count_excludes_family_head?: boolean }, personCount: number): number {
+  if (service.person_count_excludes_family_head === false) {
+    return Math.max(0, personCount - 1);
+  }
+  return Math.max(0, personCount);
 }
 
 function timeToMinutes(time: string): number {
@@ -220,8 +227,9 @@ export async function POST(request: NextRequest) {
 
     const serviceDurationMinutes =
       service.duration_minutes +
-      Math.max(0, personCount) * (service.duration_per_additional_person_minutes ?? 0);
+      getServicePersonUnits(service, personCount) * (service.duration_per_additional_person_minutes ?? 0);
     const occupancyMinutes = serviceDurationMinutes + Math.max(0, service.buffer_minutes ?? 0);
+    const boundaryToleranceMinutes = Math.max(0, service.close_overrun_tolerance_minutes ?? DEFAULT_BOUNDARY_TOLERANCE_MINUTES);
 
     const endTimeDate = new Date(startTimeDate.getTime() + serviceDurationMinutes * 60 * 1000);
     const occupiedUntilDate = new Date(startTimeDate.getTime() + occupancyMinutes * 60 * 1000);
@@ -322,7 +330,7 @@ export async function POST(request: NextRequest) {
 
     if (
       bookingStartMinutes < serviceStartMinutes ||
-      bookingOccupiedUntilMinutes > serviceEndMinutes + BOUNDARY_TOLERANCE_MINUTES
+      bookingOccupiedUntilMinutes > serviceEndMinutes + boundaryToleranceMinutes
     ) {
       return NextResponse.json(
         {
@@ -339,7 +347,7 @@ export async function POST(request: NextRequest) {
         bookingOccupiedUntilMinutes,
         lunchStart,
         lunchEnd,
-        BOUNDARY_TOLERANCE_MINUTES
+        boundaryToleranceMinutes
       )
     ) {
       return NextResponse.json(
@@ -357,7 +365,7 @@ export async function POST(request: NextRequest) {
         bookingOccupiedUntilMinutes,
         prayerStart,
         prayerEnd,
-        BOUNDARY_TOLERANCE_MINUTES
+        boundaryToleranceMinutes
       )
     ) {
       return NextResponse.json(

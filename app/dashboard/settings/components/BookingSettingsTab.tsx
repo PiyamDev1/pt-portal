@@ -80,6 +80,8 @@ function buildNewServiceDraft() {
     service_start_time: '',
     service_end_time: '',
     duration_per_additional_person_minutes: 0,
+    person_count_excludes_family_head: true,
+    close_overrun_tolerance_minutes: 15,
   }
 }
 
@@ -147,6 +149,8 @@ export interface BookingServiceRow {
   modification_template: string | null
   cancellation_template: string | null
   duration_per_additional_person_minutes: number
+  person_count_excludes_family_head: boolean
+  close_overrun_tolerance_minutes: number
   is_active: boolean
 }
 
@@ -255,6 +259,14 @@ function buildDefaultWeek(locationId: string): BranchSettingRow[] {
   }))
 }
 
+function normalizeServiceRow(service: BookingServiceRow): BookingServiceRow {
+  return {
+    ...service,
+    person_count_excludes_family_head: service.person_count_excludes_family_head !== false,
+    close_overrun_tolerance_minutes: Math.max(0, service.close_overrun_tolerance_minutes ?? 15),
+  }
+}
+
 export default function BookingSettingsTab({
   branchLocations,
   selectedLocationId,
@@ -328,7 +340,7 @@ export default function BookingSettingsTab({
       const rows = (weeklyJson.settings || []) as BranchSettingRow[]
       setWeeklySettings(rows.length > 0 ? rows : buildDefaultWeek(locationId))
       setOverrides((overridesJson.overrides || []) as BranchScheduleOverride[])
-      setServices((servicesJson.services || []) as BookingServiceRow[])
+      setServices(((servicesJson.services || []) as BookingServiceRow[]).map(normalizeServiceRow))
     } catch (error) {
       toast.error('Failed to load booking settings', {
         description: error instanceof Error ? error.message : 'Unknown error',
@@ -530,11 +542,13 @@ export default function BookingSettingsTab({
           modification_template: newService.modification_template || null,
           cancellation_template: newService.cancellation_template || null,
           duration_per_additional_person_minutes: newService.duration_per_additional_person_minutes,
+          person_count_excludes_family_head: newService.person_count_excludes_family_head,
+          close_overrun_tolerance_minutes: newService.close_overrun_tolerance_minutes,
         }),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(buildTemplateErrorMessage(json))
-      setServices((prev) => [...prev, json.service])
+      setServices((prev) => [...prev, normalizeServiceRow(json.service as BookingServiceRow)])
       setNewService(buildNewServiceDraft())
       setShowAddService(false)
       toast.success('Service added')
@@ -566,11 +580,13 @@ export default function BookingSettingsTab({
           modification_template: editingService.modification_template,
           cancellation_template: editingService.cancellation_template,
           duration_per_additional_person_minutes: editingService.duration_per_additional_person_minutes,
+          person_count_excludes_family_head: editingService.person_count_excludes_family_head,
+          close_overrun_tolerance_minutes: editingService.close_overrun_tolerance_minutes,
         }),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(buildTemplateErrorMessage(json))
-      setServices((prev) => prev.map((s) => (s.id === editingService.id ? json.service : s)))
+      setServices((prev) => prev.map((s) => (s.id === editingService.id ? normalizeServiceRow(json.service as BookingServiceRow) : s)))
       setEditingService(null)
       toast.success('Service updated')
     } catch (error) {
@@ -592,7 +608,7 @@ export default function BookingSettingsTab({
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error)
-      setServices((prev) => prev.map((s) => (s.id === service.id ? json.service : s)))
+      setServices((prev) => prev.map((s) => (s.id === service.id ? normalizeServiceRow(json.service as BookingServiceRow) : s)))
     } catch (error) {
       toast.error('Failed to update service', {
         description: error instanceof Error ? error.message : 'Unknown error',
@@ -756,6 +772,20 @@ export default function BookingSettingsTab({
                 <input type="number" min={0} value={newService.duration_per_additional_person_minutes} onChange={(e) => setNewService((p) => ({ ...p, duration_per_additional_person_minutes: Math.max(0, Number(e.target.value)) }))} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
                 <p className="mt-1 text-[11px] text-slate-400">e.g. 22 mins → 3 people ≈ 2.5 slots</p>
               </LabeledInput>
+              <LabeledInput label="Close-Time Overrun Allowed (minutes)">
+                <input type="number" min={0} value={newService.close_overrun_tolerance_minutes} onChange={(e) => setNewService((p) => ({ ...p, close_overrun_tolerance_minutes: Math.max(0, Number(e.target.value)) }))} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
+                <p className="mt-1 text-[11px] text-slate-400">Allows an appointment to finish this many minutes after service close time.</p>
+              </LabeledInput>
+              <LabeledInput label="Person Count Rule">
+                <label className="inline-flex items-center gap-2 text-sm text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={newService.person_count_excludes_family_head}
+                    onChange={(e) => setNewService((p) => ({ ...p, person_count_excludes_family_head: e.target.checked }))}
+                  />
+                  Person count excludes family head
+                </label>
+              </LabeledInput>
               <div className="md:col-span-3 rounded border border-slate-200 bg-white px-3 py-2">
                 <p className="text-xs font-medium text-slate-500 mb-2">Available days</p>
                 <div className="flex flex-wrap gap-2">
@@ -843,6 +873,20 @@ export default function BookingSettingsTab({
                       <input type="number" min={0} value={editingService.duration_per_additional_person_minutes ?? 0} onChange={(e) => setEditingService((p) => (p ? { ...p, duration_per_additional_person_minutes: Math.max(0, Number(e.target.value)) } : p))} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
                       <p className="mt-1 text-[11px] text-slate-400">e.g. 22 mins → 3 people ≈ 2.5 slots</p>
                     </LabeledInput>
+                    <LabeledInput label="Close-Time Overrun Allowed (minutes)">
+                      <input type="number" min={0} value={editingService.close_overrun_tolerance_minutes ?? 15} onChange={(e) => setEditingService((p) => (p ? { ...p, close_overrun_tolerance_minutes: Math.max(0, Number(e.target.value)) } : p))} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
+                      <p className="mt-1 text-[11px] text-slate-400">Allows an appointment to finish this many minutes after service close time.</p>
+                    </LabeledInput>
+                    <LabeledInput label="Person Count Rule">
+                      <label className="inline-flex items-center gap-2 text-sm text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={editingService.person_count_excludes_family_head}
+                          onChange={(e) => setEditingService((p) => (p ? { ...p, person_count_excludes_family_head: e.target.checked } : p))}
+                        />
+                        Person count excludes family head
+                      </label>
+                    </LabeledInput>
                     <div className="md:col-span-3 rounded border border-slate-200 bg-slate-50 px-3 py-2">
                       <p className="text-xs font-medium text-slate-500 mb-2">Available days</p>
                       <div className="flex flex-wrap gap-2">
@@ -916,14 +960,20 @@ export default function BookingSettingsTab({
                         Time: {service.service_start_time || 'Branch open'} - {service.service_end_time || 'Branch close'}
                       </p>
                       <p className="text-xs text-slate-400 mt-1">
-                        Additional person time: +{service.duration_per_additional_person_minutes ?? 0} min per extra person
+                        Additional person time: +{service.duration_per_additional_person_minutes ?? 0} min per person entered
+                      </p>
+                      <p className="text-xs text-slate-400 mt-1">
+                        Person count rule: {service.person_count_excludes_family_head ? 'Excludes family head' : 'Includes family head'}
+                      </p>
+                      <p className="text-xs text-slate-400 mt-1">
+                        Close-time overrun allowed: {service.close_overrun_tolerance_minutes ?? 15} min
                       </p>
                       <p className="text-xs text-slate-400 mt-1">
                         Templates: {service.confirmation_template ? 'Booked' : '--'} / {service.modification_template ? 'Modified' : '--'} / {service.cancellation_template ? 'Cancelled' : '--'}
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
-                      <button onClick={() => setEditingService(service)} className="px-3 py-1.5 rounded border border-slate-300 text-xs">Edit</button>
+                      <button onClick={() => setEditingService(normalizeServiceRow(service))} className="px-3 py-1.5 rounded border border-slate-300 text-xs">Edit</button>
                       <button onClick={() => toggleService(service)} className={`px-3 py-1.5 rounded text-xs ${service.is_active ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'}`}>{service.is_active ? 'Deactivate' : 'Activate'}</button>
                       <button onClick={() => removeService(service.id)} className="px-3 py-1.5 rounded bg-red-50 text-red-600 text-xs">Delete</button>
                     </div>

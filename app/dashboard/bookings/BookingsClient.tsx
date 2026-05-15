@@ -30,6 +30,8 @@ interface BookingServiceOption {
   duration_minutes: number
   buffer_minutes: number
   duration_per_additional_person_minutes: number
+  person_count_excludes_family_head?: boolean
+  close_overrun_tolerance_minutes?: number
 }
 
 interface SlotOption {
@@ -253,6 +255,21 @@ function statusDotClass(status: BookingStatus): string {
     default:
       return 'bg-slate-300'
   }
+}
+
+function getServicePersonUnits(service: BookingServiceOption | undefined, personCount: number): number {
+  if (!service) return Math.max(0, personCount)
+  if (service.person_count_excludes_family_head === false) {
+    return Math.max(0, personCount - 1)
+  }
+  return Math.max(0, personCount)
+}
+
+function personCountLabel(service: BookingServiceOption | undefined): string {
+  if (!service) return 'Number of persons'
+  return service.person_count_excludes_family_head === false
+    ? 'Number of persons (including family head)'
+    : 'Number of applicants (excluding family head)'
 }
 
 interface BookingsClientProps {
@@ -1254,7 +1271,7 @@ export default function BookingsClient({
             {(() => {
               const selectedService = serviceOptions.find((s) => s.id === appointmentForm.service_id)
               const effectiveDuration = selectedService
-                ? selectedService.duration_minutes + Math.max(0, appointmentForm.person_count) * selectedService.duration_per_additional_person_minutes
+                ? selectedService.duration_minutes + getServicePersonUnits(selectedService, appointmentForm.person_count) * selectedService.duration_per_additional_person_minutes
                 : null
               const nextStartGap = selectedService
                 ? effectiveDuration! + Math.max(0, selectedService.buffer_minutes)
@@ -1263,7 +1280,7 @@ export default function BookingsClient({
               return (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <label className="text-sm text-slate-700">
-                    Number of applicants (excluding family head)
+                    {personCountLabel(selectedService)}
                     <input
                       type="number"
                       min={1}
@@ -1445,7 +1462,7 @@ function SelectedDayPanel({
                   </select>
                 </label>
                 <label className="text-sm text-slate-700">
-                  Number of applicants (excluding family head)
+                  {personCountLabel(serviceOptions.find((service) => service.id === quickServiceId))}
                   <input type="number" min={1} value={quickPersonCount} onChange={(e) => onQuickPersonCountChange(Number(e.target.value) || 1)} className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2" />
                 </label>
               </div>
@@ -1529,7 +1546,7 @@ function DayAgendaModal({
 }) {
   const selectedService = serviceOptions.find((service) => service.id === serviceId)
   const effectiveDuration = selectedService
-    ? selectedService.duration_minutes + Math.max(0, personCount) * selectedService.duration_per_additional_person_minutes
+    ? selectedService.duration_minutes + getServicePersonUnits(selectedService, personCount) * selectedService.duration_per_additional_person_minutes
     : null
   const nextStartGap = selectedService
     ? effectiveDuration! + Math.max(0, selectedService.buffer_minutes)
@@ -1704,7 +1721,7 @@ function DayAgendaModal({
               </label>
 
               <label className="text-sm text-slate-700">
-                Number of applicants (excluding family head)
+                {personCountLabel(selectedService)}
                 <input type="number" min={1} value={personCount} onChange={(e) => onPersonCountChange(Number(e.target.value) || 1)} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2" />
               </label>
             </div>

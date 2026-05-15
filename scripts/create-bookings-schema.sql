@@ -89,6 +89,8 @@ CREATE TABLE IF NOT EXISTS booking_services (
   modification_template               TEXT,
   cancellation_template               TEXT,
   duration_per_additional_person_minutes INTEGER NOT NULL DEFAULT 0,
+  person_count_excludes_family_head   BOOLEAN NOT NULL DEFAULT true,
+  close_overrun_tolerance_minutes     INTEGER NOT NULL DEFAULT 15,
   is_active                           BOOLEAN NOT NULL DEFAULT true,
   created_at                          TIMESTAMPTZ DEFAULT NOW()
 );
@@ -101,7 +103,9 @@ ALTER TABLE booking_services
   ADD COLUMN IF NOT EXISTS cancellation_template TEXT,
   ADD COLUMN IF NOT EXISTS service_start_time TIME,
   ADD COLUMN IF NOT EXISTS service_end_time TIME,
-  ADD COLUMN IF NOT EXISTS duration_per_additional_person_minutes INTEGER NOT NULL DEFAULT 0;
+  ADD COLUMN IF NOT EXISTS duration_per_additional_person_minutes INTEGER NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS person_count_excludes_family_head BOOLEAN NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS close_overrun_tolerance_minutes INTEGER NOT NULL DEFAULT 15;
 
 -- Unique index per branch name (skip if already exists)
 CREATE UNIQUE INDEX IF NOT EXISTS uq_booking_services_branch_name

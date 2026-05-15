@@ -62,8 +62,12 @@ export interface BookingService {
   confirmation_template: string | null;
   modification_template: string | null;
   cancellation_template: string | null;
-  /** Extra minutes added per person beyond the first (0 = same as 1-person) */
+  /** Extra minutes added per counted person unit based on service person-count rule. */
   duration_per_additional_person_minutes: number;
+  /** If true, person_count excludes family head/applicant lead. */
+  person_count_excludes_family_head: boolean;
+  /** Minutes allowed past service end/branch close for appointment completion. */
+  close_overrun_tolerance_minutes: number;
   is_active: boolean;
 }
 

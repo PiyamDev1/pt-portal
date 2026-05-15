@@ -4,11 +4,18 @@ import { AvailableSlot, AvailableSlotsResponse } from '@/app/types/bookings';
 import { buildDefaultBranchSchedule } from '@/lib/bookingBranchSchedule';
 
 const SCHEMA_HINT = 'Booking schema is out of date. Run scripts/create-bookings-schema.sql in Supabase SQL editor.';
-const BOUNDARY_TOLERANCE_MINUTES = 15;
+const DEFAULT_BOUNDARY_TOLERANCE_MINUTES = 5;
 
 function isSchemaError(error: unknown): boolean {
   const code = (error as { code?: string } | null)?.code;
   return code === '42P01' || code === '42703' || code === '42P10';
+}
+
+function getServicePersonUnits(service: { person_count_excludes_family_head?: boolean }, personCount: number): number {
+  if (service.person_count_excludes_family_head === false) {
+    return Math.max(0, personCount - 1);
+  }
+  return Math.max(0, personCount);
 }
 
 /**
@@ -188,7 +195,7 @@ export async function GET(request: NextRequest) {
     // Compute effective duration for the requested group size.
     const groupDuration =
       service.duration_minutes +
-      Math.max(0, personCount) * (service.duration_per_additional_person_minutes ?? 0);
+      getServicePersonUnits(service, personCount) * (service.duration_per_additional_person_minutes ?? 0);
 
     const slots = generateAvailableSlots(
       date,
@@ -201,6 +208,7 @@ export async function GET(request: NextRequest) {
       groupDuration,
       service.buffer_minutes,
       concurrentStaff,
+      Math.max(0, service.close_overrun_tolerance_minutes ?? DEFAULT_BOUNDARY_TOLERANCE_MINUTES),
       existingBookings || []
     );
 
@@ -233,6 +241,7 @@ function generateAvailableSlots(
   durationMinutes: number,
   bufferMinutes: number,
   concurrentStaff: number,
+  boundaryToleranceMinutes: number,
   existingBookings: any[]
 ): AvailableSlot[] {
   const slots: AvailableSlot[] = [];
@@ -255,20 +264,20 @@ function generateAvailableSlots(
 
   let currentMinutes = openMinutes;
 
-  while (currentMinutes + durationMinutes <= closeMinutes + BOUNDARY_TOLERANCE_MINUTES) {
+  while (currentMinutes + durationMinutes <= closeMinutes + boundaryToleranceMinutes) {
     const occupiedUntilMinutes = currentMinutes + occupancyMinutes;
 
-    // Allow slight overrun (<= 15 min) past breaks and service end; larger overruns are blocked.
-    if (occupiedUntilMinutes > closeMinutes + BOUNDARY_TOLERANCE_MINUTES) {
+    // Allow slight overrun past breaks and service end; larger overruns are blocked.
+    if (occupiedUntilMinutes > closeMinutes + boundaryToleranceMinutes) {
       break;
     }
 
-    if (overlapsBreakBeyondTolerance(currentMinutes, occupiedUntilMinutes, lunchStartMinutes, lunchEndMinutes)) {
+    if (overlapsBreakBeyondTolerance(currentMinutes, occupiedUntilMinutes, lunchStartMinutes, lunchEndMinutes, boundaryToleranceMinutes)) {
       currentMinutes += intervalMinutes;
       continue;
     }
 
-    if (overlapsBreakBeyondTolerance(currentMinutes, occupiedUntilMinutes, prayerStartMinutes, prayerEndMinutes)) {
+    if (overlapsBreakBeyondTolerance(currentMinutes, occupiedUntilMinutes, prayerStartMinutes, prayerEndMinutes, boundaryToleranceMinutes)) {
       currentMinutes += intervalMinutes;
       continue;
     }
@@ -303,7 +312,8 @@ function overlapsBreakBeyondTolerance(
   startMinutes: number,
   occupiedUntilMinutes: number,
   breakStartMinutes: number | null,
-  breakEndMinutes: number | null
+  breakEndMinutes: number | null,
+  toleranceMinutes: number
 ): boolean {
   if (breakStartMinutes === null || breakEndMinutes === null) {
     return false;
@@ -321,7 +331,7 @@ function overlapsBreakBeyondTolerance(
 
   // Crossing into a break is allowed only up to the tolerance.
   const overrunMinutes = occupiedUntilMinutes - breakStartMinutes;
-  return overrunMinutes > BOUNDARY_TOLERANCE_MINUTES;
+  return overrunMinutes > toleranceMinutes;
 }
 
 /**
