@@ -39,10 +39,7 @@ function getServicePersonUnits(service: { person_count_excludes_family_head?: bo
   return Math.max(0, personCount);
 }
 
-function hasServiceRuleFields(service: unknown): service is {
-  person_count_excludes_family_head: boolean;
-  close_overrun_tolerance_minutes: number;
-} {
+function hasServiceRuleFields(service: unknown): boolean {
   const candidate = service as {
     person_count_excludes_family_head?: unknown;
     close_overrun_tolerance_minutes?: unknown;
