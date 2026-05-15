@@ -220,6 +220,26 @@ function formatTime(iso: string): string {
   return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`
 }
 
+function getUtcMinutesOfDay(iso: string): number | null {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return null
+  return d.getUTCHours() * 60 + d.getUTCMinutes()
+}
+
+function formatTimeFromMinutes(totalMinutes: number): string {
+  const normalized = ((totalMinutes % 1440) + 1440) % 1440
+  const hours = Math.floor(normalized / 60)
+  const minutes = normalized % 60
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
+}
+
+function formatMinutesLabel(totalMinutes: number): string {
+  if (totalMinutes < 60) return `${totalMinutes}m`
+  const hours = Math.floor(totalMinutes / 60)
+  const minutes = totalMinutes % 60
+  return minutes === 0 ? `${hours}h` : `${hours}h ${minutes}m`
+}
+
 function statusDotClass(status: BookingStatus): string {
   switch (status) {
     case BookingStatus.CONFIRMED:
@@ -1508,6 +1528,72 @@ function DayAgendaModal({
     ? effectiveDuration! + Math.max(0, selectedService.buffer_minutes)
     : null
 
+  const timeline = useMemo(() => {
+    const ordered = bookings
+      .slice()
+      .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())
+
+    const items: Array<
+      | { type: 'gap'; key: string; minutes: number }
+      | { type: 'overlap'; key: string; minutes: number }
+      | {
+          type: 'booking'
+          key: string
+          booking: BookingWithService
+          startMinutes: number
+          endMinutes: number
+        }
+    > = []
+
+    let previousEnd: number | null = null
+    let totalGapMinutes = 0
+    let overlapCount = 0
+
+    for (const booking of ordered) {
+      const startMinutes = getUtcMinutesOfDay(booking.start_time)
+      if (startMinutes === null) continue
+
+      const parsedEnd = getUtcMinutesOfDay(booking.end_time)
+      const fallbackEnd = startMinutes + Math.max(1, booking.booking_services?.duration_minutes ?? 30)
+      const endMinutes = parsedEnd !== null && parsedEnd > startMinutes ? parsedEnd : fallbackEnd
+
+      if (previousEnd !== null) {
+        const delta = startMinutes - previousEnd
+        if (delta > 0) {
+          totalGapMinutes += delta
+          items.push({
+            type: 'gap',
+            key: `gap-${booking.id}`,
+            minutes: delta,
+          })
+        } else if (delta < 0) {
+          overlapCount += 1
+          items.push({
+            type: 'overlap',
+            key: `overlap-${booking.id}`,
+            minutes: Math.abs(delta),
+          })
+        }
+      }
+
+      items.push({
+        type: 'booking',
+        key: booking.id,
+        booking,
+        startMinutes,
+        endMinutes,
+      })
+
+      previousEnd = previousEnd === null ? endMinutes : Math.max(previousEnd, endMinutes)
+    }
+
+    return {
+      items,
+      totalGapMinutes,
+      overlapCount,
+    }
+  }, [bookings])
+
   return (
     <div className="fixed inset-0 z-40 bg-slate-950/45 flex items-center justify-center p-4">
       <div className="w-full max-w-6xl rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden">
@@ -1536,26 +1622,50 @@ function DayAgendaModal({
               </div>
             ) : (
               <div className="space-y-3">
-                {bookings
-                  .slice()
-                  .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())
-                  .map((booking) => {
-                    const status = STATUS_CONFIG[booking.status] ?? STATUS_CONFIG.pending
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                  <p className="text-xs text-slate-600">
+                    Total idle gaps: <span className="font-semibold text-slate-800">{formatMinutesLabel(timeline.totalGapMinutes)}</span>
+                    {' · '}
+                    Overlaps: <span className={`font-semibold ${timeline.overlapCount > 0 ? 'text-red-700' : 'text-emerald-700'}`}>{timeline.overlapCount}</span>
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  {timeline.items.map((item) => {
+                    if (item.type === 'gap') {
+                      return (
+                        <div key={item.key} className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+                          Gap: {formatMinutesLabel(item.minutes)}
+                        </div>
+                      )
+                    }
+
+                    if (item.type === 'overlap') {
+                      return (
+                        <div key={item.key} className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                          Overlap detected: {formatMinutesLabel(item.minutes)}
+                        </div>
+                      )
+                    }
+
+                    const status = STATUS_CONFIG[item.booking.status] ?? STATUS_CONFIG.pending
                     return (
                       <button
-                        key={booking.id}
+                        key={item.key}
                         type="button"
-                        onClick={() => onSelectBooking(booking)}
+                        onClick={() => onSelectBooking(item.booking)}
                         className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-left hover:border-indigo-300 hover:bg-indigo-50/40"
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div>
-                            <p className="text-base font-semibold text-slate-800">{formatTime(booking.start_time)} · {booking.customer_name}</p>
-                            <p className="mt-1 text-sm text-slate-500">
-                              {booking.booking_services?.name || 'Service'}
-                              {booking.person_count && booking.person_count > 1 ? ` · ${booking.person_count} people` : ''}
+                            <p className="text-base font-semibold text-slate-800">
+                              {formatTimeFromMinutes(item.startMinutes)}-{formatTimeFromMinutes(item.endMinutes)} · {item.booking.customer_name}
                             </p>
-                            <p className="mt-1 text-xs text-slate-400">{booking.customer_phone}</p>
+                            <p className="mt-1 text-sm text-slate-500">
+                              {item.booking.booking_services?.name || 'Service'}
+                              {item.booking.person_count && item.booking.person_count > 1 ? ` · ${item.booking.person_count} people` : ''}
+                            </p>
+                            <p className="mt-1 text-xs text-slate-400">{item.booking.customer_phone}</p>
                           </div>
                           <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${status.bg} ${status.text}`}>
                             {status.label}
@@ -1564,6 +1674,7 @@ function DayAgendaModal({
                       </button>
                     )
                   })}
+                </div>
               </div>
             )}
           </div>
