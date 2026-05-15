@@ -174,7 +174,7 @@ export async function PATCH(
 
     const serviceDurationMinutes =
       service.duration_minutes +
-      Math.max(0, nextPersonCount - 1) * (service.duration_per_additional_person_minutes ?? 0);
+      Math.max(0, nextPersonCount) * (service.duration_per_additional_person_minutes ?? 0);
     const occupancyMinutes = serviceDurationMinutes + Math.max(0, service.buffer_minutes ?? 0);
 
     const endTimeDate = new Date(startTimeDate.getTime() + serviceDurationMinutes * 60 * 1000);

@@ -1254,7 +1254,7 @@ export default function BookingsClient({
             {(() => {
               const selectedService = serviceOptions.find((s) => s.id === appointmentForm.service_id)
               const effectiveDuration = selectedService
-                ? selectedService.duration_minutes + Math.max(0, appointmentForm.person_count - 1) * selectedService.duration_per_additional_person_minutes
+                ? selectedService.duration_minutes + Math.max(0, appointmentForm.person_count) * selectedService.duration_per_additional_person_minutes
                 : null
               const nextStartGap = selectedService
                 ? effectiveDuration! + Math.max(0, selectedService.buffer_minutes)
@@ -1263,7 +1263,7 @@ export default function BookingsClient({
               return (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <label className="text-sm text-slate-700">
-                    Number of persons
+                    Number of applicants (excluding family head)
                     <input
                       type="number"
                       min={1}
@@ -1445,7 +1445,7 @@ function SelectedDayPanel({
                   </select>
                 </label>
                 <label className="text-sm text-slate-700">
-                  Number of persons
+                  Number of applicants (excluding family head)
                   <input type="number" min={1} value={quickPersonCount} onChange={(e) => onQuickPersonCountChange(Number(e.target.value) || 1)} className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2" />
                 </label>
               </div>
@@ -1529,7 +1529,7 @@ function DayAgendaModal({
 }) {
   const selectedService = serviceOptions.find((service) => service.id === serviceId)
   const effectiveDuration = selectedService
-    ? selectedService.duration_minutes + Math.max(0, personCount - 1) * selectedService.duration_per_additional_person_minutes
+    ? selectedService.duration_minutes + Math.max(0, personCount) * selectedService.duration_per_additional_person_minutes
     : null
   const nextStartGap = selectedService
     ? effectiveDuration! + Math.max(0, selectedService.buffer_minutes)
@@ -1704,7 +1704,7 @@ function DayAgendaModal({
               </label>
 
               <label className="text-sm text-slate-700">
-                Number of persons
+                Number of applicants (excluding family head)
                 <input type="number" min={1} value={personCount} onChange={(e) => onPersonCountChange(Number(e.target.value) || 1)} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2" />
               </label>
             </div>

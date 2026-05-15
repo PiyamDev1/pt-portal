@@ -188,7 +188,7 @@ export async function GET(request: NextRequest) {
     // Compute effective duration for the requested group size.
     const groupDuration =
       service.duration_minutes +
-      Math.max(0, personCount - 1) * (service.duration_per_additional_person_minutes ?? 0);
+      Math.max(0, personCount) * (service.duration_per_additional_person_minutes ?? 0);
 
     const slots = generateAvailableSlots(
       date,

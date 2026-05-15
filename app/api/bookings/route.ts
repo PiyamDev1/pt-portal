@@ -220,7 +220,7 @@ export async function POST(request: NextRequest) {
 
     const serviceDurationMinutes =
       service.duration_minutes +
-      Math.max(0, personCount - 1) * (service.duration_per_additional_person_minutes ?? 0);
+      Math.max(0, personCount) * (service.duration_per_additional_person_minutes ?? 0);
     const occupancyMinutes = serviceDurationMinutes + Math.max(0, service.buffer_minutes ?? 0);
 
     const endTimeDate = new Date(startTimeDate.getTime() + serviceDurationMinutes * 60 * 1000);
