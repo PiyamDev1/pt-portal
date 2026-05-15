@@ -4,7 +4,6 @@ import { AvailableSlot, AvailableSlotsResponse } from '@/app/types/bookings';
 import { buildDefaultBranchSchedule } from '@/lib/bookingBranchSchedule';
 
 const SCHEMA_HINT = 'Booking schema is out of date. Run scripts/create-bookings-schema.sql in Supabase SQL editor.';
-const DEFAULT_BOUNDARY_TOLERANCE_MINUTES = 15;
 
 function isSchemaError(error: unknown): boolean {
   const code = (error as { code?: string } | null)?.code;
@@ -16,6 +15,20 @@ function getServicePersonUnits(service: { person_count_excludes_family_head?: bo
     return Math.max(0, personCount - 1);
   }
   return Math.max(0, personCount);
+}
+
+function hasServiceRuleFields(service: unknown): service is {
+  person_count_excludes_family_head: boolean;
+  close_overrun_tolerance_minutes: number;
+} {
+  const candidate = service as {
+    person_count_excludes_family_head?: unknown;
+    close_overrun_tolerance_minutes?: unknown;
+  } | null;
+  return (
+    typeof candidate?.person_count_excludes_family_head === 'boolean' &&
+    typeof candidate?.close_overrun_tolerance_minutes === 'number'
+  );
 }
 
 /**
@@ -145,6 +158,10 @@ export async function GET(request: NextRequest) {
       } as AvailableSlotsResponse);
     }
 
+    if (!hasServiceRuleFields(service)) {
+      return NextResponse.json({ error: SCHEMA_HINT }, { status: 503 });
+    }
+
     if (
       Array.isArray(service.available_days) &&
       service.available_days.length > 0 &&
@@ -208,7 +225,7 @@ export async function GET(request: NextRequest) {
       groupDuration,
       service.buffer_minutes,
       concurrentStaff,
-      Math.max(0, service.close_overrun_tolerance_minutes ?? DEFAULT_BOUNDARY_TOLERANCE_MINUTES),
+      Math.max(0, service.close_overrun_tolerance_minutes),
       existingBookings || []
     );
 

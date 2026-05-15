@@ -26,7 +26,6 @@ function buildBranchAddress(location: {
 export const runtime = 'nodejs';
 
 const SCHEMA_HINT = 'Booking schema is out of date. Run scripts/create-bookings-schema.sql in Supabase SQL editor.';
-const DEFAULT_BOUNDARY_TOLERANCE_MINUTES = 15;
 
 function isSchemaError(error: unknown): boolean {
   const code = (error as { code?: string } | null)?.code;
@@ -38,6 +37,20 @@ function getServicePersonUnits(service: { person_count_excludes_family_head?: bo
     return Math.max(0, personCount - 1);
   }
   return Math.max(0, personCount);
+}
+
+function hasServiceRuleFields(service: unknown): service is {
+  person_count_excludes_family_head: boolean;
+  close_overrun_tolerance_minutes: number;
+} {
+  const candidate = service as {
+    person_count_excludes_family_head?: unknown;
+    close_overrun_tolerance_minutes?: unknown;
+  } | null;
+  return (
+    typeof candidate?.person_count_excludes_family_head === 'boolean' &&
+    typeof candidate?.close_overrun_tolerance_minutes === 'number'
+  );
 }
 
 function timeToMinutes(time: string): number {
@@ -224,6 +237,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (!hasServiceRuleFields(service)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: SCHEMA_HINT,
+        } as CreateBookingResponse,
+        { status: 503 }
+      );
+    }
+
     const bookingDayOfWeek = new Date(start_time).getUTCDay();
     if (
       Array.isArray(service.available_days) &&
@@ -243,7 +266,7 @@ export async function POST(request: NextRequest) {
       service.duration_minutes +
       getServicePersonUnits(service, personCount) * (service.duration_per_additional_person_minutes ?? 0);
     const occupancyMinutes = serviceDurationMinutes + Math.max(0, service.buffer_minutes ?? 0);
-    const boundaryToleranceMinutes = Math.max(0, service.close_overrun_tolerance_minutes ?? DEFAULT_BOUNDARY_TOLERANCE_MINUTES);
+    const boundaryToleranceMinutes = Math.max(0, service.close_overrun_tolerance_minutes);
 
     const endTimeDate = new Date(startTimeDate.getTime() + serviceDurationMinutes * 60 * 1000);
     const occupiedUntilDate = new Date(startTimeDate.getTime() + occupancyMinutes * 60 * 1000);
