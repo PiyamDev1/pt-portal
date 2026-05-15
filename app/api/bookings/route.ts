@@ -565,22 +565,16 @@ function countBufferedOverlaps(bookings: any[], slotStartISO: string, slotEndISO
 }
 
 function getBookingOccupiedUntilMs(booking: any): number {
+  const bookingEndMs = new Date(booking.end_time).getTime();
+  if (Number.isNaN(bookingEndMs)) {
+    return new Date(booking.start_time).getTime();
+  }
+
   const service = booking?.booking_services ?? null;
   if (!service) {
-    return new Date(booking.end_time).getTime();
+    return bookingEndMs;
   }
 
-  const personCount = Math.max(1, Number(booking.person_count ?? 1) || 1);
-  const personUnits = getServicePersonUnits(service, personCount);
-  const durationMinutes =
-    Number(service.duration_minutes ?? 0) +
-    personUnits * Number(service.duration_per_additional_person_minutes ?? 0);
-  const occupancyMinutes = durationMinutes + Math.max(0, Number(service.buffer_minutes ?? 0));
-
-  const bookingStartMs = new Date(booking.start_time).getTime();
-  if (Number.isNaN(bookingStartMs)) {
-    return new Date(booking.end_time).getTime();
-  }
-
-  return bookingStartMs + occupancyMinutes * 60 * 1000;
+  const bufferMinutes = Math.max(0, Number(service.buffer_minutes ?? 0));
+  return bookingEndMs + bufferMinutes * 60 * 1000;
 }
