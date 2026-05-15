@@ -4,7 +4,7 @@ import { AvailableSlot, AvailableSlotsResponse } from '@/app/types/bookings';
 import { buildDefaultBranchSchedule } from '@/lib/bookingBranchSchedule';
 
 const SCHEMA_HINT = 'Booking schema is out of date. Run scripts/create-bookings-schema.sql in Supabase SQL editor.';
-const BOUNDARY_TOLERANCE_MINUTES = 5;
+const BOUNDARY_TOLERANCE_MINUTES = 15;
 
 function isSchemaError(error: unknown): boolean {
   const code = (error as { code?: string } | null)?.code;
@@ -258,7 +258,7 @@ function generateAvailableSlots(
   while (currentMinutes + durationMinutes <= closeMinutes + BOUNDARY_TOLERANCE_MINUTES) {
     const occupiedUntilMinutes = currentMinutes + occupancyMinutes;
 
-    // Allow slight overrun (<= 5 min) past breaks and service end; larger overruns are blocked.
+    // Allow slight overrun (<= 15 min) past breaks and service end; larger overruns are blocked.
     if (occupiedUntilMinutes > closeMinutes + BOUNDARY_TOLERANCE_MINUTES) {
       break;
     }
