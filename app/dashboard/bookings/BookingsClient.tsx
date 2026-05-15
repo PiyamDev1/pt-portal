@@ -639,6 +639,13 @@ export default function BookingsClient({
 
   useEffect(() => {
     if (!showAppointmentModal || loadingSlots) return
+
+    // In edit mode, keep the original booked time unless the user explicitly picks another slot.
+    // This allows same-slot updates (e.g. person count adjustments) even when recalculated slots differ.
+    if (editingBooking && appointmentForm.start_time === editingBooking.start_time) {
+      return
+    }
+
     if (availableSlots.length === 0) {
       if (editingBooking && appointmentForm.start_time === editingBooking.start_time) {
         return
