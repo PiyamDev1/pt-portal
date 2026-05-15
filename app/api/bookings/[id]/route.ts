@@ -182,7 +182,12 @@ export async function PATCH(
     const nextEndISO = endTimeDate.toISOString();
     const nextOccupiedUntilISO = occupiedUntilDate.toISOString();
 
-    if (nextStatus !== BookingStatus.CANCELLED) {
+    // Only enforce slot/staff checks if the booking is moving to a new slot or service
+    const isSameSlot =
+      existing.start_time === nextStartISO &&
+      existing.service_id === nextServiceId;
+
+    if (nextStatus !== BookingStatus.CANCELLED && !isSameSlot) {
       const bookingDayOfWeek = startTimeDate.getUTCDay();
       if (
         Array.isArray(service.available_days) &&
