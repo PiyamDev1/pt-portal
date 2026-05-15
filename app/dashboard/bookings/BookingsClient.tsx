@@ -1292,6 +1292,9 @@ export default function BookingsClient({
                   </div>
                 )}
               </div>
+              {editingBooking && !loadingSlots && availableSlots.length === 0 && appointmentForm.date && appointmentForm.service_id && appointmentForm.start_time === editingBooking.start_time && (
+                <p className="mt-1 text-xs text-emerald-700">Current booked time retained.</p>
+              )}
               {editingBooking && <p className="mt-1 text-xs text-slate-500">Current booking time is preselected when available. Choose a different slot to modify.</p>}
             </div>
 
