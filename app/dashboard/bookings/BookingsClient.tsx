@@ -620,6 +620,9 @@ export default function BookingsClient({
   useEffect(() => {
     if (!showAppointmentModal || loadingSlots) return
     if (availableSlots.length === 0) {
+      if (editingBooking && appointmentForm.start_time === editingBooking.start_time) {
+        return
+      }
       if (appointmentForm.start_time) {
         setAppointmentForm((prev) => ({ ...prev, start_time: '' }))
       }
@@ -1240,7 +1243,11 @@ export default function BookingsClient({
                       value={appointmentForm.person_count}
                       onChange={(e) => {
                         const value = Math.max(1, Number(e.target.value) || 1)
-                        setAppointmentForm((p) => ({ ...p, person_count: value, start_time: '' }))
+                        setAppointmentForm((p) => ({
+                          ...p,
+                          person_count: value,
+                          start_time: editingBooking ? p.start_time : '',
+                        }))
                       }}
                       className="mt-1 w-full border border-slate-300 rounded px-3 py-2"
                     />
