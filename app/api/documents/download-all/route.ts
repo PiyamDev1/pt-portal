@@ -5,7 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { GetObjectCommand } from '@aws-sdk/client-s3'
-import { Readable, PassThrough } from 'stream'
+import { Readable } from 'stream'
 import * as archiverLib from 'archiver'
 // archiver is a CJS module — module.exports is the factory function itself
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -56,62 +56,70 @@ export async function GET(request: NextRequest) {
       return apiError('No documents found', 404)
     }
 
-    // Create a PassThrough stream to pipe archiver output into the Response
-    const passThrough = new PassThrough()
-
+    // Create a Readable stream that will emit the ZIP data
+    // The archive will write to this stream as it processes files
     const archive = archiverFactory('zip', { zlib: { level: 6 } })
+    
+    const nodeStream = new Readable({
+      read() {}, // noop — data is pushed by archiver
+    })
 
     archive.on('error', (err) => {
       console.error('[download-all] archiver error:', err)
-      passThrough.destroy(err)
+      nodeStream.destroy(err)
     })
 
-    archive.pipe(passThrough)
+    archive.pipe(nodeStream)
 
-    // Kick off async file fetching — do not await here so we can return the stream immediately
-    void (async () => {
-      const s3Client = getS3Client()
-
-      for (const doc of documents) {
-        try {
-          const bucket = doc.minio_bucket || MINIO_BUCKET
-          let result
-
+    // Start populating files immediately (stream-driven)
+    const s3Client = getS3Client()
+    
+    ;(async () => {
+      try {
+        for (const doc of documents) {
           try {
-            result = await s3Client.send(
-              new GetObjectCommand({ Bucket: bucket, Key: doc.minio_key }),
-            )
-          } catch (minioErr) {
-            if (!isR2Configured()) throw minioErr
+            const bucket = doc.minio_bucket || MINIO_BUCKET
+            let result
 
-            const r2Client = getR2Client()
-            result = await r2Client.send(
-              new GetObjectCommand({ Bucket: R2_BUCKET, Key: doc.minio_key }),
-            )
-          }
+            try {
+              result = await s3Client.send(
+                new GetObjectCommand({ Bucket: bucket, Key: doc.minio_key }),
+              )
+            } catch (minioErr) {
+              if (!isR2Configured()) throw minioErr
 
-          if (result.Body) {
-            const nodeStream = Readable.from(result.Body as AsyncIterable<Uint8Array>)
-            // Use category as sub-folder inside the ZIP
-            const folder = doc.category && doc.category !== 'general' ? `${doc.category}/` : ''
-            archive.append(nodeStream, { name: `${folder}${doc.file_name}` })
+              const r2Client = getR2Client()
+              result = await r2Client.send(
+                new GetObjectCommand({ Bucket: R2_BUCKET, Key: doc.minio_key }),
+              )
+            }
+
+            if (result.Body) {
+              const fileStream = Readable.from(result.Body as AsyncIterable<Uint8Array>)
+              const folder = doc.category && doc.category !== 'general' ? `${doc.category}/` : ''
+              archive.append(fileStream, { name: `${folder}${doc.file_name}` })
+            }
+          } catch (fileErr) {
+            console.error(`[download-all] skipping ${doc.file_name}:`, fileErr)
           }
-        } catch (fileErr) {
-          console.error(`[download-all] skipping ${doc.file_name}:`, fileErr)
-          // Continue with remaining files
         }
-      }
 
-      await archive.finalize()
+        await archive.finalize()
+      } catch (err) {
+        console.error('[download-all] error:', err)
+        archive.destroy()
+      }
     })()
 
-    const webStream = Readable.toWeb(passThrough) as ReadableStream<Uint8Array>
+    const webStream = Readable.toWeb(nodeStream) as ReadableStream<Uint8Array>
 
     return new NextResponse(webStream, {
+      status: 200,
       headers: {
         'Content-Type': 'application/zip',
-        'Content-Disposition': `attachment; filename="documents-${familyHeadId}.zip"`,
+        'Content-Disposition': `attachment; filename*=UTF-8''documents-${familyHeadId}.zip`,
         'Cache-Control': 'no-store',
+        'Transfer-Encoding': 'chunked',
       },
     })
   } catch (err) {
