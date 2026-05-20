@@ -81,6 +81,20 @@ export default async function PakPassportPage() {
     )
     .order('created_at', { ascending: false })
 
+  // Fetch document counts for all applications in a single query
+  const appIds = (applications || []).map((a) => a.id)
+  const documentCounts: Record<string, number> = {}
+  if (appIds.length > 0) {
+    const { data: docRows } = await supabase
+      .from('documents')
+      .select('family_head_id')
+      .in('family_head_id', appIds)
+      .eq('deleted', false)
+    for (const row of docRows || []) {
+      documentCounts[row.family_head_id] = (documentCounts[row.family_head_id] || 0) + 1
+    }
+  }
+
   const location = Array.isArray(employee?.locations) ? employee.locations[0] : employee?.locations
   const role = Array.isArray(employee?.roles) ? employee.roles[0] : employee?.roles
 
@@ -106,6 +120,7 @@ export default async function PakPassportPage() {
           <PakPassportClient
             initialApplications={applications || []}
             currentUserId={session.user.id}
+            documentCounts={documentCounts}
           />
         </main>
       </div>

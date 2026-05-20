@@ -44,6 +44,7 @@ type StatusHistoryEntry = {
 type PakPassportClientProps = {
   initialApplications: Application[]
   currentUserId: string
+  documentCounts?: Record<string, number>
 }
 
 const getNoteSignature = (value?: string | null) => String(value || '').trim()
@@ -51,6 +52,7 @@ const getNoteSignature = (value?: string | null) => String(value || '').trim()
 export default function PakPassportClient({
   initialApplications,
   currentUserId,
+  documentCounts = {},
 }: PakPassportClientProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -562,6 +564,7 @@ export default function PakPassportClient({
         onManageDocuments={handleManageDocuments}
         onOpenNotes={handleOpenNotes}
         isNotesUnread={isPassportNotesUnread}
+        documentCounts={documentCounts}
       />
 
       <PassportsPagination

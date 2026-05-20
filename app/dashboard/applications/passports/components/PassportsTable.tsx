@@ -17,6 +17,7 @@ type PassportsTableProps = {
   onManageDocuments: (applicationId: string, trackingNumber?: string) => void
   onOpenNotes: (applicationId: string, trackingNumber?: string) => Promise<void>
   isNotesUnread: (item: Application) => boolean
+  documentCounts?: Record<string, number>
 }
 
 export default function PassportsTable({
@@ -30,6 +31,7 @@ export default function PassportsTable({
   onManageDocuments,
   onOpenNotes,
   isNotesUnread,
+  documentCounts = {},
 }: PassportsTableProps) {
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
@@ -78,6 +80,7 @@ export default function PassportsTable({
                 onManageDocuments={onManageDocuments}
                 onOpenNotes={onOpenNotes}
                 hasUnreadNotes={isNotesUnread(item)}
+                documentCount={documentCounts[item.id] ?? 0}
               />
             ))
           )}

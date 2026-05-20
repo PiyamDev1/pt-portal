@@ -22,6 +22,7 @@ type RowItemProps = {
   onManageDocuments?: (appId: string, trackingNo?: string) => void
   onOpenNotes?: (appId: string, trackingNo?: string) => void
   hasUnreadNotes?: boolean
+  documentCount?: number
 }
 
 export default function RowItem({
@@ -34,6 +35,7 @@ export default function RowItem({
   onManageDocuments,
   onOpenNotes,
   hasUnreadNotes,
+  documentCount = 0,
 }: RowItemProps) {
   const [confirmAction, setConfirmAction] = useState<null | 'return' | 'collect' | 'refund'>(null)
   const pp = getPassportRecord(item)
@@ -322,12 +324,20 @@ export default function RowItem({
 
             <button
               onClick={() => onManageDocuments?.(item.id, item.tracking_number)}
-              className="h-8 w-8 flex items-center justify-center rounded-full bg-sky-50 hover:bg-sky-100 text-sky-600 transition"
+              className="h-8 w-8 flex items-center justify-center rounded-full bg-sky-50 hover:bg-sky-100 text-sky-600 transition relative"
               type="button"
               aria-label="Manage documents"
-              title="Manage documents"
+              title={documentCount > 0 ? `Manage documents (${documentCount} attached)` : 'Manage documents'}
             >
               📄
+              {documentCount > 0 && (
+                <span
+                  className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 flex items-center justify-center rounded-full bg-sky-500 text-white text-[9px] font-bold leading-none px-1 border-2 border-white"
+                  aria-label={`${documentCount} document${documentCount !== 1 ? 's' : ''} attached`}
+                >
+                  {documentCount > 99 ? '99+' : documentCount}
+                </span>
+              )}
             </button>
 
             <button
