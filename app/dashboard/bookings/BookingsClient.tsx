@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { toast } from 'sonner'
 import { BookingStatus, BookingSource } from '@/app/types/bookings'
 import BookingSettingsTab, {
@@ -1329,39 +1329,47 @@ export default function BookingsClient({
               )
             })()}
 
-            <div className="text-sm text-slate-700">
-              <span className="block mb-1 font-medium">Available start times</span>
-              <div className="mt-1 min-h-[112px] max-h-[168px] overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-3">
-                {loadingSlots ? (
-                  <p className="text-slate-400 text-sm">Loading slots...</p>
-                ) : slotsError ? (
-                  <p className="text-amber-700 text-sm">{slotsError}</p>
-                ) : availableSlots.length === 0 ? (
-                  <p className="text-slate-400 text-sm">{appointmentForm.date && appointmentForm.service_id ? 'No slots available for this date.' : 'Select a service and date.'}</p>
-                ) : (
-                  <div className="flex gap-2 flex-wrap">
-                    {availableSlots.map((slot) => (
-                      <button
-                        key={slot.isoString}
-                        type="button"
-                        onClick={() => setAppointmentForm((p) => ({ ...p, start_time: slot.isoString }))}
-                        className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors ${
-                          appointmentForm.start_time === slot.isoString
-                            ? 'bg-indigo-600 text-white border-indigo-600'
-                            : 'bg-white text-slate-700 border-slate-300 hover:border-indigo-400'
-                        }`}
-                      >
-                        {slot.time}
-                      </button>
-                    ))}
+            {(() => {
+              const svc = serviceOptions.find((s) => s.id === appointmentForm.service_id)
+              const modalDuration = svc
+                ? svc.duration_minutes + getServicePersonUnits(svc, appointmentForm.person_count) * svc.duration_per_additional_person_minutes
+                : 30
+              const dateBookings = activeBookings.filter((b) => b.start_time.startsWith(appointmentForm.date))
+              return (
+                <div className="text-sm text-slate-700">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-medium">Select appointment time</span>
+                    <span className="text-xs text-slate-400">Click the timeline to pick a start time</span>
                   </div>
-                )}
-              </div>
-              {editingBooking && !loadingSlots && availableSlots.length === 0 && appointmentForm.date && appointmentForm.service_id && appointmentForm.start_time === editingBooking.start_time && (
-                <p className="mt-1 text-xs text-emerald-700">Current booked time retained.</p>
-              )}
-              {editingBooking && <p className="mt-1 text-xs text-slate-500">Current booking time is preselected when available. Choose a different slot to modify.</p>}
-            </div>
+                  {loadingSlots ? (
+                    <div className="h-80 rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-center text-slate-400 text-sm">Loading slots…</div>
+                  ) : slotsError ? (
+                    <div className="h-80 rounded-lg border border-amber-200 bg-amber-50 flex items-center justify-center text-amber-700 text-sm">{slotsError}</div>
+                  ) : !appointmentForm.date || !appointmentForm.service_id ? (
+                    <div className="h-80 rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-center text-slate-400 text-sm">Select a service and date to see the timeline.</div>
+                  ) : (
+                    <SlotTimeline
+                      date={appointmentForm.date}
+                      availableSlots={availableSlots}
+                      existingBookings={dateBookings}
+                      selectedIso={appointmentForm.start_time}
+                      durationMinutes={modalDuration}
+                      onSelect={(iso) => setAppointmentForm((p) => ({ ...p, start_time: iso }))}
+                    />
+                  )}
+                  {appointmentForm.start_time && (
+                    <p className="mt-2 text-xs text-indigo-700 font-medium">
+                      Selected: {formatTime(appointmentForm.start_time)}
+                      {' '}(duration: {modalDuration} min)
+                    </p>
+                  )}
+                  {editingBooking && !loadingSlots && availableSlots.length === 0 && appointmentForm.date && appointmentForm.service_id && appointmentForm.start_time === editingBooking.start_time && (
+                    <p className="mt-1 text-xs text-emerald-700">Current booked time retained.</p>
+                  )}
+                  {editingBooking && <p className="mt-1 text-xs text-slate-500">Current booking time is preselected. Click a different time to reschedule.</p>}
+                </div>
+              )
+            })()}
 
             <div className="flex items-center justify-end gap-2">
               {editingBooking && (editingBooking.status === BookingStatus.PENDING || editingBooking.status === BookingStatus.CONFIRMED) && (
@@ -1786,6 +1794,248 @@ function DayAgendaModal({
     </div>
   )
 }
+
+// ─── Timeline slot picker ─────────────────────────────────────────────────────
+
+const TIMELINE_PX_PER_MIN = 1.5
+const TIMELINE_START_HOUR = 8
+const TIMELINE_END_HOUR   = 19
+
+function timeHHMMToMins(hhmm: string): number {
+  const [h, m] = hhmm.split(':').map(Number)
+  return h * 60 + (m ?? 0)
+}
+
+function SlotTimeline({
+  date,
+  availableSlots,
+  existingBookings,
+  selectedIso,
+  durationMinutes,
+  onSelect,
+}: {
+  date: string
+  availableSlots: SlotOption[]
+  existingBookings: BookingWithService[]
+  selectedIso: string
+  durationMinutes: number
+  onSelect: (iso: string) => void
+}) {
+  const TIMELINE_START = TIMELINE_START_HOUR * 60
+  const TIMELINE_END   = TIMELINE_END_HOUR * 60
+  const totalMinutes   = TIMELINE_END - TIMELINE_START
+  const totalHeight    = totalMinutes * TIMELINE_PX_PER_MIN
+
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  const dayStartMs = useMemo(() => new Date(`${date}T00:00:00Z`).getTime(), [date])
+
+  // Build contiguous available ranges for the green tint background
+  const availableRanges = useMemo(() => {
+    if (availableSlots.length === 0) return []
+    const sorted = [...availableSlots].map((s) => timeHHMMToMins(s.time)).sort((a, b) => a - b)
+    const ranges: { start: number; end: number }[] = []
+    let rangeStart = sorted[0]
+    let prev = sorted[0]
+    for (let i = 1; i < sorted.length; i++) {
+      const m = sorted[i]
+      if (m - prev <= 10) {
+        prev = m
+      } else {
+        ranges.push({ start: rangeStart, end: prev + durationMinutes })
+        rangeStart = m
+        prev = m
+      }
+    }
+    ranges.push({ start: rangeStart, end: prev + durationMinutes })
+    return ranges
+  }, [availableSlots, durationMinutes])
+
+  // Compute pixel positions for existing bookings
+  const bookingBlocks = useMemo(
+    () =>
+      existingBookings.map((b) => {
+        const startMs = new Date(b.start_time).getTime()
+        const endMs   = new Date(b.end_time).getTime()
+        const startMin = (startMs - dayStartMs) / 60000
+        const durMin   = Math.max((endMs - startMs) / 60000, 5)
+        return {
+          id: b.id,
+          startMin,
+          durMin,
+          name: b.customer_name,
+          service: b.booking_services?.name ?? '',
+          status: b.status,
+        }
+      }),
+    [existingBookings, dayStartMs],
+  )
+
+  // Selected slot in minutes since midnight UTC
+  const selectedMin = useMemo(
+    () => (selectedIso ? (new Date(selectedIso).getTime() - dayStartMs) / 60000 : null),
+    [selectedIso, dayStartMs],
+  )
+
+  // Scroll to selected or first available slot when date/slots change
+  const firstSlotTime = availableSlots[0]?.time ?? ''
+  useEffect(() => {
+    if (!containerRef.current) return
+    const targetMin =
+      selectedMin ??
+      (firstSlotTime ? timeHHMMToMins(firstSlotTime) : null)
+    if (targetMin === null) return
+    const y = (targetMin - TIMELINE_START) * TIMELINE_PX_PER_MIN
+    containerRef.current.scrollTop = Math.max(0, y - 80)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [date, firstSlotTime, selectedIso])
+
+  const handleClick = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      if (availableSlots.length === 0) return
+      const rect = e.currentTarget.getBoundingClientRect()
+      const clickedY = (e.clientY - rect.top) + e.currentTarget.scrollTop
+      // subtract the label column width (40px)
+      const bodyX = e.clientX - rect.left - 40
+      if (bodyX < 0) return  // clicked label column, ignore
+      const clickedMin = TIMELINE_START + clickedY / TIMELINE_PX_PER_MIN
+      let nearest = availableSlots[0]
+      let minDist = Math.abs(timeHHMMToMins(nearest.time) - clickedMin)
+      for (const slot of availableSlots) {
+        const dist = Math.abs(timeHHMMToMins(slot.time) - clickedMin)
+        if (dist < minDist) { minDist = dist; nearest = slot }
+      }
+      onSelect(nearest.isoString)
+    },
+    [availableSlots, onSelect],
+  )
+
+  const yFor = (mins: number) => (mins - TIMELINE_START) * TIMELINE_PX_PER_MIN
+  const hours: number[] = []
+  for (let h = TIMELINE_START_HOUR; h <= TIMELINE_END_HOUR; h++) hours.push(h)
+
+  const noSlotsMsg = availableSlots.length === 0
+    ? 'No available slots — all times are booked or outside working hours.'
+    : null
+
+  return (
+    <div className="rounded-lg border border-slate-200 overflow-hidden">
+      {noSlotsMsg ? (
+        <div className="h-80 flex items-center justify-center text-slate-400 text-sm bg-slate-50">
+          {noSlotsMsg}
+        </div>
+      ) : (
+        <>
+          {/* Legend */}
+          <div className="flex items-center gap-4 px-3 py-2 border-b border-slate-100 bg-slate-50 text-[11px] text-slate-500">
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block w-3 h-3 rounded-sm bg-emerald-100 border border-emerald-400" />
+              Available — click to select
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block w-3 h-3 rounded-sm bg-indigo-500" />
+              Booked
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block w-3 h-3 rounded-sm bg-indigo-100 border-2 border-indigo-600" />
+              Selected
+            </span>
+          </div>
+
+          {/* Scrollable timeline */}
+          <div
+            ref={containerRef}
+            className="relative overflow-y-auto overflow-x-hidden cursor-pointer select-none"
+            style={{ height: 320 }}
+            onClick={handleClick}
+            title="Click to select a time"
+          >
+            <div className="relative" style={{ height: totalHeight }}>
+              {/* ── Hour labels (left 40px) ── */}
+              {hours.map((h) => (
+                <div
+                  key={`lbl-${h}`}
+                  className="absolute left-0 w-10 text-[10px] font-medium text-slate-400 leading-none text-right pr-2"
+                  style={{ top: yFor(h * 60) - 5 }}
+                >
+                  {String(h).padStart(2, '0')}:00
+                </div>
+              ))}
+
+              {/* ── Timeline body (inset 40px from left) ── */}
+              <div className="absolute inset-y-0 left-10 right-0">
+                {/* Hour grid lines */}
+                {hours.map((h) => (
+                  <div
+                    key={`hour-line-${h}`}
+                    className="absolute left-0 right-0 border-t border-slate-200"
+                    style={{ top: yFor(h * 60) }}
+                  />
+                ))}
+                {/* 30-min dashed lines */}
+                {hours.map((h) => (
+                  <div
+                    key={`half-line-${h}`}
+                    className="absolute left-0 right-0 border-t border-dashed border-slate-100"
+                    style={{ top: yFor(h * 60 + 30) }}
+                  />
+                ))}
+
+                {/* Available regions (green tint) */}
+                {availableRanges.map((r, i) => {
+                  const top    = yFor(r.start)
+                  const height = (r.end - r.start) * TIMELINE_PX_PER_MIN
+                  if (top + height < 0 || top > totalHeight) return null
+                  return (
+                    <div
+                      key={`avail-${i}`}
+                      className="absolute left-0 right-0 bg-emerald-50 border-l-2 border-emerald-400 pointer-events-none"
+                      style={{ top, height }}
+                    />
+                  )
+                })}
+
+                {/* Existing booking blocks */}
+                {bookingBlocks.map((b) => {
+                  const top    = yFor(b.startMin)
+                  const height = Math.max(b.durMin * TIMELINE_PX_PER_MIN, 18)
+                  if (top + height < 0 || top > totalHeight) return null
+                  return (
+                    <div
+                      key={b.id}
+                      className="absolute left-1 right-1 rounded bg-indigo-500 px-2 overflow-hidden pointer-events-none z-10"
+                      style={{ top, height }}
+                    >
+                      <p className="text-[10px] font-semibold text-white truncate leading-tight pt-0.5">{b.name}</p>
+                      {b.service && <p className="text-[9px] text-indigo-200 truncate">{b.service}</p>}
+                    </div>
+                  )
+                })}
+
+                {/* Selected appointment block */}
+                {selectedMin !== null && (
+                  <div
+                    className="absolute left-1 right-1 rounded-lg border-2 border-indigo-600 bg-indigo-100 z-20 pointer-events-none"
+                    style={{
+                      top: yFor(selectedMin),
+                      height: Math.max(durationMinutes * TIMELINE_PX_PER_MIN, 20),
+                    }}
+                  >
+                    <p className="text-[10px] font-semibold text-indigo-700 px-2 pt-0.5">
+                      {formatTime(selectedIso)} — {durationMinutes} min
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+// ─── Booking row ──────────────────────────────────────────────────────────────
 
 function BookingRow({
   booking,
