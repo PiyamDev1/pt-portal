@@ -20,7 +20,7 @@ import { MinioStatus } from './MinioStatus'
 import { DocumentUpload } from './DocumentUpload'
 import { DocumentGrid } from './DocumentGrid'
 import { DocumentPreview } from './DocumentPreview'
-import { AlertCircle, Loader, DownloadCloud } from 'lucide-react'
+import { AlertCircle, Loader, DownloadCloud, Archive, RefreshCw } from 'lucide-react'
 
 export interface DocumentHubProps {
   /**
@@ -48,18 +48,28 @@ export interface DocumentHubProps {
    * Custom CSS class
    */
   className?: string
+
+  /**
+   * File name (without .zip) for the generated ZIP archive.
+   * Typically the applicant's tracking number or CNIC.
+   * Defaults to familyHeadId if not provided.
+   */
+  zipFileName?: string
 }
 
 /**
  * DocumentHub Component
  * Main interface for managing family-level documents
  */
+type ZipStatus = 'unknown' | 'none' | 'creating' | 'ready' | 'stale'
+
 export function DocumentHub({
   familyHeadId,
   familyHeadName = 'Family',
   customSubtitle,
   showStatus = true,
   className = '',
+  zipFileName,
 }: DocumentHubProps) {
   // State management
   const [documents, setDocuments] = useState<Document[]>([])
@@ -68,10 +78,14 @@ export function DocumentHub({
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
-  const [isDownloadingAll, setIsDownloadingAll] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const DOCS_PER_PAGE = 20
+
+  // ZIP state
+  const [zipStatus, setZipStatus] = useState<ZipStatus>('unknown')
+  const [zipMinioKey, setZipMinioKey] = useState<string | null>(null)
+  const [zipCreatedFileName, setZipCreatedFileName] = useState<string | null>(null)
 
   const categorizedDocuments = useMemo(
     () => ({
@@ -152,11 +166,15 @@ export function DocumentHub({
   /**
    * Handle successful upload
    */
-  const handleUploadSuccess = useCallback((newDocuments: Document[]) => {
-    setDocuments((prev) => [...prev, ...newDocuments])
-    // Clear selected document after upload
-    setSelectedDocument(null)
-  }, [])
+  const handleUploadSuccess = useCallback(
+    (newDocuments: Document[]) => {
+      setDocuments((prev) => [...prev, ...newDocuments])
+      setSelectedDocument(null)
+      // ZIP is now out of date
+      if (zipStatus === 'ready') setZipStatus('stale')
+    },
+    [zipStatus],
+  )
 
   /**
    * Handle upload error
@@ -178,6 +196,8 @@ export function DocumentHub({
         await documentClient.deleteDocument(documentId)
         setDocuments((prev) => prev.filter((doc) => doc.id !== documentId))
         setSelectedDocument(null)
+        // ZIP is now out of date
+        if (zipStatus === 'ready') setZipStatus('stale')
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Failed to delete document'
         setError(errorMessage)
@@ -185,7 +205,7 @@ export function DocumentHub({
         setIsDeleting(false)
       }
     },
-    [isDeleting],
+    [isDeleting, zipStatus],
   )
 
   /**
@@ -211,22 +231,67 @@ export function DocumentHub({
   )
 
   /**
-   * Download all documents as a single ZIP archive
+   * Fetch current ZIP status from the server
    */
-  const handleDownloadAll = useCallback(async () => {
-    if (isDownloadingAll || documents.length === 0) return
-    setIsDownloadingAll(true)
+  const checkZipStatus = useCallback(async () => {
     try {
-      const anchor = window.document.createElement('a')
-      anchor.href = `/api/documents/download-all?familyHeadId=${encodeURIComponent(familyHeadId)}`
-      anchor.download = `documents-${familyHeadId}.zip`
-      window.document.body.appendChild(anchor)
-      anchor.click()
-      anchor.remove()
-    } finally {
-      setIsDownloadingAll(false)
+      const res = await fetch(`/api/documents/zip?familyHeadId=${encodeURIComponent(familyHeadId)}`)
+      const json = await res.json()
+      const { status, minioKey, fileName } = json?.data ?? json
+      setZipStatus((status as ZipStatus) || 'none')
+      setZipMinioKey(minioKey ?? null)
+      setZipCreatedFileName(fileName ?? null)
+    } catch {
+      setZipStatus('none')
     }
-  }, [familyHeadId, documents.length, isDownloadingAll])
+  }, [familyHeadId])
+
+  // Load zip status on mount
+  useEffect(() => {
+    void checkZipStatus()
+  }, [checkZipStatus])
+
+  /**
+   * Create ZIP on server, upload to MinIO, then mark as ready
+   */
+  const handleCreateZip = useCallback(async () => {
+    if (zipStatus === 'creating' || documents.length === 0) return
+    setZipStatus('creating')
+    try {
+      const res = await fetch('/api/documents/zip', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          familyHeadId,
+          zipFileName: zipFileName || familyHeadId,
+        }),
+      })
+      const json = await res.json()
+      if (!res.ok) {
+        throw new Error(json?.error || 'Failed to create ZIP')
+      }
+      const { minioKey, fileName } = json?.data ?? json
+      setZipMinioKey(minioKey)
+      setZipCreatedFileName(fileName)
+      setZipStatus('ready')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create ZIP')
+      setZipStatus('none')
+    }
+  }, [familyHeadId, zipFileName, documents.length, zipStatus])
+
+  /**
+   * Download the pre-generated ZIP from MinIO
+   */
+  const handleDownloadZip = useCallback(() => {
+    if (!zipMinioKey) return
+    const anchor = window.document.createElement('a')
+    anchor.href = `/api/documents/download?key=${encodeURIComponent(zipMinioKey)}`
+    anchor.download = zipCreatedFileName || `${zipFileName || familyHeadId}.zip`
+    window.document.body.appendChild(anchor)
+    anchor.click()
+    anchor.remove()
+  }, [zipMinioKey, zipCreatedFileName, zipFileName, familyHeadId])
 
   /**
    * Dismiss error
@@ -268,15 +333,52 @@ export function DocumentHub({
           </p>
         </div>
         {documents.length > 0 && (
-          <button
-            onClick={() => void handleDownloadAll()}
-            disabled={isDownloadingAll}
-            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 disabled:bg-slate-400 disabled:cursor-not-allowed transition-colors flex-shrink-0"
-            title="Download all documents as a ZIP file"
-          >
-            <DownloadCloud className="w-4 h-4" />
-            {isDownloadingAll ? 'Preparing ZIP...' : 'Download All'}
-          </button>
+          <div className="flex-shrink-0">
+            {/* none or stale → offer to create/update */}
+            {(zipStatus === 'none' || zipStatus === 'stale' || zipStatus === 'unknown') && (
+              <button
+                onClick={() => void handleCreateZip()}
+                disabled={zipStatus === 'unknown'}
+                className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 disabled:bg-slate-400 disabled:cursor-not-allowed transition-colors"
+                title={zipStatus === 'stale' ? 'Documents changed – regenerate ZIP' : 'Package all documents into a ZIP file'}
+              >
+                <Archive className="w-4 h-4" />
+                {zipStatus === 'stale' ? 'Update ZIP' : 'Create ZIP to Download'}
+              </button>
+            )}
+
+            {/* creating → loading spinner */}
+            {zipStatus === 'creating' && (
+              <button
+                disabled
+                className="flex items-center gap-2 px-4 py-2 bg-slate-400 text-white text-sm font-medium rounded-lg cursor-not-allowed"
+              >
+                <Loader className="w-4 h-4 animate-spin" />
+                Creating ZIP…
+              </button>
+            )}
+
+            {/* ready → download + re-create option */}
+            {zipStatus === 'ready' && (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleDownloadZip}
+                  className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 transition-colors"
+                  title="Download the ready-made ZIP archive"
+                >
+                  <DownloadCloud className="w-4 h-4" />
+                  Download ZIP
+                </button>
+                <button
+                  onClick={() => void handleCreateZip()}
+                  className="flex items-center gap-2 px-3 py-2 bg-slate-100 text-slate-600 text-sm font-medium rounded-lg hover:bg-slate-200 transition-colors"
+                  title="Regenerate ZIP with latest documents"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+          </div>
         )}
       </div>
 

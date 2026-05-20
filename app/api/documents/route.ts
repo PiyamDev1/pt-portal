@@ -50,6 +50,7 @@ export async function GET(request: NextRequest) {
       )
       .eq('family_head_id', familyHeadId)
       .eq('deleted', false)
+      .neq('category', 'zip-archive') // exclude internal ZIP archives from display
 
     // Optional category filter for smaller responses
     if (category) {

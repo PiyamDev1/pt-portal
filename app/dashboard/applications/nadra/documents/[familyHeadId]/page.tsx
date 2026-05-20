@@ -114,6 +114,7 @@ export default async function NadraDocumentsPage({ params }: NadraDocumentsPageP
               familyHeadId={familyHeadId}
               familyHeadName={familyHeadFullName}
               showStatus={true}
+              zipFileName={familyHead.citizen_number || familyHeadId}
             />
           </div>
         </main>
