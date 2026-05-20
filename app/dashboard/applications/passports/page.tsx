@@ -55,6 +55,7 @@ export default async function PakPassportPage() {
       `
         id,
         tracking_number,
+        has_documents,
         applicants:applicants!applications_applicant_id_fkey(
           id, first_name, last_name, citizen_number, email, phone_number
         ),
@@ -82,21 +83,12 @@ export default async function PakPassportPage() {
     .order('created_at', { ascending: false })
     .limit(10000)
 
-  // Fetch document counts for all applications in a single query.
-  // Use a generous limit so PostgREST doesn't silently truncate rows
-  // and exclude internal zip-archive records from the count.
-  const appIds = (applications || []).map((a) => a.id)
+  // Build documentCounts from the has_documents marker stored on each application.
+  // No second query needed — the flag is maintained by the upload/delete APIs.
   const documentCounts: Record<string, number> = {}
-  if (appIds.length > 0) {
-    const { data: docRows } = await supabase
-      .from('documents')
-      .select('family_head_id')
-      .in('family_head_id', appIds)
-      .eq('deleted', false)
-      .neq('category', 'zip-archive')
-      .limit(10000)
-    for (const row of docRows || []) {
-      documentCounts[row.family_head_id] = (documentCounts[row.family_head_id] || 0) + 1
+  for (const app of applications || []) {
+    if ((app as { has_documents?: boolean }).has_documents) {
+      documentCounts[app.id] = 1
     }
   }
 
