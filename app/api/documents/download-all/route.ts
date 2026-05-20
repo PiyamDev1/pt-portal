@@ -72,6 +72,10 @@ export async function GET(request: NextRequest) {
       console.error('[download-all] stream error:', err)
     })
 
+    nodeStream.on('end', () => {
+      console.log('[download-all] stream ended')
+    })
+
     // Pipe archive to the PassThrough stream
     archive.pipe(nodeStream)
 
@@ -79,48 +83,51 @@ export async function GET(request: NextRequest) {
     const populateArchive = async () => {
       const s3Client = getS3Client()
       let successCount = 0
+      let errorCount = 0
 
-      for (const doc of documents) {
-        try {
-          const bucket = doc.minio_bucket || MINIO_BUCKET
-          let result
-
+      try {
+        for (const doc of documents) {
           try {
-            console.log(`[download-all] fetching from MinIO: ${doc.minio_key}`)
-            result = await s3Client.send(
-              new GetObjectCommand({ Bucket: bucket, Key: doc.minio_key }),
-            )
-          } catch (minioErr) {
-            console.error(`[download-all] MinIO failed for ${doc.file_name}:`, minioErr)
-            
-            if (!isR2Configured()) {
-              console.log('[download-all] R2 not configured, skipping this file')
-              continue
+            const bucket = doc.minio_bucket || MINIO_BUCKET
+            let result
+
+            try {
+              console.log(`[download-all] fetching from MinIO: ${doc.minio_key}`)
+              result = await s3Client.send(
+                new GetObjectCommand({ Bucket: bucket, Key: doc.minio_key }),
+              )
+            } catch (minioErr) {
+              console.error(`[download-all] MinIO failed for ${doc.file_name}:`, minioErr)
+              
+              if (!isR2Configured()) {
+                console.log('[download-all] R2 not configured, skipping this file')
+                errorCount++
+                continue
+              }
+
+              console.log(`[download-all] trying R2 fallback: ${doc.minio_key}`)
+              const r2Client = getR2Client()
+              result = await r2Client.send(
+                new GetObjectCommand({ Bucket: R2_BUCKET, Key: doc.minio_key }),
+              )
             }
 
-            console.log(`[download-all] trying R2 fallback: ${doc.minio_key}`)
-            const r2Client = getR2Client()
-            result = await r2Client.send(
-              new GetObjectCommand({ Bucket: R2_BUCKET, Key: doc.minio_key }),
-            )
+            if (result.Body) {
+              const fileStream = Readable.from(result.Body as AsyncIterable<Uint8Array>)
+              const folder = doc.category && doc.category !== 'general' ? `${doc.category}/` : ''
+              const fileName = `${folder}${doc.file_name}`
+              console.log(`[download-all] adding to archive: ${fileName}`)
+              archive.append(fileStream, { name: fileName })
+              successCount++
+            }
+          } catch (fileErr) {
+            console.error(`[download-all] error processing ${doc.file_name}:`, fileErr)
+            errorCount++
           }
-
-          if (result.Body) {
-            const fileStream = Readable.from(result.Body as AsyncIterable<Uint8Array>)
-            const folder = doc.category && doc.category !== 'general' ? `${doc.category}/` : ''
-            const fileName = `${folder}${doc.file_name}`
-            console.log(`[download-all] adding to archive: ${fileName}`)
-            archive.append(fileStream, { name: fileName })
-            successCount++
-          }
-        } catch (fileErr) {
-          console.error(`[download-all] error processing ${doc.file_name}:`, fileErr)
         }
-      }
 
-      console.log(`[download-all] added ${successCount}/${documents.length} files to archive`)
-      
-      try {
+        console.log(`[download-all] added ${successCount}/${documents.length} files (${errorCount} errors)`)
+        
         console.log('[download-all] finalizing archive')
         await archive.finalize()
         console.log('[download-all] archive finalized successfully')
@@ -131,7 +138,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Start archive population immediately
-    // Don't await here — let it run in background as stream responds
+    // Don't await here — let it run as stream responds
     populateArchive().catch((err) => {
       console.error('[download-all] fatal population error:', err)
       nodeStream.destroy(err)
