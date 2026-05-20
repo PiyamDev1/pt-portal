@@ -80,8 +80,11 @@ export default async function PakPassportPage() {
       `,
     )
     .order('created_at', { ascending: false })
+    .limit(10000)
 
-  // Fetch document counts for all applications in a single query
+  // Fetch document counts for all applications in a single query.
+  // Use a generous limit so PostgREST doesn't silently truncate rows
+  // and exclude internal zip-archive records from the count.
   const appIds = (applications || []).map((a) => a.id)
   const documentCounts: Record<string, number> = {}
   if (appIds.length > 0) {
@@ -90,6 +93,8 @@ export default async function PakPassportPage() {
       .select('family_head_id')
       .in('family_head_id', appIds)
       .eq('deleted', false)
+      .neq('category', 'zip-archive')
+      .limit(10000)
     for (const row of docRows || []) {
       documentCounts[row.family_head_id] = (documentCounts[row.family_head_id] || 0) + 1
     }
