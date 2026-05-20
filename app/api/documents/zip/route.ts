@@ -13,13 +13,6 @@ import { createWriteStream as fsCreateWriteStream } from 'fs'
 import { mkdir, readFile, rm } from 'fs/promises'
 import { join } from 'path'
 import * as archiverLib from 'archiver'
-// CJS default interop: Turbopack (dev) exposes the function directly on the namespace,
-// while webpack (production) wraps it under .default — handle both.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const archiverFactory = ((archiverLib as any).default ?? archiverLib) as unknown as (
-  format: string,
-  options?: archiverLib.ArchiverOptions,
-) => archiverLib.Archiver
 import { getS3Client } from '@/lib/s3Client'
 import { getR2Client, isR2Configured } from '@/lib/r2Client'
 import { getSupabaseClient } from '@/lib/supabaseClient'
@@ -75,7 +68,7 @@ export async function GET(request: NextRequest) {
     const supabase = getSupabaseClient()
 
     // Find the latest non-deleted zip-archive record for this family
-    const { data: zipRow, error: zipErr } = await supabase
+    const { data: zipRows, error: zipErr } = await supabase
       .from('documents')
       .select('id, file_name, minio_key, minio_bucket, minio_etag, uploaded_at')
       .eq('family_head_id', familyHeadId)
@@ -83,9 +76,10 @@ export async function GET(request: NextRequest) {
       .eq('deleted', false)
       .order('uploaded_at', { ascending: false })
       .limit(1)
-      .maybeSingle()
 
     if (zipErr) throw zipErr
+
+    const zipRow = zipRows?.[0] ?? null
 
     if (!zipRow) {
       return apiOk({ status: 'none' })
@@ -159,6 +153,13 @@ export async function POST(request: NextRequest) {
 
     const s3Client = getS3Client()
     const cachedFiles: { path: string; name: string }[] = []
+
+    // CJS default interop: webpack (prod) sets .default; Turbopack (dev) may not
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const archiverFactory = ((archiverLib as any).default ?? archiverLib) as unknown as (
+      format: string,
+      options?: archiverLib.ArchiverOptions,
+    ) => archiverLib.Archiver
 
     // ── 1. Download all documents to /tmp ──────────────────────────
     for (const doc of documents) {
