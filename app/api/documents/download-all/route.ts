@@ -6,7 +6,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { GetObjectCommand } from '@aws-sdk/client-s3'
 import { Readable, PassThrough } from 'stream'
-import archiver = require('archiver')
+import * as archiverLib from 'archiver'
+// archiver is a CJS module — module.exports is the factory function itself
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const archiverFactory = archiverLib as any as (format: string, options?: archiverLib.ArchiverOptions) => archiverLib.Archiver
 import { getS3Client } from '@/lib/s3Client'
 import { getR2Client, isR2Configured } from '@/lib/r2Client'
 import { getSupabaseClient } from '@/lib/supabaseClient'
@@ -56,7 +59,7 @@ export async function GET(request: NextRequest) {
     // Create a PassThrough stream to pipe archiver output into the Response
     const passThrough = new PassThrough()
 
-    const archive = archiver('zip', { zlib: { level: 6 } })
+    const archive = archiverFactory('zip', { zlib: { level: 6 } })
 
     archive.on('error', (err) => {
       console.error('[download-all] archiver error:', err)
