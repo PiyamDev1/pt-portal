@@ -30,15 +30,6 @@ type DocumentRow = {
 }
 
 /**
- * Convert Node.js ReadableStream to Web ReadableStream via chunks
- */
-async function* nodeStreamToAsyncIterator(nodeStream: Readable) {
-  for await (const chunk of nodeStream) {
-    yield chunk
-  }
-}
-
-/**
  * GET /api/documents/download-all?familyHeadId=<id>
  * Fetches all non-deleted documents for the family, streams them from
  * MinIO (with R2 fallback) and returns a ZIP archive as a download.
@@ -70,16 +61,23 @@ export async function GET(request: NextRequest) {
 
     console.log(`[download-all] starting archive for ${documents.length} documents`)
 
-    // Create the archive
+    // Create the archive which is a Node.js Readable stream
     const archive = archiverFactory('zip', { zlib: { level: 6 } })
 
-    // Populate archive asynchronously
-    const populateArchive = async () => {
+    // Set up error handling
+    archive.on('error', (err) => {
+      console.error('[download-all] archiver error:', err)
+    })
+
+    // Start populating the archive immediately in the background
+    ;(async () => {
       const s3Client = getS3Client()
       let successCount = 0
       let errorCount = 0
 
       try {
+        console.log('[download-all] beginning file population')
+        
         for (const doc of documents) {
           try {
             const bucket = doc.minio_bucket || MINIO_BUCKET
@@ -121,23 +119,16 @@ export async function GET(request: NextRequest) {
         }
 
         console.log(`[download-all] population complete: ${successCount}/${documents.length} added (${errorCount} errors)`)
-
         console.log('[download-all] finalizing archive')
         await archive.finalize()
         console.log('[download-all] archive finalized')
       } catch (err) {
         console.error('[download-all] fatal error during population:', err)
         archive.destroy()
-        throw err
       }
-    }
+    })()
 
-    // Start population immediately (fire and forget, but with error handling)
-    populateArchive().catch((err) => {
-      console.error('[download-all] background population failed:', err)
-    })
-
-    // The archive is a Readable stream - convert to Web ReadableStream
+    // Convert Node stream to Web stream
     const webStream = Readable.toWeb(archive as unknown as Readable) as ReadableStream<Uint8Array>
 
     return new NextResponse(webStream, {
