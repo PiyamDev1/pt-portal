@@ -135,6 +135,13 @@ const STATUS_CONFIG: Record<string, { bg: string; text: string; label: string }>
   cancelled: { bg: 'bg-red-100', text: 'text-red-700', label: 'Cancelled' },
 }
 
+const WEEK_BLOCK_COLORS: Record<string, { bg: string; hover: string }> = {
+  pending:   { bg: 'bg-amber-400',   hover: 'hover:bg-amber-500'   },
+  confirmed: { bg: 'bg-emerald-500', hover: 'hover:bg-emerald-600' },
+  completed: { bg: 'bg-slate-400',   hover: 'hover:bg-slate-500'   },
+  cancelled: { bg: 'bg-red-300',     hover: 'hover:bg-red-400'     },
+}
+
 const SOURCE_CONFIG: Record<string, string> = {
   portal: 'bg-indigo-100 text-indigo-700',
   whatsapp: 'bg-green-100 text-green-700',
@@ -1094,75 +1101,15 @@ export default function BookingsClient({
         )}
 
         {view === 'week' && (
-          <div className="space-y-4">
-            <div className="grid grid-cols-7 gap-2">
-              {weekDays.map((day) => {
-                const dayBookings = bookingsForDate(day)
-                const isToday = isSameUTCDay(day, today)
-                const isSelected = isSameUTCDay(day, selectedDate)
-                const isPast = day < today && !isToday
-                return (
-                  <button
-                    key={day.toISOString()}
-                    onClick={() => openDayAgenda(day)}
-                    className={`rounded-xl p-3 flex flex-col items-center gap-1 border transition-all ${
-                      isSelected
-                        ? 'bg-indigo-600 border-indigo-600 text-white shadow-md'
-                        : isToday
-                        ? 'bg-amber-50 border-amber-300 text-amber-800 ring-2 ring-amber-200'
-                        : isPast
-                        ? 'bg-white border-slate-100 text-slate-400'
-                        : 'bg-white border-slate-200 text-slate-700 hover:border-indigo-300 hover:bg-indigo-50'
-                    }`}
-                  >
-                    <span className={`text-xs font-semibold uppercase tracking-wider ${isSelected ? 'text-indigo-200' : isToday ? 'text-amber-600' : 'text-slate-400'}`}>
-                      {DAY_LABELS[day.getUTCDay()]}
-                    </span>
-                    <span className="text-lg font-bold leading-none">{day.getUTCDate()}</span>
-                    {isToday && !isSelected && (
-                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
-                        Today
-                      </span>
-                    )}
-                    {dayBookings.length > 0 && (
-                      <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ${
-                        isSelected ? 'bg-white text-indigo-600' : 'bg-indigo-100 text-indigo-600'
-                      }`}>
-                        {dayBookings.length}
-                      </span>
-                    )}
-                  </button>
-                )
-              })}
-            </div>
-
-            <SelectedDayPanel
-              selectedDate={selectedDate}
-              today={today}
-              selectedBookings={selectedBookings}
-              loading={loading}
-              updatingId={updatingId}
-              onStatusChange={updateStatus}
-              onEditBooking={openEditBooking}
-              selectedDateCount={selectedDateCount}
-              onOpenDayAgenda={() => openDayAgenda(selectedDate)}
-              enableQuickAvailability={true}
-              serviceOptions={serviceOptions}
-              quickServiceId={panelServiceId}
-              quickPersonCount={panelPersonCount}
-              quickSlots={panelSlots}
-              quickSlotsLoading={loadingPanelSlots}
-              quickSlotsError={panelSlotsError}
-              onQuickServiceChange={setPanelServiceId}
-              onQuickPersonCountChange={(value) => setPanelPersonCount(Math.max(1, value))}
-              onQuickSelectSlot={(slot) => openCreateAppointment({
-                date: selectedDateKey,
-                service_id: panelServiceId,
-                person_count: panelPersonCount,
-                start_time: slot.isoString,
-              })}
-            />
-          </div>
+          <WeekTimeline
+            weekDays={weekDays}
+            activeBookings={activeBookings}
+            today={today}
+            onSlotClick={(dateKey, startIso) =>
+              openCreateAppointment({ date: dateKey, start_time: startIso })
+            }
+            onBookingClick={openEditBooking}
+          />
         )}
 
         {view === 'list' && (
@@ -1790,6 +1737,180 @@ function DayAgendaModal({
             </div>
           </div>
         </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Week timeline view ──────────────────────────────────────────────────────
+
+function WeekTimeline({
+  weekDays,
+  activeBookings,
+  today,
+  onSlotClick,
+  onBookingClick,
+}: {
+  weekDays: Date[]
+  activeBookings: BookingWithService[]
+  today: Date
+  onSlotClick: (dateKey: string, startIso: string) => void
+  onBookingClick: (booking: BookingWithService) => void
+}) {
+  const TIMELINE_START = TIMELINE_START_HOUR * 60
+  const TIMELINE_END   = TIMELINE_END_HOUR   * 60
+  const totalHeight    = (TIMELINE_END - TIMELINE_START) * TIMELINE_PX_PER_MIN
+  const containerRef   = useRef<HTMLDivElement>(null)
+  const LABEL_W        = 48
+
+  const hours: number[] = []
+  for (let h = TIMELINE_START_HOUR; h <= TIMELINE_END_HOUR; h++) hours.push(h)
+  const yFor = (mins: number) => (mins - TIMELINE_START) * TIMELINE_PX_PER_MIN
+
+  const bookingsByDate = useMemo(() => {
+    const map = new Map<string, BookingWithService[]>()
+    for (const b of activeBookings) {
+      const dateKey = new Date(b.start_time).toISOString().slice(0, 10)
+      const arr = map.get(dateKey) ?? []
+      arr.push(b)
+      map.set(dateKey, arr)
+    }
+    return map
+  }, [activeBookings])
+
+  // Scroll to start of working day on mount
+  useEffect(() => {
+    if (containerRef.current) containerRef.current.scrollTop = 0
+  }, [])
+
+  return (
+    <div className="rounded-xl border border-slate-200 overflow-hidden bg-white shadow-sm">
+      {/* Day header row */}
+      <div className="flex border-b border-slate-200 bg-slate-50 sticky top-0 z-20">
+        <div style={{ width: LABEL_W, minWidth: LABEL_W }} />
+        {weekDays.map((day) => {
+          const isToday = isSameUTCDay(day, today)
+          const isPast  = day.getTime() < today.getTime() && !isToday
+          const count   = bookingsByDate.get(day.toISOString().slice(0, 10))?.length ?? 0
+          return (
+            <div
+              key={day.toISOString()}
+              className={`flex-1 text-center py-2 border-l border-slate-200 ${
+                isToday ? 'bg-indigo-50' : ''
+              }`}
+            >
+              <p className={`text-[11px] font-semibold uppercase tracking-wide ${
+                isToday ? 'text-indigo-500' : isPast ? 'text-slate-400' : 'text-slate-500'
+              }`}>
+                {DAY_LABELS[day.getUTCDay()]}
+              </p>
+              <p className={`text-xl font-bold leading-tight ${
+                isToday ? 'text-indigo-600' : isPast ? 'text-slate-400' : 'text-slate-700'
+              }`}>
+                {day.getUTCDate()}
+              </p>
+              {count > 0 && (
+                <span className={`inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded-full mt-0.5 ${
+                  isToday ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-200 text-slate-600'
+                }`}>
+                  {count}
+                </span>
+              )}
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Scrollable body */}
+      <div ref={containerRef} className="overflow-y-scroll overflow-x-hidden" style={{ height: 560 }}>
+        <div className="flex" style={{ height: totalHeight }}>
+          {/* Hour labels column */}
+          <div style={{ width: LABEL_W, minWidth: LABEL_W }} className="relative flex-shrink-0">
+            {hours.map((h) => (
+              <div
+                key={h}
+                className="absolute right-2 text-[10px] font-medium text-slate-400 text-right leading-none"
+                style={{ top: yFor(h * 60) - 5 }}
+              >
+                {String(h).padStart(2, '0')}:00
+              </div>
+            ))}
+          </div>
+
+          {/* Day columns */}
+          {weekDays.map((day) => {
+            const dateKey    = day.toISOString().slice(0, 10)
+            const dayStartMs = day.getTime()
+            const isToday    = isSameUTCDay(day, today)
+            const isPast     = day.getTime() < today.getTime() && !isToday
+            const dayBookings = bookingsByDate.get(dateKey) ?? []
+            return (
+              <div
+                key={dateKey}
+                className={`relative flex-1 border-l border-slate-200 transition-colors ${
+                  isToday ? 'bg-indigo-50/30' : isPast ? 'bg-slate-50/70' : 'bg-white'
+                } ${isPast ? 'cursor-default' : 'cursor-pointer hover:bg-indigo-50/20'}`}
+                onClick={(e) => {
+                  if (isPast) return
+                  const rect = e.currentTarget.getBoundingClientRect()
+                  const clickedY = (e.clientY - rect.top) + (containerRef.current?.scrollTop ?? 0)
+                  const clickedMin = TIMELINE_START + clickedY / TIMELINE_PX_PER_MIN
+                  const roundedMin = Math.round(clickedMin / 5) * 5
+                  const clampedMin = Math.max(TIMELINE_START, Math.min(TIMELINE_END - 30, roundedMin))
+                  const startIso = new Date(dayStartMs + clampedMin * 60000).toISOString()
+                  onSlotClick(dateKey, startIso)
+                }}
+              >
+                {/* Hour grid lines */}
+                {hours.map((h) => (
+                  <div key={h} className="absolute left-0 right-0 border-t border-slate-100" style={{ top: yFor(h * 60) }} />
+                ))}
+                {/* 30-min dashed lines */}
+                {hours.map((h) => (
+                  <div key={`hf-${h}`} className="absolute left-0 right-0 border-t border-dashed border-slate-100" style={{ top: yFor(h * 60 + 30) }} />
+                ))}
+
+                {/* Booking blocks */}
+                {dayBookings.map((b) => {
+                  const startMs  = new Date(b.start_time).getTime()
+                  const endMs    = new Date(b.end_time).getTime()
+                  const startMin = (startMs - dayStartMs) / 60000
+                  const durMin   = Math.max((endMs - startMs) / 60000, 5)
+                  const top    = yFor(startMin)
+                  const height = Math.max(durMin * TIMELINE_PX_PER_MIN, 22)
+                  const colors = WEEK_BLOCK_COLORS[b.status] ?? WEEK_BLOCK_COLORS.pending
+                  return (
+                    <div
+                      key={b.id}
+                      className={`absolute left-0.5 right-0.5 rounded px-1.5 overflow-hidden z-10 cursor-pointer transition-colors ${colors.bg} ${colors.hover}`}
+                      style={{ top, height }}
+                      onClick={(e) => { e.stopPropagation(); onBookingClick(b) }}
+                    >
+                      <p className="text-[9px] font-bold text-white truncate leading-tight pt-0.5">
+                        {formatTime(b.start_time)}
+                      </p>
+                      <p className="text-[9px] text-white/90 truncate">{b.customer_name}</p>
+                      {height >= 42 && b.booking_services?.name && (
+                        <p className="text-[8px] text-white/70 truncate">{b.booking_services.name}</p>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Legend */}
+      <div className="flex items-center gap-4 px-4 py-2 border-t border-slate-100 bg-slate-50 text-[10px] text-slate-500 flex-wrap">
+        {Object.entries(WEEK_BLOCK_COLORS).map(([status, colors]) => (
+          <span key={status} className="flex items-center gap-1.5">
+            <span className={`inline-block w-3 h-3 rounded-sm ${colors.bg}`} />
+            {status.charAt(0).toUpperCase() + status.slice(1)}
+          </span>
+        ))}
+        <span className="ml-auto italic text-slate-400">Click to book · Click a block to edit</span>
       </div>
     </div>
   )
