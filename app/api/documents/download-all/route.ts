@@ -15,6 +15,9 @@ import { getR2Client, isR2Configured } from '@/lib/r2Client'
 import { getSupabaseClient } from '@/lib/supabaseClient'
 import { apiError } from '@/lib/api/http'
 
+// Increase max duration for Vercel (ZIP streaming can take time)
+export const maxDuration = 60
+
 const MINIO_BUCKET = process.env.MINIO_BUCKET_NAME || 'portal-documents'
 const R2_BUCKET = process.env.R2_BUCKET_NAME || 'portal-fallback'
 
@@ -24,6 +27,15 @@ type DocumentRow = {
   minio_key: string
   minio_bucket: string
   category: string | null
+}
+
+/**
+ * Convert Node.js ReadableStream to Web ReadableStream via chunks
+ */
+async function* nodeStreamToAsyncIterator(nodeStream: PassThrough) {
+  for await (const chunk of nodeStream) {
+    yield chunk
+  }
 }
 
 /**
@@ -58,35 +70,39 @@ export async function GET(request: NextRequest) {
 
     console.log(`[download-all] starting archive for ${documents.length} documents`)
 
-    // Create a PassThrough stream (both readable and writable)
-    // The archive will write ZIP data to this stream
+    // Create a PassThrough stream that will be piped by archiver
     const nodeStream = new PassThrough()
     const archive = archiverFactory('zip', { zlib: { level: 6 } })
 
+    // Set up error handlers
+    let fatalError: Error | null = null
+
     archive.on('error', (err) => {
       console.error('[download-all] archiver error:', err)
+      fatalError = err
       nodeStream.destroy(err)
     })
 
     nodeStream.on('error', (err) => {
       console.error('[download-all] stream error:', err)
+      if (!fatalError) fatalError = err
     })
 
-    nodeStream.on('end', () => {
-      console.log('[download-all] stream ended')
-    })
-
-    // Pipe archive to the PassThrough stream
+    // Pipe archive output to the stream
     archive.pipe(nodeStream)
 
-    // Function to populate the archive
+    // Start populating archive in background
+    // This MUST complete before client closes connection
     const populateArchive = async () => {
       const s3Client = getS3Client()
       let successCount = 0
       let errorCount = 0
 
       try {
+        console.log('[download-all] beginning file population')
         for (const doc of documents) {
+          if (fatalError) break // Stop if error already occurred
+
           try {
             const bucket = doc.minio_bucket || MINIO_BUCKET
             let result
@@ -98,14 +114,14 @@ export async function GET(request: NextRequest) {
               )
             } catch (minioErr) {
               console.error(`[download-all] MinIO failed for ${doc.file_name}:`, minioErr)
-              
+
               if (!isR2Configured()) {
-                console.log('[download-all] R2 not configured, skipping this file')
+                console.log('[download-all] R2 not configured, skipping file')
                 errorCount++
                 continue
               }
 
-              console.log(`[download-all] trying R2 fallback: ${doc.minio_key}`)
+              console.log(`[download-all] trying R2 fallback for ${doc.file_name}`)
               const r2Client = getR2Client()
               result = await r2Client.send(
                 new GetObjectCommand({ Bucket: R2_BUCKET, Key: doc.minio_key }),
@@ -113,12 +129,17 @@ export async function GET(request: NextRequest) {
             }
 
             if (result.Body) {
-              const fileStream = Readable.from(result.Body as AsyncIterable<Uint8Array>)
-              const folder = doc.category && doc.category !== 'general' ? `${doc.category}/` : ''
-              const fileName = `${folder}${doc.file_name}`
-              console.log(`[download-all] adding to archive: ${fileName}`)
-              archive.append(fileStream, { name: fileName })
-              successCount++
+              try {
+                const fileStream = Readable.from(result.Body as AsyncIterable<Uint8Array>)
+                const folder = doc.category && doc.category !== 'general' ? `${doc.category}/` : ''
+                const fileName = `${folder}${doc.file_name}`
+                console.log(`[download-all] appending to archive: ${fileName}`)
+                archive.append(fileStream, { name: fileName })
+                successCount++
+              } catch (appendErr) {
+                console.error(`[download-all] error appending ${doc.file_name}:`, appendErr)
+                errorCount++
+              }
             }
           } catch (fileErr) {
             console.error(`[download-all] error processing ${doc.file_name}:`, fileErr)
@@ -126,24 +147,26 @@ export async function GET(request: NextRequest) {
           }
         }
 
-        console.log(`[download-all] added ${successCount}/${documents.length} files (${errorCount} errors)`)
-        
-        console.log('[download-all] finalizing archive')
-        await archive.finalize()
-        console.log('[download-all] archive finalized successfully')
-      } catch (finalizeErr) {
-        console.error('[download-all] error finalizing archive:', finalizeErr)
-        nodeStream.destroy(finalizeErr as Error)
+        console.log(`[download-all] population complete: ${successCount}/${documents.length} added (${errorCount} errors)`)
+
+        if (!fatalError) {
+          console.log('[download-all] finalizing archive')
+          await archive.finalize()
+          console.log('[download-all] archive finalized')
+        } else {
+          archive.destroy()
+        }
+      } catch (err) {
+        console.error('[download-all] fatal error during population:', err)
+        fatalError = err as Error
+        nodeStream.destroy(err as Error)
       }
     }
 
-    // Start archive population immediately
-    // Don't await here — let it run as stream responds
-    populateArchive().catch((err) => {
-      console.error('[download-all] fatal population error:', err)
-      nodeStream.destroy(err)
-    })
+    // Start population immediately (don't await, run in background)
+    const populationPromise = populateArchive()
 
+    // Convert stream to web format
     const webStream = Readable.toWeb(nodeStream) as ReadableStream<Uint8Array>
 
     return new NextResponse(webStream, {
@@ -151,12 +174,13 @@ export async function GET(request: NextRequest) {
       headers: {
         'Content-Type': 'application/zip',
         'Content-Disposition': `attachment; filename*=UTF-8''documents-${familyHeadId}.zip`,
-        'Cache-Control': 'no-store',
+        'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
         'Transfer-Encoding': 'chunked',
+        'Connection': 'keep-alive',
       },
     })
   } catch (err) {
-    console.error('[download-all] error:', err)
+    console.error('[download-all] route error:', err)
     return apiError('Failed to create ZIP archive', 500)
   }
 }
