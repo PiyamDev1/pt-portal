@@ -13,7 +13,7 @@ ALTER TABLE applications
 --    non-zip-archive document attached.
 UPDATE applications
 SET has_documents = true
-WHERE id IN (
+WHERE id::text IN (
   SELECT DISTINCT family_head_id
   FROM documents
   WHERE deleted = false
