@@ -20,7 +20,7 @@ import { MinioStatus } from './MinioStatus'
 import { DocumentUpload } from './DocumentUpload'
 import { DocumentGrid } from './DocumentGrid'
 import { DocumentPreview } from './DocumentPreview'
-import { AlertCircle, Loader } from 'lucide-react'
+import { AlertCircle, Loader, DownloadCloud } from 'lucide-react'
 
 export interface DocumentHubProps {
   /**
@@ -68,6 +68,7 @@ export function DocumentHub({
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [isDownloadingAll, setIsDownloadingAll] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const DOCS_PER_PAGE = 20
@@ -210,6 +211,26 @@ export function DocumentHub({
   )
 
   /**
+   * Download all documents as a single ZIP archive
+   */
+  const handleDownloadAll = useCallback(async () => {
+    if (isDownloadingAll || documents.length === 0) return
+    setIsDownloadingAll(true)
+    try {
+      const anchor = window.document.createElement('a')
+      anchor.href = `/api/documents/download-all?familyHeadId=${encodeURIComponent(familyHeadId)}`
+      anchor.download = `documents-${familyHeadId}.zip`
+      anchor.target = '_blank'
+      anchor.rel = 'noopener noreferrer'
+      window.document.body.appendChild(anchor)
+      anchor.click()
+      anchor.remove()
+    } finally {
+      setIsDownloadingAll(false)
+    }
+  }, [familyHeadId, documents.length, isDownloadingAll])
+
+  /**
    * Dismiss error
    */
   const dismissError = useCallback(() => {
@@ -236,16 +257,29 @@ export function DocumentHub({
       )}
 
       {/* Page Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-slate-800">Document Management</h1>
-        <p className="text-slate-600 text-sm mt-1">
-          {customSubtitle || (
-            <>
-              Manage documents shared by <span className="font-medium">{familyHeadName}</span>{' '}
-              family
-            </>
-          )}
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-800">Document Management</h1>
+          <p className="text-slate-600 text-sm mt-1">
+            {customSubtitle || (
+              <>
+                Manage documents shared by <span className="font-medium">{familyHeadName}</span>{' '}
+                family
+              </>
+            )}
+          </p>
+        </div>
+        {documents.length > 0 && (
+          <button
+            onClick={() => void handleDownloadAll()}
+            disabled={isDownloadingAll}
+            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 disabled:bg-slate-400 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+            title="Download all documents as a ZIP file"
+          >
+            <DownloadCloud className="w-4 h-4" />
+            {isDownloadingAll ? 'Preparing ZIP...' : 'Download All'}
+          </button>
+        )}
       </div>
 
       {/* Main Content (2-column layout on desktop) */}
