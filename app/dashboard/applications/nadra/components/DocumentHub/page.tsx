@@ -220,8 +220,6 @@ export function DocumentHub({
       const anchor = window.document.createElement('a')
       anchor.href = `/api/documents/download-all?familyHeadId=${encodeURIComponent(familyHeadId)}`
       anchor.download = `documents-${familyHeadId}.zip`
-      anchor.target = '_blank'
-      anchor.rel = 'noopener noreferrer'
       window.document.body.appendChild(anchor)
       anchor.click()
       anchor.remove()

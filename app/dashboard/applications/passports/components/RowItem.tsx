@@ -331,11 +331,9 @@ export default function RowItem({
             >
               📄
               {documentCount > 0 && (
-                <span
-                  className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 flex items-center justify-center rounded-full bg-sky-500 text-white text-[9px] font-bold leading-none px-1 border-2 border-white"
-                  aria-label={`${documentCount} document${documentCount !== 1 ? 's' : ''} attached`}
-                >
-                  {documentCount > 99 ? '99+' : documentCount}
+                <span className="absolute -top-0.5 -right-0.5" aria-hidden="true">
+                  <span className="absolute inline-flex h-3 w-3 rounded-full bg-sky-400 opacity-75 animate-ping" />
+                  <span className="relative inline-flex h-3 w-3 rounded-full bg-sky-500 border-2 border-white" />
                 </span>
               )}
             </button>
