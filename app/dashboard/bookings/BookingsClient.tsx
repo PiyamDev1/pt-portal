@@ -1945,7 +1945,7 @@ function SlotTimeline({
           {/* Scrollable timeline */}
           <div
             ref={containerRef}
-            className="relative overflow-y-auto overflow-x-hidden cursor-pointer select-none"
+            className="relative overflow-y-scroll overflow-x-hidden cursor-pointer select-none"
             style={{ height: 320 }}
             onClick={handleClick}
             title="Click to select a time"
