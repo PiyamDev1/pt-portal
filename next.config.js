@@ -33,11 +33,6 @@ const nextConfig = {
     optimizePackageImports: ['lucide-react', '@supabase/supabase-js'],
   },
 
-  // Keep heavy CJS streaming packages out of the webpack bundle.
-  // archiver (and its deps) use internal require() chains that break
-  // when webpack tries to inline them — leave them as native require().
-  serverExternalPackages: ['archiver', 'archiver-utils', 'zip-stream', 'tar-stream'],
-
   // Optimize images and static assets
   images: {
     formats: ['image/avif', 'image/webp'],

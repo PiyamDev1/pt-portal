@@ -8,11 +8,7 @@
 
 import { NextRequest } from 'next/server'
 import { GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3'
-import { Readable } from 'stream'
-import { createWriteStream as fsCreateWriteStream } from 'fs'
-import { mkdir, readFile, rm } from 'fs/promises'
-import { join } from 'path'
-import type * as archiverLib from 'archiver'
+import JSZip from 'jszip'
 import { getS3Client } from '@/lib/s3Client'
 import { getR2Client, isR2Configured } from '@/lib/r2Client'
 import { getSupabaseClient } from '@/lib/supabaseClient'
@@ -34,26 +30,22 @@ type DocumentRow = {
 }
 
 /**
- * Download a single S3/MinIO object to a local file path.
- * Returns true on success, false if Body is missing.
+ * Download a single S3/MinIO object into a Buffer.
+ * Returns null if the object body is missing.
  */
-async function downloadToFile(
+async function downloadToBuffer(
   client: ReturnType<typeof getS3Client>,
   bucket: string,
   key: string,
-  dest: string,
-): Promise<boolean> {
+): Promise<Buffer | null> {
   const result = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }))
-  if (!result.Body) return false
+  if (!result.Body) return null
 
-  return new Promise((resolve, reject) => {
-    const src = Readable.from(result.Body as AsyncIterable<Uint8Array>)
-    const out = fsCreateWriteStream(dest)
-    src.pipe(out)
-    out.on('finish', () => resolve(true))
-    out.on('error', reject)
-    src.on('error', reject)
-  })
+  const chunks: Uint8Array[] = []
+  for await (const chunk of result.Body as AsyncIterable<Uint8Array>) {
+    chunks.push(chunk)
+  }
+  return Buffer.concat(chunks)
 }
 
 /* ─────────────────────────────────────────
@@ -120,11 +112,9 @@ export async function GET(request: NextRequest) {
 /* ─────────────────────────────────────────
    POST /api/documents/zip
    Body: { familyHeadId: string, zipFileName: string }
-   Creates ZIP → uploads to MinIO → saves DB record
+   Creates ZIP in memory → uploads to MinIO → saves DB record
 ───────────────────────────────────────── */
 export async function POST(request: NextRequest) {
-  const cacheDir = join('/tmp', `zip-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
-
   try {
     const body = await request.json()
     const { familyHeadId, zipFileName } = body as { familyHeadId?: string; zipFileName?: string }
@@ -148,71 +138,52 @@ export async function POST(request: NextRequest) {
     const documents = data as DocumentRow[]
     console.log(`[zip] creating archive for ${documents.length} documents`)
 
-    // Create temp workspace
-    await mkdir(cacheDir, { recursive: true })
-
     const s3Client = getS3Client()
-    const cachedFiles: { path: string; name: string }[] = []
+    const zip = new JSZip()
+    let fileCount = 0
 
-    // archiver v8 is ESM — use dynamic import() so webpack doesn't try to
-    // require() an ES module (which Node.js would reject at runtime).
-    const { default: createArchive } = await import('archiver')
-
-    // ── 1. Download all documents to /tmp ──────────────────────────
+    // ── 1. Download each document as a buffer and add to ZIP ────────
     for (const doc of documents) {
-      const localPath = join(cacheDir, doc.id)
       const bucket = doc.minio_bucket || MINIO_BUCKET
-      let ok = false
+      let buffer: Buffer | null = null
 
       try {
-        ok = await downloadToFile(s3Client, bucket, doc.minio_key, localPath)
+        buffer = await downloadToBuffer(s3Client, bucket, doc.minio_key)
       } catch (minioErr) {
         console.error(`[zip] MinIO failed for ${doc.file_name}:`, minioErr)
         if (isR2Configured()) {
           try {
-            ok = await downloadToFile(getR2Client(), R2_BUCKET, doc.minio_key, localPath)
+            buffer = await downloadToBuffer(getR2Client(), R2_BUCKET, doc.minio_key)
           } catch (r2Err) {
             console.error(`[zip] R2 also failed for ${doc.file_name}:`, r2Err)
           }
         }
       }
 
-      if (ok) {
+      if (buffer) {
         const folder = doc.category && doc.category !== 'general' ? `${doc.category}/` : ''
-        cachedFiles.push({ path: localPath, name: `${folder}${doc.file_name}` })
-        console.log(`[zip] cached: ${doc.file_name}`)
+        zip.file(`${folder}${doc.file_name}`, buffer)
+        fileCount++
+        console.log(`[zip] added: ${doc.file_name}`)
       }
     }
 
-    if (cachedFiles.length === 0) {
+    if (fileCount === 0) {
       throw new Error('No documents could be downloaded from storage')
     }
 
-    // ── 2. Build ZIP file on disk ───────────────────────────────────
+    // ── 2. Generate ZIP buffer in memory ────────────────────────────
     const safeName = (zipFileName || familyHeadId).replace(/[^a-zA-Z0-9._-]/g, '_')
     const zipBaseName = safeName.endsWith('.zip') ? safeName : `${safeName}.zip`
-    const zipPath = join(cacheDir, zipBaseName)
 
-    const archive = createArchive('zip', { zlib: { level: 6 } })
-    const output = fsCreateWriteStream(zipPath)
-    archive.pipe(output)
-
-    for (const cached of cachedFiles) {
-      archive.file(cached.path, { name: cached.name })
-    }
-
-    // Wait until archive is fully written to disk
-    await new Promise<void>((resolve, reject) => {
-      output.on('close', resolve)
-      output.on('error', reject)
-      archive.on('error', reject)
-      archive.finalize()
+    const zipBuffer = await zip.generateAsync({
+      type: 'nodebuffer',
+      compression: 'DEFLATE',
+      compressionOptions: { level: 6 },
     })
-
-    console.log(`[zip] archive written to ${zipPath}`)
+    console.log(`[zip] generated ${zipBuffer.length} bytes`)
 
     // ── 3. Upload ZIP buffer to MinIO ───────────────────────────────
-    const zipBuffer = await readFile(zipPath)
     const minioKey = `family-${familyHeadId}/zip-archive/${zipBaseName}`
     const documentId = `doc-zip-${Date.now()}`
     let storageBucket = MINIO_BUCKET
@@ -270,19 +241,9 @@ export async function POST(request: NextRequest) {
 
     console.log(`[zip] DB record inserted: ${documentId}`)
 
-    // ── 6. Cleanup temp files ───────────────────────────────────────
-    await rm(cacheDir, { recursive: true, force: true })
-    console.log('[zip] temp files cleaned up')
-
     return apiOk({ documentId, minioKey, fileName: zipBaseName })
   } catch (err) {
     console.error('[zip] POST error:', err)
-    // Best-effort cleanup
-    try {
-      await rm(cacheDir, { recursive: true, force: true })
-    } catch {
-      // ignore cleanup errors
-    }
     return apiError(toErrorMessage(err, 'Failed to create ZIP archive'), 500)
   }
 }
