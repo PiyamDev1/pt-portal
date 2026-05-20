@@ -12,7 +12,7 @@ import { Readable } from 'stream'
 import { createWriteStream as fsCreateWriteStream } from 'fs'
 import { mkdir, readFile, rm } from 'fs/promises'
 import { join } from 'path'
-import * as archiverLib from 'archiver'
+import type * as archiverLib from 'archiver'
 import { getS3Client } from '@/lib/s3Client'
 import { getR2Client, isR2Configured } from '@/lib/r2Client'
 import { getSupabaseClient } from '@/lib/supabaseClient'
@@ -154,12 +154,9 @@ export async function POST(request: NextRequest) {
     const s3Client = getS3Client()
     const cachedFiles: { path: string; name: string }[] = []
 
-    // CJS default interop: webpack (prod) sets .default; Turbopack (dev) may not
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const archiverFactory = ((archiverLib as any).default ?? archiverLib) as unknown as (
-      format: string,
-      options?: archiverLib.ArchiverOptions,
-    ) => archiverLib.Archiver
+    // archiver v8 is ESM — use dynamic import() so webpack doesn't try to
+    // require() an ES module (which Node.js would reject at runtime).
+    const { default: createArchive } = await import('archiver')
 
     // ── 1. Download all documents to /tmp ──────────────────────────
     for (const doc of documents) {
@@ -196,7 +193,7 @@ export async function POST(request: NextRequest) {
     const zipBaseName = safeName.endsWith('.zip') ? safeName : `${safeName}.zip`
     const zipPath = join(cacheDir, zipBaseName)
 
-    const archive = archiverFactory('zip', { zlib: { level: 6 } })
+    const archive = createArchive('zip', { zlib: { level: 6 } })
     const output = fsCreateWriteStream(zipPath)
     archive.pipe(output)
 
