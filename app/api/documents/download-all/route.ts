@@ -5,7 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { GetObjectCommand } from '@aws-sdk/client-s3'
-import { Readable } from 'stream'
+import { Readable, PassThrough } from 'stream'
 import * as archiverLib from 'archiver'
 // archiver is a CJS module — module.exports is the factory function itself
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -56,19 +56,17 @@ export async function GET(request: NextRequest) {
       return apiError('No documents found', 404)
     }
 
-    // Create a Readable stream that will emit the ZIP data
-    // The archive will write to this stream as it processes files
+    // Create a PassThrough stream (both readable and writable)
+    // The archive will write ZIP data to this stream
+    const nodeStream = new PassThrough()
     const archive = archiverFactory('zip', { zlib: { level: 6 } })
-    
-    const nodeStream = new Readable({
-      read() {}, // noop — data is pushed by archiver
-    })
 
     archive.on('error', (err) => {
       console.error('[download-all] archiver error:', err)
       nodeStream.destroy(err)
     })
 
+    // Pipe archive to the PassThrough stream (which is writable)
     archive.pipe(nodeStream)
 
     // Start populating files immediately (stream-driven)
