@@ -17,7 +17,6 @@ const R2_BUCKET = process.env.R2_BUCKET_NAME || 'portal-fallback'
 type DocumentStorageRow = {
   minio_key: string | null
   minio_bucket: string | null
-  family_head_id: string | null
 }
 
 /**
@@ -35,7 +34,7 @@ export async function DELETE(
 
     const { data: doc, error: fetchError } = await supabase
       .from('documents')
-      .select('minio_key, minio_bucket, family_head_id')
+      .select('minio_key, minio_bucket')
       .eq('id', documentId)
       .single<DocumentStorageRow>()
 
@@ -84,30 +83,8 @@ export async function DELETE(
 
     if (deleteError) throw deleteError
 
-    // If the application has no more real documents, clear the has_documents marker.
-    // Fire-and-forget — document is already deleted even if this update fails.
-    if (doc.family_head_id) {
-      const familyHeadId = doc.family_head_id
-      supabase
-        .from('documents')
-        .select('id', { count: 'exact', head: true })
-        .eq('family_head_id', familyHeadId)
-        .eq('deleted', false)
-        .neq('category', 'zip-archive')
-        .then(({ count, error: countErr }) => {
-          if (countErr) return
-          if ((count ?? 0) === 0) {
-            supabase
-              .from('applications')
-              .update({ has_documents: false })
-              .eq('id', familyHeadId)
-              .then(({ error: markerErr }) => {
-                if (markerErr) console.error('[documents] failed to clear has_documents marker:', markerErr)
-              })
-          }
-        })
-    }
-
+    // has_documents is kept in sync automatically by the
+    // trg_sync_has_documents PostgreSQL trigger on the documents table.
     return apiOk({ deletedDocumentId: documentId })
   } catch (error) {
     return apiError(toErrorMessage(error, 'Failed to delete document'), 500)

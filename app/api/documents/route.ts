@@ -136,17 +136,8 @@ export async function POST(request: NextRequest) {
 
     if (error) throw error
 
-    // Mark the parent application as having documents (fast boolean flag —
-    // avoids COUNT queries on the passport list page). Fire-and-forget is
-    // intentional: if this update fails the document was still saved.
-    supabase
-      .from('applications')
-      .update({ has_documents: true })
-      .eq('id', familyHeadId)
-      .then(({ error: markerErr }) => {
-        if (markerErr) console.error('[documents] failed to set has_documents marker:', markerErr)
-      })
-
+    // has_documents is kept in sync automatically by the
+    // trg_sync_has_documents PostgreSQL trigger on the documents table.
     return apiOk({ documentId })
   } catch (error) {
     return apiError(toErrorMessage(error, 'Failed to save document'), 500)
