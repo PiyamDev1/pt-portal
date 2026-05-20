@@ -5,7 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { GetObjectCommand } from '@aws-sdk/client-s3'
-import { Readable, PassThrough } from 'stream'
+import { Readable } from 'stream'
 import * as archiverLib from 'archiver'
 // archiver is a CJS module — module.exports is the factory function itself
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -32,7 +32,7 @@ type DocumentRow = {
 /**
  * Convert Node.js ReadableStream to Web ReadableStream via chunks
  */
-async function* nodeStreamToAsyncIterator(nodeStream: PassThrough) {
+async function* nodeStreamToAsyncIterator(nodeStream: Readable) {
   for await (const chunk of nodeStream) {
     yield chunk
   }
@@ -70,39 +70,17 @@ export async function GET(request: NextRequest) {
 
     console.log(`[download-all] starting archive for ${documents.length} documents`)
 
-    // Create a PassThrough stream that will be piped by archiver
-    const nodeStream = new PassThrough()
+    // Create the archive
     const archive = archiverFactory('zip', { zlib: { level: 6 } })
 
-    // Set up error handlers
-    let fatalError: Error | null = null
-
-    archive.on('error', (err) => {
-      console.error('[download-all] archiver error:', err)
-      fatalError = err
-      nodeStream.destroy(err)
-    })
-
-    nodeStream.on('error', (err) => {
-      console.error('[download-all] stream error:', err)
-      if (!fatalError) fatalError = err
-    })
-
-    // Pipe archive output to the stream
-    archive.pipe(nodeStream)
-
-    // Start populating archive in background
-    // This MUST complete before client closes connection
+    // Populate archive asynchronously
     const populateArchive = async () => {
       const s3Client = getS3Client()
       let successCount = 0
       let errorCount = 0
 
       try {
-        console.log('[download-all] beginning file population')
         for (const doc of documents) {
-          if (fatalError) break // Stop if error already occurred
-
           try {
             const bucket = doc.minio_bucket || MINIO_BUCKET
             let result
@@ -129,17 +107,12 @@ export async function GET(request: NextRequest) {
             }
 
             if (result.Body) {
-              try {
-                const fileStream = Readable.from(result.Body as AsyncIterable<Uint8Array>)
-                const folder = doc.category && doc.category !== 'general' ? `${doc.category}/` : ''
-                const fileName = `${folder}${doc.file_name}`
-                console.log(`[download-all] appending to archive: ${fileName}`)
-                archive.append(fileStream, { name: fileName })
-                successCount++
-              } catch (appendErr) {
-                console.error(`[download-all] error appending ${doc.file_name}:`, appendErr)
-                errorCount++
-              }
+              const fileStream = Readable.from(result.Body as AsyncIterable<Uint8Array>)
+              const folder = doc.category && doc.category !== 'general' ? `${doc.category}/` : ''
+              const fileName = `${folder}${doc.file_name}`
+              console.log(`[download-all] appending to archive: ${fileName}`)
+              archive.append(fileStream, { name: fileName })
+              successCount++
             }
           } catch (fileErr) {
             console.error(`[download-all] error processing ${doc.file_name}:`, fileErr)
@@ -149,25 +122,23 @@ export async function GET(request: NextRequest) {
 
         console.log(`[download-all] population complete: ${successCount}/${documents.length} added (${errorCount} errors)`)
 
-        if (!fatalError) {
-          console.log('[download-all] finalizing archive')
-          await archive.finalize()
-          console.log('[download-all] archive finalized')
-        } else {
-          archive.destroy()
-        }
+        console.log('[download-all] finalizing archive')
+        await archive.finalize()
+        console.log('[download-all] archive finalized')
       } catch (err) {
         console.error('[download-all] fatal error during population:', err)
-        fatalError = err as Error
-        nodeStream.destroy(err as Error)
+        archive.destroy()
+        throw err
       }
     }
 
-    // Start population immediately (don't await, run in background)
-    const populationPromise = populateArchive()
+    // Start population immediately (fire and forget, but with error handling)
+    populateArchive().catch((err) => {
+      console.error('[download-all] background population failed:', err)
+    })
 
-    // Convert stream to web format
-    const webStream = Readable.toWeb(nodeStream) as ReadableStream<Uint8Array>
+    // The archive is a Readable stream - convert to Web ReadableStream
+    const webStream = Readable.toWeb(archive as unknown as Readable) as ReadableStream<Uint8Array>
 
     return new NextResponse(webStream, {
       status: 200,
@@ -176,7 +147,6 @@ export async function GET(request: NextRequest) {
         'Content-Disposition': `attachment; filename*=UTF-8''documents-${familyHeadId}.zip`,
         'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
         'Transfer-Encoding': 'chunked',
-        'Connection': 'keep-alive',
       },
     })
   } catch (err) {
