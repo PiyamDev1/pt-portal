@@ -44,11 +44,36 @@ html {
   animation-delay: 180ms;
 }
 
+.ui-tap {
+  transition: transform 140ms ease, box-shadow 180ms ease, filter 180ms ease;
+}
+
+@media (hover: hover) {
+  .ui-tap:hover {
+    transform: translateY(-1px);
+    filter: saturate(1.05);
+  }
+}
+
+.ui-tap:active {
+  transform: translateY(0) scale(0.985);
+}
+
+.ui-focus {
+  outline: none;
+}
+
+.ui-focus:focus-visible {
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.25);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-enter-fade-up,
   .animate-enter-delay-1,
   .animate-enter-delay-2,
-  .animate-enter-delay-3 {
+  .animate-enter-delay-3,
+  .ui-tap {
     animation: none;
+    transition: none;
   }
 }

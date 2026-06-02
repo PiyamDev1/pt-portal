@@ -1111,7 +1111,7 @@ export default function BookingsClient({
             <div className="flex rounded-xl border border-slate-200 overflow-hidden bg-white">
               <button
                 onClick={() => setView('multi')}
-                className={`inline-flex items-center gap-1.5 px-2.5 py-2 text-xs font-medium transition-all sm:px-3 sm:text-sm ${
+                className={`ui-tap ui-focus inline-flex items-center gap-1.5 px-2.5 py-2 text-xs font-medium transition-all sm:px-3 sm:text-sm ${
                   view === 'multi' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50'
                 }`}
               >
@@ -1120,7 +1120,7 @@ export default function BookingsClient({
               </button>
               <button
                 onClick={() => setView('week')}
-                className={`inline-flex items-center gap-1.5 border-l border-slate-200 px-2.5 py-2 text-xs font-medium transition-all sm:px-3 sm:text-sm ${
+                className={`ui-tap ui-focus inline-flex items-center gap-1.5 border-l border-slate-200 px-2.5 py-2 text-xs font-medium transition-all sm:px-3 sm:text-sm ${
                   view === 'week' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50'
                 }`}
               >
@@ -1129,7 +1129,7 @@ export default function BookingsClient({
               </button>
               <button
                 onClick={() => setView('list')}
-                className={`inline-flex items-center gap-1.5 border-l border-slate-200 px-2.5 py-2 text-xs font-medium transition-all sm:px-3 sm:text-sm ${
+                className={`ui-tap ui-focus inline-flex items-center gap-1.5 border-l border-slate-200 px-2.5 py-2 text-xs font-medium transition-all sm:px-3 sm:text-sm ${
                   view === 'list' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50'
                 }`}
               >
@@ -1144,7 +1144,7 @@ export default function BookingsClient({
 
             <button
               onClick={goToPrev}
-              className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white p-2 text-slate-600 transition-all hover:-translate-y-0.5 hover:bg-slate-50"
+              className="ui-tap ui-focus inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white p-2 text-slate-600 transition-all hover:-translate-y-0.5 hover:bg-slate-50"
               title={view === 'multi' ? 'Previous month' : 'Previous week'}
             >
               <ChevronLeftIcon className="h-4 w-4" />
@@ -1152,7 +1152,7 @@ export default function BookingsClient({
 
             <button
               onClick={goToToday}
-              className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-medium transition-all hover:-translate-y-0.5 sm:text-sm ${
+              className={`ui-tap ui-focus inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-medium transition-all hover:-translate-y-0.5 sm:text-sm ${
                 isCurrentPeriod
                   ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
                   : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
@@ -1164,7 +1164,7 @@ export default function BookingsClient({
 
             <button
               onClick={goToNext}
-              className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white p-2 text-slate-600 transition-all hover:-translate-y-0.5 hover:bg-slate-50"
+              className="ui-tap ui-focus inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white p-2 text-slate-600 transition-all hover:-translate-y-0.5 hover:bg-slate-50"
               title={view === 'multi' ? 'Next month' : 'Next week'}
             >
               <ChevronRightIcon className="h-4 w-4" />
@@ -1173,7 +1173,7 @@ export default function BookingsClient({
             <button
               onClick={() => fetchBookings(true)}
               disabled={refreshing}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600 transition-all hover:-translate-y-0.5 hover:bg-slate-50 disabled:opacity-50 sm:text-sm"
+              className="ui-tap ui-focus inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600 transition-all hover:-translate-y-0.5 hover:bg-slate-50 disabled:opacity-50 sm:text-sm"
             >
               <RefreshIcon className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
               {refreshing ? 'Refreshing...' : 'Refresh'}
@@ -1193,7 +1193,7 @@ export default function BookingsClient({
             {isAdmin && (
               <button
                 onClick={() => setShowSettings((prev) => !prev)}
-                className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-medium transition-all hover:-translate-y-0.5 sm:text-sm ${
+                className={`ui-tap ui-focus inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-medium transition-all hover:-translate-y-0.5 sm:text-sm ${
                   showSettings
                     ? 'border-indigo-600 bg-indigo-600 text-white'
                     : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
@@ -1207,7 +1207,7 @@ export default function BookingsClient({
             {!showSettings && (
               <button
                 onClick={() => openCreateAppointment()}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-600 bg-indigo-600 px-3 py-2 text-xs font-medium text-white transition-all hover:-translate-y-0.5 hover:bg-indigo-700 sm:text-sm"
+                className="ui-tap ui-focus inline-flex items-center gap-1.5 rounded-xl border border-indigo-600 bg-indigo-600 px-3 py-2 text-xs font-medium text-white transition-all hover:-translate-y-0.5 hover:bg-indigo-700 sm:text-sm"
               >
                 <PlusIcon className="h-4 w-4" />
                 Add Appointment
@@ -1315,7 +1315,7 @@ export default function BookingsClient({
                 <button
                   type="button"
                   onClick={() => setMobileCalendarMode('grid')}
-                  className={`flex-1 rounded-lg px-2 py-1.5 text-xs font-medium transition-colors ${
+                  className={`ui-tap ui-focus flex-1 rounded-lg px-2 py-1.5 text-xs font-medium transition-colors ${
                     mobileCalendarMode === 'grid' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500'
                   }`}
                 >
@@ -1324,7 +1324,7 @@ export default function BookingsClient({
                 <button
                   type="button"
                   onClick={() => setMobileCalendarMode('agenda')}
-                  className={`flex-1 rounded-lg px-2 py-1.5 text-xs font-medium transition-colors ${
+                  className={`ui-tap ui-focus flex-1 rounded-lg px-2 py-1.5 text-xs font-medium transition-colors ${
                     mobileCalendarMode === 'agenda' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500'
                   }`}
                 >
@@ -1352,7 +1352,7 @@ export default function BookingsClient({
                           key={`agenda-${day.toISOString()}`}
                           type="button"
                           onClick={() => openDayAgenda(day)}
-                          className={`w-full px-4 py-3 text-left transition-colors ${
+                          className={`ui-tap ui-focus w-full px-4 py-3 text-left transition-colors ${
                             isSelected ? 'bg-indigo-50' : 'hover:bg-slate-50'
                           }`}
                         >
@@ -1509,7 +1509,7 @@ export default function BookingsClient({
                         setMobileWeekDayIndex(index)
                         setSelectedDate(day)
                       }}
-                      className={`min-w-[76px] rounded-xl border px-3 py-2 text-left transition-colors ${
+                      className={`ui-tap ui-focus min-w-[76px] rounded-xl border px-3 py-2 text-left transition-colors ${
                         isActive
                           ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
                           : 'border-slate-200 bg-white text-slate-600'
@@ -1548,7 +1548,7 @@ export default function BookingsClient({
                 <button
                   type="button"
                   onClick={() => setMobileListMode('day')}
-                  className={`flex-1 rounded-lg px-2 py-1.5 text-xs font-medium transition-colors ${
+                  className={`ui-tap ui-focus flex-1 rounded-lg px-2 py-1.5 text-xs font-medium transition-colors ${
                     mobileListMode === 'day' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500'
                   }`}
                 >
@@ -1557,7 +1557,7 @@ export default function BookingsClient({
                 <button
                   type="button"
                   onClick={() => setMobileListMode('week')}
-                  className={`flex-1 rounded-lg px-2 py-1.5 text-xs font-medium transition-colors ${
+                  className={`ui-tap ui-focus flex-1 rounded-lg px-2 py-1.5 text-xs font-medium transition-colors ${
                     mobileListMode === 'week' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500'
                   }`}
                 >
@@ -1576,7 +1576,7 @@ export default function BookingsClient({
                         setMobileWeekDayIndex(index)
                         setSelectedDate(day)
                       }}
-                      className={`min-w-[76px] rounded-xl border px-3 py-2 text-left transition-colors ${
+                      className={`ui-tap ui-focus min-w-[76px] rounded-xl border px-3 py-2 text-left transition-colors ${
                         isActive
                           ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
                           : 'border-slate-200 bg-white text-slate-600'
@@ -1675,7 +1675,7 @@ export default function BookingsClient({
                 <CalendarIcon className="h-5 w-5 text-indigo-600" />
                 {editingBooking ? 'Modify Appointment' : 'Add Appointment'}
               </h2>
-              <button onClick={() => setShowAppointmentModal(false)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-700">Close</button>
+              <button onClick={() => setShowAppointmentModal(false)} className="ui-tap ui-focus rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-700">Close</button>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -1857,14 +1857,14 @@ export default function BookingsClient({
                   <button
                     onClick={() => setCancelConfirmOpen(true)}
                     disabled={savingBooking || updatingId === editingBooking.id}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded border border-red-200 bg-red-50 text-sm text-red-600 disabled:opacity-50"
+                    className="ui-tap ui-focus inline-flex items-center gap-1.5 px-4 py-2 rounded border border-red-200 bg-red-50 text-sm text-red-600 disabled:opacity-50"
                   >
                     <CloseIcon className="h-4 w-4" />
                     Cancel Appointment
                   </button>
                 )}
-                <button onClick={() => { setShowAppointmentModal(false); setCancelConfirmOpen(false) }} className="inline-flex items-center gap-1.5 px-4 py-2 rounded border border-slate-300 text-sm"><CloseIcon className="h-4 w-4" />Close</button>
-                <button onClick={saveAppointment} disabled={savingBooking || invalidLocalPhone} className="inline-flex items-center gap-1.5 px-4 py-2 rounded bg-indigo-600 text-white text-sm disabled:opacity-50">
+                <button onClick={() => { setShowAppointmentModal(false); setCancelConfirmOpen(false) }} className="ui-tap ui-focus inline-flex items-center gap-1.5 px-4 py-2 rounded border border-slate-300 text-sm"><CloseIcon className="h-4 w-4" />Close</button>
+                <button onClick={saveAppointment} disabled={savingBooking || invalidLocalPhone} className="ui-tap ui-focus inline-flex items-center gap-1.5 px-4 py-2 rounded bg-indigo-600 text-white text-sm disabled:opacity-50">
                   {!savingBooking && <CheckIcon className="h-4 w-4" />}
                   {savingBooking ? 'Saving...' : editingBooking ? 'Save Changes' : 'Create Appointment'}
                 </button>
@@ -3069,7 +3069,7 @@ function BookingRow({
 
         <button
           onClick={() => onEditBooking(booking)}
-          className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border border-slate-300 text-slate-700 bg-white hover:bg-slate-50 transition-colors"
+          className="ui-tap ui-focus inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border border-slate-300 text-slate-700 bg-white hover:bg-slate-50 transition-colors"
         >
           <PencilIcon className="h-3.5 w-3.5" />
           Edit
@@ -3079,7 +3079,7 @@ function BookingRow({
           <button
             onClick={() => onStatusChange(booking.id, 'confirmed')}
             disabled={isUpdating}
-            className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
+            className="ui-tap ui-focus inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
           >
             {!isUpdating && <CheckIcon className="h-3.5 w-3.5" />}
             {isUpdating ? '…' : 'Confirm'}
@@ -3089,7 +3089,7 @@ function BookingRow({
           <button
             onClick={() => onStatusChange(booking.id, 'completed')}
             disabled={isUpdating}
-            className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-slate-700 text-white hover:bg-slate-800 disabled:opacity-50 transition-colors"
+            className="ui-tap ui-focus inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-slate-700 text-white hover:bg-slate-800 disabled:opacity-50 transition-colors"
           >
             {!isUpdating && <DoneIcon className="h-3.5 w-3.5" />}
             {isUpdating ? '…' : 'Mark Done'}
@@ -3099,7 +3099,7 @@ function BookingRow({
           <button
             onClick={() => onStatusChange(booking.id, 'cancelled')}
             disabled={isUpdating}
-            className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border border-red-200 text-red-600 bg-red-50 hover:bg-red-100 disabled:opacity-50 transition-colors"
+            className="ui-tap ui-focus inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border border-red-200 text-red-600 bg-red-50 hover:bg-red-100 disabled:opacity-50 transition-colors"
           >
             {!isUpdating && <CloseIcon className="h-3.5 w-3.5" />}
             {isUpdating ? '…' : 'Cancel'}
