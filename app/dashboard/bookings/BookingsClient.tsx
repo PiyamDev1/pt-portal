@@ -289,6 +289,40 @@ function ConfirmedIcon({ className = 'h-4 w-4' }: { className?: string }) {
   )
 }
 
+function PencilIcon({ className = 'h-4 w-4' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7" className={className} aria-hidden="true">
+      <path d="m4.2 13.9 1.2 1.9 2.1-.7 7-7a1.7 1.7 0 0 0-2.4-2.4l-7 7-.9 2.2Z" strokeLinejoin="round" />
+      <path d="m10.8 5.9 3.3 3.3" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+function CheckIcon({ className = 'h-4 w-4' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.9" className={className} aria-hidden="true">
+      <path d="m5.2 10.4 3 3.1 6.6-7" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function DoneIcon({ className = 'h-4 w-4' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className={className} aria-hidden="true">
+      <path d="m3.9 10.5 2.3 2.4 3.5-4.1" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="m9.1 10.5 2.3 2.4 4.7-5.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function CloseIcon({ className = 'h-4 w-4' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className={className} aria-hidden="true">
+      <path d="m6 6 8 8M14 6l-8 8" strokeLinecap="round" />
+    </svg>
+  )
+}
+
 function isValidLocalPhone(phone: string): boolean {
   const normalized = phone.replace(/[^\d]/g, '')
   return normalized.length >= 6 && normalized.length <= 14
@@ -438,6 +472,8 @@ export default function BookingsClient({
   const [weekStart, setWeekStart] = useState<Date>(() => startOfWeek(today))
   const [monthStart, setMonthStart] = useState<Date>(() => startOfMonth(today))
   const [selectedDate, setSelectedDate] = useState<Date>(today)
+  const [mobileWeekDayIndex, setMobileWeekDayIndex] = useState(0)
+  const [mobileListMode, setMobileListMode] = useState<'day' | 'week'>('day')
 
   const [bookings, setBookings] = useState<BookingWithService[]>([])
   const [loading, setLoading] = useState(false)
@@ -487,6 +523,13 @@ export default function BookingsClient({
     d.setUTCDate(weekStart.getUTCDate() + i)
     return d
   })
+
+  useEffect(() => {
+    const selectedIndex = weekDays.findIndex((day) => isSameUTCDay(day, selectedDate))
+    const todayIndex = weekDays.findIndex((day) => isSameUTCDay(day, today))
+    const nextIndex = selectedIndex >= 0 ? selectedIndex : todayIndex >= 0 ? todayIndex : 0
+    setMobileWeekDayIndex(nextIndex)
+  }, [selectedDate, today, weekStart, weekDays])
 
   const calendarGridStart = useMemo(() => startOfCalendarGrid(monthStart), [monthStart])
   const calendarDays = useMemo(() => Array.from({ length: 42 }, (_, i) => {
@@ -1040,7 +1083,7 @@ export default function BookingsClient({
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-6 relative">
         <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-56 rounded-[2rem] bg-white/40 blur-3xl" />
 
-        <div className="rounded-[28px] border border-white/70 bg-white/80 p-5 shadow-[0_24px_80px_-32px_rgba(15,23,42,0.35)] backdrop-blur xl:p-6">
+        <div className="animate-enter-fade-up rounded-[28px] border border-white/70 bg-white/80 p-5 shadow-[0_24px_80px_-32px_rgba(15,23,42,0.35)] backdrop-blur xl:p-6">
           <div className="flex flex-col gap-5">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div className="space-y-3">
@@ -1214,7 +1257,7 @@ export default function BookingsClient({
         </div>
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-all hover:-translate-y-1 hover:shadow-md">
+          <div className="animate-enter-fade-up animate-enter-delay-1 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-all hover:-translate-y-1 hover:shadow-md">
             <div className="h-1 bg-slate-900" />
             <div className="p-4">
               <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-700"><EyeIcon className="h-4 w-4" /></span>
@@ -1223,7 +1266,7 @@ export default function BookingsClient({
               <p className="mt-2 text-xs text-slate-500">Appointments currently shown in this view.</p>
             </div>
           </div>
-          <div className="overflow-hidden rounded-2xl border border-amber-100 bg-white shadow-sm transition-all hover:-translate-y-1 hover:shadow-md">
+          <div className="animate-enter-fade-up animate-enter-delay-1 overflow-hidden rounded-2xl border border-amber-100 bg-white shadow-sm transition-all hover:-translate-y-1 hover:shadow-md">
             <div className="h-1 bg-amber-400" />
             <div className="p-4">
               <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-amber-50 text-amber-700"><PendingIcon className="h-4 w-4" /></span>
@@ -1232,7 +1275,7 @@ export default function BookingsClient({
               <p className="mt-2 text-xs text-slate-500">Awaiting confirmation or follow-up.</p>
             </div>
           </div>
-          <div className="overflow-hidden rounded-2xl border border-emerald-100 bg-white shadow-sm transition-all hover:-translate-y-1 hover:shadow-md">
+          <div className="animate-enter-fade-up animate-enter-delay-2 overflow-hidden rounded-2xl border border-emerald-100 bg-white shadow-sm transition-all hover:-translate-y-1 hover:shadow-md">
             <div className="h-1 bg-emerald-500" />
             <div className="p-4">
               <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700"><ConfirmedIcon className="h-4 w-4" /></span>
@@ -1241,7 +1284,7 @@ export default function BookingsClient({
               <p className="mt-2 text-xs text-slate-500">Ready to serve in the active window.</p>
             </div>
           </div>
-          <div className="overflow-hidden rounded-2xl border border-indigo-100 bg-white shadow-sm transition-all hover:-translate-y-1 hover:shadow-md">
+          <div className="animate-enter-fade-up animate-enter-delay-3 overflow-hidden rounded-2xl border border-indigo-100 bg-white shadow-sm transition-all hover:-translate-y-1 hover:shadow-md">
             <div className="h-1 bg-indigo-500" />
             <div className="p-4">
               <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 text-indigo-700"><FilterIcon className="h-4 w-4" /></span>
@@ -1261,7 +1304,7 @@ export default function BookingsClient({
             />
           </div>
         ) : view === 'multi' && (
-          <div className="space-y-4">
+          <div className="animate-enter-fade-up animate-enter-delay-1 space-y-4">
             <div className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-[0_18px_50px_-30px_rgba(15,23,42,0.4)]">
               <div className="grid grid-cols-7 border-b border-slate-200 bg-[linear-gradient(180deg,_#f8fafc_0%,_#eef2ff_100%)]">
                 {CALENDAR_DAY_LABELS.map((label) => (
@@ -1367,22 +1410,103 @@ export default function BookingsClient({
         )}
 
         {view === 'week' && (
-          <WeekTimeline
-            weekDays={weekDays}
-            activeBookings={activeBookings}
-            conflictBookings={allActiveBookings}
-            today={today}
-            loading={loading}
-            onSlotClick={(dateKey, startIso) =>
-              openCreateAppointment({ date: dateKey, start_time: startIso })
-            }
-            onBookingClick={openEditBooking}
-            onReschedule={rescheduleBooking}
-            onStatusChange={updateStatus}
-          />
+          <div className="animate-enter-fade-up animate-enter-delay-1 space-y-3">
+            <div className="md:hidden rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {weekDays.map((day, index) => {
+                  const isActive = index === mobileWeekDayIndex
+                  const isToday = isSameUTCDay(day, today)
+                  const count = bookingsForDate(day).length
+                  return (
+                    <button
+                      key={day.toISOString()}
+                      type="button"
+                      onClick={() => {
+                        setMobileWeekDayIndex(index)
+                        setSelectedDate(day)
+                      }}
+                      className={`min-w-[76px] rounded-xl border px-3 py-2 text-left transition-colors ${
+                        isActive
+                          ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
+                          : 'border-slate-200 bg-white text-slate-600'
+                      }`}
+                    >
+                      <p className="text-[10px] font-semibold uppercase tracking-wide">{DAY_LABELS[day.getUTCDay()]}</p>
+                      <p className="mt-1 text-base font-bold">{day.getUTCDate()}</p>
+                      <p className="mt-1 text-[10px] text-slate-400">{count} booked{isToday ? ' · today' : ''}</p>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            <WeekTimeline
+              weekDays={weekDays}
+              activeBookings={activeBookings}
+              conflictBookings={allActiveBookings}
+              today={today}
+              loading={loading}
+              mobileDayIndex={mobileWeekDayIndex}
+              onSlotClick={(dateKey, startIso) =>
+                openCreateAppointment({ date: dateKey, start_time: startIso })
+              }
+              onBookingClick={openEditBooking}
+              onReschedule={rescheduleBooking}
+              onStatusChange={updateStatus}
+            />
+          </div>
         )}
 
         {view === 'list' && (
+          <div className="animate-enter-fade-up animate-enter-delay-1 space-y-3">
+            <div className="md:hidden rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
+              <div className="mb-2 flex items-center justify-between gap-2 rounded-xl bg-slate-50 p-1">
+                <button
+                  type="button"
+                  onClick={() => setMobileListMode('day')}
+                  className={`flex-1 rounded-lg px-2 py-1.5 text-xs font-medium transition-colors ${
+                    mobileListMode === 'day' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500'
+                  }`}
+                >
+                  Selected day
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMobileListMode('week')}
+                  className={`flex-1 rounded-lg px-2 py-1.5 text-xs font-medium transition-colors ${
+                    mobileListMode === 'week' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500'
+                  }`}
+                >
+                  Full week
+                </button>
+              </div>
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {weekDays.map((day, index) => {
+                  const isActive = index === mobileWeekDayIndex
+                  const count = bookingsForDate(day).length
+                  return (
+                    <button
+                      key={day.toISOString()}
+                      type="button"
+                      onClick={() => {
+                        setMobileWeekDayIndex(index)
+                        setSelectedDate(day)
+                      }}
+                      className={`min-w-[76px] rounded-xl border px-3 py-2 text-left transition-colors ${
+                        isActive
+                          ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
+                          : 'border-slate-200 bg-white text-slate-600'
+                      }`}
+                    >
+                      <p className="text-[10px] font-semibold uppercase tracking-wide">{DAY_LABELS[day.getUTCDay()]}</p>
+                      <p className="mt-1 text-base font-bold">{day.getUTCDate()}</p>
+                      <p className="mt-1 text-[10px] text-slate-400">{count} booked</p>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
           <div className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-[0_18px_50px_-32px_rgba(15,23,42,0.35)]">
             {loading ? (
               <div className="py-12 text-center text-slate-400 text-sm">Loading appointments…</div>
@@ -1394,12 +1518,13 @@ export default function BookingsClient({
                 </div>
               </div>
             ) : (
-              weekDays.map((day) => {
+              weekDays.map((day, index) => {
+                const hideOnMobile = mobileListMode === 'day' && index !== mobileWeekDayIndex
                 const dayBookings = bookingsForDate(day)
                 if (dayBookings.length === 0) return null
                 const isToday = isSameUTCDay(day, today)
                 return (
-                  <div key={day.toISOString()}>
+                  <div key={day.toISOString()} className={hideOnMobile ? 'hidden md:block' : 'block'}>
                     <div className={`px-4 sm:px-5 py-3 border-b border-slate-100 flex items-center gap-2 ${isToday ? 'bg-indigo-50' : 'bg-slate-50'}`}>
                       <span className={`text-sm font-semibold ${isToday ? 'text-indigo-700' : 'text-slate-600'}`}>
                         {formatDateLabel(day)}
@@ -1426,6 +1551,7 @@ export default function BookingsClient({
                 )
               })
             )}
+          </div>
           </div>
         )}
 
@@ -2082,6 +2208,7 @@ function WeekTimeline({
   conflictBookings,
   today,
   loading,
+  mobileDayIndex,
   onSlotClick,
   onBookingClick,
   onReschedule,
@@ -2092,6 +2219,7 @@ function WeekTimeline({
   conflictBookings: BookingWithService[]
   today: Date
   loading: boolean
+  mobileDayIndex: number
   onSlotClick: (dateKey: string, startIso: string) => void
   onBookingClick: (booking: BookingWithService) => void
   onReschedule: (id: string, newStartIso: string) => void
@@ -2239,9 +2367,102 @@ function WeekTimeline({
   }, [contextMenu])
 
   const statusActions = [BookingStatus.CONFIRMED, BookingStatus.COMPLETED, BookingStatus.CANCELLED]
+  const mobileDay = weekDays[mobileDayIndex] ?? weekDays[0]
+  const mobileDateKey = mobileDay?.toISOString().slice(0, 10) ?? ''
+  const mobileBookings = mobileDateKey ? bookingsByDate.get(mobileDateKey) ?? [] : []
 
   return (
-    <div className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-[0_18px_50px_-32px_rgba(15,23,42,0.35)] select-none">
+    <>
+    <div className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-[0_18px_50px_-32px_rgba(15,23,42,0.35)] select-none md:hidden">
+      {mobileDay && (
+        <>
+          <div className="border-b border-slate-200 bg-[linear-gradient(180deg,_#ffffff_0%,_#eef2ff_100%)] px-4 py-3">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{DAY_LABELS[mobileDay.getUTCDay()]}</p>
+            <div className="mt-1 flex items-center gap-2">
+              <p className="text-xl font-bold text-slate-800">{formatDateLabel(mobileDay)}</p>
+              {isSameUTCDay(mobileDay, today) && <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-semibold text-indigo-700">Today</span>}
+            </div>
+          </div>
+
+          <div
+            ref={containerRef}
+            className={`overflow-y-scroll overflow-x-hidden bg-[linear-gradient(180deg,_rgba(248,250,252,0.75)_0%,_rgba(255,255,255,1)_18%)] ${dragging ? 'cursor-grabbing' : ''}`}
+            style={{ height: 560 }}
+            onMouseMove={handleDragMove}
+            onMouseUp={handleDragEnd}
+            onMouseLeave={handleDragEnd}
+          >
+            <div className="flex" style={{ height: totalHeight }}>
+              <div style={{ width: LABEL_W, minWidth: LABEL_W }} className="relative flex-shrink-0">
+                {hours.map((h) => (
+                  <div key={`mobile-${h}`} className="absolute right-2 text-[10px] font-medium text-slate-400 text-right leading-none" style={{ top: yFor(h * 60) - 5 }}>
+                    {String(h).padStart(2, '0')}:00
+                  </div>
+                ))}
+              </div>
+
+              {loading ? (
+                <div className="relative flex-1 border-l border-slate-200 bg-white/90">
+                  {hours.map((h) => (
+                    <div key={`mh-${h}`} className="absolute left-0 right-0 border-t border-slate-100" style={{ top: yFor(h * 60) }} />
+                  ))}
+                  {[0.15, 0.42, 0.7].map((frac, index) => (
+                    <div key={index} className="absolute left-0.5 right-0.5 rounded bg-slate-200 animate-pulse" style={{ top: totalHeight * frac, height: 36 + index * 18 }} />
+                  ))}
+                </div>
+              ) : (
+                <div
+                  className={`relative flex-1 border-l border-slate-200 ${isSameUTCDay(mobileDay, today) ? 'bg-indigo-50/30' : 'bg-white'} ${dragging ? 'cursor-default' : 'cursor-pointer hover:bg-indigo-50/20'}`}
+                  onClick={(e) => {
+                    if (dragMovedRef.current) { dragMovedRef.current = false; return }
+                    const rect = e.currentTarget.getBoundingClientRect()
+                    const clickedY = (e.clientY - rect.top) + (containerRef.current?.scrollTop ?? 0)
+                    const clickedMin = TIMELINE_START + clickedY / TIMELINE_PX_PER_MIN
+                    const roundedMin = Math.round(clickedMin / 5) * 5
+                    const clampedMin = Math.max(TIMELINE_START, Math.min(TIMELINE_END - 30, roundedMin))
+                    const startIso = new Date(mobileDay.getTime() + clampedMin * 60000).toISOString()
+                    onSlotClick(mobileDateKey, startIso)
+                  }}
+                >
+                  {hours.map((h) => (
+                    <div key={`mg-${h}`} className="absolute left-0 right-0 border-t border-slate-100" style={{ top: yFor(h * 60) }} />
+                  ))}
+                  {hours.map((h) => (
+                    <div key={`mgh-${h}`} className="absolute left-0 right-0 border-t border-dashed border-slate-100" style={{ top: yFor(h * 60 + 30) }} />
+                  ))}
+
+                  {mobileBookings.map((b) => {
+                    const startMs = new Date(b.start_time).getTime()
+                    const endMs = new Date(b.end_time).getTime()
+                    const startMin = (startMs - mobileDay.getTime()) / 60000
+                    const durMin = Math.max((endMs - startMs) / 60000, 5)
+                    const top = yFor(startMin)
+                    const height = Math.max(durMin * TIMELINE_PX_PER_MIN, 22)
+                    const colors = WEEK_BLOCK_COLORS[b.status] ?? WEEK_BLOCK_COLORS.pending
+                    return (
+                      <div
+                        key={`mobile-booking-${b.id}`}
+                        className={`absolute left-1 right-1 rounded-xl px-2 py-1 overflow-hidden shadow-sm ring-1 ring-black/5 ${colors.bg} ${colors.hover}`}
+                        style={{ top, height }}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onBookingClick(b)
+                        }}
+                      >
+                        <p className="text-[10px] font-bold text-white truncate">{formatTime(b.start_time)} · {b.customer_name}</p>
+                        {height >= 42 && <p className="text-[9px] text-white/80 truncate">{b.booking_services?.name || 'Service'}</p>}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+
+    <div className="hidden overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-[0_18px_50px_-32px_rgba(15,23,42,0.35)] select-none md:block">
       {/* Day header row */}
       <div className="flex border-b border-slate-200 bg-[linear-gradient(180deg,_#ffffff_0%,_#eef2ff_100%)]">
         <div style={{ width: LABEL_W, minWidth: LABEL_W }} />
@@ -2455,6 +2676,7 @@ function WeekTimeline({
         </div>
       )}
     </div>
+    </>
   )
 }
 // ─── Timeline slot picker ─────────────────────────────────────────────────────
@@ -2761,8 +2983,9 @@ function BookingRow({
 
         <button
           onClick={() => onEditBooking(booking)}
-          className="text-xs font-medium px-2.5 py-1 rounded-full border border-slate-300 text-slate-700 bg-white hover:bg-slate-50 transition-colors"
+          className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border border-slate-300 text-slate-700 bg-white hover:bg-slate-50 transition-colors"
         >
+          <PencilIcon className="h-3.5 w-3.5" />
           Edit
         </button>
 
@@ -2770,8 +2993,9 @@ function BookingRow({
           <button
             onClick={() => onStatusChange(booking.id, 'confirmed')}
             disabled={isUpdating}
-            className="text-xs font-medium px-2.5 py-1 rounded-full bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
+            className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
           >
+            {!isUpdating && <CheckIcon className="h-3.5 w-3.5" />}
             {isUpdating ? '…' : 'Confirm'}
           </button>
         )}
@@ -2779,8 +3003,9 @@ function BookingRow({
           <button
             onClick={() => onStatusChange(booking.id, 'completed')}
             disabled={isUpdating}
-            className="text-xs font-medium px-2.5 py-1 rounded-full bg-slate-700 text-white hover:bg-slate-800 disabled:opacity-50 transition-colors"
+            className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-slate-700 text-white hover:bg-slate-800 disabled:opacity-50 transition-colors"
           >
+            {!isUpdating && <DoneIcon className="h-3.5 w-3.5" />}
             {isUpdating ? '…' : 'Mark Done'}
           </button>
         )}
@@ -2788,8 +3013,9 @@ function BookingRow({
           <button
             onClick={() => onStatusChange(booking.id, 'cancelled')}
             disabled={isUpdating}
-            className="text-xs font-medium px-2.5 py-1 rounded-full border border-red-200 text-red-600 bg-red-50 hover:bg-red-100 disabled:opacity-50 transition-colors"
+            className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border border-red-200 text-red-600 bg-red-50 hover:bg-red-100 disabled:opacity-50 transition-colors"
           >
+            {!isUpdating && <CloseIcon className="h-3.5 w-3.5" />}
             {isUpdating ? '…' : 'Cancel'}
           </button>
         )}
