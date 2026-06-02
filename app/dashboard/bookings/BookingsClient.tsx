@@ -516,6 +516,8 @@ export default function BookingsClient({
     notes: '',
     date: '',
     start_time: '',
+    end_time: '',
+    manual_override: false,
     person_count: 1,
   })
 
@@ -750,6 +752,8 @@ export default function BookingsClient({
       notes: '',
       date: safeDate,
       start_time: safeStartTime,
+      end_time: '',
+      manual_override: false,
       person_count: options?.person_count ?? 1,
     })
     setShowAppointmentModal(true)
@@ -818,6 +822,8 @@ export default function BookingsClient({
       notes: booking.notes || '',
       date: booking.start_time.slice(0, 10),
       start_time: booking.start_time,
+      end_time: booking.end_time,
+      manual_override: false,
       person_count: booking.person_count ?? 1,
     })
     setShowAppointmentModal(true)
@@ -849,6 +855,12 @@ export default function BookingsClient({
   }, [fetchBookings])
 
   const fetchAvailableSlots = useCallback(async () => {
+    if (appointmentForm.manual_override) {
+      setAvailableSlots([])
+      setSlotsError(null)
+      return
+    }
+
     if (!showAppointmentModal || !appointmentForm.date || !appointmentForm.service_id || !selectedLocationId) {
       setAvailableSlots([])
       setSlotsError(null)
@@ -867,7 +879,7 @@ export default function BookingsClient({
     } finally {
       setLoadingSlots(false)
     }
-  }, [appointmentForm.date, appointmentForm.person_count, appointmentForm.service_id, loadSlotsFor, selectedLocationId, showAppointmentModal])
+  }, [appointmentForm.date, appointmentForm.manual_override, appointmentForm.person_count, appointmentForm.service_id, loadSlotsFor, selectedLocationId, showAppointmentModal])
 
   useEffect(() => {
     fetchAvailableSlots()
@@ -947,7 +959,31 @@ export default function BookingsClient({
       return
     }
 
-    if (!appointmentForm.customer_name || !appointmentForm.customer_email || !appointmentForm.phone_local || !appointmentForm.service_id || !appointmentForm.start_time) {
+    const manualStartIso = appointmentForm.manual_override && appointmentForm.start_time
+      ? new Date(appointmentForm.start_time).toISOString()
+      : ''
+    const manualEndIso = appointmentForm.manual_override && appointmentForm.end_time
+      ? new Date(appointmentForm.end_time).toISOString()
+      : ''
+
+    if (appointmentForm.manual_override) {
+      if (!appointmentForm.start_time || !appointmentForm.end_time) {
+        toast.error('Manual override needs both start and end time')
+        return
+      }
+      const parsedStart = new Date(appointmentForm.start_time)
+      const parsedEnd = new Date(appointmentForm.end_time)
+      if (Number.isNaN(parsedStart.getTime()) || Number.isNaN(parsedEnd.getTime())) {
+        toast.error('Invalid manual start/end time')
+        return
+      }
+      if (parsedEnd.getTime() <= parsedStart.getTime()) {
+        toast.error('End time must be later than start time')
+        return
+      }
+    }
+
+    if (!appointmentForm.customer_name || !appointmentForm.customer_email || !appointmentForm.phone_local || !appointmentForm.service_id || (!appointmentForm.manual_override && !appointmentForm.start_time)) {
       toast.error('Fill in all appointment fields')
       return
     }
@@ -971,7 +1007,9 @@ export default function BookingsClient({
             customer_email: appointmentForm.customer_email,
             service_id: appointmentForm.service_id,
             notes: appointmentForm.notes.trim() || null,
-            start_time: appointmentForm.start_time,
+            start_time: appointmentForm.manual_override ? manualStartIso : appointmentForm.start_time,
+            end_time: appointmentForm.manual_override ? manualEndIso : undefined,
+            manual_override: appointmentForm.manual_override,
             person_count: appointmentForm.person_count,
           }),
         })
@@ -996,7 +1034,9 @@ export default function BookingsClient({
             customer_email: appointmentForm.customer_email,
             service_id: appointmentForm.service_id,
             notes: appointmentForm.notes.trim() || null,
-            start_time: appointmentForm.start_time,
+            start_time: appointmentForm.manual_override ? manualStartIso : appointmentForm.start_time,
+            end_time: appointmentForm.manual_override ? manualEndIso : undefined,
+            manual_override: appointmentForm.manual_override,
             person_count: appointmentForm.person_count,
           }),
         })
@@ -1179,17 +1219,6 @@ export default function BookingsClient({
               {refreshing ? 'Refreshing...' : 'Refresh'}
             </button>
 
-            <label className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600 sm:text-sm">
-              <ClockIcon className="h-4 w-4 text-slate-400" />
-              <input
-                type="checkbox"
-                checked={autoRefresh}
-                onChange={(e) => setAutoRefresh(e.target.checked)}
-                className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-              />
-              Auto refresh (120s)
-            </label>
-
             {isAdmin && (
               <button
                 onClick={() => setShowSettings((prev) => !prev)}
@@ -1257,45 +1286,18 @@ export default function BookingsClient({
               {!autoRefresh && (
                 <span className="rounded-full bg-amber-50 px-2 py-1 font-medium text-amber-600">Auto-refresh paused</span>
               )}
-            </div>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <div className="animate-enter-fade-up animate-enter-delay-1 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-all hover:-translate-y-1 hover:shadow-md">
-            <div className="h-1 bg-slate-900" />
-            <div className="p-4">
-              <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-700"><EyeIcon className="h-4 w-4" /></span>
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Visible Range</p>
-              <p className="mt-2 text-3xl font-bold text-slate-900">{totalVisible}</p>
-              <p className="mt-2 text-xs text-slate-500">Appointments currently shown in this view.</p>
-            </div>
-          </div>
-          <div className="animate-enter-fade-up animate-enter-delay-1 overflow-hidden rounded-2xl border border-amber-100 bg-white shadow-sm transition-all hover:-translate-y-1 hover:shadow-md">
-            <div className="h-1 bg-amber-400" />
-            <div className="p-4">
-              <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-amber-50 text-amber-700"><PendingIcon className="h-4 w-4" /></span>
-              <p className="text-xs font-semibold text-amber-700 uppercase tracking-wider">Pending</p>
-              <p className="mt-2 text-3xl font-bold text-amber-500">{pendingVisible}</p>
-              <p className="mt-2 text-xs text-slate-500">Awaiting confirmation or follow-up.</p>
-            </div>
-          </div>
-          <div className="animate-enter-fade-up animate-enter-delay-2 overflow-hidden rounded-2xl border border-emerald-100 bg-white shadow-sm transition-all hover:-translate-y-1 hover:shadow-md">
-            <div className="h-1 bg-emerald-500" />
-            <div className="p-4">
-              <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700"><ConfirmedIcon className="h-4 w-4" /></span>
-              <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wider">Confirmed</p>
-              <p className="mt-2 text-3xl font-bold text-emerald-600">{confirmedVisible}</p>
-              <p className="mt-2 text-xs text-slate-500">Ready to serve in the active window.</p>
-            </div>
-          </div>
-          <div className="animate-enter-fade-up animate-enter-delay-3 overflow-hidden rounded-2xl border border-indigo-100 bg-white shadow-sm transition-all hover:-translate-y-1 hover:shadow-md">
-            <div className="h-1 bg-indigo-500" />
-            <div className="p-4">
-              <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 text-indigo-700"><FilterIcon className="h-4 w-4" /></span>
-              <p className="text-xs font-semibold text-indigo-700 uppercase tracking-wider">Focus</p>
-              <p className="mt-2 text-xl font-bold text-slate-900">{sourceFilterLabel}</p>
-              <p className="mt-2 text-xs text-slate-500">Current feed source shown on screen.</p>
+              <span className="ui-tap inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700">
+                <EyeIcon className="h-4 w-4 text-slate-500" />
+                Visible {totalVisible}
+              </span>
+              <span className="ui-tap inline-flex items-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700">
+                <PendingIcon className="h-4 w-4" />
+                Pending {pendingVisible}
+              </span>
+              <span className="ui-tap inline-flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700">
+                <ConfirmedIcon className="h-4 w-4" />
+                Confirmed {confirmedVisible}
+              </span>
             </div>
           </div>
         </div>
@@ -1719,6 +1721,53 @@ export default function BookingsClient({
                 <input type="date" min={editingBooking ? undefined : todayDateKey} value={appointmentForm.date} onChange={(e) => setAppointmentForm((p) => ({ ...p, date: e.target.value, start_time: '' }))} className="mt-1 w-full border border-slate-300 rounded px-3 py-2" />
               </label>
 
+              {!editingBooking && (
+                <label className="text-sm text-slate-700 md:col-span-2">
+                  <span className="inline-flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={appointmentForm.manual_override}
+                      onChange={(e) => setAppointmentForm((p) => ({
+                        ...p,
+                        manual_override: e.target.checked,
+                        start_time: '',
+                        end_time: '',
+                      }))}
+                      className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    Manual override (set custom start and end time)
+                  </span>
+                </label>
+              )}
+
+              {appointmentForm.manual_override && !editingBooking && (
+                <>
+                  <label className="text-sm text-slate-700">
+                    Start time
+                    <input
+                      type="datetime-local"
+                      value={appointmentForm.start_time}
+                      onChange={(e) => setAppointmentForm((p) => ({
+                        ...p,
+                        start_time: e.target.value,
+                        date: e.target.value ? e.target.value.slice(0, 10) : p.date,
+                      }))}
+                      className="mt-1 w-full border border-slate-300 rounded px-3 py-2"
+                    />
+                  </label>
+
+                  <label className="text-sm text-slate-700">
+                    End time
+                    <input
+                      type="datetime-local"
+                      value={appointmentForm.end_time}
+                      onChange={(e) => setAppointmentForm((p) => ({ ...p, end_time: e.target.value }))}
+                      className="mt-1 w-full border border-slate-300 rounded px-3 py-2"
+                    />
+                  </label>
+                </>
+              )}
+
               <label className="text-sm text-slate-700 md:col-span-2">
                 Notes
                 <textarea
@@ -1771,7 +1820,7 @@ export default function BookingsClient({
               )
             })()}
 
-            {(() => {
+            {!appointmentForm.manual_override && (() => {
               const svc = serviceOptions.find((s) => s.id === appointmentForm.service_id)
               const modalDuration = svc
                 ? svc.duration_minutes + getServicePersonUnits(svc, appointmentForm.person_count) * svc.duration_per_additional_person_minutes
@@ -1832,6 +1881,13 @@ export default function BookingsClient({
                 </div>
               )
             })()}
+
+            {appointmentForm.manual_override && !editingBooking && (
+              <div className="text-sm text-slate-700 rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3">
+                <p className="font-medium text-indigo-700">Manual override enabled</p>
+                <p className="mt-1 text-xs text-indigo-600">This bypasses slot availability checks and uses your exact start/end time.</p>
+              </div>
+            )}
 
             <div className="flex flex-col gap-2">
               {cancelConfirmOpen && editingBooking && (

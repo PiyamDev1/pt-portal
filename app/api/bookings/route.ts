@@ -137,7 +137,8 @@ export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as CreateBookingRequest;
 
-    const { location_id, customer_name, customer_phone, customer_email, service_id, start_time } = body;
+    const { location_id, customer_name, customer_phone, customer_email, service_id, start_time, end_time } = body;
+    const manualOverride = body.manual_override === true;
     const source = body.source || BookingSource.PORTAL;
     const notes = typeof body.notes === 'string' ? body.notes.trim() || null : body.notes ?? null;
     const personCount = Math.max(1, parseInt(String(body.person_count ?? 1), 10) || 1);
@@ -187,7 +188,7 @@ export async function POST(request: NextRequest) {
     const todayUtc = new Date();
     todayUtc.setUTCHours(0, 0, 0, 0);
     const todayDateKey = todayUtc.toISOString().slice(0, 10);
-    if (bookingDateKey < todayDateKey) {
+    if (!manualOverride && bookingDateKey < todayDateKey) {
       return NextResponse.json(
         {
           success: false,
@@ -247,6 +248,7 @@ export async function POST(request: NextRequest) {
 
     const bookingDayOfWeek = new Date(start_time).getUTCDay();
     if (
+      !manualOverride &&
       Array.isArray(service.available_days) &&
       service.available_days.length > 0 &&
       !service.available_days.includes(bookingDayOfWeek)
@@ -266,203 +268,242 @@ export async function POST(request: NextRequest) {
     const occupancyMinutes = serviceDurationMinutes + Math.max(0, service.buffer_minutes ?? 0);
     const boundaryToleranceMinutes = Math.max(0, service.close_overrun_tolerance_minutes);
 
-    const endTimeDate = new Date(startTimeDate.getTime() + serviceDurationMinutes * 60 * 1000);
-    const occupiedUntilDate = new Date(startTimeDate.getTime() + occupancyMinutes * 60 * 1000);
-    const end_time = endTimeDate.toISOString();
+    let endTimeDate: Date;
+    let occupiedUntilDate: Date;
+    if (manualOverride) {
+      if (!end_time) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Manual override requires end_time',
+          } as CreateBookingResponse,
+          { status: 400 }
+        );
+      }
+
+      endTimeDate = new Date(end_time);
+      if (Number.isNaN(endTimeDate.getTime())) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Invalid end_time format. Use ISO 8601 format',
+          } as CreateBookingResponse,
+          { status: 400 }
+        );
+      }
+
+      if (endTimeDate.getTime() <= startTimeDate.getTime()) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'End time must be later than start time',
+          } as CreateBookingResponse,
+          { status: 400 }
+        );
+      }
+
+      occupiedUntilDate = endTimeDate;
+    } else {
+      endTimeDate = new Date(startTimeDate.getTime() + serviceDurationMinutes * 60 * 1000);
+      occupiedUntilDate = new Date(startTimeDate.getTime() + occupancyMinutes * 60 * 1000);
+    }
+
+    const computedEndTime = endTimeDate.toISOString();
     const occupied_until = occupiedUntilDate.toISOString();
 
-    const dayOfWeek = startTimeDate.getUTCDay();
-    const { data: branchSettingsRow, error: settingsError } = await supabase
-      .from('branch_settings')
-      .select('*')
-      .eq('location_id', location_id)
-      .eq('day_of_week', dayOfWeek)
-      .maybeSingle();
+    if (!manualOverride) {
+      const dayOfWeek = startTimeDate.getUTCDay();
+      const { data: branchSettingsRow, error: settingsError } = await supabase
+        .from('branch_settings')
+        .select('*')
+        .eq('location_id', location_id)
+        .eq('day_of_week', dayOfWeek)
+        .maybeSingle();
 
-    if (settingsError) {
-      if (isSchemaError(settingsError)) {
+      if (settingsError) {
+        if (isSchemaError(settingsError)) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: SCHEMA_HINT,
+            } as CreateBookingResponse,
+            { status: 503 }
+          );
+        }
         return NextResponse.json(
           {
             success: false,
-            error: SCHEMA_HINT,
+            error: 'Failed to load branch settings',
           } as CreateBookingResponse,
-          { status: 503 }
+          { status: 500 }
         );
       }
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Failed to load branch settings',
-        } as CreateBookingResponse,
-        { status: 500 }
-      );
-    }
 
-    const branchSettings = branchSettingsRow ?? buildDefaultBranchSchedule(dayOfWeek);
+      const branchSettings = branchSettingsRow ?? buildDefaultBranchSchedule(dayOfWeek);
 
-    if (branchSettings.is_closed) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Branch is closed on this day',
-        } as CreateBookingResponse,
-        { status: 400 }
-      );
-    }
-
-    const dateKey = startTimeDate.toISOString().slice(0, 10);
-    const { data: override, error: overrideError } = await supabase
-      .from('branch_schedule_overrides')
-      .select('*')
-      .eq('location_id', location_id)
-      .eq('date', dateKey)
-      .maybeSingle();
-
-    if (overrideError) {
-      if (isSchemaError(overrideError)) {
+      if (branchSettings.is_closed) {
         return NextResponse.json(
           {
             success: false,
-            error: SCHEMA_HINT,
+            error: 'Branch is closed on this day',
           } as CreateBookingResponse,
-          { status: 503 }
+          { status: 400 }
         );
       }
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Failed to load branch overrides',
-        } as CreateBookingResponse,
-        { status: 500 }
-      );
-    }
 
-    if (override?.is_closed) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Branch is closed on this date',
-        } as CreateBookingResponse,
-        { status: 400 }
-      );
-    }
+      const dateKey = startTimeDate.toISOString().slice(0, 10);
+      const { data: override, error: overrideError } = await supabase
+        .from('branch_schedule_overrides')
+        .select('*')
+        .eq('location_id', location_id)
+        .eq('date', dateKey)
+        .maybeSingle();
 
-    const openTime = override?.open_time ?? branchSettings.open_time;
-    const closeTime = override?.close_time ?? branchSettings.close_time;
-    const lunchStart = override?.lunch_start_time ?? branchSettings.lunch_start_time;
-    const lunchEnd = override?.lunch_end_time ?? branchSettings.lunch_end_time;
-    const prayerStart = override?.prayer_start_time ?? branchSettings.prayer_start_time;
-    const prayerEnd = override?.prayer_end_time ?? branchSettings.prayer_end_time;
+      if (overrideError) {
+        if (isSchemaError(overrideError)) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: SCHEMA_HINT,
+            } as CreateBookingResponse,
+            { status: 503 }
+          );
+        }
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Failed to load branch overrides',
+          } as CreateBookingResponse,
+          { status: 500 }
+        );
+      }
 
-    const serviceStartBound = service.service_start_time ?? openTime;
-    const serviceEndBound = service.service_end_time ?? closeTime;
+      if (override?.is_closed) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Branch is closed on this date',
+          } as CreateBookingResponse,
+          { status: 400 }
+        );
+      }
 
-    const bookingStartMinutes = timeToMinutes(extractUtcTimeHHMMSS(startTimeDate));
-    const bookingEndMinutes = timeToMinutes(extractUtcTimeHHMMSS(endTimeDate));
-    const bookingOccupiedUntilMinutes = timeToMinutes(extractUtcTimeHHMMSS(occupiedUntilDate));
-    const serviceStartMinutes = timeToMinutes(serviceStartBound);
-    const serviceEndMinutes = timeToMinutes(serviceEndBound);
+      const openTime = override?.open_time ?? branchSettings.open_time;
+      const closeTime = override?.close_time ?? branchSettings.close_time;
+      const lunchStart = override?.lunch_start_time ?? branchSettings.lunch_start_time;
+      const lunchEnd = override?.lunch_end_time ?? branchSettings.lunch_end_time;
+      const prayerStart = override?.prayer_start_time ?? branchSettings.prayer_start_time;
+      const prayerEnd = override?.prayer_end_time ?? branchSettings.prayer_end_time;
 
-    if (
-      bookingStartMinutes < serviceStartMinutes ||
-      bookingOccupiedUntilMinutes > serviceEndMinutes + boundaryToleranceMinutes
-    ) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Selected time is outside service operating hours',
-        } as CreateBookingResponse,
-        { status: 400 }
-      );
-    }
+      const serviceStartBound = service.service_start_time ?? openTime;
+      const serviceEndBound = service.service_end_time ?? closeTime;
 
-    if (
-      overlapsRangeBeyondTolerance(
-        bookingStartMinutes,
-        bookingOccupiedUntilMinutes,
-        lunchStart,
-        lunchEnd,
-        boundaryToleranceMinutes
-      )
-    ) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Selected time overlaps lunch break',
-        } as CreateBookingResponse,
-        { status: 400 }
-      );
-    }
+      const bookingStartMinutes = timeToMinutes(extractUtcTimeHHMMSS(startTimeDate));
+      const bookingOccupiedUntilMinutes = timeToMinutes(extractUtcTimeHHMMSS(occupiedUntilDate));
+      const serviceStartMinutes = timeToMinutes(serviceStartBound);
+      const serviceEndMinutes = timeToMinutes(serviceEndBound);
 
-    if (
-      overlapsRangeBeyondTolerance(
-        bookingStartMinutes,
-        bookingOccupiedUntilMinutes,
-        prayerStart,
-        prayerEnd,
-        boundaryToleranceMinutes
-      )
-    ) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Selected time overlaps prayer break',
-        } as CreateBookingResponse,
-        { status: 400 }
-      );
-    }
+      if (
+        bookingStartMinutes < serviceStartMinutes ||
+        bookingOccupiedUntilMinutes > serviceEndMinutes + boundaryToleranceMinutes
+      ) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Selected time is outside service operating hours',
+          } as CreateBookingResponse,
+          { status: 400 }
+        );
+      }
 
-    const startOfDay = new Date(`${dateKey}T00:00:00Z`).toISOString();
-    const endOfDay = new Date(`${dateKey}T23:59:59Z`).toISOString();
-
-    const { data: overlappingCandidates, error: overlapError } = await supabase
-      .from('bookings')
-      .select(`
-        id,
-        service_id,
-        person_count,
-        start_time,
-        end_time,
-        booking_services:service_id(
-          duration_minutes,
-          buffer_minutes,
-          duration_per_additional_person_minutes,
-          person_count_excludes_family_head
+      if (
+        overlapsRangeBeyondTolerance(
+          bookingStartMinutes,
+          bookingOccupiedUntilMinutes,
+          lunchStart,
+          lunchEnd,
+          boundaryToleranceMinutes
         )
-      `)
-      .eq('location_id', location_id)
-      .gte('start_time', startOfDay)
-      .lte('start_time', endOfDay)
-      .neq('status', 'cancelled');
-
-    if (overlapError) {
-      if (isSchemaError(overlapError)) {
+      ) {
         return NextResponse.json(
           {
             success: false,
-            error: SCHEMA_HINT,
+            error: 'Selected time overlaps lunch break',
           } as CreateBookingResponse,
-          { status: 503 }
+          { status: 400 }
         );
       }
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Failed to check availability',
-        } as CreateBookingResponse,
-        { status: 500 }
-      );
-    }
 
-    const overlapCount = countBufferedOverlaps(overlappingCandidates || [], start_time, occupied_until);
-    if (overlapCount >= branchSettings.concurrent_staff) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'No available staff for this time slot',
-        } as CreateBookingResponse,
-        { status: 409 }
-      );
+      if (
+        overlapsRangeBeyondTolerance(
+          bookingStartMinutes,
+          bookingOccupiedUntilMinutes,
+          prayerStart,
+          prayerEnd,
+          boundaryToleranceMinutes
+        )
+      ) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Selected time overlaps prayer break',
+          } as CreateBookingResponse,
+          { status: 400 }
+        );
+      }
+
+      const startOfDay = new Date(`${dateKey}T00:00:00Z`).toISOString();
+      const endOfDay = new Date(`${dateKey}T23:59:59Z`).toISOString();
+
+      const { data: overlappingCandidates, error: overlapError } = await supabase
+        .from('bookings')
+        .select(`
+          id,
+          service_id,
+          person_count,
+          start_time,
+          end_time,
+          booking_services:service_id(
+            duration_minutes,
+            buffer_minutes,
+            duration_per_additional_person_minutes,
+            person_count_excludes_family_head
+          )
+        `)
+        .eq('location_id', location_id)
+        .gte('start_time', startOfDay)
+        .lte('start_time', endOfDay)
+        .neq('status', 'cancelled');
+
+      if (overlapError) {
+        if (isSchemaError(overlapError)) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: SCHEMA_HINT,
+            } as CreateBookingResponse,
+            { status: 503 }
+          );
+        }
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Failed to check availability',
+          } as CreateBookingResponse,
+          { status: 500 }
+        );
+      }
+
+      const overlapCount = countBufferedOverlaps(overlappingCandidates || [], start_time, occupied_until);
+      if (overlapCount >= branchSettings.concurrent_staff) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'No available staff for this time slot',
+          } as CreateBookingResponse,
+          { status: 409 }
+        );
+      }
     }
 
     const { data: newBooking, error: insertError } = await supabase
@@ -476,7 +517,7 @@ export async function POST(request: NextRequest) {
         person_count: personCount,
         notes,
         start_time,
-        end_time,
+        end_time: computedEndTime,
         status: BookingStatus.PENDING,
         source,
       })

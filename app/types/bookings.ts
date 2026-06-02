@@ -100,8 +100,10 @@ export interface CreateBookingRequest {
   customer_email: string;
   service_id: string;
   start_time: string; // ISO string
+  end_time?: string; // ISO string for manual overrides
   person_count?: number; // 1 = individual; >1 = family/group
   notes?: string | null;
+  manual_override?: boolean;
   source?: BookingSource;
 }
 
