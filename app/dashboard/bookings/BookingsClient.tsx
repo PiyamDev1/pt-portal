@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef, memo } from 'react'
 import { toast } from 'sonner'
 import { BookingStatus, BookingSource } from '@/app/types/bookings'
 import BookingSettingsTab, {
@@ -20,6 +20,7 @@ interface BookingWithService {
   source: BookingSource
   notes: string | null
   created_at: string
+  updated_at?: string
   booking_services: { name: string; duration_minutes: number } | null
 }
 
@@ -804,35 +805,72 @@ export default function BookingsClient({
 
   const selectedBookings = bookingsForDate(selectedDate)
 
+  const trackBookingMetric = useCallback(async (eventName: string, metadata?: Record<string, unknown>) => {
+    try {
+      await fetch('/api/bookings/telemetry', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event: eventName, metadata: metadata || {} }),
+      })
+    } catch {
+      // Ignore telemetry transport issues.
+    }
+  }, [])
+
   const requireDoubleConfirm = useCallback((firstPrompt: string) => {
     if (!window.confirm(firstPrompt)) return false
     return window.confirm('Please confirm again to proceed.')
   }, [])
 
-  const updateStatus = async (id: string, status: string, options?: { skipConfirm?: boolean }) => {
+  const updateStatus = async (id: string, status: string, options?: { skipConfirm?: boolean; skipUndo?: boolean }) => {
     if (!options?.skipConfirm) {
       const confirmed = requireDoubleConfirm(`Change appointment status to ${status}?`)
       if (!confirmed) return
     }
+
+    const currentBooking = bookings.find((booking) => booking.id === id)
+    const previousStatus = currentBooking?.status
 
     setUpdatingId(id)
     try {
       const res = await fetch(`/api/bookings/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({
+          status,
+          if_unmodified_since: currentBooking?.updated_at,
+        }),
       })
       const json = await res.json()
       if (!res.ok) {
+        if (res.status === 409) {
+          toast.error(json.error || 'Appointment changed by another staff member. Reload and try again.')
+          await fetchBookings(false)
+          void trackBookingMetric('booking_status_conflict', { bookingId: id, nextStatus: status })
+          return
+        }
         toast.error(json.error || 'Failed to update appointment')
+        void trackBookingMetric('booking_status_error', { bookingId: id, nextStatus: status, statusCode: res.status })
         return
       }
       if (json.email_warning) {
         toast.warning(`Appointment updated but email warning: ${json.email_warning}`)
       }
       setBookings((prev) =>
-        prev.map((b) => (b.id === id ? { ...b, status: status as BookingStatus } : b))
+        prev.map((b) => (b.id === id ? { ...b, ...json.booking, status: status as BookingStatus } : b))
       )
+
+      if (!options?.skipUndo && previousStatus && previousStatus !== status) {
+        toast('Status updated', {
+          action: {
+            label: 'Undo',
+            onClick: () => {
+              void updateStatus(id, previousStatus, { skipConfirm: true, skipUndo: true })
+            },
+          },
+        })
+      }
+      void trackBookingMetric('booking_status_updated', { bookingId: id, nextStatus: status })
     } finally {
       setUpdatingId(null)
     }
@@ -867,9 +905,14 @@ export default function BookingsClient({
     setShowAppointmentModal(true)
   }
 
-  const rescheduleBooking = useCallback(async (id: string, newStartTime: string) => {
-    const confirmed = requireDoubleConfirm('Reschedule this appointment to the new time?')
-    if (!confirmed) return
+  const rescheduleBooking = useCallback(async (id: string, newStartTime: string, options?: { skipConfirm?: boolean; skipUndo?: boolean }) => {
+    if (!options?.skipConfirm) {
+      const confirmed = requireDoubleConfirm('Reschedule this appointment to the new time?')
+      if (!confirmed) return
+    }
+
+    const currentBooking = bookings.find((booking) => booking.id === id)
+    const previousStart = currentBooking?.start_time
 
     setUpdatingId(id)
     // Optimistic update
@@ -880,20 +923,41 @@ export default function BookingsClient({
       const res = await fetch(`/api/bookings/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ start_time: newStartTime }),
+        body: JSON.stringify({
+          start_time: newStartTime,
+          if_unmodified_since: currentBooking?.updated_at,
+        }),
       })
       const json = await res.json()
       if (!res.ok) {
+        if (res.status === 409) {
+          toast.error(json.error || 'Appointment changed by another staff member. Reload and try again.')
+          await fetchBookings(false)
+          void trackBookingMetric('booking_reschedule_conflict', { bookingId: id })
+          return
+        }
         toast.error(json.error || 'Failed to reschedule appointment')
+        void trackBookingMetric('booking_reschedule_error', { bookingId: id, statusCode: res.status })
         await fetchBookings(false) // revert optimistic update
         return
       }
       toast.success('Appointment rescheduled')
+      if (!options?.skipUndo && previousStart && previousStart !== newStartTime) {
+        toast('Appointment moved', {
+          action: {
+            label: 'Undo',
+            onClick: () => {
+              void rescheduleBooking(id, previousStart, { skipConfirm: true, skipUndo: true })
+            },
+          },
+        })
+      }
+      void trackBookingMetric('booking_rescheduled', { bookingId: id })
       await fetchBookings(false)
     } finally {
       setUpdatingId(null)
     }
-  }, [fetchBookings, requireDoubleConfirm])
+  }, [bookings, fetchBookings, requireDoubleConfirm, trackBookingMetric])
 
   const fetchAvailableSlots = useCallback(async () => {
     if (appointmentForm.manual_override) {
@@ -1144,6 +1208,15 @@ export default function BookingsClient({
     setSavingBooking(true)
     try {
       const customer_phone = `${appointmentForm.phone_country_code} ${normalizeLocalPhone(appointmentForm.phone_local)}`.trim()
+      const previousBookingSnapshot = editingBooking ? {
+        customer_name: editingBooking.customer_name,
+        customer_phone: editingBooking.customer_phone,
+        customer_email: editingBooking.customer_email,
+        service_id: editingBooking.service_id,
+        notes: editingBooking.notes,
+        start_time: editingBooking.start_time,
+        person_count: editingBooking.person_count,
+      } : null
 
       if (editingBooking) {
         const confirmed = requireDoubleConfirm('Apply these amendments to this appointment?')
@@ -1164,11 +1237,19 @@ export default function BookingsClient({
             end_time: appointmentForm.manual_override ? manualEndIso : undefined,
             manual_override: appointmentForm.manual_override,
             person_count: appointmentForm.person_count,
+            if_unmodified_since: editingBooking.updated_at,
           }),
         })
         const json = await res.json()
         if (!res.ok) {
+          if (res.status === 409) {
+            toast.error(json.error || 'Appointment changed by another staff member. Reload and try again.')
+            await fetchBookings(false)
+            void trackBookingMetric('booking_amend_conflict', { bookingId: editingBooking.id })
+            return
+          }
           toast.error(json.error || 'Failed to update appointment')
+          void trackBookingMetric('booking_amend_error', { bookingId: editingBooking.id, statusCode: res.status })
           return
         }
         if (json.email_warning) {
@@ -1176,6 +1257,24 @@ export default function BookingsClient({
         } else {
           toast.success('Appointment updated')
         }
+        if (previousBookingSnapshot) {
+          toast('Amendment saved', {
+            action: {
+              label: 'Undo',
+              onClick: () => {
+                void fetch(`/api/bookings/${editingBooking.id}`, {
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    ...previousBookingSnapshot,
+                    if_unmodified_since: json?.booking?.updated_at,
+                  }),
+                }).then(() => fetchBookings(false))
+              },
+            },
+          })
+        }
+        void trackBookingMetric('booking_amended', { bookingId: editingBooking.id })
       } else {
         const res = await fetch('/api/bookings', {
           method: 'POST',
@@ -1196,6 +1295,7 @@ export default function BookingsClient({
         const json = await res.json()
         if (!res.ok) {
           toast.error(json.error || 'Failed to create appointment')
+          void trackBookingMetric('booking_create_error', { statusCode: res.status, manual_override: appointmentForm.manual_override })
           return
         }
         if (json.email_warning) {
@@ -1207,6 +1307,7 @@ export default function BookingsClient({
         if (typeof window !== 'undefined') {
           sessionStorage.removeItem(notesDraftStorageKey)
         }
+        void trackBookingMetric('booking_created', { manual_override: appointmentForm.manual_override })
       }
 
       setShowAppointmentModal(false)
@@ -2511,8 +2612,8 @@ function DayAgendaModal({
             )}
           </div>
 
-          <div className="bg-[linear-gradient(180deg,_#f8fafc_0%,_#eef2ff_100%)] p-5">
-            <div className="mb-4">
+          <div className="bg-[linear-gradient(180deg,_#f8fafc_0%,_#eef2ff_100%)] p-5 max-h-[70vh] overflow-y-auto">
+            <div className="mb-4 sticky top-0 z-10 bg-[linear-gradient(180deg,_#f8fafc_0%,_#eef2ff_100%)] pb-3">
               <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Available appointments</h3>
               <p className="mt-1 text-xs text-slate-400">Choose a service and person count, then click a time to create a booking.</p>
             </div>
@@ -2550,7 +2651,7 @@ function DayAgendaModal({
               ) : !serviceId ? (
                 <p className="text-sm text-slate-400">Select a service to see available times.</p>
               ) : slots.length === 0 ? (
-                <p className="text-sm text-slate-400">No available times for this day.</p>
+                <p className="text-sm text-slate-500">No available times for this day. Try another service, reduce person count, or choose a different date.</p>
               ) : (
                 <div className="max-h-[320px] overflow-y-auto pr-1">
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -2847,6 +2948,7 @@ function WeekTimeline({
                   {isSameUTCDay(mobileDay, today) && hasCurrentTimeInRange && (
                     <div className="absolute left-0 right-0 z-20 pointer-events-none" style={{ top: currentLineTop }}>
                       <div className="h-0 border-t-2 border-rose-500" />
+                      <span className="absolute right-1 -top-3 rounded-full bg-rose-500 px-1.5 py-0.5 text-[9px] font-semibold text-white animate-pulse">Now</span>
                     </div>
                   )}
 
@@ -2984,6 +3086,7 @@ function WeekTimeline({
                     {isToday && hasCurrentTimeInRange && (
                       <div className="absolute left-0 right-0 z-20 pointer-events-none" style={{ top: currentLineTop }}>
                         <div className="h-0 border-t-2 border-rose-500" />
+                        <span className="absolute right-1 -top-3 rounded-full bg-rose-500 px-1.5 py-0.5 text-[9px] font-semibold text-white animate-pulse">Now</span>
                       </div>
                     )}
 
@@ -3364,7 +3467,7 @@ function SlotTimeline({
 
 // ─── Booking row ──────────────────────────────────────────────────────────────
 
-function BookingRow({
+const BookingRow = memo(function BookingRow({
   booking,
   onStatusChange,
   onEditBooking,
@@ -3466,4 +3569,4 @@ function BookingRow({
       </div>
     </div>
   )
-}
+})

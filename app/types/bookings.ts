@@ -85,6 +85,7 @@ export interface Booking {
   status: BookingStatus;
   source: BookingSource;
   created_at: string;
+  updated_at?: string;
 }
 
 // API Request/Response Types

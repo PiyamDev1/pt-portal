@@ -81,6 +81,33 @@ function isValidPhone(value: string): boolean {
   return /^\+\d{1,4}\s[\d\s()-]{6,20}$/.test(value.trim());
 }
 
+async function logBookingAudit(
+  supabase: Awaited<ReturnType<typeof getRouteSupabaseClient>>,
+  payload: {
+    booking_id: string;
+    location_id: string;
+    action_type: string;
+    actor_identifier?: string | null;
+    before_data?: unknown;
+    after_data?: unknown;
+    metadata?: Record<string, unknown>;
+  }
+): Promise<void> {
+  const { error } = await supabase.from('booking_audit_logs').insert({
+    booking_id: payload.booking_id,
+    location_id: payload.location_id,
+    action_type: payload.action_type,
+    actor_identifier: payload.actor_identifier ?? null,
+    before_data: payload.before_data ?? null,
+    after_data: payload.after_data ?? null,
+    metadata: payload.metadata ?? null,
+  });
+
+  if (error && !isSchemaError(error)) {
+    console.error('Failed to write booking audit log', error);
+  }
+}
+
 /**
  * PATCH /api/bookings/[id]
  * Update a booking's status and/or details.
@@ -99,6 +126,7 @@ export async function PATCH(
       customer_email,
       service_id,
       start_time,
+      if_unmodified_since,
       notes,
       person_count: rawPersonCount,
     } = body as {
@@ -108,6 +136,7 @@ export async function PATCH(
       customer_email?: string;
       service_id?: string;
       start_time?: string;
+      if_unmodified_since?: string;
       notes?: string | null;
       person_count?: number;
     };
@@ -160,6 +189,16 @@ export async function PATCH(
         return NextResponse.json({ error: SCHEMA_HINT }, { status: 503 });
       }
       return NextResponse.json({ error: 'Booking not found' }, { status: 404 });
+    }
+
+    if (if_unmodified_since && existing.updated_at && existing.updated_at !== if_unmodified_since) {
+      return NextResponse.json(
+        {
+          error: 'This appointment was updated by another staff member. Reload and try again.',
+          latest_updated_at: existing.updated_at,
+        },
+        { status: 409 }
+      );
     }
 
     const nextServiceId = service_id ?? existing.service_id;
@@ -417,6 +456,40 @@ export async function PATCH(
         service_id: service.id,
         service_name: service.name,
         booking_status: nextStatus,
+      },
+    });
+
+    await logBookingAudit(supabase, {
+      booking_id: id,
+      location_id: existing.location_id,
+      action_type: nextStatus === BookingStatus.CANCELLED ? 'cancelled' : 'amended',
+      actor_identifier: request.headers.get('x-user-email') || request.headers.get('x-user-id'),
+      before_data: {
+        status: existing.status,
+        customer_name: existing.customer_name,
+        customer_phone: existing.customer_phone,
+        customer_email: existing.customer_email,
+        service_id: existing.service_id,
+        person_count: existing.person_count,
+        start_time: existing.start_time,
+        end_time: existing.end_time,
+        notes: existing.notes,
+        updated_at: existing.updated_at,
+      },
+      after_data: {
+        status: data.status,
+        customer_name: data.customer_name,
+        customer_phone: data.customer_phone,
+        customer_email: data.customer_email,
+        service_id: data.service_id,
+        person_count: data.person_count,
+        start_time: data.start_time,
+        end_time: data.end_time,
+        notes: data.notes,
+        updated_at: data.updated_at,
+      },
+      metadata: {
+        email_kind: emailKind,
       },
     });
 

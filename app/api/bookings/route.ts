@@ -85,6 +85,33 @@ function isValidPhone(value: string): boolean {
   return /^\+\d{1,4}\s[\d\s()-]{6,20}$/.test(value.trim());
 }
 
+async function logBookingAudit(
+  supabase: Awaited<ReturnType<typeof getRouteSupabaseClient>>,
+  payload: {
+    booking_id: string;
+    location_id: string;
+    action_type: string;
+    actor_identifier?: string | null;
+    before_data?: unknown;
+    after_data?: unknown;
+    metadata?: Record<string, unknown>;
+  }
+): Promise<void> {
+  const { error } = await supabase.from('booking_audit_logs').insert({
+    booking_id: payload.booking_id,
+    location_id: payload.location_id,
+    action_type: payload.action_type,
+    actor_identifier: payload.actor_identifier ?? null,
+    before_data: payload.before_data ?? null,
+    after_data: payload.after_data ?? null,
+    metadata: payload.metadata ?? null,
+  });
+
+  if (error && !isSchemaError(error)) {
+    console.error('Failed to write booking audit log', error);
+  }
+}
+
 /**
  * GET /api/bookings?from=ISO&to=ISO
  * Fetch all bookings in a date range (for the dashboard week view)
@@ -659,6 +686,30 @@ export async function POST(request: NextRequest) {
       metadata: {
         service_id: service.id,
         service_name: service.name,
+      },
+    });
+
+    await logBookingAudit(supabase, {
+      booking_id: newBooking.id,
+      location_id,
+      action_type: 'created',
+      actor_identifier: request.headers.get('x-user-email') || request.headers.get('x-user-id'),
+      before_data: null,
+      after_data: {
+        status: newBooking.status,
+        customer_name: newBooking.customer_name,
+        customer_phone: newBooking.customer_phone,
+        customer_email: newBooking.customer_email,
+        service_id: newBooking.service_id,
+        person_count: newBooking.person_count,
+        start_time: newBooking.start_time,
+        end_time: newBooking.end_time,
+        notes: newBooking.notes,
+        updated_at: newBooking.updated_at,
+      },
+      metadata: {
+        source,
+        manual_override: manualOverride,
       },
     });
 
