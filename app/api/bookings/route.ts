@@ -8,6 +8,11 @@ import {
 } from '@/app/types/bookings';
 import { sendBookingEmail } from '@/lib/bookingEmail';
 import { buildDefaultBranchSchedule } from '@/lib/bookingBranchSchedule';
+import {
+  defaultReminderSettings,
+  normalizeEmailForMatch,
+  normalizePhoneForMatch,
+} from '@/lib/bookingReminders';
 
 function buildBranchAddress(location: {
   address_line1?: string | null;
@@ -226,6 +231,87 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = await getRouteSupabaseClient();
+
+    const phoneNorm = normalizePhoneForMatch(customer_phone);
+    const emailNorm = normalizeEmailForMatch(customer_email);
+    const defaultPenaltySettings = defaultReminderSettings(location_id);
+
+    const { data: reminderSettings, error: reminderSettingsError } = await supabase
+      .from('booking_reminder_settings')
+      .select('*')
+      .eq('location_id', location_id)
+      .maybeSingle();
+
+    if (reminderSettingsError && !isSchemaError(reminderSettingsError)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Failed to load reminder settings',
+        } as CreateBookingResponse,
+        { status: 500 }
+      );
+    }
+
+    const effectivePenaltySettings = reminderSettings || defaultPenaltySettings;
+    if (effectivePenaltySettings.penalty_enabled && (phoneNorm || emailNorm)) {
+      let penaltyMatched = false;
+
+      if (phoneNorm) {
+        const { data: phoneFlag, error: phoneFlagError } = await supabase
+          .from('booking_contact_flags')
+          .select('id, missed_count, penalty_applied')
+          .eq('location_id', location_id)
+          .eq('customer_phone_norm', phoneNorm)
+          .maybeSingle();
+
+        if (phoneFlagError && !isSchemaError(phoneFlagError)) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: 'Failed to verify customer booking eligibility',
+            } as CreateBookingResponse,
+            { status: 500 }
+          );
+        }
+
+        penaltyMatched = penaltyMatched || Boolean(phoneFlag?.penalty_applied);
+      }
+
+      if (emailNorm) {
+        const { data: emailFlag, error: emailFlagError } = await supabase
+          .from('booking_contact_flags')
+          .select('id, missed_count, penalty_applied')
+          .eq('location_id', location_id)
+          .eq('customer_email_norm', emailNorm)
+          .maybeSingle();
+
+        if (emailFlagError && !isSchemaError(emailFlagError)) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: 'Failed to verify customer booking eligibility',
+            } as CreateBookingResponse,
+            { status: 500 }
+          );
+        }
+
+        penaltyMatched = penaltyMatched || Boolean(emailFlag?.penalty_applied);
+      }
+
+      if (
+        penaltyMatched &&
+        effectivePenaltySettings.penalty_action === 'block_until_manual_review' &&
+        !manualOverride
+      ) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'This contact is temporarily blocked due to repeated missed appointments. Ask staff to review and use manual override if approved.',
+          } as CreateBookingResponse,
+          { status: 409 }
+        );
+      }
+    }
 
     const { data: service, error: serviceError } = await supabase
       .from('booking_services')

@@ -170,6 +170,35 @@ interface BranchScheduleOverride {
   notes: string | null
 }
 
+interface BookingReminderSettings {
+  location_id: string
+  reminders_enabled: boolean
+  reminder_hours_before: number
+  reminder_subject: string
+  reminder_template: string
+  attendance_confirmation_required: boolean
+  penalty_enabled: boolean
+  penalty_threshold: number
+  penalty_action: 'warn_only' | 'block_until_manual_review'
+  penalty_note: string | null
+}
+
+function buildDefaultReminderSettings(locationId: string): BookingReminderSettings {
+  return {
+    location_id: locationId,
+    reminders_enabled: true,
+    reminder_hours_before: 24,
+    reminder_subject: 'Appointment reminder: [service booked] on [date booked] at [time booked]',
+    reminder_template:
+      'Dear [Customer Name],\n\nThis is a reminder that your [service booked] appointment is scheduled for [date booked] at [time booked] at [branch name].\n\nIf you cannot attend, please contact us as soon as possible.\n\nKind regards,\nPiyam Travel',
+    attendance_confirmation_required: true,
+    penalty_enabled: true,
+    penalty_threshold: 3,
+    penalty_action: 'block_until_manual_review',
+    penalty_note: 'Repeat no-show profile. Staff review required before accepting another appointment.',
+  }
+}
+
 interface BookingSettingsTabProps {
   branchLocations: BranchLocationOption[]
   selectedLocationId: string
@@ -273,11 +302,14 @@ export default function BookingSettingsTab({
   onLocationChange,
 }: BookingSettingsTabProps) {
   const [loading, setLoading] = useState(false)
-  const [activeSection, setActiveSection] = useState<'overrides' | 'services'>('overrides')
+  const [activeSection, setActiveSection] = useState<'overrides' | 'services' | 'reminders'>('overrides')
 
   const [weeklySettings, setWeeklySettings] = useState<BranchSettingRow[]>([])
   const [overrides, setOverrides] = useState<BranchScheduleOverride[]>([])
   const [services, setServices] = useState<BookingServiceRow[]>([])
+  const [reminderSettings, setReminderSettings] = useState<BookingReminderSettings>(
+    buildDefaultReminderSettings(selectedLocationId)
+  )
 
   const [newService, setNewService] = useState(() => buildNewServiceDraft())
   const [showAddService, setShowAddService] = useState(false)
@@ -323,24 +355,28 @@ export default function BookingSettingsTab({
       const to = new Date(from)
       to.setUTCDate(to.getUTCDate() + 60)
 
-      const [weeklyRes, overridesRes, servicesRes] = await Promise.all([
+      const [weeklyRes, overridesRes, servicesRes, remindersRes] = await Promise.all([
         fetch(`/api/bookings/settings/branch?location_id=${locationId}`),
         fetch(`/api/bookings/settings/overrides?location_id=${locationId}&from=${from.toISOString().slice(0, 10)}&to=${to.toISOString().slice(0, 10)}`),
         fetch(`/api/bookings/settings/services?location_id=${locationId}`),
+        fetch(`/api/bookings/settings/reminders?location_id=${locationId}`),
       ])
 
       const weeklyJson = await weeklyRes.json()
       const overridesJson = await overridesRes.json()
       const servicesJson = await servicesRes.json()
+      const remindersJson = await remindersRes.json()
 
       if (!weeklyRes.ok) throw new Error(weeklyJson.error || 'Failed to load weekly settings')
       if (!overridesRes.ok) throw new Error(overridesJson.error || 'Failed to load overrides')
       if (!servicesRes.ok) throw new Error(servicesJson.error || 'Failed to load services')
+      if (!remindersRes.ok) throw new Error(remindersJson.error || 'Failed to load reminders')
 
       const rows = (weeklyJson.settings || []) as BranchSettingRow[]
       setWeeklySettings(rows.length > 0 ? rows : buildDefaultWeek(locationId))
       setOverrides((overridesJson.overrides || []) as BranchScheduleOverride[])
       setServices(((servicesJson.services || []) as BookingServiceRow[]).map(normalizeServiceRow))
+      setReminderSettings((remindersJson.settings || buildDefaultReminderSettings(locationId)) as BookingReminderSettings)
     } catch (error) {
       toast.error('Failed to load booking settings', {
         description: error instanceof Error ? error.message : 'Unknown error',
@@ -348,6 +384,7 @@ export default function BookingSettingsTab({
       setWeeklySettings(buildDefaultWeek(locationId))
       setOverrides([])
       setServices([])
+      setReminderSettings(buildDefaultReminderSettings(locationId))
     } finally {
       setLoading(false)
     }
@@ -635,6 +672,34 @@ export default function BookingSettingsTab({
     }
   }
 
+  const saveReminders = async () => {
+    if (!selectedLocationId) return
+
+    setLoading(true)
+    try {
+      const res = await fetch('/api/bookings/settings/reminders', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          location_id: selectedLocationId,
+          settings: reminderSettings,
+        }),
+      })
+
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Failed to save reminder settings')
+
+      setReminderSettings((json.settings || reminderSettings) as BookingReminderSettings)
+      toast.success('Reminder and penalty settings saved')
+    } catch (error) {
+      toast.error('Failed to save reminder settings', {
+        description: error instanceof Error ? error.message : 'Unknown error',
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center gap-3">
@@ -667,6 +732,12 @@ export default function BookingSettingsTab({
           className={`px-4 py-2 rounded-lg text-sm font-medium ${activeSection === 'services' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600'}`}
         >
           Services & Slot Gaps
+        </button>
+        <button
+          onClick={() => setActiveSection('reminders')}
+          className={`px-4 py-2 rounded-lg text-sm font-medium ${activeSection === 'reminders' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600'}`}
+        >
+          Reminders & Penalties
         </button>
       </div>
 
@@ -982,6 +1053,140 @@ export default function BookingSettingsTab({
               </div>
             ))}
             {services.length === 0 && <div className="py-8 text-center text-sm text-slate-400">No services for this branch yet</div>}
+          </div>
+        </div>
+      )}
+
+      {activeSection === 'reminders' && (
+        <div className="space-y-4">
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+            <h3 className="text-sm font-semibold text-slate-700">24-Hour Reminder Configuration</h3>
+            <p className="mt-1 text-xs text-slate-500">
+              These reminders are sent by cron. Include placeholder tokens such as [Customer Name], [service booked], [date booked], [time booked], and [branch name].
+            </p>
+
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+              <LabeledInput label="Enable Reminders">
+                <label className="inline-flex items-center gap-2 text-sm text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={reminderSettings.reminders_enabled}
+                    onChange={(e) => setReminderSettings((p) => ({ ...p, reminders_enabled: e.target.checked }))}
+                  />
+                  Send reminder emails automatically
+                </label>
+              </LabeledInput>
+
+              <LabeledInput label="Hours Before Appointment">
+                <input
+                  type="number"
+                  min={1}
+                  max={168}
+                  value={reminderSettings.reminder_hours_before}
+                  onChange={(e) => setReminderSettings((p) => ({ ...p, reminder_hours_before: Math.min(168, Math.max(1, Number(e.target.value) || 24)) }))}
+                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
+                />
+              </LabeledInput>
+
+              <LabeledInput label="Reminder Email Subject">
+                <input
+                  type="text"
+                  value={reminderSettings.reminder_subject}
+                  onChange={(e) => setReminderSettings((p) => ({ ...p, reminder_subject: e.target.value }))}
+                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
+                />
+              </LabeledInput>
+
+              <LabeledInput label="Attendance Confirmation Links">
+                <label className="inline-flex items-center gap-2 text-sm text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={reminderSettings.attendance_confirmation_required}
+                    onChange={(e) => setReminderSettings((p) => ({ ...p, attendance_confirmation_required: e.target.checked }))}
+                  />
+                  Ask customer to confirm Present/Missed from reminder email
+                </label>
+              </LabeledInput>
+
+              <div className="md:col-span-2">
+                <LabeledInput label="Reminder Email Template">
+                  <textarea
+                    rows={8}
+                    value={reminderSettings.reminder_template}
+                    onChange={(e) => setReminderSettings((p) => ({ ...p, reminder_template: e.target.value }))}
+                    className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
+                  />
+                </LabeledInput>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+            <h3 className="text-sm font-semibold text-amber-900">Repeat Missed Appointment Penalty Rules</h3>
+            <p className="mt-1 text-xs text-amber-800">
+              Matching is done by phone or email. Name is intentionally ignored to reduce false matches from common names.
+            </p>
+
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+              <LabeledInput label="Enable Penalty System">
+                <label className="inline-flex items-center gap-2 text-sm text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={reminderSettings.penalty_enabled}
+                    onChange={(e) => setReminderSettings((p) => ({ ...p, penalty_enabled: e.target.checked }))}
+                  />
+                  Track missed appointments and enforce penalties
+                </label>
+              </LabeledInput>
+
+              <LabeledInput label="Missed Appointment Threshold">
+                <input
+                  type="number"
+                  min={1}
+                  max={20}
+                  value={reminderSettings.penalty_threshold}
+                  onChange={(e) => setReminderSettings((p) => ({ ...p, penalty_threshold: Math.min(20, Math.max(1, Number(e.target.value) || 3)) }))}
+                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
+                />
+              </LabeledInput>
+
+              <LabeledInput label="Penalty Action">
+                <select
+                  value={reminderSettings.penalty_action}
+                  onChange={(e) => setReminderSettings((p) => ({ ...p, penalty_action: e.target.value as 'warn_only' | 'block_until_manual_review' }))}
+                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
+                >
+                  <option value="warn_only">Warn only (allow bookings)</option>
+                  <option value="block_until_manual_review">Block until staff manual review</option>
+                </select>
+              </LabeledInput>
+
+              <LabeledInput label="Internal Penalty Note (optional)">
+                <input
+                  type="text"
+                  value={reminderSettings.penalty_note || ''}
+                  onChange={(e) => setReminderSettings((p) => ({ ...p, penalty_note: e.target.value || null }))}
+                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
+                  placeholder="Shown to staff when blocking a booking"
+                />
+              </LabeledInput>
+            </div>
+
+            <div className="mt-4 flex items-center gap-2">
+              <button
+                onClick={saveReminders}
+                disabled={loading}
+                className="px-4 py-2 rounded bg-indigo-600 text-white text-sm font-medium disabled:opacity-50"
+              >
+                {loading ? 'Saving...' : 'Save Reminder & Penalty Settings'}
+              </button>
+              <button
+                onClick={() => setReminderSettings(buildDefaultReminderSettings(selectedLocationId))}
+                className="px-3 py-2 rounded border border-slate-300 text-sm"
+              >
+                Reset to Defaults
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -6,6 +6,10 @@
   },
   "crons": [
     {
+      "path": "/api/cron/bookings/reminders",
+      "schedule": "*/15 * * * *"
+    },
+    {
       "path": "/api/cron/issue-reports/cleanup",
       "schedule": "0 3 * * *"
     }

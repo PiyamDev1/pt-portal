@@ -167,7 +167,64 @@ CREATE TABLE IF NOT EXISTS booking_email_logs (
 );
 
 -- ============================================================
--- 7) INDEXES
+-- 7) REMINDERS, ATTENDANCE CONFIRMATION, PENALTY FLAGS
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS booking_reminder_settings (
+  location_id                    UUID PRIMARY KEY REFERENCES locations(id) ON DELETE CASCADE,
+  reminders_enabled              BOOLEAN NOT NULL DEFAULT true,
+  reminder_hours_before          INTEGER NOT NULL DEFAULT 24 CHECK (reminder_hours_before BETWEEN 1 AND 168),
+  reminder_subject               TEXT NOT NULL DEFAULT 'Appointment reminder: [service booked] on [date booked] at [time booked]',
+  reminder_template              TEXT NOT NULL DEFAULT 'Dear [Customer Name],\n\nThis is a reminder that your [service booked] appointment is scheduled for [date booked] at [time booked] at [branch name].\n\nIf you cannot attend, please contact us as soon as possible.\n\nKind regards,\nPiyam Travel',
+  attendance_confirmation_required BOOLEAN NOT NULL DEFAULT true,
+  penalty_enabled                BOOLEAN NOT NULL DEFAULT true,
+  penalty_threshold              INTEGER NOT NULL DEFAULT 3 CHECK (penalty_threshold BETWEEN 1 AND 20),
+  penalty_action                 TEXT NOT NULL DEFAULT 'block_until_manual_review' CHECK (penalty_action IN ('warn_only', 'block_until_manual_review')),
+  penalty_note                   TEXT,
+  created_at                     TIMESTAMPTZ DEFAULT NOW(),
+  updated_at                     TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS booking_reminder_events (
+  id                   UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  booking_id           UUID NOT NULL UNIQUE REFERENCES bookings(id) ON DELETE CASCADE,
+  location_id          UUID NOT NULL REFERENCES locations(id) ON DELETE CASCADE,
+  reminder_sent_at     TIMESTAMPTZ,
+  reminder_hours_before INTEGER,
+  response_token       TEXT UNIQUE,
+  response_status      TEXT NOT NULL DEFAULT 'unknown' CHECK (response_status IN ('unknown', 'present', 'missed')),
+  responded_at         TIMESTAMPTZ,
+  confirmation_source  TEXT,
+  metadata             JSONB,
+  created_at           TIMESTAMPTZ DEFAULT NOW(),
+  updated_at           TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS booking_contact_flags (
+  id                   UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  location_id          UUID NOT NULL REFERENCES locations(id) ON DELETE CASCADE,
+  customer_phone_norm  TEXT,
+  customer_email_norm  TEXT,
+  missed_count         INTEGER NOT NULL DEFAULT 0,
+  penalty_applied      BOOLEAN NOT NULL DEFAULT false,
+  penalty_applied_at   TIMESTAMPTZ,
+  last_missed_booking_id UUID REFERENCES bookings(id) ON DELETE SET NULL,
+  notes                TEXT,
+  created_at           TIMESTAMPTZ DEFAULT NOW(),
+  updated_at           TIMESTAMPTZ DEFAULT NOW(),
+  CHECK (customer_phone_norm IS NOT NULL OR customer_email_norm IS NOT NULL)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_booking_contact_flags_location_phone
+  ON booking_contact_flags (location_id, customer_phone_norm)
+  WHERE customer_phone_norm IS NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_booking_contact_flags_location_email
+  ON booking_contact_flags (location_id, customer_email_norm)
+  WHERE customer_email_norm IS NOT NULL;
+
+-- ============================================================
+-- 8) INDEXES
 -- ============================================================
 CREATE INDEX IF NOT EXISTS idx_bookings_location_start ON bookings (location_id, start_time);
 CREATE INDEX IF NOT EXISTS idx_bookings_status         ON bookings (status);
@@ -175,9 +232,11 @@ CREATE INDEX IF NOT EXISTS idx_bookings_service_id     ON bookings (service_id);
 CREATE INDEX IF NOT EXISTS idx_overrides_location_date ON branch_schedule_overrides (location_id, date);
 CREATE INDEX IF NOT EXISTS idx_booking_email_logs_booking_id ON booking_email_logs (booking_id);
 CREATE INDEX IF NOT EXISTS idx_booking_email_logs_location_created ON booking_email_logs (location_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_booking_reminder_events_location_created ON booking_reminder_events (location_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_booking_contact_flags_penalty ON booking_contact_flags (location_id, penalty_applied, missed_count DESC);
 
 -- ============================================================
--- 8) AUTO-UPDATE updated_at TRIGGER
+-- 9) AUTO-UPDATE updated_at TRIGGER
 -- ============================================================
 CREATE OR REPLACE FUNCTION update_updated_at()
 RETURNS TRIGGER AS $$
@@ -192,20 +251,47 @@ CREATE TRIGGER bookings_updated_at
   BEFORE UPDATE ON bookings
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
+DROP TRIGGER IF EXISTS booking_reminder_settings_updated_at ON booking_reminder_settings;
+CREATE TRIGGER booking_reminder_settings_updated_at
+  BEFORE UPDATE ON booking_reminder_settings
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+DROP TRIGGER IF EXISTS booking_reminder_events_updated_at ON booking_reminder_events;
+CREATE TRIGGER booking_reminder_events_updated_at
+  BEFORE UPDATE ON booking_reminder_events
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+DROP TRIGGER IF EXISTS booking_contact_flags_updated_at ON booking_contact_flags;
+CREATE TRIGGER booking_contact_flags_updated_at
+  BEFORE UPDATE ON booking_contact_flags
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
 -- ============================================================
--- 9) RLS
+-- 10) RLS
 -- ============================================================
 ALTER TABLE branch_settings           ENABLE ROW LEVEL SECURITY;
 ALTER TABLE branch_schedule_overrides ENABLE ROW LEVEL SECURITY;
 ALTER TABLE booking_services          ENABLE ROW LEVEL SECURITY;
 ALTER TABLE bookings                  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE booking_email_logs        ENABLE ROW LEVEL SECURITY;
+ALTER TABLE booking_reminder_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE booking_reminder_events   ENABLE ROW LEVEL SECURITY;
+ALTER TABLE booking_contact_flags     ENABLE ROW LEVEL SECURITY;
 
 -- Drop old policies before recreating to avoid duplicate errors
 DO $$ DECLARE r RECORD; BEGIN
   FOR r IN
     SELECT policyname, tablename FROM pg_policies
-    WHERE tablename IN ('branch_settings','branch_schedule_overrides','booking_services','bookings','booking_email_logs')
+    WHERE tablename IN (
+      'branch_settings',
+      'branch_schedule_overrides',
+      'booking_services',
+      'bookings',
+      'booking_email_logs',
+      'booking_reminder_settings',
+      'booking_reminder_events',
+      'booking_contact_flags'
+    )
   LOOP
     EXECUTE 'DROP POLICY IF EXISTS ' || quote_ident(r.policyname) || ' ON ' || quote_ident(r.tablename);
   END LOOP;
@@ -227,12 +313,30 @@ CREATE POLICY "Authenticated can read bookings"
 CREATE POLICY "Authenticated can read booking email logs"
   ON booking_email_logs FOR SELECT TO authenticated USING (true);
 
+CREATE POLICY "Authenticated can read booking reminder settings"
+  ON booking_reminder_settings FOR SELECT TO authenticated USING (true);
+
+CREATE POLICY "Authenticated can read booking reminder events"
+  ON booking_reminder_events FOR SELECT TO authenticated USING (true);
+
+CREATE POLICY "Authenticated can read booking contact flags"
+  ON booking_contact_flags FOR SELECT TO authenticated USING (true);
+
 -- Authenticated staff can manage bookings
 CREATE POLICY "Authenticated can manage bookings"
   ON bookings FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
 CREATE POLICY "Authenticated can manage booking email logs"
   ON booking_email_logs FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+CREATE POLICY "Authenticated can manage booking reminder settings"
+  ON booking_reminder_settings FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+CREATE POLICY "Authenticated can manage booking reminder events"
+  ON booking_reminder_events FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+CREATE POLICY "Authenticated can manage booking contact flags"
+  ON booking_contact_flags FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
 -- Service role can manage all scheduling config
 CREATE POLICY "Service role can manage branch settings"
@@ -246,6 +350,15 @@ CREATE POLICY "Service role can manage booking services"
 
 CREATE POLICY "Service role can manage booking email logs"
   ON booking_email_logs FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+CREATE POLICY "Service role can manage booking reminder settings"
+  ON booking_reminder_settings FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+CREATE POLICY "Service role can manage booking reminder events"
+  ON booking_reminder_events FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+CREATE POLICY "Service role can manage booking contact flags"
+  ON booking_contact_flags FOR ALL TO service_role USING (true) WITH CHECK (true);
 
 -- Anon (WhatsApp/website)
 CREATE POLICY "Anon can read branch settings"
