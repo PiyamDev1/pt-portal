@@ -465,8 +465,11 @@ export default function BookingsClient({
   userLocationId,
   branchLocations,
 }: BookingsClientProps) {
-  const today = new Date()
-  today.setUTCHours(0, 0, 0, 0)
+  const today = useMemo(() => {
+    const d = new Date()
+    d.setUTCHours(0, 0, 0, 0)
+    return d
+  }, [])
 
   const [view, setView] = useState<'week' | 'list' | 'multi'>('multi')
   const [weekStart, setWeekStart] = useState<Date>(() => startOfWeek(today))
@@ -507,6 +510,10 @@ export default function BookingsClient({
   const [panelSlots, setPanelSlots] = useState<SlotOption[]>([])
   const [loadingPanelSlots, setLoadingPanelSlots] = useState(false)
   const [panelSlotsError, setPanelSlotsError] = useState<string | null>(null)
+  const [showNotesEditor, setShowNotesEditor] = useState(false)
+  const notesAutosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const notesAutosaveSkipNextRef = useRef(false)
+  const latestNotesRef = useRef('')
   const [appointmentForm, setAppointmentForm] = useState({
     customer_name: '',
     customer_email: '',
@@ -743,6 +750,7 @@ export default function BookingsClient({
     setSlotsError(null)
     setAvailableSlots([])
     setShowDayAgendaModal(false)
+    setShowNotesEditor(false)
     setAppointmentForm({
       customer_name: '',
       customer_email: '',
@@ -813,6 +821,8 @@ export default function BookingsClient({
     setEditingBooking(booking)
     setSlotsError(null)
     setShowDayAgendaModal(false)
+    setShowNotesEditor(Boolean(booking.notes))
+    notesAutosaveSkipNextRef.current = true
     setAppointmentForm({
       customer_name: booking.customer_name,
       customer_email: booking.customer_email || '',
@@ -951,6 +961,45 @@ export default function BookingsClient({
     setAppointmentForm((prev) => ({ ...prev, start_time: availableSlots[0].isoString }))
   }, [availableSlots, appointmentForm.start_time, editingBooking, loadingSlots, showAppointmentModal])
 
+  useEffect(() => {
+    latestNotesRef.current = appointmentForm.notes
+  }, [appointmentForm.notes])
+
+  useEffect(() => {
+    if (!showAppointmentModal || !editingBooking) return
+    if (notesAutosaveSkipNextRef.current) {
+      notesAutosaveSkipNextRef.current = false
+      return
+    }
+    if (notesAutosaveTimerRef.current) {
+      clearTimeout(notesAutosaveTimerRef.current)
+    }
+
+    notesAutosaveTimerRef.current = setTimeout(async () => {
+      try {
+        const trimmed = latestNotesRef.current.trim() || null
+        const res = await fetch(`/api/bookings/${editingBooking.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ notes: trimmed }),
+        })
+        if (res.ok) {
+          setBookings((prev) =>
+            prev.map((booking) => booking.id === editingBooking.id ? { ...booking, notes: trimmed } : booking)
+          )
+        }
+      } catch {
+        // Keep autosave silent; manual Save still persists all fields.
+      }
+    }, 700)
+
+    return () => {
+      if (notesAutosaveTimerRef.current) {
+        clearTimeout(notesAutosaveTimerRef.current)
+      }
+    }
+  }, [appointmentForm.notes, editingBooking, showAppointmentModal])
+
   const saveAppointment = async () => {
     if (!selectedLocationId) return
 
@@ -959,20 +1008,20 @@ export default function BookingsClient({
       return
     }
 
-    const manualStartIso = appointmentForm.manual_override && appointmentForm.start_time
-      ? new Date(appointmentForm.start_time).toISOString()
+    const manualStartIso = appointmentForm.manual_override && appointmentForm.date && appointmentForm.start_time
+      ? new Date(`${appointmentForm.date}T${appointmentForm.start_time}:00Z`).toISOString()
       : ''
-    const manualEndIso = appointmentForm.manual_override && appointmentForm.end_time
-      ? new Date(appointmentForm.end_time).toISOString()
+    const manualEndIso = appointmentForm.manual_override && appointmentForm.date && appointmentForm.end_time
+      ? new Date(`${appointmentForm.date}T${appointmentForm.end_time}:00Z`).toISOString()
       : ''
 
     if (appointmentForm.manual_override) {
-      if (!appointmentForm.start_time || !appointmentForm.end_time) {
-        toast.error('Manual override needs both start and end time')
+      if (!appointmentForm.date || !appointmentForm.start_time || !appointmentForm.end_time) {
+        toast.error('Manual override needs date, start time, and end time')
         return
       }
-      const parsedStart = new Date(appointmentForm.start_time)
-      const parsedEnd = new Date(appointmentForm.end_time)
+      const parsedStart = new Date(`${appointmentForm.date}T${appointmentForm.start_time}:00Z`)
+      const parsedEnd = new Date(`${appointmentForm.date}T${appointmentForm.end_time}:00Z`)
       if (Number.isNaN(parsedStart.getTime()) || Number.isNaN(parsedEnd.getTime())) {
         toast.error('Invalid manual start/end time')
         return
@@ -1130,53 +1179,54 @@ export default function BookingsClient({
 
         <div className="animate-enter-fade-up rounded-[28px] border border-white/70 bg-white/80 p-5 shadow-[0_24px_80px_-32px_rgba(15,23,42,0.35)] backdrop-blur xl:p-6">
           <div className="flex flex-col gap-5">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex flex-col gap-4">
               <div className="space-y-3">
                 <span className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-sky-700">
                   <SparkIcon className="h-3.5 w-3.5" />
                   Booking desk
                 </span>
-                <div>
-                  <h1 className="text-3xl font-bold tracking-tight text-slate-900">Appointments</h1>
-                  <p className="mt-1 text-sm text-slate-600">{view === 'multi' ? monthLabel : weekLabel}</p>
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <h1 className="text-3xl font-bold tracking-tight text-slate-900">Appointments</h1>
+                    <p className="mt-1 text-sm text-slate-600">{view === 'multi' ? monthLabel : weekLabel}</p>
+                  </div>
+                  <div className="flex items-center gap-2 self-start rounded-2xl border border-slate-200/80 bg-slate-50/80 p-1.5 shadow-sm">
+                    <div className="flex rounded-xl border border-slate-200 overflow-hidden bg-white">
+                      <button
+                        onClick={() => setView('multi')}
+                        className={`ui-tap ui-focus inline-flex items-center gap-1.5 px-2.5 py-2 text-xs font-medium transition-all sm:px-3 sm:text-sm ${
+                          view === 'multi' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50'
+                        }`}
+                      >
+                        <CalendarIcon className="h-4 w-4" />
+                        Calendar
+                      </button>
+                      <button
+                        onClick={() => setView('week')}
+                        className={`ui-tap ui-focus inline-flex items-center gap-1.5 border-l border-slate-200 px-2.5 py-2 text-xs font-medium transition-all sm:px-3 sm:text-sm ${
+                          view === 'week' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50'
+                        }`}
+                      >
+                        <WeekIcon className="h-4 w-4" />
+                        Week
+                      </button>
+                      <button
+                        onClick={() => setView('list')}
+                        className={`ui-tap ui-focus inline-flex items-center gap-1.5 border-l border-slate-200 px-2.5 py-2 text-xs font-medium transition-all sm:px-3 sm:text-sm ${
+                          view === 'list' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50'
+                        }`}
+                      >
+                        <ListIcon className="h-4 w-4" />
+                        List
+                      </button>
+                    </div>
+                  </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
                   <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-600">{view === 'multi' ? <CalendarIcon className="h-3.5 w-3.5" /> : view === 'week' ? <WeekIcon className="h-3.5 w-3.5" /> : <ListIcon className="h-3.5 w-3.5" />}{view === 'multi' ? 'Calendar overview' : view === 'week' ? 'Week timeline' : 'Appointment list'}</span>
                   <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-600"><FilterIcon className="h-3.5 w-3.5" />{sourceFilterLabel}</span>
                   {selectedLocationId && <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-600"><PinIcon className="h-3.5 w-3.5" />Location active</span>}
                 </div>
-              </div>
-
-              <div className="flex items-center gap-2 self-start rounded-2xl border border-slate-200/80 bg-slate-50/80 p-1.5 shadow-sm">
-            <div className="flex rounded-xl border border-slate-200 overflow-hidden bg-white">
-              <button
-                onClick={() => setView('multi')}
-                className={`ui-tap ui-focus inline-flex items-center gap-1.5 px-2.5 py-2 text-xs font-medium transition-all sm:px-3 sm:text-sm ${
-                  view === 'multi' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50'
-                }`}
-              >
-                <CalendarIcon className="h-4 w-4" />
-                Calendar
-              </button>
-              <button
-                onClick={() => setView('week')}
-                className={`ui-tap ui-focus inline-flex items-center gap-1.5 border-l border-slate-200 px-2.5 py-2 text-xs font-medium transition-all sm:px-3 sm:text-sm ${
-                  view === 'week' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50'
-                }`}
-              >
-                <WeekIcon className="h-4 w-4" />
-                Week
-              </button>
-              <button
-                onClick={() => setView('list')}
-                className={`ui-tap ui-focus inline-flex items-center gap-1.5 border-l border-slate-200 px-2.5 py-2 text-xs font-medium transition-all sm:px-3 sm:text-sm ${
-                  view === 'list' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50'
-                }`}
-              >
-                <ListIcon className="h-4 w-4" />
-                List
-              </button>
-            </div>
               </div>
             </div>
 
@@ -1718,7 +1768,7 @@ export default function BookingsClient({
 
               <label className="text-sm text-slate-700">
                 Date
-                <input type="date" min={editingBooking ? undefined : todayDateKey} value={appointmentForm.date} onChange={(e) => setAppointmentForm((p) => ({ ...p, date: e.target.value, start_time: '' }))} className="mt-1 w-full border border-slate-300 rounded px-3 py-2" />
+                <input type="date" min={editingBooking ? undefined : todayDateKey} value={appointmentForm.date} onChange={(e) => setAppointmentForm((p) => ({ ...p, date: e.target.value, start_time: p.manual_override ? p.start_time : '' }))} className="mt-1 w-full border border-slate-300 rounded px-3 py-2" />
               </label>
 
               {!editingBooking && (
@@ -1745,13 +1795,9 @@ export default function BookingsClient({
                   <label className="text-sm text-slate-700">
                     Start time
                     <input
-                      type="datetime-local"
+                      type="time"
                       value={appointmentForm.start_time}
-                      onChange={(e) => setAppointmentForm((p) => ({
-                        ...p,
-                        start_time: e.target.value,
-                        date: e.target.value ? e.target.value.slice(0, 10) : p.date,
-                      }))}
+                      onChange={(e) => setAppointmentForm((p) => ({ ...p, start_time: e.target.value }))}
                       className="mt-1 w-full border border-slate-300 rounded px-3 py-2"
                     />
                   </label>
@@ -1759,7 +1805,7 @@ export default function BookingsClient({
                   <label className="text-sm text-slate-700">
                     End time
                     <input
-                      type="datetime-local"
+                      type="time"
                       value={appointmentForm.end_time}
                       onChange={(e) => setAppointmentForm((p) => ({ ...p, end_time: e.target.value }))}
                       className="mt-1 w-full border border-slate-300 rounded px-3 py-2"
@@ -1768,16 +1814,31 @@ export default function BookingsClient({
                 </>
               )}
 
-              <label className="text-sm text-slate-700 md:col-span-2">
-                Notes
-                <textarea
-                  value={appointmentForm.notes}
-                  onChange={(e) => setAppointmentForm((p) => ({ ...p, notes: e.target.value }))}
-                  rows={3}
-                  placeholder="Optional internal note for this appointment"
-                  className="mt-1 w-full border border-slate-300 rounded px-3 py-2"
-                />
-              </label>
+              <div className="md:col-span-2">
+                <button
+                  type="button"
+                  onClick={() => setShowNotesEditor((prev) => !prev)}
+                  className="ui-tap ui-focus inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                >
+                  <PencilIcon className="h-4 w-4" />
+                  {showNotesEditor ? 'Hide notes' : (appointmentForm.notes.trim() ? 'Show notes' : 'Add notes')}
+                </button>
+                {showNotesEditor && (
+                  <label className="mt-2 block text-sm text-slate-700">
+                    Notes
+                    <textarea
+                      value={appointmentForm.notes}
+                      onChange={(e) => setAppointmentForm((p) => ({ ...p, notes: e.target.value }))}
+                      rows={3}
+                      placeholder="Optional internal note for this appointment"
+                      className="mt-1 w-full border border-slate-300 rounded px-3 py-2"
+                    />
+                    {editingBooking && (
+                      <p className="mt-1 text-xs text-slate-500">Notes autosave while you type.</p>
+                    )}
+                  </label>
+                )}
+              </div>
             </div>
 
             {(() => {
@@ -2371,11 +2432,24 @@ function WeekTimeline({
   const TIMELINE_END   = TIMELINE_END_HOUR   * 60
   const totalHeight    = (TIMELINE_END - TIMELINE_START) * TIMELINE_PX_PER_MIN
   const containerRef   = useRef<HTMLDivElement>(null)
+  const lastAutoScrollWeekRef = useRef<string | null>(null)
   const LABEL_W        = 48
 
   const hours: number[] = []
   for (let h = TIMELINE_START_HOUR; h <= TIMELINE_END_HOUR; h++) hours.push(h)
   const yFor = (mins: number) => (mins - TIMELINE_START) * TIMELINE_PX_PER_MIN
+  const [currentUtcMinutes, setCurrentUtcMinutes] = useState(() => {
+    const now = new Date()
+    return now.getUTCHours() * 60 + now.getUTCMinutes()
+  })
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      const now = new Date()
+      setCurrentUtcMinutes(now.getUTCHours() * 60 + now.getUTCMinutes())
+    }, 60000)
+    return () => clearInterval(id)
+  }, [])
 
   const bookingsByDate = useMemo(() => {
     const map = new Map<string, BookingWithService[]>()
@@ -2401,6 +2475,10 @@ function WeekTimeline({
 
   useEffect(() => {
     if (!containerRef.current) return
+    const weekKey = `${weekDays[0]?.toISOString() ?? ''}|${weekDays[6]?.toISOString() ?? ''}`
+    if (lastAutoScrollWeekRef.current === weekKey) return
+    lastAutoScrollWeekRef.current = weekKey
+
     const includesToday = weekDays.some((day) => isSameUTCDay(day, today))
     if (!includesToday) {
       containerRef.current.scrollTop = 0
@@ -2512,6 +2590,8 @@ function WeekTimeline({
   const mobileDay = weekDays[mobileDayIndex] ?? weekDays[0]
   const mobileDateKey = mobileDay?.toISOString().slice(0, 10) ?? ''
   const mobileBookings = mobileDateKey ? bookingsByDate.get(mobileDateKey) ?? [] : []
+  const hasCurrentTimeInRange = currentUtcMinutes >= TIMELINE_START && currentUtcMinutes <= TIMELINE_END
+  const currentLineTop = yFor(Math.max(TIMELINE_START, Math.min(TIMELINE_END, currentUtcMinutes)))
 
   return (
     <>
@@ -2572,6 +2652,12 @@ function WeekTimeline({
                   {hours.map((h) => (
                     <div key={`mgh-${h}`} className="absolute left-0 right-0 border-t border-dashed border-slate-100" style={{ top: yFor(h * 60 + 30) }} />
                   ))}
+
+                  {isSameUTCDay(mobileDay, today) && hasCurrentTimeInRange && (
+                    <div className="absolute left-0 right-0 z-20 pointer-events-none" style={{ top: currentLineTop }}>
+                      <div className="h-0 border-t-2 border-rose-500" />
+                    </div>
+                  )}
 
                   {mobileBookings.map((b) => {
                     const startMs = new Date(b.start_time).getTime()
@@ -2702,6 +2788,12 @@ function WeekTimeline({
                     {hours.map((h) => (
                       <div key={`hf-${h}`} className="absolute left-0 right-0 border-t border-dashed border-slate-100" style={{ top: yFor(h * 60 + 30) }} />
                     ))}
+
+                    {isToday && hasCurrentTimeInRange && (
+                      <div className="absolute left-0 right-0 z-20 pointer-events-none" style={{ top: currentLineTop }}>
+                        <div className="h-0 border-t-2 border-rose-500" />
+                      </div>
+                    )}
 
                     {dayBookings.map((b) => {
                       const startMs    = new Date(b.start_time).getTime()
