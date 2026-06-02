@@ -474,6 +474,7 @@ export default function BookingsClient({
   const [selectedDate, setSelectedDate] = useState<Date>(today)
   const [mobileWeekDayIndex, setMobileWeekDayIndex] = useState(0)
   const [mobileListMode, setMobileListMode] = useState<'day' | 'week'>('day')
+  const [mobileCalendarMode, setMobileCalendarMode] = useState<'grid' | 'agenda'>('grid')
 
   const [bookings, setBookings] = useState<BookingWithService[]>([])
   const [loading, setLoading] = useState(false)
@@ -537,6 +538,10 @@ export default function BookingsClient({
     d.setUTCDate(calendarGridStart.getUTCDate() + i)
     return d
   }), [calendarGridStart])
+  const mobileAgendaDays = useMemo(
+    () => calendarDays.filter((day) => day.getUTCMonth() === monthStart.getUTCMonth()),
+    [calendarDays, monthStart],
+  )
 
   const rangeStart = useMemo(
     () => (view === 'multi' ? new Date(calendarGridStart) : new Date(weekStart)),
@@ -1305,7 +1310,86 @@ export default function BookingsClient({
           </div>
         ) : view === 'multi' && (
           <div className="animate-enter-fade-up animate-enter-delay-1 space-y-4">
-            <div className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-[0_18px_50px_-30px_rgba(15,23,42,0.4)]">
+            <div className="md:hidden rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
+              <div className="flex items-center gap-2 rounded-xl bg-slate-50 p-1">
+                <button
+                  type="button"
+                  onClick={() => setMobileCalendarMode('grid')}
+                  className={`flex-1 rounded-lg px-2 py-1.5 text-xs font-medium transition-colors ${
+                    mobileCalendarMode === 'grid' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500'
+                  }`}
+                >
+                  Grid
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMobileCalendarMode('agenda')}
+                  className={`flex-1 rounded-lg px-2 py-1.5 text-xs font-medium transition-colors ${
+                    mobileCalendarMode === 'agenda' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500'
+                  }`}
+                >
+                  Agenda
+                </button>
+              </div>
+            </div>
+
+            {mobileCalendarMode === 'agenda' && (
+              <div className="md:hidden overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-[0_18px_50px_-30px_rgba(15,23,42,0.4)]">
+                <div className="border-b border-slate-200 bg-[linear-gradient(180deg,_#ffffff_0%,_#eef2ff_100%)] px-4 py-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Month agenda</p>
+                  <p className="mt-1 text-sm text-slate-600">Tap a day to manage appointments quickly</p>
+                </div>
+                {mobileAgendaDays.length === 0 ? (
+                  <div className="px-4 py-8 text-center text-sm text-slate-400">No days available for this month.</div>
+                ) : (
+                  <div className="divide-y divide-slate-100">
+                    {mobileAgendaDays.map((day) => {
+                      const dayBookings = bookingsForDate(day)
+                      const isToday = isSameUTCDay(day, today)
+                      const isSelected = isSameUTCDay(day, selectedDate)
+                      return (
+                        <button
+                          key={`agenda-${day.toISOString()}`}
+                          type="button"
+                          onClick={() => openDayAgenda(day)}
+                          className={`w-full px-4 py-3 text-left transition-colors ${
+                            isSelected ? 'bg-indigo-50' : 'hover:bg-slate-50'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div>
+                              <p className={`text-sm font-semibold ${isSelected ? 'text-indigo-700' : 'text-slate-700'}`}>
+                                {formatDateLabel(day)}
+                                {isToday && (
+                                  <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
+                                    Today
+                                  </span>
+                                )}
+                              </p>
+                              <p className="mt-1 text-xs text-slate-500">
+                                {dayBookings.length === 0
+                                  ? 'No appointments'
+                                  : `${dayBookings.length} appointment${dayBookings.length === 1 ? '' : 's'}`}
+                              </p>
+                            </div>
+                            <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${dayBookings.length > 0 ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-500'}`}>
+                              {dayBookings.length}
+                            </span>
+                          </div>
+                          {dayBookings.length > 0 && (
+                            <p className="mt-1 text-xs text-slate-400 truncate">
+                              Next: {formatTime(dayBookings[0].start_time)} {dayBookings[0].customer_name}
+                            </p>
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className={`${mobileCalendarMode === 'agenda' ? 'hidden md:block' : 'block'} overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-[0_18px_50px_-30px_rgba(15,23,42,0.4)]`}>
               <div className="grid grid-cols-7 border-b border-slate-200 bg-[linear-gradient(180deg,_#f8fafc_0%,_#eef2ff_100%)]">
                 {CALENDAR_DAY_LABELS.map((label) => (
                   <div key={label} className="px-3 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider text-center">
@@ -1558,7 +1642,7 @@ export default function BookingsClient({
         {!showSettings && cancelledBookings.length > 0 && (
           <div className="overflow-hidden rounded-2xl border border-red-200 bg-white shadow-sm">
             <div className="px-5 py-3 border-b border-red-100 bg-[linear-gradient(180deg,_#fff1f2_0%,_#fef2f2_100%)] flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-red-700">Cancelled Appointment Logs</h3>
+              <h3 className="inline-flex items-center gap-1.5 text-sm font-semibold text-red-700"><CloseIcon className="h-4 w-4" />Cancelled Appointment Logs</h3>
               <span className="text-xs text-red-600">{cancelledBookings.length} cancelled</span>
             </div>
             <div className="divide-y divide-red-50 max-h-72 overflow-y-auto">
@@ -1773,13 +1857,15 @@ export default function BookingsClient({
                   <button
                     onClick={() => setCancelConfirmOpen(true)}
                     disabled={savingBooking || updatingId === editingBooking.id}
-                    className="px-4 py-2 rounded border border-red-200 bg-red-50 text-sm text-red-600 disabled:opacity-50"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded border border-red-200 bg-red-50 text-sm text-red-600 disabled:opacity-50"
                   >
+                    <CloseIcon className="h-4 w-4" />
                     Cancel Appointment
                   </button>
                 )}
-                <button onClick={() => { setShowAppointmentModal(false); setCancelConfirmOpen(false) }} className="px-4 py-2 rounded border border-slate-300 text-sm">Close</button>
-                <button onClick={saveAppointment} disabled={savingBooking || invalidLocalPhone} className="px-4 py-2 rounded bg-indigo-600 text-white text-sm disabled:opacity-50">
+                <button onClick={() => { setShowAppointmentModal(false); setCancelConfirmOpen(false) }} className="inline-flex items-center gap-1.5 px-4 py-2 rounded border border-slate-300 text-sm"><CloseIcon className="h-4 w-4" />Close</button>
+                <button onClick={saveAppointment} disabled={savingBooking || invalidLocalPhone} className="inline-flex items-center gap-1.5 px-4 py-2 rounded bg-indigo-600 text-white text-sm disabled:opacity-50">
+                  {!savingBooking && <CheckIcon className="h-4 w-4" />}
                   {savingBooking ? 'Saving...' : editingBooking ? 'Save Changes' : 'Create Appointment'}
                 </button>
               </div>
