@@ -804,7 +804,17 @@ export default function BookingsClient({
 
   const selectedBookings = bookingsForDate(selectedDate)
 
-  const updateStatus = async (id: string, status: string) => {
+  const requireDoubleConfirm = useCallback((firstPrompt: string) => {
+    if (!window.confirm(firstPrompt)) return false
+    return window.confirm('Please confirm again to proceed.')
+  }, [])
+
+  const updateStatus = async (id: string, status: string, options?: { skipConfirm?: boolean }) => {
+    if (!options?.skipConfirm) {
+      const confirmed = requireDoubleConfirm(`Change appointment status to ${status}?`)
+      if (!confirmed) return
+    }
+
     setUpdatingId(id)
     try {
       const res = await fetch(`/api/bookings/${id}`, {
@@ -858,6 +868,9 @@ export default function BookingsClient({
   }
 
   const rescheduleBooking = useCallback(async (id: string, newStartTime: string) => {
+    const confirmed = requireDoubleConfirm('Reschedule this appointment to the new time?')
+    if (!confirmed) return
+
     setUpdatingId(id)
     // Optimistic update
     setBookings((prev) =>
@@ -880,7 +893,7 @@ export default function BookingsClient({
     } finally {
       setUpdatingId(null)
     }
-  }, [fetchBookings])
+  }, [fetchBookings, requireDoubleConfirm])
 
   const fetchAvailableSlots = useCallback(async () => {
     if (appointmentForm.manual_override) {
@@ -945,6 +958,20 @@ export default function BookingsClient({
       cancelled = true
     }
   }, [dayAgendaPersonCount, dayAgendaServiceId, loadSlotsFor, selectedDateKey, selectedLocationId, showDayAgendaModal])
+
+  useEffect(() => {
+    if (!showAppointmentModal && !showDayAgendaModal) return
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      setShowAppointmentModal(false)
+      setShowDayAgendaModal(false)
+      setCancelConfirmOpen(false)
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [showAppointmentModal, showDayAgendaModal])
 
   useEffect(() => {
     if (!showAppointmentModal || editingBooking) return
@@ -1119,6 +1146,11 @@ export default function BookingsClient({
       const customer_phone = `${appointmentForm.phone_country_code} ${normalizeLocalPhone(appointmentForm.phone_local)}`.trim()
 
       if (editingBooking) {
+        const confirmed = requireDoubleConfirm('Apply these amendments to this appointment?')
+        if (!confirmed) return
+      }
+
+      if (editingBooking) {
         const res = await fetch(`/api/bookings/${editingBooking.id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
@@ -1189,7 +1221,10 @@ export default function BookingsClient({
 
   const cancelEditingBooking = async () => {
     if (!editingBooking) return
-    await updateStatus(editingBooking.id, BookingStatus.CANCELLED)
+    const confirmed = requireDoubleConfirm('Cancel this appointment?')
+    if (!confirmed) return
+
+    await updateStatus(editingBooking.id, BookingStatus.CANCELLED, { skipConfirm: true })
     setShowAppointmentModal(false)
     setEditingBooking(null)
   }
@@ -2043,9 +2078,46 @@ export default function BookingsClient({
             })()}
 
             {appointmentForm.manual_override && !editingBooking && (
-              <div className="text-sm text-slate-700 rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3">
-                <p className="font-medium text-indigo-700">Manual override enabled</p>
-                <p className="mt-1 text-xs text-indigo-600">This bypasses slot availability checks and uses your exact start/end time.</p>
+              <div className="space-y-3">
+                <div className="text-sm text-slate-700 rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3">
+                  <p className="font-medium text-indigo-700">Manual override enabled</p>
+                  <p className="mt-1 text-xs text-indigo-600">Existing appointments for this date are shown below to avoid accidental double booking.</p>
+                </div>
+
+                <div className="rounded-lg border border-slate-200 bg-white">
+                  <div className="border-b border-slate-100 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Existing appointments on {appointmentForm.date || 'selected date'}
+                  </div>
+                  {!appointmentForm.date ? (
+                    <div className="px-3 py-3 text-xs text-slate-500">Pick a date to view existing appointments.</div>
+                  ) : (
+                    (() => {
+                      const existing = allActiveBookings
+                        .filter((booking) => booking.start_time.startsWith(appointmentForm.date))
+                        .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())
+
+                      if (existing.length === 0) {
+                        return <div className="px-3 py-3 text-xs text-emerald-700">No existing appointments for this date.</div>
+                      }
+
+                      return (
+                        <div className="max-h-44 overflow-y-auto divide-y divide-slate-100">
+                          {existing.map((booking) => (
+                            <button
+                              key={booking.id}
+                              type="button"
+                              onClick={() => openEditBooking(booking)}
+                              className="w-full px-3 py-2 text-left hover:bg-slate-50"
+                            >
+                              <p className="text-xs font-semibold text-slate-700">{formatTime(booking.start_time)} - {formatTime(booking.end_time)} · {booking.customer_name}</p>
+                              <p className="mt-0.5 text-[11px] text-slate-500">{booking.booking_services?.name || 'Service'} · {booking.status}</p>
+                            </button>
+                          ))}
+                        </div>
+                      )
+                    })()
+                  )}
+                </div>
               </div>
             )}
 
@@ -2480,18 +2552,20 @@ function DayAgendaModal({
               ) : slots.length === 0 ? (
                 <p className="text-sm text-slate-400">No available times for this day.</p>
               ) : (
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                  {slots.map((slot) => (
-                    <button
-                      key={slot.isoString}
-                      type="button"
-                      onClick={() => onSelectSlot(slot)}
-                      className="rounded-2xl border border-emerald-200 bg-white px-3 py-3 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-emerald-400 hover:bg-emerald-50 hover:shadow-md"
-                    >
-                      <span className="block text-base font-semibold text-slate-800">{slot.time}</span>
-                      <span className="mt-1 block text-xs text-emerald-700">Create booking</span>
-                    </button>
-                  ))}
+                <div className="max-h-[320px] overflow-y-auto pr-1">
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                    {slots.map((slot) => (
+                      <button
+                        key={slot.isoString}
+                        type="button"
+                        onClick={() => onSelectSlot(slot)}
+                        className="rounded-2xl border border-emerald-200 bg-white px-3 py-3 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-emerald-400 hover:bg-emerald-50 hover:shadow-md"
+                      >
+                        <span className="block text-base font-semibold text-slate-800">{slot.time}</span>
+                        <span className="mt-1 block text-xs text-emerald-700">Create booking</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>

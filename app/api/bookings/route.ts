@@ -311,6 +311,91 @@ export async function POST(request: NextRequest) {
     const computedEndTime = endTimeDate.toISOString();
     const occupied_until = occupiedUntilDate.toISOString();
 
+    if (manualOverride) {
+      const dayOfWeek = startTimeDate.getUTCDay();
+      const { data: branchSettingsRow, error: settingsError } = await supabase
+        .from('branch_settings')
+        .select('*')
+        .eq('location_id', location_id)
+        .eq('day_of_week', dayOfWeek)
+        .maybeSingle();
+
+      if (settingsError) {
+        if (isSchemaError(settingsError)) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: SCHEMA_HINT,
+            } as CreateBookingResponse,
+            { status: 503 }
+          );
+        }
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Failed to load branch settings',
+          } as CreateBookingResponse,
+          { status: 500 }
+        );
+      }
+
+      const branchSettings = branchSettingsRow ?? buildDefaultBranchSchedule(dayOfWeek);
+      const dateKey = startTimeDate.toISOString().slice(0, 10);
+      const startOfDay = new Date(`${dateKey}T00:00:00Z`).toISOString();
+      const endOfDay = new Date(`${dateKey}T23:59:59Z`).toISOString();
+
+      const { data: overlappingCandidates, error: overlapError } = await supabase
+        .from('bookings')
+        .select(`
+          id,
+          service_id,
+          person_count,
+          start_time,
+          end_time,
+          booking_services:service_id(
+            duration_minutes,
+            buffer_minutes,
+            duration_per_additional_person_minutes,
+            person_count_excludes_family_head
+          )
+        `)
+        .eq('location_id', location_id)
+        .gte('start_time', startOfDay)
+        .lte('start_time', endOfDay)
+        .neq('status', 'cancelled');
+
+      if (overlapError) {
+        if (isSchemaError(overlapError)) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: SCHEMA_HINT,
+            } as CreateBookingResponse,
+            { status: 503 }
+          );
+        }
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Failed to check availability',
+          } as CreateBookingResponse,
+          { status: 500 }
+        );
+      }
+
+      const overlapCount = countBufferedOverlaps(overlappingCandidates || [], start_time, occupied_until);
+      const staffCapacity = Math.max(1, branchSettings.concurrent_staff || 1);
+      if (overlapCount >= staffCapacity) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'No available staff for this time slot',
+          } as CreateBookingResponse,
+          { status: 409 }
+        );
+      }
+    }
+
     if (!manualOverride) {
       const dayOfWeek = startTimeDate.getUTCDay();
       const { data: branchSettingsRow, error: settingsError } = await supabase
