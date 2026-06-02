@@ -865,6 +865,9 @@ export default function BookingsClient({
   const refreshLabel = lastUpdatedAt
     ? lastUpdatedAt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
     : 'Never'
+  const sourceFilterLabel = sourceFilter === 'all'
+    ? 'All sources'
+    : sourceFilter.charAt(0).toUpperCase() + sourceFilter.slice(1)
 
   useEffect(() => {
     if (!panelServiceId && serviceOptions.length > 0) {
@@ -899,14 +902,29 @@ export default function BookingsClient({
   }, [loadSlotsFor, panelPersonCount, panelServiceId, selectedBookings.length, selectedDateKey, view])
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-800">Appointments</h1>
-            <p className="text-sm text-slate-500 mt-0.5">{view === 'multi' ? monthLabel : weekLabel}</p>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.12),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(99,102,241,0.14),_transparent_28%),linear-gradient(180deg,_#f8fafc_0%,_#eef2ff_100%)]">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-6 relative">
+        <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-56 rounded-[2rem] bg-white/40 blur-3xl" />
+
+        <div className="rounded-[28px] border border-white/70 bg-white/80 p-5 shadow-[0_24px_80px_-32px_rgba(15,23,42,0.35)] backdrop-blur xl:p-6">
+          <div className="flex flex-col gap-5">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div className="space-y-3">
+                <span className="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-sky-700">
+                  Booking desk
+                </span>
+                <div>
+                  <h1 className="text-3xl font-bold tracking-tight text-slate-900">Appointments</h1>
+                  <p className="mt-1 text-sm text-slate-600">{view === 'multi' ? monthLabel : weekLabel}</p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                  <span className="rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-600">{view === 'multi' ? 'Calendar overview' : view === 'week' ? 'Week timeline' : 'Appointment list'}</span>
+                  <span className="rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-600">{sourceFilterLabel}</span>
+                  {selectedLocationId && <span className="rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-600">Location active</span>}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 self-start rounded-2xl border border-slate-200/80 bg-slate-50/80 p-1.5 shadow-sm">
             <div className="flex rounded-lg border border-slate-200 overflow-hidden bg-white">
               <button
                 onClick={() => setView('multi')}
@@ -933,6 +951,10 @@ export default function BookingsClient({
                 List
               </button>
             </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap rounded-2xl border border-slate-200/80 bg-slate-50/85 p-3 shadow-inner shadow-white/60">
 
             <button
               onClick={goToPrev}
@@ -1027,32 +1049,53 @@ export default function BookingsClient({
                 <option value={BookingSource.WEBSITE}>Website</option>
               </select>
             )}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200/80 bg-white/80 px-4 py-3 text-xs text-slate-500 shadow-sm">
+              <span className="font-medium text-slate-600">Last updated: {refreshLabel}</span>
+              {refreshing && <span className="rounded-full bg-indigo-50 px-2 py-1 font-medium text-indigo-600">Checking for changes...</span>}
+              {autoRefresh && !refreshing && (
+                <span className="rounded-full bg-slate-100 px-2 py-1 text-slate-500 tabular-nums">Next refresh in {refreshCountdown}s</span>
+              )}
+              {!autoRefresh && (
+                <span className="rounded-full bg-amber-50 px-2 py-1 font-medium text-amber-600">Auto-refresh paused</span>
+              )}
+            </div>
           </div>
         </div>
 
-        <div className="text-xs text-slate-500 flex items-center gap-2">
-          <span>Last updated: {refreshLabel}</span>
-          {refreshing && <span className="text-indigo-600">Checking for changes...</span>}
-          {autoRefresh && !refreshing && (
-            <span className="text-slate-400 tabular-nums">· Next refresh in {refreshCountdown}s</span>
-          )}
-          {!autoRefresh && (
-            <span className="text-amber-600">Auto-refresh paused</span>
-          )}
-        </div>
-
-        <div className="grid grid-cols-3 gap-3">
-          <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Visible Range</p>
-            <p className="text-2xl font-bold text-slate-800 mt-1">{totalVisible}</p>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="h-1 bg-slate-900" />
+            <div className="p-4">
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Visible Range</p>
+              <p className="mt-2 text-3xl font-bold text-slate-900">{totalVisible}</p>
+              <p className="mt-2 text-xs text-slate-500">Appointments currently shown in this view.</p>
+            </div>
           </div>
-          <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Pending</p>
-            <p className="text-2xl font-bold text-yellow-500 mt-1">{pendingVisible}</p>
+          <div className="overflow-hidden rounded-2xl border border-amber-100 bg-white shadow-sm">
+            <div className="h-1 bg-amber-400" />
+            <div className="p-4">
+              <p className="text-xs font-semibold text-amber-700 uppercase tracking-wider">Pending</p>
+              <p className="mt-2 text-3xl font-bold text-amber-500">{pendingVisible}</p>
+              <p className="mt-2 text-xs text-slate-500">Awaiting confirmation or follow-up.</p>
+            </div>
           </div>
-          <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Confirmed</p>
-            <p className="text-2xl font-bold text-green-600 mt-1">{confirmedVisible}</p>
+          <div className="overflow-hidden rounded-2xl border border-emerald-100 bg-white shadow-sm">
+            <div className="h-1 bg-emerald-500" />
+            <div className="p-4">
+              <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wider">Confirmed</p>
+              <p className="mt-2 text-3xl font-bold text-emerald-600">{confirmedVisible}</p>
+              <p className="mt-2 text-xs text-slate-500">Ready to serve in the active window.</p>
+            </div>
+          </div>
+          <div className="overflow-hidden rounded-2xl border border-indigo-100 bg-white shadow-sm">
+            <div className="h-1 bg-indigo-500" />
+            <div className="p-4">
+              <p className="text-xs font-semibold text-indigo-700 uppercase tracking-wider">Focus</p>
+              <p className="mt-2 text-xl font-bold text-slate-900">{sourceFilterLabel}</p>
+              <p className="mt-2 text-xs text-slate-500">Current feed source shown on screen.</p>
+            </div>
           </div>
         </div>
 
@@ -1066,8 +1109,8 @@ export default function BookingsClient({
           </div>
         ) : view === 'multi' && (
           <div className="space-y-4">
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-              <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50">
+            <div className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-[0_18px_50px_-30px_rgba(15,23,42,0.4)]">
+              <div className="grid grid-cols-7 border-b border-slate-200 bg-[linear-gradient(180deg,_#f8fafc_0%,_#eef2ff_100%)]">
                 {CALENDAR_DAY_LABELS.map((label) => (
                   <div key={label} className="px-3 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider text-center">
                     {label}
@@ -1086,12 +1129,12 @@ export default function BookingsClient({
                     <button
                       key={day.toISOString()}
                       onClick={() => openDayAgenda(day)}
-                      className={`min-h-[108px] p-2 border-r border-b border-slate-100 text-left transition-colors ${
+                      className={`min-h-[118px] p-3 border-r border-b border-slate-100 text-left transition-all duration-150 ${
                         isSelected
-                          ? 'bg-indigo-50 ring-2 ring-inset ring-indigo-300'
+                          ? 'bg-indigo-50 ring-2 ring-inset ring-indigo-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]'
                           : isToday
-                          ? 'bg-amber-50 ring-2 ring-inset ring-amber-300'
-                          : 'bg-white hover:bg-slate-50'
+                          ? 'bg-amber-50 ring-2 ring-inset ring-amber-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]'
+                          : 'bg-white hover:-translate-y-0.5 hover:bg-slate-50'
                       }`}
                     >
                       <div className="flex items-center justify-between">
@@ -1122,9 +1165,9 @@ export default function BookingsClient({
                         )}
                       </div>
 
-                      <div className="mt-2 space-y-1">
+                      <div className="mt-3 space-y-1.5">
                         {dayBookings.slice(0, 3).map((booking) => (
-                          <div key={booking.id} className="flex items-center gap-1.5">
+                          <div key={booking.id} className="flex items-center gap-1.5 rounded-md bg-slate-50/80 px-1.5 py-1">
                             <span className={`h-1.5 w-1.5 rounded-full ${statusDotClass(booking.status)}`} />
                             <span className="text-[11px] text-slate-500 truncate">
                               {formatTime(booking.start_time)} {booking.customer_name}
@@ -1191,8 +1234,11 @@ export default function BookingsClient({
             {loading ? (
               <div className="py-12 text-center text-slate-400 text-sm">Loading appointments…</div>
             ) : activeBookings.length === 0 ? (
-              <div className="py-12 text-center text-slate-400 text-sm">
-                No appointments this week
+              <div className="py-14 text-center">
+                <div className="mx-auto max-w-sm rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 py-8">
+                  <p className="text-base font-semibold text-slate-700">No appointments this week</p>
+                  <p className="mt-2 text-sm text-slate-400">Try another week, change the source filter, or add a new appointment.</p>
+                </div>
               </div>
             ) : (
               weekDays.map((day) => {
@@ -1231,8 +1277,8 @@ export default function BookingsClient({
         )}
 
         {!showSettings && cancelledBookings.length > 0 && (
-          <div className="bg-white rounded-xl border border-red-200 shadow-sm overflow-hidden">
-            <div className="px-5 py-3 border-b border-red-100 bg-red-50 flex items-center justify-between">
+          <div className="overflow-hidden rounded-2xl border border-red-200 bg-white shadow-sm">
+            <div className="px-5 py-3 border-b border-red-100 bg-[linear-gradient(180deg,_#fff1f2_0%,_#fef2f2_100%)] flex items-center justify-between">
               <h3 className="text-sm font-semibold text-red-700">Cancelled Appointment Logs</h3>
               <span className="text-xs text-red-600">{cancelledBookings.length} cancelled</span>
             </div>
@@ -1241,7 +1287,7 @@ export default function BookingsClient({
                 .slice()
                 .sort((a, b) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime())
                 .map((booking) => (
-                  <div key={booking.id} className="px-5 py-3 flex items-center justify-between gap-3">
+                  <div key={booking.id} className="px-5 py-3 flex items-center justify-between gap-3 hover:bg-red-50/40 transition-colors">
                     <div>
                       <p className="text-sm font-medium text-slate-700">
                         {formatDateLabel(new Date(booking.start_time))} {formatTime(booking.start_time)} · {booking.customer_name}
@@ -1531,8 +1577,8 @@ function SelectedDayPanel({
   onQuickSelectSlot: (slot: SlotOption) => void
 }) {
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
-      <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+    <div className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-[0_18px_50px_-32px_rgba(15,23,42,0.35)]">
+      <div className="flex items-center justify-between border-b border-slate-100 bg-[linear-gradient(180deg,_#ffffff_0%,_#f8fafc_100%)] px-5 py-4">
         <button onClick={onOpenDayAgenda} className="text-left">
           <h2 className="font-semibold text-slate-800 hover:text-indigo-700 transition-colors">
           {formatDateLabel(selectedDate)}
@@ -1551,8 +1597,11 @@ function SelectedDayPanel({
       {loading ? (
         <div className="py-12 text-center text-slate-400 text-sm">Loading appointments…</div>
       ) : selectedBookings.length === 0 ? (
-        <div className="py-8 px-5 text-center">
-          <p className="text-slate-400 text-sm">No appointments on this day</p>
+        <div className="px-5 py-10 text-center">
+          <div className="mx-auto max-w-md rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 py-8">
+            <p className="text-base font-semibold text-slate-700">No appointments on this day</p>
+            <p className="mt-2 text-sm text-slate-400">Use the agenda or click directly in the week timeline to create the next booking.</p>
+          </div>
           {enableQuickAvailability && (
             <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-left">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Available appointments</p>
@@ -1725,8 +1774,8 @@ function DayAgendaModal({
 
   return (
     <div className="fixed inset-0 z-40 bg-slate-950/45 flex items-center justify-center p-4">
-      <div className="w-full max-w-6xl rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden">
-        <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-5 py-4">
+      <div className="w-full max-w-6xl overflow-hidden rounded-[28px] border border-white/70 bg-white shadow-[0_28px_90px_-36px_rgba(15,23,42,0.5)]">
+        <div className="flex items-center justify-between border-b border-slate-200 bg-[linear-gradient(180deg,_#ffffff_0%,_#eef2ff_100%)] px-5 py-4">
           <div>
             <h2 className="text-lg font-semibold text-slate-900">{formatLongDateLabel(selectedDate)}</h2>
             <p className="mt-1 text-sm text-slate-500">
@@ -1740,7 +1789,7 @@ function DayAgendaModal({
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr]">
-          <div className="border-r border-slate-200 p-5">
+          <div className="border-r border-slate-200 p-5 bg-white">
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Booked appointments</h3>
               <span className="text-xs text-slate-400">Click a booking to modify or cancel</span>
@@ -1751,7 +1800,7 @@ function DayAgendaModal({
               </div>
             ) : (
               <div className="space-y-3">
-                <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                <div className="rounded-xl border border-slate-200 bg-[linear-gradient(180deg,_#ffffff_0%,_#f8fafc_100%)] px-3 py-2 shadow-sm">
                   <p className="text-xs text-slate-600">
                     Total idle gaps: <span className="font-semibold text-slate-800">{formatMinutesLabel(timeline.totalGapMinutes)}</span>
                     {' · '}
@@ -1783,7 +1832,7 @@ function DayAgendaModal({
                         key={item.key}
                         type="button"
                         onClick={() => onSelectBooking(item.booking)}
-                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-left hover:border-indigo-300 hover:bg-indigo-50/40"
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-indigo-300 hover:bg-indigo-50/30 hover:shadow-md"
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div>
@@ -1808,7 +1857,7 @@ function DayAgendaModal({
             )}
           </div>
 
-          <div className="bg-slate-50 p-5">
+          <div className="bg-[linear-gradient(180deg,_#f8fafc_0%,_#eef2ff_100%)] p-5">
             <div className="mb-4">
               <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Available appointments</h3>
               <p className="mt-1 text-xs text-slate-400">Choose a service and person count, then click a time to create a booking.</p>
@@ -1832,7 +1881,7 @@ function DayAgendaModal({
             </div>
 
             {selectedService && (
-              <div className="mt-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs text-slate-600">
+              <div className="mt-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs text-slate-600 shadow-sm">
                 <p>Effective duration: <span className="font-semibold text-slate-800">{effectiveDuration} min</span></p>
                 <p className="mt-1">Buffer: <span className="font-semibold text-slate-800">{selectedService.buffer_minutes} min</span></p>
                 <p className="mt-1">Next appointment gap: <span className="font-semibold text-slate-800">{nextStartGap} min</span></p>
@@ -1855,7 +1904,7 @@ function DayAgendaModal({
                       key={slot.isoString}
                       type="button"
                       onClick={() => onSelectSlot(slot)}
-                      className="rounded-xl border border-emerald-200 bg-white px-3 py-3 text-left hover:border-emerald-400 hover:bg-emerald-50"
+                      className="rounded-2xl border border-emerald-200 bg-white px-3 py-3 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-emerald-400 hover:bg-emerald-50 hover:shadow-md"
                     >
                       <span className="block text-base font-semibold text-slate-800">{slot.time}</span>
                       <span className="mt-1 block text-xs text-emerald-700">Create booking</span>
@@ -2038,9 +2087,9 @@ function WeekTimeline({
   const statusActions = [BookingStatus.CONFIRMED, BookingStatus.COMPLETED, BookingStatus.CANCELLED]
 
   return (
-    <div className="rounded-xl border border-slate-200 overflow-hidden bg-white shadow-sm select-none">
+    <div className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-[0_18px_50px_-32px_rgba(15,23,42,0.35)] select-none">
       {/* Day header row */}
-      <div className="flex border-b border-slate-200 bg-slate-50">
+      <div className="flex border-b border-slate-200 bg-[linear-gradient(180deg,_#ffffff_0%,_#eef2ff_100%)]">
         <div style={{ width: LABEL_W, minWidth: LABEL_W }} />
         {weekDays.map((day) => {
           const isToday = isSameUTCDay(day, today)
@@ -2070,7 +2119,7 @@ function WeekTimeline({
       {/* Scrollable body */}
       <div
         ref={containerRef}
-        className={`overflow-y-scroll overflow-x-hidden ${dragging ? 'cursor-grabbing' : ''}`}
+        className={`overflow-y-scroll overflow-x-hidden bg-[linear-gradient(180deg,_rgba(248,250,252,0.75)_0%,_rgba(255,255,255,1)_18%)] ${dragging ? 'cursor-grabbing' : ''}`}
         style={{ height: 560 }}
         onMouseMove={handleDragMove}
         onMouseUp={handleDragEnd}
@@ -2093,7 +2142,7 @@ function WeekTimeline({
           {/* Day columns */}
           {loading
             ? weekDays.map((day) => (
-                <div key={day.toISOString()} className="relative flex-1 border-l border-slate-200 bg-white">
+                <div key={day.toISOString()} className="relative flex-1 border-l border-slate-200 bg-white/90">
                   {hours.map((h) => (
                     <div key={h} className="absolute left-0 right-0 border-t border-slate-100" style={{ top: yFor(h * 60) }} />
                   ))}
@@ -2150,7 +2199,7 @@ function WeekTimeline({
                       return (
                         <div
                           key={b.id}
-                          className={`absolute left-0.5 right-0.5 rounded px-1.5 overflow-hidden z-10 transition-opacity ${colors.bg} ${
+                          className={`absolute left-0.5 right-0.5 rounded-xl px-1.5 overflow-hidden z-10 shadow-sm ring-1 ring-black/5 transition-opacity ${colors.bg} ${
                             isDragging ? 'opacity-30 cursor-grabbing' : `${colors.hover} cursor-grab`
                           }`}
                           style={{ top, height }}
@@ -2212,7 +2261,7 @@ function WeekTimeline({
       </div>
 
       {/* Legend */}
-      <div className="flex items-center gap-4 px-4 py-2 border-t border-slate-100 bg-slate-50 text-[10px] text-slate-500 flex-wrap">
+      <div className="flex items-center gap-4 px-4 py-3 border-t border-slate-100 bg-[linear-gradient(180deg,_#ffffff_0%,_#f8fafc_100%)] text-[10px] text-slate-500 flex-wrap">
         {Object.entries(WEEK_BLOCK_COLORS).map(([status, colors]) => (
           <span key={status} className="flex items-center gap-1.5">
             <span className={`inline-block w-3 h-3 rounded-sm ${colors.bg}`} />
@@ -2513,7 +2562,8 @@ function BookingRow({
   const isUpdating = updatingId === booking.id
 
   return (
-    <div className="px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-3">
+    <div className="px-5 py-4 transition-colors hover:bg-slate-50/80">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
       <div className="w-14 flex-shrink-0 text-sm font-bold text-slate-700 tabular-nums">
         {formatTime(booking.start_time)}
       </div>
@@ -2537,6 +2587,9 @@ function BookingRow({
             </>
           )}
         </div>
+        {booking.notes && (
+          <p className="mt-2 line-clamp-2 text-xs text-slate-500">{booking.notes}</p>
+        )}
       </div>
 
       <div className="flex items-center gap-2 flex-wrap flex-shrink-0">
@@ -2584,6 +2637,7 @@ function BookingRow({
             {isUpdating ? '…' : 'Cancel'}
           </button>
         )}
+      </div>
       </div>
     </div>
   )
