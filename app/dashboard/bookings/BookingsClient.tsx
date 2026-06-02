@@ -312,6 +312,8 @@ export default function BookingsClient({
   const [showAppointmentModal, setShowAppointmentModal] = useState(false)
   const [editingBooking, setEditingBooking] = useState<BookingWithService | null>(null)
   const [savingBooking, setSavingBooking] = useState(false)
+  const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false)
+  const [refreshCountdown, setRefreshCountdown] = useState(120)
   const [availableSlots, setAvailableSlots] = useState<SlotOption[]>([])
   const [loadingSlots, setLoadingSlots] = useState(false)
   const [slotsError, setSlotsError] = useState<string | null>(null)
@@ -453,6 +455,13 @@ export default function BookingsClient({
       document.removeEventListener('visibilitychange', onVisibility)
     }
   }, [autoRefresh, fetchBookings, showSettings])
+
+  useEffect(() => {
+    if (!autoRefresh || showSettings) return
+    setRefreshCountdown(120)
+    const tick = setInterval(() => setRefreshCountdown((p) => Math.max(0, p - 1)), 1000)
+    return () => clearInterval(tick)
+  }, [autoRefresh, showSettings, lastUpdatedAt])
 
   const goToPrev = () => {
     if (view === 'multi') {
@@ -618,6 +627,31 @@ export default function BookingsClient({
     })
     setShowAppointmentModal(true)
   }
+
+  const rescheduleBooking = useCallback(async (id: string, newStartTime: string) => {
+    setUpdatingId(id)
+    // Optimistic update
+    setBookings((prev) =>
+      prev.map((b) => b.id !== id ? b : { ...b, start_time: newStartTime })
+    )
+    try {
+      const res = await fetch(`/api/bookings/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ start_time: newStartTime }),
+      })
+      const json = await res.json()
+      if (!res.ok) {
+        toast.error(json.error || 'Failed to reschedule appointment')
+        await fetchBookings(false) // revert optimistic update
+        return
+      }
+      toast.success('Appointment rescheduled')
+      await fetchBookings(false)
+    } finally {
+      setUpdatingId(null)
+    }
+  }, [fetchBookings])
 
   const fetchAvailableSlots = useCallback(async () => {
     if (!showAppointmentModal || !appointmentForm.date || !appointmentForm.service_id || !selectedLocationId) {
@@ -969,6 +1003,12 @@ export default function BookingsClient({
         <div className="text-xs text-slate-500 flex items-center gap-2">
           <span>Last updated: {refreshLabel}</span>
           {refreshing && <span className="text-indigo-600">Checking for changes...</span>}
+          {autoRefresh && !refreshing && (
+            <span className="text-slate-400 tabular-nums">· Next refresh in {refreshCountdown}s</span>
+          )}
+          {!autoRefresh && (
+            <span className="text-amber-600">Auto-refresh paused</span>
+          )}
         </div>
 
         <div className="grid grid-cols-3 gap-3">
@@ -1105,10 +1145,13 @@ export default function BookingsClient({
             weekDays={weekDays}
             activeBookings={activeBookings}
             today={today}
+            loading={loading}
             onSlotClick={(dateKey, startIso) =>
               openCreateAppointment({ date: dateKey, start_time: startIso })
             }
             onBookingClick={openEditBooking}
+            onReschedule={rescheduleBooking}
+            onStatusChange={updateStatus}
           />
         )}
 
@@ -1289,9 +1332,18 @@ export default function BookingsClient({
                     <span className="text-xs text-slate-400">Click the timeline to pick a start time</span>
                   </div>
                   {loadingSlots ? (
-                    <div className="h-80 rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-center text-slate-400 text-sm">Loading slots…</div>
+                    <div className="h-80 rounded-lg border border-slate-200 bg-slate-50 flex flex-col items-center justify-center gap-2 text-slate-400 text-sm">
+                      <svg className="animate-spin h-5 w-5 text-indigo-400" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                      </svg>
+                      Checking availability…
+                    </div>
                   ) : slotsError ? (
-                    <div className="h-80 rounded-lg border border-amber-200 bg-amber-50 flex items-center justify-center text-amber-700 text-sm">{slotsError}</div>
+                    <div className="h-80 rounded-lg border border-amber-200 bg-amber-50 flex flex-col items-center justify-center gap-1 text-amber-700 text-sm px-4 text-center">
+                      <span className="text-lg">⚠</span>
+                      {slotsError}
+                    </div>
                   ) : !appointmentForm.date || !appointmentForm.service_id ? (
                     <div className="h-80 rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-center text-slate-400 text-sm">Select a service and date to see the timeline.</div>
                   ) : (
@@ -1318,16 +1370,40 @@ export default function BookingsClient({
               )
             })()}
 
-            <div className="flex items-center justify-end gap-2">
-              {editingBooking && (editingBooking.status === BookingStatus.PENDING || editingBooking.status === BookingStatus.CONFIRMED) && (
-                <button onClick={cancelEditingBooking} disabled={savingBooking || updatingId === editingBooking.id} className="px-4 py-2 rounded border border-red-200 bg-red-50 text-sm text-red-600 disabled:opacity-50">
-                  {updatingId === editingBooking.id ? 'Cancelling...' : 'Cancel Appointment'}
-                </button>
+            <div className="flex flex-col gap-2">
+              {cancelConfirmOpen && editingBooking && (
+                <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                  <span className="flex-1 font-medium">Cancel this appointment?</span>
+                  <button
+                    onClick={cancelEditingBooking}
+                    disabled={updatingId === editingBooking.id}
+                    className="px-3 py-1 rounded bg-red-600 text-white text-xs font-semibold disabled:opacity-50"
+                  >
+                    {updatingId === editingBooking.id ? 'Cancelling…' : 'Yes, cancel it'}
+                  </button>
+                  <button
+                    onClick={() => setCancelConfirmOpen(false)}
+                    className="px-3 py-1 rounded border border-red-300 text-xs font-medium bg-white"
+                  >
+                    Never mind
+                  </button>
+                </div>
               )}
-              <button onClick={() => setShowAppointmentModal(false)} className="px-4 py-2 rounded border border-slate-300 text-sm">Cancel</button>
-              <button onClick={saveAppointment} disabled={savingBooking || invalidLocalPhone} className="px-4 py-2 rounded bg-indigo-600 text-white text-sm disabled:opacity-50">
-                {savingBooking ? 'Saving...' : editingBooking ? 'Save Changes' : 'Create Appointment'}
-              </button>
+              <div className="flex items-center justify-end gap-2">
+                {editingBooking && (editingBooking.status === BookingStatus.PENDING || editingBooking.status === BookingStatus.CONFIRMED) && !cancelConfirmOpen && (
+                  <button
+                    onClick={() => setCancelConfirmOpen(true)}
+                    disabled={savingBooking || updatingId === editingBooking.id}
+                    className="px-4 py-2 rounded border border-red-200 bg-red-50 text-sm text-red-600 disabled:opacity-50"
+                  >
+                    Cancel Appointment
+                  </button>
+                )}
+                <button onClick={() => { setShowAppointmentModal(false); setCancelConfirmOpen(false) }} className="px-4 py-2 rounded border border-slate-300 text-sm">Close</button>
+                <button onClick={saveAppointment} disabled={savingBooking || invalidLocalPhone} className="px-4 py-2 rounded bg-indigo-600 text-white text-sm disabled:opacity-50">
+                  {savingBooking ? 'Saving...' : editingBooking ? 'Save Changes' : 'Create Appointment'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1748,14 +1824,20 @@ function WeekTimeline({
   weekDays,
   activeBookings,
   today,
+  loading,
   onSlotClick,
   onBookingClick,
+  onReschedule,
+  onStatusChange,
 }: {
   weekDays: Date[]
   activeBookings: BookingWithService[]
   today: Date
+  loading: boolean
   onSlotClick: (dateKey: string, startIso: string) => void
   onBookingClick: (booking: BookingWithService) => void
+  onReschedule: (id: string, newStartIso: string) => void
+  onStatusChange: (id: string, status: string) => void
 }) {
   const TIMELINE_START = TIMELINE_START_HOUR * 60
   const TIMELINE_END   = TIMELINE_END_HOUR   * 60
@@ -1778,15 +1860,94 @@ function WeekTimeline({
     return map
   }, [activeBookings])
 
-  // Scroll to start of working day on mount
   useEffect(() => {
     if (containerRef.current) containerRef.current.scrollTop = 0
   }, [])
 
+  // ── Drag-to-reschedule ────────────────────────────────────────────────────
+  const [dragging, setDragging] = useState<{
+    booking: BookingWithService
+    durMin: number
+    blockOffsetY: number
+  } | null>(null)
+  const [dragOver, setDragOver] = useState<{ colIdx: number; startMin: number } | null>(null)
+  const dragMovedRef = useRef(false)
+
+  const handleDragStart = useCallback((
+    e: React.MouseEvent,
+    b: BookingWithService,
+    dayStartMs: number,
+  ) => {
+    if (e.button !== 0) return
+    e.preventDefault()
+    e.stopPropagation()
+    const startMs  = new Date(b.start_time).getTime()
+    const durMin   = Math.max((new Date(b.end_time).getTime() - startMs) / 60000, 5)
+    const startMin = (startMs - dayStartMs) / 60000
+    const rect     = containerRef.current?.getBoundingClientRect()
+    if (!rect) return
+    const scrollTop    = containerRef.current?.scrollTop ?? 0
+    const clickedY     = e.clientY - rect.top + scrollTop
+    const blockTop     = (startMin - TIMELINE_START_HOUR * 60) * TIMELINE_PX_PER_MIN
+    const blockOffsetY = Math.max(0, clickedY - blockTop)
+    dragMovedRef.current = false
+    setDragging({ booking: b, durMin, blockOffsetY })
+  }, [])
+
+  const handleDragMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (!dragging || !containerRef.current) return
+    dragMovedRef.current = true
+    const rect      = containerRef.current.getBoundingClientRect()
+    const scrollTop = containerRef.current.scrollTop
+    const y         = e.clientY - rect.top + scrollTop - dragging.blockOffsetY
+    const rawMin    = TIMELINE_START_HOUR * 60 + y / TIMELINE_PX_PER_MIN
+    const snapped   = Math.round(rawMin / 5) * 5
+    const clamped   = Math.max(TIMELINE_START_HOUR * 60, Math.min(TIMELINE_END_HOUR * 60 - dragging.durMin, snapped))
+    const bodyX     = e.clientX - rect.left - LABEL_W
+    const colWidth  = (rect.width - LABEL_W) / weekDays.length
+    const colIdx    = Math.max(0, Math.min(weekDays.length - 1, Math.floor(bodyX / colWidth)))
+    setDragOver({ colIdx, startMin: clamped })
+  }, [dragging, weekDays.length])
+
+  const handleDragEnd = useCallback(() => {
+    const moved = dragMovedRef.current
+    if (!dragging || !dragOver || !moved) {
+      setDragging(null)
+      setDragOver(null)
+      return
+    }
+    const newDate = weekDays[dragOver.colIdx]
+    const isPast  = newDate.getTime() < today.getTime() && !isSameUTCDay(newDate, today)
+    if (!isPast) {
+      const newStartIso = new Date(newDate.getTime() + dragOver.startMin * 60000).toISOString()
+      if (newStartIso !== dragging.booking.start_time) {
+        onReschedule(dragging.booking.id, newStartIso)
+      }
+    }
+    setDragging(null)
+    setDragOver(null)
+  }, [dragging, dragOver, weekDays, today, onReschedule])
+
+  // ── Right-click status context menu ──────────────────────────────────────
+  const [contextMenu, setContextMenu] = useState<{
+    booking: BookingWithService
+    x: number
+    y: number
+  } | null>(null)
+
+  useEffect(() => {
+    if (!contextMenu) return
+    const close = () => setContextMenu(null)
+    window.addEventListener('click', close)
+    return () => window.removeEventListener('click', close)
+  }, [contextMenu])
+
+  const statusActions = [BookingStatus.CONFIRMED, BookingStatus.COMPLETED, BookingStatus.CANCELLED]
+
   return (
-    <div className="rounded-xl border border-slate-200 overflow-hidden bg-white shadow-sm">
+    <div className="rounded-xl border border-slate-200 overflow-hidden bg-white shadow-sm select-none">
       {/* Day header row */}
-      <div className="flex border-b border-slate-200 bg-slate-50 sticky top-0 z-20">
+      <div className="flex border-b border-slate-200 bg-slate-50">
         <div style={{ width: LABEL_W, minWidth: LABEL_W }} />
         {weekDays.map((day) => {
           const isToday = isSameUTCDay(day, today)
@@ -1795,24 +1956,16 @@ function WeekTimeline({
           return (
             <div
               key={day.toISOString()}
-              className={`flex-1 text-center py-2 border-l border-slate-200 ${
-                isToday ? 'bg-indigo-50' : ''
-              }`}
+              className={`flex-1 text-center py-2 border-l border-slate-200 ${isToday ? 'bg-indigo-50' : ''}`}
             >
-              <p className={`text-[11px] font-semibold uppercase tracking-wide ${
-                isToday ? 'text-indigo-500' : isPast ? 'text-slate-400' : 'text-slate-500'
-              }`}>
+              <p className={`text-[11px] font-semibold uppercase tracking-wide ${isToday ? 'text-indigo-500' : isPast ? 'text-slate-400' : 'text-slate-500'}`}>
                 {DAY_LABELS[day.getUTCDay()]}
               </p>
-              <p className={`text-xl font-bold leading-tight ${
-                isToday ? 'text-indigo-600' : isPast ? 'text-slate-400' : 'text-slate-700'
-              }`}>
+              <p className={`text-xl font-bold leading-tight ${isToday ? 'text-indigo-600' : isPast ? 'text-slate-400' : 'text-slate-700'}`}>
                 {day.getUTCDate()}
               </p>
               {count > 0 && (
-                <span className={`inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded-full mt-0.5 ${
-                  isToday ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-200 text-slate-600'
-                }`}>
+                <span className={`inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded-full mt-0.5 ${isToday ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-200 text-slate-600'}`}>
                   {count}
                 </span>
               )}
@@ -1822,9 +1975,16 @@ function WeekTimeline({
       </div>
 
       {/* Scrollable body */}
-      <div ref={containerRef} className="overflow-y-scroll overflow-x-hidden" style={{ height: 560 }}>
+      <div
+        ref={containerRef}
+        className={`overflow-y-scroll overflow-x-hidden ${dragging ? 'cursor-grabbing' : ''}`}
+        style={{ height: 560 }}
+        onMouseMove={handleDragMove}
+        onMouseUp={handleDragEnd}
+        onMouseLeave={handleDragEnd}
+      >
         <div className="flex" style={{ height: totalHeight }}>
-          {/* Hour labels column */}
+          {/* Hour labels */}
           <div style={{ width: LABEL_W, minWidth: LABEL_W }} className="relative flex-shrink-0">
             {hours.map((h) => (
               <div
@@ -1838,67 +1998,109 @@ function WeekTimeline({
           </div>
 
           {/* Day columns */}
-          {weekDays.map((day) => {
-            const dateKey    = day.toISOString().slice(0, 10)
-            const dayStartMs = day.getTime()
-            const isToday    = isSameUTCDay(day, today)
-            const isPast     = day.getTime() < today.getTime() && !isToday
-            const dayBookings = bookingsByDate.get(dateKey) ?? []
-            return (
-              <div
-                key={dateKey}
-                className={`relative flex-1 border-l border-slate-200 transition-colors ${
-                  isToday ? 'bg-indigo-50/30' : isPast ? 'bg-slate-50/70' : 'bg-white'
-                } ${isPast ? 'cursor-default' : 'cursor-pointer hover:bg-indigo-50/20'}`}
-                onClick={(e) => {
-                  if (isPast) return
-                  const rect = e.currentTarget.getBoundingClientRect()
-                  const clickedY = (e.clientY - rect.top) + (containerRef.current?.scrollTop ?? 0)
-                  const clickedMin = TIMELINE_START + clickedY / TIMELINE_PX_PER_MIN
-                  const roundedMin = Math.round(clickedMin / 5) * 5
-                  const clampedMin = Math.max(TIMELINE_START, Math.min(TIMELINE_END - 30, roundedMin))
-                  const startIso = new Date(dayStartMs + clampedMin * 60000).toISOString()
-                  onSlotClick(dateKey, startIso)
-                }}
-              >
-                {/* Hour grid lines */}
-                {hours.map((h) => (
-                  <div key={h} className="absolute left-0 right-0 border-t border-slate-100" style={{ top: yFor(h * 60) }} />
-                ))}
-                {/* 30-min dashed lines */}
-                {hours.map((h) => (
-                  <div key={`hf-${h}`} className="absolute left-0 right-0 border-t border-dashed border-slate-100" style={{ top: yFor(h * 60 + 30) }} />
-                ))}
-
-                {/* Booking blocks */}
-                {dayBookings.map((b) => {
-                  const startMs  = new Date(b.start_time).getTime()
-                  const endMs    = new Date(b.end_time).getTime()
-                  const startMin = (startMs - dayStartMs) / 60000
-                  const durMin   = Math.max((endMs - startMs) / 60000, 5)
-                  const top    = yFor(startMin)
-                  const height = Math.max(durMin * TIMELINE_PX_PER_MIN, 22)
-                  const colors = WEEK_BLOCK_COLORS[b.status] ?? WEEK_BLOCK_COLORS.pending
-                  return (
+          {loading
+            ? weekDays.map((day) => (
+                <div key={day.toISOString()} className="relative flex-1 border-l border-slate-200 bg-white">
+                  {hours.map((h) => (
+                    <div key={h} className="absolute left-0 right-0 border-t border-slate-100" style={{ top: yFor(h * 60) }} />
+                  ))}
+                  {[0.15, 0.42, 0.70].map((frac, i) => (
                     <div
-                      key={b.id}
-                      className={`absolute left-0.5 right-0.5 rounded px-1.5 overflow-hidden z-10 cursor-pointer transition-colors ${colors.bg} ${colors.hover}`}
-                      style={{ top, height }}
-                      onClick={(e) => { e.stopPropagation(); onBookingClick(b) }}
-                    >
-                      <p className="text-[9px] font-bold text-white truncate leading-tight pt-0.5">
-                        {formatTime(b.start_time)}
-                      </p>
-                      <p className="text-[9px] text-white/90 truncate">{b.customer_name}</p>
-                      {height >= 42 && b.booking_services?.name && (
-                        <p className="text-[8px] text-white/70 truncate">{b.booking_services.name}</p>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            )
-          })}
+                      key={i}
+                      className="absolute left-0.5 right-0.5 rounded bg-slate-200 animate-pulse"
+                      style={{ top: totalHeight * frac, height: 32 + i * 20 }}
+                    />
+                  ))}
+                </div>
+              ))
+            : weekDays.map((day, colIdx) => {
+                const dateKey     = day.toISOString().slice(0, 10)
+                const dayStartMs  = day.getTime()
+                const isToday     = isSameUTCDay(day, today)
+                const isPast      = day.getTime() < today.getTime() && !isToday
+                const dayBookings = bookingsByDate.get(dateKey) ?? []
+                return (
+                  <div
+                    key={dateKey}
+                    className={`relative flex-1 border-l border-slate-200 transition-colors ${
+                      isToday ? 'bg-indigo-50/30' : isPast ? 'bg-slate-50/70' : 'bg-white'
+                    } ${isPast || dragging ? 'cursor-default' : 'cursor-pointer hover:bg-indigo-50/20'}`}
+                    onClick={(e) => {
+                      if (isPast) return
+                      if (dragMovedRef.current) { dragMovedRef.current = false; return }
+                      const rect       = e.currentTarget.getBoundingClientRect()
+                      const clickedY   = (e.clientY - rect.top) + (containerRef.current?.scrollTop ?? 0)
+                      const clickedMin = TIMELINE_START + clickedY / TIMELINE_PX_PER_MIN
+                      const roundedMin = Math.round(clickedMin / 5) * 5
+                      const clampedMin = Math.max(TIMELINE_START, Math.min(TIMELINE_END - 30, roundedMin))
+                      const startIso   = new Date(dayStartMs + clampedMin * 60000).toISOString()
+                      onSlotClick(dateKey, startIso)
+                    }}
+                  >
+                    {hours.map((h) => (
+                      <div key={h} className="absolute left-0 right-0 border-t border-slate-100" style={{ top: yFor(h * 60) }} />
+                    ))}
+                    {hours.map((h) => (
+                      <div key={`hf-${h}`} className="absolute left-0 right-0 border-t border-dashed border-slate-100" style={{ top: yFor(h * 60 + 30) }} />
+                    ))}
+
+                    {dayBookings.map((b) => {
+                      const startMs    = new Date(b.start_time).getTime()
+                      const endMs      = new Date(b.end_time).getTime()
+                      const startMin   = (startMs - dayStartMs) / 60000
+                      const durMin     = Math.max((endMs - startMs) / 60000, 5)
+                      const top        = yFor(startMin)
+                      const height     = Math.max(durMin * TIMELINE_PX_PER_MIN, 22)
+                      const colors     = WEEK_BLOCK_COLORS[b.status] ?? WEEK_BLOCK_COLORS.pending
+                      const isDragging = dragging?.booking.id === b.id
+                      return (
+                        <div
+                          key={b.id}
+                          className={`absolute left-0.5 right-0.5 rounded px-1.5 overflow-hidden z-10 transition-opacity ${colors.bg} ${
+                            isDragging ? 'opacity-30 cursor-grabbing' : `${colors.hover} cursor-grab`
+                          }`}
+                          style={{ top, height }}
+                          onMouseDown={(e) => { handleDragStart(e, b, dayStartMs) }}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            if (dragMovedRef.current) { dragMovedRef.current = false; return }
+                            onBookingClick(b)
+                          }}
+                          onContextMenu={(e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            setContextMenu({ booking: b, x: e.clientX, y: e.clientY })
+                          }}
+                        >
+                          <p className="text-[9px] font-bold text-white truncate leading-tight pt-0.5">
+                            {formatTime(b.start_time)}
+                          </p>
+                          <p className="text-[9px] text-white/90 truncate">{b.customer_name}</p>
+                          {height >= 42 && b.booking_services?.name && (
+                            <p className="text-[8px] text-white/70 truncate">{b.booking_services.name}</p>
+                          )}
+                        </div>
+                      )
+                    })}
+
+                    {/* Drag ghost */}
+                    {dragging && dragOver?.colIdx === colIdx && (() => {
+                      const ghostTop    = yFor(dragOver.startMin)
+                      const ghostHeight = Math.max(dragging.durMin * TIMELINE_PX_PER_MIN, 22)
+                      const hh = String(Math.floor(dragOver.startMin / 60)).padStart(2, '0')
+                      const mm = String(dragOver.startMin % 60).padStart(2, '0')
+                      return (
+                        <div
+                          className="absolute left-0.5 right-0.5 rounded border-2 border-dashed border-indigo-500 bg-indigo-100/70 z-20 pointer-events-none"
+                          style={{ top: ghostTop, height: ghostHeight }}
+                        >
+                          <p className="text-[9px] font-semibold text-indigo-700 px-1.5 pt-0.5">{hh}:{mm}</p>
+                        </div>
+                      )
+                    })()}
+                  </div>
+                )
+              })}
         </div>
       </div>
 
@@ -1910,12 +2112,38 @@ function WeekTimeline({
             {status.charAt(0).toUpperCase() + status.slice(1)}
           </span>
         ))}
-        <span className="ml-auto italic text-slate-400">Click to book · Click a block to edit</span>
+        <span className="ml-auto italic text-slate-400">Click to book · Drag to reschedule · Right-click for status</span>
       </div>
+
+      {/* Right-click status context menu */}
+      {contextMenu && (
+        <div
+          className="fixed z-50 bg-white rounded-lg shadow-xl border border-slate-200 py-1 min-w-[168px]"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <p className="px-3 pt-1 pb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400 border-b border-slate-100">
+            Change status
+          </p>
+          {statusActions
+            .filter((s) => s !== contextMenu.booking.status)
+            .map((status) => (
+              <button
+                key={status}
+                className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                onClick={() => {
+                  onStatusChange(contextMenu.booking.id, status)
+                  setContextMenu(null)
+                }}
+              >
+                Mark as {status}
+              </button>
+            ))}
+        </div>
+      )}
     </div>
   )
 }
-
 // ─── Timeline slot picker ─────────────────────────────────────────────────────
 
 const TIMELINE_PX_PER_MIN = 1.5
