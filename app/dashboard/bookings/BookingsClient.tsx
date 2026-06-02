@@ -511,9 +511,14 @@ export default function BookingsClient({
   const [loadingPanelSlots, setLoadingPanelSlots] = useState(false)
   const [panelSlotsError, setPanelSlotsError] = useState<string | null>(null)
   const [showNotesEditor, setShowNotesEditor] = useState(false)
+  const [notesAutosaveState, setNotesAutosaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const notesAutosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const notesSavedHintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const notesAutosaveAbortRef = useRef<AbortController | null>(null)
   const notesAutosaveSkipNextRef = useRef(false)
   const latestNotesRef = useRef('')
+  const lastBackgroundRefreshAtRef = useRef(0)
+  const notesDraftStorageKey = 'bookings:new-appointment-notes-draft'
   const [appointmentForm, setAppointmentForm] = useState({
     customer_name: '',
     customer_email: '',
@@ -616,6 +621,13 @@ export default function BookingsClient({
     }
   }, [selectedLocationId])
 
+  const fetchBookingsThrottled = useCallback(() => {
+    const now = Date.now()
+    if (now - lastBackgroundRefreshAtRef.current < 5000) return
+    lastBackgroundRefreshAtRef.current = now
+    fetchBookings(true)
+  }, [fetchBookings])
+
   useEffect(() => {
     fetchBookings(false)
   }, [fetchBookings])
@@ -636,13 +648,13 @@ export default function BookingsClient({
     if (!autoRefresh) return
 
     const intervalId = setInterval(() => {
-      fetchBookings(true)
+      fetchBookingsThrottled()
     }, 120000)
 
-    const onFocus = () => fetchBookings(true)
+    const onFocus = () => fetchBookingsThrottled()
     const onVisibility = () => {
       if (document.visibilityState === 'visible') {
-        fetchBookings(true)
+        fetchBookingsThrottled()
       }
     }
 
@@ -654,7 +666,7 @@ export default function BookingsClient({
       window.removeEventListener('focus', onFocus)
       document.removeEventListener('visibilitychange', onVisibility)
     }
-  }, [autoRefresh, fetchBookings, showSettings])
+  }, [autoRefresh, fetchBookingsThrottled, showSettings])
 
   useEffect(() => {
     if (!autoRefresh || showSettings) return
@@ -751,13 +763,18 @@ export default function BookingsClient({
     setAvailableSlots([])
     setShowDayAgendaModal(false)
     setShowNotesEditor(false)
+    setNotesAutosaveState('idle')
+    let draftNotes = ''
+    if (typeof window !== 'undefined') {
+      draftNotes = sessionStorage.getItem(notesDraftStorageKey) || ''
+    }
     setAppointmentForm({
       customer_name: '',
       customer_email: '',
       phone_country_code: '+44',
       phone_local: '',
       service_id: options?.service_id ?? serviceOptions[0]?.id ?? '',
-      notes: '',
+      notes: draftNotes,
       date: safeDate,
       start_time: safeStartTime,
       end_time: '',
@@ -822,6 +839,7 @@ export default function BookingsClient({
     setSlotsError(null)
     setShowDayAgendaModal(false)
     setShowNotesEditor(Boolean(booking.notes))
+    setNotesAutosaveState('idle')
     notesAutosaveSkipNextRef.current = true
     setAppointmentForm({
       customer_name: booking.customer_name,
@@ -929,6 +947,32 @@ export default function BookingsClient({
   }, [dayAgendaPersonCount, dayAgendaServiceId, loadSlotsFor, selectedDateKey, selectedLocationId, showDayAgendaModal])
 
   useEffect(() => {
+    if (!showAppointmentModal || editingBooking) return
+    if (!appointmentForm.manual_override || !appointmentForm.date || !appointmentForm.start_time) return
+    if (appointmentForm.end_time) return
+
+    const selectedService = serviceOptions.find((service) => service.id === appointmentForm.service_id)
+    if (!selectedService) return
+
+    const effectiveDuration = selectedService.duration_minutes +
+      getServicePersonUnits(selectedService, appointmentForm.person_count) * selectedService.duration_per_additional_person_minutes
+    const startMin = timeHHMMToMins(appointmentForm.start_time)
+    const endMin = Math.min(startMin + Math.max(1, effectiveDuration), 23 * 60 + 59)
+
+    setAppointmentForm((prev) => ({ ...prev, end_time: formatTimeFromMinutes(endMin) }))
+  }, [
+    appointmentForm.date,
+    appointmentForm.end_time,
+    appointmentForm.manual_override,
+    appointmentForm.person_count,
+    appointmentForm.service_id,
+    appointmentForm.start_time,
+    editingBooking,
+    serviceOptions,
+    showAppointmentModal,
+  ])
+
+  useEffect(() => {
     if (!showAppointmentModal || loadingSlots) return
 
     // In edit mode, keep the original booked time unless the user explicitly picks another slot.
@@ -966,29 +1010,53 @@ export default function BookingsClient({
   }, [appointmentForm.notes])
 
   useEffect(() => {
+    if (!showAppointmentModal || editingBooking) return
+    if (typeof window === 'undefined') return
+    sessionStorage.setItem(notesDraftStorageKey, appointmentForm.notes)
+  }, [appointmentForm.notes, editingBooking, showAppointmentModal])
+
+  useEffect(() => {
     if (!showAppointmentModal || !editingBooking) return
     if (notesAutosaveSkipNextRef.current) {
       notesAutosaveSkipNextRef.current = false
       return
     }
+
+    setNotesAutosaveState('saving')
+
     if (notesAutosaveTimerRef.current) {
       clearTimeout(notesAutosaveTimerRef.current)
     }
+    if (notesSavedHintTimerRef.current) {
+      clearTimeout(notesSavedHintTimerRef.current)
+    }
+    notesAutosaveAbortRef.current?.abort()
 
     notesAutosaveTimerRef.current = setTimeout(async () => {
+      const controller = new AbortController()
+      notesAutosaveAbortRef.current = controller
       try {
         const trimmed = latestNotesRef.current.trim() || null
         const res = await fetch(`/api/bookings/${editingBooking.id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ notes: trimmed }),
+          signal: controller.signal,
         })
         if (res.ok) {
           setBookings((prev) =>
             prev.map((booking) => booking.id === editingBooking.id ? { ...booking, notes: trimmed } : booking)
           )
+          setNotesAutosaveState('saved')
+          notesSavedHintTimerRef.current = setTimeout(() => setNotesAutosaveState('idle'), 1200)
+        } else {
+          setNotesAutosaveState('error')
         }
-      } catch {
+      } catch (error) {
+        if ((error as Error).name === 'AbortError') {
+          return
+        }
+        setNotesAutosaveState('error')
         // Keep autosave silent; manual Save still persists all fields.
       }
     }, 700)
@@ -997,6 +1065,10 @@ export default function BookingsClient({
       if (notesAutosaveTimerRef.current) {
         clearTimeout(notesAutosaveTimerRef.current)
       }
+      if (notesSavedHintTimerRef.current) {
+        clearTimeout(notesSavedHintTimerRef.current)
+      }
+      notesAutosaveAbortRef.current?.abort()
     }
   }, [appointmentForm.notes, editingBooking, showAppointmentModal])
 
@@ -1099,6 +1171,10 @@ export default function BookingsClient({
         } else {
           toast.success('Appointment created')
         }
+
+        if (typeof window !== 'undefined') {
+          sessionStorage.removeItem(notesDraftStorageKey)
+        }
       }
 
       setShowAppointmentModal(false)
@@ -1122,6 +1198,20 @@ export default function BookingsClient({
   const pendingVisible = activeBookings.filter((b) => b.status === BookingStatus.PENDING).length
   const confirmedVisible = activeBookings.filter((b) => b.status === BookingStatus.CONFIRMED).length
   const invalidLocalPhone = appointmentForm.phone_local.length > 0 && !isValidLocalPhone(appointmentForm.phone_local)
+  const selectedManualService = serviceOptions.find((service) => service.id === appointmentForm.service_id)
+  const expectedManualDuration = selectedManualService
+    ? selectedManualService.duration_minutes + getServicePersonUnits(selectedManualService, appointmentForm.person_count) * selectedManualService.duration_per_additional_person_minutes
+    : null
+  const manualDurationMinutes = appointmentForm.manual_override && appointmentForm.start_time && appointmentForm.end_time
+    ? timeHHMMToMins(appointmentForm.end_time) - timeHHMMToMins(appointmentForm.start_time)
+    : null
+  const manualOverrideWarning = expectedManualDuration !== null && manualDurationMinutes !== null
+    ? (manualDurationMinutes <= 0
+        ? 'End time must be later than start time.'
+        : Math.abs(manualDurationMinutes - expectedManualDuration) > 30
+          ? `Manual duration (${manualDurationMinutes} min) is far from service expectation (${expectedManualDuration} min).`
+          : null)
+    : null
 
   const weekLabel = `${formatHeaderDate(weekStart)} — ${formatHeaderDate(weekDays[6])}`
   const monthLabel = formatMonthLabel(monthStart)
@@ -1810,6 +1900,9 @@ export default function BookingsClient({
                       onChange={(e) => setAppointmentForm((p) => ({ ...p, end_time: e.target.value }))}
                       className="mt-1 w-full border border-slate-300 rounded px-3 py-2"
                     />
+                    {manualOverrideWarning && (
+                      <p className="mt-1 text-xs font-medium text-amber-700">{manualOverrideWarning}</p>
+                    )}
                   </label>
                 </>
               )}
@@ -1834,7 +1927,12 @@ export default function BookingsClient({
                       className="mt-1 w-full border border-slate-300 rounded px-3 py-2"
                     />
                     {editingBooking && (
-                      <p className="mt-1 text-xs text-slate-500">Notes autosave while you type.</p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        Notes autosave while you type.
+                        {notesAutosaveState === 'saving' && ' Saving...'}
+                        {notesAutosaveState === 'saved' && ' Saved'}
+                        {notesAutosaveState === 'error' && ' Save failed. Please click Save Changes.'}
+                      </p>
                     )}
                   </label>
                 )}
@@ -1926,6 +2024,7 @@ export default function BookingsClient({
                       existingBookings={dateBookings}
                       selectedIso={appointmentForm.start_time}
                       durationMinutes={modalDuration}
+                      onBookingClick={openEditBooking}
                       onSelect={(iso) => setAppointmentForm((p) => ({ ...p, start_time: iso }))}
                     />
                   )}
@@ -2592,6 +2691,13 @@ function WeekTimeline({
   const mobileBookings = mobileDateKey ? bookingsByDate.get(mobileDateKey) ?? [] : []
   const hasCurrentTimeInRange = currentUtcMinutes >= TIMELINE_START && currentUtcMinutes <= TIMELINE_END
   const currentLineTop = yFor(Math.max(TIMELINE_START, Math.min(TIMELINE_END, currentUtcMinutes)))
+  const scrollToNow = useCallback(() => {
+    if (!containerRef.current) return
+    const now = new Date()
+    const mins = now.getUTCHours() * 60 + now.getUTCMinutes()
+    const target = Math.max(TIMELINE_START, Math.min(TIMELINE_END, mins))
+    containerRef.current.scrollTop = Math.max(0, yFor(target) - 160)
+  }, [TIMELINE_END, TIMELINE_START])
 
   return (
     <>
@@ -2599,10 +2705,21 @@ function WeekTimeline({
       {mobileDay && (
         <>
           <div className="border-b border-slate-200 bg-[linear-gradient(180deg,_#ffffff_0%,_#eef2ff_100%)] px-4 py-3">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{DAY_LABELS[mobileDay.getUTCDay()]}</p>
-            <div className="mt-1 flex items-center gap-2">
-              <p className="text-xl font-bold text-slate-800">{formatDateLabel(mobileDay)}</p>
-              {isSameUTCDay(mobileDay, today) && <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-semibold text-indigo-700">Today</span>}
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{DAY_LABELS[mobileDay.getUTCDay()]}</p>
+                  <div className="mt-1 flex items-center gap-2">
+                    <p className="text-xl font-bold text-slate-800">{formatDateLabel(mobileDay)}</p>
+                    {isSameUTCDay(mobileDay, today) && <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-semibold text-indigo-700">Today</span>}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={scrollToNow}
+                  className="ui-tap ui-focus rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  Back to now
+                </button>
             </div>
           </div>
 
@@ -2667,6 +2784,7 @@ function WeekTimeline({
                     const top = yFor(startMin)
                     const height = Math.max(durMin * TIMELINE_PX_PER_MIN, 22)
                     const colors = WEEK_BLOCK_COLORS[b.status] ?? WEEK_BLOCK_COLORS.pending
+                    const isPending = b.status === BookingStatus.PENDING
                     return (
                       <div
                         key={`mobile-booking-${b.id}`}
@@ -2677,8 +2795,8 @@ function WeekTimeline({
                           onBookingClick(b)
                         }}
                       >
-                        <p className="text-[10px] font-bold text-white truncate">{formatTime(b.start_time)} · {b.customer_name}</p>
-                        {height >= 42 && <p className="text-[9px] text-white/80 truncate">{b.booking_services?.name || 'Service'}</p>}
+                        <p className={`text-[10px] font-bold truncate ${isPending ? 'text-slate-900' : 'text-white'}`}>{formatTime(b.start_time)} · {b.customer_name}</p>
+                        {height >= 42 && <p className={`text-[9px] truncate ${isPending ? 'text-slate-700' : 'text-white/80'}`}>{b.booking_services?.name || 'Service'}</p>}
                       </div>
                     )
                   })}
@@ -2804,6 +2922,7 @@ function WeekTimeline({
                       const height     = Math.max(durMin * TIMELINE_PX_PER_MIN, 22)
                       const colors     = WEEK_BLOCK_COLORS[b.status] ?? WEEK_BLOCK_COLORS.pending
                       const statusA11y = STATUS_ACCESSIBILITY[b.status] ?? STATUS_ACCESSIBILITY.pending
+                      const isPending  = b.status === BookingStatus.PENDING
                       const isDragging = dragging?.booking.id === b.id
                       return (
                         <div
@@ -2825,18 +2944,18 @@ function WeekTimeline({
                           }}
                         >
                           <div className="flex items-start justify-between gap-1 pt-0.5">
-                            <p className="text-[9px] font-bold text-white truncate leading-tight">
+                            <p className={`text-[9px] font-bold truncate leading-tight ${isPending ? 'text-slate-900' : 'text-white'}`}>
                               {formatTime(b.start_time)}
                             </p>
                             {height >= 28 && (
-                              <span className="rounded border border-white/60 bg-white/15 px-1 py-0.5 text-[8px] font-bold leading-none text-white">
+                              <span className={`rounded border px-1 py-0.5 text-[8px] font-bold leading-none ${isPending ? 'border-black/20 bg-black/10 text-slate-900' : 'border-white/60 bg-white/15 text-white'}`}>
                                 {statusA11y.short}
                               </span>
                             )}
                           </div>
-                          <p className="text-[9px] text-white/90 truncate">{b.customer_name}</p>
+                          <p className={`text-[9px] truncate ${isPending ? 'text-slate-800' : 'text-white/90'}`}>{b.customer_name}</p>
                           {height >= 42 && b.booking_services?.name && (
-                            <p className="text-[8px] text-white/70 truncate">{b.booking_services.name}</p>
+                            <p className={`text-[8px] truncate ${isPending ? 'text-slate-700' : 'text-white/70'}`}>{b.booking_services.name}</p>
                           )}
                         </div>
                       )
@@ -2880,7 +2999,14 @@ function WeekTimeline({
             {status.charAt(0).toUpperCase() + status.slice(1)}
           </span>
         ))}
-        <span className="ml-auto italic text-slate-400">Click to book · Drag to reschedule · Red ghost means overlap · Right-click for status</span>
+        <button
+          type="button"
+          onClick={scrollToNow}
+          className="ui-tap ui-focus rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
+        >
+          Back to now
+        </button>
+        <span className="italic text-slate-400">Click to book · Drag to reschedule · Red ghost means overlap · Right-click for status</span>
       </div>
 
       {/* Right-click status context menu */}
@@ -2930,6 +3056,7 @@ function SlotTimeline({
   existingBookings,
   selectedIso,
   durationMinutes,
+  onBookingClick,
   onSelect,
 }: {
   date: string
@@ -2937,6 +3064,7 @@ function SlotTimeline({
   existingBookings: BookingWithService[]
   selectedIso: string
   durationMinutes: number
+  onBookingClick?: (booking: BookingWithService) => void
   onSelect: (iso: string) => void
 }) {
   const TIMELINE_START = TIMELINE_START_HOUR * 60
@@ -2979,6 +3107,7 @@ function SlotTimeline({
         const durMin   = Math.max((endMs - startMs) / 60000, 5)
         return {
           id: b.id,
+          booking: b,
           startMin,
           durMin,
           name: b.customer_name,
@@ -3119,14 +3248,20 @@ function SlotTimeline({
                   const height = Math.max(b.durMin * TIMELINE_PX_PER_MIN, 18)
                   if (top + height < 0 || top > totalHeight) return null
                   return (
-                    <div
+                    <button
+                      type="button"
                       key={b.id}
-                      className="absolute left-1 right-1 rounded bg-indigo-500 px-2 overflow-hidden pointer-events-none z-10"
+                      className="absolute left-1 right-1 rounded bg-indigo-500 px-2 overflow-hidden z-10"
                       style={{ top, height }}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onBookingClick?.(b.booking)
+                      }}
+                      title="Amend this appointment"
                     >
                       <p className="text-[10px] font-semibold text-white truncate leading-tight pt-0.5">{b.name}</p>
                       {b.service && <p className="text-[9px] text-indigo-200 truncate">{b.service}</p>}
-                    </div>
+                    </button>
                   )
                 })}
 
