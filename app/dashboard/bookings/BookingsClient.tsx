@@ -148,6 +148,13 @@ const SOURCE_CONFIG: Record<string, string> = {
   website: 'bg-blue-100 text-blue-700',
 }
 
+const STATUS_ACCESSIBILITY: Record<string, { short: string; pill: string }> = {
+  pending: { short: 'P', pill: 'border-amber-200 bg-amber-50 text-amber-700' },
+  confirmed: { short: 'C', pill: 'border-emerald-200 bg-emerald-50 text-emerald-700' },
+  completed: { short: 'D', pill: 'border-slate-200 bg-slate-100 text-slate-700' },
+  cancelled: { short: 'X', pill: 'border-red-200 bg-red-50 text-red-700' },
+}
+
 function isValidLocalPhone(phone: string): boolean {
   const normalized = phone.replace(/[^\d]/g, '')
   return normalized.length >= 6 && normalized.length <= 14
@@ -305,6 +312,7 @@ export default function BookingsClient({
   const [autoRefresh, setAutoRefresh] = useState(true)
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null)
   const [showSettings, setShowSettings] = useState(false)
+  const [sourceFilter, setSourceFilter] = useState<'all' | BookingSource>('all')
   const [selectedLocationId, setSelectedLocationId] = useState<string>(
     userLocationId || branchLocations[0]?.id || ''
   )
@@ -334,6 +342,7 @@ export default function BookingsClient({
     phone_country_code: '+44',
     phone_local: '',
     service_id: '',
+    notes: '',
     date: '',
     start_time: '',
     person_count: 1,
@@ -556,6 +565,7 @@ export default function BookingsClient({
       phone_country_code: '+44',
       phone_local: '',
       service_id: options?.service_id ?? serviceOptions[0]?.id ?? '',
+      notes: '',
       date: safeDate,
       start_time: safeStartTime,
       person_count: options?.person_count ?? 1,
@@ -573,8 +583,10 @@ export default function BookingsClient({
     setShowDayAgendaModal(true)
   }, [appointmentForm.person_count, appointmentForm.service_id, serviceOptions])
 
-  const activeBookings = bookings.filter((b) => b.status !== BookingStatus.CANCELLED)
-  const cancelledBookings = bookings.filter((b) => b.status === BookingStatus.CANCELLED)
+  const allActiveBookings = bookings.filter((b) => b.status !== BookingStatus.CANCELLED)
+  const visibleBookings = bookings.filter((b) => sourceFilter === 'all' || b.source === sourceFilter)
+  const activeBookings = visibleBookings.filter((b) => b.status !== BookingStatus.CANCELLED)
+  const cancelledBookings = visibleBookings.filter((b) => b.status === BookingStatus.CANCELLED)
 
   const bookingsForDate = (date: Date) =>
     activeBookings.filter((b) => isSameUTCDay(new Date(b.start_time), date))
@@ -621,6 +633,7 @@ export default function BookingsClient({
       phone_country_code: code,
       phone_local: local,
       service_id: booking.service_id,
+      notes: booking.notes || '',
       date: booking.start_time.slice(0, 10),
       start_time: booking.start_time,
       person_count: booking.person_count ?? 1,
@@ -775,6 +788,7 @@ export default function BookingsClient({
             customer_phone,
             customer_email: appointmentForm.customer_email,
             service_id: appointmentForm.service_id,
+            notes: appointmentForm.notes.trim() || null,
             start_time: appointmentForm.start_time,
             person_count: appointmentForm.person_count,
           }),
@@ -799,6 +813,7 @@ export default function BookingsClient({
             customer_phone,
             customer_email: appointmentForm.customer_email,
             service_id: appointmentForm.service_id,
+            notes: appointmentForm.notes.trim() || null,
             start_time: appointmentForm.start_time,
             person_count: appointmentForm.person_count,
           }),
@@ -927,14 +942,16 @@ export default function BookingsClient({
               ←
             </button>
 
-            {!isCurrentPeriod && (
-              <button
-                onClick={goToToday}
-                className="px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors"
-              >
-                Today
-              </button>
-            )}
+            <button
+              onClick={goToToday}
+              className={`px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                isCurrentPeriod
+                  ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
+                  : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              Today
+            </button>
 
             <button
               onClick={goToNext}
@@ -995,6 +1012,19 @@ export default function BookingsClient({
                     {location.name}{location.branch_code ? ` (${location.branch_code})` : ''}
                   </option>
                 ))}
+              </select>
+            )}
+
+            {!showSettings && (
+              <select
+                value={sourceFilter}
+                onChange={(e) => setSourceFilter(e.target.value as 'all' | BookingSource)}
+                className="px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm text-slate-700"
+              >
+                <option value="all">All sources</option>
+                <option value={BookingSource.PORTAL}>Portal</option>
+                <option value={BookingSource.WHATSAPP}>WhatsApp</option>
+                <option value={BookingSource.WEBSITE}>Website</option>
               </select>
             )}
           </div>
@@ -1144,6 +1174,7 @@ export default function BookingsClient({
           <WeekTimeline
             weekDays={weekDays}
             activeBookings={activeBookings}
+            conflictBookings={allActiveBookings}
             today={today}
             loading={loading}
             onSlotClick={(dateKey, startIso) =>
@@ -1277,6 +1308,17 @@ export default function BookingsClient({
                 Date
                 <input type="date" min={editingBooking ? undefined : todayDateKey} value={appointmentForm.date} onChange={(e) => setAppointmentForm((p) => ({ ...p, date: e.target.value, start_time: '' }))} className="mt-1 w-full border border-slate-300 rounded px-3 py-2" />
               </label>
+
+              <label className="text-sm text-slate-700 md:col-span-2">
+                Notes
+                <textarea
+                  value={appointmentForm.notes}
+                  onChange={(e) => setAppointmentForm((p) => ({ ...p, notes: e.target.value }))}
+                  rows={3}
+                  placeholder="Optional internal note for this appointment"
+                  className="mt-1 w-full border border-slate-300 rounded px-3 py-2"
+                />
+              </label>
             </div>
 
             {(() => {
@@ -1324,12 +1366,23 @@ export default function BookingsClient({
               const modalDuration = svc
                 ? svc.duration_minutes + getServicePersonUnits(svc, appointmentForm.person_count) * svc.duration_per_additional_person_minutes
                 : 30
-              const dateBookings = activeBookings.filter((b) => b.start_time.startsWith(appointmentForm.date))
+              const dateBookings = allActiveBookings.filter((b) => b.start_time.startsWith(appointmentForm.date))
               return (
                 <div className="text-sm text-slate-700">
                   <div className="flex items-center justify-between mb-2">
                     <span className="font-medium">Select appointment time</span>
-                    <span className="text-xs text-slate-400">Click the timeline to pick a start time</span>
+                    <div className="flex items-center gap-2">
+                      {availableSlots.length > 0 && !loadingSlots && (
+                        <button
+                          type="button"
+                          onClick={() => setAppointmentForm((p) => ({ ...p, start_time: availableSlots[0].isoString }))}
+                          className="rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-100"
+                        >
+                          First available: {availableSlots[0].time}
+                        </button>
+                      )}
+                      <span className="text-xs text-slate-400">Click the timeline to pick a start time</span>
+                    </div>
                   </div>
                   {loadingSlots ? (
                     <div className="h-80 rounded-lg border border-slate-200 bg-slate-50 flex flex-col items-center justify-center gap-2 text-slate-400 text-sm">
@@ -1823,6 +1876,7 @@ function DayAgendaModal({
 function WeekTimeline({
   weekDays,
   activeBookings,
+  conflictBookings,
   today,
   loading,
   onSlotClick,
@@ -1832,6 +1886,7 @@ function WeekTimeline({
 }: {
   weekDays: Date[]
   activeBookings: BookingWithService[]
+  conflictBookings: BookingWithService[]
   today: Date
   loading: boolean
   onSlotClick: (dateKey: string, startIso: string) => void
@@ -1860,9 +1915,30 @@ function WeekTimeline({
     return map
   }, [activeBookings])
 
+  const conflictBookingsByDate = useMemo(() => {
+    const map = new Map<string, BookingWithService[]>()
+    for (const b of conflictBookings) {
+      const dateKey = new Date(b.start_time).toISOString().slice(0, 10)
+      const arr = map.get(dateKey) ?? []
+      arr.push(b)
+      map.set(dateKey, arr)
+    }
+    return map
+  }, [conflictBookings])
+
   useEffect(() => {
-    if (containerRef.current) containerRef.current.scrollTop = 0
-  }, [])
+    if (!containerRef.current) return
+    const includesToday = weekDays.some((day) => isSameUTCDay(day, today))
+    if (!includesToday) {
+      containerRef.current.scrollTop = 0
+      return
+    }
+
+    const now = new Date()
+    const currentMinutes = now.getUTCHours() * 60 + now.getUTCMinutes()
+    const target = Math.max(TIMELINE_START, Math.min(TIMELINE_END, currentMinutes))
+    containerRef.current.scrollTop = Math.max(0, yFor(target) - 160)
+  }, [TIMELINE_END, TIMELINE_START, today, weekDays])
 
   // ── Drag-to-reschedule ────────────────────────────────────────────────────
   const [dragging, setDragging] = useState<{
@@ -1927,6 +2003,23 @@ function WeekTimeline({
     setDragging(null)
     setDragOver(null)
   }, [dragging, dragOver, weekDays, today, onReschedule])
+
+  const dragConflict = useMemo(() => {
+    if (!dragging || !dragOver) return false
+    const targetDay = weekDays[dragOver.colIdx]
+    if (!targetDay) return false
+    const targetDateKey = targetDay.toISOString().slice(0, 10)
+    const targetBookings = conflictBookingsByDate.get(targetDateKey) ?? []
+    const dragStartMs = targetDay.getTime() + dragOver.startMin * 60000
+    const dragEndMs = dragStartMs + dragging.durMin * 60000
+
+    return targetBookings.some((booking) => {
+      if (booking.id === dragging.booking.id) return false
+      const bookingStartMs = new Date(booking.start_time).getTime()
+      const bookingEndMs = new Date(booking.end_time).getTime()
+      return dragStartMs < bookingEndMs && dragEndMs > bookingStartMs
+    })
+  }, [conflictBookingsByDate, dragOver, dragging, weekDays])
 
   // ── Right-click status context menu ──────────────────────────────────────
   const [contextMenu, setContextMenu] = useState<{
@@ -2052,6 +2145,7 @@ function WeekTimeline({
                       const top        = yFor(startMin)
                       const height     = Math.max(durMin * TIMELINE_PX_PER_MIN, 22)
                       const colors     = WEEK_BLOCK_COLORS[b.status] ?? WEEK_BLOCK_COLORS.pending
+                      const statusA11y = STATUS_ACCESSIBILITY[b.status] ?? STATUS_ACCESSIBILITY.pending
                       const isDragging = dragging?.booking.id === b.id
                       return (
                         <div
@@ -2072,9 +2166,16 @@ function WeekTimeline({
                             setContextMenu({ booking: b, x: e.clientX, y: e.clientY })
                           }}
                         >
-                          <p className="text-[9px] font-bold text-white truncate leading-tight pt-0.5">
-                            {formatTime(b.start_time)}
-                          </p>
+                          <div className="flex items-start justify-between gap-1 pt-0.5">
+                            <p className="text-[9px] font-bold text-white truncate leading-tight">
+                              {formatTime(b.start_time)}
+                            </p>
+                            {height >= 28 && (
+                              <span className="rounded border border-white/60 bg-white/15 px-1 py-0.5 text-[8px] font-bold leading-none text-white">
+                                {statusA11y.short}
+                              </span>
+                            )}
+                          </div>
                           <p className="text-[9px] text-white/90 truncate">{b.customer_name}</p>
                           {height >= 42 && b.booking_services?.name && (
                             <p className="text-[8px] text-white/70 truncate">{b.booking_services.name}</p>
@@ -2091,10 +2192,16 @@ function WeekTimeline({
                       const mm = String(dragOver.startMin % 60).padStart(2, '0')
                       return (
                         <div
-                          className="absolute left-0.5 right-0.5 rounded border-2 border-dashed border-indigo-500 bg-indigo-100/70 z-20 pointer-events-none"
+                          className={`absolute left-0.5 right-0.5 rounded border-2 border-dashed z-20 pointer-events-none ${
+                            dragConflict
+                              ? 'border-red-500 bg-red-100/75'
+                              : 'border-indigo-500 bg-indigo-100/70'
+                          }`}
                           style={{ top: ghostTop, height: ghostHeight }}
                         >
-                          <p className="text-[9px] font-semibold text-indigo-700 px-1.5 pt-0.5">{hh}:{mm}</p>
+                          <p className={`text-[9px] font-semibold px-1.5 pt-0.5 ${dragConflict ? 'text-red-700' : 'text-indigo-700'}`}>
+                            {hh}:{mm}{dragConflict ? ' conflict' : ''}
+                          </p>
                         </div>
                       )
                     })()}
@@ -2109,10 +2216,13 @@ function WeekTimeline({
         {Object.entries(WEEK_BLOCK_COLORS).map(([status, colors]) => (
           <span key={status} className="flex items-center gap-1.5">
             <span className={`inline-block w-3 h-3 rounded-sm ${colors.bg}`} />
+            <span className={`inline-flex h-4 min-w-4 items-center justify-center rounded border px-1 font-bold ${STATUS_ACCESSIBILITY[status]?.pill ?? STATUS_ACCESSIBILITY.pending.pill}`}>
+              {STATUS_ACCESSIBILITY[status]?.short ?? STATUS_ACCESSIBILITY.pending.short}
+            </span>
             {status.charAt(0).toUpperCase() + status.slice(1)}
           </span>
         ))}
-        <span className="ml-auto italic text-slate-400">Click to book · Drag to reschedule · Right-click for status</span>
+        <span className="ml-auto italic text-slate-400">Click to book · Drag to reschedule · Red ghost means overlap · Right-click for status</span>
       </div>
 
       {/* Right-click status context menu */}
@@ -2398,6 +2508,7 @@ function BookingRow({
   updatingId: string | null
 }) {
   const status = STATUS_CONFIG[booking.status] ?? STATUS_CONFIG.pending
+  const statusA11y = STATUS_ACCESSIBILITY[booking.status] ?? STATUS_ACCESSIBILITY.pending
   const sourceClass = SOURCE_CONFIG[booking.source] ?? 'bg-slate-100 text-slate-600'
   const isUpdating = updatingId === booking.id
 
@@ -2415,6 +2526,12 @@ function BookingRow({
             <>
               <span className="text-slate-300">·</span>
               <span className="text-xs text-slate-500">{booking.booking_services.name}</span>
+              {booking.person_count && booking.person_count > 1 && (
+                <>
+                  <span className="text-slate-300">·</span>
+                  <span className="text-xs font-medium text-indigo-600">x{booking.person_count}</span>
+                </>
+              )}
               <span className="text-slate-300">·</span>
               <span className="text-xs text-slate-400">{booking.booking_services.duration_minutes} min</span>
             </>
@@ -2424,6 +2541,9 @@ function BookingRow({
 
       <div className="flex items-center gap-2 flex-wrap flex-shrink-0">
         <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${status.bg} ${status.text}`}>
+          <span className="mr-1 inline-flex h-4 min-w-4 items-center justify-center rounded border border-current/20 bg-white/60 px-1 text-[10px] font-bold leading-none">
+            {statusA11y.short}
+          </span>
           {status.label}
         </span>
         <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${sourceClass} capitalize`}>

@@ -101,6 +101,7 @@ export interface CreateBookingRequest {
   service_id: string;
   start_time: string; // ISO string
   person_count?: number; // 1 = individual; >1 = family/group
+  notes?: string | null;
   source?: BookingSource;
 }
 

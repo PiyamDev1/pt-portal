@@ -131,7 +131,7 @@ export async function GET(request: NextRequest) {
 /**
  * POST /api/bookings
  * Creates a new booking
- * Expected JSON body: { location_id, customer_name, customer_phone, customer_email, service_id, start_time, source? }
+ * Expected JSON body: { location_id, customer_name, customer_phone, customer_email, service_id, start_time, source?, notes? }
  */
 export async function POST(request: NextRequest) {
   try {
@@ -139,6 +139,7 @@ export async function POST(request: NextRequest) {
 
     const { location_id, customer_name, customer_phone, customer_email, service_id, start_time } = body;
     const source = body.source || BookingSource.PORTAL;
+    const notes = typeof body.notes === 'string' ? body.notes.trim() || null : body.notes ?? null;
     const personCount = Math.max(1, parseInt(String(body.person_count ?? 1), 10) || 1);
 
     if (!location_id || !customer_name || !customer_phone || !customer_email || !service_id || !start_time) {
@@ -473,6 +474,7 @@ export async function POST(request: NextRequest) {
         customer_email,
         service_id,
         person_count: personCount,
+        notes,
         start_time,
         end_time,
         status: BookingStatus.PENDING,
