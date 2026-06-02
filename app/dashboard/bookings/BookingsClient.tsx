@@ -155,6 +155,140 @@ const STATUS_ACCESSIBILITY: Record<string, { short: string; pill: string }> = {
   cancelled: { short: 'X', pill: 'border-red-200 bg-red-50 text-red-700' },
 }
 
+function SparkIcon({ className = 'h-4 w-4' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" className={className} aria-hidden="true">
+      <path d="M10 2.5l1.4 3.6L15 7.5l-3.6 1.4L10 12.5 8.6 8.9 5 7.5l3.6-1.4L10 2.5Z" />
+      <path d="M4.5 12.5l.8 1.9 1.9.8-1.9.8-.8 1.9-.8-1.9-1.9-.8 1.9-.8.8-1.9Z" />
+      <path d="M15.5 11l.8 1.9 1.9.8-1.9.8-.8 1.9-.8-1.9-1.9-.8 1.9-.8.8-1.9Z" />
+    </svg>
+  )
+}
+
+function CalendarIcon({ className = 'h-4 w-4' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" className={className} aria-hidden="true">
+      <rect x="3" y="4.5" width="14" height="12" rx="2" />
+      <path d="M6.5 2.8v3.4M13.5 2.8v3.4M3 8.2h14" />
+    </svg>
+  )
+}
+
+function WeekIcon({ className = 'h-4 w-4' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" className={className} aria-hidden="true">
+      <rect x="3" y="4" width="14" height="12" rx="2" />
+      <path d="M7.7 4v12M12.3 4v12M3 8h14" />
+    </svg>
+  )
+}
+
+function ListIcon({ className = 'h-4 w-4' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" className={className} aria-hidden="true">
+      <path d="M6.5 5h9M6.5 10h9M6.5 15h9" />
+      <circle cx="4" cy="5" r="1" fill="currentColor" stroke="none" />
+      <circle cx="4" cy="10" r="1" fill="currentColor" stroke="none" />
+      <circle cx="4" cy="15" r="1" fill="currentColor" stroke="none" />
+    </svg>
+  )
+}
+
+function ChevronLeftIcon({ className = 'h-4 w-4' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className={className} aria-hidden="true">
+      <path d="M11.8 4.5 6.2 10l5.6 5.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function ChevronRightIcon({ className = 'h-4 w-4' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className={className} aria-hidden="true">
+      <path d="m8.2 4.5 5.6 5.5-5.6 5.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function RefreshIcon({ className = 'h-4 w-4' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7" className={className} aria-hidden="true">
+      <path d="M15.5 8A5.5 5.5 0 1 0 16 10" strokeLinecap="round" />
+      <path d="M13.5 4.8h2.8v2.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function SettingsIcon({ className = 'h-4 w-4' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" className={className} aria-hidden="true">
+      <path d="M10 3.2v2.1M10 14.7v2.1M15.1 5.3l-1.5 1.5M6.4 14l-1.5 1.5M16.8 10h-2.1M5.3 10H3.2M15.1 14.7l-1.5-1.5M6.4 6l-1.5-1.5" strokeLinecap="round" />
+      <circle cx="10" cy="10" r="3.1" />
+    </svg>
+  )
+}
+
+function PlusIcon({ className = 'h-4 w-4' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className={className} aria-hidden="true">
+      <path d="M10 4.5v11M4.5 10h11" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+function ClockIcon({ className = 'h-4 w-4' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" className={className} aria-hidden="true">
+      <circle cx="10" cy="10" r="6.5" />
+      <path d="M10 6.5v4l2.7 1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function PinIcon({ className = 'h-4 w-4' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" className={className} aria-hidden="true">
+      <path d="M10 17s4.5-4.3 4.5-8A4.5 4.5 0 1 0 5.5 9c0 3.7 4.5 8 4.5 8Z" />
+      <circle cx="10" cy="9" r="1.8" />
+    </svg>
+  )
+}
+
+function FilterIcon({ className = 'h-4 w-4' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" className={className} aria-hidden="true">
+      <path d="M3.5 5h13l-5.2 5.5v4l-2.6 1v-5L3.5 5Z" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function EyeIcon({ className = 'h-4 w-4' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" className={className} aria-hidden="true">
+      <path d="M2.8 10s2.7-4.5 7.2-4.5 7.2 4.5 7.2 4.5-2.7 4.5-7.2 4.5S2.8 10 2.8 10Z" />
+      <circle cx="10" cy="10" r="2.1" />
+    </svg>
+  )
+}
+
+function PendingIcon({ className = 'h-4 w-4' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" className={className} aria-hidden="true">
+      <circle cx="10" cy="10" r="6.5" />
+      <path d="M10 6.5v3.8l2.4 1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function ConfirmedIcon({ className = 'h-4 w-4' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7" className={className} aria-hidden="true">
+      <circle cx="10" cy="10" r="6.5" />
+      <path d="m7.3 10.2 1.8 1.8 3.6-4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
 function isValidLocalPhone(phone: string): boolean {
   const normalized = phone.replace(/[^\d]/g, '')
   return normalized.length >= 6 && normalized.length <= 14
@@ -910,7 +1044,8 @@ export default function BookingsClient({
           <div className="flex flex-col gap-5">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div className="space-y-3">
-                <span className="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-sky-700">
+                <span className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-sky-700">
+                  <SparkIcon className="h-3.5 w-3.5" />
                   Booking desk
                 </span>
                 <div>
@@ -918,80 +1053,86 @@ export default function BookingsClient({
                   <p className="mt-1 text-sm text-slate-600">{view === 'multi' ? monthLabel : weekLabel}</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                  <span className="rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-600">{view === 'multi' ? 'Calendar overview' : view === 'week' ? 'Week timeline' : 'Appointment list'}</span>
-                  <span className="rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-600">{sourceFilterLabel}</span>
-                  {selectedLocationId && <span className="rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-600">Location active</span>}
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-600">{view === 'multi' ? <CalendarIcon className="h-3.5 w-3.5" /> : view === 'week' ? <WeekIcon className="h-3.5 w-3.5" /> : <ListIcon className="h-3.5 w-3.5" />}{view === 'multi' ? 'Calendar overview' : view === 'week' ? 'Week timeline' : 'Appointment list'}</span>
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-600"><FilterIcon className="h-3.5 w-3.5" />{sourceFilterLabel}</span>
+                  {selectedLocationId && <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-600"><PinIcon className="h-3.5 w-3.5" />Location active</span>}
                 </div>
               </div>
 
               <div className="flex items-center gap-2 self-start rounded-2xl border border-slate-200/80 bg-slate-50/80 p-1.5 shadow-sm">
-            <div className="flex rounded-lg border border-slate-200 overflow-hidden bg-white">
+            <div className="flex rounded-xl border border-slate-200 overflow-hidden bg-white">
               <button
                 onClick={() => setView('multi')}
-                className={`px-3 py-1.5 text-sm font-medium transition-colors ${
-                  view === 'multi' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-50'
+                className={`inline-flex items-center gap-1.5 px-2.5 py-2 text-xs font-medium transition-all sm:px-3 sm:text-sm ${
+                  view === 'multi' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50'
                 }`}
               >
+                <CalendarIcon className="h-4 w-4" />
                 Calendar
               </button>
               <button
                 onClick={() => setView('week')}
-                className={`px-3 py-1.5 text-sm font-medium border-l border-slate-200 transition-colors ${
-                  view === 'week' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-50'
+                className={`inline-flex items-center gap-1.5 border-l border-slate-200 px-2.5 py-2 text-xs font-medium transition-all sm:px-3 sm:text-sm ${
+                  view === 'week' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50'
                 }`}
               >
+                <WeekIcon className="h-4 w-4" />
                 Week
               </button>
               <button
                 onClick={() => setView('list')}
-                className={`px-3 py-1.5 text-sm font-medium border-l border-slate-200 transition-colors ${
-                  view === 'list' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-50'
+                className={`inline-flex items-center gap-1.5 border-l border-slate-200 px-2.5 py-2 text-xs font-medium transition-all sm:px-3 sm:text-sm ${
+                  view === 'list' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50'
                 }`}
               >
+                <ListIcon className="h-4 w-4" />
                 List
               </button>
             </div>
               </div>
             </div>
 
-            <div className="flex items-center gap-2 flex-wrap rounded-2xl border border-slate-200/80 bg-slate-50/85 p-3 shadow-inner shadow-white/60">
+            <div className="flex items-center gap-2 flex-wrap rounded-2xl border border-slate-200/80 bg-slate-50/85 p-2.5 shadow-inner shadow-white/60 sm:p-3">
 
             <button
               onClick={goToPrev}
-              className="p-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition-colors"
+              className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white p-2 text-slate-600 transition-all hover:-translate-y-0.5 hover:bg-slate-50"
               title={view === 'multi' ? 'Previous month' : 'Previous week'}
             >
-              ←
+              <ChevronLeftIcon className="h-4 w-4" />
             </button>
 
             <button
               onClick={goToToday}
-              className={`px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
+              className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-medium transition-all hover:-translate-y-0.5 sm:text-sm ${
                 isCurrentPeriod
                   ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
                   : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
               }`}
             >
+              <ClockIcon className="h-4 w-4" />
               Today
             </button>
 
             <button
               onClick={goToNext}
-              className="p-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition-colors"
+              className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white p-2 text-slate-600 transition-all hover:-translate-y-0.5 hover:bg-slate-50"
               title={view === 'multi' ? 'Next month' : 'Next week'}
             >
-              →
+              <ChevronRightIcon className="h-4 w-4" />
             </button>
 
             <button
               onClick={() => fetchBookings(true)}
               disabled={refreshing}
-              className="px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600 transition-all hover:-translate-y-0.5 hover:bg-slate-50 disabled:opacity-50 sm:text-sm"
             >
+              <RefreshIcon className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
               {refreshing ? 'Refreshing...' : 'Refresh'}
             </button>
 
-            <label className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm text-slate-600">
+            <label className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600 sm:text-sm">
+              <ClockIcon className="h-4 w-4 text-slate-400" />
               <input
                 type="checkbox"
                 checked={autoRefresh}
@@ -1004,12 +1145,13 @@ export default function BookingsClient({
             {isAdmin && (
               <button
                 onClick={() => setShowSettings((prev) => !prev)}
-                className={`px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-medium transition-all hover:-translate-y-0.5 sm:text-sm ${
                   showSettings
                     ? 'border-indigo-600 bg-indigo-600 text-white'
                     : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
                 }`}
               >
+                <SettingsIcon className="h-4 w-4" />
                 {showSettings ? 'Back to Appointments' : 'Booking Settings'}
               </button>
             )}
@@ -1017,42 +1159,49 @@ export default function BookingsClient({
             {!showSettings && (
               <button
                 onClick={() => openCreateAppointment()}
-                className="px-3 py-2 rounded-lg border border-indigo-600 bg-indigo-600 text-sm font-medium text-white hover:bg-indigo-700"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-600 bg-indigo-600 px-3 py-2 text-xs font-medium text-white transition-all hover:-translate-y-0.5 hover:bg-indigo-700 sm:text-sm"
               >
-                + Add Appointment
+                <PlusIcon className="h-4 w-4" />
+                Add Appointment
               </button>
             )}
 
             {isAdmin && !showSettings && branchLocations.length > 0 && (
-              <select
-                value={selectedLocationId}
-                onChange={(e) => setSelectedLocationId(e.target.value)}
-                className="px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm text-slate-700"
-              >
-                {branchLocations.map((location) => (
-                  <option key={location.id} value={location.id}>
-                    {location.name}{location.branch_code ? ` (${location.branch_code})` : ''}
-                  </option>
-                ))}
-              </select>
+              <div className="relative">
+                <PinIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <select
+                  value={selectedLocationId}
+                  onChange={(e) => setSelectedLocationId(e.target.value)}
+                  className="rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-xs text-slate-700 transition-colors hover:border-slate-300 sm:text-sm"
+                >
+                  {branchLocations.map((location) => (
+                    <option key={location.id} value={location.id}>
+                      {location.name}{location.branch_code ? ` (${location.branch_code})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
             )}
 
             {!showSettings && (
-              <select
-                value={sourceFilter}
-                onChange={(e) => setSourceFilter(e.target.value as 'all' | BookingSource)}
-                className="px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm text-slate-700"
-              >
-                <option value="all">All sources</option>
-                <option value={BookingSource.PORTAL}>Portal</option>
-                <option value={BookingSource.WHATSAPP}>WhatsApp</option>
-                <option value={BookingSource.WEBSITE}>Website</option>
-              </select>
+              <div className="relative">
+                <FilterIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <select
+                  value={sourceFilter}
+                  onChange={(e) => setSourceFilter(e.target.value as 'all' | BookingSource)}
+                  className="rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-xs text-slate-700 transition-colors hover:border-slate-300 sm:text-sm"
+                >
+                  <option value="all">All sources</option>
+                  <option value={BookingSource.PORTAL}>Portal</option>
+                  <option value={BookingSource.WHATSAPP}>WhatsApp</option>
+                  <option value={BookingSource.WEBSITE}>Website</option>
+                </select>
+              </div>
             )}
             </div>
 
             <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200/80 bg-white/80 px-4 py-3 text-xs text-slate-500 shadow-sm">
-              <span className="font-medium text-slate-600">Last updated: {refreshLabel}</span>
+              <span className="inline-flex items-center gap-1.5 font-medium text-slate-600"><ClockIcon className="h-4 w-4 text-slate-400" />Last updated: {refreshLabel}</span>
               {refreshing && <span className="rounded-full bg-indigo-50 px-2 py-1 font-medium text-indigo-600">Checking for changes...</span>}
               {autoRefresh && !refreshing && (
                 <span className="rounded-full bg-slate-100 px-2 py-1 text-slate-500 tabular-nums">Next refresh in {refreshCountdown}s</span>
@@ -1065,33 +1214,37 @@ export default function BookingsClient({
         </div>
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-all hover:-translate-y-1 hover:shadow-md">
             <div className="h-1 bg-slate-900" />
             <div className="p-4">
+              <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-700"><EyeIcon className="h-4 w-4" /></span>
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Visible Range</p>
               <p className="mt-2 text-3xl font-bold text-slate-900">{totalVisible}</p>
               <p className="mt-2 text-xs text-slate-500">Appointments currently shown in this view.</p>
             </div>
           </div>
-          <div className="overflow-hidden rounded-2xl border border-amber-100 bg-white shadow-sm">
+          <div className="overflow-hidden rounded-2xl border border-amber-100 bg-white shadow-sm transition-all hover:-translate-y-1 hover:shadow-md">
             <div className="h-1 bg-amber-400" />
             <div className="p-4">
+              <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-amber-50 text-amber-700"><PendingIcon className="h-4 w-4" /></span>
               <p className="text-xs font-semibold text-amber-700 uppercase tracking-wider">Pending</p>
               <p className="mt-2 text-3xl font-bold text-amber-500">{pendingVisible}</p>
               <p className="mt-2 text-xs text-slate-500">Awaiting confirmation or follow-up.</p>
             </div>
           </div>
-          <div className="overflow-hidden rounded-2xl border border-emerald-100 bg-white shadow-sm">
+          <div className="overflow-hidden rounded-2xl border border-emerald-100 bg-white shadow-sm transition-all hover:-translate-y-1 hover:shadow-md">
             <div className="h-1 bg-emerald-500" />
             <div className="p-4">
+              <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700"><ConfirmedIcon className="h-4 w-4" /></span>
               <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wider">Confirmed</p>
               <p className="mt-2 text-3xl font-bold text-emerald-600">{confirmedVisible}</p>
               <p className="mt-2 text-xs text-slate-500">Ready to serve in the active window.</p>
             </div>
           </div>
-          <div className="overflow-hidden rounded-2xl border border-indigo-100 bg-white shadow-sm">
+          <div className="overflow-hidden rounded-2xl border border-indigo-100 bg-white shadow-sm transition-all hover:-translate-y-1 hover:shadow-md">
             <div className="h-1 bg-indigo-500" />
             <div className="p-4">
+              <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 text-indigo-700"><FilterIcon className="h-4 w-4" /></span>
               <p className="text-xs font-semibold text-indigo-700 uppercase tracking-wider">Focus</p>
               <p className="mt-2 text-xl font-bold text-slate-900">{sourceFilterLabel}</p>
               <p className="mt-2 text-xs text-slate-500">Current feed source shown on screen.</p>
@@ -1129,7 +1282,7 @@ export default function BookingsClient({
                     <button
                       key={day.toISOString()}
                       onClick={() => openDayAgenda(day)}
-                      className={`min-h-[118px] p-3 border-r border-b border-slate-100 text-left transition-all duration-150 ${
+                      className={`min-h-[96px] p-2 sm:min-h-[118px] sm:p-3 border-r border-b border-slate-100 text-left transition-all duration-150 ${
                         isSelected
                           ? 'bg-indigo-50 ring-2 ring-inset ring-indigo-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]'
                           : isToday
@@ -1140,7 +1293,7 @@ export default function BookingsClient({
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <span
-                            className={`text-sm font-semibold ${
+                            className={`text-xs sm:text-sm font-semibold ${
                               isSelected
                                 ? 'text-indigo-700'
                                 : isToday
@@ -1153,13 +1306,13 @@ export default function BookingsClient({
                             {day.getUTCDate()}
                           </span>
                           {isToday && (
-                            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
+                            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[9px] sm:text-[10px] font-semibold uppercase tracking-wide text-amber-700">
                               Today
                             </span>
                           )}
                         </div>
                         {dayBookings.length > 0 && (
-                          <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700">
+                          <span className="text-[10px] sm:text-[11px] font-semibold px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700">
                             {dayBookings.length}
                           </span>
                         )}
@@ -1167,9 +1320,9 @@ export default function BookingsClient({
 
                       <div className="mt-3 space-y-1.5">
                         {dayBookings.slice(0, 3).map((booking) => (
-                          <div key={booking.id} className="flex items-center gap-1.5 rounded-md bg-slate-50/80 px-1.5 py-1">
+                          <div key={booking.id} className="flex items-center gap-1.5 rounded-md bg-slate-50/80 px-1.5 py-1 transition-colors hover:bg-slate-100/80">
                             <span className={`h-1.5 w-1.5 rounded-full ${statusDotClass(booking.status)}`} />
-                            <span className="text-[11px] text-slate-500 truncate">
+                            <span className="text-[10px] sm:text-[11px] text-slate-500 truncate">
                               {formatTime(booking.start_time)} {booking.customer_name}
                             </span>
                           </div>
@@ -1230,7 +1383,7 @@ export default function BookingsClient({
         )}
 
         {view === 'list' && (
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+          <div className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-[0_18px_50px_-32px_rgba(15,23,42,0.35)]">
             {loading ? (
               <div className="py-12 text-center text-slate-400 text-sm">Loading appointments…</div>
             ) : activeBookings.length === 0 ? (
@@ -1247,7 +1400,7 @@ export default function BookingsClient({
                 const isToday = isSameUTCDay(day, today)
                 return (
                   <div key={day.toISOString()}>
-                    <div className={`px-5 py-3 border-b border-slate-100 flex items-center gap-2 ${isToday ? 'bg-indigo-50' : 'bg-slate-50'}`}>
+                    <div className={`px-4 sm:px-5 py-3 border-b border-slate-100 flex items-center gap-2 ${isToday ? 'bg-indigo-50' : 'bg-slate-50'}`}>
                       <span className={`text-sm font-semibold ${isToday ? 'text-indigo-700' : 'text-slate-600'}`}>
                         {formatDateLabel(day)}
                       </span>
@@ -1305,13 +1458,14 @@ export default function BookingsClient({
       </div>
 
       {showAppointmentModal && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
-          <div className="w-full max-w-3xl bg-white rounded-xl shadow-xl border border-slate-200 p-5 space-y-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-slate-800">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-[2px]">
+          <div className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-[28px] border border-white/70 bg-white p-5 shadow-[0_28px_90px_-36px_rgba(15,23,42,0.5)] transition-all duration-200 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h2 className="inline-flex items-center gap-2 text-lg font-semibold text-slate-800">
+                <CalendarIcon className="h-5 w-5 text-indigo-600" />
                 {editingBooking ? 'Modify Appointment' : 'Add Appointment'}
               </h2>
-              <button onClick={() => setShowAppointmentModal(false)} className="text-sm text-slate-500 hover:text-slate-700">Close</button>
+              <button onClick={() => setShowAppointmentModal(false)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-700">Close</button>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -2562,10 +2716,12 @@ function BookingRow({
   const isUpdating = updatingId === booking.id
 
   return (
-    <div className="px-5 py-4 transition-colors hover:bg-slate-50/80">
+    <div className="px-4 sm:px-5 py-4 transition-all hover:bg-slate-50/80">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-      <div className="w-14 flex-shrink-0 text-sm font-bold text-slate-700 tabular-nums">
-        {formatTime(booking.start_time)}
+      <div className="w-16 flex-shrink-0">
+        <div className="inline-flex rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-sm font-bold text-slate-700 tabular-nums shadow-sm">
+          {formatTime(booking.start_time)}
+        </div>
       </div>
 
       <div className="flex-1 min-w-0">
