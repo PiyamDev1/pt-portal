@@ -357,4 +357,4 @@ After completing your checklist:
 
 **🎉 Congratulations! You're ready to go!**
 
-**Last Updated**: February 2026
+**Last Updated**: June 2026

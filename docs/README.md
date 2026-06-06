@@ -1,6 +1,6 @@
 # PT-Portal Documentation
 
-> **By Rathobixz Inc.** — Last updated March 2026
+> **By Rathobixz Inc.** — Last updated June 2026
 
 ---
 
@@ -10,6 +10,7 @@
 docs/
 ├── guides/
 │   ├── ARCHITECTURE_GUIDE.md          ← System architecture & data flow
+│   ├── BOOKINGS_GUIDE.md              ← Appointment booking system status + usage
 │   ├── DOCUMENT_MANAGEMENT_GUIDE.md   ← Document system (upload, preview, storage)
 │   ├── GETTING_STARTED.md             ← Developer onboarding
 │   ├── QUICK_REFERENCE.md             ← Command cheat sheet
@@ -43,13 +44,18 @@ docs/
 
 1. **[guides/GETTING_STARTED.md](guides/GETTING_STARTED.md)** — environment setup
 2. **[guides/ARCHITECTURE_GUIDE.md](guides/ARCHITECTURE_GUIDE.md)** — how the system fits together
-3. **[technical/API_REFERENCE.md](technical/API_REFERENCE.md)** — all API endpoints
-4. **[guides/QUICK_REFERENCE.md](guides/QUICK_REFERENCE.md)** — common commands
-5. **[TYPES.md](TYPES.md)** — shared type system conventions
+3. **[guides/BOOKINGS_GUIDE.md](guides/BOOKINGS_GUIDE.md)** — appointment bookings module status
+4. **[technical/API_REFERENCE.md](technical/API_REFERENCE.md)** — all API endpoints
+5. **[guides/QUICK_REFERENCE.md](guides/QUICK_REFERENCE.md)** — common commands
+6. **[TYPES.md](TYPES.md)** — shared type system conventions
 
 ### For Understanding Storage
 
 → **[technical/STORAGE_SYSTEM.md](technical/STORAGE_SYSTEM.md)** — MinIO primary + R2 fallback, migration, status checks
+
+### For Appointment Bookings
+
+→ **[guides/BOOKINGS_GUIDE.md](guides/BOOKINGS_GUIDE.md)** — current booking capabilities, branch settings, reminders, and unfinished areas
 
 ### For Security/Auth
 
@@ -76,6 +82,7 @@ docs/
 | ------------------------------------------------------- | ----------------------- | ------ |
 | [WINDOWS_SETUP_GUIDE.md](guides/WINDOWS_SETUP_GUIDE.md) | Windows + VS Code setup | 1 hour |
 | [ARCHITECTURE_GUIDE.md](guides/ARCHITECTURE_GUIDE.md)   | Technical deep-dive     | 1 hour |
+| [BOOKINGS_GUIDE.md](guides/BOOKINGS_GUIDE.md)           | Appointment booking system | 15 min |
 | [QUICK_REFERENCE.md](guides/QUICK_REFERENCE.md)         | Commands & snippets     | 5 min  |
 | [GETTING_STARTED.md](guides/GETTING_STARTED.md)         | Onboarding checklists   | 15 min |
 
@@ -107,6 +114,7 @@ docs/
 
 - **Dashboard?** → [guides/USAGE_GUIDE.md#dashboard-overview](guides/USAGE_GUIDE.md#dashboard-overview)
 - **Applications?** → [guides/USAGE_GUIDE.md#applications-dashboard](guides/USAGE_GUIDE.md#applications-dashboard)
+- **Bookings?** → [guides/USAGE_GUIDE.md#appointment-bookings](guides/USAGE_GUIDE.md#appointment-bookings)
 - **Payments?** → [guides/USAGE_GUIDE.md#payments--transactions](guides/USAGE_GUIDE.md#payments--transactions)
 - **Pricing?** → [guides/USAGE_GUIDE.md#pricing-management](guides/USAGE_GUIDE.md#pricing-management)
 
@@ -166,4 +174,4 @@ Found an error or want to improve documentation?
 
 **© 2026 Rathobixz Inc. All rights reserved.**
 
-Last Updated: February 2026
+Last Updated: June 2026

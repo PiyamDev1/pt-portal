@@ -1,7 +1,7 @@
 # API Reference
 
 > All PT-Portal API routes — methods, parameters, responses  
-> Last updated: March 2026
+> Last updated: June 2026
 
 All routes are under `/api/`. All routes are subject to rate limiting: 60 requests/minute per IP.
 
@@ -390,6 +390,160 @@ Save/update a visa application.
 ### POST `/api/visas/update-status`
 
 Update visa application status.
+
+---
+
+## Bookings
+
+The bookings subsystem is still under active development. Routes include schema guards and may return warnings or setup hints when the booking schema is not fully deployed.
+
+### GET `/api/bookings`
+
+List bookings within a date range for a branch calendar/list view.
+
+**Query parameters:**
+
+| Parameter     | Type   | Required | Description                   |
+| ------------- | ------ | -------- | ----------------------------- |
+| `from`        | string | Yes      | ISO datetime lower bound      |
+| `to`          | string | Yes      | ISO datetime upper bound      |
+| `location_id` | string | No       | Filter to one branch location |
+
+### POST `/api/bookings`
+
+Create a new booking.
+
+**Key body fields:**
+
+- `location_id`
+- `customer_name`
+- `customer_phone`
+- `customer_email`
+- `service_id`
+- `start_time`
+- `person_count`
+- `notes`
+- `manual_override`
+- `source`
+
+Creates the booking, computes effective duration from service rules, writes audit/email records, and may reject the request if the slot conflicts or the customer is blocked by no-show penalty settings.
+
+### PATCH `/api/bookings/[id]`
+
+Update a booking's status or appointment details.
+
+Supported changes include:
+
+- `status`
+- `customer_name`
+- `customer_phone`
+- `customer_email`
+- `service_id`
+- `start_time`
+- `notes`
+- `person_count`
+
+Optional concurrency guard:
+
+- `if_unmodified_since`: previous `updated_at` value; returns `409` on conflict
+
+### GET `/api/bookings/available-slots`
+
+Return available slots for a branch/service/date combination.
+
+**Query parameters:**
+
+| Parameter      | Type   | Required | Description |
+| -------------- | ------ | -------- | ----------- |
+| `date`         | string | Yes      | `YYYY-MM-DD` |
+| `service_id`   | string | Yes      | Service id |
+| `location_id`  | string | Yes      | Branch/location id |
+| `person_count` | number | No       | Group size, default `1` |
+
+Slot generation accounts for:
+
+- Branch opening hours
+- Lunch and prayer windows
+- One-off schedule overrides
+- Concurrent staff capacity
+- Service duration and buffer
+- Extra per-person duration
+- End-of-day overrun tolerance
+
+### GET `/api/bookings/settings/branch`
+
+Return weekly branch schedule rows from `branch_settings`.
+
+### PATCH `/api/bookings/settings/branch`
+
+Upsert weekly branch schedule rows for a branch.
+
+### GET `/api/bookings/settings/overrides`
+
+List one-off schedule overrides.
+
+### POST `/api/bookings/settings/overrides`
+
+Create or replace a one-off branch schedule override for a specific date.
+
+### GET `/api/bookings/settings/services`
+
+List booking services for a branch.
+
+### POST `/api/bookings/settings/services`
+
+Create a booking service with timing rules and email templates.
+
+Service configuration currently supports:
+
+- `duration_minutes`
+- `buffer_minutes`
+- `available_days`
+- `service_start_time`
+- `service_end_time`
+- `duration_per_additional_person_minutes`
+- `person_count_excludes_family_head`
+- `close_overrun_tolerance_minutes`
+- `confirmation_template`
+- `modification_template`
+- `cancellation_template`
+
+### GET `/api/bookings/settings/reminders`
+
+Return reminder/no-show settings for a branch. If the reminder schema is not yet deployed, this returns defaults plus a warning.
+
+### PATCH `/api/bookings/settings/reminders`
+
+Update reminder settings including:
+
+- `reminders_enabled`
+- `reminder_hours_before`
+- `reminder_subject`
+- `reminder_template`
+- `attendance_confirmation_required`
+- `penalty_enabled`
+- `penalty_threshold`
+- `penalty_action`
+- `penalty_note`
+
+### GET `/api/bookings/attendance/respond`
+
+Customer-facing response link for reminder attendance confirmation.
+
+**Query parameters:**
+
+- `token`
+- `status=present|missed`
+
+Marks the reminder response and, for `missed`, increments branch-scoped contact flags.
+
+### POST `/api/bookings/telemetry`
+
+Best-effort operational telemetry endpoint for booking UI events.
+
+### GET `/api/cron/bookings/reminders`
+
+Cron endpoint that sends reminder emails for upcoming bookings, writes reminder event state, and appends attendance confirmation links when enabled.
 
 ---
 

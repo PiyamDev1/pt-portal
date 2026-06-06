@@ -2,7 +2,7 @@
 
 > **Developed by Rathobixz Inc.**
 
-A comprehensive web application for managing travel services, passport applications, visa processing, and loan management. Built with Next.js, React, and Supabase.
+A comprehensive web application for managing travel services, passport applications, visa processing, loan management, document storage, and branch appointment bookings. Built with Next.js, React, and Supabase.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue)](https://www.typescriptlang.org/)
@@ -54,6 +54,7 @@ A comprehensive web application for managing travel services, passport applicati
 - **Role-Based Access**: Admin, Manager, and User roles
 - **Employee Management**: Add and manage team members
 - **Branch Management**: Manage multiple branch locations
+- **Appointment Bookings**: Branch-aware appointment scheduling system in active development
 - **Security Features**: 2FA, session management, audit logs
 
 ---
@@ -162,6 +163,12 @@ All documentation is organized in the `docs/` directory:
   - Database schema
   - Performance optimization
 
+- **[docs/guides/BOOKINGS_GUIDE.md](docs/guides/BOOKINGS_GUIDE.md)** - Appointment bookings module
+  - Current booking capabilities
+  - Branch schedules and service rules
+  - Reminder/no-show flow
+  - Current unfinished areas
+
 - **[docs/guides/QUICK_REFERENCE.md](docs/guides/QUICK_REFERENCE.md)** - Command cheat sheet
   - Common commands
   - Code snippets
@@ -224,6 +231,9 @@ These documents guide the ongoing refactoring efforts:
   - React.memo optimization
   - Hook memoization patterns
   - Effect dependency optimization
+
+- **[docs/technical/API_REFERENCE.md](docs/technical/API_REFERENCE.md)** - Current API contracts
+  - Includes bookings endpoints and active route surface
 
 - **[docs/technical/](docs/technical/)** - Additional technical docs
   - Build performance
@@ -386,7 +396,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ---
 
-**Last Updated**: February 2026 | **Version**: 2.0.0
+**Last Updated**: June 2026 | **Version**: 2.0.0
 
 ---
 

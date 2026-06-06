@@ -1,7 +1,7 @@
 # Storage System
 
 > PT-Portal dual-storage deep dive: MinIO primary + Cloudflare R2 fallback  
-> Last updated: March 2026
+> Last updated: June 2026
 
 ---
 
@@ -36,6 +36,8 @@ Normal operation:
 MinIO offline:
   Upload → R2        Preview/Download → R2 (+ bg migrate when MinIO returns)
 ```
+
+Recent work here has been low-risk operational polish rather than feature expansion. The focus has been on keeping uploads and reads stable during primary-storage interruptions and preserving clean migration behavior back to MinIO.
 
 ---
 
@@ -258,6 +260,7 @@ Queries Supabase for documents where `minio_bucket = 'portal-fallback' AND delet
 
 5. **Upgrading pdfjs-dist**: After `npm install pdfjs-dist@<version>`, run:
    ```bash
-   cp node_modules/pdfjs-dist/build/pdf.worker.min.mjs public/pdf.worker.min.mjs
-   git add public/pdf.worker.min.mjs
+   npm run sync:pdf-worker
    ```
+
+6. **Current status**: Storage is operational and already used by live application flows. Recent changes in this subsystem have mainly been minor fixes and maintenance work, not a redesign.

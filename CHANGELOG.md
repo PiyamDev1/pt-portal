@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased] - 2026-06-06
+
+### Changed
+
+- Documentation refreshed to reflect the current project direction and active work areas.
+- Storage docs now reflect recent minor reliability work on the dual-storage document system.
+- Application docs now reflect ongoing small operational fixes rather than a major new applications rewrite.
+- Added dedicated appointment bookings documentation covering current implementation, APIs, schema footprint, and the fact that the feature is still unfinished.
+
+### In Progress
+
+- Appointment bookings system remains under active development.
+- Current work includes branch schedules, service timing rules, reminder emails, attendance confirmation, no-show penalties, and audit logging, but the overall module should still be treated as unfinished.
+
 ## [2.0.0] - 2026-02-01
 
 ### 🎉 Major Release - Codebase Organization & Branding Update

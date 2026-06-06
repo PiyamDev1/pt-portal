@@ -488,6 +488,6 @@ After completing setup:
 
 ---
 
-**Last Updated**: February 2026
+**Last Updated**: June 2026
 
 **Pro Tip**: Bookmark this page for quick reference! 🔖

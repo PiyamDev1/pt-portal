@@ -2,9 +2,11 @@
 
 ## Overview
 
-> Last updated: March 2026
+> Last updated: June 2026
 
-The Document Management System is a fully operational document storage, preview and management module for PT-Portal. It supports categorised uploads, PDF/image thumbnail previews, streaming downloads, and dual-storage redundancy (MinIO primary + R2 fallback).
+The Document Management System is a fully operational document storage, preview and management module for PT-Portal. It supports categorised uploads, PDF/image thumbnail previews, streaming downloads, signed access helpers, and dual-storage redundancy (MinIO primary + R2 fallback).
+
+Recent work in this area has mostly been small storage-side reliability fixes rather than large user-facing changes. The main improvements have been around fallback routing, migration safety, status reporting, and keeping the document hub stable while applications work continues around it.
 
 ---
 
@@ -232,6 +234,9 @@ See **[../technical/API_REFERENCE.md](../technical/API_REFERENCE.md)** for full 
 | `GET`    | `/api/documents/status`                               | Storage health check              |
 | `GET`    | `/api/documents/preview?key=`                         | Stream file for preview           |
 | `GET`    | `/api/documents/download?key=`                        | Stream file for download          |
+| `GET`    | `/api/documents/signed-url`                           | Generate signed object access URL |
+| `GET`    | `/api/documents/migration-overview`                   | View migration status summary     |
+| `POST`   | `/api/documents/migrate-scheduled`                    | Trigger scheduled migration work  |
 | `DELETE` | `/api/documents/[documentId]`                         | Soft-delete document              |
 
 ---
@@ -291,7 +296,7 @@ R2_SECRET_KEY
 R2_BUCKET_NAME          portal-fallback
 ```
 
-**Note**: Current implementation uses placeholder paths. Actual MinIO backend integration pending.
+**Note**: Current implementation uses live document routes and storage metadata. Older placeholder-path references should be treated as historical context only.
 
 ---
 
@@ -668,13 +673,13 @@ interface MinioStatusProps {
 - Server connection status
 - Last sync timestamp
 
-**Note**: Currently shows placeholder data until MinIO backend connected.
+**Note**: This area should now be treated as operational. If figures look wrong, check live storage health/migration endpoints rather than assuming placeholder data.
 
 ---
 
 ## API Endpoints
 
-All endpoints currently return placeholder data. Real MinIO integration pending.
+The API surface is live. Some older examples in this guide reflect the original rollout phase, but current behavior is defined by the route handlers and `docs/technical/API_REFERENCE.md`.
 
 ### Upload Document
 
@@ -1063,43 +1068,36 @@ className = 'bg-green-600 hover:bg-green-700 text-white'
 
 ## Changelog
 
-### Version 1.0.0 (Current - March 2026)
+### Current Implementation Status (June 2026)
 
-**Initial Implementation**:
+**Implemented**:
 
-- ✅ Document Hub component with two-column layout
+- ✅ Dual storage with MinIO primary and R2 fallback
+- ✅ Metadata persistence in the `documents` table
+- ✅ Background migration from fallback storage back to MinIO
 - ✅ Categorized upload sections (Main, Receipts, Application Review)
-- ✅ Pyramid layout structure
-- ✅ File type restrictions (PDF and images only)
-- ✅ Document preview with blob URL handling
-- ✅ Family-level documents for NADRA applications
-- ✅ Per-application documents for Pakistani Passports
-- ✅ Vertical button stacking in passport actions
-- ✅ Sky blue color scheme for NADRA buttons
-- ✅ Responsive mobile/desktop layouts
-- ✅ Placeholder MinIO integration
+- ✅ PDF/image preview support and thumbnail workflow
+- ✅ Family-level document management for NADRA flows
+- ✅ Operational health/status checks and storage-mode banners
 
-**Pending**:
+**Still Future/Optional**:
 
-- ⏳ MinIO backend server connection
-- ⏳ Database schema implementation
-- ⏳ Actual file persistence
-- ⏳ Thumbnail generation
-- ⏳ File size limits and quotas
 - ⏳ Virus scanning
+- ⏳ Expanded document classification/search
+- ⏳ Broader non-NADRA document workflows as product scope evolves
 
 ---
 
 ## Support & Maintenance
 
-**Documentation Updates**: This guide will be updated when MinIO backend integration is completed.
+**Documentation Updates**: This guide should now be treated as operational documentation for the live storage flow. Future updates should focus on reliability changes, new endpoints, and additional document surfaces.
 
 **Related Documentation**:
 
-- See `/Future Plans/MINIO_DOCUMENT_MANAGEMENT_PLAN.md` for backend planning
+- See `/Future Plans/MINIO_DOCUMENT_MANAGEMENT_PLAN.md` for the original planning history
 - See `/docs/guides/ARCHITECTURE_GUIDE.md` for overall system architecture
 - See `/docs/guides/USAGE_GUIDE.md` for general usage patterns
 
-**Last Updated**: March 6, 2026  
-**Status**: Frontend Complete, Backend Pending  
+**Last Updated**: June 6, 2026  
+**Status**: Operational, receiving minor storage-side fixes  
 **Maintainer**: PT Portal Development Team

@@ -1,6 +1,6 @@
 # Database Schema Overview
 
-Last updated: March 18, 2026
+Last updated: June 6, 2026
 
 ## Purpose
 
@@ -12,6 +12,7 @@ Database structure is defined by SQL migrations in:
 
 - `scripts/migrations/`
 - root-level SQL utility scripts in `scripts/`
+- booking bootstrap schema in `scripts/create-bookings-schema.sql`
 
 Always treat migration files as authoritative over secondary documentation.
 
@@ -41,6 +42,15 @@ Primary concern:
 - Installment plans
 - Payment methods
 - Audit logs and operational notes
+
+### Bookings Domain
+
+Primary concern:
+
+- Branch-aware appointment schedules
+- Booking services and slot rules
+- Customer appointment records
+- Reminder events, no-show flags, and booking audit logs
 
 ### Documents Domain
 

@@ -1253,7 +1253,12 @@ export default function BookingsClient({
           return
         }
         if (json.email_warning) {
-          toast.warning(`Appointment updated but email warning: ${json.email_warning}`)
+          const prefix = json.email_resent
+            ? 'Appointment updated and resend attempted, but email warning:'
+            : 'Appointment updated but email warning:'
+          toast.warning(`${prefix} ${json.email_warning}`)
+        } else if (json.email_resent) {
+          toast.success('Appointment updated and details re-sent to the new email')
         } else {
           toast.success('Appointment updated')
         }

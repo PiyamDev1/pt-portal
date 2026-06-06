@@ -81,6 +81,10 @@ function isValidPhone(value: string): boolean {
   return /^\+\d{1,4}\s[\d\s()-]{6,20}$/.test(value.trim());
 }
 
+function normalizeEmail(value: string | null | undefined): string {
+  return (value || '').trim().toLowerCase();
+}
+
 async function logBookingAudit(
   supabase: Awaited<ReturnType<typeof getRouteSupabaseClient>>,
   payload: {
@@ -208,6 +212,7 @@ export async function PATCH(
     const nextCustomerPhone = customer_phone ?? existing.customer_phone;
     const nextCustomerEmail = customer_email ?? existing.customer_email;
     const nextPersonCount = personCount ?? existing.person_count ?? 1;
+    const emailChanged = normalizeEmail(nextCustomerEmail) !== normalizeEmail(existing.customer_email);
 
     const { data: service, error: serviceError } = await supabase
       .from('booking_services')
@@ -416,18 +421,27 @@ export async function PATCH(
       .single();
 
     const emailKind =
-      nextStatus === BookingStatus.CANCELLED ? 'cancellation' : 'modification';
+      nextStatus === BookingStatus.CANCELLED
+        ? 'cancellation'
+        : emailChanged
+        ? 'confirmation'
+        : 'modification';
     const template =
       emailKind === 'cancellation'
         ? service.cancellation_template
+        : emailKind === 'confirmation'
+        ? service.confirmation_template
         : service.modification_template;
+    const emailSubject =
+      emailKind === 'cancellation'
+        ? 'Your appointment was cancelled'
+        : emailChanged
+        ? 'Your appointment details were re-sent'
+        : 'Your appointment was updated';
 
     const emailResult = await sendBookingEmail({
       to: nextCustomerEmail,
-      subject:
-        emailKind === 'cancellation'
-          ? 'Your appointment was cancelled'
-          : 'Your appointment was updated',
+      subject: emailSubject,
       kind: emailKind,
       template,
       customerName: nextCustomerName,
@@ -437,11 +451,6 @@ export async function PATCH(
       branchAddress: buildBranchAddress(location),
       branchContactNumber: location?.phone || 'Contact unavailable',
     });
-
-    const emailSubject =
-      emailKind === 'cancellation'
-        ? 'Your appointment was cancelled'
-        : 'Your appointment was updated';
 
     await supabase.from('booking_email_logs').insert({
       booking_id: id,
@@ -456,6 +465,8 @@ export async function PATCH(
         service_id: service.id,
         service_name: service.name,
         booking_status: nextStatus,
+        email_changed: emailChanged,
+        previous_customer_email: existing.customer_email,
       },
     });
 
@@ -490,12 +501,15 @@ export async function PATCH(
       },
       metadata: {
         email_kind: emailKind,
+        email_changed: emailChanged,
+        previous_customer_email: existing.customer_email,
       },
     });
 
     return NextResponse.json({
       success: true,
       booking: data,
+      email_resent: emailChanged,
       email_warning: emailResult.sent ? undefined : emailResult.reason,
     });
   } catch {

@@ -1,7 +1,7 @@
 # Security Architecture
 
 > PT-Portal security layers: auth, 2FA, sessions, rate limiting, admin access  
-> Last updated: March 2026
+> Last updated: June 2026
 
 ---
 

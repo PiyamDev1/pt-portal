@@ -18,6 +18,7 @@ When you log in, you'll see the main dashboard with several sections:
   - Pakistani Passports
   - GB Passports
   - Visa Services
+- **Bookings**: Manage branch appointments
 - **LMS** (Loan Management System): Payment tracking and management
 - **Pricing**: Configure service prices
 - **Settings**: System configuration and employee management
@@ -78,6 +79,8 @@ Click on any application to:
 - **Edit**: Modify application (if status allows)
 - **Add Notes**: Add internal notes
 - **Change Status**: Update application progress
+- **Manage Documents**: Open linked family document storage where available
+- **Receipts**: View or generate receipts where enabled
 - **Download**: Export application as PDF
 - **Delete**: Remove application (admin only)
 
@@ -120,6 +123,17 @@ Click on any application to:
 1. Select application
 2. Click **View History**
 3. See all status changes with dates and notes
+
+#### Manage Linked Documents
+
+1. Open a NADRA family row
+2. Click **Manage Documents**
+3. Upload or review files by category:
+   - Main documents
+   - Receipts
+   - Application review
+
+Storage status is shown in the document hub. If primary storage is temporarily unavailable, uploads may be routed through fallback storage.
 
 ---
 
@@ -171,6 +185,61 @@ Click on any application to:
 - See current stage in pipeline
 - Update with courier information when sent
 - Mark as received/delivered
+
+Recent work in the applications area has mainly focused on small operational fixes and workflow polishing rather than major new UI changes.
+
+---
+
+## Appointment Bookings
+
+The appointment bookings system is currently being built out and is not fully finished yet.
+
+### What You Can Do Today
+
+- View bookings by branch
+- Create an appointment
+- Choose a service and see available slots
+- Change booking status
+- Reschedule or amend a booking
+- Admins can manage booking settings for enabled branches
+
+### Booking Statuses
+
+| Status        | Meaning |
+| ------------- | ------- |
+| **Pending**   | Appointment created, awaiting confirmation |
+| **Confirmed** | Appointment confirmed |
+| **Completed** | Appointment completed |
+| **Cancelled** | Appointment cancelled |
+
+### Creating a Booking
+
+1. Go to **Bookings**
+2. Choose the branch if you have admin access
+3. Select the service
+4. Choose the appointment date
+5. Pick an available time slot
+6. Enter customer details:
+   - Name
+   - Phone number with country code
+   - Email address
+   - Person count if booking for a group/family
+7. Save the appointment
+
+### Booking Settings
+
+Admins can manage:
+
+- Weekly branch hours
+- One-off date overrides or closures
+- Available services and durations
+- Reminder templates
+- Attendance confirmation requirement
+- No-show penalty rules
+
+### Current Limitation
+
+This module is still under active development. Some workflows and policies, especially reminders/no-show handling and branch-level operating rules, may continue changing while the feature is being finished.
 
 ---
 
@@ -647,6 +716,6 @@ Most tables allow export:
 
 ---
 
-**Last Updated**: February 2026
+**Last Updated**: June 2026
 
 For the most current information, visit [PT-Portal Documentation](https://docs.ptportal.com)

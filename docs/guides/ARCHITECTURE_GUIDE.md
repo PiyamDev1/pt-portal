@@ -1,7 +1,7 @@
 # Architecture Guide
 
 > PT-Portal — Next.js 16 + Supabase + MinIO + Cloudflare R2  
-> Last updated: March 2026
+> Last updated: June 2026
 
 ---
 
@@ -23,7 +23,7 @@
 
 ## System Overview
 
-PT-Portal is an internal business portal for Piyam Travels, managing travel documents, NADRA applications, passport processing, visa tracking, loan management, commissions, timeclock, employee records and document storage.
+PT-Portal is an internal business portal for Piyam Travels, managing travel documents, NADRA applications, passport processing, visa tracking, loan management, appointment bookings, timeclock, employee records and document storage.
 
 ```
 ┌────────────────────────────────────────────────────────────┐
@@ -110,6 +110,7 @@ pt-portal/
 │   │   ├── admin/              Admin utilities (employee, LMS seeding)
 │   │   ├── auth/               Auth (2FA, backup codes, sessions, passwords)
 │   │   ├── documents/          Document CRUD + storage operations
+│   │   ├── bookings/           Appointment booking APIs
 │   │   ├── lms/                Loan Management System
 │   │   ├── nadra/              NADRA application management
 │   │   ├── passports/          Pakistani + GB passport management
@@ -136,6 +137,7 @@ pt-portal/
 │   │   │   ├── passports/      Pakistani passports
 │   │   │   ├── passports-gb/   GB passports
 │   │   │   └── visa/           Visa applications
+│   │   ├── bookings/           Appointment calendar + booking operations
 │   │   ├── commissions/        Commission tracking
 │   │   ├── lms/                Loan management & statements
 │   │   ├── pricing/            Pricing management
@@ -250,6 +252,9 @@ Supabase (PostgreSQL) hosts all application data.
 | `passports`          | Pakistani passport applications                             |
 | `gb_passports`       | GB passport applications                                    |
 | `visa_applications`  | Visa applications                                           |
+| `bookings`           | Appointment records per branch/service                      |
+| `booking_services`   | Appointment service definitions and timing rules            |
+| `branch_settings`    | Weekly branch appointment schedule                          |
 | `lms_accounts`       | Loan management accounts                                    |
 | `installments`       | Individual payment installments                             |
 | `timeclock_events`   | Clock-in/out records                                        |
@@ -284,12 +289,25 @@ documents (
 | Pakistani Passports | `/dashboard/applications/passports`            | PAK passport applications                        |
 | GB Passports        | `/dashboard/applications/passports-gb`         | GB passport applications                         |
 | Visas               | `/dashboard/applications/visa`                 | Visa applications                                |
+| Bookings            | `/dashboard/bookings`                          | Branch-aware appointment scheduling              |
 | LMS                 | `/dashboard/lms`                               | Loan management, installments, statements        |
 | Timeclock           | `/dashboard/timeclock`                         | QR clock-in/out, manual entry, team view         |
 | Commissions         | `/dashboard/commissions`                       | Agent commission tracking                        |
 | Pricing             | `/dashboard/pricing`                           | Service pricing management                       |
 | Settings            | `/dashboard/settings`                          | System configuration                             |
 | Ticketing           | `/dashboard/ticketing`                         | Support tickets                                  |
+
+### Appointment Bookings Notes
+
+- The bookings module is the main feature currently under active development
+- Current implementation includes branch schedules, one-off overrides, slot generation, reminder settings, attendance confirmation links, no-show penalty tracking, and audit logging
+- The feature is still unfinished and should be treated as an active work area rather than a fully settled product area
+
+### Applications Notes
+
+- NADRA, Pakistani passports, GB passports, and visas remain active operational modules
+- Recent work in applications has mostly been small workflow and storage-adjacent fixes rather than major architecture changes
+- Supporting flows include notes/history/refund-related endpoints, document linkage, and receipt generation across key service types
 
 ---
 
@@ -1092,6 +1110,6 @@ return (
 
 ---
 
-**Last Updated**: February 2026
+**Last Updated**: June 2026
 
 For questions or updates, check the [GitHub repository](https://github.com/PiyamDev1/pt-portal)

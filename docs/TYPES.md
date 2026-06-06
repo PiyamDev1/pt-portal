@@ -1,6 +1,6 @@
 # Type System Guide
 
-Last updated: March 2026
+Last updated: June 2026
 
 ## Goals
 
