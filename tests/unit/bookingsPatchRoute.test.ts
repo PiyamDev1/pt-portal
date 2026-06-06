@@ -202,4 +202,58 @@ describe('PATCH /api/bookings/[id]', () => {
       }),
     )
   })
+
+  it('does not send customer email for notes-only changes', async () => {
+    const request = new Request('http://localhost/api/bookings/booking-1', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        notes: 'Internal follow-up required',
+        if_unmodified_since: '2026-06-06T09:00:00.000Z',
+      }),
+    })
+
+    const response = await PATCH(request as never, { params: Promise.resolve({ id: 'booking-1' }) })
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.success).toBe(true)
+    expect(mocks.sendBookingEmail).not.toHaveBeenCalled()
+    expect(mocks.bookingEmailLogsInsert).not.toHaveBeenCalled()
+  })
+
+  it('rejects invalid state transitions', async () => {
+    mocks.bookingEqSingle.mockResolvedValueOnce({
+      data: {
+        id: 'booking-1',
+        location_id: 'location-1',
+        status: 'completed',
+        customer_name: 'Alex Carter',
+        customer_phone: '+44 7123456789',
+        customer_email: 'old@example.com',
+        service_id: 'service-1',
+        person_count: 1,
+        start_time: '2026-06-06T10:00:00.000Z',
+        end_time: '2026-06-06T10:30:00.000Z',
+        notes: null,
+        updated_at: '2026-06-06T09:00:00.000Z',
+      },
+      error: null,
+    })
+
+    const request = new Request('http://localhost/api/bookings/booking-1', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        status: 'cancelled',
+        if_unmodified_since: '2026-06-06T09:00:00.000Z',
+      }),
+    })
+
+    const response = await PATCH(request as never, { params: Promise.resolve({ id: 'booking-1' }) })
+    const body = await response.json()
+
+    expect(response.status).toBe(400)
+    expect(body.error).toContain('Cannot move appointment from completed to cancelled')
+  })
 })

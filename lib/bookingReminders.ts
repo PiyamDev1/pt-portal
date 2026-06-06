@@ -19,6 +19,8 @@ export interface BookingReminderSettings {
   location_id: string
   reminders_enabled: boolean
   reminder_hours_before: number
+  same_day_reminder_enabled: boolean
+  same_day_reminder_hours_before: number
   reminder_subject: string
   reminder_template: string
   attendance_confirmation_required: boolean
@@ -33,6 +35,8 @@ export function defaultReminderSettings(locationId: string): BookingReminderSett
     location_id: locationId,
     reminders_enabled: true,
     reminder_hours_before: 24,
+    same_day_reminder_enabled: true,
+    same_day_reminder_hours_before: 2,
     reminder_subject: DEFAULT_REMINDER_SUBJECT,
     reminder_template: DEFAULT_REMINDER_TEMPLATE,
     attendance_confirmation_required: true,

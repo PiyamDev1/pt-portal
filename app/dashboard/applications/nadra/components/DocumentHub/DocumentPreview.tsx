@@ -93,7 +93,9 @@ export function DocumentPreview({
   // Determine if document is an image
   const isImage = document?.fileType?.startsWith('image/')
   const isPDF = document?.fileType?.includes('pdf')
-  const previewSrc = `/api/documents/preview?key=${encodeURIComponent(document.minio.key)}`
+  const previewSrc = document
+    ? `/api/documents/preview?key=${encodeURIComponent(document.minio.key)}`
+    : ''
 
   // Empty state
   if (!document) {

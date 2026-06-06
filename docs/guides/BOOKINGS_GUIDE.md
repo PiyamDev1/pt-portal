@@ -23,7 +23,9 @@ This module is usable for development and internal rollout work, but it should s
 - Prevent overlapping bookings beyond branch/service tolerance rules
 - Reschedule and amend existing bookings
 - Update status between `pending`, `confirmed`, `completed`, and `cancelled`
+- Enforce stricter status transition rules and explicit reschedule tracking
 - Use optimistic conflict protection with `updated_at` checks on booking edits
+- Support internal tags, booking history, and manual re-send actions
 
 ### Branch-aware scheduling
 
@@ -49,6 +51,7 @@ This module is usable for development and internal rollout work, but it should s
 - Booking confirmation, modification, and cancellation emails are supported
 - Service-level email templates can be customized with approved placeholders
 - Reminder settings are stored per branch
+- Reminder settings now support both advance reminders and same-day reminders
 - Reminder cron exists at `/api/cron/bookings/reminders`
 - Attendance confirmation links are handled through `/api/bookings/attendance/respond`
 - Repeat no-shows can be flagged through `booking_contact_flags`
@@ -58,6 +61,7 @@ This module is usable for development and internal rollout work, but it should s
 - Booking telemetry events are logged via `/api/bookings/telemetry`
 - Booking audit trail is stored in `booking_audit_logs`
 - Booking email delivery attempts are stored in `booking_email_logs`
+- Booking idempotency keys are stored in `booking_idempotency_keys`
 
 ## Current UI Surface
 
@@ -68,6 +72,9 @@ The bookings dashboard currently includes:
 - Slot lookup by branch, service, date, and group size
 - Status update actions
 - Reschedule/amend flows
+- Manual email re-send from the dashboard
+- Booking activity/email history modal
+- Search, status/service/source filters, saved views, CSV export, and summary reporting
 - Admin access to booking settings through the shared booking settings tab
 
 Admins can switch between appointment-enabled branches. Non-admin users are scoped to their effective branch location.
@@ -79,7 +86,11 @@ Main routes currently implemented:
 - `GET /api/bookings`
 - `POST /api/bookings`
 - `PATCH /api/bookings/[id]`
+- `GET /api/bookings/[id]/history`
+- `POST /api/bookings/[id]/resend`
 - `GET /api/bookings/available-slots`
+- `GET /api/bookings/export`
+- `GET /api/bookings/report`
 - `GET|PATCH /api/bookings/settings/branch`
 - `GET|POST /api/bookings/settings/overrides`
 - `GET|POST /api/bookings/settings/services`
@@ -99,6 +110,7 @@ Main tables involved:
 - `branch_settings`
 - `branch_schedule_overrides`
 - `booking_email_logs`
+- `booking_idempotency_keys`
 - `booking_reminder_settings`
 - `booking_reminder_events`
 - `booking_contact_flags`
@@ -112,6 +124,7 @@ Recent incremental booking migrations:
 
 - `scripts/migrations/20260602_add_booking_audit_logs.sql`
 - `scripts/migrations/20260602_add_booking_reminders_and_penalties.sql`
+- `scripts/migrations/20260606_upgrade_booking_operations.sql`
 
 ## Known Current State
 
@@ -120,6 +133,7 @@ The most important caveats right now are:
 - The module is still being actively built out
 - Schema compatibility guards are present in the API and may return warnings/setup hints when booking tables or newer columns are missing
 - Reminder and no-show flows exist, but operational policy around manual review is still being refined
+- SMS delivery is still not implemented; reminder and resend flows are email-only right now
 - The UI is substantial, but it should still be treated as an active work area rather than a fully settled module
 
 ## Related Files

@@ -123,11 +123,20 @@ CREATE TABLE IF NOT EXISTS bookings (
   customer_email  TEXT,
   service_id      UUID NOT NULL REFERENCES booking_services(id) ON DELETE RESTRICT,
   person_count    INTEGER NOT NULL DEFAULT 1,
+  tags            TEXT[] NOT NULL DEFAULT '{}',
   start_time      TIMESTAMPTZ NOT NULL,
   end_time        TIMESTAMPTZ NOT NULL,
   status          booking_status NOT NULL DEFAULT 'pending',
   source          booking_source NOT NULL DEFAULT 'portal',
   notes           TEXT,
+  last_email_sent_at TIMESTAMPTZ,
+  last_email_kind TEXT,
+  last_email_status TEXT,
+  last_email_error TEXT,
+  last_email_subject TEXT,
+  last_email_recipient TEXT,
+  last_rescheduled_at TIMESTAMPTZ,
+  reschedule_count INTEGER NOT NULL DEFAULT 0,
   created_at      TIMESTAMPTZ DEFAULT NOW(),
   updated_at      TIMESTAMPTZ DEFAULT NOW()
 );
@@ -135,7 +144,16 @@ CREATE TABLE IF NOT EXISTS bookings (
 ALTER TABLE bookings
   ADD COLUMN IF NOT EXISTS location_id UUID REFERENCES locations(id) ON DELETE RESTRICT,
   ADD COLUMN IF NOT EXISTS customer_email TEXT,
-  ADD COLUMN IF NOT EXISTS person_count INTEGER NOT NULL DEFAULT 1;
+  ADD COLUMN IF NOT EXISTS person_count INTEGER NOT NULL DEFAULT 1,
+  ADD COLUMN IF NOT EXISTS tags TEXT[] NOT NULL DEFAULT '{}',
+  ADD COLUMN IF NOT EXISTS last_email_sent_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS last_email_kind TEXT,
+  ADD COLUMN IF NOT EXISTS last_email_status TEXT,
+  ADD COLUMN IF NOT EXISTS last_email_error TEXT,
+  ADD COLUMN IF NOT EXISTS last_email_subject TEXT,
+  ADD COLUMN IF NOT EXISTS last_email_recipient TEXT,
+  ADD COLUMN IF NOT EXISTS last_rescheduled_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS reschedule_count INTEGER NOT NULL DEFAULT 0;
 
 -- Add address/contact fields to locations if not already present
 ALTER TABLE locations
@@ -157,13 +175,25 @@ CREATE TABLE IF NOT EXISTS booking_email_logs (
   booking_id     UUID NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
   location_id    UUID REFERENCES locations(id) ON DELETE SET NULL,
   customer_email TEXT NOT NULL,
-  email_kind     TEXT NOT NULL CHECK (email_kind IN ('confirmation', 'modification', 'cancellation')),
+  email_kind     TEXT NOT NULL CHECK (email_kind IN ('confirmation', 'modification', 'cancellation', 'reminder')),
   email_subject  TEXT NOT NULL,
   sender_email   TEXT NOT NULL,
   status         TEXT NOT NULL CHECK (status IN ('sent', 'failed')),
   failure_reason TEXT,
   metadata       JSONB NOT NULL DEFAULT '{}'::jsonb,
   created_at     TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS booking_idempotency_keys (
+  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  action_name     TEXT NOT NULL,
+  idempotency_key TEXT NOT NULL,
+  location_id     UUID REFERENCES locations(id) ON DELETE CASCADE,
+  booking_id      UUID REFERENCES bookings(id) ON DELETE CASCADE,
+  response_code   INTEGER NOT NULL DEFAULT 200,
+  metadata        JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at      TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (action_name, idempotency_key)
 );
 
 -- ============================================================
@@ -174,6 +204,8 @@ CREATE TABLE IF NOT EXISTS booking_reminder_settings (
   location_id                    UUID PRIMARY KEY REFERENCES locations(id) ON DELETE CASCADE,
   reminders_enabled              BOOLEAN NOT NULL DEFAULT true,
   reminder_hours_before          INTEGER NOT NULL DEFAULT 24 CHECK (reminder_hours_before BETWEEN 1 AND 168),
+  same_day_reminder_enabled      BOOLEAN NOT NULL DEFAULT true,
+  same_day_reminder_hours_before INTEGER NOT NULL DEFAULT 2 CHECK (same_day_reminder_hours_before BETWEEN 1 AND 12),
   reminder_subject               TEXT NOT NULL DEFAULT 'Appointment reminder: [service booked] on [date booked] at [time booked]',
   reminder_template              TEXT NOT NULL DEFAULT 'Dear [Customer Name],\n\nThis is a reminder that your [service booked] appointment is scheduled for [date booked] at [time booked] at [branch name].\n\nIf you cannot attend, please contact us as soon as possible.\n\nKind regards,\nPiyam Travel',
   attendance_confirmation_required BOOLEAN NOT NULL DEFAULT true,
@@ -191,6 +223,8 @@ CREATE TABLE IF NOT EXISTS booking_reminder_events (
   location_id          UUID NOT NULL REFERENCES locations(id) ON DELETE CASCADE,
   reminder_sent_at     TIMESTAMPTZ,
   reminder_hours_before INTEGER,
+  same_day_reminder_sent_at TIMESTAMPTZ,
+  same_day_reminder_hours_before INTEGER,
   response_token       TEXT UNIQUE,
   response_status      TEXT NOT NULL DEFAULT 'unknown' CHECK (response_status IN ('unknown', 'present', 'missed')),
   responded_at         TIMESTAMPTZ,
@@ -232,6 +266,7 @@ CREATE INDEX IF NOT EXISTS idx_bookings_service_id     ON bookings (service_id);
 CREATE INDEX IF NOT EXISTS idx_overrides_location_date ON branch_schedule_overrides (location_id, date);
 CREATE INDEX IF NOT EXISTS idx_booking_email_logs_booking_id ON booking_email_logs (booking_id);
 CREATE INDEX IF NOT EXISTS idx_booking_email_logs_location_created ON booking_email_logs (location_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_booking_idempotency_keys_created ON booking_idempotency_keys (created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_booking_reminder_events_location_created ON booking_reminder_events (location_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_booking_contact_flags_penalty ON booking_contact_flags (location_id, penalty_applied, missed_count DESC);
 
@@ -274,6 +309,7 @@ ALTER TABLE branch_schedule_overrides ENABLE ROW LEVEL SECURITY;
 ALTER TABLE booking_services          ENABLE ROW LEVEL SECURITY;
 ALTER TABLE bookings                  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE booking_email_logs        ENABLE ROW LEVEL SECURITY;
+ALTER TABLE booking_idempotency_keys  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE booking_reminder_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE booking_reminder_events   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE booking_contact_flags     ENABLE ROW LEVEL SECURITY;
@@ -288,6 +324,7 @@ DO $$ DECLARE r RECORD; BEGIN
       'booking_services',
       'bookings',
       'booking_email_logs',
+      'booking_idempotency_keys',
       'booking_reminder_settings',
       'booking_reminder_events',
       'booking_contact_flags'
@@ -313,6 +350,9 @@ CREATE POLICY "Authenticated can read bookings"
 CREATE POLICY "Authenticated can read booking email logs"
   ON booking_email_logs FOR SELECT TO authenticated USING (true);
 
+CREATE POLICY "Authenticated can read booking idempotency keys"
+  ON booking_idempotency_keys FOR SELECT TO authenticated USING (true);
+
 CREATE POLICY "Authenticated can read booking reminder settings"
   ON booking_reminder_settings FOR SELECT TO authenticated USING (true);
 
@@ -328,6 +368,9 @@ CREATE POLICY "Authenticated can manage bookings"
 
 CREATE POLICY "Authenticated can manage booking email logs"
   ON booking_email_logs FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+CREATE POLICY "Authenticated can manage booking idempotency keys"
+  ON booking_idempotency_keys FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
 CREATE POLICY "Authenticated can manage booking reminder settings"
   ON booking_reminder_settings FOR ALL TO authenticated USING (true) WITH CHECK (true);
@@ -350,6 +393,9 @@ CREATE POLICY "Service role can manage booking services"
 
 CREATE POLICY "Service role can manage booking email logs"
   ON booking_email_logs FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+CREATE POLICY "Service role can manage booking idempotency keys"
+  ON booking_idempotency_keys FOR ALL TO service_role USING (true) WITH CHECK (true);
 
 CREATE POLICY "Service role can manage booking reminder settings"
   ON booking_reminder_settings FOR ALL TO service_role USING (true) WITH CHECK (true);

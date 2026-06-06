@@ -17,6 +17,9 @@ function sanitizeReminderSettings(input: BookingReminderSettings): BookingRemind
   const reminderHours = Number.isFinite(input.reminder_hours_before)
     ? Math.min(168, Math.max(1, Math.round(input.reminder_hours_before)))
     : 24
+  const sameDayHours = Number.isFinite(input.same_day_reminder_hours_before)
+    ? Math.min(12, Math.max(1, Math.round(input.same_day_reminder_hours_before)))
+    : 2
 
   const threshold = Number.isFinite(input.penalty_threshold)
     ? Math.min(20, Math.max(1, Math.round(input.penalty_threshold)))
@@ -30,6 +33,8 @@ function sanitizeReminderSettings(input: BookingReminderSettings): BookingRemind
     ...input,
     reminders_enabled: input.reminders_enabled !== false,
     reminder_hours_before: reminderHours,
+    same_day_reminder_enabled: input.same_day_reminder_enabled !== false,
+    same_day_reminder_hours_before: sameDayHours,
     reminder_subject: (input.reminder_subject || '').trim() || defaultReminderSettings(input.location_id).reminder_subject,
     reminder_template: (input.reminder_template || '').trim() || defaultReminderSettings(input.location_id).reminder_template,
     attendance_confirmation_required: input.attendance_confirmation_required !== false,

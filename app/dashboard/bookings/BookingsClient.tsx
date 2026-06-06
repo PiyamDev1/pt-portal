@@ -6,6 +6,7 @@ import { BookingStatus, BookingSource } from '@/app/types/bookings'
 import BookingSettingsTab, {
   type BranchLocationOption,
 } from '@/app/dashboard/settings/components/BookingSettingsTab'
+import BookingHistoryModal from '@/app/dashboard/bookings/BookingHistoryModal'
 
 interface BookingWithService {
   id: string
@@ -14,11 +15,16 @@ interface BookingWithService {
   customer_email: string
   service_id: string
   person_count?: number
+  tags?: string[]
   start_time: string
   end_time: string
   status: BookingStatus
   source: BookingSource
   notes: string | null
+  last_email_sent_at?: string | null
+  last_email_status?: string | null
+  last_email_subject?: string | null
+  reschedule_count?: number
   created_at: string
   updated_at?: string
   booking_services: { name: string; duration_minutes: number } | null
@@ -488,12 +494,33 @@ export default function BookingsClient({
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null)
   const [showSettings, setShowSettings] = useState(false)
   const [sourceFilter, setSourceFilter] = useState<'all' | BookingSource>('all')
+  const [statusFilter, setStatusFilter] = useState<'all' | BookingStatus>('all')
+  const [serviceFilter, setServiceFilter] = useState('all')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [showCancelled, setShowCancelled] = useState(true)
+  const [savedViews, setSavedViews] = useState<Array<{
+    name: string
+    source: 'all' | BookingSource
+    status: 'all' | BookingStatus
+    serviceId: string
+    searchQuery: string
+    showCancelled: boolean
+  }>>([])
+  const [bookingReport, setBookingReport] = useState<{
+    totals: Record<string, number>
+    by_status: Record<string, number>
+    by_source: Record<string, number>
+    by_service: Record<string, number>
+  } | null>(null)
+  const [reportLoading, setReportLoading] = useState(false)
   const [selectedLocationId, setSelectedLocationId] = useState<string>(
     userLocationId || branchLocations[0]?.id || ''
   )
   const [serviceOptions, setServiceOptions] = useState<BookingServiceOption[]>([])
   const [showAppointmentModal, setShowAppointmentModal] = useState(false)
   const [editingBooking, setEditingBooking] = useState<BookingWithService | null>(null)
+  const [historyBookingId, setHistoryBookingId] = useState<string | null>(null)
+  const [resendingBookingId, setResendingBookingId] = useState<string | null>(null)
   const [savingBooking, setSavingBooking] = useState(false)
   const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false)
   const [refreshCountdown, setRefreshCountdown] = useState(120)
@@ -527,6 +554,7 @@ export default function BookingsClient({
     phone_local: '',
     service_id: '',
     notes: '',
+    tags: '',
     date: '',
     start_time: '',
     end_time: '',
@@ -589,6 +617,13 @@ export default function BookingsClient({
       if (selectedLocationId) {
         params.set('location_id', selectedLocationId)
       }
+      params.set('status', statusFilter)
+      params.set('source', sourceFilter)
+      params.set('service_id', serviceFilter)
+      params.set('include_cancelled', String(showCancelled))
+      if (searchQuery.trim()) {
+        params.set('q', searchQuery.trim())
+      }
 
       const res = await fetch(`/api/bookings?${params.toString()}`, { cache: 'no-store' })
       if (res.status === 429) {
@@ -608,7 +643,7 @@ export default function BookingsClient({
         setLoading(false)
       }
     }
-  }, [fromISO, toISO, selectedLocationId])
+  }, [fromISO, searchQuery, selectedLocationId, serviceFilter, showCancelled, sourceFilter, statusFilter, toISO])
 
   const fetchServices = useCallback(async () => {
     if (!selectedLocationId) return
@@ -621,6 +656,28 @@ export default function BookingsClient({
       setServiceOptions([])
     }
   }, [selectedLocationId])
+
+  const fetchBookingReport = useCallback(async () => {
+    if (!selectedLocationId) {
+      setBookingReport(null)
+      return
+    }
+    setReportLoading(true)
+    try {
+      const params = new URLSearchParams({
+        from: fromISO,
+        to: toISO,
+        location_id: selectedLocationId,
+      })
+      const res = await fetch(`/api/bookings/report?${params.toString()}`, { cache: 'no-store' })
+      const json = await res.json()
+      if (res.ok) {
+        setBookingReport(json)
+      }
+    } finally {
+      setReportLoading(false)
+    }
+  }, [fromISO, selectedLocationId, toISO])
 
   const fetchBookingsThrottled = useCallback(() => {
     const now = Date.now()
@@ -636,6 +693,26 @@ export default function BookingsClient({
   useEffect(() => {
     fetchServices()
   }, [fetchServices])
+
+  useEffect(() => {
+    fetchBookingReport()
+  }, [fetchBookingReport])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const raw = window.localStorage.getItem('bookings:saved-views')
+    if (!raw) return
+    try {
+      setSavedViews(JSON.parse(raw))
+    } catch {
+      setSavedViews([])
+    }
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    window.localStorage.setItem('bookings:saved-views', JSON.stringify(savedViews))
+  }, [savedViews])
 
   useEffect(() => {
     if (!showSettings) {
@@ -776,6 +853,7 @@ export default function BookingsClient({
       phone_local: '',
       service_id: options?.service_id ?? serviceOptions[0]?.id ?? '',
       notes: draftNotes,
+      tags: '',
       date: safeDate,
       start_time: safeStartTime,
       end_time: '',
@@ -796,7 +874,24 @@ export default function BookingsClient({
   }, [appointmentForm.person_count, appointmentForm.service_id, serviceOptions])
 
   const allActiveBookings = bookings.filter((b) => b.status !== BookingStatus.CANCELLED)
-  const visibleBookings = bookings.filter((b) => sourceFilter === 'all' || b.source === sourceFilter)
+  const visibleBookings = bookings.filter((b) => {
+    if (sourceFilter !== 'all' && b.source !== sourceFilter) return false
+    if (statusFilter !== 'all' && b.status !== statusFilter) return false
+    if (serviceFilter !== 'all' && b.service_id !== serviceFilter) return false
+    if (!showCancelled && b.status === BookingStatus.CANCELLED) return false
+    if (searchQuery.trim()) {
+      const haystack = [
+        b.customer_name,
+        b.customer_phone,
+        b.customer_email,
+        b.notes || '',
+        b.booking_services?.name || '',
+        Array.isArray(b.tags) ? b.tags.join(' ') : '',
+      ].join(' ').toLowerCase()
+      if (!haystack.includes(searchQuery.trim().toLowerCase())) return false
+    }
+    return true
+  })
   const activeBookings = visibleBookings.filter((b) => b.status !== BookingStatus.CANCELLED)
   const cancelledBookings = visibleBookings.filter((b) => b.status === BookingStatus.CANCELLED)
 
@@ -816,6 +911,68 @@ export default function BookingsClient({
       // Ignore telemetry transport issues.
     }
   }, [])
+
+  const saveCurrentView = useCallback(() => {
+    const name = window.prompt('Name this booking view')
+    if (!name) return
+    setSavedViews((prev) => [
+      ...prev.filter((view) => view.name !== name),
+      {
+        name,
+        source: sourceFilter,
+        status: statusFilter,
+        serviceId: serviceFilter,
+        searchQuery,
+        showCancelled,
+      },
+    ])
+  }, [searchQuery, serviceFilter, showCancelled, sourceFilter, statusFilter])
+
+  const applySavedView = useCallback((name: string) => {
+    const viewConfig = savedViews.find((view) => view.name === name)
+    if (!viewConfig) return
+    setSourceFilter(viewConfig.source)
+    setStatusFilter(viewConfig.status)
+    setServiceFilter(viewConfig.serviceId)
+    setSearchQuery(viewConfig.searchQuery)
+    setShowCancelled(viewConfig.showCancelled)
+  }, [savedViews])
+
+  const removeSavedView = useCallback((name: string) => {
+    setSavedViews((prev) => prev.filter((view) => view.name !== name))
+  }, [])
+
+  const exportBookings = useCallback(() => {
+    const params = new URLSearchParams({ from: fromISO, to: toISO })
+    if (selectedLocationId) params.set('location_id', selectedLocationId)
+    params.set('status', statusFilter)
+    params.set('source', sourceFilter)
+    window.open(`/api/bookings/export?${params.toString()}`, '_blank', 'noopener,noreferrer')
+  }, [fromISO, selectedLocationId, sourceFilter, statusFilter, toISO])
+
+  const resendBookingEmail = useCallback(async (booking: BookingWithService, kind?: 'confirmation' | 'modification' | 'cancellation') => {
+    setResendingBookingId(booking.id)
+    try {
+      const res = await fetch(`/api/bookings/${booking.id}/resend`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kind }),
+      })
+      const json = await res.json()
+      if (!res.ok) {
+        toast.error(json.error || 'Failed to resend appointment email')
+        return
+      }
+      if (json.email_warning) {
+        toast.warning(`Email resend warning: ${json.email_warning}`)
+      } else {
+        toast.success('Appointment email re-sent')
+      }
+      await fetchBookings(false)
+    } finally {
+      setResendingBookingId(null)
+    }
+  }, [fetchBookings])
 
   const requireDoubleConfirm = useCallback((firstPrompt: string) => {
     if (!window.confirm(firstPrompt)) return false
@@ -896,6 +1053,7 @@ export default function BookingsClient({
       phone_local: local,
       service_id: booking.service_id,
       notes: booking.notes || '',
+      tags: Array.isArray(booking.tags) ? booking.tags.join(', ') : '',
       date: booking.start_time.slice(0, 10),
       start_time: booking.start_time,
       end_time: booking.end_time,
@@ -1214,6 +1372,7 @@ export default function BookingsClient({
         customer_email: editingBooking.customer_email,
         service_id: editingBooking.service_id,
         notes: editingBooking.notes,
+        tags: editingBooking.tags,
         start_time: editingBooking.start_time,
         person_count: editingBooking.person_count,
       } : null
@@ -1233,6 +1392,7 @@ export default function BookingsClient({
             customer_email: appointmentForm.customer_email,
             service_id: appointmentForm.service_id,
             notes: appointmentForm.notes.trim() || null,
+            tags: appointmentForm.tags.split(',').map((tag) => tag.trim()).filter(Boolean),
             start_time: appointmentForm.manual_override ? manualStartIso : appointmentForm.start_time,
             end_time: appointmentForm.manual_override ? manualEndIso : undefined,
             manual_override: appointmentForm.manual_override,
@@ -1291,6 +1451,7 @@ export default function BookingsClient({
             customer_email: appointmentForm.customer_email,
             service_id: appointmentForm.service_id,
             notes: appointmentForm.notes.trim() || null,
+            tags: appointmentForm.tags.split(',').map((tag) => tag.trim()).filter(Boolean),
             start_time: appointmentForm.manual_override ? manualStartIso : appointmentForm.start_time,
             end_time: appointmentForm.manual_override ? manualEndIso : undefined,
             manual_override: appointmentForm.manual_override,
@@ -1370,6 +1531,9 @@ export default function BookingsClient({
   const sourceFilterLabel = sourceFilter === 'all'
     ? 'All sources'
     : sourceFilter.charAt(0).toUpperCase() + sourceFilter.slice(1)
+  const statusFilterLabel = statusFilter === 'all'
+    ? 'All statuses'
+    : STATUS_CONFIG[statusFilter]?.label || statusFilter
 
   useEffect(() => {
     if (!panelServiceId && serviceOptions.length > 0) {
@@ -1456,6 +1620,7 @@ export default function BookingsClient({
                 <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
                   <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-600">{view === 'multi' ? <CalendarIcon className="h-3.5 w-3.5" /> : view === 'week' ? <WeekIcon className="h-3.5 w-3.5" /> : <ListIcon className="h-3.5 w-3.5" />}{view === 'multi' ? 'Calendar overview' : view === 'week' ? 'Week timeline' : 'Appointment list'}</span>
                   <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-600"><FilterIcon className="h-3.5 w-3.5" />{sourceFilterLabel}</span>
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-600"><FilterIcon className="h-3.5 w-3.5" />{statusFilterLabel}</span>
                   {selectedLocationId && <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-600"><PinIcon className="h-3.5 w-3.5" />Location active</span>}
                 </div>
               </div>
@@ -1542,6 +1707,15 @@ export default function BookingsClient({
             )}
 
             {!showSettings && (
+              <input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search customer, email, phone, notes"
+                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 sm:text-sm"
+              />
+            )}
+
+            {!showSettings && (
               <div className="relative">
                 <FilterIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <select
@@ -1555,6 +1729,63 @@ export default function BookingsClient({
                   <option value={BookingSource.WEBSITE}>Website</option>
                 </select>
               </div>
+            )}
+
+            {!showSettings && (
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as 'all' | BookingStatus)}
+                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 sm:text-sm"
+              >
+                <option value="all">All statuses</option>
+                <option value={BookingStatus.PENDING}>Pending</option>
+                <option value={BookingStatus.CONFIRMED}>Confirmed</option>
+                <option value={BookingStatus.COMPLETED}>Completed</option>
+                <option value={BookingStatus.CANCELLED}>Cancelled</option>
+              </select>
+            )}
+
+            {!showSettings && (
+              <select
+                value={serviceFilter}
+                onChange={(e) => setServiceFilter(e.target.value)}
+                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 sm:text-sm"
+              >
+                <option value="all">All services</option>
+                {serviceOptions.map((service) => (
+                  <option key={service.id} value={service.id}>{service.name}</option>
+                ))}
+              </select>
+            )}
+
+            {!showSettings && (
+              <label className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 sm:text-sm">
+                <input
+                  type="checkbox"
+                  checked={showCancelled}
+                  onChange={(e) => setShowCancelled(e.target.checked)}
+                  className="h-4 w-4 rounded border-slate-300 text-indigo-600"
+                />
+                Show cancelled
+              </label>
+            )}
+
+            {!showSettings && (
+              <button
+                onClick={saveCurrentView}
+                className="ui-tap ui-focus inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50 sm:text-sm"
+              >
+                Save View
+              </button>
+            )}
+
+            {!showSettings && (
+              <button
+                onClick={exportBookings}
+                className="ui-tap ui-focus inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50 sm:text-sm"
+              >
+                Export CSV
+              </button>
             )}
             </div>
 
@@ -1580,6 +1811,49 @@ export default function BookingsClient({
                 Confirmed {confirmedVisible}
               </span>
             </div>
+
+            {!showSettings && savedViews.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200/80 bg-white/80 px-4 py-3 text-xs text-slate-500 shadow-sm">
+                <span className="font-medium text-slate-600">Saved views</span>
+                {savedViews.map((view) => (
+                  <div key={view.name} className="inline-flex items-center overflow-hidden rounded-full border border-slate-200 bg-white">
+                    <button
+                      onClick={() => applySavedView(view.name)}
+                      className="px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                    >
+                      {view.name}
+                    </button>
+                    <button
+                      onClick={() => removeSavedView(view.name)}
+                      className="border-l border-slate-200 px-2 py-1.5 text-xs text-slate-400 hover:bg-rose-50 hover:text-rose-600"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {!showSettings && (
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                <div className="rounded-2xl border border-slate-200 bg-white/85 px-4 py-3 shadow-sm">
+                  <p className="text-xs uppercase tracking-wide text-slate-400">Total</p>
+                  <p className="mt-2 text-2xl font-semibold text-slate-900">{reportLoading ? '…' : bookingReport?.totals?.total ?? 0}</p>
+                </div>
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 shadow-sm">
+                  <p className="text-xs uppercase tracking-wide text-amber-700">Pending</p>
+                  <p className="mt-2 text-2xl font-semibold text-amber-800">{reportLoading ? '…' : bookingReport?.totals?.pending ?? 0}</p>
+                </div>
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 shadow-sm">
+                  <p className="text-xs uppercase tracking-wide text-emerald-700">Confirmed</p>
+                  <p className="mt-2 text-2xl font-semibold text-emerald-800">{reportLoading ? '…' : bookingReport?.totals?.confirmed ?? 0}</p>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 shadow-sm">
+                  <p className="text-xs uppercase tracking-wide text-slate-500">Modified 24h</p>
+                  <p className="mt-2 text-2xl font-semibold text-slate-800">{reportLoading ? '…' : bookingReport?.totals?.recently_modified ?? 0}</p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -1755,6 +2029,9 @@ export default function BookingsClient({
               updatingId={updatingId}
               onStatusChange={updateStatus}
               onEditBooking={openEditBooking}
+              onOpenHistory={(bookingId) => setHistoryBookingId(bookingId)}
+              onResendEmail={resendBookingEmail}
+              resendingBookingId={resendingBookingId}
               selectedDateCount={selectedDateCount}
               onOpenDayAgenda={() => openDayAgenda(selectedDate)}
               enableQuickAvailability={false}
@@ -1910,6 +2187,9 @@ export default function BookingsClient({
                             booking={booking}
                             onStatusChange={updateStatus}
                             onEditBooking={openEditBooking}
+                            onOpenHistory={(bookingId) => setHistoryBookingId(bookingId)}
+                            onResendEmail={resendBookingEmail}
+                            resendingBookingId={resendingBookingId}
                             updatingId={updatingId}
                           />
                         ))}
@@ -2000,6 +2280,17 @@ export default function BookingsClient({
               <label className="text-sm text-slate-700">
                 Date
                 <input type="date" min={editingBooking ? undefined : todayDateKey} value={appointmentForm.date} onChange={(e) => setAppointmentForm((p) => ({ ...p, date: e.target.value, start_time: p.manual_override ? p.start_time : '' }))} className="mt-1 w-full border border-slate-300 rounded px-3 py-2" />
+              </label>
+
+              <label className="text-sm text-slate-700 md:col-span-2">
+                Tags
+                <input
+                  value={appointmentForm.tags}
+                  onChange={(e) => setAppointmentForm((p) => ({ ...p, tags: e.target.value }))}
+                  placeholder="vip, follow-up, awaiting-docs"
+                  className="mt-1 w-full border border-slate-300 rounded px-3 py-2"
+                />
+                <p className="mt-1 text-xs text-slate-400">Comma-separated internal tags.</p>
               </label>
 
               {!editingBooking && (
@@ -2247,6 +2538,23 @@ export default function BookingsClient({
                 </div>
               )}
               <div className="flex items-center justify-end gap-2">
+                {editingBooking && (
+                  <button
+                    onClick={() => setHistoryBookingId(editingBooking.id)}
+                    className="ui-tap ui-focus inline-flex items-center gap-1.5 px-4 py-2 rounded border border-slate-200 bg-white text-sm text-slate-700"
+                  >
+                    History
+                  </button>
+                )}
+                {editingBooking && (
+                  <button
+                    onClick={() => void resendBookingEmail(editingBooking)}
+                    disabled={resendingBookingId === editingBooking.id}
+                    className="ui-tap ui-focus inline-flex items-center gap-1.5 px-4 py-2 rounded border border-indigo-200 bg-indigo-50 text-sm text-indigo-700 disabled:opacity-50"
+                  >
+                    {resendingBookingId === editingBooking.id ? 'Re-sending…' : 'Re-send Email'}
+                  </button>
+                )}
                 {editingBooking && (editingBooking.status === BookingStatus.PENDING || editingBooking.status === BookingStatus.CONFIRMED) && !cancelConfirmOpen && (
                   <button
                     onClick={() => setCancelConfirmOpen(true)}
@@ -2291,6 +2599,12 @@ export default function BookingsClient({
           onSelectBooking={openEditBooking}
         />
       )}
+
+      <BookingHistoryModal
+        bookingId={historyBookingId}
+        isOpen={Boolean(historyBookingId)}
+        onClose={() => setHistoryBookingId(null)}
+      />
     </div>
   )
 }
@@ -2303,6 +2617,9 @@ function SelectedDayPanel({
   updatingId,
   onStatusChange,
   onEditBooking,
+  onOpenHistory,
+  onResendEmail,
+  resendingBookingId,
   selectedDateCount,
   onOpenDayAgenda,
   enableQuickAvailability,
@@ -2323,6 +2640,9 @@ function SelectedDayPanel({
   updatingId: string | null
   onStatusChange: (id: string, status: string) => void
   onEditBooking: (booking: BookingWithService) => void
+  onOpenHistory: (bookingId: string) => void
+  onResendEmail: (booking: BookingWithService) => void | Promise<void>
+  resendingBookingId: string | null
   selectedDateCount: number
   onOpenDayAgenda: () => void
   enableQuickAvailability: boolean
@@ -2418,6 +2738,9 @@ function SelectedDayPanel({
                 booking={booking}
                 onStatusChange={onStatusChange}
                 onEditBooking={onEditBooking}
+                onOpenHistory={onOpenHistory}
+                onResendEmail={onResendEmail}
+                resendingBookingId={resendingBookingId}
                 updatingId={updatingId}
               />
             ))}
@@ -2754,11 +3077,6 @@ function WeekTimeline({
     }
     return map
   }, [conflictBookings])
-
-  const yFor = useCallback(
-    (mins: number) => (mins - TIMELINE_START) * TIMELINE_PX_PER_MIN,
-    [TIMELINE_START],
-  )
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -3488,17 +3806,24 @@ const BookingRow = memo(function BookingRow({
   booking,
   onStatusChange,
   onEditBooking,
+  onOpenHistory,
+  onResendEmail,
+  resendingBookingId,
   updatingId,
 }: {
   booking: BookingWithService
   onStatusChange: (id: string, status: string) => void
   onEditBooking: (booking: BookingWithService) => void
+  onOpenHistory: (bookingId: string) => void
+  onResendEmail: (booking: BookingWithService) => void | Promise<void>
+  resendingBookingId: string | null
   updatingId: string | null
 }) {
   const status = STATUS_CONFIG[booking.status] ?? STATUS_CONFIG.pending
   const statusA11y = STATUS_ACCESSIBILITY[booking.status] ?? STATUS_ACCESSIBILITY.pending
   const sourceClass = SOURCE_CONFIG[booking.source] ?? 'bg-slate-100 text-slate-600'
   const isUpdating = updatingId === booking.id
+  const isResending = resendingBookingId === booking.id
 
   return (
     <div className="px-4 sm:px-5 py-4 transition-all hover:bg-slate-50/80">
@@ -3531,6 +3856,21 @@ const BookingRow = memo(function BookingRow({
         {booking.notes && (
           <p className="mt-2 line-clamp-2 text-xs text-slate-500">{booking.notes}</p>
         )}
+        {booking.tags && booking.tags.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {booking.tags.map((tag) => (
+              <span key={tag} className="rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-medium text-indigo-700">
+                {tag}
+              </span>
+            ))}
+          </div>
+        )}
+        {booking.last_email_status && (
+          <p className="mt-2 text-[11px] text-slate-400">
+            Last email: {booking.last_email_status}
+            {booking.last_email_sent_at ? ` · ${new Date(booking.last_email_sent_at).toLocaleString('en-GB')}` : ''}
+          </p>
+        )}
       </div>
 
       <div className="flex items-center gap-2 flex-wrap flex-shrink-0">
@@ -3550,6 +3890,21 @@ const BookingRow = memo(function BookingRow({
         >
           <PencilIcon className="h-3.5 w-3.5" />
           Edit
+        </button>
+
+        <button
+          onClick={() => onOpenHistory(booking.id)}
+          className="ui-tap ui-focus inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border border-slate-300 text-slate-700 bg-white hover:bg-slate-50 transition-colors"
+        >
+          History
+        </button>
+
+        <button
+          onClick={() => void onResendEmail(booking)}
+          disabled={isResending}
+          className="ui-tap ui-focus inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border border-indigo-200 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 disabled:opacity-50 transition-colors"
+        >
+          {isResending ? 'Sending…' : 'Re-send'}
         </button>
 
         {booking.status === BookingStatus.PENDING && (

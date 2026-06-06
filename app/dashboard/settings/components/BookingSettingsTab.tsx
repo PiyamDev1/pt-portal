@@ -174,6 +174,8 @@ interface BookingReminderSettings {
   location_id: string
   reminders_enabled: boolean
   reminder_hours_before: number
+  same_day_reminder_enabled: boolean
+  same_day_reminder_hours_before: number
   reminder_subject: string
   reminder_template: string
   attendance_confirmation_required: boolean
@@ -188,6 +190,8 @@ function buildDefaultReminderSettings(locationId: string): BookingReminderSettin
     location_id: locationId,
     reminders_enabled: true,
     reminder_hours_before: 24,
+    same_day_reminder_enabled: true,
+    same_day_reminder_hours_before: 2,
     reminder_subject: 'Appointment reminder: [service booked] on [date booked] at [time booked]',
     reminder_template:
       'Dear [Customer Name],\n\nThis is a reminder that your [service booked] appointment is scheduled for [date booked] at [time booked] at [branch name].\n\nIf you cannot attend, please contact us as soon as possible.\n\nKind regards,\nPiyam Travel',
@@ -1084,6 +1088,28 @@ export default function BookingSettingsTab({
                   max={168}
                   value={reminderSettings.reminder_hours_before}
                   onChange={(e) => setReminderSettings((p) => ({ ...p, reminder_hours_before: Math.min(168, Math.max(1, Number(e.target.value) || 24)) }))}
+                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
+                />
+              </LabeledInput>
+
+              <LabeledInput label="Same-Day Reminder">
+                <label className="inline-flex items-center gap-2 text-sm text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={reminderSettings.same_day_reminder_enabled}
+                    onChange={(e) => setReminderSettings((p) => ({ ...p, same_day_reminder_enabled: e.target.checked }))}
+                  />
+                  Send a second reminder on the same day
+                </label>
+              </LabeledInput>
+
+              <LabeledInput label="Same-Day Hours Before">
+                <input
+                  type="number"
+                  min={1}
+                  max={12}
+                  value={reminderSettings.same_day_reminder_hours_before}
+                  onChange={(e) => setReminderSettings((p) => ({ ...p, same_day_reminder_hours_before: Math.min(12, Math.max(1, Number(e.target.value) || 2)) }))}
                   className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
                 />
               </LabeledInput>

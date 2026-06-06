@@ -80,10 +80,19 @@ export interface Booking {
   customer_phone: string;
   service_id: string;
   person_count: number;
+  tags?: string[];
   start_time: string; // ISO string
   end_time: string; // ISO string
   status: BookingStatus;
   source: BookingSource;
+  last_email_sent_at?: string | null;
+  last_email_kind?: string | null;
+  last_email_status?: string | null;
+  last_email_error?: string | null;
+  last_email_subject?: string | null;
+  last_email_recipient?: string | null;
+  last_rescheduled_at?: string | null;
+  reschedule_count?: number;
   created_at: string;
   updated_at?: string;
 }
@@ -103,9 +112,11 @@ export interface CreateBookingRequest {
   start_time: string; // ISO string
   end_time?: string; // ISO string for manual overrides
   person_count?: number; // 1 = individual; >1 = family/group
+  tags?: string[];
   notes?: string | null;
   manual_override?: boolean;
   source?: BookingSource;
+  idempotency_key?: string;
 }
 
 export interface CreateBookingResponse {

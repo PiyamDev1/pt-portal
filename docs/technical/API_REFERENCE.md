@@ -408,6 +408,11 @@ List bookings within a date range for a branch calendar/list view.
 | `from`        | string | Yes      | ISO datetime lower bound      |
 | `to`          | string | Yes      | ISO datetime upper bound      |
 | `location_id` | string | No       | Filter to one branch location |
+| `status`      | string | No       | Filter by booking status or `all` |
+| `source`      | string | No       | Filter by booking source or `all` |
+| `service_id`  | string | No       | Filter by booking service or `all` |
+| `q`           | string | No       | Search across name, phone, email, notes |
+| `include_cancelled` | boolean | No | Set `false` to hide cancelled bookings |
 
 ### POST `/api/bookings`
 
@@ -422,11 +427,13 @@ Create a new booking.
 - `service_id`
 - `start_time`
 - `person_count`
+- `tags`
 - `notes`
 - `manual_override`
 - `source`
+- `idempotency_key`
 
-Creates the booking, computes effective duration from service rules, writes audit/email records, and may reject the request if the slot conflicts or the customer is blocked by no-show penalty settings.
+Creates the booking, computes effective duration from service rules, writes audit/email records, supports idempotency replay, and may reject the request if the slot conflicts or the customer is blocked by no-show penalty settings.
 
 ### PATCH `/api/bookings/[id]`
 
@@ -441,11 +448,27 @@ Supported changes include:
 - `service_id`
 - `start_time`
 - `notes`
+- `tags`
 - `person_count`
+- `idempotency_key`
 
 Optional concurrency guard:
 
 - `if_unmodified_since`: previous `updated_at` value; returns `409` on conflict
+
+Notes-only or tags-only edits stay internal and do not send customer-facing email. State transitions are now validated server-side.
+
+### GET `/api/bookings/[id]/history`
+
+Return the booking audit timeline and email delivery log.
+
+### POST `/api/bookings/[id]/resend`
+
+Manual staff action to re-send booking email details. Optional body fields:
+
+- `kind`: `confirmation` | `modification` | `cancellation`
+- `reason`
+- `idempotency_key`
 
 ### GET `/api/bookings/available-slots`
 
@@ -518,6 +541,8 @@ Update reminder settings including:
 
 - `reminders_enabled`
 - `reminder_hours_before`
+- `same_day_reminder_enabled`
+- `same_day_reminder_hours_before`
 - `reminder_subject`
 - `reminder_template`
 - `attendance_confirmation_required`
@@ -543,7 +568,15 @@ Best-effort operational telemetry endpoint for booking UI events.
 
 ### GET `/api/cron/bookings/reminders`
 
-Cron endpoint that sends reminder emails for upcoming bookings, writes reminder event state, and appends attendance confirmation links when enabled.
+Cron endpoint that sends both advance reminder emails and same-day reminder emails for upcoming bookings, writes reminder event state, appends attendance confirmation links when enabled, and records delivery attempts in `booking_email_logs`.
+
+### GET `/api/bookings/export`
+
+Export matching bookings as CSV.
+
+### GET `/api/bookings/report`
+
+Return summary metrics for the selected range, including totals by status/source/service and recently modified count.
 
 ---
 

@@ -3,6 +3,20 @@ import { getRouteSupabaseClient } from '@/lib/api/serverSupabase';
 import { BookingStatus } from '@/app/types/bookings';
 import { sendBookingEmail } from '@/lib/bookingEmail';
 import { buildDefaultBranchSchedule } from '@/lib/bookingBranchSchedule';
+import {
+  areBookingTagsEqual,
+  deriveBookingEmailKind,
+  deriveBookingEmailSubject,
+  getIdempotencyKey,
+  isAllowedBookingTransition,
+  normalizeBookingEmail,
+  sanitizeBookingTags,
+} from '@/lib/bookingOperations';
+import {
+  findIdempotentBooking,
+  recordIdempotentBooking,
+  storeBookingEmailAttempt,
+} from '@/lib/bookingPersistence';
 
 function buildBranchAddress(location: {
   address_line1?: string | null;
@@ -81,10 +95,6 @@ function isValidPhone(value: string): boolean {
   return /^\+\d{1,4}\s[\d\s()-]{6,20}$/.test(value.trim());
 }
 
-function normalizeEmail(value: string | null | undefined): string {
-  return (value || '').trim().toLowerCase();
-}
-
 async function logBookingAudit(
   supabase: Awaited<ReturnType<typeof getRouteSupabaseClient>>,
   payload: {
@@ -132,6 +142,7 @@ export async function PATCH(
       start_time,
       if_unmodified_since,
       notes,
+      tags: rawTags,
       person_count: rawPersonCount,
     } = body as {
       status?: string;
@@ -142,11 +153,14 @@ export async function PATCH(
       start_time?: string;
       if_unmodified_since?: string;
       notes?: string | null;
+      tags?: string[];
       person_count?: number;
+      idempotency_key?: string;
     };
     const personCount = rawPersonCount !== undefined
       ? Math.max(1, parseInt(String(rawPersonCount), 10) || 1)
       : undefined;
+    const tags = rawTags !== undefined ? sanitizeBookingTags(rawTags) : undefined;
 
     if (status && !VALID_STATUSES.includes(status)) {
       return NextResponse.json(
@@ -163,6 +177,7 @@ export async function PATCH(
       service_id !== undefined ||
       start_time !== undefined ||
       notes !== undefined ||
+      tags !== undefined ||
       personCount !== undefined;
 
     if (!hasAnyChange) {
@@ -181,6 +196,22 @@ export async function PATCH(
     }
 
     const supabase = await getRouteSupabaseClient();
+    const idempotencyKey = getIdempotencyKey(request, body);
+
+    if (idempotencyKey) {
+      const replay = await findIdempotentBooking(supabase, `booking.update:${id}`, idempotencyKey);
+      if (replay?.booking_id) {
+        const { data: replayBooking } = await supabase
+          .from('bookings')
+          .select('*')
+          .eq('id', replay.booking_id)
+          .maybeSingle();
+
+        if (replayBooking) {
+          return NextResponse.json({ success: true, booking: replayBooking, idempotent_replay: true });
+        }
+      }
+    }
 
     const { data: existing, error: existingError } = await supabase
       .from('bookings')
@@ -205,6 +236,13 @@ export async function PATCH(
       );
     }
 
+    if (status && !isAllowedBookingTransition(existing.status as BookingStatus, status as BookingStatus)) {
+      return NextResponse.json(
+        { error: `Cannot move appointment from ${existing.status} to ${status}` },
+        { status: 400 }
+      );
+    }
+
     const nextServiceId = service_id ?? existing.service_id;
     const nextStartISO = start_time ?? existing.start_time;
     const nextStatus = status ?? existing.status;
@@ -212,7 +250,16 @@ export async function PATCH(
     const nextCustomerPhone = customer_phone ?? existing.customer_phone;
     const nextCustomerEmail = customer_email ?? existing.customer_email;
     const nextPersonCount = personCount ?? existing.person_count ?? 1;
-    const emailChanged = normalizeEmail(nextCustomerEmail) !== normalizeEmail(existing.customer_email);
+    const nextTags = tags ?? sanitizeBookingTags(existing.tags ?? []);
+    const emailChanged = normalizeBookingEmail(nextCustomerEmail) !== normalizeBookingEmail(existing.customer_email);
+    const isRescheduled = existing.start_time !== nextStartISO || existing.service_id !== nextServiceId;
+    const customerVisibleChange =
+      isRescheduled ||
+      existing.customer_name !== nextCustomerName ||
+      existing.customer_phone !== nextCustomerPhone ||
+      existing.person_count !== nextPersonCount;
+    const notesChanged = (existing.notes ?? null) !== (notes ?? existing.notes ?? null);
+    const tagsChanged = !areBookingTagsEqual(existing.tags ?? [], nextTags);
 
     const { data: service, error: serviceError } = await supabase
       .from('booking_services')
@@ -394,11 +441,16 @@ export async function PATCH(
       customer_email: nextCustomerEmail,
       service_id: nextServiceId,
       person_count: nextPersonCount,
+      tags: nextTags,
       start_time: nextStartISO,
       end_time: nextEndISO,
     };
 
     if (notes !== undefined) updates.notes = notes;
+    if (isRescheduled) {
+      updates.last_rescheduled_at = new Date().toISOString();
+      updates.reschedule_count = Math.max(0, Number(existing.reschedule_count ?? 0)) + 1;
+    }
 
     const { data, error } = await supabase
       .from('bookings')
@@ -420,54 +472,70 @@ export async function PATCH(
       .eq('id', existing.location_id)
       .single();
 
-    const emailKind =
-      nextStatus === BookingStatus.CANCELLED ? 'cancellation' : 'modification';
-    const template =
+    const emailKind = deriveBookingEmailKind({
+      previousStatus: existing.status as BookingStatus,
+      nextStatus: nextStatus as BookingStatus,
+      customerVisibleChange,
+      emailChanged,
+    });
+    const emailSubject = emailKind
+      ? deriveBookingEmailSubject({ kind: emailKind, emailChanged })
+      : null;
+    const emailTemplate =
       emailKind === 'cancellation'
         ? service.cancellation_template
+        : emailKind === 'confirmation'
+        ? service.confirmation_template
         : service.modification_template;
-    const emailSubject =
-      emailKind === 'cancellation'
-        ? 'Your appointment was cancelled'
-        : emailChanged
-        ? 'Your appointment details were re-sent'
-        : 'Your appointment was updated';
 
-    const emailResult = await sendBookingEmail({
-      to: nextCustomerEmail,
-      subject: emailSubject,
-      kind: emailKind,
-      template,
-      customerName: nextCustomerName,
-      serviceName: service.name,
-      startTimeISO: nextStartISO,
-      branchName: location?.name,
-      branchAddress: buildBranchAddress(location),
-      branchContactNumber: location?.phone || 'Contact unavailable',
-    });
+    let emailResult: { sent: boolean; reason?: string; senderEmail: string } | null = null;
+    if (emailKind && emailSubject) {
+      emailResult = await sendBookingEmail({
+        to: nextCustomerEmail,
+        subject: emailSubject,
+        kind: emailKind,
+        template: emailTemplate,
+        customerName: nextCustomerName,
+        serviceName: service.name,
+        startTimeISO: nextStartISO,
+        branchName: location?.name,
+        branchAddress: buildBranchAddress(location),
+        branchContactNumber: location?.phone || 'Contact unavailable',
+      });
 
-    await supabase.from('booking_email_logs').insert({
-      booking_id: id,
-      location_id: existing.location_id,
-      customer_email: nextCustomerEmail,
-      email_kind: emailKind,
-      email_subject: emailSubject,
-      sender_email: emailResult.senderEmail,
-      status: emailResult.sent ? 'sent' : 'failed',
-      failure_reason: emailResult.sent ? null : emailResult.reason ?? null,
-      metadata: {
-        service_id: service.id,
-        service_name: service.name,
-        booking_status: nextStatus,
-        email_changed: emailChanged,
-        previous_customer_email: existing.customer_email,
-      },
-    });
+      await storeBookingEmailAttempt(supabase, {
+        bookingId: id,
+        locationId: existing.location_id,
+        customerEmail: nextCustomerEmail,
+        emailKind,
+        emailSubject,
+        senderEmail: emailResult.senderEmail,
+        notificationStatus: emailResult.sent ? 'sent' : 'failed',
+        failureReason: emailResult.reason ?? null,
+        metadata: {
+          service_id: service.id,
+          service_name: service.name,
+          booking_status: nextStatus,
+          email_changed: emailChanged,
+          previous_customer_email: existing.customer_email,
+          rescheduled: isRescheduled,
+          notes_changed: notesChanged,
+          tags_changed: tagsChanged,
+        },
+      });
+    }
 
     await logBookingAudit(supabase, {
       booking_id: id,
       location_id: existing.location_id,
-      action_type: nextStatus === BookingStatus.CANCELLED ? 'cancelled' : 'amended',
+      action_type:
+        nextStatus === BookingStatus.CANCELLED
+          ? 'cancelled'
+          : isRescheduled
+          ? 'rescheduled'
+          : status !== undefined && existing.status !== nextStatus
+          ? 'status_changed'
+          : 'amended',
       actor_identifier: request.headers.get('x-user-email') || request.headers.get('x-user-id'),
       before_data: {
         status: existing.status,
@@ -476,6 +544,7 @@ export async function PATCH(
         customer_email: existing.customer_email,
         service_id: existing.service_id,
         person_count: existing.person_count,
+        tags: existing.tags,
         start_time: existing.start_time,
         end_time: existing.end_time,
         notes: existing.notes,
@@ -488,6 +557,7 @@ export async function PATCH(
         customer_email: data.customer_email,
         service_id: data.service_id,
         person_count: data.person_count,
+        tags: data.tags,
         start_time: data.start_time,
         end_time: data.end_time,
         notes: data.notes,
@@ -497,14 +567,29 @@ export async function PATCH(
         email_kind: emailKind,
         email_changed: emailChanged,
         previous_customer_email: existing.customer_email,
+        rescheduled: isRescheduled,
+        notes_changed: notesChanged,
+        tags_changed: tagsChanged,
       },
     });
+
+    if (idempotencyKey) {
+      await recordIdempotentBooking(supabase, {
+        actionName: `booking.update:${id}`,
+        key: idempotencyKey,
+        locationId: existing.location_id,
+        bookingId: id,
+        responseCode: 200,
+      });
+    }
 
     return NextResponse.json({
       success: true,
       booking: data,
       email_resent: emailChanged,
-      email_warning: emailResult.sent ? undefined : emailResult.reason,
+      email_warning: emailResult && !emailResult.sent ? emailResult.reason : undefined,
+      email_sent: emailResult?.sent ?? false,
+      rescheduled: isRescheduled,
     });
   } catch {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

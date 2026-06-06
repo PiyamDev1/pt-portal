@@ -13,6 +13,16 @@ import {
   normalizeEmailForMatch,
   normalizePhoneForMatch,
 } from '@/lib/bookingReminders';
+import {
+  deriveBookingEmailSubject,
+  getIdempotencyKey,
+  sanitizeBookingTags,
+} from '@/lib/bookingOperations';
+import {
+  findIdempotentBooking,
+  recordIdempotentBooking,
+  storeBookingEmailAttempt,
+} from '@/lib/bookingPersistence';
 
 function buildBranchAddress(location: {
   address_line1?: string | null;
@@ -127,6 +137,12 @@ export async function GET(request: NextRequest) {
     const from = searchParams.get('from');
     const to = searchParams.get('to');
     const locationId = searchParams.get('location_id');
+    const status = searchParams.get('status');
+    const source = searchParams.get('source');
+    const serviceId = searchParams.get('service_id');
+    const queryText = searchParams.get('q')?.trim();
+    const modifiedSince = searchParams.get('modified_since');
+    const includeCancelled = searchParams.get('include_cancelled') !== 'false';
 
     if (!from || !to) {
       return NextResponse.json({ error: 'from and to query params are required' }, { status: 400 });
@@ -143,6 +159,25 @@ export async function GET(request: NextRequest) {
 
     if (locationId) {
       query = query.eq('location_id', locationId);
+    }
+    if (status && status !== 'all') {
+      query = query.eq('status', status);
+    } else if (!includeCancelled) {
+      query = query.neq('status', BookingStatus.CANCELLED);
+    }
+    if (source && source !== 'all') {
+      query = query.eq('source', source);
+    }
+    if (serviceId && serviceId !== 'all') {
+      query = query.eq('service_id', serviceId);
+    }
+    if (modifiedSince) {
+      query = query.gte('updated_at', modifiedSince);
+    }
+    if (queryText) {
+      query = query.or(
+        `customer_name.ilike.%${queryText}%,customer_phone.ilike.%${queryText}%,customer_email.ilike.%${queryText}%,notes.ilike.%${queryText}%`
+      );
     }
 
     const { data, error } = await query;
@@ -174,6 +209,7 @@ export async function POST(request: NextRequest) {
     const source = body.source || BookingSource.PORTAL;
     const notes = typeof body.notes === 'string' ? body.notes.trim() || null : body.notes ?? null;
     const personCount = Math.max(1, parseInt(String(body.person_count ?? 1), 10) || 1);
+    const tags = sanitizeBookingTags(body.tags);
 
     if (!location_id || !customer_name || !customer_phone || !customer_email || !service_id || !start_time) {
       return NextResponse.json(
@@ -231,6 +267,29 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = await getRouteSupabaseClient();
+    const idempotencyKey = getIdempotencyKey(request, body);
+
+    if (idempotencyKey) {
+      const existingReplay = await findIdempotentBooking(supabase, 'booking.create', idempotencyKey);
+      if (existingReplay?.booking_id) {
+        const { data: existingBooking } = await supabase
+          .from('bookings')
+          .select('*')
+          .eq('id', existingReplay.booking_id)
+          .maybeSingle();
+
+        if (existingBooking) {
+          return NextResponse.json(
+            {
+              success: true,
+              booking: existingBooking,
+              idempotent_replay: true,
+            } as CreateBookingResponse & { idempotent_replay: boolean },
+            { status: existingReplay.response_code || 200 }
+          );
+        }
+      }
+    }
 
     const phoneNorm = normalizePhoneForMatch(customer_phone);
     const emailNorm = normalizeEmailForMatch(customer_email);
@@ -713,6 +772,7 @@ export async function POST(request: NextRequest) {
         customer_email,
         service_id,
         person_count: personCount,
+        tags,
         notes,
         start_time,
         end_time: computedEndTime,
@@ -749,7 +809,7 @@ export async function POST(request: NextRequest) {
 
     const emailResult = await sendBookingEmail({
       to: customer_email,
-      subject: 'Your appointment is booked',
+      subject: deriveBookingEmailSubject({ kind: 'confirmation' }),
       kind: 'confirmation',
       template: service.confirmation_template,
       customerName: customer_name,
@@ -760,15 +820,15 @@ export async function POST(request: NextRequest) {
       branchContactNumber: location?.phone || 'Contact unavailable',
     });
 
-    await supabase.from('booking_email_logs').insert({
-      booking_id: newBooking.id,
-      location_id,
-      customer_email,
-      email_kind: 'confirmation',
-      email_subject: 'Your appointment is booked',
-      sender_email: emailResult.senderEmail,
-      status: emailResult.sent ? 'sent' : 'failed',
-      failure_reason: emailResult.sent ? null : emailResult.reason ?? null,
+    await storeBookingEmailAttempt(supabase, {
+      bookingId: newBooking.id,
+      locationId: location_id,
+      customerEmail: customer_email,
+      emailKind: 'confirmation',
+      emailSubject: deriveBookingEmailSubject({ kind: 'confirmation' }),
+      senderEmail: emailResult.senderEmail,
+      notificationStatus: emailResult.sent ? 'sent' : 'failed',
+      failureReason: emailResult.reason ?? null,
       metadata: {
         service_id: service.id,
         service_name: service.name,
@@ -788,6 +848,7 @@ export async function POST(request: NextRequest) {
         customer_email: newBooking.customer_email,
         service_id: newBooking.service_id,
         person_count: newBooking.person_count,
+        tags: newBooking.tags,
         start_time: newBooking.start_time,
         end_time: newBooking.end_time,
         notes: newBooking.notes,
@@ -798,6 +859,19 @@ export async function POST(request: NextRequest) {
         manual_override: manualOverride,
       },
     });
+
+    if (idempotencyKey) {
+      await recordIdempotentBooking(supabase, {
+        actionName: 'booking.create',
+        key: idempotencyKey,
+        locationId: location_id,
+        bookingId: newBooking.id,
+        responseCode: 201,
+        metadata: {
+          source,
+        },
+      });
+    }
 
     return NextResponse.json(
       {
