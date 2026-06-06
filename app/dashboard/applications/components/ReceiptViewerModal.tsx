@@ -148,6 +148,8 @@ export default function ReceiptViewerModal({ isOpen, onClose, receipt }: Receipt
             </button>
 
             <div className="pr-10 text-center">
+              {/* Brand asset is static and not layout-critical; next/image adds no value in this receipt canvas. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/logo.png" alt="Piyam Travels logo" className="mx-auto h-10 w-auto" />
               <p className="mt-1 text-[11px] font-semibold">PIYAM TRAVELS</p>
               <p className="text-[10px] text-slate-600">{addressLine1}</p>
@@ -177,6 +179,7 @@ export default function ReceiptViewerModal({ isOpen, onClose, receipt }: Receipt
               <p className="text-[10px] text-slate-500">VERIFY QR</p>
               {qrSource ? (
                 <>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={qrSource}
                     alt="Receipt QR code"

@@ -6,7 +6,6 @@
 import { NextRequest } from 'next/server'
 import { apiError } from '@/lib/api/http'
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function GET(_request: NextRequest) {
   return apiError(
     'This endpoint has been replaced. Use POST /api/documents/zip to create a ZIP archive, then GET /api/documents/zip?familyHeadId=<id> to check its status.',

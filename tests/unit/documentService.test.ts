@@ -5,7 +5,7 @@ describe('PlaceholderDocumentService', () => {
   const service = new PlaceholderDocumentService()
 
   it('validates file size upper bound', () => {
-    const tooLarge = new File([new Uint8Array(1_600_000)], 'big.pdf', { type: 'application/pdf' })
+    const tooLarge = new File([new Uint8Array(2_100_000)], 'big.pdf', { type: 'application/pdf' })
 
     const result = service.validateFileSize(tooLarge)
 

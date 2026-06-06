@@ -29,6 +29,17 @@ type DocumentRow = {
   category: string | null
 }
 
+function logZipDebug(message: string, details?: Record<string, unknown>) {
+  process.stdout.write(
+    `${JSON.stringify({
+      scope: 'documents.zip',
+      message,
+      ...(details ? { details } : {}),
+      at: new Date().toISOString(),
+    })}\n`,
+  )
+}
+
 /**
  * Download a single S3/MinIO object into a Buffer.
  * Returns null if the object body is missing.
@@ -136,7 +147,7 @@ export async function POST(request: NextRequest) {
     if (!data || data.length === 0) return apiError('No documents found', 404)
 
     const documents = data as DocumentRow[]
-    console.log(`[zip] creating archive for ${documents.length} documents`)
+    logZipDebug('creating archive', { count: documents.length, familyHeadId })
 
     const s3Client = getS3Client()
     const zip = new JSZip()
@@ -164,7 +175,7 @@ export async function POST(request: NextRequest) {
         const folder = doc.category && doc.category !== 'general' ? `${doc.category}/` : ''
         zip.file(`${folder}${doc.file_name}`, buffer)
         fileCount++
-        console.log(`[zip] added: ${doc.file_name}`)
+        logZipDebug('added file to archive', { fileName: doc.file_name })
       }
     }
 
@@ -181,7 +192,7 @@ export async function POST(request: NextRequest) {
       compression: 'DEFLATE',
       compressionOptions: { level: 6 },
     })
-    console.log(`[zip] generated ${zipBuffer.length} bytes`)
+    logZipDebug('generated archive buffer', { bytes: zipBuffer.length })
 
     // ── 3. Upload ZIP buffer to MinIO ───────────────────────────────
     const minioKey = `family-${familyHeadId}/zip-archive/${zipBaseName}`
@@ -197,7 +208,7 @@ export async function POST(request: NextRequest) {
           ContentType: 'application/zip',
         }),
       )
-      console.log(`[zip] uploaded to MinIO: ${minioKey}`)
+      logZipDebug('uploaded archive to MinIO', { minioKey })
     } catch (minioErr) {
       if (!isR2Configured()) throw minioErr
       await getR2Client().send(
@@ -209,7 +220,7 @@ export async function POST(request: NextRequest) {
         }),
       )
       storageBucket = R2_BUCKET
-      console.log(`[zip] uploaded to R2: ${minioKey}`)
+      logZipDebug('uploaded archive to R2', { minioKey })
     }
 
     // ── 4. Soft-delete previous zip records in DB ───────────────────
@@ -239,7 +250,7 @@ export async function POST(request: NextRequest) {
 
     if (insertErr) throw insertErr
 
-    console.log(`[zip] DB record inserted: ${documentId}`)
+    logZipDebug('inserted zip document record', { documentId })
 
     return apiOk({ documentId, minioKey, fileName: zipBaseName })
   } catch (err) {

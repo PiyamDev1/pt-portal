@@ -5,13 +5,25 @@ const mocks = vi.hoisted(() => {
   const range = vi.fn()
   const order = vi.fn(() => ({ range }))
   const eqCategory = vi.fn(() => ({ order }))
-  const eqDeleted = vi.fn(() => ({ eq: eqCategory, order }))
+  const neqCategory = vi.fn(() => ({ eq: eqCategory, order }))
+  const eqDeleted = vi.fn(() => ({ eq: eqCategory, neq: neqCategory, order }))
   const eqFamily = vi.fn(() => ({ eq: eqDeleted }))
   const select = vi.fn(() => ({ eq: eqFamily }))
   const from = vi.fn(() => ({ select }))
   const getSupabaseClient = vi.fn(() => ({ from }))
 
-  return { single, range, order, eqCategory, eqDeleted, eqFamily, select, from, getSupabaseClient }
+  return {
+    single,
+    range,
+    order,
+    eqCategory,
+    neqCategory,
+    eqDeleted,
+    eqFamily,
+    select,
+    from,
+    getSupabaseClient,
+  }
 })
 
 vi.mock('@/lib/supabaseClient', () => ({ getSupabaseClient: mocks.getSupabaseClient }))
@@ -31,7 +43,8 @@ describe('GET /api/documents', () => {
     mocks.from.mockReturnValue({ select: mocks.select })
     mocks.select.mockReturnValue({ eq: mocks.eqFamily })
     mocks.eqFamily.mockReturnValue({ eq: mocks.eqDeleted })
-    mocks.eqDeleted.mockReturnValue({ eq: mocks.eqCategory, order: mocks.order })
+    mocks.eqDeleted.mockReturnValue({ eq: mocks.eqCategory, neq: mocks.neqCategory, order: mocks.order })
+    mocks.neqCategory.mockReturnValue({ eq: mocks.eqCategory, order: mocks.order })
     mocks.eqCategory.mockReturnValue({ order: mocks.order })
     mocks.order.mockReturnValue({ range: mocks.range })
   })

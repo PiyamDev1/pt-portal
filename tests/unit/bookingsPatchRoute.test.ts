@@ -185,15 +185,15 @@ describe('PATCH /api/bookings/[id]', () => {
       expect.objectContaining({
         to: 'new@example.com',
         subject: 'Your appointment details were re-sent',
-        kind: 'confirmation',
-        template: 'confirmation',
+        kind: 'modification',
+        template: 'modification',
       }),
     )
 
     expect(mocks.bookingEmailLogsInsert).toHaveBeenCalledWith(
       expect.objectContaining({
         customer_email: 'new@example.com',
-        email_kind: 'confirmation',
+        email_kind: 'modification',
         email_subject: 'Your appointment details were re-sent',
         metadata: expect.objectContaining({
           email_changed: true,

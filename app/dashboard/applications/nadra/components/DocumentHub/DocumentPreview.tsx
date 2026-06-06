@@ -14,7 +14,7 @@
  */
 
 import Image from 'next/image'
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { ConfirmationDialog } from '@/components/ConfirmationDialog'
 import { Document } from './types'
 import {
@@ -68,38 +68,7 @@ export function DocumentPreview({
 }: DocumentPreviewProps) {
   const [zoom, setZoom] = useState(100)
   const [isLoading, setIsLoading] = useState(true)
-  const [previewSrc, setPreviewSrc] = useState<string | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
-
-  // Reset zoom when document changes
-  useEffect(() => {
-    setZoom(100)
-  }, [document?.id])
-
-  // Build a stable preview URL that streams bytes from our API.
-  useEffect(() => {
-    if (!document) {
-      setPreviewSrc(null)
-      setIsLoading(false)
-      return
-    }
-
-    let cancelled = false
-
-    const loadPreviewUrl = async () => {
-      setIsLoading(true)
-
-      if (!cancelled) {
-        setPreviewSrc(`/api/documents/preview?key=${encodeURIComponent(document.minio.key)}`)
-      }
-    }
-
-    void loadPreviewUrl()
-
-    return () => {
-      cancelled = true
-    }
-  }, [document])
 
   // Format file size
   const formatFileSize = (bytes: number): string => {
@@ -124,6 +93,7 @@ export function DocumentPreview({
   // Determine if document is an image
   const isImage = document?.fileType?.startsWith('image/')
   const isPDF = document?.fileType?.includes('pdf')
+  const previewSrc = `/api/documents/preview?key=${encodeURIComponent(document.minio.key)}`
 
   // Empty state
   if (!document) {

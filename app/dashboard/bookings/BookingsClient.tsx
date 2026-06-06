@@ -2716,7 +2716,10 @@ function WeekTimeline({
 
   const hours: number[] = []
   for (let h = TIMELINE_START_HOUR; h <= TIMELINE_END_HOUR; h++) hours.push(h)
-  const yFor = (mins: number) => (mins - TIMELINE_START) * TIMELINE_PX_PER_MIN
+  const yFor = useCallback(
+    (mins: number) => (mins - TIMELINE_START) * TIMELINE_PX_PER_MIN,
+    [TIMELINE_START],
+  )
   const [currentUtcMinutes, setCurrentUtcMinutes] = useState(() => {
     const now = new Date()
     return now.getUTCHours() * 60 + now.getUTCMinutes()
@@ -2752,6 +2755,11 @@ function WeekTimeline({
     return map
   }, [conflictBookings])
 
+  const yFor = useCallback(
+    (mins: number) => (mins - TIMELINE_START) * TIMELINE_PX_PER_MIN,
+    [TIMELINE_START],
+  )
+
   useEffect(() => {
     if (!containerRef.current) return
     const weekKey = `${weekDays[0]?.toISOString() ?? ''}|${weekDays[6]?.toISOString() ?? ''}`
@@ -2768,7 +2776,7 @@ function WeekTimeline({
     const currentMinutes = now.getUTCHours() * 60 + now.getUTCMinutes()
     const target = Math.max(TIMELINE_START, Math.min(TIMELINE_END, currentMinutes))
     containerRef.current.scrollTop = Math.max(0, yFor(target) - 160)
-  }, [TIMELINE_END, TIMELINE_START, today, weekDays])
+  }, [TIMELINE_END, TIMELINE_START, today, weekDays, yFor])
 
   // ── Drag-to-reschedule ────────────────────────────────────────────────────
   const [dragging, setDragging] = useState<{
@@ -2877,7 +2885,7 @@ function WeekTimeline({
     const mins = now.getUTCHours() * 60 + now.getUTCMinutes()
     const target = Math.max(TIMELINE_START, Math.min(TIMELINE_END, mins))
     containerRef.current.scrollTop = Math.max(0, yFor(target) - 160)
-  }, [TIMELINE_END, TIMELINE_START])
+  }, [TIMELINE_END, TIMELINE_START, yFor])
 
   return (
     <>
@@ -3306,6 +3314,11 @@ function SlotTimeline({
     [selectedIso, dayStartMs],
   )
 
+  const yFor = useCallback(
+    (mins: number) => (mins - TIMELINE_START) * TIMELINE_PX_PER_MIN,
+    [TIMELINE_START],
+  )
+
   // Scroll to selected or first available slot when date/slots change
   const firstSlotTime = availableSlots[0]?.time ?? ''
   useEffect(() => {
@@ -3336,10 +3349,9 @@ function SlotTimeline({
       }
       onSelect(nearest.isoString)
     },
-    [availableSlots, onSelect],
+    [availableSlots, onSelect, TIMELINE_START],
   )
 
-  const yFor = (mins: number) => (mins - TIMELINE_START) * TIMELINE_PX_PER_MIN
   const hours: number[] = []
   for (let h = TIMELINE_START_HOUR; h <= TIMELINE_END_HOUR; h++) hours.push(h)
 

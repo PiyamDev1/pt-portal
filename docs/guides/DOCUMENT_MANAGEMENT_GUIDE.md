@@ -683,7 +683,7 @@ The API surface is live. Some older examples in this guide reflect the original 
 
 ### Upload Document
 
-**Endpoint**: `POST /api/documents/upload`
+**Endpoint**: `POST /api/documents/upload-direct`
 
 **Request**:
 
@@ -699,32 +699,29 @@ FormData {
 
 ```typescript
 {
-  id: string,
-  name: string,
-  size: number,
-  type: string,
+  success: true,
+  documentId: string,
+  familyHeadId: string,
+  fileName: string,
+  fileSize: number,
+  fileType: string,
   category: string,
-  uploadedAt: string,
-  minio: {
-    bucket: string,
-    key: string,
-    url: string
-  },
-  preview?: {
-    thumbnail: string
-  }
+  minioKey: string,
+  etag: string,
+  storageProvider: 'minio' | 'r2',
+  storageBucket: string
 }
 ```
 
 **Validation**:
 
 - File type must be PDF or image
-- File size limits (to be implemented)
+- File size and MIME restrictions are enforced by the current service layer and upload route
 - Category must be valid enum value
 
 ### List Documents
 
-**Endpoint**: `GET /api/documents/list?familyHeadId={id}&category={category}`
+**Endpoint**: `GET /api/documents?familyHeadId={id}&category={category}`
 
 **Query Parameters**:
 
@@ -735,32 +732,28 @@ FormData {
 
 ```typescript
 {
-  documents: Document[],
+  success: true,
+  data: Document[],
   total: number,
-  storageUsed: number
+  page: number,
+  limit: number
 }
 ```
 
 ### Delete Document
 
-**Endpoint**: `DELETE /api/documents/delete`
+**Endpoint**: `DELETE /api/documents/{documentId}`
 
 **Request**:
 
 ```typescript
-{
-  documentId: string,
-  familyHeadId: string
-}
+// documentId is passed in the route path
 ```
 
 **Response**:
 
 ```typescript
-{
-  success: boolean,
-  message: string
-}
+{ success: true }
 ```
 
 ### Download Document

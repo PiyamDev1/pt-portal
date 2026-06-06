@@ -421,16 +421,10 @@ export async function PATCH(
       .single();
 
     const emailKind =
-      nextStatus === BookingStatus.CANCELLED
-        ? 'cancellation'
-        : emailChanged
-        ? 'confirmation'
-        : 'modification';
+      nextStatus === BookingStatus.CANCELLED ? 'cancellation' : 'modification';
     const template =
       emailKind === 'cancellation'
         ? service.cancellation_template
-        : emailKind === 'confirmation'
-        ? service.confirmation_template
         : service.modification_template;
     const emailSubject =
       emailKind === 'cancellation'

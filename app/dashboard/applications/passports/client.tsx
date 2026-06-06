@@ -128,37 +128,40 @@ export default function PakPassportClient({
     })
   }
 
-  const fetchReadSignatures = async (recordIds: string[]) => {
-    if (recordIds.length === 0) {
-      setNoteReadSignatures({})
-      return
-    }
-
-    try {
-      const params = new URLSearchParams({
-        context: 'pk-passport',
-        recordIds: recordIds.join(','),
-      })
-      const response = await fetch(`/api/applications/notes-read?${params.toString()}`, {
-        credentials: 'include',
-      })
-      const payload = await response.json().catch(() => ({}))
-      if (!response.ok) {
-        return
-      }
-
-      setNoteReadSignatures(payload?.readSignatures || {})
-    } catch {
-      // Ignore transient failures and keep unread indicators conservative.
-    }
-  }
-
   useEffect(() => {
     const recordIds = initialApplications
       .filter((app) => Boolean(getNoteSignature(getPassportRecord(app)?.notes)))
       .map((app) => app.id)
 
-    void fetchReadSignatures(recordIds)
+    if (recordIds.length === 0) {
+      return
+    }
+
+    let active = true
+
+    void (async () => {
+      try {
+        const params = new URLSearchParams({
+          context: 'pk-passport',
+          recordIds: recordIds.join(','),
+        })
+        const response = await fetch(`/api/applications/notes-read?${params.toString()}`, {
+          credentials: 'include',
+        })
+        const payload = await response.json().catch(() => ({}))
+        if (!response.ok || !active) {
+          return
+        }
+
+        setNoteReadSignatures(payload?.readSignatures || {})
+      } catch {
+        // Ignore transient failures and keep unread indicators conservative.
+      }
+    })()
+
+    return () => {
+      active = false
+    }
   }, [initialApplications])
 
   const markNotesRead = async (

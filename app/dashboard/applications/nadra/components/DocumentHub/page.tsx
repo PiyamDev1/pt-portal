@@ -541,6 +541,7 @@ export function DocumentHub({
           <h2 className="text-lg font-semibold text-slate-800 mb-3">Preview Container</h2>
           <div className="flex-1 min-h-0 overflow-auto rounded-lg border border-slate-200 bg-white p-3">
             <DocumentPreview
+              key={selectedDocument?.id ?? 'empty-preview'}
               document={selectedDocument}
               onClose={() => setSelectedDocument(null)}
               onDelete={handleDeleteDocument}

@@ -6,7 +6,7 @@ A comprehensive web application for managing travel services, passport applicati
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue)](https://www.typescriptlang.org/)
-[![Next.js](https://img.shields.io/badge/Next.js-14.2-black)](https://nextjs.org/)
+[![Next.js](https://img.shields.io/badge/Next.js-16.x-black)](https://nextjs.org/)
 [![React](https://img.shields.io/badge/React-18.x-61DAFB?logo=react)](https://react.dev)
 [![Made by Rathobixz](https://img.shields.io/badge/Made%20by-Rathobixz%20Inc.-blue)](https://rathobixz.com)
 
@@ -63,7 +63,7 @@ A comprehensive web application for managing travel services, passport applicati
 
 | Layer                | Technology                                     |
 | -------------------- | ---------------------------------------------- |
-| **Frontend**         | React 18, TypeScript, Next.js 14, Tailwind CSS |
+| **Frontend**         | React 18, TypeScript, Next.js 16, Tailwind CSS |
 | **Backend**          | Next.js API Routes, Node.js                    |
 | **Database**         | Supabase (PostgreSQL)                          |
 | **Authentication**   | Supabase Auth                                  |

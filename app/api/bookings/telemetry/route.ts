@@ -13,11 +13,14 @@ export async function POST(request: NextRequest) {
     const metadata = (body?.metadata && typeof body.metadata === 'object') ? body.metadata : {};
 
     // Keep this non-fatal and lightweight; logs can be shipped from container stdout.
-    console.info('[bookings.telemetry]', {
-      event,
-      metadata,
-      at: new Date().toISOString(),
-    });
+    process.stdout.write(
+      `${JSON.stringify({
+        scope: 'bookings.telemetry',
+        event,
+        metadata,
+        at: new Date().toISOString(),
+      })}\n`,
+    );
 
     return NextResponse.json({ success: true });
   } catch {

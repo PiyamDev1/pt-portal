@@ -17,10 +17,16 @@ const mocks = vi.hoisted(() => {
   const appInsertSingle = vi.fn()
   const appInsertSelect = vi.fn(() => ({ single: appInsertSingle }))
   const appInsert = vi.fn(() => ({ select: appInsertSelect }))
+  const appMaybeSingle = vi.fn()
+  const appSelectEq = vi.fn(() => ({ maybeSingle: appMaybeSingle }))
+  const appSelect = vi.fn(() => ({ eq: appSelectEq }))
 
   const nadraInsertSingle = vi.fn()
   const nadraInsertSelect = vi.fn(() => ({ single: nadraInsertSingle }))
   const nadraInsert = vi.fn(() => ({ select: nadraInsertSelect }))
+  const nadraMaybeSingle = vi.fn()
+  const nadraSelectEq = vi.fn(() => ({ maybeSingle: nadraMaybeSingle }))
+  const nadraSelect = vi.fn(() => ({ eq: nadraSelectEq }))
 
   const nicopInsert = vi.fn()
   const historyInsert = vi.fn()
@@ -29,8 +35,8 @@ const mocks = vi.hoisted(() => {
     if (table === 'applicants') {
       return { select: applicantSelect, update: applicantUpdate, insert: applicantInsert }
     }
-    if (table === 'applications') return { insert: appInsert }
-    if (table === 'nadra_services') return { insert: nadraInsert }
+    if (table === 'applications') return { insert: appInsert, select: appSelect }
+    if (table === 'nadra_services') return { insert: nadraInsert, select: nadraSelect }
     if (table === 'nicop_cnic_details') return { insert: nicopInsert }
     if (table === 'nadra_status_history') return { insert: historyInsert }
     return {}
@@ -51,9 +57,15 @@ const mocks = vi.hoisted(() => {
     appInsert,
     appInsertSingle,
     appInsertSelect,
+    appMaybeSingle,
+    appSelect,
+    appSelectEq,
     nadraInsert,
     nadraInsertSingle,
     nadraInsertSelect,
+    nadraMaybeSingle,
+    nadraSelect,
+    nadraSelectEq,
     nicopInsert,
     historyInsert,
     from,
@@ -101,9 +113,15 @@ describe('POST /api/nadra/add-application', () => {
 
     mocks.appInsert.mockReturnValue({ select: mocks.appInsertSelect })
     mocks.appInsertSelect.mockReturnValue({ single: mocks.appInsertSingle })
+    mocks.appSelect.mockReturnValue({ eq: mocks.appSelectEq })
+    mocks.appSelectEq.mockReturnValue({ maybeSingle: mocks.appMaybeSingle })
+    mocks.appMaybeSingle.mockResolvedValue({ data: null, error: null })
 
     mocks.nadraInsert.mockReturnValue({ select: mocks.nadraInsertSelect })
     mocks.nadraInsertSelect.mockReturnValue({ single: mocks.nadraInsertSingle })
+    mocks.nadraSelect.mockReturnValue({ eq: mocks.nadraSelectEq })
+    mocks.nadraSelectEq.mockReturnValue({ maybeSingle: mocks.nadraMaybeSingle })
+    mocks.nadraMaybeSingle.mockResolvedValue({ data: null, error: null })
   })
 
   it('returns 409 when tracking number is duplicate', async () => {
@@ -119,8 +137,10 @@ describe('POST /api/nadra/add-application', () => {
     expect(res.status).toBe(409)
     const body = await res.json()
     expect(body).toEqual({
-      error: 'Duplicate in system not allowed',
-      details: 'This tracking number is already registered.',
+      error: 'Duplicate Record',
+      details: 'This record already exists.',
+      errorCode: 'DUPLICATE_RECORD',
+      trackingNumber: 'TRK-123',
     })
   })
 

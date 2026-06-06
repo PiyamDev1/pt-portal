@@ -27,14 +27,16 @@ export default function ReceiptHistoryModal({
   const { listReceipts, loading } = useReceipt()
   const [receipts, setReceipts] = useState<ReceiptSummary[]>([])
   const [loadingHistory, setLoadingHistory] = useState(false)
+  const visibleReceipts = isOpen && applicantId ? receipts : []
 
   useEffect(() => {
     if (!isOpen || !applicantId) {
-      setReceipts([])
       return
     }
 
     let active = true
+    // This modal fetches on open, so the loading flag must flip immediately for accessible status text.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoadingHistory(true)
 
     listReceipts({ applicantId, serviceType })
@@ -63,13 +65,13 @@ export default function ReceiptHistoryModal({
         <div className="text-sm text-slate-500" role="status" aria-live="polite">
           Loading receipt history...
         </div>
-      ) : receipts.length === 0 ? (
+      ) : visibleReceipts.length === 0 ? (
         <div className="text-sm text-slate-500" role="status" aria-live="polite">
           No receipts found for this applicant.
         </div>
       ) : (
         <div className="space-y-3">
-          {receipts.map((item) => (
+          {visibleReceipts.map((item) => (
             <div
               key={item.id}
               className="rounded-lg border border-slate-200 bg-slate-50 p-3"
