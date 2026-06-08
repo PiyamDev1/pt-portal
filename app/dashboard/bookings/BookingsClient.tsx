@@ -498,6 +498,8 @@ export default function BookingsClient({
   const [serviceFilter, setServiceFilter] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [showCancelled, setShowCancelled] = useState(true)
+  const [showSaveViewForm, setShowSaveViewForm] = useState(false)
+  const [saveViewName, setSaveViewName] = useState('')
   const [savedViews, setSavedViews] = useState<Array<{
     name: string
     source: 'all' | BookingSource
@@ -546,7 +548,7 @@ export default function BookingsClient({
   const notesAutosaveSkipNextRef = useRef(false)
   const latestNotesRef = useRef('')
   const lastBackgroundRefreshAtRef = useRef(0)
-  const notesDraftStorageKey = 'bookings:new-appointment-notes-draft'
+  const confirmTokenRef = useRef(0)
   const [appointmentForm, setAppointmentForm] = useState({
     customer_name: '',
     customer_email: '',
@@ -699,20 +701,25 @@ export default function BookingsClient({
   }, [fetchBookingReport])
 
   useEffect(() => {
-    if (typeof window === 'undefined') return
-    const raw = window.localStorage.getItem('bookings:saved-views')
-    if (!raw) return
-    try {
-      setSavedViews(JSON.parse(raw))
-    } catch {
-      setSavedViews([])
-    }
-  }, [])
+    if (!selectedLocationId) return
+    let active = true
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    window.localStorage.setItem('bookings:saved-views', JSON.stringify(savedViews))
-  }, [savedViews])
+    const run = async () => {
+      try {
+        const res = await fetch(`/api/bookings/preferences?location_id=${encodeURIComponent(selectedLocationId)}`, { cache: 'no-store' })
+        const json = await res.json()
+        if (!active || !res.ok) return
+        setSavedViews(json.saved_views || [])
+      } catch {
+        if (active) setSavedViews([])
+      }
+    }
+
+    run()
+    return () => {
+      active = false
+    }
+  }, [selectedLocationId])
 
   useEffect(() => {
     if (!showSettings) {
@@ -842,17 +849,13 @@ export default function BookingsClient({
     setShowDayAgendaModal(false)
     setShowNotesEditor(false)
     setNotesAutosaveState('idle')
-    let draftNotes = ''
-    if (typeof window !== 'undefined') {
-      draftNotes = sessionStorage.getItem(notesDraftStorageKey) || ''
-    }
     setAppointmentForm({
       customer_name: '',
       customer_email: '',
       phone_country_code: '+44',
       phone_local: '',
       service_id: options?.service_id ?? serviceOptions[0]?.id ?? '',
-      notes: draftNotes,
+      notes: '',
       tags: '',
       date: safeDate,
       start_time: safeStartTime,
@@ -912,21 +915,53 @@ export default function BookingsClient({
     }
   }, [])
 
-  const saveCurrentView = useCallback(() => {
-    const name = window.prompt('Name this booking view')
-    if (!name) return
-    setSavedViews((prev) => [
-      ...prev.filter((view) => view.name !== name),
+  const persistSavedViews = useCallback(async (nextSavedViews: typeof savedViews) => {
+    if (!selectedLocationId) return false
+    const res = await fetch('/api/bookings/preferences', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        location_id: selectedLocationId,
+        saved_views: nextSavedViews,
+      }),
+    })
+    if (!res.ok) {
+      const json = await res.json().catch(() => ({}))
+      toast.error(json.error || 'Failed to save booking views')
+      return false
+    }
+    return true
+  }, [selectedLocationId])
+
+  const openSaveViewForm = useCallback(() => {
+    setSaveViewName(`View ${savedViews.length + 1}`)
+    setShowSaveViewForm(true)
+  }, [savedViews.length])
+
+  const saveCurrentView = useCallback(async () => {
+    const trimmedName = saveViewName.trim()
+    if (!trimmedName) {
+      toast.error('Enter a name for this saved view')
+      return
+    }
+    const nextSavedViews = [
+      ...savedViews.filter((view) => view.name !== trimmedName),
       {
-        name,
+        name: trimmedName,
         source: sourceFilter,
         status: statusFilter,
         serviceId: serviceFilter,
         searchQuery,
         showCancelled,
       },
-    ])
-  }, [searchQuery, serviceFilter, showCancelled, sourceFilter, statusFilter])
+    ]
+    const persisted = await persistSavedViews(nextSavedViews)
+    if (!persisted) return
+    setSavedViews(nextSavedViews)
+    setShowSaveViewForm(false)
+    setSaveViewName('')
+    toast.success('Booking view saved')
+  }, [persistSavedViews, saveViewName, savedViews, searchQuery, serviceFilter, showCancelled, sourceFilter, statusFilter])
 
   const applySavedView = useCallback((name: string) => {
     const viewConfig = savedViews.find((view) => view.name === name)
@@ -938,9 +973,13 @@ export default function BookingsClient({
     setShowCancelled(viewConfig.showCancelled)
   }, [savedViews])
 
-  const removeSavedView = useCallback((name: string) => {
-    setSavedViews((prev) => prev.filter((view) => view.name !== name))
-  }, [])
+  const removeSavedView = useCallback(async (name: string) => {
+    const nextSavedViews = savedViews.filter((view) => view.name !== name)
+    const persisted = await persistSavedViews(nextSavedViews)
+    if (!persisted) return
+    setSavedViews(nextSavedViews)
+    toast.success('Saved view removed')
+  }, [persistSavedViews, savedViews])
 
   const exportBookings = useCallback(() => {
     const params = new URLSearchParams({ from: fromISO, to: toISO })
@@ -974,14 +1013,34 @@ export default function BookingsClient({
     }
   }, [fetchBookings])
 
-  const requireDoubleConfirm = useCallback((firstPrompt: string) => {
-    if (!window.confirm(firstPrompt)) return false
-    return window.confirm('Please confirm again to proceed.')
+  const confirmWithToast = useCallback((message: string, confirmLabel = 'Confirm') => {
+    return new Promise<boolean>((resolve) => {
+      let settled = false
+      const settle = (value: boolean) => {
+        if (settled) return
+        settled = true
+        resolve(value)
+      }
+      const toastId = `booking-confirm-${++confirmTokenRef.current}`
+      toast(message, {
+        id: toastId,
+        duration: 10000,
+        action: {
+          label: confirmLabel,
+          onClick: () => settle(true),
+        },
+        cancel: {
+          label: 'Cancel',
+          onClick: () => settle(false),
+        },
+        onDismiss: () => settle(false),
+      })
+    })
   }, [])
 
   const updateStatus = async (id: string, status: string, options?: { skipConfirm?: boolean; skipUndo?: boolean }) => {
     if (!options?.skipConfirm) {
-      const confirmed = requireDoubleConfirm(`Change appointment status to ${status}?`)
+      const confirmed = await confirmWithToast(`Change appointment status to ${status}?`, 'Change')
       if (!confirmed) return
     }
 
@@ -1065,7 +1124,7 @@ export default function BookingsClient({
 
   const rescheduleBooking = useCallback(async (id: string, newStartTime: string, options?: { skipConfirm?: boolean; skipUndo?: boolean }) => {
     if (!options?.skipConfirm) {
-      const confirmed = requireDoubleConfirm('Reschedule this appointment to the new time?')
+      const confirmed = await confirmWithToast('Reschedule this appointment to the new time?', 'Reschedule')
       if (!confirmed) return
     }
 
@@ -1115,7 +1174,7 @@ export default function BookingsClient({
     } finally {
       setUpdatingId(null)
     }
-  }, [bookings, fetchBookings, requireDoubleConfirm, trackBookingMetric])
+  }, [bookings, confirmWithToast, fetchBookings, trackBookingMetric])
 
   const fetchAvailableSlots = useCallback(async () => {
     if (appointmentForm.manual_override) {
@@ -1259,12 +1318,6 @@ export default function BookingsClient({
   }, [appointmentForm.notes])
 
   useEffect(() => {
-    if (!showAppointmentModal || editingBooking) return
-    if (typeof window === 'undefined') return
-    sessionStorage.setItem(notesDraftStorageKey, appointmentForm.notes)
-  }, [appointmentForm.notes, editingBooking, showAppointmentModal])
-
-  useEffect(() => {
     if (!showAppointmentModal || !editingBooking) return
     if (notesAutosaveSkipNextRef.current) {
       notesAutosaveSkipNextRef.current = false
@@ -1378,7 +1431,7 @@ export default function BookingsClient({
       } : null
 
       if (editingBooking) {
-        const confirmed = requireDoubleConfirm('Apply these amendments to this appointment?')
+        const confirmed = await confirmWithToast('Apply these amendments to this appointment?', 'Apply')
         if (!confirmed) return
       }
 
@@ -1470,9 +1523,6 @@ export default function BookingsClient({
           toast.success('Appointment created')
         }
 
-        if (typeof window !== 'undefined') {
-          sessionStorage.removeItem(notesDraftStorageKey)
-        }
         void trackBookingMetric('booking_created', { manual_override: appointmentForm.manual_override })
       }
 
@@ -1488,7 +1538,7 @@ export default function BookingsClient({
 
   const cancelEditingBooking = async () => {
     if (!editingBooking) return
-    const confirmed = requireDoubleConfirm('Cancel this appointment?')
+    const confirmed = await confirmWithToast('Cancel this appointment?', 'Cancel')
     if (!confirmed) return
 
     await updateStatus(editingBooking.id, BookingStatus.CANCELLED, { skipConfirm: true })
@@ -1772,7 +1822,7 @@ export default function BookingsClient({
 
             {!showSettings && (
               <button
-                onClick={saveCurrentView}
+                onClick={openSaveViewForm}
                 className="ui-tap ui-focus inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50 sm:text-sm"
               >
                 Save View
@@ -1811,6 +1861,32 @@ export default function BookingsClient({
                 Confirmed {confirmedVisible}
               </span>
             </div>
+
+            {!showSettings && showSaveViewForm && (
+              <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-indigo-200 bg-indigo-50/70 px-4 py-3 text-xs text-slate-500 shadow-sm">
+                <input
+                  value={saveViewName}
+                  onChange={(e) => setSaveViewName(e.target.value)}
+                  placeholder="View name"
+                  className="min-w-[180px] rounded-xl border border-indigo-200 bg-white px-3 py-2 text-sm text-slate-700"
+                />
+                <button
+                  onClick={() => void saveCurrentView()}
+                  className="rounded-xl bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+                >
+                  Save
+                </button>
+                <button
+                  onClick={() => {
+                    setShowSaveViewForm(false)
+                    setSaveViewName('')
+                  }}
+                  className="rounded-xl border border-indigo-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
 
             {!showSettings && savedViews.length > 0 && (
               <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200/80 bg-white/80 px-4 py-3 text-xs text-slate-500 shadow-sm">

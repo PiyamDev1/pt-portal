@@ -25,6 +25,30 @@ export const usePricingOptions = (supabase: SupabaseClient) => {
   const [editValues, setEditValues] = useState<PricingEditValues>({})
   const [setupRequired, setSetupRequired] = useState(false)
 
+  const confirmWithToast = useCallback((message: string, confirmLabel = 'Confirm') => {
+    return new Promise<boolean>((resolve) => {
+      let settled = false
+      const settle = (value: boolean) => {
+        if (settled) return
+        settled = true
+        resolve(value)
+      }
+
+      toast(message, {
+        duration: 10000,
+        action: {
+          label: confirmLabel,
+          onClick: () => settle(true),
+        },
+        cancel: {
+          label: 'Cancel',
+          onClick: () => settle(false),
+        },
+        onDismiss: () => settle(false),
+      })
+    })
+  }, [])
+
   const fetchPricing = useCallback(async () => {
     try {
       const { data: nadraPricingData, error: nadraErr } = await supabase
@@ -121,7 +145,8 @@ export const usePricingOptions = (supabase: SupabaseClient) => {
     async (id: string, serviceTab: ActiveTab) => {
       if (!id) return
 
-      if (!confirm('Delete this pricing entry?')) return
+      const confirmed = await confirmWithToast('Delete this pricing entry?', 'Delete')
+      if (!confirmed) return
 
       try {
         let table = 'nadra_pricing'
@@ -139,7 +164,7 @@ export const usePricingOptions = (supabase: SupabaseClient) => {
         toast.error(formatErrorForDisplay(apiError))
       }
     },
-    [supabase, fetchPricing],
+    [confirmWithToast, supabase, fetchPricing],
   )
 
   return {

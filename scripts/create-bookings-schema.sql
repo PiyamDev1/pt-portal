@@ -196,6 +196,16 @@ CREATE TABLE IF NOT EXISTS booking_idempotency_keys (
   UNIQUE (action_name, idempotency_key)
 );
 
+CREATE TABLE IF NOT EXISTS booking_user_preferences (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  location_id uuid references locations(id) on delete cascade,
+  saved_views jsonb not null default '[]'::jsonb,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now(),
+  unique (user_id, location_id)
+);
+
 -- ============================================================
 -- 7) REMINDERS, ATTENDANCE CONFIRMATION, PENALTY FLAGS
 -- ============================================================
@@ -267,6 +277,7 @@ CREATE INDEX IF NOT EXISTS idx_overrides_location_date ON branch_schedule_overri
 CREATE INDEX IF NOT EXISTS idx_booking_email_logs_booking_id ON booking_email_logs (booking_id);
 CREATE INDEX IF NOT EXISTS idx_booking_email_logs_location_created ON booking_email_logs (location_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_booking_idempotency_keys_created ON booking_idempotency_keys (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_booking_user_preferences_user_location ON booking_user_preferences (user_id, location_id);
 CREATE INDEX IF NOT EXISTS idx_booking_reminder_events_location_created ON booking_reminder_events (location_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_booking_contact_flags_penalty ON booking_contact_flags (location_id, penalty_applied, missed_count DESC);
 
@@ -301,6 +312,11 @@ CREATE TRIGGER booking_contact_flags_updated_at
   BEFORE UPDATE ON booking_contact_flags
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
+DROP TRIGGER IF EXISTS booking_user_preferences_updated_at ON booking_user_preferences;
+CREATE TRIGGER booking_user_preferences_updated_at
+  BEFORE UPDATE ON booking_user_preferences
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
 -- ============================================================
 -- 10) RLS
 -- ============================================================
@@ -310,6 +326,7 @@ ALTER TABLE booking_services          ENABLE ROW LEVEL SECURITY;
 ALTER TABLE bookings                  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE booking_email_logs        ENABLE ROW LEVEL SECURITY;
 ALTER TABLE booking_idempotency_keys  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE booking_user_preferences  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE booking_reminder_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE booking_reminder_events   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE booking_contact_flags     ENABLE ROW LEVEL SECURITY;
@@ -325,6 +342,7 @@ DO $$ DECLARE r RECORD; BEGIN
       'bookings',
       'booking_email_logs',
       'booking_idempotency_keys',
+      'booking_user_preferences',
       'booking_reminder_settings',
       'booking_reminder_events',
       'booking_contact_flags'
@@ -353,6 +371,9 @@ CREATE POLICY "Authenticated can read booking email logs"
 CREATE POLICY "Authenticated can read booking idempotency keys"
   ON booking_idempotency_keys FOR SELECT TO authenticated USING (true);
 
+CREATE POLICY "Authenticated can read own booking preferences"
+  ON booking_user_preferences FOR SELECT TO authenticated USING (auth.uid() = user_id);
+
 CREATE POLICY "Authenticated can read booking reminder settings"
   ON booking_reminder_settings FOR SELECT TO authenticated USING (true);
 
@@ -371,6 +392,9 @@ CREATE POLICY "Authenticated can manage booking email logs"
 
 CREATE POLICY "Authenticated can manage booking idempotency keys"
   ON booking_idempotency_keys FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+CREATE POLICY "Authenticated can manage own booking preferences"
+  ON booking_user_preferences FOR ALL TO authenticated USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
 CREATE POLICY "Authenticated can manage booking reminder settings"
   ON booking_reminder_settings FOR ALL TO authenticated USING (true) WITH CHECK (true);
@@ -396,6 +420,9 @@ CREATE POLICY "Service role can manage booking email logs"
 
 CREATE POLICY "Service role can manage booking idempotency keys"
   ON booking_idempotency_keys FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+CREATE POLICY "Service role can manage booking user preferences"
+  ON booking_user_preferences FOR ALL TO service_role USING (true) WITH CHECK (true);
 
 CREATE POLICY "Service role can manage booking reminder settings"
   ON booking_reminder_settings FOR ALL TO service_role USING (true) WITH CHECK (true);

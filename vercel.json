@@ -7,7 +7,7 @@
   "crons": [
     {
       "path": "/api/cron/bookings/reminders",
-      "schedule": "*/15 * * * *"
+      "schedule": "0 6 * * *"
     },
     {
       "path": "/api/cron/issue-reports/cleanup",

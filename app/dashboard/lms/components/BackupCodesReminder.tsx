@@ -9,6 +9,7 @@
 
 import { useState, useEffect } from 'react'
 import { AlertTriangle, X } from 'lucide-react'
+import { toast } from 'sonner'
 
 interface BackupCodesReminderProps {
   userId: string
@@ -23,20 +24,17 @@ export function BackupCodesReminder({ userId, onDownloaded }: BackupCodesReminde
   useEffect(() => {
     const checkBackupCodeStatus = async () => {
       try {
-        // Check localStorage first
-        const dismissed = localStorage.getItem(`backup-reminder-dismissed-${userId}`)
-        if (dismissed) {
-          setHidden(true)
-          setLoading(false)
-          return
-        }
+        const res = await fetch('/api/auth/security-preferences', { cache: 'no-store' })
+        const json = await res.json()
+        const prefs = json.preferences || {}
+        const dismissedUntil = prefs.backup_reminder_dismissed_until
+          ? new Date(prefs.backup_reminder_dismissed_until).getTime()
+          : null
+        const downloadedAt = prefs.backup_codes_downloaded_at
 
-        // Check if user has downloaded backup codes (via API call if needed)
-        // For now, we'll use localStorage to track this
-        const downloaded = localStorage.getItem(`backup-codes-downloaded-${userId}`)
-        setBackupCodesDownloaded(!!downloaded)
+        setBackupCodesDownloaded(Boolean(downloadedAt))
 
-        if (downloaded) {
+        if ((dismissedUntil && dismissedUntil > Date.now()) || downloadedAt) {
           setHidden(true)
         }
       } finally {
@@ -47,14 +45,21 @@ export function BackupCodesReminder({ userId, onDownloaded }: BackupCodesReminde
     checkBackupCodeStatus()
   }, [userId])
 
-  const handleDismiss = () => {
-    localStorage.setItem(`backup-reminder-dismissed-${userId}`, 'true')
+  const handleDismiss = async () => {
+    const remindAgainAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+    const res = await fetch('/api/auth/security-preferences', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ backup_reminder_dismissed_until: remindAgainAt }),
+    })
+    if (!res.ok) {
+      toast.error('Failed to save reminder preference')
+      return
+    }
     setHidden(true)
   }
 
   const handleDownload = () => {
-    // Mark as downloaded
-    localStorage.setItem(`backup-codes-downloaded-${userId}`, 'true')
     setBackupCodesDownloaded(true)
     setHidden(true)
     onDownloaded?.()

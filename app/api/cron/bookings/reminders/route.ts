@@ -7,6 +7,7 @@ import { storeBookingEmailAttempt } from '@/lib/bookingPersistence'
 export const runtime = 'nodejs'
 
 const SCHEMA_HINT = 'Booking schema is out of date. Run scripts/migrations/20260602_add_booking_reminders_and_penalties.sql in Supabase SQL editor.'
+const DEFAULT_LOOKBACK_MINUTES = 24 * 60
 
 function isSchemaError(error: unknown): boolean {
   const code = (error as { code?: string } | null)?.code
@@ -56,6 +57,22 @@ function buildBranchAddress(location: {
   return parts.length > 0 ? parts.join(', ') : 'Address unavailable'
 }
 
+function getReminderWindowBounds(hoursBefore: number, nowMs: number) {
+  const configuredLookback = Number(process.env.BOOKING_REMINDER_CRON_LOOKBACK_MINUTES || DEFAULT_LOOKBACK_MINUTES)
+  const lookbackMinutes = Number.isFinite(configuredLookback)
+    ? Math.min(DEFAULT_LOOKBACK_MINUTES, Math.max(15, configuredLookback))
+    : DEFAULT_LOOKBACK_MINUTES
+
+  const lowerBoundMs = nowMs - lookbackMinutes * 60 * 1000 + hoursBefore * 60 * 60 * 1000
+  const upperBoundMs = nowMs + hoursBefore * 60 * 60 * 1000
+  const effectiveLowerBoundMs = Math.max(nowMs, lowerBoundMs)
+
+  return {
+    lowerBound: new Date(effectiveLowerBoundMs).toISOString(),
+    upperBound: new Date(upperBoundMs).toISOString(),
+  }
+}
+
 export async function GET(request: Request) {
   if (!isAuthorizedCron(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -102,8 +119,7 @@ export async function GET(request: Request) {
         if (!reminderWindow.enabled) continue
 
         const now = Date.now()
-        const lowerBound = new Date(now + (reminderWindow.hours * 60 - 15) * 60 * 1000).toISOString()
-        const upperBound = new Date(now + (reminderWindow.hours * 60 + 15) * 60 * 1000).toISOString()
+        const { lowerBound, upperBound } = getReminderWindowBounds(reminderWindow.hours, now)
 
         const { data: candidates, error: candidateError } = await supabase
           .from('bookings')

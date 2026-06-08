@@ -163,6 +163,11 @@ export default function MyAccountPage() {
     if (res.ok) {
       setShowCodes(data.codes || [])
       setBackupCodeCount(10)
+      await fetch('/api/auth/security-preferences', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ backup_codes_downloaded: false }),
+      })
       toast.success('Backup codes generated successfully')
     } else {
       toast.error('Failed to generate backup codes: ' + (data?.error || 'Unknown'))
@@ -194,11 +199,12 @@ export default function MyAccountPage() {
     a.download = 'backup-codes.txt'
     a.click()
 
-    // Mark as downloaded
-    if (user?.id) {
-      localStorage.setItem(`backup-codes-downloaded-${user.id}`, 'true')
-      toast.success('Backup codes downloaded successfully')
-    }
+    void fetch('/api/auth/security-preferences', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ backup_codes_downloaded: true }),
+    })
+    toast.success('Backup codes downloaded successfully')
   }
 
   const handleCopyBackupCodes = async () => {
