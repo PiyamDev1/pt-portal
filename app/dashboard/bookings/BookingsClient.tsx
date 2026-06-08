@@ -2,11 +2,13 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef, memo } from 'react'
 import { toast } from 'sonner'
-import { BookingStatus, BookingSource } from '@/app/types/bookings'
+import { BookingStatus, BookingSource, type BookingDraftPayload, type BookingWaitlistEntry } from '@/app/types/bookings'
 import BookingSettingsTab, {
   type BranchLocationOption,
 } from '@/app/dashboard/settings/components/BookingSettingsTab'
 import BookingHistoryModal from '@/app/dashboard/bookings/BookingHistoryModal'
+import BookingWaitlistModal from '@/app/dashboard/bookings/BookingWaitlistModal'
+import { useBookingDraft } from '@/app/dashboard/bookings/useBookingDraft'
 
 interface BookingWithService {
   id: string
@@ -25,6 +27,7 @@ interface BookingWithService {
   last_email_status?: string | null
   last_email_subject?: string | null
   reschedule_count?: number
+  attendance_status?: 'unknown' | 'present' | 'missed' | 'manual_no_show'
   created_at: string
   updated_at?: string
   booking_services: { name: string; duration_minutes: number } | null
@@ -520,6 +523,7 @@ export default function BookingsClient({
   )
   const [serviceOptions, setServiceOptions] = useState<BookingServiceOption[]>([])
   const [showAppointmentModal, setShowAppointmentModal] = useState(false)
+  const [showWaitlistModal, setShowWaitlistModal] = useState(false)
   const [editingBooking, setEditingBooking] = useState<BookingWithService | null>(null)
   const [historyBookingId, setHistoryBookingId] = useState<string | null>(null)
   const [resendingBookingId, setResendingBookingId] = useState<string | null>(null)
@@ -540,6 +544,7 @@ export default function BookingsClient({
   const [panelSlots, setPanelSlots] = useState<SlotOption[]>([])
   const [loadingPanelSlots, setLoadingPanelSlots] = useState(false)
   const [panelSlotsError, setPanelSlotsError] = useState<string | null>(null)
+  const [waitlistEntries, setWaitlistEntries] = useState<BookingWaitlistEntry[]>([])
   const [showNotesEditor, setShowNotesEditor] = useState(false)
   const [notesAutosaveState, setNotesAutosaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const notesAutosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -549,7 +554,7 @@ export default function BookingsClient({
   const latestNotesRef = useRef('')
   const lastBackgroundRefreshAtRef = useRef(0)
   const confirmTokenRef = useRef(0)
-  const [appointmentForm, setAppointmentForm] = useState({
+  const [appointmentForm, setAppointmentForm] = useState<BookingDraftPayload>({
     customer_name: '',
     customer_email: '',
     phone_country_code: '+44',
@@ -681,6 +686,21 @@ export default function BookingsClient({
     }
   }, [fromISO, selectedLocationId, toISO])
 
+  const fetchWaitlist = useCallback(async () => {
+    if (!selectedLocationId) {
+      setWaitlistEntries([])
+      return
+    }
+    try {
+      const res = await fetch(`/api/bookings/waitlist?location_id=${encodeURIComponent(selectedLocationId)}`, { cache: 'no-store' })
+      const json = await res.json()
+      if (!res.ok) return
+      setWaitlistEntries(json.entries || [])
+    } catch {
+      setWaitlistEntries([])
+    }
+  }, [selectedLocationId])
+
   const fetchBookingsThrottled = useCallback(() => {
     const now = Date.now()
     if (now - lastBackgroundRefreshAtRef.current < 5000) return
@@ -699,6 +719,10 @@ export default function BookingsClient({
   useEffect(() => {
     fetchBookingReport()
   }, [fetchBookingReport])
+
+  useEffect(() => {
+    fetchWaitlist()
+  }, [fetchWaitlist])
 
   useEffect(() => {
     if (!selectedLocationId) return
@@ -902,6 +926,14 @@ export default function BookingsClient({
     activeBookings.filter((b) => isSameUTCDay(new Date(b.start_time), date))
 
   const selectedBookings = bookingsForDate(selectedDate)
+
+  const { draftState, clearDraft } = useBookingDraft({
+    enabled: showAppointmentModal,
+    editing: Boolean(editingBooking),
+    locationId: selectedLocationId,
+    form: appointmentForm,
+    setForm: setAppointmentForm,
+  })
 
   const trackBookingMetric = useCallback(async (eventName: string, metadata?: Record<string, unknown>) => {
     try {
@@ -1122,6 +1154,14 @@ export default function BookingsClient({
     setShowAppointmentModal(true)
   }
 
+  const closeAppointmentModal = useCallback(() => {
+    setShowAppointmentModal(false)
+    setCancelConfirmOpen(false)
+    if (!editingBooking) {
+      void clearDraft()
+    }
+  }, [clearDraft, editingBooking])
+
   const rescheduleBooking = useCallback(async (id: string, newStartTime: string, options?: { skipConfirm?: boolean; skipUndo?: boolean }) => {
     if (!options?.skipConfirm) {
       const confirmed = await confirmWithToast('Reschedule this appointment to the new time?', 'Reschedule')
@@ -1175,6 +1215,29 @@ export default function BookingsClient({
       setUpdatingId(null)
     }
   }, [bookings, confirmWithToast, fetchBookings, trackBookingMetric])
+
+  const flagNoShow = useCallback(async (booking: BookingWithService) => {
+    const confirmed = await confirmWithToast('Flag this appointment as a no-show and apply penalty tracking?', 'Flag no-show')
+    if (!confirmed) return
+
+    setUpdatingId(booking.id)
+    try {
+      const res = await fetch(`/api/bookings/${booking.id}/no-show`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: 'Marked as no-show by staff from bookings dashboard' }),
+      })
+      const json = await res.json()
+      if (!res.ok) {
+        toast.error(json.error || 'Failed to flag no-show')
+        return
+      }
+      toast.success('Appointment flagged as no-show')
+      await fetchBookings(false)
+    } finally {
+      setUpdatingId(null)
+    }
+  }, [confirmWithToast, fetchBookings])
 
   const fetchAvailableSlots = useCallback(async () => {
     if (appointmentForm.manual_override) {
@@ -1245,14 +1308,13 @@ export default function BookingsClient({
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return
-      setShowAppointmentModal(false)
+      closeAppointmentModal()
       setShowDayAgendaModal(false)
-      setCancelConfirmOpen(false)
     }
 
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [showAppointmentModal, showDayAgendaModal])
+  }, [closeAppointmentModal, showAppointmentModal, showDayAgendaModal])
 
   useEffect(() => {
     if (!showAppointmentModal || editingBooking) return
@@ -1526,6 +1588,9 @@ export default function BookingsClient({
         void trackBookingMetric('booking_created', { manual_override: appointmentForm.manual_override })
       }
 
+      if (!editingBooking) {
+        await clearDraft()
+      }
       setShowAppointmentModal(false)
       setEditingBooking(null)
       setSlotsError(null)
@@ -2304,17 +2369,50 @@ export default function BookingsClient({
             </div>
           </div>
         )}
+
+        {!showSettings && waitlistEntries.length > 0 && (
+          <div className="overflow-hidden rounded-2xl border border-amber-200 bg-white shadow-sm">
+            <div className="flex items-center justify-between border-b border-amber-100 bg-amber-50 px-5 py-3">
+              <h3 className="text-sm font-semibold text-amber-900">Waitlist</h3>
+              <button onClick={() => setShowWaitlistModal(true)} className="rounded-lg border border-amber-300 bg-white px-3 py-1 text-xs font-medium text-amber-800">
+                Add entry
+              </button>
+            </div>
+            <div className="max-h-72 divide-y divide-amber-50 overflow-y-auto">
+              {waitlistEntries.slice(0, 8).map((entry) => (
+                <div key={entry.id} className="flex items-center justify-between gap-3 px-5 py-3">
+                  <div>
+                    <p className="text-sm font-medium text-slate-800">{entry.customer_name}</p>
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      {entry.preferred_date || 'Flexible date'} {entry.preferred_time_start ? `· ${entry.preferred_time_start}` : ''} · {entry.customer_phone}
+                    </p>
+                  </div>
+                  <span className="rounded-full bg-amber-100 px-2 py-1 text-[11px] font-medium uppercase tracking-wide text-amber-800">
+                    {entry.status}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {showAppointmentModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-[2px]">
           <div className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-[28px] border border-white/70 bg-white p-5 shadow-[0_28px_90px_-36px_rgba(15,23,42,0.5)] transition-all duration-200 space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h2 className="inline-flex items-center gap-2 text-lg font-semibold text-slate-800">
-                <CalendarIcon className="h-5 w-5 text-indigo-600" />
-                {editingBooking ? 'Modify Appointment' : 'Add Appointment'}
-              </h2>
-              <button onClick={() => setShowAppointmentModal(false)} className="ui-tap ui-focus rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-700">Close</button>
+              <div>
+                <h2 className="inline-flex items-center gap-2 text-lg font-semibold text-slate-800">
+                  <CalendarIcon className="h-5 w-5 text-indigo-600" />
+                  {editingBooking ? 'Modify Appointment' : 'Add Appointment'}
+                </h2>
+                {!editingBooking && (
+                  <p className="mt-1 text-xs text-slate-500">
+                    Draft status: {draftState}
+                  </p>
+                )}
+              </div>
+              <button onClick={closeAppointmentModal} className="ui-tap ui-focus rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-700">Close</button>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -2519,22 +2617,44 @@ export default function BookingsClient({
                       Checking availability…
                     </div>
                   ) : slotsError ? (
-                    <div className="h-80 rounded-lg border border-amber-200 bg-amber-50 flex flex-col items-center justify-center gap-1 text-amber-700 text-sm px-4 text-center">
+                    <div className="h-80 rounded-lg border border-amber-200 bg-amber-50 flex flex-col items-center justify-center gap-3 text-amber-700 text-sm px-4 text-center">
                       <span className="text-lg">⚠</span>
-                      {slotsError}
+                      <p>{slotsError}</p>
+                      {!editingBooking && (
+                        <button
+                          type="button"
+                          onClick={() => setShowWaitlistModal(true)}
+                          className="rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-xs font-medium text-amber-800"
+                        >
+                          Add to waitlist instead
+                        </button>
+                      )}
                     </div>
                   ) : !appointmentForm.date || !appointmentForm.service_id ? (
                     <div className="h-80 rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-center text-slate-400 text-sm">Select a service and date to see the timeline.</div>
                   ) : (
-                    <SlotTimeline
-                      date={appointmentForm.date}
-                      availableSlots={availableSlots}
-                      existingBookings={dateBookings}
-                      selectedIso={appointmentForm.start_time}
-                      durationMinutes={modalDuration}
-                      onBookingClick={openEditBooking}
-                      onSelect={(iso) => setAppointmentForm((p) => ({ ...p, start_time: iso }))}
-                    />
+                    <div className="space-y-3">
+                      <SlotTimeline
+                        date={appointmentForm.date}
+                        availableSlots={availableSlots}
+                        existingBookings={dateBookings}
+                        selectedIso={appointmentForm.start_time}
+                        durationMinutes={modalDuration}
+                        onBookingClick={openEditBooking}
+                        onSelect={(iso) => setAppointmentForm((p) => ({ ...p, start_time: iso }))}
+                      />
+                      {availableSlots.length === 0 && !editingBooking && (
+                        <div className="flex justify-center">
+                          <button
+                            type="button"
+                            onClick={() => setShowWaitlistModal(true)}
+                            className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800"
+                          >
+                            No slot works, add customer to waitlist
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   )}
                   {appointmentForm.start_time && (
                     <p className="mt-2 text-xs text-indigo-700 font-medium">
@@ -2641,16 +2761,31 @@ export default function BookingsClient({
                     Cancel Appointment
                   </button>
                 )}
-                <button onClick={() => { setShowAppointmentModal(false); setCancelConfirmOpen(false) }} className="ui-tap ui-focus inline-flex items-center gap-1.5 px-4 py-2 rounded border border-slate-300 text-sm"><CloseIcon className="h-4 w-4" />Close</button>
+                <button onClick={closeAppointmentModal} className="ui-tap ui-focus inline-flex items-center gap-1.5 px-4 py-2 rounded border border-slate-300 text-sm"><CloseIcon className="h-4 w-4" />Close</button>
                 <button onClick={saveAppointment} disabled={savingBooking || invalidLocalPhone} className="ui-tap ui-focus inline-flex items-center gap-1.5 px-4 py-2 rounded bg-indigo-600 text-white text-sm disabled:opacity-50">
                   {!savingBooking && <CheckIcon className="h-4 w-4" />}
                   {savingBooking ? 'Saving...' : editingBooking ? 'Save Changes' : 'Create Appointment'}
                 </button>
+                {editingBooking && editingBooking.status !== BookingStatus.CANCELLED && (
+                  <button onClick={() => void flagNoShow(editingBooking)} disabled={updatingId === editingBooking.id} className="ui-tap ui-focus inline-flex items-center gap-1.5 rounded border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-700 disabled:opacity-50">
+                    Flag No-Show
+                  </button>
+                )}
               </div>
             </div>
           </div>
         </div>
       )}
+
+      <BookingWaitlistModal
+        isOpen={showWaitlistModal}
+        locationId={selectedLocationId}
+        serviceOptions={serviceOptions.map((service) => ({ id: service.id, name: service.name }))}
+        initialServiceId={appointmentForm.service_id}
+        initialDate={appointmentForm.date}
+        onClose={() => setShowWaitlistModal(false)}
+        onCreated={fetchWaitlist}
+      />
 
       {showDayAgendaModal && (
         <DayAgendaModal

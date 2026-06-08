@@ -11,6 +11,9 @@ export enum BookingStatus {
   COMPLETED = 'completed',
 }
 
+export type BookingAttendanceStatus = 'unknown' | 'present' | 'missed' | 'manual_no_show'
+export type BookingWaitlistStatus = 'waiting' | 'contacted' | 'booked' | 'cancelled' | 'expired'
+
 export enum BookingSource {
   PORTAL = 'portal',
   WHATSAPP = 'whatsapp',
@@ -93,8 +96,43 @@ export interface Booking {
   last_email_recipient?: string | null;
   last_rescheduled_at?: string | null;
   reschedule_count?: number;
+  attendance_status?: BookingAttendanceStatus;
   created_at: string;
   updated_at?: string;
+}
+
+export interface BookingDraftPayload {
+  customer_name: string
+  customer_email: string
+  phone_country_code: string
+  phone_local: string
+  service_id: string
+  notes: string
+  tags: string
+  date: string
+  start_time: string
+  end_time: string
+  manual_override: boolean
+  person_count: number
+}
+
+export interface BookingWaitlistEntry {
+  id: string
+  location_id: string
+  service_id: string | null
+  customer_name: string
+  customer_phone: string
+  customer_email: string | null
+  person_count: number
+  preferred_date: string | null
+  preferred_time_start: string | null
+  preferred_time_end: string | null
+  source: BookingSource
+  status: BookingWaitlistStatus
+  notes: string | null
+  linked_booking_id?: string | null
+  created_at: string
+  updated_at?: string
 }
 
 // API Request/Response Types

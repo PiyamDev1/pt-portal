@@ -23,6 +23,7 @@ import {
   recordIdempotentBooking,
   storeBookingEmailAttempt,
 } from '@/lib/bookingPersistence';
+import { reserveBookingCapacity } from '@/lib/bookingCapacity';
 
 function buildBranchAddress(location: {
   address_line1?: string | null;
@@ -439,6 +440,7 @@ export async function POST(request: NextRequest) {
       getServicePersonUnits(service, personCount) * (service.duration_per_additional_person_minutes ?? 0);
     const occupancyMinutes = serviceDurationMinutes + Math.max(0, service.buffer_minutes ?? 0);
     const boundaryToleranceMinutes = Math.max(0, service.close_overrun_tolerance_minutes);
+    let resolvedCapacity = 1;
 
     let endTimeDate: Date;
     let occupiedUntilDate: Date;
@@ -512,6 +514,7 @@ export async function POST(request: NextRequest) {
       }
 
       const branchSettings = branchSettingsRow ?? buildDefaultBranchSchedule(dayOfWeek);
+      resolvedCapacity = Math.max(1, branchSettings.concurrent_staff || 1);
       const dateKey = startTimeDate.toISOString().slice(0, 10);
       const startOfDay = new Date(`${dateKey}T00:00:00Z`).toISOString();
       const endOfDay = new Date(`${dateKey}T23:59:59Z`).toISOString();
@@ -556,8 +559,7 @@ export async function POST(request: NextRequest) {
       }
 
       const overlapCount = countBufferedOverlaps(overlappingCandidates || [], start_time, occupied_until);
-      const staffCapacity = Math.max(1, branchSettings.concurrent_staff || 1);
-      if (overlapCount >= staffCapacity) {
+      if (overlapCount >= resolvedCapacity) {
         return NextResponse.json(
           {
             success: false,
@@ -651,6 +653,7 @@ export async function POST(request: NextRequest) {
       const lunchEnd = override?.lunch_end_time ?? branchSettings.lunch_end_time;
       const prayerStart = override?.prayer_start_time ?? branchSettings.prayer_start_time;
       const prayerEnd = override?.prayer_end_time ?? branchSettings.prayer_end_time;
+      resolvedCapacity = Math.max(1, override?.concurrent_staff ?? branchSettings.concurrent_staff ?? 1);
 
       const serviceStartBound = service.service_start_time ?? openTime;
       const serviceEndBound = service.service_end_time ?? closeTime;
@@ -752,7 +755,7 @@ export async function POST(request: NextRequest) {
       }
 
       const overlapCount = countBufferedOverlaps(overlappingCandidates || [], start_time, occupied_until);
-      if (overlapCount >= branchSettings.concurrent_staff) {
+      if (overlapCount >= resolvedCapacity) {
         return NextResponse.json(
           {
             success: false,
@@ -798,6 +801,25 @@ export async function POST(request: NextRequest) {
           error: 'Failed to create booking',
         } as CreateBookingResponse,
         { status: 500 }
+      );
+    }
+
+    const capacityReservation = await reserveBookingCapacity(supabase, {
+      bookingId: newBooking.id,
+      locationId: location_id,
+      startTime: start_time,
+      occupiedUntil: occupied_until,
+      capacity: resolvedCapacity,
+    });
+
+    if (!capacityReservation.success) {
+      await supabase.from('bookings').delete().eq('id', newBooking.id);
+      return NextResponse.json(
+        {
+          success: false,
+          error: capacityReservation.error || 'No available staff for this time slot',
+        } as CreateBookingResponse,
+        { status: 409 }
       );
     }
 

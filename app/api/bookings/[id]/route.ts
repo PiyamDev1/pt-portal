@@ -17,6 +17,7 @@ import {
   recordIdempotentBooking,
   storeBookingEmailAttempt,
 } from '@/lib/bookingPersistence';
+import { releaseBookingCapacity, reserveBookingCapacity } from '@/lib/bookingCapacity';
 
 function buildBranchAddress(location: {
   address_line1?: string | null;
@@ -289,6 +290,7 @@ export async function PATCH(
       getServicePersonUnits(service, nextPersonCount) * (service.duration_per_additional_person_minutes ?? 0);
     const occupancyMinutes = serviceDurationMinutes + Math.max(0, service.buffer_minutes ?? 0);
     const boundaryToleranceMinutes = Math.max(0, service.close_overrun_tolerance_minutes);
+    let resolvedCapacity = 1;
 
     const endTimeDate = new Date(startTimeDate.getTime() + serviceDurationMinutes * 60 * 1000);
     const occupiedUntilDate = new Date(startTimeDate.getTime() + occupancyMinutes * 60 * 1000);
@@ -325,6 +327,7 @@ export async function PATCH(
       }
 
       const branchSettings = branchSettingsRow ?? buildDefaultBranchSchedule(bookingDayOfWeek);
+      resolvedCapacity = Math.max(1, branchSettings.concurrent_staff || 1);
 
       if (branchSettings.is_closed) {
         return NextResponse.json({ error: 'Branch is closed on this day' }, { status: 400 });
@@ -427,9 +430,9 @@ export async function PATCH(
         return NextResponse.json({ error: 'Failed to check availability' }, { status: 500 });
       }
 
-      const concurrentStaff = override?.concurrent_staff ?? branchSettings.concurrent_staff;
+      resolvedCapacity = Math.max(1, override?.concurrent_staff ?? branchSettings.concurrent_staff ?? 1);
       const overlapCount = countBufferedOverlaps(overlappingCandidates || [], nextStartISO, nextOccupiedUntilISO);
-      if (overlapCount >= concurrentStaff) {
+      if (overlapCount >= resolvedCapacity) {
         return NextResponse.json({ error: 'No available staff for this time slot' }, { status: 409 });
       }
     }
@@ -464,6 +467,41 @@ export async function PATCH(
         return NextResponse.json({ error: SCHEMA_HINT }, { status: 503 });
       }
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    const shouldReserveCapacity =
+      nextStatus !== BookingStatus.CANCELLED &&
+      nextStatus !== BookingStatus.COMPLETED &&
+      (!isSameSlot || existing.status === BookingStatus.CANCELLED || existing.status === BookingStatus.COMPLETED)
+
+    if (nextStatus === BookingStatus.CANCELLED || nextStatus === BookingStatus.COMPLETED) {
+      await releaseBookingCapacity(supabase, id)
+    } else if (shouldReserveCapacity) {
+      const capacityReservation = await reserveBookingCapacity(supabase, {
+        bookingId: id,
+        locationId: existing.location_id,
+        startTime: nextStartISO,
+        occupiedUntil: nextOccupiedUntilISO,
+        capacity: resolvedCapacity,
+      })
+
+      if (!capacityReservation.success) {
+        await supabase.from('bookings').update({
+          status: existing.status,
+          customer_name: existing.customer_name,
+          customer_phone: existing.customer_phone,
+          customer_email: existing.customer_email,
+          service_id: existing.service_id,
+          person_count: existing.person_count,
+          tags: existing.tags,
+          start_time: existing.start_time,
+          end_time: existing.end_time,
+          notes: existing.notes,
+          last_rescheduled_at: existing.last_rescheduled_at,
+          reschedule_count: existing.reschedule_count,
+        }).eq('id', id)
+        return NextResponse.json({ error: capacityReservation.error || 'No available staff for this time slot' }, { status: 409 })
+      }
     }
 
     const { data: location } = await supabase

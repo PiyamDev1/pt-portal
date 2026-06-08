@@ -137,6 +137,7 @@ CREATE TABLE IF NOT EXISTS bookings (
   last_email_recipient TEXT,
   last_rescheduled_at TIMESTAMPTZ,
   reschedule_count INTEGER NOT NULL DEFAULT 0,
+  attendance_status TEXT NOT NULL DEFAULT 'unknown' CHECK (attendance_status IN ('unknown', 'present', 'missed', 'manual_no_show')),
   created_at      TIMESTAMPTZ DEFAULT NOW(),
   updated_at      TIMESTAMPTZ DEFAULT NOW()
 );
@@ -153,7 +154,8 @@ ALTER TABLE bookings
   ADD COLUMN IF NOT EXISTS last_email_subject TEXT,
   ADD COLUMN IF NOT EXISTS last_email_recipient TEXT,
   ADD COLUMN IF NOT EXISTS last_rescheduled_at TIMESTAMPTZ,
-  ADD COLUMN IF NOT EXISTS reschedule_count INTEGER NOT NULL DEFAULT 0;
+  ADD COLUMN IF NOT EXISTS reschedule_count INTEGER NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS attendance_status TEXT NOT NULL DEFAULT 'unknown';
 
 -- Add address/contact fields to locations if not already present
 ALTER TABLE locations
@@ -206,6 +208,65 @@ CREATE TABLE IF NOT EXISTS booking_user_preferences (
   unique (user_id, location_id)
 );
 
+CREATE TABLE IF NOT EXISTS booking_drafts (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  location_id UUID REFERENCES locations(id) ON DELETE CASCADE,
+  draft_key TEXT NOT NULL DEFAULT 'appointment-form',
+  payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (user_id, location_id, draft_key)
+);
+
+CREATE TABLE IF NOT EXISTS booking_waitlist_entries (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  location_id UUID NOT NULL REFERENCES locations(id) ON DELETE CASCADE,
+  service_id UUID REFERENCES booking_services(id) ON DELETE SET NULL,
+  customer_name TEXT NOT NULL,
+  customer_phone TEXT NOT NULL,
+  customer_email TEXT,
+  person_count INTEGER NOT NULL DEFAULT 1,
+  preferred_date DATE,
+  preferred_time_start TIME,
+  preferred_time_end TIME,
+  source booking_source NOT NULL DEFAULT 'portal',
+  status TEXT NOT NULL DEFAULT 'waiting' CHECK (status IN ('waiting', 'contacted', 'booked', 'cancelled', 'expired')),
+  notes TEXT,
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  linked_booking_id UUID REFERENCES bookings(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE EXTENSION IF NOT EXISTS btree_gist;
+
+CREATE TABLE IF NOT EXISTS booking_capacity_reservations (
+  booking_id UUID PRIMARY KEY REFERENCES bookings(id) ON DELETE CASCADE,
+  location_id UUID NOT NULL REFERENCES locations(id) ON DELETE CASCADE,
+  seat_number INTEGER NOT NULL CHECK (seat_number >= 1),
+  start_time TIMESTAMPTZ NOT NULL,
+  occupied_until TIMESTAMPTZ NOT NULL,
+  released_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  CHECK (occupied_until > start_time)
+);
+
+DO $$
+BEGIN
+  ALTER TABLE booking_capacity_reservations
+    ADD CONSTRAINT booking_capacity_reservations_no_overlap
+    EXCLUDE USING gist (
+      location_id WITH =,
+      seat_number WITH =,
+      tstzrange(start_time, occupied_until, '[)') WITH &&
+    )
+    WHERE (released_at IS NULL);
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
+
 -- ============================================================
 -- 7) REMINDERS, ATTENDANCE CONFIRMATION, PENALTY FLAGS
 -- ============================================================
@@ -253,6 +314,10 @@ CREATE TABLE IF NOT EXISTS booking_contact_flags (
   penalty_applied      BOOLEAN NOT NULL DEFAULT false,
   penalty_applied_at   TIMESTAMPTZ,
   last_missed_booking_id UUID REFERENCES bookings(id) ON DELETE SET NULL,
+  last_no_show_at      TIMESTAMPTZ,
+  manual_review_required BOOLEAN NOT NULL DEFAULT false,
+  penalty_reason       TEXT,
+  blocked_until        TIMESTAMPTZ,
   notes                TEXT,
   created_at           TIMESTAMPTZ DEFAULT NOW(),
   updated_at           TIMESTAMPTZ DEFAULT NOW(),
@@ -278,8 +343,11 @@ CREATE INDEX IF NOT EXISTS idx_booking_email_logs_booking_id ON booking_email_lo
 CREATE INDEX IF NOT EXISTS idx_booking_email_logs_location_created ON booking_email_logs (location_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_booking_idempotency_keys_created ON booking_idempotency_keys (created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_booking_user_preferences_user_location ON booking_user_preferences (user_id, location_id);
+CREATE INDEX IF NOT EXISTS idx_booking_drafts_user_location ON booking_drafts (user_id, location_id, draft_key);
+CREATE INDEX IF NOT EXISTS idx_booking_waitlist_location_status ON booking_waitlist_entries (location_id, status, preferred_date);
 CREATE INDEX IF NOT EXISTS idx_booking_reminder_events_location_created ON booking_reminder_events (location_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_booking_contact_flags_penalty ON booking_contact_flags (location_id, penalty_applied, missed_count DESC);
+CREATE INDEX IF NOT EXISTS idx_booking_capacity_reservations_active ON booking_capacity_reservations (location_id, start_time, occupied_until) WHERE released_at IS NULL;
 
 -- ============================================================
 -- 9) AUTO-UPDATE updated_at TRIGGER
@@ -317,6 +385,91 @@ CREATE TRIGGER booking_user_preferences_updated_at
   BEFORE UPDATE ON booking_user_preferences
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
+DROP TRIGGER IF EXISTS booking_drafts_updated_at ON booking_drafts;
+CREATE TRIGGER booking_drafts_updated_at
+  BEFORE UPDATE ON booking_drafts
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+DROP TRIGGER IF EXISTS booking_waitlist_entries_updated_at ON booking_waitlist_entries;
+CREATE TRIGGER booking_waitlist_entries_updated_at
+  BEFORE UPDATE ON booking_waitlist_entries
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+DROP TRIGGER IF EXISTS booking_capacity_reservations_updated_at ON booking_capacity_reservations;
+CREATE TRIGGER booking_capacity_reservations_updated_at
+  BEFORE UPDATE ON booking_capacity_reservations
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+CREATE OR REPLACE FUNCTION release_booking_capacity_reservation(p_booking_id UUID)
+RETURNS VOID AS $$
+BEGIN
+  UPDATE booking_capacity_reservations
+     SET released_at = NOW(),
+         updated_at = NOW()
+   WHERE booking_id = p_booking_id
+     AND released_at IS NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION reserve_booking_capacity(
+  p_booking_id UUID,
+  p_location_id UUID,
+  p_start_time TIMESTAMPTZ,
+  p_occupied_until TIMESTAMPTZ,
+  p_capacity INTEGER
+)
+RETURNS TABLE(success BOOLEAN, seat_number INTEGER, error TEXT) AS $$
+DECLARE
+  candidate_seat INTEGER;
+BEGIN
+  IF p_capacity IS NULL OR p_capacity < 1 THEN
+    RETURN QUERY SELECT FALSE, NULL::INTEGER, 'Invalid capacity';
+    RETURN;
+  END IF;
+
+  UPDATE booking_capacity_reservations
+     SET released_at = NOW(),
+         updated_at = NOW()
+   WHERE booking_id = p_booking_id
+     AND released_at IS NULL;
+
+  FOR candidate_seat IN 1..p_capacity LOOP
+    BEGIN
+      INSERT INTO booking_capacity_reservations (
+        booking_id,
+        location_id,
+        seat_number,
+        start_time,
+        occupied_until,
+        released_at
+      ) VALUES (
+        p_booking_id,
+        p_location_id,
+        candidate_seat,
+        p_start_time,
+        p_occupied_until,
+        NULL
+      )
+      ON CONFLICT (booking_id) DO UPDATE
+        SET location_id = EXCLUDED.location_id,
+            seat_number = EXCLUDED.seat_number,
+            start_time = EXCLUDED.start_time,
+            occupied_until = EXCLUDED.occupied_until,
+            released_at = NULL,
+            updated_at = NOW();
+
+      RETURN QUERY SELECT TRUE, candidate_seat, NULL::TEXT;
+      RETURN;
+    EXCEPTION
+      WHEN exclusion_violation THEN
+        CONTINUE;
+    END;
+  END LOOP;
+
+  RETURN QUERY SELECT FALSE, NULL::INTEGER, 'No available staff for this time slot';
+END;
+$$ LANGUAGE plpgsql;
+
 -- ============================================================
 -- 10) RLS
 -- ============================================================
@@ -327,9 +480,12 @@ ALTER TABLE bookings                  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE booking_email_logs        ENABLE ROW LEVEL SECURITY;
 ALTER TABLE booking_idempotency_keys  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE booking_user_preferences  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE booking_drafts            ENABLE ROW LEVEL SECURITY;
+ALTER TABLE booking_waitlist_entries  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE booking_reminder_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE booking_reminder_events   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE booking_contact_flags     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE booking_capacity_reservations ENABLE ROW LEVEL SECURITY;
 
 -- Drop old policies before recreating to avoid duplicate errors
 DO $$ DECLARE r RECORD; BEGIN
@@ -343,9 +499,12 @@ DO $$ DECLARE r RECORD; BEGIN
       'booking_email_logs',
       'booking_idempotency_keys',
       'booking_user_preferences',
+      'booking_drafts',
+      'booking_waitlist_entries',
       'booking_reminder_settings',
       'booking_reminder_events',
-      'booking_contact_flags'
+      'booking_contact_flags',
+      'booking_capacity_reservations'
     )
   LOOP
     EXECUTE 'DROP POLICY IF EXISTS ' || quote_ident(r.policyname) || ' ON ' || quote_ident(r.tablename);
@@ -374,6 +533,9 @@ CREATE POLICY "Authenticated can read booking idempotency keys"
 CREATE POLICY "Authenticated can read own booking preferences"
   ON booking_user_preferences FOR SELECT TO authenticated USING (auth.uid() = user_id);
 
+CREATE POLICY "Authenticated can read own booking drafts"
+  ON booking_drafts FOR SELECT TO authenticated USING (auth.uid() = user_id);
+
 CREATE POLICY "Authenticated can read booking reminder settings"
   ON booking_reminder_settings FOR SELECT TO authenticated USING (true);
 
@@ -382,6 +544,12 @@ CREATE POLICY "Authenticated can read booking reminder events"
 
 CREATE POLICY "Authenticated can read booking contact flags"
   ON booking_contact_flags FOR SELECT TO authenticated USING (true);
+
+CREATE POLICY "Authenticated can read booking waitlist"
+  ON booking_waitlist_entries FOR SELECT TO authenticated USING (true);
+
+CREATE POLICY "Authenticated can read booking capacity reservations"
+  ON booking_capacity_reservations FOR SELECT TO authenticated USING (true);
 
 -- Authenticated staff can manage bookings
 CREATE POLICY "Authenticated can manage bookings"
@@ -396,6 +564,9 @@ CREATE POLICY "Authenticated can manage booking idempotency keys"
 CREATE POLICY "Authenticated can manage own booking preferences"
   ON booking_user_preferences FOR ALL TO authenticated USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
+CREATE POLICY "Authenticated can manage own booking drafts"
+  ON booking_drafts FOR ALL TO authenticated USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+
 CREATE POLICY "Authenticated can manage booking reminder settings"
   ON booking_reminder_settings FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
@@ -404,6 +575,12 @@ CREATE POLICY "Authenticated can manage booking reminder events"
 
 CREATE POLICY "Authenticated can manage booking contact flags"
   ON booking_contact_flags FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+CREATE POLICY "Authenticated can manage booking waitlist"
+  ON booking_waitlist_entries FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+CREATE POLICY "Authenticated can manage booking capacity reservations"
+  ON booking_capacity_reservations FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
 -- Service role can manage all scheduling config
 CREATE POLICY "Service role can manage branch settings"
@@ -424,6 +601,9 @@ CREATE POLICY "Service role can manage booking idempotency keys"
 CREATE POLICY "Service role can manage booking user preferences"
   ON booking_user_preferences FOR ALL TO service_role USING (true) WITH CHECK (true);
 
+CREATE POLICY "Service role can manage booking drafts"
+  ON booking_drafts FOR ALL TO service_role USING (true) WITH CHECK (true);
+
 CREATE POLICY "Service role can manage booking reminder settings"
   ON booking_reminder_settings FOR ALL TO service_role USING (true) WITH CHECK (true);
 
@@ -432,6 +612,12 @@ CREATE POLICY "Service role can manage booking reminder events"
 
 CREATE POLICY "Service role can manage booking contact flags"
   ON booking_contact_flags FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+CREATE POLICY "Service role can manage booking waitlist"
+  ON booking_waitlist_entries FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+CREATE POLICY "Service role can manage booking capacity reservations"
+  ON booking_capacity_reservations FOR ALL TO service_role USING (true) WITH CHECK (true);
 
 -- Anon (WhatsApp/website)
 CREATE POLICY "Anon can read branch settings"

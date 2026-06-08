@@ -1,10 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseClient } from '@/lib/supabaseClient'
-import {
-  defaultReminderSettings,
-  normalizeEmailForMatch,
-  normalizePhoneForMatch,
-} from '@/lib/bookingReminders'
+import { incrementBookingContactPenalty } from '@/lib/bookingFlags'
 
 export const runtime = 'nodejs'
 
@@ -31,54 +27,6 @@ function renderHtml(title: string, message: string): string {
     </section>
   </body>
 </html>`
-}
-
-async function incrementFlagByField(params: {
-  supabase: ReturnType<typeof getSupabaseClient>
-  locationId: string
-  bookingId: string
-  field: 'customer_phone_norm' | 'customer_email_norm'
-  value: string
-  threshold: number
-  penaltyEnabled: boolean
-}) {
-  const { supabase, locationId, bookingId, field, value, threshold, penaltyEnabled } = params
-
-  const { data: existing } = await supabase
-    .from('booking_contact_flags')
-    .select('*')
-    .eq('location_id', locationId)
-    .eq(field, value)
-    .maybeSingle()
-
-  const nextMissedCount = Number(existing?.missed_count || 0) + 1
-  const penaltyApplied = penaltyEnabled && nextMissedCount >= threshold
-
-  if (existing?.id) {
-    await supabase
-      .from('booking_contact_flags')
-      .update({
-        missed_count: nextMissedCount,
-        penalty_applied: penaltyApplied,
-        penalty_applied_at: penaltyApplied ? new Date().toISOString() : existing.penalty_applied_at,
-        last_missed_booking_id: bookingId,
-      })
-      .eq('id', existing.id)
-    return
-  }
-
-  await supabase
-    .from('booking_contact_flags')
-    .insert({
-      location_id: locationId,
-      customer_phone_norm: field === 'customer_phone_norm' ? value : null,
-      customer_email_norm: field === 'customer_email_norm' ? value : null,
-      missed_count: nextMissedCount,
-      penalty_applied: penaltyApplied,
-      penalty_applied_at: penaltyApplied ? new Date().toISOString() : null,
-      last_missed_booking_id: bookingId,
-      notes: 'Auto-generated from attendance missed confirmation',
-    })
 }
 
 export async function GET(request: NextRequest) {
@@ -123,6 +71,13 @@ export async function GET(request: NextRequest) {
       })
       .eq('id', event.id)
 
+    await supabase
+      .from('bookings')
+      .update({
+        attendance_status: status === 'present' ? 'present' : 'missed',
+      })
+      .eq('id', event.booking_id)
+
     if (status === 'missed') {
       const { data: booking } = await supabase
         .from('bookings')
@@ -131,39 +86,14 @@ export async function GET(request: NextRequest) {
         .maybeSingle()
 
       if (booking) {
-        const { data: settings } = await supabase
-          .from('booking_reminder_settings')
-          .select('*')
-          .eq('location_id', booking.location_id)
-          .maybeSingle()
-
-        const effectiveSettings = settings || defaultReminderSettings(booking.location_id)
-        const phoneNorm = normalizePhoneForMatch(booking.customer_phone)
-        const emailNorm = normalizeEmailForMatch(booking.customer_email)
-
-        if (phoneNorm) {
-          await incrementFlagByField({
-            supabase,
-            locationId: booking.location_id,
-            bookingId: booking.id,
-            field: 'customer_phone_norm',
-            value: phoneNorm,
-            threshold: effectiveSettings.penalty_threshold,
-            penaltyEnabled: effectiveSettings.penalty_enabled,
-          })
-        }
-
-        if (emailNorm) {
-          await incrementFlagByField({
-            supabase,
-            locationId: booking.location_id,
-            bookingId: booking.id,
-            field: 'customer_email_norm',
-            value: emailNorm,
-            threshold: effectiveSettings.penalty_threshold,
-            penaltyEnabled: effectiveSettings.penalty_enabled,
-          })
-        }
+        await incrementBookingContactPenalty({
+          supabase,
+          locationId: booking.location_id,
+          bookingId: booking.id,
+          customerPhone: booking.customer_phone,
+          customerEmail: booking.customer_email,
+          notes: 'Auto-generated from attendance missed confirmation',
+        })
       }
     }
 
