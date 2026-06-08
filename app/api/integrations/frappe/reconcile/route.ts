@@ -8,6 +8,7 @@ import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
 import { requireMaintenanceSession } from '@/lib/adminSessionAuth'
 import { getSupabaseClient } from '@/lib/supabaseClient'
+import { reconcileInboundLeaveEvents } from '@/lib/integrations/frappe/syncEngine'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,6 +20,7 @@ export async function POST() {
 
   try {
     const supabase = getSupabaseClient()
+    const reconcile = await reconcileInboundLeaveEvents(100)
     const { data, error, count } = await supabase
       .from('integration_conflicts')
       .select('id, domain, entity_id, status, created_at', { count: 'exact' })
@@ -32,6 +34,7 @@ export async function POST() {
 
     return apiOk({
       ok: true,
+      reconcile,
       openConflictCount: count || 0,
       conflicts: data || [],
     })

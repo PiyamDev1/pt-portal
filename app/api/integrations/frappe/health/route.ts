@@ -1,37 +1,30 @@
 /**
- * POST /api/integrations/frappe/sync/pull
+ * GET /api/integrations/frappe/health
  *
- * Placeholder pull endpoint for staged rollout.
+ * Integration diagnostics for rollout and support.
  */
 
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
 import { requireMaintenanceSession } from '@/lib/adminSessionAuth'
 import { getFrappeIntegrationHealth } from '@/lib/integrations/frappe/health'
-import { pullLeaveEvents, reconcileInboundLeaveEvents } from '@/lib/integrations/frappe/syncEngine'
 
 export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
 
-export async function POST() {
+export async function GET() {
   const session = await requireMaintenanceSession()
   if (!session.authorized) {
     return session.response
   }
 
   try {
-    const pull = await pullLeaveEvents(100)
-    const reconcile = await reconcileInboundLeaveEvents(100)
     const health = await getFrappeIntegrationHealth()
-
     return apiOk({
       ok: true,
-      mode: 'leave',
-      message: 'Leave pull and inbox reconciliation completed.',
-      pull,
-      reconcile,
-      health,
+      ...health,
     })
   } catch (error: unknown) {
-    return apiError(toErrorMessage(error, 'Pull sync failed'), 500)
+    return apiError(toErrorMessage(error, 'Frappe health check failed'), 500)
   }
 }

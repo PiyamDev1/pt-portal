@@ -9,6 +9,7 @@ import { frappeRequest } from '@/lib/integrations/frappe/client'
 import {
   mapAttendanceToFrappePayload,
   mapLeaveToFrappePayload,
+  mapLeaveStatusFromFrappe,
   mapLifecycleToFrappePayload,
   type AttendanceDailyRow,
   type LeaveRequestRow,
@@ -29,7 +30,29 @@ type OutboxRow = {
   attempts: number
 }
 
+type InboxRow = {
+  id: string
+  event_type: string
+  source_event_id: string
+  payload: Record<string, unknown>
+}
+
+type FrappeLeaveRecord = {
+  name: string
+  employee?: string | null
+  leave_type?: string | null
+  from_date?: string | null
+  to_date?: string | null
+  half_day?: number | boolean | null
+  half_day_date?: string | null
+  total_leave_days?: number | string | null
+  status?: string | null
+  description?: string | null
+  modified?: string | null
+}
+
 const MAX_RETRIES = 6
+const FRAPPE_DOMAIN = 'hrms'
 
 function computeRetryAt(attempts: number) {
   const backoffMs = Math.min(60_000, 1_000 * Math.pow(2, attempts))
@@ -207,4 +230,228 @@ export async function ingestInboundEvent(params: {
   }
 
   return { accepted: true as const }
+}
+
+export async function pullLeaveEvents(limit = 100) {
+  const supabase = getSupabaseClient()
+  const { data: syncState } = await supabase
+    .from('integration_sync_state')
+    .select('last_pull_at')
+    .eq('domain', 'leave')
+    .maybeSingle()
+
+  const lastPullAt = syncState?.last_pull_at || null
+  const fields = JSON.stringify([
+    'name',
+    'employee',
+    'leave_type',
+    'from_date',
+    'to_date',
+    'half_day',
+    'half_day_date',
+    'total_leave_days',
+    'status',
+    'description',
+    'modified',
+  ])
+
+  const filters = lastPullAt
+    ? JSON.stringify([['modified', '>=', lastPullAt]])
+    : undefined
+
+  const response = await frappeRequest<{ data?: FrappeLeaveRecord[] }>('/api/resource/Leave Application', {
+    method: 'GET',
+    query: {
+      fields,
+      filters,
+      order_by: 'modified asc',
+      limit_page_length: limit,
+    },
+  })
+
+  const rows = response.data || []
+  let accepted = 0
+  let duplicates = 0
+
+  for (const row of rows) {
+    const sourceEventId = `${row.name}:${row.modified || 'unknown'}`
+    const result = await ingestInboundEvent({
+      source: 'frappe',
+      sourceEventId,
+      eventType: 'leave.updated',
+      payload: row as unknown as Record<string, unknown>,
+    })
+    if (result.accepted) accepted += 1
+    else duplicates += 1
+  }
+
+  await supabase.from('integration_sync_state').upsert({
+    domain: 'leave',
+    last_pull_at: new Date().toISOString(),
+    health_status: 'healthy',
+    details: {
+      last_pull_batch_size: rows.length,
+    },
+  }, { onConflict: 'domain' })
+
+  return {
+    fetched: rows.length,
+    accepted,
+    duplicates,
+  }
+}
+
+export async function reconcileInboundLeaveEvents(limit = 100) {
+  const supabase = getSupabaseClient()
+  const { data: inboxRows, error } = await supabase
+    .from('integration_inbox')
+    .select('id, event_type, source_event_id, payload')
+    .eq('source', 'frappe')
+    .eq('status', 'pending')
+    .order('received_at', { ascending: true })
+    .limit(limit)
+
+  if (error) throw error
+
+  let processed = 0
+  let failed = 0
+  let conflicts = 0
+
+  for (const row of (inboxRows || []) as InboxRow[]) {
+    try {
+      const applied = await applyInboundLeaveEvent(row)
+      await supabase
+        .from('integration_inbox')
+        .update({
+          status: 'processed',
+          processed_at: new Date().toISOString(),
+          error: null,
+        })
+        .eq('id', row.id)
+
+      processed += 1
+      conflicts += applied.conflictCreated ? 1 : 0
+    } catch (applyError) {
+      failed += 1
+      await supabase
+        .from('integration_inbox')
+        .update({
+          status: 'failed',
+          error: applyError instanceof Error ? applyError.message : String(applyError),
+        })
+        .eq('id', row.id)
+    }
+  }
+
+  await supabase.from('integration_sync_state').upsert({
+    domain: 'leave',
+    health_status: failed > 0 ? 'degraded' : 'healthy',
+    details: {
+      last_reconcile_processed: processed,
+      last_reconcile_failed: failed,
+      last_reconcile_conflicts: conflicts,
+    },
+  }, { onConflict: 'domain' })
+
+  return {
+    processed,
+    failed,
+    conflicts,
+  }
+}
+
+async function applyInboundLeaveEvent(row: InboxRow) {
+  const supabase = getSupabaseClient()
+  const payload = row.payload as unknown as FrappeLeaveRecord
+  const frappeDocname = String(payload.name || '').trim()
+  if (!frappeDocname) {
+    throw new Error('Inbound leave payload missing docname')
+  }
+
+  const employeeCode = String(payload.employee || '').trim()
+  if (!employeeCode) {
+    throw new Error(`Leave ${frappeDocname} missing employee code`)
+  }
+
+  const { data: identity } = await supabase
+    .from('integration_identity_map')
+    .select('supabase_employee_id, frappe_employee_id')
+    .eq('domain', FRAPPE_DOMAIN)
+    .eq('frappe_employee_id', employeeCode)
+    .maybeSingle()
+
+  if (!identity?.supabase_employee_id) {
+    throw new Error(`No identity map row for Frappe employee ${employeeCode}`)
+  }
+
+  const leaveTypeName = String(payload.leave_type || '').trim()
+  const { data: leaveType } = await supabase
+    .from('leave_types')
+    .select('id, name, code')
+    .or(`name.ilike.${escapeSupabaseLike(leaveTypeName)},code.ilike.${escapeSupabaseLike(slugifyCode(leaveTypeName))}`)
+    .maybeSingle()
+
+  if (!leaveType?.id) {
+    throw new Error(`No leave type mapped for "${leaveTypeName}"`)
+  }
+
+  const nextState = {
+    employee_id: identity.supabase_employee_id,
+    leave_type_id: leaveType.id,
+    from_date: payload.from_date,
+    to_date: payload.to_date,
+    half_day: payload.half_day === true || Number(payload.half_day || 0) === 1,
+    half_day_date: payload.half_day_date || null,
+    requested_days: Number(payload.total_leave_days || 0),
+    status: mapLeaveStatusFromFrappe(payload.status),
+    rejection_reason: payload.description || null,
+    frappe_docname: frappeDocname,
+    source_system: 'frappe',
+    synced_at: new Date().toISOString(),
+  }
+
+  const { data: existing } = await supabase
+    .from('leave_requests')
+    .select('*')
+    .eq('frappe_docname', frappeDocname)
+    .maybeSingle()
+
+  if (existing && existing.source_system === 'pt_portal' && Number(existing.sync_version || 1) > 1) {
+    await supabase.from('integration_conflicts').insert({
+      domain: 'leave',
+      entity_id: existing.id,
+      supabase_snapshot: existing,
+      frappe_snapshot: payload,
+      notes: `Conflict detected while reconciling leave ${frappeDocname}`,
+      status: 'open',
+    })
+    return { conflictCreated: true }
+  }
+
+  if (existing?.id) {
+    const { error: updateError } = await supabase
+      .from('leave_requests')
+      .update(nextState)
+      .eq('id', existing.id)
+    if (updateError) throw updateError
+    return { conflictCreated: false }
+  }
+
+  const { error: insertError } = await supabase
+    .from('leave_requests')
+    .insert({
+      ...nextState,
+      sync_version: 1,
+    })
+  if (insertError) throw insertError
+
+  return { conflictCreated: false }
+}
+
+function slugifyCode(value: string) {
+  return value.trim().toLowerCase().replace(/\s+/g, '_')
+}
+
+function escapeSupabaseLike(value: string) {
+  return `%${value.replace(/[%_,]/g, '')}%`
 }
