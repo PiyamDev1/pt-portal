@@ -32,6 +32,7 @@ export default function NotesModal({
   isLoading,
 }: NotesModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null)
+  const hasCapturedOriginalNotes = useRef(false)
   const [originalNotes, setOriginalNotes] = useState('')
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false)
   const hasUnsavedChanges = useMemo(() => !isLoading && notes !== originalNotes, [
@@ -42,9 +43,15 @@ export default function NotesModal({
 
   // Track original notes when modal opens
   useEffect(() => {
-    if (open && !isLoading) {
+    if (!open || isLoading) {
+      hasCapturedOriginalNotes.current = false
+      return
+    }
+
+    if (!hasCapturedOriginalNotes.current) {
       Promise.resolve().then(() => {
         setOriginalNotes(notes)
+        hasCapturedOriginalNotes.current = true
       })
     }
   }, [open, isLoading, notes])
