@@ -87,17 +87,21 @@ export async function POST(request) {
       }
 
       // 3. Update Passport Details
+      const passportUpdatePayload = {
+        application_type: data.applicationType,
+        category: data.category,
+        page_count: data.pageCount,
+        speed: data.speed,
+        old_passport_number: data.oldPassportNumber || null,
+        fingerprints_completed: data.fingerprintsCompleted,
+        family_head_email: data.familyHeadEmail || null,
+        requested_page_number: data.requestedPageNumber?.trim() || null,
+        requested_page_provided: !!data.requestedPageProvided && !!data.requestedPageNumber?.trim(),
+      }
+
       const { error: ppError } = await supabase
         .from('pakistani_passport_applications')
-        .update({
-          application_type: data.applicationType,
-          category: data.category,
-          page_count: data.pageCount,
-          speed: data.speed,
-          old_passport_number: data.oldPassportNumber || null,
-          fingerprints_completed: data.fingerprintsCompleted,
-          family_head_email: data.familyHeadEmail || null,
-        })
+        .update(passportUpdatePayload)
         .eq('id', passportId)
 
       if (ppError) throw ppError
@@ -105,6 +109,43 @@ export async function POST(request) {
       return apiOk({
         updatedPassportApplicationId: passportId,
         updatedApplicationId: applicationId,
+      })
+    }
+
+    if (action === 'mark_page_provided') {
+      const applicationId = id
+      const passportId = body.passportId
+
+      if (!applicationId || !passportId) {
+        return apiError('applicationId and passportId are required', 400)
+      }
+
+      const { data: existingRecord, error: existingRecordError } = await supabase
+        .from('pakistani_passport_applications')
+        .select('id, requested_page_number')
+        .eq('id', passportId)
+        .single()
+
+      if (existingRecordError) throw existingRecordError
+
+      if (!existingRecord?.requested_page_number) {
+        return apiError('No requested page is set for this application', 400)
+      }
+
+      const { error: providedError } = await supabase
+        .from('pakistani_passport_applications')
+        .update({
+          requested_page_provided: true,
+          employee_id: userId,
+        })
+        .eq('id', passportId)
+
+      if (providedError) throw providedError
+
+      return apiOk({
+        updatedPassportApplicationId: passportId,
+        updatedApplicationId: applicationId,
+        requestedPageProvided: true,
       })
     }
 

@@ -89,6 +89,8 @@ export default function PakPassportClient({
     familyHeadEmail: '',
     trackingNumber: '',
     oldPassportNumber: '',
+    requestedPageNumber: '',
+    requestedPageProvided: false,
   })
   const [deleteAuthCode, setDeleteAuthCode] = useState('')
 
@@ -289,6 +291,8 @@ export default function PakPassportClient({
       familyHeadEmail: pp?.family_head_email || '',
       trackingNumber: item.tracking_number,
       oldPassportNumber: pp?.old_passport_number || '',
+      requestedPageNumber: pp?.requested_page_number || '',
+      requestedPageProvided: !!pp?.requested_page_provided,
       applicationType: pp?.application_type,
       category: pp?.category,
       speed: pp?.speed,
@@ -322,6 +326,29 @@ export default function PakPassportClient({
 
   const handleDelete = async () => {
     // Implement delete logic
+  }
+
+  const handleMarkRequestedPageProvided = async (item: Application) => {
+    const passport = getPassportRecord(item)
+    if (!passport?.id || !item.id) {
+      toast.error('No passport record selected')
+      return
+    }
+    if (!passport.requested_page_number) {
+      toast.error('No requested page is set for this application')
+      return
+    }
+    if (passport.requested_page_provided) {
+      return
+    }
+
+    const result = await pakPassportApi.markRequestedPageProvided(item.id, passport.id, currentUserId)
+    if (result.ok) {
+      toast.success('Requested page marked as provided')
+      router.refresh()
+    } else {
+      toast.error(result.error || 'Failed to update requested page')
+    }
   }
 
   const handleViewHistory = async (appId: string, trackingNo: string) => {
@@ -570,6 +597,7 @@ export default function PakPassportClient({
         onGenerateReceipt={handleGenerateReceipt}
         onManageDocuments={handleManageDocuments}
         onOpenNotes={handleOpenNotes}
+        onMarkRequestedPageProvided={handleMarkRequestedPageProvided}
         isNotesUnread={isPassportNotesUnread}
         documentCounts={documentCounts}
       />

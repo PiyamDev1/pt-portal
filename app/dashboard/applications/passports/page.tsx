@@ -67,6 +67,8 @@ export default async function PakPassportPage() {
           page_count,
           speed,
           status,
+          requested_page_number,
+          requested_page_provided,
           old_passport_number,
           new_passport_number,
           family_head_email,

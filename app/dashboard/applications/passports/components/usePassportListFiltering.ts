@@ -76,6 +76,8 @@ export function usePassportListFiltering({
           passport?.page_count,
           passport?.speed,
           passport?.status,
+          passport?.requested_page_number,
+          passport?.requested_page_provided ? 'page provided' : 'page requested',
           passport?.old_passport_number,
           passport?.new_passport_number,
           passport?.family_head_email,

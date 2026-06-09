@@ -49,6 +49,21 @@ export const pakPassportApi = {
       body: JSON.stringify({ action: 'update', id, data, userId }),
     }),
 
+  markRequestedPageProvided: (
+    applicationId: string,
+    passportId: string,
+    userId: string | number,
+  ) =>
+    apiRequest('/api/passports/pak/manage-record', {
+      method: 'POST',
+      body: JSON.stringify({
+        action: 'mark_page_provided',
+        id: applicationId,
+        passportId,
+        userId,
+      }),
+    }),
+
   deleteRecord: (id: string, authCode: string, userId: string | number) =>
     apiRequest('/api/passports/pak/manage-record', {
       method: 'POST',

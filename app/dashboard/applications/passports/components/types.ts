@@ -40,6 +40,8 @@ export type PassportRecord = {
   page_count: string
   speed: string
   status: string
+  requested_page_number?: string
+  requested_page_provided?: boolean
   old_passport_number?: string
   new_passport_number?: string
   family_head_email?: string
@@ -97,6 +99,8 @@ export type PakEditFormData = {
   familyHeadEmail: string
   trackingNumber: string
   oldPassportNumber: string
+  requestedPageNumber?: string
+  requestedPageProvided?: boolean
   applicationType?: string
   category?: string
   speed?: string

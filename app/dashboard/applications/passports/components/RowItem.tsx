@@ -21,6 +21,7 @@ type RowItemProps = {
   onGenerateReceipt?: (item: Application) => void
   onManageDocuments?: (appId: string, trackingNo?: string) => void
   onOpenNotes?: (item: Application) => void
+  onMarkRequestedPageProvided?: (item: Application) => void
   hasUnreadNotes?: boolean
   documentCount?: number
 }
@@ -34,6 +35,7 @@ export default function RowItem({
   onGenerateReceipt,
   onManageDocuments,
   onOpenNotes,
+  onMarkRequestedPageProvided,
   hasUnreadNotes,
   documentCount = 0,
 }: RowItemProps) {
@@ -286,6 +288,30 @@ export default function RowItem({
               <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-700 border border-rose-200">
                 REFUNDED
               </span>
+            )}
+            {pp.requested_page_number && (
+              <button
+                type="button"
+                onDoubleClick={() => {
+                  if (!pp.requested_page_provided) {
+                    onMarkRequestedPageProvided?.(item)
+                  }
+                }}
+                className={`block w-full rounded-md border px-2 py-1 text-left text-[11px] font-semibold transition ${
+                  pp.requested_page_provided
+                    ? 'cursor-default border-emerald-200 bg-emerald-50 text-emerald-700'
+                    : 'cursor-pointer border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100'
+                }`}
+                title={
+                  pp.requested_page_provided
+                    ? 'Requested page already provided'
+                    : 'Double-click to mark page provided'
+                }
+              >
+                {pp.requested_page_provided
+                  ? 'Page provided'
+                  : `Page requested: ${pp.requested_page_number}`}
+              </button>
             )}
             <div>
               <label className="text-[10px] uppercase font-bold text-slate-500">Status</label>

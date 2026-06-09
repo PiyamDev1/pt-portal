@@ -16,6 +16,7 @@ type PassportsTableProps = {
   onGenerateReceipt?: (item: Application) => void
   onManageDocuments: (applicationId: string, trackingNumber?: string) => void
   onOpenNotes: (item: Application) => Promise<void>
+  onMarkRequestedPageProvided: (item: Application) => Promise<void>
   isNotesUnread: (item: Application) => boolean
   documentCounts?: Record<string, number>
 }
@@ -30,6 +31,7 @@ export default function PassportsTable({
   onGenerateReceipt,
   onManageDocuments,
   onOpenNotes,
+  onMarkRequestedPageProvided,
   isNotesUnread,
   documentCounts = {},
 }: PassportsTableProps) {
@@ -79,6 +81,7 @@ export default function PassportsTable({
                 onGenerateReceipt={onGenerateReceipt}
                 onManageDocuments={onManageDocuments}
                 onOpenNotes={onOpenNotes}
+                onMarkRequestedPageProvided={onMarkRequestedPageProvided}
                 hasUnreadNotes={isNotesUnread(item)}
                 documentCount={documentCounts[item.id] ?? 0}
               />

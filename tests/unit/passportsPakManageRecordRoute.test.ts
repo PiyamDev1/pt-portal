@@ -120,6 +120,8 @@ describe('POST /api/passports/pak/manage-record', () => {
           applicantEmail: 'jane@example.com',
           applicantPhone: '0700000000',
           applicationType: 'Renewal',
+          requestedPageNumber: '72 pages',
+          requestedPageProvided: false,
         },
         userId: 'u-1',
       }),
@@ -130,6 +132,32 @@ describe('POST /api/passports/pak/manage-record', () => {
     expect(body).toEqual({
       updatedPassportApplicationId: 'p-1',
       updatedApplicationId: 'app-1',
+    })
+  })
+
+  it('marks requested page as provided', async () => {
+    mocks.recordSingle.mockResolvedValue({ data: { id: 'p-1', requested_page_number: '72 pages' }, error: null })
+    mocks.passportUpdateEq.mockResolvedValue({ error: null })
+
+    const res = await POST(
+      makeRequest({
+        action: 'mark_page_provided',
+        id: 'app-1',
+        passportId: 'p-1',
+        userId: 'u-1',
+      }),
+    )
+
+    expect(res.status).toBe(200)
+    expect(mocks.passportUpdate).toHaveBeenCalledWith({
+      requested_page_provided: true,
+      employee_id: 'u-1',
+    })
+    const body = await res.json()
+    expect(body).toEqual({
+      updatedPassportApplicationId: 'p-1',
+      updatedApplicationId: 'app-1',
+      requestedPageProvided: true,
     })
   })
 

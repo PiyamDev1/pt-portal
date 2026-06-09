@@ -173,6 +173,30 @@ export default function EditModal({
                 }
               />
             </div>
+            <div>
+              <label
+                htmlFor="edit-requested-page"
+                className="text-[10px] uppercase font-bold text-slate-400"
+              >
+                Passport Page Requested
+              </label>
+              <input
+                id="edit-requested-page"
+                className="w-full p-2 border rounded text-sm"
+                value={editFormData.requestedPageNumber || ''}
+                placeholder="e.g. 72 pages"
+                onChange={(e) =>
+                  setEditFormData({
+                    ...editFormData,
+                    requestedPageNumber: e.target.value,
+                    requestedPageProvided: false,
+                  })
+                }
+              />
+              <p className="mt-1 text-[11px] text-slate-500">
+                Office team can double-click the request in the table once the page is provided.
+              </p>
+            </div>
             <div className="col-span-2">
               <label
                 htmlFor="edit-family-email"
