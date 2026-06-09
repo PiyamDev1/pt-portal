@@ -21,21 +21,55 @@ function toClientError(error) {
   return message
 }
 
+async function resolvePassportRecord(supabase, applicationId, passportId) {
+  const normalizedPassportId = String(passportId || '').trim()
+  const normalizedApplicationId = String(applicationId || '').trim()
+
+  if (normalizedPassportId) {
+    const { data, error } = await supabase
+      .from('pakistani_passport_applications')
+      .select('id, notes, application_id')
+      .eq('id', normalizedPassportId)
+      .maybeSingle()
+
+    if (error) {
+      return { error }
+    }
+
+    if (data) {
+      return { data }
+    }
+  }
+
+  if (!normalizedApplicationId) {
+    return { data: null }
+  }
+
+  const { data, error } = await supabase
+    .from('pakistani_passport_applications')
+    .select('id, notes, application_id')
+    .eq('application_id', normalizedApplicationId)
+    .maybeSingle()
+
+  if (error) {
+    return { error }
+  }
+
+  return { data }
+}
+
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url)
     const applicationId = searchParams.get('applicationId')
+    const passportId = searchParams.get('passportId')
 
-    if (!applicationId) {
-      return apiError('applicationId is required', 400)
+    if (!applicationId && !passportId) {
+      return apiError('applicationId or passportId is required', 400)
     }
 
     const supabase = getSupabaseClient()
-    const { data, error } = await supabase
-      .from('pakistani_passport_applications')
-      .select('id, notes')
-      .eq('application_id', applicationId)
-      .maybeSingle()
+    const { data, error } = await resolvePassportRecord(supabase, applicationId, passportId)
 
     if (error) {
       return apiError(toClientError(error), 500)
@@ -54,10 +88,10 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     const body = await request.json()
-    const { applicationId, notes, userId } = body || {}
+    const { applicationId, passportId, notes, userId } = body || {}
 
-    if (!applicationId) {
-      return apiError('applicationId is required', 400)
+    if (!applicationId && !passportId) {
+      return apiError('applicationId or passportId is required', 400)
     }
 
     if (typeof notes !== 'string') {
@@ -67,13 +101,27 @@ export async function POST(request) {
     const normalizedNotes = notes.trim() || null
 
     const supabase = getSupabaseClient()
+    const { data: existingRecord, error: lookupError } = await resolvePassportRecord(
+      supabase,
+      applicationId,
+      passportId,
+    )
+
+    if (lookupError) {
+      return apiError(toClientError(lookupError), 500)
+    }
+
+    if (!existingRecord?.id) {
+      return apiError('Passport application record not found', 404)
+    }
+
     const { data, error } = await supabase
       .from('pakistani_passport_applications')
       .update({
         notes: normalizedNotes,
         employee_id: userId,
       })
-      .eq('application_id', applicationId)
+      .eq('id', existingRecord.id)
       .select('id, notes')
       .maybeSingle()
 

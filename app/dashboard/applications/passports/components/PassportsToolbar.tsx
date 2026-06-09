@@ -26,6 +26,8 @@ export default function PassportsToolbar({
   showForm,
   setShowForm,
 }: PassportsToolbarProps) {
+  const trimmedSearch = searchQuery.trim()
+
   return (
     <div className="flex flex-col md:flex-row justify-between items-center gap-4">
       <div className="flex-grow w-full flex flex-col md:flex-row gap-3">
@@ -34,9 +36,21 @@ export default function PassportsToolbar({
           <input
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search tracking, CNIC, or names..."
-            className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl shadow-sm outline-none focus:ring-2 focus:ring-green-500"
+            placeholder="Search name, CNIC, passport #, tracking, phone, notes..."
+            className="w-full pl-10 pr-12 py-3 bg-white border border-slate-200 rounded-xl shadow-sm outline-none focus:ring-2 focus:ring-green-500"
+            aria-label="Search passport applications"
           />
+          {trimmedSearch && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              aria-label="Clear passport search"
+              title="Clear search"
+            >
+              ✕
+            </button>
+          )}
         </div>
         <div className="flex gap-2 items-center">
           <input
@@ -73,6 +87,11 @@ export default function PassportsToolbar({
       >
         {showForm ? 'Close Form' : '+ New Application'}
       </button>
+      {!!trimmedSearch && (
+        <div className="w-full md:basis-full text-xs text-slate-500 -mt-1">
+          Search checks applicant details, tracking, passport numbers, status, and notes.
+        </div>
+      )}
     </div>
   )
 }

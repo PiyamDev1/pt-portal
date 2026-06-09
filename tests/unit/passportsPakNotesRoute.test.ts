@@ -77,12 +77,16 @@ describe('PAK passport notes route', () => {
   })
 
   it('POST returns 404 when update finds no record', async () => {
-    mocks.updateMaybeSingle.mockResolvedValue({ data: null, error: null })
+    mocks.maybeSingle.mockResolvedValue({ data: null, error: null })
     const res = await POST(makePostRequest({ applicationId: 'app-1', notes: 'abc', userId: 'u-1' }))
     expect(res.status).toBe(404)
   })
 
   it('POST returns 200 and saved notes on success', async () => {
+    mocks.maybeSingle.mockResolvedValue({
+      data: { id: 'p-1', application_id: 'app-1', notes: 'old' },
+      error: null,
+    })
     mocks.updateMaybeSingle.mockResolvedValue({ data: { id: 'p-1', notes: 'saved' }, error: null })
     const res = await POST(
       makePostRequest({ applicationId: 'app-1', notes: ' saved ', userId: 'u-1' }),
@@ -90,5 +94,37 @@ describe('PAK passport notes route', () => {
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body).toEqual({ updatedPassportId: 'p-1', notes: 'saved' })
+  })
+
+  it('GET supports passportId fallback for legacy records', async () => {
+    mocks.maybeSingle.mockResolvedValueOnce({
+      data: { id: 'p-legacy', application_id: null, notes: 'legacy note' },
+      error: null,
+    })
+
+    const res = await GET(makeGetRequest({ passportId: 'p-legacy' }))
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body).toEqual({ notes: 'legacy note' })
+  })
+
+  it('POST supports passportId fallback and updates by passport record id', async () => {
+    mocks.maybeSingle.mockResolvedValueOnce({
+      data: { id: 'p-legacy', application_id: null, notes: 'old note' },
+      error: null,
+    })
+    mocks.updateMaybeSingle.mockResolvedValueOnce({
+      data: { id: 'p-legacy', notes: 'saved legacy' },
+      error: null,
+    })
+
+    const res = await POST(
+      makePostRequest({ applicationId: 'app-1', passportId: 'p-legacy', notes: 'saved legacy' }),
+    )
+
+    expect(res.status).toBe(200)
+    expect(mocks.updateEq).toHaveBeenCalledWith('id', 'p-legacy')
+    const body = await res.json()
+    expect(body).toEqual({ updatedPassportId: 'p-legacy', notes: 'saved legacy' })
   })
 })

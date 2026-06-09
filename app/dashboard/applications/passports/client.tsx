@@ -416,12 +416,15 @@ export default function PakPassportClient({
     }
   }
 
-  const handleOpenNotes = async (applicationId: string, trackingNumber?: string) => {
-    setNotesModal({ applicationId, trackingNumber })
+  const handleOpenNotes = async (item: Application) => {
+    const passport = getPassportRecord(item)
+    const applicationId = item.id
+    const passportId = passport?.id
+    setNotesModal({ applicationId, passportId, trackingNumber: item.tracking_number })
     setNotesText('')
     setIsNotesLoading(true)
 
-    const data = (await pakPassportApi.getNotes(applicationId)) as
+    const data = (await pakPassportApi.getNotes(applicationId, passportId)) as
       | { notes?: string }
       | null
     let loadedNotes = ''
@@ -446,6 +449,7 @@ export default function PakPassportClient({
       notesModal.applicationId,
       notesText,
       currentUserId,
+      notesModal.passportId,
     )
     setIsNotesSaving(false)
 

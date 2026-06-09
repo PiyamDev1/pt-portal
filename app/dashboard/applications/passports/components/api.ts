@@ -82,14 +82,21 @@ export const pakPassportApi = {
     return res.ok ? res.data : null
   },
 
-  getNotes: async (applicationId: string) => {
-    const res = await apiRequest(`/api/passports/pak/notes?applicationId=${applicationId}`)
+  getNotes: async (applicationId: string, passportId?: string) => {
+    const params = new URLSearchParams({ applicationId })
+    if (passportId) params.set('passportId', passportId)
+    const res = await apiRequest(`/api/passports/pak/notes?${params.toString()}`)
     return res.ok ? res.data : null
   },
 
-  saveNotes: (applicationId: string, notes: string, userId: string | number) =>
+  saveNotes: (
+    applicationId: string,
+    notes: string,
+    userId: string | number,
+    passportId?: string,
+  ) =>
     apiRequest('/api/passports/pak/notes', {
       method: 'POST',
-      body: JSON.stringify({ applicationId, notes, userId }),
+      body: JSON.stringify({ applicationId, passportId, notes, userId }),
     }),
 }

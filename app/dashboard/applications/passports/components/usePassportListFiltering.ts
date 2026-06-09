@@ -7,6 +7,20 @@ import { useEffect, useMemo } from 'react'
 import { getPassportRecord } from './utils'
 import type { Application } from './types'
 
+const normalizeSearchValue = (value: unknown) =>
+  String(value || '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim()
+
+const compactSearchValue = (value: unknown) => normalizeSearchValue(value).replace(/[^a-z0-9]/g, '')
+
+const buildSearchTerms = (query: string) =>
+  normalizeSearchValue(query)
+    .split(' ')
+    .map((term) => term.trim())
+    .filter(Boolean)
+
 type UsePassportListFilteringParams = {
   initialApplications: Application[]
   attentionMode: boolean
@@ -46,7 +60,37 @@ export function usePassportListFiltering({
   const filteredApps = useMemo(
     () =>
       sortedApps.filter((item: Application) => {
-        const matchesSearch = JSON.stringify(item).toLowerCase().includes(searchQuery.toLowerCase())
+        const applicant = Array.isArray(item.applicants) ? item.applicants[0] : item.applicants
+        const passport = getPassportRecord(item)
+        const searchTerms = buildSearchTerms(searchQuery)
+        const searchableFields = [
+          item.tracking_number,
+          applicant?.first_name,
+          applicant?.last_name,
+          `${applicant?.first_name || ''} ${applicant?.last_name || ''}`,
+          applicant?.citizen_number,
+          applicant?.email,
+          applicant?.phone_number,
+          passport?.application_type,
+          passport?.category,
+          passport?.page_count,
+          passport?.speed,
+          passport?.status,
+          passport?.old_passport_number,
+          passport?.new_passport_number,
+          passport?.family_head_email,
+          passport?.notes,
+        ]
+        const normalizedFields = searchableFields.map(normalizeSearchValue).filter(Boolean)
+        const compactFields = searchableFields.map(compactSearchValue).filter(Boolean)
+        const matchesSearch =
+          searchTerms.length === 0 ||
+          searchTerms.every((term) => {
+            const compactTerm = compactSearchValue(term)
+            return normalizedFields.some((field) => field.includes(term)) ||
+              compactFields.some((field) => compactTerm && field.includes(compactTerm))
+          })
+
         const status = getPassportRecord(item)?.status || 'Pending Submission'
         const matchesAttention = !attentionMode || status === 'Passport Arrived'
 

@@ -40,6 +40,8 @@ export default function SearchAndFilter({
   showEmptyFamilies,
   onToggleEmptyFamilies,
 }: SearchAndFilterProps) {
+  const trimmedSearch = searchQuery.trim()
+
   return (
     <div className="relative overflow-hidden rounded-2xl border border-emerald-700/40 bg-[#012010]/80 p-4 shadow-sm space-y-3 text-white backdrop-blur-sm">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_20%,rgba(74,222,128,0.06),transparent_40%),radial-gradient(circle_at_85%_10%,rgba(34,197,94,0.04),transparent_45%)]" />
@@ -52,12 +54,23 @@ export default function SearchAndFilter({
           <input
             id="nadra-search"
             type="text"
-            placeholder="Search by CNIC, Name, or Tracking Number..."
-            className="relative w-full pl-10 pr-4 py-3 bg-[#011508]/70 border border-emerald-700/50 text-white rounded-xl focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 transition placeholder:text-emerald-400/40"
+            placeholder="Search name, CNIC, phone, tracking, service, notes..."
+            className="relative w-full pl-10 pr-12 py-3 bg-[#011508]/70 border border-emerald-700/50 text-white rounded-xl focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 transition placeholder:text-emerald-400/40"
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
             aria-label="Search by CNIC, name, or tracking number"
           />
+          {trimmedSearch && (
+            <button
+              type="button"
+              onClick={() => onSearchChange('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-emerald-300 hover:text-white"
+              aria-label="Clear NADRA search"
+              title="Clear search"
+            >
+              ✕
+            </button>
+          )}
         </div>
         <div className="w-full md:w-40">
           <select
@@ -156,6 +169,11 @@ export default function SearchAndFilter({
           </label>
         </div>
       </div>
+      {!!trimmedSearch && (
+        <div className="text-xs text-emerald-200/80">
+          Search checks applicant and family-head details, tracking, service, status, and notes.
+        </div>
+      )}
     </div>
   )
 }

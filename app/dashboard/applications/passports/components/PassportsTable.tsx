@@ -15,7 +15,7 @@ type PassportsTableProps = {
   onOpenArrival: (item: Application) => void
   onGenerateReceipt?: (item: Application) => void
   onManageDocuments: (applicationId: string, trackingNumber?: string) => void
-  onOpenNotes: (applicationId: string, trackingNumber?: string) => Promise<void>
+  onOpenNotes: (item: Application) => Promise<void>
   isNotesUnread: (item: Application) => boolean
   documentCounts?: Record<string, number>
 }

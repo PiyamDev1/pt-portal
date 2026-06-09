@@ -62,6 +62,20 @@ const parseDdMmYyyy = (value: string) => {
   return parsed
 }
 
+const normalizeSearchValue = (value: unknown) =>
+  String(value || '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim()
+
+const compactSearchValue = (value: unknown) => normalizeSearchValue(value).replace(/[^a-z0-9]/g, '')
+
+const buildSearchTerms = (query: string) =>
+  normalizeSearchValue(query)
+    .split(' ')
+    .map((term) => term.trim())
+    .filter(Boolean)
+
 export default function useNadraApplicationFiltering({
   applications,
   searchQuery,
@@ -90,16 +104,43 @@ export default function useNadraApplicationFiltering({
   const filteredApplications = useMemo(
     () =>
       sortedApplications.filter((item) => {
-        const query = searchQuery.toLowerCase()
         const nadra = getNadraRecord(item)
         const status = normalizeStatus(nadra?.status || 'Pending Submission')
+        const details = getDetails(nadra)
+        const searchTerms = buildSearchTerms(searchQuery)
+        const searchableFields = [
+          item.tracking_number,
+          item.applicants?.first_name,
+          item.applicants?.last_name,
+          `${item.applicants?.first_name || ''} ${item.applicants?.last_name || ''}`,
+          item.applicants?.citizen_number,
+          item.applicants?.phone_number,
+          item.applicants?.email,
+          item.family_heads?.first_name,
+          item.family_heads?.last_name,
+          `${item.family_heads?.first_name || ''} ${item.family_heads?.last_name || ''}`,
+          item.family_heads?.citizen_number,
+          item.family_heads?.phone_number,
+          item.family_heads?.email,
+          nadra?.tracking_number,
+          nadra?.service_type,
+          details?.service_option,
+          nadra?.application_pin,
+          nadra?.status,
+          status,
+          nadra?.notes,
+          Array.isArray(nadra?.employees) ? nadra?.employees[0]?.full_name : nadra?.employees?.full_name,
+        ]
+        const normalizedFields = searchableFields.map(normalizeSearchValue).filter(Boolean)
+        const compactFields = searchableFields.map(compactSearchValue).filter(Boolean)
 
         const matchesSearch =
-          item.applicants?.first_name?.toLowerCase().includes(query) ||
-          item.applicants?.last_name?.toLowerCase().includes(query) ||
-          item.applicants?.citizen_number?.includes(query) ||
-          item.tracking_number?.toLowerCase().includes(query) ||
-          item.family_heads?.citizen_number?.includes(query)
+          searchTerms.length === 0 ||
+          searchTerms.every((term) => {
+            const compactTerm = compactSearchValue(term)
+            return normalizedFields.some((field) => field.includes(term)) ||
+              compactFields.some((field) => compactTerm && field.includes(compactTerm))
+          })
 
         const matchesStatus = statusFilter === 'All' || status === normalizeStatus(statusFilter)
 
@@ -108,7 +149,6 @@ export default function useNadraApplicationFiltering({
           serviceTypeFilter === 'All' ||
           normalizeLookupValue(serviceType) === normalizeLookupValue(serviceTypeFilter)
 
-        const details = getDetails(nadra)
         const serviceOption = details?.service_option || ''
         const matchesServiceOption =
           serviceOptionFilter === 'All' ||

@@ -20,7 +20,7 @@ type RowItemProps = {
   onOpenArrival: (item: Application) => void
   onGenerateReceipt?: (item: Application) => void
   onManageDocuments?: (appId: string, trackingNo?: string) => void
-  onOpenNotes?: (appId: string, trackingNo?: string) => void
+  onOpenNotes?: (item: Application) => void
   hasUnreadNotes?: boolean
   documentCount?: number
 }
@@ -339,7 +339,7 @@ export default function RowItem({
             </button>
 
             <button
-              onClick={() => onOpenNotes?.(item.id, item.tracking_number)}
+              onClick={() => onOpenNotes?.(item)}
               className="h-8 w-8 flex items-center justify-center rounded-full bg-amber-50 hover:bg-amber-100 text-amber-600 transition relative"
               type="button"
               aria-label="Application notes"
