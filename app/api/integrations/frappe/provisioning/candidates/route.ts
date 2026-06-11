@@ -8,6 +8,8 @@ import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
 import { requireAdminSession } from '@/lib/adminSessionAuth'
 import {
+  FRAPPE_DEFAULT_COMPANY,
+  getFrappeEmployeeProvisioningReadiness,
   getFrappeProvisioningCandidates,
   getFrappeProvisioningReferenceOptions,
 } from '@/lib/integrations/frappe/provisioning'
@@ -22,15 +24,18 @@ export async function GET() {
   }
 
   try {
-    const [candidates, options] = await Promise.all([
+    const [candidates, options, employeeProvisioning] = await Promise.all([
       getFrappeProvisioningCandidates(),
       getFrappeProvisioningReferenceOptions(),
+      getFrappeEmployeeProvisioningReadiness(),
     ])
 
     return apiOk({
       ok: true,
       candidates,
       options,
+      employee_provisioning: employeeProvisioning,
+      default_company: FRAPPE_DEFAULT_COMPANY,
     })
   } catch (error: unknown) {
     return apiError(toErrorMessage(error, 'Unable to load Frappe provisioning candidates'), 500)

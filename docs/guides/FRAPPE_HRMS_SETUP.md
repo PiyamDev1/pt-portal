@@ -130,6 +130,7 @@ python3 ./easy-install.py deploy \
   --email=you@example.com \
   --image=ghcr.io/frappe/hrms \
   --version=stable \
+  --app=erpnext \
   --app=hrms \
   --sitename=frappe-backend.your-domain.tld
 ```
@@ -138,9 +139,33 @@ Notes:
 
 - Replace `you@example.com` with the real operational email
 - Replace `frappe-backend.your-domain.tld` with the real domain
+- ERPNext must be installed before HRMS because the base `Employee` DocType lives in ERPNext
 - This is the simplest production path consistent with current Frappe docs
 
 ## Post-Install Frappe Tasks
+
+### 0. Verify ERPNext + HRMS apps are installed
+
+Before connecting PT Portal, check the site apps from the backend container:
+
+```bash
+sudo docker exec -it backend-<coolify-suffix> bash -lc 'bench --site frappe-backend.your-domain.tld list-apps'
+```
+
+Expected apps include:
+
+- `frappe`
+- `erpnext`
+- `hrms`
+
+If `Employee` transfers fail with `DocType Employee not found`, ERPNext is missing from the
+site. Install ERPNext, then rerun HRMS/migrations:
+
+```bash
+sudo docker exec -it backend-<coolify-suffix> bash -lc 'bench --site frappe-backend.your-domain.tld install-app erpnext'
+sudo docker exec -it backend-<coolify-suffix> bash -lc 'bench --site frappe-backend.your-domain.tld install-app hrms || true'
+sudo docker exec -it backend-<coolify-suffix> bash -lc 'bench --site frappe-backend.your-domain.tld migrate && bench --site frappe-backend.your-domain.tld clear-cache'
+```
 
 ### 1. Log in and change Administrator password
 

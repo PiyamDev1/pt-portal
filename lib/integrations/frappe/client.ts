@@ -26,6 +26,27 @@ export type FrappeClientConfig = {
   apiSecret?: string
 }
 
+export class FrappeApiError extends Error {
+  status: number
+  statusText: string
+  payload: string
+  frappeMessage: string
+
+  constructor(params: {
+    status: number
+    statusText: string
+    payload: string
+    frappeMessage: string
+  }) {
+    super(`Frappe request failed (${params.status} ${params.statusText}): ${params.frappeMessage}`)
+    this.name = 'FrappeApiError'
+    this.status = params.status
+    this.statusText = params.statusText
+    this.payload = params.payload
+    this.frappeMessage = params.frappeMessage
+  }
+}
+
 function getFrappeConfigFromEnv(): FrappeClientConfig {
   const baseUrl = process.env.FRAPPE_BASE_URL || ''
   const apiToken = process.env.FRAPPE_API_TOKEN
@@ -67,6 +88,50 @@ function buildUrl(baseUrl: string, path: string, query?: FrappeRequestOptions['q
 
 function shouldRetry(statusCode: number) {
   return RETRYABLE_STATUS_CODES.has(statusCode)
+}
+
+function getStringField(value: unknown, field: string) {
+  if (!value || typeof value !== 'object') return null
+  const record = value as Record<string, unknown>
+  const text = record[field]
+  return typeof text === 'string' && text.trim() ? text.trim() : null
+}
+
+function parseJson(value: string) {
+  try {
+    return JSON.parse(value) as unknown
+  } catch {
+    return null
+  }
+}
+
+function extractServerMessages(value: unknown) {
+  const rawMessages = typeof value === 'string' ? parseJson(value) : value
+  if (!Array.isArray(rawMessages)) return []
+
+  return rawMessages
+    .map((message) => {
+      const parsedMessage = typeof message === 'string' ? parseJson(message) : message
+      return getStringField(parsedMessage, 'message') || (typeof message === 'string' ? message : null)
+    })
+    .filter((message): message is string => Boolean(message))
+}
+
+function extractFrappeErrorMessage(payload: string) {
+  const trimmedPayload = payload.trim()
+  if (!trimmedPayload) return 'No response body returned by Frappe'
+
+  const parsed = parseJson(trimmedPayload)
+  if (!parsed || typeof parsed !== 'object') return trimmedPayload
+
+  const record = parsed as Record<string, unknown>
+  const serverMessages = extractServerMessages(record._server_messages)
+  if (serverMessages.length > 0) return serverMessages.join(' ')
+
+  return getStringField(record, 'message')
+    || getStringField(record, 'exception')
+    || getStringField(record, 'exc_type')
+    || trimmedPayload
 }
 
 const delay = async (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -114,9 +179,12 @@ export async function frappeRequest<T = unknown>(
 
       if (!response.ok) {
         const errorPayload = await response.text().catch(() => '')
-        const error = new Error(
-          `Frappe request failed (${response.status} ${response.statusText}): ${errorPayload}`,
-        )
+        const error = new FrappeApiError({
+          status: response.status,
+          statusText: response.statusText,
+          payload: errorPayload,
+          frappeMessage: extractFrappeErrorMessage(errorPayload),
+        })
 
         if (attempt < retries && shouldRetry(response.status)) {
           await delay(250 * (attempt + 1) * (attempt + 1))
@@ -137,6 +205,10 @@ export async function frappeRequest<T = unknown>(
         continue
       }
     }
+  }
+
+  if (lastError instanceof Error) {
+    throw lastError
   }
 
   throw new Error(toErrorMessage(lastError, 'Unknown Frappe request failure'))

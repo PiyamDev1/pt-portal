@@ -7,7 +7,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { CheckCircle2, Link2, RefreshCw, Search, Send, UserPlus, UsersRound } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Link2, RefreshCw, Search, Send, UserPlus, UsersRound } from 'lucide-react'
 import { toast } from 'sonner'
 
 type CandidateStatus = 'linked' | 'ready_for_transfer' | 'missing_email'
@@ -36,6 +36,11 @@ type ProvisioningOptions = {
   holiday_lists: string[]
 }
 
+type EmployeeProvisioningReadiness = {
+  ready: boolean
+  error: string | null
+}
+
 type TransferForm = {
   company: string
   date_of_joining: string
@@ -59,11 +64,11 @@ const emptyOptions: ProvisioningOptions = {
   holiday_lists: [],
 }
 
-const todayIso = new Date().toISOString().slice(0, 10)
+const FALLBACK_DEFAULT_COMPANY = 'Piyam Travel LTD'
 
 const initialForm: TransferForm = {
-  company: '',
-  date_of_joining: todayIso,
+  company: FALLBACK_DEFAULT_COMPANY,
+  date_of_joining: '',
   gender: '',
   date_of_birth: '',
   employment_type: '',
@@ -130,6 +135,7 @@ export function FrappeProvisioningTab() {
   const [search, setSearch] = useState('')
   const [candidates, setCandidates] = useState<ProvisioningCandidate[]>([])
   const [options, setOptions] = useState<ProvisioningOptions>(emptyOptions)
+  const [employeeProvisioning, setEmployeeProvisioning] = useState<EmployeeProvisioningReadiness | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [form, setForm] = useState<TransferForm>(initialForm)
 
@@ -184,6 +190,12 @@ export function FrappeProvisioningTab() {
       const nextCandidates = (data.candidates || []) as ProvisioningCandidate[]
       setCandidates(nextCandidates)
       setOptions((data.options || emptyOptions) as ProvisioningOptions)
+      setEmployeeProvisioning((data.employee_provisioning || null) as EmployeeProvisioningReadiness | null)
+      const defaultCompany = String(data.default_company || FALLBACK_DEFAULT_COMPANY)
+      setForm((current) => ({
+        ...current,
+        company: defaultCompany,
+      }))
 
       const preferred = nextCandidates.find((candidate) => candidate.status === 'ready_for_transfer')
         || nextCandidates[0]
@@ -205,6 +217,7 @@ export function FrappeProvisioningTab() {
 
     setForm((current) => ({
       ...current,
+      date_of_joining: current.date_of_joining || new Date().toISOString().slice(0, 10),
       department: current.department || selected.department_name || '',
       branch: current.branch || selected.location_name || '',
       designation: current.designation || selected.role_name || '',
@@ -223,6 +236,11 @@ export function FrappeProvisioningTab() {
 
     if (selected.status === 'linked') {
       toast.info('This employee is already linked to Frappe')
+      return
+    }
+
+    if (employeeProvisioning && !employeeProvisioning.ready) {
+      toast.error(employeeProvisioning.error || 'Frappe Employee DocType is not ready')
       return
     }
 
@@ -292,6 +310,20 @@ export function FrappeProvisioningTab() {
             </button>
           </div>
         </div>
+
+        {employeeProvisioning && !employeeProvisioning.ready && (
+          <div className="border-b border-red-200 bg-red-50 p-4 text-red-900">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
+              <div>
+                <p className="font-semibold">Frappe Employee provisioning is not ready</p>
+                <p className="mt-1 text-sm">
+                  {employeeProvisioning.error || 'The Frappe Employee DocType could not be verified.'}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-2 gap-3 border-b border-slate-200 bg-slate-50 p-4 md:grid-cols-4">
           <SummaryCard label="Total IMS staff" value={counts.total} />
@@ -407,12 +439,10 @@ export function FrappeProvisioningTab() {
                 <div className="grid gap-4 md:grid-cols-2">
                   <Field label="Company" required>
                     <input
-                      list="frappe-companies"
                       value={form.company}
-                      onChange={(event) => updateForm({ company: event.target.value })}
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                      readOnly
+                      className="w-full rounded-lg border border-slate-300 bg-slate-100 px-3 py-2 text-sm outline-none"
                     />
-                    <DataList id="frappe-companies" values={options.companies} />
                   </Field>
 
                   <Field label="Date of joining" required>
@@ -530,7 +560,7 @@ export function FrappeProvisioningTab() {
 
                 <button
                   onClick={() => void transferSelected()}
-                  disabled={transferring || selected.status === 'missing_email'}
+                  disabled={transferring || selected.status === 'missing_email' || employeeProvisioning?.ready === false}
                   className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-emerald-700 disabled:opacity-50"
                 >
                   {transferring ? (

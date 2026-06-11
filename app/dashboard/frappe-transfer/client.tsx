@@ -6,7 +6,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { CheckCircle2, RefreshCw, Send, UserRoundCheck } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, RefreshCw, Send, UserRoundCheck } from 'lucide-react'
 import { toast } from 'sonner'
 
 type Candidate = {
@@ -27,6 +27,11 @@ type Options = {
   designations: string[]
   employment_types: string[]
   holiday_lists: string[]
+}
+
+type EmployeeProvisioningReadiness = {
+  ready: boolean
+  error: string | null
 }
 
 type FormState = {
@@ -50,9 +55,11 @@ const emptyOptions: Options = {
   holiday_lists: [],
 }
 
+const FALLBACK_DEFAULT_COMPANY = 'Piyam Travel LTD'
+
 const initialForm: FormState = {
-  company: '',
-  date_of_joining: new Date().toISOString().slice(0, 10),
+  company: FALLBACK_DEFAULT_COMPANY,
+  date_of_joining: '',
   gender: '',
   date_of_birth: '',
   employment_type: '',
@@ -98,6 +105,7 @@ export function FrappeTransferClient() {
   const [submitting, setSubmitting] = useState(false)
   const [candidate, setCandidate] = useState<Candidate | null>(null)
   const [options, setOptions] = useState<Options>(emptyOptions)
+  const [employeeProvisioning, setEmployeeProvisioning] = useState<EmployeeProvisioningReadiness | null>(null)
   const [form, setForm] = useState<FormState>(initialForm)
 
   const adminMissingItems = useMemo(() => {
@@ -107,14 +115,6 @@ export function FrappeTransferClient() {
 
     if (!candidate.email) {
       missing.push('work email')
-    }
-
-    if (options.companies.length === 0) {
-      missing.push('Frappe company')
-    }
-
-    if (options.companies.length > 1 && !form.company) {
-      missing.push('company assignment')
     }
 
     if (!candidate.department_name) {
@@ -130,7 +130,7 @@ export function FrappeTransferClient() {
     }
 
     return missing
-  }, [candidate, form.company, options.companies.length])
+  }, [candidate])
 
   const loadStatus = async () => {
     setLoading(true)
@@ -144,10 +144,13 @@ export function FrappeTransferClient() {
       const nextCandidate = data.candidate as Candidate
       setCandidate(nextCandidate)
       setOptions((data.options || emptyOptions) as Options)
+      setEmployeeProvisioning((data.employee_provisioning || null) as EmployeeProvisioningReadiness | null)
+      const defaultCompany = String(data.default_company || FALLBACK_DEFAULT_COMPANY)
       const nextOptions = (data.options || emptyOptions) as Options
       setForm((current) => ({
         ...current,
-        company: current.company || (nextOptions.companies.length === 1 ? nextOptions.companies[0] : ''),
+        date_of_joining: current.date_of_joining || new Date().toISOString().slice(0, 10),
+        company: defaultCompany,
         department: nextCandidate.department_name || current.department,
         branch: nextCandidate.location_name || current.branch,
         designation: nextCandidate.role_name || current.designation,
@@ -168,6 +171,11 @@ export function FrappeTransferClient() {
   }
 
   const submitTransfer = async () => {
+    if (employeeProvisioning && !employeeProvisioning.ready) {
+      toast.error(employeeProvisioning.error || 'Frappe Employee provisioning is not ready')
+      return
+    }
+
     setSubmitting(true)
     try {
       const response = await fetch('/api/integrations/frappe/provisioning/me', {
@@ -216,6 +224,59 @@ export function FrappeTransferClient() {
         <p className="mt-2 text-sm">
           Frappe Employee ID: <span className="font-mono">{candidate.frappe_employee_id}</span>
         </p>
+      </div>
+    )
+  }
+
+  if (employeeProvisioning && !employeeProvisioning.ready) {
+    return (
+      <div className="grid gap-6 lg:grid-cols-[0.85fr_1.15fr]">
+        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex items-start gap-4">
+            <div className="rounded-2xl bg-emerald-100 p-3 text-emerald-700">
+              <UserRoundCheck className="h-6 w-6" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-slate-900">Your IMS details</h2>
+              <p className="mt-2 text-sm text-slate-600">
+                Your IMS employee profile is ready, but Frappe needs an admin setup step before
+                transfers can run.
+              </p>
+            </div>
+          </div>
+
+          <dl className="mt-6 space-y-4 text-sm">
+            <InfoRow label="Name" value={candidate.full_name} />
+            <InfoRow label="Email" value={candidate.email || 'Missing email'} />
+            <InfoRow label="Role" value={candidate.role_name || '-'} />
+            <InfoRow label="Department" value={candidate.department_name || '-'} />
+            <InfoRow label="Branch" value={candidate.location_name || '-'} />
+          </dl>
+        </section>
+
+        <section className="rounded-2xl border border-red-200 bg-red-50 p-6 text-red-950 shadow-sm">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="mt-0.5 h-6 w-6 shrink-0" />
+            <div>
+              <h2 className="text-xl font-bold">Contact your line manager or admin</h2>
+              <p className="mt-2 text-sm">
+                We cannot complete your HRMS transfer because Frappe Employee provisioning is not
+                ready yet.
+              </p>
+              <p className="mt-4 rounded-xl border border-red-200 bg-white/70 p-4 text-sm">
+                {employeeProvisioning.error || 'The Frappe Employee DocType could not be verified.'}
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={() => void loadStatus()}
+            className="mt-5 inline-flex items-center gap-2 rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Recheck setup
+          </button>
+        </section>
       </div>
     )
   }
@@ -310,13 +371,10 @@ export function FrappeTransferClient() {
         <div className="mt-6 grid gap-4 md:grid-cols-2">
           <Field label="Company" required>
             <input
-              list="self-frappe-companies"
               value={form.company}
               readOnly
-              onChange={(event) => updateForm({ company: event.target.value })}
               className="w-full rounded-lg border border-slate-300 bg-slate-100 px-3 py-2 text-sm outline-none"
             />
-            <DataList id="self-frappe-companies" values={options.companies} />
           </Field>
 
           <Field label="Date of joining" required>
@@ -406,7 +464,7 @@ export function FrappeTransferClient() {
 
         <button
           onClick={() => void submitTransfer()}
-          disabled={submitting || candidate.status === 'missing_email'}
+          disabled={submitting || candidate.status === 'missing_email' || employeeProvisioning?.ready === false}
           className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-emerald-700 disabled:opacity-50"
         >
           {submitting ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}

@@ -28,6 +28,8 @@ type FrappeHealthResult = {
   ready: boolean
   ping_ok: boolean
   ping_error: string | null
+  employee_provisioning_ready?: boolean
+  employee_provisioning_error?: string | null
   counts: {
     outbox_pending: number
     outbox_dead_letter: number
@@ -179,10 +181,19 @@ export function MaintenanceTab() {
                     <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${frappeHealth.ping_ok ? 'bg-sky-100 text-sky-700' : 'bg-red-100 text-red-700'}`}>
                       {frappeHealth.ping_ok ? 'Frappe reachable' : 'Ping failed'}
                     </span>
+                    <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${frappeHealth.employee_provisioning_ready ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                      {frappeHealth.employee_provisioning_ready ? 'Employee DocType ready' : 'Employee DocType missing'}
+                    </span>
                   </div>
 
                   {!frappeHealth.ping_ok && frappeHealth.ping_error && (
                     <p className="mt-3 text-xs text-red-700">{frappeHealth.ping_error}</p>
+                  )}
+
+                  {!frappeHealth.employee_provisioning_ready && frappeHealth.employee_provisioning_error && (
+                    <p className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                      {frappeHealth.employee_provisioning_error}
+                    </p>
                   )}
 
                   <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-5">

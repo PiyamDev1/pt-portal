@@ -1,7 +1,21 @@
 import { getSupabaseClient } from '@/lib/supabaseClient'
-import { frappeRequest } from '@/lib/integrations/frappe/client'
+import { FrappeApiError, frappeRequest } from '@/lib/integrations/frappe/client'
 
 const FRAPPE_DOMAIN = 'hrms'
+const EMPLOYEE_DOCTYPE = 'Employee'
+export const FRAPPE_DEFAULT_COMPANY = 'Piyam Travel LTD'
+
+const FRAPPE_DEFAULT_COMPANY_ALIASES = [
+  FRAPPE_DEFAULT_COMPANY,
+  'Piyam Travels LTD',
+  'Piyam Travel Ltd',
+  'Piyam Travels Ltd',
+]
+
+const EMPLOYEE_DOCTYPE_MISSING_MESSAGE = [
+  'Frappe is reachable, but the ERPNext Employee DocType is missing on this site.',
+  'Install ERPNext on the Frappe site before running HRMS employee transfers.',
+].join(' ')
 
 type RelatedName = { name?: string | null } | Array<{ name?: string | null }> | null
 
@@ -100,6 +114,16 @@ export type FrappeProvisioningTransferResult = {
   candidate: FrappeProvisioningCandidate
 }
 
+export class FrappeProvisioningSetupError extends Error {
+  statusCode: number
+
+  constructor(message: string, statusCode = 424) {
+    super(message)
+    this.name = 'FrappeProvisioningSetupError'
+    this.statusCode = statusCode
+  }
+}
+
 function firstRelatedName(value: RelatedName | undefined) {
   if (Array.isArray(value)) return value[0]?.name || null
   return value?.name || null
@@ -123,6 +147,30 @@ function compactString(value: unknown) {
   return text || null
 }
 
+function normalizeFrappeLookupKey(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]/g, '')
+}
+
+function findFrappeName(value: unknown, options: string[]) {
+  const text = compactString(value)
+  if (!text) return null
+
+  const exact = options.find((option) => option === text)
+  if (exact) return exact
+
+  const lookupKey = normalizeFrappeLookupKey(text)
+  return options.find((option) => normalizeFrappeLookupKey(option) === lookupKey) || null
+}
+
+function findDefaultFrappeCompany(options: string[]) {
+  for (const alias of FRAPPE_DEFAULT_COMPANY_ALIASES) {
+    const match = findFrappeName(alias, options)
+    if (match) return match
+  }
+
+  return null
+}
+
 function requireValue(value: unknown, label: string) {
   const text = compactString(value)
   if (!text) {
@@ -137,6 +185,78 @@ function normalizeDate(value: unknown, label: string) {
     throw new Error(`${label} must be in YYYY-MM-DD format`)
   }
   return text
+}
+
+function isMissingEmployeeDoctypeError(error: unknown) {
+  if (!(error instanceof FrappeApiError)) return false
+  const message = error.frappeMessage.toLowerCase()
+  return error.status === 404
+    && message.includes('doctype')
+    && message.includes('employee')
+    && message.includes('not found')
+}
+
+function normalizeFrappeProvisioningError(error: unknown): never {
+  if (isMissingEmployeeDoctypeError(error)) {
+    throw new FrappeProvisioningSetupError(EMPLOYEE_DOCTYPE_MISSING_MESSAGE)
+  }
+
+  throw error
+}
+
+export async function getFrappeEmployeeProvisioningReadiness() {
+  try {
+    await frappeRequest<FrappeListResponse<{ name: string }>>(
+      `/api/resource/${encodeURIComponent(EMPLOYEE_DOCTYPE)}`,
+      {
+        method: 'GET',
+        query: {
+          fields: JSON.stringify(['name']),
+          limit_page_length: 1,
+        },
+        retries: 0,
+      },
+    )
+
+    return { ready: true, error: null }
+  } catch (error: unknown) {
+    if (isMissingEmployeeDoctypeError(error)) {
+      return { ready: false, error: EMPLOYEE_DOCTYPE_MISSING_MESSAGE }
+    }
+
+    return {
+      ready: false,
+      error: error instanceof Error ? error.message : 'Unable to verify Frappe Employee DocType',
+    }
+  }
+}
+
+async function assertFrappeEmployeeProvisioningReady() {
+  const readiness = await getFrappeEmployeeProvisioningReadiness()
+  if (!readiness.ready) {
+    throw new FrappeProvisioningSetupError(readiness.error || EMPLOYEE_DOCTYPE_MISSING_MESSAGE)
+  }
+}
+
+async function prepareFrappeEmployeeInput(input: FrappeProvisioningTransferInput) {
+  const references = await getFrappeProvisioningReferenceOptions()
+  const matchedCompany = findDefaultFrappeCompany(references.companies)
+
+  if (references.companies.length > 0 && !matchedCompany) {
+    throw new FrappeProvisioningSetupError(
+      `Frappe company "${FRAPPE_DEFAULT_COMPANY}" was not found. Create that Company in Frappe before transferring employees.`,
+    )
+  }
+
+  return {
+    ...input,
+    company: matchedCompany || FRAPPE_DEFAULT_COMPANY,
+    employment_type: findFrappeName(input.employment_type, references.employment_types),
+    holiday_list: findFrappeName(input.holiday_list, references.holiday_lists),
+    department: findFrappeName(input.department, references.departments),
+    branch: findFrappeName(input.branch, references.branches),
+    designation: findFrappeName(input.designation, references.designations),
+  }
 }
 
 async function listFrappeNames(doctype: string) {
@@ -275,15 +395,20 @@ async function findFrappeEmployeeByEmail(email: string) {
   ]
 
   for (const filters of filtersToTry) {
-    const response = await frappeRequest<FrappeListResponse<FrappeEmployeeRecord>>('/api/resource/Employee', {
-      method: 'GET',
-      query: {
-        fields,
-        filters: JSON.stringify(filters),
-        limit_page_length: 1,
-      },
-      retries: 0,
-    })
+    let response: FrappeListResponse<FrappeEmployeeRecord>
+    try {
+      response = await frappeRequest<FrappeListResponse<FrappeEmployeeRecord>>('/api/resource/Employee', {
+        method: 'GET',
+        query: {
+          fields,
+          filters: JSON.stringify(filters),
+          limit_page_length: 1,
+        },
+        retries: 0,
+      })
+    } catch (error: unknown) {
+      normalizeFrappeProvisioningError(error)
+    }
 
     const match = response.data?.[0]
     if (match?.name) return match
@@ -335,28 +460,33 @@ async function createFrappeEmployee(
   frappeUserId: string | null,
 ) {
   const { firstName, lastName } = splitName(candidate.full_name)
-  const response = await frappeRequest<FrappeDocResponse<FrappeEmployeeRecord>>('/api/resource/Employee', {
-    method: 'POST',
-    body: {
-      first_name: firstName,
-      last_name: lastName || undefined,
-      employee_name: candidate.full_name,
-      company_email: candidate.email,
-      personal_email: candidate.email,
-      user_id: frappeUserId || undefined,
-      company: input.company,
-      date_of_joining: input.date_of_joining,
-      gender: input.gender,
-      date_of_birth: input.date_of_birth,
-      status: candidate.is_active ? 'Active' : 'Inactive',
-      employment_type: compactString(input.employment_type) || undefined,
-      holiday_list: compactString(input.holiday_list) || undefined,
-      department: compactString(input.department) || undefined,
-      branch: compactString(input.branch) || undefined,
-      designation: compactString(input.designation) || undefined,
-    },
-    retries: 0,
-  })
+  let response: FrappeDocResponse<FrappeEmployeeRecord>
+  try {
+    response = await frappeRequest<FrappeDocResponse<FrappeEmployeeRecord>>('/api/resource/Employee', {
+      method: 'POST',
+      body: {
+        first_name: firstName,
+        last_name: lastName || undefined,
+        employee_name: candidate.full_name,
+        company_email: candidate.email,
+        personal_email: candidate.email,
+        user_id: frappeUserId || undefined,
+        company: input.company,
+        date_of_joining: input.date_of_joining,
+        gender: input.gender,
+        date_of_birth: input.date_of_birth,
+        status: candidate.is_active ? 'Active' : 'Inactive',
+        employment_type: compactString(input.employment_type) || undefined,
+        holiday_list: compactString(input.holiday_list) || undefined,
+        department: compactString(input.department) || undefined,
+        branch: compactString(input.branch) || undefined,
+        designation: compactString(input.designation) || undefined,
+      },
+      retries: 0,
+    })
+  } catch (error: unknown) {
+    normalizeFrappeProvisioningError(error)
+  }
 
   if (!response.data?.name) {
     throw new Error('Frappe did not return an Employee ID')
@@ -388,7 +518,7 @@ function validateTransferInput(input: FrappeProvisioningTransferInput): FrappePr
   return {
     ...input,
     employee_id: requireValue(input.employee_id, 'Employee'),
-    company: requireValue(input.company, 'Company'),
+    company: FRAPPE_DEFAULT_COMPANY,
     date_of_joining: normalizeDate(input.date_of_joining, 'Date of joining'),
     gender: requireValue(input.gender, 'Gender'),
     date_of_birth: normalizeDate(input.date_of_birth, 'Date of birth'),
@@ -428,6 +558,9 @@ export async function transferEmployeeToFrappe(
     }
   }
 
+  await assertFrappeEmployeeProvisioningReady()
+  const preparedInput = await prepareFrappeEmployeeInput(input)
+
   const existingEmployee = await findFrappeEmployeeByEmail(candidate.email)
   let frappeUserId: string | null = existingEmployee?.user_id || null
   let createdUser = false
@@ -438,7 +571,7 @@ export async function transferEmployeeToFrappe(
     createdUser = userResult.created
   }
 
-  const employee = existingEmployee || await createFrappeEmployee(candidate, input, frappeUserId)
+  const employee = existingEmployee || await createFrappeEmployee(candidate, preparedInput, frappeUserId)
   frappeUserId = frappeUserId || employee.user_id || null
 
   await upsertIdentityMap({

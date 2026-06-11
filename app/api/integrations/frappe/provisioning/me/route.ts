@@ -9,6 +9,9 @@ import { cookies } from 'next/headers'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
 import {
+  FRAPPE_DEFAULT_COMPANY,
+  FrappeProvisioningSetupError,
+  getFrappeEmployeeProvisioningReadiness,
   getFrappeProvisioningCandidate,
   getFrappeProvisioningReferenceOptions,
   transferEmployeeToFrappe,
@@ -48,9 +51,10 @@ export async function GET() {
   }
 
   try {
-    const [candidate, options] = await Promise.all([
+    const [candidate, options, employeeProvisioning] = await Promise.all([
       getFrappeProvisioningCandidate(user.id),
       getFrappeProvisioningReferenceOptions(),
+      getFrappeEmployeeProvisioningReadiness(),
     ])
 
     if (!candidate) {
@@ -61,6 +65,8 @@ export async function GET() {
       ok: true,
       candidate,
       options,
+      employee_provisioning: employeeProvisioning,
+      default_company: FRAPPE_DEFAULT_COMPANY,
     })
   } catch (error: unknown) {
     return apiError(toErrorMessage(error, 'Unable to load your Frappe transfer status'), 500)
@@ -87,6 +93,10 @@ export async function POST(request: Request) {
       ...result,
     })
   } catch (error: unknown) {
+    if (error instanceof FrappeProvisioningSetupError) {
+      return apiError(error.message, error.statusCode)
+    }
+
     return apiError(toErrorMessage(error, 'Unable to complete your Frappe transfer'), 500)
   }
 }

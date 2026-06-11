@@ -7,7 +7,10 @@
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
 import { requireAdminSession } from '@/lib/adminSessionAuth'
-import { transferEmployeeToFrappe } from '@/lib/integrations/frappe/provisioning'
+import {
+  FrappeProvisioningSetupError,
+  transferEmployeeToFrappe,
+} from '@/lib/integrations/frappe/provisioning'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -27,6 +30,10 @@ export async function POST(request: Request) {
       ...result,
     })
   } catch (error: unknown) {
+    if (error instanceof FrappeProvisioningSetupError) {
+      return apiError(error.message, error.statusCode)
+    }
+
     return apiError(toErrorMessage(error, 'Unable to transfer employee to Frappe'), 500)
   }
 }
