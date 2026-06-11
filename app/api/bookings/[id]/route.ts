@@ -298,11 +298,12 @@ export async function PATCH(
     const nextOccupiedUntilISO = occupiedUntilDate.toISOString();
 
     // Only enforce slot/staff checks if the booking is moving to a new slot or service
-    const isSameSlot =
+    const isSameSchedulingWindow =
       existing.start_time === nextStartISO &&
-      existing.service_id === nextServiceId;
+      existing.service_id === nextServiceId &&
+      Number(existing.person_count ?? 1) === nextPersonCount;
 
-    if (nextStatus !== BookingStatus.CANCELLED && !isSameSlot) {
+    if (nextStatus !== BookingStatus.CANCELLED && !isSameSchedulingWindow) {
       const bookingDayOfWeek = startTimeDate.getUTCDay();
       if (
         Array.isArray(service.available_days) &&
@@ -472,7 +473,7 @@ export async function PATCH(
     const shouldReserveCapacity =
       nextStatus !== BookingStatus.CANCELLED &&
       nextStatus !== BookingStatus.COMPLETED &&
-      (!isSameSlot || existing.status === BookingStatus.CANCELLED || existing.status === BookingStatus.COMPLETED)
+      (!isSameSchedulingWindow || existing.status === BookingStatus.CANCELLED || existing.status === BookingStatus.COMPLETED)
 
     if (nextStatus === BookingStatus.CANCELLED || nextStatus === BookingStatus.COMPLETED) {
       await releaseBookingCapacity(supabase, id)

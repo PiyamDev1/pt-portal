@@ -771,7 +771,7 @@ export default function BookingSettingsTab({
               <LabeledInput label="Prayer Break End">
                 <input type="time" value={newOverride.prayer_end_time || ''} onChange={(e) => setNewOverride((p) => ({ ...p, prayer_end_time: e.target.value || null }))} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
               </LabeledInput>
-              <LabeledInput label="Concurrent Staff">
+              <LabeledInput label="Concurrent Staff (all services)">
                 <input type="number" min={1} value={newOverride.concurrent_staff} onChange={(e) => setNewOverride((p) => ({ ...p, concurrent_staff: Math.max(1, Number(e.target.value)) }))} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
               </LabeledInput>
               <LabeledInput label="Slot Interval (deprecated: use service slots)">
@@ -780,6 +780,7 @@ export default function BookingSettingsTab({
                 </select>
               </LabeledInput>
             </div>
+            <p className="text-xs text-slate-500">Concurrent staff is shared across all booking services. If one person handles appointments, keep this at 1 so services cannot overlap.</p>
             <div className="flex items-center gap-3">
               <label className="inline-flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" checked={newOverride.is_closed} onChange={(e) => setNewOverride((p) => ({ ...p, is_closed: e.target.checked }))} /> Closed all day</label>
               <button onClick={saveOverride} disabled={loading} className="px-4 py-2 rounded bg-indigo-600 text-white text-sm font-medium disabled:opacity-50">{loading ? 'Saving...' : 'Save One-off Schedule'}</button>

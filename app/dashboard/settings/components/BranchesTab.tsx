@@ -457,7 +457,10 @@ export default function BranchesTab({
             {branchSubTab === 'hours' && (
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <p className="text-sm text-slate-600">Configure branch opening hours, breaks and concurrent staff per day.</p>
+                  <div>
+                    <p className="text-sm text-slate-600">Configure branch opening hours, breaks and concurrent staff per day.</p>
+                    <p className="mt-1 text-xs text-slate-500">Concurrent staff is shared across all appointment services. Use 1 if one staff member handles the whole booking desk.</p>
+                  </div>
                   <button
                     onClick={saveWeekly}
                     disabled={hoursSaving}
