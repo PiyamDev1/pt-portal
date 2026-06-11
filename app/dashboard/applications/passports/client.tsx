@@ -60,6 +60,8 @@ export default function PakPassportClient({
   const [showForm, setShowForm] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const [statusFilter, setStatusFilter] = useState('All')
+  const [speedFilter, setSpeedFilter] = useState('All')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
@@ -495,6 +497,8 @@ export default function PakPassportClient({
     initialApplications,
     attentionMode,
     searchQuery,
+    statusFilter,
+    speedFilter,
     startDate,
     endDate,
     currentPage,
@@ -560,6 +564,11 @@ export default function PakPassportClient({
       <PassportsToolbar
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
+        statusFilter={statusFilter}
+        setStatusFilter={setStatusFilter}
+        speedFilter={speedFilter}
+        setSpeedFilter={setSpeedFilter}
+        speedOptions={metadata.speeds}
         startDate={startDate}
         setStartDate={setStartDate}
         endDate={endDate}

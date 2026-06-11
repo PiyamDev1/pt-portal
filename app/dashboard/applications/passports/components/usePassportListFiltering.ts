@@ -25,6 +25,8 @@ type UsePassportListFilteringParams = {
   initialApplications: Application[]
   attentionMode: boolean
   searchQuery: string
+  statusFilter: string
+  speedFilter: string
   startDate: string
   endDate: string
   currentPage: number
@@ -36,6 +38,8 @@ export function usePassportListFiltering({
   initialApplications,
   attentionMode,
   searchQuery,
+  statusFilter,
+  speedFilter,
   startDate,
   endDate,
   currentPage,
@@ -94,9 +98,12 @@ export function usePassportListFiltering({
           })
 
         const status = getPassportRecord(item)?.status || 'Pending Submission'
+        const speed = passport?.speed || ''
         const matchesAttention = !attentionMode || status === 'Passport Arrived'
+        const matchesStatus = statusFilter === 'All' || status === statusFilter
+        const matchesSpeed = speedFilter === 'All' || speed === speedFilter
 
-        if (!matchesSearch || !matchesAttention) return false
+        if (!matchesSearch || !matchesAttention || !matchesStatus || !matchesSpeed) return false
 
         if (startDate || endDate) {
           const itemDate = new Date(getCreatedAt(item))
@@ -110,7 +117,7 @@ export function usePassportListFiltering({
 
         return true
       }),
-    [sortedApps, searchQuery, attentionMode, startDate, endDate],
+    [sortedApps, searchQuery, attentionMode, statusFilter, speedFilter, startDate, endDate],
   )
 
   const totalPages = Math.ceil(filteredApps.length / pageSize) || 1
@@ -119,7 +126,7 @@ export function usePassportListFiltering({
 
   useEffect(() => {
     setCurrentPage(1)
-  }, [searchQuery, startDate, endDate, setCurrentPage])
+  }, [searchQuery, statusFilter, speedFilter, startDate, endDate, setCurrentPage])
 
   return { filteredApps, totalPages, startIdx, pageItems }
 }
