@@ -15,6 +15,7 @@ import { DocumentMigrationOverviewTab } from './components/DocumentMigrationOver
 import { ReceiptMetricsTab } from './components/ReceiptMetricsTab'
 import { MaintenanceTab } from './components/MaintenanceTab'
 import { IssueReportsTab } from './components/IssueReportsTab'
+import { FrappeProvisioningTab } from './components/FrappeProvisioningTab'
 import Link from 'next/link'
 import type { AuthUser } from '@/app/types/auth'
 
@@ -145,6 +146,16 @@ export default function SettingsClient({
                   >
                     Hierarchy Tree
                   </button>
+                  <button
+                    onClick={() => setActiveTab('frappe-provisioning')}
+                    className={`w-full text-left px-4 py-3 border-l-4 transition-colors ${
+                      activeTab === 'frappe-provisioning'
+                        ? 'border-blue-900 bg-blue-50 font-medium text-blue-900'
+                        : 'border-transparent hover:bg-slate-50 text-slate-600'
+                    }`}
+                  >
+                    Frappe Transfer
+                  </button>
                 </>
               )}
 
@@ -262,6 +273,8 @@ export default function SettingsClient({
             supabase={supabase}
           />
         )}
+
+        {activeTab === 'frappe-provisioning' && isOrgAdmin && <FrappeProvisioningTab />}
 
         {activeTab === 'document-storage' && canAccessMaintenance && (
           <DocumentMigrationOverviewTab />

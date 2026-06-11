@@ -98,6 +98,14 @@ const ALL_MODULES = [
     color: 'bg-indigo-600 text-white',
     href: '/dashboard/bookings',
   },
+  {
+    id: 'hrms-transfer',
+    title: 'Employee Module',
+    desc: 'HRMS profile and onboarding',
+    icon: 'HR',
+    color: 'bg-emerald-700 text-white',
+    href: '/dashboard/frappe-transfer',
+  },
 ]
 
 // Mock User Preferences (In future, fetch these from DB)

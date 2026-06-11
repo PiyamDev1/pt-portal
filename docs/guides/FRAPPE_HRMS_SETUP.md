@@ -26,6 +26,7 @@ Already implemented in this repo:
 - Outbox push dispatcher
 - Webhook ingestion endpoint
 - Health/diagnostic endpoint
+- Staff transfer/provisioning screen for creating or linking Frappe Employees from IMS staff
 - Maintenance tab controls for health, pull, push, and reconcile
 - Integration foundation migrations
 - Leave domain seed data and identity map bootstrap
@@ -37,6 +38,9 @@ Key PT Portal endpoints:
 - `POST /api/integrations/frappe/sync/pull`
 - `POST /api/integrations/frappe/reconcile`
 - `POST /api/integrations/frappe/webhook`
+- `GET /api/integrations/frappe/provisioning/candidates`
+- `POST /api/integrations/frappe/provisioning/transfer`
+- `GET/POST /api/integrations/frappe/provisioning/me`
 - `GET /api/cron/integrations/frappe/outbox`
 
 ## PT Portal Environment Variables
@@ -211,6 +215,49 @@ Use:
 4. `Reconcile`
 
 This is the fastest way to validate the integration without going directly to SQL first.
+
+### Staff transfer
+
+Open:
+
+- `Dashboard -> Employee Module` for staff self-service
+- `Settings -> Frappe Transfer`
+
+Self-service behavior:
+
+- first-time/unlinked employees see the transfer setup screen
+- linked employees are redirected straight to Frappe HRMS
+- if manager/admin-owned setup data is missing, the employee sees a contact line manager/admin message
+
+Use this before real leave or attendance sync:
+
+1. Confirm the pre-filled IMS details
+2. Fill the employee-owned HRMS fields:
+   - Date of joining
+   - Gender
+   - Date of birth
+3. Submit the transfer
+
+Manager/admin-owned fields must already be available from IMS or Frappe setup:
+
+- Company
+- Department
+- Branch/location
+- Designation/role
+
+Admin-managed transfer adds one extra option:
+
+- Enable `Create Frappe login user` only for staff who need direct Frappe access
+
+The transfer will:
+
+- link an existing Frappe Employee if one already exists for the staff email
+- otherwise create a Frappe Employee
+- optionally create or reuse a Frappe User
+- store the mapping in `integration_identity_map` using domain `hrms`
+
+Leave and attendance pushes require this mapping. If an employee has not been transferred, push
+sync will fail that outbox row instead of sending an IMS UUID into Frappe.
 
 ### Minimum business test
 

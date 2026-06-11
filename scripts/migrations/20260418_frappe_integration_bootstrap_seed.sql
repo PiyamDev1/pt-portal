@@ -34,7 +34,7 @@ insert into public.integration_identity_map (
   frappe_user_id
 )
 select
-  'hr_core' as domain,
+  'hrms' as domain,
   e.id as supabase_employee_id,
   null::text as frappe_employee_id,
   null::text as frappe_user_id

@@ -89,6 +89,13 @@ export function AdminOverviewTab({
       visible: canManageOrganization,
     },
     {
+      id: 'frappe-provisioning',
+      title: 'Frappe Transfer',
+      description: 'Create or link HRMS Employee records from IMS staff details.',
+      icon: Users,
+      visible: canManageOrganization,
+    },
+    {
       id: 'issue-reports',
       title: 'Issue Reports',
       description: 'Review user-submitted faults, screenshots, and browser console logs.',

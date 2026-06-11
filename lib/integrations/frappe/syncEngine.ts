@@ -65,16 +65,70 @@ function getFrappeEndpoint(row: OutboxRow) {
   return '/api/resource/Employee'
 }
 
-function normalizePayload(row: OutboxRow) {
+async function resolveFrappeEmployeeId(employeeId: string) {
+  const supabase = getSupabaseClient()
+  const { data: identity, error } = await supabase
+    .from('integration_identity_map')
+    .select('frappe_employee_id')
+    .eq('domain', FRAPPE_DOMAIN)
+    .eq('supabase_employee_id', employeeId)
+    .maybeSingle()
+
+  if (error) throw error
+
+  const frappeEmployeeId = String(identity?.frappe_employee_id || '').trim()
+  if (!frappeEmployeeId) {
+    throw new Error(`Employee ${employeeId} has not been transferred to Frappe HRMS`)
+  }
+
+  return frappeEmployeeId
+}
+
+async function resolveLeaveTypeName(leaveTypeId: string) {
+  const supabase = getSupabaseClient()
+  const { data: leaveType, error } = await supabase
+    .from('leave_types')
+    .select('name, code')
+    .eq('id', leaveTypeId)
+    .maybeSingle()
+
+  if (error) throw error
+
+  return String(leaveType?.name || leaveType?.code || leaveTypeId).trim()
+}
+
+async function normalizePayload(row: OutboxRow) {
   if (row.domain === 'leave') {
-    return mapLeaveToFrappePayload(row.payload as unknown as LeaveRequestRow)
+    const record = row.payload as unknown as LeaveRequestRow
+    const [frappeEmployeeId, frappeLeaveType] = await Promise.all([
+      resolveFrappeEmployeeId(record.employee_id),
+      resolveLeaveTypeName(record.leave_type_id),
+    ])
+
+    return mapLeaveToFrappePayload({
+      ...record,
+      employee_id: frappeEmployeeId,
+      leave_type_id: frappeLeaveType,
+    })
   }
 
   if (row.domain === 'attendance') {
-    return mapAttendanceToFrappePayload(row.payload as unknown as AttendanceDailyRow)
+    const record = row.payload as unknown as AttendanceDailyRow
+    const frappeEmployeeId = await resolveFrappeEmployeeId(record.employee_id)
+
+    return mapAttendanceToFrappePayload({
+      ...record,
+      employee_id: frappeEmployeeId,
+    })
   }
 
-  return mapLifecycleToFrappePayload(row.payload as unknown as LifecycleRow)
+  const record = row.payload as unknown as LifecycleRow
+  const frappeEmployeeId = await resolveFrappeEmployeeId(record.employee_id)
+
+  return mapLifecycleToFrappePayload({
+    ...record,
+    employee_id: frappeEmployeeId,
+  })
 }
 
 export async function enqueueIntegrationEvent(params: {
@@ -139,7 +193,7 @@ export async function dispatchOutboxBatch(limit = 25) {
 
     try {
       const endpoint = getFrappeEndpoint(row)
-      const payload = normalizePayload(row)
+      const payload = await normalizePayload(row)
 
       await frappeRequest(endpoint, {
         method: 'POST',
