@@ -99,7 +99,12 @@ def _ims_redirect(reason, message=None):
     query = {"handoff": reason}
     if message:
         query["message"] = str(message)[:180]
-    return redirect(f"{_ims_base_url()}/dashboard/frappe-transfer?{urlencode(query)}")
+    return f"{_ims_base_url()}/dashboard/frappe-transfer?{urlencode(query)}"
+
+
+def _frappe_redirect(location):
+    frappe.local.response["type"] = "redirect"
+    frappe.local.response["location"] = location
 
 
 @frappe.whitelist(allow_guest=True)
@@ -115,10 +120,10 @@ def consume(token=None):
 
         frappe.local.login_manager.login_as(user)
         frappe.db.commit()
-        return redirect(_safe_target(payload.get("target")))
+        _frappe_redirect(_safe_target(payload.get("target")))
     except Exception as exc:
         frappe.log_error(frappe.get_traceback(), "IMS handoff failed")
-        return _ims_redirect("failed", exc)
+        _frappe_redirect(_ims_redirect("failed", exc))
 
 
 def _is_handoff_consume_path(path):
@@ -156,4 +161,4 @@ def guard_direct_access():
     if getattr(frappe.session, "user", "Guest") != "Guest":
         return
 
-    abort(_ims_redirect("required"))
+    abort(redirect(_ims_redirect("required")))

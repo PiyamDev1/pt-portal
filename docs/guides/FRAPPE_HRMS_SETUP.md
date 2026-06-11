@@ -254,6 +254,17 @@ sudo docker exec -it backend-<coolify-suffix> bash -lc 'bench --site frio.piyamt
 sudo docker exec -it backend-<coolify-suffix> bash -lc 'bench --site frio.piyamtravel.com migrate && bench build --app piyam_ims_bridge && bench --site frio.piyamtravel.com clear-cache'
 ```
 
+If the bridge app was copied into a running container manually instead of baked into the image, add
+it to `sites/apps.txt` before `install-app`:
+
+```bash
+sudo docker exec -it backend-<coolify-suffix> bash -lc 'cd /home/frappe/frappe-bench && grep -qxF piyam_ims_bridge sites/apps.txt || echo piyam_ims_bridge >> sites/apps.txt'
+```
+
+If `bench build --app piyam_ims_bridge` fails because `node` is not available in the backend
+container, continue without it for the handoff test. The Python handoff endpoint does not require
+asset building; the build only affects the `Back to IMS` Desk button.
+
 Test the normal IMS flow first. Once `Dashboard -> Employee Module` opens Frappe successfully, turn
 on direct-access protection:
 
