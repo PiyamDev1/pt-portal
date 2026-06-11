@@ -19,6 +19,7 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { ConfirmationDialog } from '@/components/ConfirmationDialog'
 import type { User } from '@supabase/supabase-js'
+import { PasskeySettingsPanel } from './PasskeySettingsPanel'
 
 export default function MyAccountPage() {
   const [user, setUser] = useState<User | null>(null)
@@ -361,6 +362,8 @@ export default function MyAccountPage() {
             )}
           </div>
         </div>
+
+        <PasskeySettingsPanel />
       </div>
 
       <ConfirmationDialog

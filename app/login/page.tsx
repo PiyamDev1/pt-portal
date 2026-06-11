@@ -6,9 +6,16 @@
  */
 
 'use client'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
 import { useRouter } from 'next/navigation'
+import { ScanFace } from 'lucide-react'
+import {
+  getMobilePlatformLabel,
+  isWebAuthnSupported,
+  preparePublicKeyRequestOptions,
+  serializeAuthenticationCredential,
+} from '@/lib/auth/webauthnClient'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -16,12 +23,18 @@ export default function LoginPage() {
   const [branchCode, setBranchCode] = useState('')
   const [errorMsg, setErrorMsg] = useState('')
   const [loading, setLoading] = useState(false)
+  const [biometricLoading, setBiometricLoading] = useState(false)
+  const [passkeySupported, setPasskeySupported] = useState(false)
 
   const router = useRouter()
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
   )
+
+  useEffect(() => {
+    setPasskeySupported(isWebAuthnSupported())
+  }, [])
 
   // --- LOGIC: Validate Branch, Password Status & Redirect ---
   const postLoginChecks = async (userId: string) => {
@@ -81,6 +94,64 @@ export default function LoginPage() {
     }
   }
 
+  const handleBiometricLogin = async () => {
+    const loginEmail = email.trim().toLowerCase()
+    if (!loginEmail) {
+      setErrorMsg('Enter your email first, then use biometric login.')
+      return
+    }
+    if (!passkeySupported) {
+      setErrorMsg('This browser does not support biometric passkeys.')
+      return
+    }
+
+    setBiometricLoading(true)
+    setErrorMsg('')
+
+    try {
+      const optionsResponse = await fetch('/api/auth/passkeys/authenticate/options', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: loginEmail }),
+      })
+      const optionsData = await optionsResponse.json()
+      if (!optionsResponse.ok) {
+        throw new Error(optionsData.error || 'Unable to start biometric login')
+      }
+
+      const credential = await navigator.credentials.get({
+        publicKey: preparePublicKeyRequestOptions(optionsData.publicKey),
+      })
+      if (!credential || credential.type !== 'public-key') {
+        throw new Error('Biometric login was cancelled')
+      }
+
+      const verifyResponse = await fetch('/api/auth/passkeys/authenticate/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          challenge: optionsData.publicKey.challenge,
+          credential: serializeAuthenticationCredential(credential as PublicKeyCredential),
+        }),
+      })
+      const verifyData = await verifyResponse.json()
+      if (!verifyResponse.ok) {
+        throw new Error(verifyData.error || 'Unable to verify biometric login')
+      }
+
+      const { data, error } = await supabase.auth.verifyOtp({
+        type: 'magiclink',
+        token_hash: verifyData.token_hash,
+      })
+      if (error) throw error
+
+      await postLoginChecks(data.user?.id || verifyData.user_id)
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Biometric login failed')
+      setBiometricLoading(false)
+    }
+  }
+
   // --- HANDLER: Microsoft SSO ---
   const handleMicrosoftLogin = async () => {
     await supabase.auth.signInWithOAuth({
@@ -112,6 +183,21 @@ export default function LoginPage() {
         >
           <span>Sign in with Microsoft</span>
         </button>
+
+        {passkeySupported && (
+          <button
+            onClick={() => void handleBiometricLogin()}
+            disabled={biometricLoading}
+            className="mb-6 flex w-full items-center justify-center gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 font-semibold text-emerald-800 transition hover:bg-emerald-100 disabled:opacity-60"
+          >
+            <ScanFace className="h-5 w-5" />
+            <span>
+              {biometricLoading
+                ? 'Checking biometrics...'
+                : `Use ${getMobilePlatformLabel()}`}
+            </span>
+          </button>
+        )}
 
         <div className="relative mb-6">
           <div className="absolute inset-0 flex items-center">

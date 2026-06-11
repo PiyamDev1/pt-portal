@@ -7,6 +7,7 @@
 import { useState } from 'react'
 // import { useSessionTimeout } from '@/hooks/useSessionTimeout'
 import { SessionWarningHeader } from '@/app/components/SessionWarningHeader'
+import { PasskeySetupPrompt } from '@/app/components/PasskeySetupPrompt'
 
 export default function DashboardClientWrapper({ children }: { children: React.ReactNode }) {
   const [showWarning, setShowWarning] = useState(false)
@@ -22,6 +23,7 @@ export default function DashboardClientWrapper({ children }: { children: React.R
     <>
       <SessionWarningHeader showWarning={showWarning} secondsRemaining={secondsRemaining} />
       {children}
+      <PasskeySetupPrompt />
     </>
   )
 }
