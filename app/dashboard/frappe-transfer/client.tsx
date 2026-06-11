@@ -189,7 +189,8 @@ export function FrappeTransferClient() {
       }
 
       setCandidate(data.candidate as Candidate)
-      toast.success('HRMS transfer completed')
+      toast.success('HRMS transfer completed. Opening Frappe HRMS...')
+      window.location.assign('/api/integrations/frappe/handoff')
     } catch (error: unknown) {
       toast.error(error instanceof Error ? error.message : 'Unable to complete HRMS transfer')
     } finally {
@@ -224,6 +225,13 @@ export function FrappeTransferClient() {
         <p className="mt-2 text-sm">
           Frappe Employee ID: <span className="font-mono">{candidate.frappe_employee_id}</span>
         </p>
+        <a
+          href="/api/integrations/frappe/handoff"
+          className="mt-5 inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-emerald-700"
+        >
+          <Send className="h-4 w-4" />
+          Open Frappe HRMS
+        </a>
       </div>
     )
   }

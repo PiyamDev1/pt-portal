@@ -11,6 +11,7 @@ import { redirect } from 'next/navigation'
 import PageHeader from '@/app/components/PageHeader.client'
 import DashboardClientWrapper from '@/app/dashboard/client-wrapper'
 import { FrappeTransferClient } from './client'
+import { FrappeHandoffLaunchClient } from './HandoffLaunchClient'
 import { getFrappeProvisioningCandidate } from '@/lib/integrations/frappe/provisioning'
 
 export const metadata = {
@@ -18,7 +19,13 @@ export const metadata = {
   description: 'Complete your Frappe HRMS employee transfer',
 }
 
-export default async function FrappeTransferPage() {
+type FrappeTransferPageProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>
+}
+
+export default async function FrappeTransferPage({ searchParams }: FrappeTransferPageProps) {
+  const params = await searchParams
+  const handoffStatus = typeof params?.handoff === 'string' ? params.handoff : null
   const cookieStore = await cookies()
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -55,12 +62,7 @@ export default async function FrappeTransferPage() {
   const role = Array.isArray(employee?.roles) ? employee.roles[0] : employee?.roles
   const candidate = await getFrappeProvisioningCandidate(session.user.id)
 
-  if (candidate?.frappe_employee_id) {
-    const frappeBaseUrl = process.env.FRAPPE_BASE_URL?.replace(/\/$/, '')
-    if (frappeBaseUrl) {
-      redirect(`${frappeBaseUrl}/app`)
-    }
-  }
+  const shouldLaunchFrappe = Boolean(candidate?.frappe_employee_id && !handoffStatus)
 
   return (
     <DashboardClientWrapper>
@@ -85,7 +87,11 @@ export default async function FrappeTransferPage() {
             </p>
           </div>
 
-          <FrappeTransferClient />
+          {shouldLaunchFrappe ? (
+            <FrappeHandoffLaunchClient employeeName={employee?.full_name} />
+          ) : (
+            <FrappeTransferClient />
+          )}
         </main>
       </div>
     </DashboardClientWrapper>

@@ -514,6 +514,54 @@ async function upsertIdentityMap(params: {
   if (error) throw error
 }
 
+export async function ensureFrappeLoginUserForEmployee(employeeId: string) {
+  const candidate = await getFrappeProvisioningCandidate(employeeId)
+
+  if (!candidate) {
+    throw new Error('Employee not found in IMS')
+  }
+
+  if (!candidate.email) {
+    throw new Error('Employee needs an email before Frappe HRMS can be opened')
+  }
+
+  if (!candidate.frappe_employee_id) {
+    throw new Error('Complete your HRMS transfer before opening Frappe HRMS')
+  }
+
+  if (candidate.frappe_user_id) {
+    return candidate
+  }
+
+  const userResult = await createOrFindFrappeUser(candidate, false)
+
+  try {
+    await frappeRequest<FrappeDocResponse<FrappeEmployeeRecord>>(
+      `/api/resource/Employee/${encodeURIComponent(candidate.frappe_employee_id)}`,
+      {
+        method: 'PUT',
+        body: {
+          user_id: userResult.userId,
+        },
+        retries: 0,
+      },
+    )
+  } catch (error: unknown) {
+    normalizeFrappeProvisioningError(error)
+  }
+
+  await upsertIdentityMap({
+    employeeId: candidate.employee_id,
+    frappeEmployeeId: candidate.frappe_employee_id,
+    frappeUserId: userResult.userId,
+  })
+
+  return {
+    ...candidate,
+    frappe_user_id: userResult.userId,
+  }
+}
+
 function validateTransferInput(input: FrappeProvisioningTransferInput): FrappeProvisioningTransferInput {
   return {
     ...input,

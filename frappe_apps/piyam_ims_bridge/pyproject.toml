@@ -1,0 +1,19 @@
+[project]
+name = "piyam_ims_bridge"
+version = "0.1.0"
+description = "IMS handoff and branding bridge for Piyam Travel Frappe HRMS"
+authors = [
+  { name = "Piyam Travel" }
+]
+requires-python = ">=3.10"
+readme = "README.md"
+license = { text = "MIT" }
+dependencies = []
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["piyam_ims_bridge", "piyam_ims_bridge.api"]
+include-package-data = true

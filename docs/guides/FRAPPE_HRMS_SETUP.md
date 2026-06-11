@@ -41,6 +41,7 @@ Key PT Portal endpoints:
 - `GET /api/integrations/frappe/provisioning/candidates`
 - `POST /api/integrations/frappe/provisioning/transfer`
 - `GET/POST /api/integrations/frappe/provisioning/me`
+- `GET /api/integrations/frappe/handoff`
 - `GET /api/cron/integrations/frappe/outbox`
 
 ## PT Portal Environment Variables
@@ -52,10 +53,14 @@ FRAPPE_BASE_URL=https://frappe-backend.your-domain.tld
 FRAPPE_API_KEY=...
 FRAPPE_API_SECRET=...
 FRAPPE_WEBHOOK_SECRET=...
+FRAPPE_HANDOFF_SECRET=...
 CRON_SECRET=...
 ```
 
 You can use `FRAPPE_API_TOKEN` instead of `FRAPPE_API_KEY` and `FRAPPE_API_SECRET`, but not both.
+
+`FRAPPE_HANDOFF_SECRET` signs short-lived browser handoff tokens from IMS into Frappe. It must
+match `ims_handoff_secret` in the Frappe site config.
 
 ## Recommended Install Method
 
@@ -210,6 +215,67 @@ Recommended event scope:
 - Leave Application changes
 - Attendance changes
 
+### 5. Install the IMS bridge app
+
+The PT Portal repo includes a small Frappe app at:
+
+- `frappe_apps/piyam_ims_bridge`
+
+It handles IMS-signed browser handoff, adds a `Back to IMS` button in Frappe Desk, and can block
+unauthenticated direct Frappe UI access once testing is complete.
+
+For Docker/Coolify, add this app to the same custom Frappe image that already contains ERPNext and
+HRMS. The cleanest production option is to publish `frappe_apps/piyam_ims_bridge` as its own Git
+repository, then add it to your `apps.json`:
+
+```json
+[
+  {
+    "url": "https://github.com/frappe/erpnext",
+    "branch": "version-15"
+  },
+  {
+    "url": "https://github.com/frappe/hrms",
+    "branch": "version-15"
+  },
+  {
+    "url": "https://github.com/PiyamDev1/piyam_ims_bridge",
+    "branch": "main"
+  }
+]
+```
+
+After rebuilding/redeploying the image, install and configure the bridge app:
+
+```bash
+sudo docker exec -it backend-<coolify-suffix> bash -lc 'bench --site frio.piyamtravel.com install-app piyam_ims_bridge'
+sudo docker exec -it backend-<coolify-suffix> bash -lc 'bench --site frio.piyamtravel.com set-config ims_handoff_secret "same-value-as-FRAPPE_HANDOFF_SECRET"'
+sudo docker exec -it backend-<coolify-suffix> bash -lc 'bench --site frio.piyamtravel.com set-config ims_base_url "https://ims.piyamtravel.com"'
+sudo docker exec -it backend-<coolify-suffix> bash -lc 'bench --site frio.piyamtravel.com migrate && bench build --app piyam_ims_bridge && bench --site frio.piyamtravel.com clear-cache'
+```
+
+Test the normal IMS flow first. Once `Dashboard -> Employee Module` opens Frappe successfully, turn
+on direct-access protection:
+
+```bash
+sudo docker exec -it backend-<coolify-suffix> bash -lc 'bench --site frio.piyamtravel.com set-config ims_enforce_handoff 1'
+sudo docker exec -it backend-<coolify-suffix> bash -lc 'bench --site frio.piyamtravel.com clear-cache'
+```
+
+With `ims_enforce_handoff` enabled, unauthenticated visits to `/`, `/login`, and `/app` redirect
+back to IMS. Authenticated Frappe sessions and API-token requests continue to work.
+
+### 6. Frappe branding
+
+Use Frappe's own settings for the company logo:
+
+1. Search for `Website Settings` in Frappe
+2. Set the logo/favicon for Piyam Travel
+3. Search for `Navbar Settings` if you want to adjust Desk navigation labels
+
+The IMS bridge app adds the `Back to IMS` button automatically after `bench build --app
+piyam_ims_bridge`.
+
 ## Validation Checklist
 
 ### From PT Portal side
@@ -251,7 +317,7 @@ Open:
 Self-service behavior:
 
 - first-time/unlinked employees see the transfer setup screen
-- linked employees are redirected straight to Frappe HRMS
+- linked employees are sent through the signed IMS handoff into Frappe HRMS
 - if manager/admin-owned setup data is missing, the employee sees a contact line manager/admin message
 
 Use this before real leave or attendance sync:
@@ -278,7 +344,7 @@ The transfer will:
 
 - link an existing Frappe Employee if one already exists for the staff email
 - otherwise create a Frappe Employee
-- optionally create or reuse a Frappe User
+- create or reuse a Frappe User when needed for IMS handoff, without sending a Frappe welcome email
 - store the mapping in `integration_identity_map` using domain `hrms`
 
 Leave and attendance pushes require this mapping. If an employee has not been transferred, push
