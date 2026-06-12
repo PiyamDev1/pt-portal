@@ -8,25 +8,27 @@ export const dynamic = 'force-dynamic'
 export async function POST(request: Request) {
   const body = await request.json().catch(() => ({})) as { email?: string }
   const email = body.email?.trim().toLowerCase()
-  if (!email) return apiError('Enter your email before using biometrics', 400)
 
   const admin = getSupabaseClient()
-  const { data: passkeys, error } = await admin
+  const passkeysQuery = admin
     .from('user_passkeys')
     .select('credential_id, transports, user_id, user_email')
-    .eq('user_email', email)
     .order('created_at', { ascending: false })
 
+  const { data: passkeys, error } = email
+    ? await passkeysQuery.eq('user_email', email)
+    : await passkeysQuery.limit(1)
+
   if (error) return apiError(error.message, 500)
-  if (!passkeys || passkeys.length === 0) {
+  if (email && (!passkeys || passkeys.length === 0)) {
     return apiError('No biometric login is enabled for this email on IMS', 404)
   }
 
   const challenge = createWebAuthnChallenge()
   const { error: challengeError } = await admin.from('user_passkey_challenges').insert({
     challenge,
-    user_id: passkeys[0].user_id,
-    user_email: email,
+    user_id: email ? passkeys?.[0]?.user_id : null,
+    user_email: email || null,
     type: 'authentication',
     expires_at: getChallengeExpiry(),
   })
@@ -38,11 +40,15 @@ export async function POST(request: Request) {
       challenge,
       timeout: 60000,
       userVerification: 'required',
-      allowCredentials: passkeys.map((passkey) => ({
-        type: 'public-key',
-        id: passkey.credential_id,
-        transports: passkey.transports || [],
-      })),
+      ...(email
+        ? {
+            allowCredentials: (passkeys || []).map((passkey) => ({
+              type: 'public-key',
+              id: passkey.credential_id,
+              transports: passkey.transports || [],
+            })),
+          }
+        : {}),
     },
   })
 }

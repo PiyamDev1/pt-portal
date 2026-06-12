@@ -25,6 +25,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [biometricLoading, setBiometricLoading] = useState(false)
   const [passkeySupported, setPasskeySupported] = useState(false)
+  const [checkingExistingSession, setCheckingExistingSession] = useState(true)
 
   const router = useRouter()
   const supabase = createBrowserClient(
@@ -32,12 +33,8 @@ export default function LoginPage() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
   )
 
-  useEffect(() => {
-    setPasskeySupported(isWebAuthnSupported())
-  }, [])
-
   // --- LOGIC: Validate Branch, Password Status & Redirect ---
-  const postLoginChecks = async (userId: string) => {
+  const postLoginChecks = async (userId: string, options: { skipMfa?: boolean } = {}) => {
     // 1. Check database for Account Status, Branch Code match AND Temporary Password Flag
     const { data: employee } = await supabase
       .from('employees')
@@ -68,6 +65,11 @@ export default function LoginPage() {
       throw new Error(`Access Denied: You are not authorized for branch ${branchCode}`)
     }
 
+    if (options.skipMfa) {
+      router.push('/dashboard')
+      return
+    }
+
     // 2. Check 2FA Status
     const { data: mfa } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
 
@@ -77,6 +79,41 @@ export default function LoginPage() {
       router.push('/login/setup-2fa')
     }
   }
+
+  useEffect(() => {
+    let cancelled = false
+
+    setPasskeySupported(isWebAuthnSupported())
+
+    const resumeExistingSession = async () => {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession()
+
+        if (cancelled) return
+        if (session?.user) {
+          await postLoginChecks(session.user.id, { skipMfa: true })
+          return
+        }
+      } catch (error: unknown) {
+        if (!cancelled) {
+          setErrorMsg(error instanceof Error ? error.message : 'Unable to resume your session')
+        }
+      } finally {
+        if (!cancelled) setCheckingExistingSession(false)
+      }
+    }
+
+    void resumeExistingSession()
+
+    return () => {
+      cancelled = true
+    }
+    // This is intentionally a mount-only resume check for installed/PWA launches.
+    // Re-running while the user types would make the login form feel jumpy.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // --- HANDLER: Standard Login ---
   const handleStandardLogin = async (e: React.FormEvent) => {
@@ -96,10 +133,6 @@ export default function LoginPage() {
 
   const handleBiometricLogin = async () => {
     const loginEmail = email.trim().toLowerCase()
-    if (!loginEmail) {
-      setErrorMsg('Enter your email first, then use biometric login.')
-      return
-    }
     if (!passkeySupported) {
       setErrorMsg('This browser does not support biometric passkeys.')
       return
@@ -112,7 +145,7 @@ export default function LoginPage() {
       const optionsResponse = await fetch('/api/auth/passkeys/authenticate/options', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: loginEmail }),
+        body: JSON.stringify(loginEmail ? { email: loginEmail } : {}),
       })
       const optionsData = await optionsResponse.json()
       if (!optionsResponse.ok) {
@@ -145,7 +178,7 @@ export default function LoginPage() {
       })
       if (error) throw error
 
-      await postLoginChecks(data.user?.id || verifyData.user_id)
+      await postLoginChecks(data.user?.id || verifyData.user_id, { skipMfa: true })
     } catch (err: any) {
       setErrorMsg(err.message || 'Biometric login failed')
       setBiometricLoading(false)
@@ -171,6 +204,12 @@ export default function LoginPage() {
           <p className="text-slate-500">Secure Employee Access</p>
         </div>
 
+        {checkingExistingSession && (
+          <div className="mb-6 rounded-xl border border-emerald-100 bg-emerald-50 p-4 text-center text-sm font-semibold text-emerald-800">
+            Checking your secure IMS session...
+          </div>
+        )}
+
         {errorMsg && (
           <div className="mb-4 p-3 bg-red-50 text-red-600 text-sm rounded border border-red-200">
             {errorMsg}
@@ -194,7 +233,7 @@ export default function LoginPage() {
             <span>
               {biometricLoading
                 ? 'Checking biometrics...'
-                : `Use ${getMobilePlatformLabel()}`}
+                : `Unlock with ${getMobilePlatformLabel()}`}
             </span>
           </button>
         )}

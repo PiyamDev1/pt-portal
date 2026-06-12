@@ -5,7 +5,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Download, Share2, X } from 'lucide-react'
+import { Download, PlusSquare, Share2, X } from 'lucide-react'
 import { isIosDevice, isMobileDevice, isStandalonePwa } from '@/lib/auth/webauthnClient'
 
 type BeforeInstallPromptEvent = Event & {
@@ -75,14 +75,43 @@ export function PWAInstallPrompt() {
           {ios ? <Share2 className="h-5 w-5" /> : <Download className="h-5 w-5" />}
         </div>
         <div>
-          <p className="font-bold text-slate-950">Install IMS on your phone</p>
+          <p className="font-bold text-slate-950">
+            {ios ? 'Add IMS to your iPhone' : 'Install IMS on your phone'}
+          </p>
           <p className="mt-1 text-sm text-slate-600">
             {ios
-              ? 'On iPhone/iPad, tap Share, then Add to Home Screen for quick app-style access.'
+              ? 'iOS does not allow websites to trigger install directly. Use Safari’s share menu to add IMS.'
               : 'Add IMS to your home screen for faster mobile access.'}
           </p>
         </div>
       </div>
+
+      {ios && (
+        <div className="mt-4 grid gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+          <div className="flex items-center gap-3">
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white font-black text-emerald-700">
+              1
+            </span>
+            <span className="font-semibold">Open this page in Safari.</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white font-black text-emerald-700">
+              2
+            </span>
+            <span className="flex items-center gap-1.5 font-semibold">
+              Tap Share <Share2 className="h-4 w-4" />.
+            </span>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white font-black text-emerald-700">
+              3
+            </span>
+            <span className="flex items-center gap-1.5 font-semibold">
+              Choose Add to Home Screen <PlusSquare className="h-4 w-4" />.
+            </span>
+          </div>
+        </div>
+      )}
 
       <div className="mt-4 flex gap-2">
         {ios ? (
@@ -90,7 +119,7 @@ export function PWAInstallPrompt() {
             onClick={dismiss}
             className="flex-1 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white"
           >
-            I’ll add it
+            Got it
           </button>
         ) : (
           <button

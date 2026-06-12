@@ -55,8 +55,8 @@ export async function POST(request: Request) {
       attestation: 'none',
       authenticatorSelection: {
         authenticatorAttachment: 'platform',
-        residentKey: 'preferred',
-        requireResidentKey: false,
+        residentKey: 'required',
+        requireResidentKey: true,
         userVerification: 'required',
       },
       excludeCredentials: (existingPasskeys || []).map((passkey) => ({

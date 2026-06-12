@@ -47,15 +47,20 @@ export async function POST(request: Request) {
     return apiError('Biometric login expired. Please try again.', 400)
   }
 
-  const { data: passkey, error: passkeyError } = await admin
+  const passkeyQuery = admin
     .from('user_passkeys')
     .select('id, user_id, user_email, public_key_jwk, sign_count, credential_id')
     .eq('credential_id', credentialId)
-    .eq('user_id', challengeRow.user_id)
-    .maybeSingle()
+
+  const { data: passkey, error: passkeyError } = challengeRow.user_id
+    ? await passkeyQuery.eq('user_id', challengeRow.user_id).maybeSingle()
+    : await passkeyQuery.maybeSingle()
 
   if (passkeyError) return apiError(passkeyError.message, 500)
   if (!passkey) return apiError('Biometric credential not found', 404)
+  if (challengeRow.user_email && passkey.user_email !== challengeRow.user_email) {
+    return apiError('Biometric credential does not match this login challenge', 403)
+  }
 
   try {
     const context = getWebAuthnContext(request)

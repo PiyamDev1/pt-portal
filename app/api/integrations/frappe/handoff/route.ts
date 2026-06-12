@@ -41,6 +41,10 @@ function localRedirect(request: Request, path: string) {
   return NextResponse.redirect(new URL(path, request.url))
 }
 
+function localJson(path: string, status = 200) {
+  return NextResponse.json({ redirect: path }, { status })
+}
+
 function transferRedirect(request: Request, reason: string) {
   const url = new URL('/dashboard/frappe-transfer', request.url)
   url.searchParams.set('handoff', reason)
@@ -48,35 +52,46 @@ function transferRedirect(request: Request, reason: string) {
 }
 
 export async function GET(request: Request) {
+  const requestUrl = new URL(request.url)
+  const wantsJson = requestUrl.searchParams.get('format') === 'json'
   const user = await getSessionUser()
   if (!user) {
+    if (wantsJson) return localJson('/login', 401)
     return localRedirect(request, '/login')
   }
 
-  const requestedTarget = new URL(request.url).searchParams.get('target')
+  const requestedTarget = requestUrl.searchParams.get('target')
 
   try {
     const candidate = await ensureFrappeLoginUserForEmployee(user.id)
 
     if (!candidate.frappe_employee_id || !candidate.frappe_user_id) {
+      if (wantsJson) return localJson('/dashboard/frappe-transfer?handoff=not-linked', 409)
       return transferRedirect(request, 'not-linked')
     }
 
-    return NextResponse.redirect(
-      buildFrappeHandoffUrl({
-        employeeId: candidate.employee_id,
-        email: candidate.email,
-        fullName: candidate.full_name,
-        frappeEmployeeId: candidate.frappe_employee_id,
-        frappeUserId: candidate.frappe_user_id,
-        target: requestedTarget,
-      }),
-    )
+    const handoffUrl = buildFrappeHandoffUrl({
+      employeeId: candidate.employee_id,
+      email: candidate.email,
+      fullName: candidate.full_name,
+      frappeEmployeeId: candidate.frappe_employee_id,
+      frappeUserId: candidate.frappe_user_id,
+      target: requestedTarget,
+    })
+
+    if (wantsJson) return NextResponse.json({ url: handoffUrl })
+    return NextResponse.redirect(handoffUrl)
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unable to open Frappe HRMS'
     const url = new URL('/dashboard/frappe-transfer', request.url)
     url.searchParams.set('handoff', 'failed')
     url.searchParams.set('message', message.slice(0, 180))
+    if (wantsJson) {
+      return NextResponse.json(
+        { error: message.slice(0, 180), redirect: `${url.pathname}${url.search}` },
+        { status: 500 },
+      )
+    }
     return NextResponse.redirect(url)
   }
 }
