@@ -4,6 +4,7 @@ import {
   isWebAuthnSupported,
   preparePublicKeyCreationOptions,
   serializeRegistrationCredential,
+  setPasskeyEnabledHint,
 } from '@/lib/auth/webauthnClient'
 
 type RegisterPasskeyResult = {
@@ -48,6 +49,7 @@ export async function registerPasskeyForCurrentUser(name?: string) {
   }
 
   const result = verifyData as RegisterPasskeyResult
+  setPasskeyEnabledHint()
   toast.success('Biometric login enabled for this device')
   return result
 }

@@ -12,6 +12,7 @@ import { useRouter } from 'next/navigation'
 import { ScanFace } from 'lucide-react'
 import {
   getMobilePlatformLabel,
+  hasPasskeyEnabledHint,
   isWebAuthnSupported,
   preparePublicKeyRequestOptions,
   serializeAuthenticationCredential,
@@ -25,6 +26,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [biometricLoading, setBiometricLoading] = useState(false)
   const [passkeySupported, setPasskeySupported] = useState(false)
+  const [passkeyHint, setPasskeyHint] = useState(false)
   const [checkingExistingSession, setCheckingExistingSession] = useState(true)
 
   const router = useRouter()
@@ -84,6 +86,7 @@ export default function LoginPage() {
     let cancelled = false
 
     setPasskeySupported(isWebAuthnSupported())
+    setPasskeyHint(hasPasskeyEnabledHint())
 
     const resumeExistingSession = async () => {
       try {
@@ -236,6 +239,12 @@ export default function LoginPage() {
                 : `Unlock with ${getMobilePlatformLabel()}`}
             </span>
           </button>
+        )}
+
+        {passkeySupported && passkeyHint && !checkingExistingSession && (
+          <p className="-mt-3 mb-5 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-800">
+            You can unlock with biometrics without typing your email on this device.
+          </p>
         )}
 
         <div className="relative mb-6">

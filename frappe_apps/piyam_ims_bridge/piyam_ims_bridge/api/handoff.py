@@ -13,6 +13,27 @@ HANDOFF_ISSUER = "pt-portal"
 HANDOFF_AUDIENCE = "frappe-hrms"
 MAX_CLOCK_SKEW_SECONDS = 30
 DEFAULT_TARGET_PATH = "/hrms"
+PUBLIC_EXACT_PATHS = {
+    "/favicon.ico",
+    "/manifest.json",
+    "/manifest.webmanifest",
+    "/website_script.js",
+    "/hrms/manifest.json",
+    "/hrms/manifest.webmanifest",
+    "/hrms/sw.js",
+}
+PUBLIC_PREFIXES = (
+    "/assets/",
+    "/files/",
+    "/private/files/",
+    "/socket.io",
+)
+BLOCKED_TARGET_PREFIXES = (
+    "/api/",
+    "/assets/",
+    "/files/",
+    "/private/",
+)
 
 
 class HandoffError(Exception):
@@ -79,7 +100,7 @@ def _safe_target(target):
     target = str(target or DEFAULT_TARGET_PATH)
     if not target.startswith("/") or target.startswith("//"):
         return DEFAULT_TARGET_PATH
-    if target.startswith(("/api/", "/assets/", "/files/")):
+    if target.startswith(BLOCKED_TARGET_PREFIXES):
         return DEFAULT_TARGET_PATH
     return target
 
@@ -96,10 +117,13 @@ def _resolve_user(payload):
     return user.name
 
 
-def _ims_redirect(reason, message=None):
+def _ims_redirect(reason, message=None, target=None):
     query = {"handoff": reason}
     if message:
         query["message"] = str(message)[:180]
+    safe_target = _safe_target(target)
+    if safe_target != DEFAULT_TARGET_PATH:
+        query["target"] = safe_target
     return f"{_ims_base_url()}/dashboard/frappe-transfer?{urlencode(query)}"
 
 
@@ -138,24 +162,35 @@ def _is_direct_login_api(path):
     }
 
 
+def _is_public_path(path):
+    if path in PUBLIC_EXACT_PATHS:
+        return True
+    return path.startswith(PUBLIC_PREFIXES)
+
+
 def _should_guard_path(path):
     if _is_handoff_consume_path(path):
         return False
-    if path.startswith(("/assets/", "/files/", "/private/files/", "/socket.io")):
-        return False
-    if path in {
-        "/favicon.ico",
-        "/manifest.json",
-        "/manifest.webmanifest",
-        "/website_script.js",
-        "/hrms/manifest.json",
-        "/hrms/manifest.webmanifest",
-        "/hrms/sw.js",
-    }:
+    if _is_public_path(path):
         return False
     if path.startswith("/api/") and not _is_direct_login_api(path):
         return False
     return True
+
+
+def _request_target(path):
+    if path in {"/", "/login"}:
+        return DEFAULT_TARGET_PATH
+
+    request = getattr(frappe.local, "request", None)
+    query_string = getattr(request, "query_string", b"") if request else b""
+    if isinstance(query_string, bytes):
+        query_string = query_string.decode(errors="ignore")
+
+    target = path
+    if query_string:
+        target = f"{path}?{query_string}"
+    return _safe_target(target)
 
 
 def guard_direct_access():
@@ -170,4 +205,4 @@ def guard_direct_access():
     if getattr(frappe.session, "user", "Guest") != "Guest":
         return
 
-    abort(redirect(_ims_redirect("required")))
+    abort(redirect(_ims_redirect("required", target=_request_target(path))))

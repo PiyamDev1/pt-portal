@@ -7,12 +7,20 @@
 import { useEffect, useState } from 'react'
 import {
   CheckCircle2,
+  Download,
   ExternalLink,
   Loader2,
+  RefreshCw,
   ShieldCheck,
   Smartphone,
 } from 'lucide-react'
-import { isMobileDevice, isStandalonePwa } from '@/lib/auth/webauthnClient'
+import {
+  confirmHrmsCompanionInstall,
+  hasConfirmedHrmsCompanionInstall,
+  isMobileDevice,
+  isStandalonePwa,
+  resetHrmsCompanionInstallConfirmation,
+} from '@/lib/auth/webauthnClient'
 
 type FrappeHandoffLaunchClientProps = {
   employeeName?: string | null
@@ -27,11 +35,19 @@ type HandoffResponse = {
   error?: string
 }
 
+function getHandoffClientKind() {
+  if (isStandalonePwa()) return 'standalone'
+  if (isMobileDevice()) return 'mobile'
+  return 'desktop'
+}
+
 function buildHandoffEndpoint(format: 'redirect' | 'json') {
   const endpoint = new URL('/api/integrations/frappe/handoff', window.location.origin)
   const current = new URL(window.location.href)
   const target = current.searchParams.get('target') || '/hrms'
   endpoint.searchParams.set('target', target)
+  endpoint.searchParams.set('client', getHandoffClientKind())
+  if (isStandalonePwa()) endpoint.searchParams.set('standalone', '1')
   if (format === 'json') endpoint.searchParams.set('format', 'json')
   return endpoint.toString()
 }
@@ -44,9 +60,14 @@ export function FrappeHandoffLaunchClient({
   const [launchState, setLaunchState] = useState<LaunchState>('preparing')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [mobileMode, setMobileMode] = useState(false)
+  const [companionInstalled, setCompanionInstalled] = useState(false)
+  const [showInstallSteps, setShowInstallSteps] = useState(false)
 
   useEffect(() => {
+    const installed = hasConfirmedHrmsCompanionInstall()
     const shouldOpenExternally = isMobileDevice() || isStandalonePwa()
+    setCompanionInstalled(installed)
+    setShowInstallSteps(!installed)
     setMobileMode(shouldOpenExternally)
 
     if (!shouldOpenExternally) {
@@ -101,6 +122,18 @@ export function FrappeHandoffLaunchClient({
       ? 'Frio asked IMS to approve access. We are signing you back into the HRMS companion app now.'
       : 'For the smoothest phone experience, install the HRMS companion app when Frio opens. Future HRMS launches will still be approved by IMS first.'
     : 'We are creating a short-lived secure handoff and opening your HRMS workspace.'
+
+  const markCompanionInstalled = () => {
+    confirmHrmsCompanionInstall()
+    setCompanionInstalled(true)
+    setShowInstallSteps(false)
+  }
+
+  const showCompanionStepsAgain = () => {
+    resetHrmsCompanionInstallConfirmation()
+    setCompanionInstalled(false)
+    setShowInstallSteps(true)
+  }
 
   return (
     <div className="mx-auto flex min-h-[calc(100vh-10rem)] max-w-3xl items-center justify-center px-2 py-6 sm:min-h-[520px] sm:px-4 sm:py-10">
@@ -196,21 +229,64 @@ export function FrappeHandoffLaunchClient({
 
           {mobileMode && !returningFromFrappe && (
             <div className="mt-5 rounded-2xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900">
-              <p className="font-bold">Companion app setup</p>
-              <p className="mt-1">
-                Install HRMS once from the Frio screen. Direct Frio logins stay blocked; opening
-                HRMS later will bounce through IMS for approval and return you to Frio.
-              </p>
-              <div className="mt-3 grid gap-2 rounded-xl bg-white/70 p-3 text-xs text-sky-950">
-                <p>
-                  <span className="font-bold">Android:</span> after HRMS opens, use the browser menu
-                  or install banner to add the Frio HRMS app.
-                </p>
-                <p>
-                  <span className="font-bold">iPhone:</span> open HRMS in Safari, tap Share, then
-                  Add to Home Screen.
-                </p>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p className="font-bold">HRMS companion app</p>
+                  <p className="mt-1">
+                    {companionInstalled
+                      ? 'IMS has marked this device as HRMS-app ready. Direct Frio logins still stay blocked; IMS signs every launch.'
+                      : 'Install HRMS once from the Frio screen. Direct Frio logins stay blocked; opening HRMS later will bounce through IMS for approval and return you to Frio.'}
+                  </p>
+                </div>
+                <span
+                  className={`inline-flex shrink-0 items-center gap-1 rounded-full px-3 py-1 text-xs font-bold ${
+                    companionInstalled
+                      ? 'bg-emerald-100 text-emerald-700'
+                      : 'bg-amber-100 text-amber-700'
+                  }`}
+                >
+                  {companionInstalled ? (
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                  ) : (
+                    <Download className="h-3.5 w-3.5" />
+                  )}
+                  {companionInstalled ? 'Marked installed' : 'Install once'}
+                </span>
               </div>
+              {!showInstallSteps && (
+                <button
+                  type="button"
+                  onClick={showCompanionStepsAgain}
+                  className="mt-3 inline-flex items-center gap-2 text-xs font-bold text-sky-800 underline-offset-4 hover:underline"
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  Show install steps again
+                </button>
+              )}
+              {showInstallSteps && (
+                <div className="mt-3 grid gap-2 rounded-xl bg-white/70 p-3 text-xs text-sky-950">
+                  <p>
+                    <span className="font-bold">Android:</span> tap Open HRMS App, then use the
+                    Chrome menu or install banner to install the Frio HRMS app.
+                  </p>
+                  <p>
+                    <span className="font-bold">iPhone:</span> tap Open HRMS App, open in Safari if
+                    prompted, tap Share, then Add to Home Screen.
+                  </p>
+                  <p>
+                    If it opens as a normal browser tab, finish the install there once. Future
+                    access should still start from IMS so we keep one login door.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={markCompanionInstalled}
+                    className="mt-1 inline-flex w-fit items-center gap-2 rounded-lg bg-sky-700 px-3 py-2 text-xs font-bold text-white transition hover:bg-sky-800"
+                  >
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    I installed HRMS on this device
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
@@ -227,7 +303,7 @@ export function FrappeHandoffLaunchClient({
                     : 'pointer-events-none bg-emerald-600 opacity-60'
                 }`}
               >
-                Open HRMS App
+                {handoffUrl ? 'Open HRMS App' : 'Preparing HRMS App'}
                 <ExternalLink className="h-4 w-4" />
               </a>
             ) : (

@@ -7,8 +7,18 @@
 import { createServerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
-import { buildFrappeHandoffUrl } from '@/lib/integrations/frappe/handoff'
-import { ensureFrappeLoginUserForEmployee } from '@/lib/integrations/frappe/provisioning'
+import {
+  buildFrappeHandoffUrl,
+  normalizeFrappeHandoffTargetPath,
+} from '@/lib/integrations/frappe/handoff'
+import {
+  getFrappeHandoffClientKind,
+  recordFrappeHandoffEvent,
+} from '@/lib/integrations/frappe/handoffAudit'
+import {
+  ensureFrappeLoginUserForEmployee,
+  getFrappeProvisioningCandidate,
+} from '@/lib/integrations/frappe/provisioning'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -54,18 +64,66 @@ function transferRedirect(request: Request, reason: string) {
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url)
   const wantsJson = requestUrl.searchParams.get('format') === 'json'
+  const responseMode = wantsJson ? 'json' : 'redirect'
+  const clientKind = getFrappeHandoffClientKind(request)
+  const userAgent = request.headers.get('user-agent')
+  const requestedTarget = requestUrl.searchParams.get('target')
+  const targetPath = normalizeFrappeHandoffTargetPath(requestedTarget)
   const user = await getSessionUser()
   if (!user) {
+    await recordFrappeHandoffEvent({
+      targetPath,
+      responseMode,
+      clientKind,
+      status: 'unauthorized',
+      reason: 'No IMS session',
+      userAgent,
+    })
     if (wantsJson) return localJson('/login', 401)
     return localRedirect(request, '/login')
   }
 
-  const requestedTarget = requestUrl.searchParams.get('target')
-
   try {
-    const candidate = await ensureFrappeLoginUserForEmployee(user.id)
+    const existingCandidate = await getFrappeProvisioningCandidate(user.id)
 
-    if (!candidate.frappe_employee_id || !candidate.frappe_user_id) {
+    if (!existingCandidate?.frappe_employee_id) {
+      await recordFrappeHandoffEvent({
+        employeeId: existingCandidate?.employee_id || user.id,
+        userEmail: existingCandidate?.email || user.email,
+        frappeEmployeeId: existingCandidate?.frappe_employee_id,
+        frappeUserId: existingCandidate?.frappe_user_id,
+        targetPath,
+        responseMode,
+        clientKind,
+        status: 'not_linked',
+        reason: existingCandidate
+          ? 'Complete HRMS transfer before opening Frappe'
+          : 'IMS employee profile was not found',
+        userAgent,
+      })
+      if (wantsJson) return localJson('/dashboard/frappe-transfer?handoff=not-linked', 409)
+      return transferRedirect(request, 'not-linked')
+    }
+
+    const candidate = existingCandidate.frappe_user_id
+      ? existingCandidate
+      : await ensureFrappeLoginUserForEmployee(user.id)
+    const frappeEmployeeId = candidate.frappe_employee_id
+    const frappeUserId = candidate.frappe_user_id
+
+    if (!frappeEmployeeId || !frappeUserId) {
+      await recordFrappeHandoffEvent({
+        employeeId: candidate.employee_id,
+        userEmail: candidate.email || user.email,
+        frappeEmployeeId,
+        frappeUserId,
+        targetPath,
+        responseMode,
+        clientKind,
+        status: 'not_linked',
+        reason: 'Employee identity map is incomplete',
+        userAgent,
+      })
       if (wantsJson) return localJson('/dashboard/frappe-transfer?handoff=not-linked', 409)
       return transferRedirect(request, 'not-linked')
     }
@@ -74,15 +132,37 @@ export async function GET(request: Request) {
       employeeId: candidate.employee_id,
       email: candidate.email,
       fullName: candidate.full_name,
-      frappeEmployeeId: candidate.frappe_employee_id,
-      frappeUserId: candidate.frappe_user_id,
-      target: requestedTarget,
+      frappeEmployeeId,
+      frappeUserId,
+      target: targetPath,
+    })
+
+    await recordFrappeHandoffEvent({
+      employeeId: candidate.employee_id,
+      userEmail: candidate.email,
+      frappeEmployeeId,
+      frappeUserId,
+      targetPath,
+      responseMode,
+      clientKind,
+      status: 'issued',
+      userAgent,
     })
 
     if (wantsJson) return NextResponse.json({ url: handoffUrl })
     return NextResponse.redirect(handoffUrl)
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unable to open Frappe HRMS'
+    await recordFrappeHandoffEvent({
+      employeeId: user.id,
+      userEmail: user.email,
+      targetPath,
+      responseMode,
+      clientKind,
+      status: 'failed',
+      reason: message,
+      userAgent,
+    })
     const url = new URL('/dashboard/frappe-transfer', request.url)
     url.searchParams.set('handoff', 'failed')
     url.searchParams.set('message', message.slice(0, 180))

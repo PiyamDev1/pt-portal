@@ -23,6 +23,12 @@ export async function POST(request: Request) {
   if (email && (!passkeys || passkeys.length === 0)) {
     return apiError('No biometric login is enabled for this email on IMS', 404)
   }
+  if (!email && (!passkeys || passkeys.length === 0)) {
+    return apiError(
+      'No biometric login is enabled yet. Sign in once and enable biometric login from My Account.',
+      404,
+    )
+  }
 
   const challenge = createWebAuthnChallenge()
   const { error: challengeError } = await admin.from('user_passkey_challenges').insert({

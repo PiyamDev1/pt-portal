@@ -8,7 +8,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Database, AlertCircle, CheckCircle, RefreshCw, HeartPulse, ArrowDownToLine, ArrowUpToLine, ShieldAlert } from 'lucide-react'
+import { Database, AlertCircle, CheckCircle, RefreshCw, HeartPulse, ArrowDownToLine, ArrowUpToLine, ShieldAlert, History } from 'lucide-react'
 import { toast } from 'sonner'
 import { ConfirmationDialog } from '@/components/ConfirmationDialog'
 
@@ -36,7 +36,19 @@ type FrappeHealthResult = {
     inbox_pending: number
     conflicts_open: number
     identity_map_rows: number
+    handoff_issued_24h?: number
+    handoff_problem_24h?: number
   }
+  recent_handoffs?: Array<{
+    id: string
+    user_email: string | null
+    target_path: string
+    response_mode: string
+    client_kind: string
+    status: string
+    reason: string | null
+    created_at: string
+  }>
   sync_state: Array<{
     domain: string
     last_pull_at?: string | null
@@ -107,6 +119,12 @@ export function MaintenanceTab() {
     } finally {
       setFrappeLoading(false)
     }
+  }
+
+  const formatDateTime = (value: string) => {
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) return value
+    return date.toLocaleString()
   }
 
   return (
@@ -196,12 +214,14 @@ export function MaintenanceTab() {
                     </p>
                   )}
 
-                  <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-5">
+                  <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-7">
                     <MetricCard label="Outbox pending" value={frappeHealth.counts.outbox_pending} />
                     <MetricCard label="Dead letters" value={frappeHealth.counts.outbox_dead_letter} />
                     <MetricCard label="Inbox pending" value={frappeHealth.counts.inbox_pending} />
                     <MetricCard label="Open conflicts" value={frappeHealth.counts.conflicts_open} />
                     <MetricCard label="Identity rows" value={frappeHealth.counts.identity_map_rows} />
+                    <MetricCard label="Handoffs 24h" value={frappeHealth.counts.handoff_issued_24h || 0} />
+                    <MetricCard label="Handoff issues" value={frappeHealth.counts.handoff_problem_24h || 0} />
                   </div>
 
                   <div className="mt-4 space-y-2">
@@ -214,6 +234,43 @@ export function MaintenanceTab() {
                       </div>
                     ))}
                   </div>
+
+                  {frappeHealth.recent_handoffs && frappeHealth.recent_handoffs.length > 0 && (
+                    <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                      <div className="mb-3 flex items-center gap-2 text-sm font-bold text-slate-900">
+                        <History className="h-4 w-4 text-slate-500" />
+                        Recent HRMS handoffs
+                      </div>
+                      <div className="space-y-2">
+                        {frappeHealth.recent_handoffs.map((event) => (
+                          <div
+                            key={event.id}
+                            className="rounded border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600"
+                          >
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <span className="font-semibold text-slate-900">
+                                {event.user_email || 'Unknown user'}
+                              </span>
+                              <span
+                                className={`rounded-full px-2 py-0.5 font-semibold ${
+                                  event.status === 'issued'
+                                    ? 'bg-emerald-100 text-emerald-700'
+                                    : 'bg-amber-100 text-amber-700'
+                                }`}
+                              >
+                                {event.status}
+                              </span>
+                            </div>
+                            <p className="mt-1">
+                              {event.client_kind} / {event.response_mode} to {event.target_path}
+                            </p>
+                            {event.reason && <p className="mt-1 text-amber-700">{event.reason}</p>}
+                            <p className="mt-1 text-slate-400">{formatDateTime(event.created_at)}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

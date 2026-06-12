@@ -4,6 +4,7 @@ import { getFrappeEmployeeProvisioningReadiness } from '@/lib/integrations/frapp
 
 export async function getFrappeIntegrationHealth() {
   const supabase = getSupabaseClient()
+  const handoffSince = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
 
   const [
     pingResult,
@@ -14,6 +15,9 @@ export async function getFrappeIntegrationHealth() {
     inboxPendingResult,
     conflictOpenResult,
     identityMapResult,
+    handoffIssuedResult,
+    handoffProblemResult,
+    recentHandoffResult,
   ] = await Promise.allSettled([
     frappePing(),
     getFrappeEmployeeProvisioningReadiness(),
@@ -40,6 +44,21 @@ export async function getFrappeIntegrationHealth() {
     supabase
       .from('integration_identity_map')
       .select('id', { count: 'exact', head: true }),
+    supabase
+      .from('frappe_handoff_events')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'issued')
+      .gte('created_at', handoffSince),
+    supabase
+      .from('frappe_handoff_events')
+      .select('id', { count: 'exact', head: true })
+      .in('status', ['failed', 'not_linked', 'unauthorized'])
+      .gte('created_at', handoffSince),
+    supabase
+      .from('frappe_handoff_events')
+      .select('id, user_email, target_path, response_mode, client_kind, status, reason, created_at')
+      .order('created_at', { ascending: false })
+      .limit(8),
   ])
 
   const pingOk = pingResult.status === 'fulfilled'
@@ -64,7 +83,12 @@ export async function getFrappeIntegrationHealth() {
     inbox_pending: getExactCount(inboxPendingResult),
     conflicts_open: getExactCount(conflictOpenResult),
     identity_map_rows: getExactCount(identityMapResult),
+    handoff_issued_24h: getExactCount(handoffIssuedResult),
+    handoff_problem_24h: getExactCount(handoffProblemResult),
   }
+  const recentHandoffs = recentHandoffResult.status === 'fulfilled' && !recentHandoffResult.value.error
+    ? recentHandoffResult.value.data || []
+    : []
 
   const ready = pingOk && employeeProvisioning.ready && counts.identity_map_rows > 0
 
@@ -76,6 +100,7 @@ export async function getFrappeIntegrationHealth() {
     employee_provisioning_ready: employeeProvisioning.ready,
     employee_provisioning_error: employeeProvisioning.error,
     sync_state: syncState,
+    recent_handoffs: recentHandoffs,
     counts,
   }
 }

@@ -8,6 +8,9 @@
     "type": "git",
     "url": "https://github.com/PiyamDev1/pt-portal"
   },
+  "overrides": {
+    "postcss": "$postcss"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",

@@ -1,4 +1,6 @@
 const PASSKEY_PROMPT_DISMISSED_KEY = 'pt-ims-passkey-prompt-dismissed'
+const PASSKEY_ENABLED_HINT_KEY = 'pt-ims-passkey-enabled-hint'
+const HRMS_COMPANION_INSTALLED_HINT_KEY = 'pt-ims-hrms-companion-installed'
 
 function base64urlToArrayBuffer(value: string) {
   const base64 = value.replace(/-/g, '+').replace(/_/g, '/')
@@ -60,6 +62,31 @@ export function dismissPasskeyPrompt() {
 
 export function resetPasskeyPromptDismissal() {
   window.localStorage.removeItem(PASSKEY_PROMPT_DISMISSED_KEY)
+}
+
+export function setPasskeyEnabledHint() {
+  if (typeof window === 'undefined') return
+  window.localStorage.setItem(PASSKEY_ENABLED_HINT_KEY, '1')
+}
+
+export function hasPasskeyEnabledHint() {
+  if (typeof window === 'undefined') return false
+  return window.localStorage.getItem(PASSKEY_ENABLED_HINT_KEY) === '1'
+}
+
+export function hasConfirmedHrmsCompanionInstall() {
+  if (typeof window === 'undefined') return false
+  return window.localStorage.getItem(HRMS_COMPANION_INSTALLED_HINT_KEY) === '1'
+}
+
+export function confirmHrmsCompanionInstall() {
+  if (typeof window === 'undefined') return
+  window.localStorage.setItem(HRMS_COMPANION_INSTALLED_HINT_KEY, '1')
+}
+
+export function resetHrmsCompanionInstallConfirmation() {
+  if (typeof window === 'undefined') return
+  window.localStorage.removeItem(HRMS_COMPANION_INSTALLED_HINT_KEY)
 }
 
 export function preparePublicKeyCreationOptions(options: PublicKeyCredentialCreationOptions) {

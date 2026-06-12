@@ -53,7 +53,7 @@ function getHandoffSecret() {
   return secret
 }
 
-function normalizeTargetPath(value: string | null | undefined) {
+export function normalizeFrappeHandoffTargetPath(value: string | null | undefined) {
   if (!value) return DEFAULT_TARGET_PATH
   if (!value.startsWith('/') || value.startsWith('//')) return DEFAULT_TARGET_PATH
   if (value.startsWith('/api/') || value.startsWith('/assets/') || value.startsWith('/files/')) {
@@ -80,7 +80,7 @@ export function createFrappeHandoffToken(
     full_name: identity.fullName,
     frappe_employee_id: identity.frappeEmployeeId,
     frappe_user_id: identity.frappeUserId,
-    target: normalizeTargetPath(identity.target),
+    target: normalizeFrappeHandoffTargetPath(identity.target),
     iat: nowSeconds,
     exp: nowSeconds + (options.ttlSeconds || DEFAULT_TTL_SECONDS),
     nonce: randomUUID(),

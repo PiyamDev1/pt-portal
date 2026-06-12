@@ -28,6 +28,9 @@ Already implemented in this repo:
 - Health/diagnostic endpoint
 - Staff transfer/provisioning screen for creating or linking Frappe Employees from IMS staff
 - Maintenance tab controls for health, pull, push, and reconcile
+- IMS-controlled browser handoff into the Frappe HRMS `/hrms` app shell
+- Handoff audit trail in Supabase for issued, blocked, and failed launches
+- Mobile companion-app guidance for installing IMS and Frio HRMS PWAs
 - Integration foundation migrations
 - Leave domain seed data and identity map bootstrap
 
@@ -61,6 +64,13 @@ You can use `FRAPPE_API_TOKEN` instead of `FRAPPE_API_KEY` and `FRAPPE_API_SECRE
 
 `FRAPPE_HANDOFF_SECRET` signs short-lived browser handoff tokens from IMS into Frappe. It must
 match `ims_handoff_secret` in the Frappe site config.
+
+Run these Supabase migrations before enabling handoff enforcement:
+
+1. `scripts/migrations/20260418_frappe_bidirectional_integration_foundation.sql`
+2. `scripts/migrations/20260418_frappe_integration_bootstrap_seed.sql`
+3. `scripts/migrations/20260611_frappe_hrms_identity_domain.sql`
+4. `scripts/migrations/20260612_add_frappe_handoff_events.sql`
 
 ## Recommended Install Method
 
@@ -271,6 +281,10 @@ Test the normal IMS flow first. `Dashboard -> Employee Module` should open the F
 Frio HRMS companion app from that `/hrms` screen, but future direct access still bounces through IMS
 for approval.
 
+The IMS handoff endpoint records each launch in `frappe_handoff_events`. Use
+`Settings -> Data Maintenance -> Frappe HRMS Integration -> Health` to see 24-hour handoff counts
+and recent events.
+
 Once the handoff works, turn on direct-access protection:
 
 ```bash
@@ -279,7 +293,8 @@ sudo docker exec -it backend-<coolify-suffix> bash -lc 'bench --site frio.piyamt
 ```
 
 With `ims_enforce_handoff` enabled, unauthenticated visits to `/`, `/login`, `/app`, and `/hrms`
-redirect back to IMS. Authenticated Frappe sessions and API-token requests continue to work.
+redirect back to IMS. Safe target paths are preserved, so a blocked `/hrms` or `/app/...` launch can
+resume after IMS approves it. Authenticated Frappe sessions and API-token requests continue to work.
 
 Recommended mobile pattern:
 
@@ -315,6 +330,7 @@ Expected outcome:
 
 - health shows `ping_ok: true`
 - outbox/inbox counts are visible
+- 24-hour handoff counts and recent handoff events are visible after the audit migration
 - sync state returns without auth or connectivity errors
 
 ### From PT Portal UI
