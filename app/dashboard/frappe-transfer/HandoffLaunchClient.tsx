@@ -4,9 +4,8 @@
 
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
-  ArrowRight,
   CheckCircle2,
   ExternalLink,
   Loader2,
@@ -20,7 +19,7 @@ type FrappeHandoffLaunchClientProps = {
   returningFromFrappe?: boolean
 }
 
-type LaunchState = 'preparing' | 'opening' | 'opened' | 'blocked' | 'failed'
+type LaunchState = 'preparing' | 'ready' | 'failed'
 
 type HandoffResponse = {
   url?: string
@@ -45,21 +44,6 @@ export function FrappeHandoffLaunchClient({
   const [launchState, setLaunchState] = useState<LaunchState>('preparing')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [mobileMode, setMobileMode] = useState(false)
-
-  const openExternal = useCallback((url: string) => {
-    if (!url) return false
-
-    setLaunchState('opening')
-    const opened = window.open(url, '_blank', 'noopener,noreferrer')
-    if (opened) {
-      opened.focus()
-      setLaunchState('opened')
-      return true
-    }
-
-    setLaunchState('blocked')
-    return false
-  }, [])
 
   useEffect(() => {
     const shouldOpenExternally = isMobileDevice() || isStandalonePwa()
@@ -91,10 +75,7 @@ export function FrappeHandoffLaunchClient({
         const url = data.url
         if (cancelled) return
         setHandoffUrl(url)
-
-        window.setTimeout(() => {
-          if (!cancelled) openExternal(url)
-        }, 350)
+        setLaunchState('ready')
       } catch (error: unknown) {
         if (cancelled) return
         setErrorMessage(error instanceof Error ? error.message : 'Unable to open Frappe HRMS')
@@ -107,13 +88,11 @@ export function FrappeHandoffLaunchClient({
     return () => {
       cancelled = true
     }
-  }, [openExternal])
+  }, [])
 
   const stateLabel = {
     preparing: 'Preparing secure link',
-    opening: 'Opening Frappe',
-    opened: 'HRMS opened separately',
-    blocked: 'Tap to continue',
+    ready: returningFromFrappe ? 'IMS approval ready' : 'HRMS app link ready',
     failed: 'Handoff needs attention',
   }[launchState]
 
@@ -138,7 +117,11 @@ export function FrappeHandoffLaunchClient({
 
           <div className="mt-6 flex items-center gap-4">
             <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-3xl bg-slate-950 text-white shadow-lg shadow-slate-950/20">
-              {mobileMode ? <Smartphone className="h-8 w-8" /> : <ExternalLink className="h-8 w-8" />}
+              {mobileMode ? (
+                <Smartphone className="h-8 w-8" />
+              ) : (
+                <ExternalLink className="h-8 w-8" />
+              )}
             </div>
             <div>
               <p className="text-sm font-bold uppercase tracking-[0.2em] text-emerald-700">
@@ -165,6 +148,8 @@ export function FrappeHandoffLaunchClient({
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
               {launchState === 'failed' ? (
                 <ExternalLink className="h-5 w-5 text-red-600" />
+              ) : launchState === 'ready' ? (
+                <CheckCircle2 className="h-5 w-5 text-emerald-600" />
               ) : (
                 <Loader2 className="h-5 w-5 animate-spin text-emerald-600" />
               )}
@@ -172,15 +157,21 @@ export function FrappeHandoffLaunchClient({
                 Handoff
               </p>
               <p className="mt-1 text-sm font-semibold text-slate-900">
-                {launchState === 'failed' ? 'Failed' : 'Signing token'}
+                {launchState === 'failed'
+                  ? 'Failed'
+                  : launchState === 'ready'
+                    ? 'Ready'
+                    : 'Signing token'}
               </p>
             </div>
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <ArrowRight className="h-5 w-5 text-emerald-600" />
+              <ExternalLink className="h-5 w-5 text-emerald-600" />
               <p className="mt-3 text-xs font-bold uppercase tracking-wide text-slate-500">
-                Frappe
+                HRMS app
               </p>
-              <p className="mt-1 text-sm font-semibold text-slate-900">Launching</p>
+              <p className="mt-1 text-sm font-semibold text-slate-900">
+                {mobileMode ? 'Tap to open' : 'Launching'}
+              </p>
             </div>
           </div>
 
@@ -190,18 +181,16 @@ export function FrappeHandoffLaunchClient({
             </div>
           )}
 
-          {mobileMode && launchState === 'opened' && (
-            <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
-              If HRMS did not appear, use the button below. If you see Frio in the browser with a
-              close button, install the HRMS app from the browser menu while on the HRMS screen.
-            </div>
-          )}
-
-          {mobileMode && launchState === 'blocked' && (
-            <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-              Your browser blocked the automatic switch. Tap the button below; if the HRMS app is
-              installed, your phone should route this link there. If not, Frio opens in the browser
-              so you can install it from <span className="font-bold">/hrms</span>.
+          {mobileMode && launchState === 'preparing' && (
+            <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200 bg-slate-950 p-4 text-sm text-white">
+              <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
+                <div className="h-full w-2/3 animate-pulse rounded-full bg-emerald-400" />
+              </div>
+              <p className="mt-3 font-bold">Preparing your secure HRMS launch...</p>
+              <p className="mt-1 text-white/70">
+                Keeping you on this IMS screen until the Frio handoff link is ready avoids the
+                blank external browser screen during token creation.
+              </p>
             </div>
           )}
 
@@ -212,6 +201,16 @@ export function FrappeHandoffLaunchClient({
                 Install HRMS once from the Frio screen. Direct Frio logins stay blocked; opening
                 HRMS later will bounce through IMS for approval and return you to Frio.
               </p>
+              <div className="mt-3 grid gap-2 rounded-xl bg-white/70 p-3 text-xs text-sky-950">
+                <p>
+                  <span className="font-bold">Android:</span> after HRMS opens, use the browser menu
+                  or install banner to add the Frio HRMS app.
+                </p>
+                <p>
+                  <span className="font-bold">iPhone:</span> open HRMS in Safari, tap Share, then
+                  Add to Home Screen.
+                </p>
+              </div>
             </div>
           )}
 
@@ -233,11 +232,11 @@ export function FrappeHandoffLaunchClient({
               </a>
             ) : (
               <a
-                href="/api/integrations/frappe/handoff"
+                href="/api/integrations/frappe/handoff?target=/hrms"
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-emerald-700"
               >
                 Open now
-                <ArrowRight className="h-4 w-4" />
+                <ExternalLink className="h-4 w-4" />
               </a>
             )}
             <a
