@@ -62,7 +62,9 @@ export default async function FrappeTransferPage({ searchParams }: FrappeTransfe
   const role = Array.isArray(employee?.roles) ? employee.roles[0] : employee?.roles
   const candidate = await getFrappeProvisioningCandidate(session.user.id)
 
-  const shouldLaunchFrappe = Boolean(candidate?.frappe_employee_id && !handoffStatus)
+  const shouldLaunchFrappe = Boolean(
+    candidate?.frappe_employee_id && (!handoffStatus || handoffStatus === 'required'),
+  )
 
   return (
     <DashboardClientWrapper>
@@ -88,7 +90,10 @@ export default async function FrappeTransferPage({ searchParams }: FrappeTransfe
           </div>
 
           {shouldLaunchFrappe ? (
-            <FrappeHandoffLaunchClient employeeName={employee?.full_name} />
+            <FrappeHandoffLaunchClient
+              employeeName={employee?.full_name}
+              returningFromFrappe={handoffStatus === 'required'}
+            />
           ) : (
             <FrappeTransferClient />
           )}

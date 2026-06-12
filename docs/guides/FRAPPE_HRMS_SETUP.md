@@ -222,7 +222,8 @@ The PT Portal repo includes a small Frappe app at:
 - `frappe_apps/piyam_ims_bridge`
 
 It handles IMS-signed browser handoff, adds a `Back to IMS` button in Frappe Desk, and can block
-unauthenticated direct Frappe UI access once testing is complete.
+unauthenticated direct Frappe UI access once testing is complete. IMS should be treated as the only
+normal login door; Frio HRMS is a guarded companion app.
 
 For Docker/Coolify, add this app to the same custom Frappe image that already contains ERPNext and
 HRMS. The cleanest production option is to publish `frappe_apps/piyam_ims_bridge` as its own Git
@@ -265,16 +266,29 @@ If `bench build --app piyam_ims_bridge` fails because `node` is not available in
 container, continue without it for the handoff test. The Python handoff endpoint does not require
 asset building; the build only affects the `Back to IMS` Desk button.
 
-Test the normal IMS flow first. Once `Dashboard -> Employee Module` opens Frappe successfully, turn
-on direct-access protection:
+Test the normal IMS flow first. `Dashboard -> Employee Module` should open the Frappe HRMS shell at
+`https://frio.piyamtravel.com/hrms` through a signed handoff token. On mobile, users can install the
+Frio HRMS companion app from that `/hrms` screen, but future direct access still bounces through IMS
+for approval.
+
+Once the handoff works, turn on direct-access protection:
 
 ```bash
 sudo docker exec -it backend-<coolify-suffix> bash -lc 'bench --site frio.piyamtravel.com set-config ims_enforce_handoff 1'
 sudo docker exec -it backend-<coolify-suffix> bash -lc 'bench --site frio.piyamtravel.com clear-cache'
 ```
 
-With `ims_enforce_handoff` enabled, unauthenticated visits to `/`, `/login`, and `/app` redirect
-back to IMS. Authenticated Frappe sessions and API-token requests continue to work.
+With `ims_enforce_handoff` enabled, unauthenticated visits to `/`, `/login`, `/app`, and `/hrms`
+redirect back to IMS. Authenticated Frappe sessions and API-token requests continue to work.
+
+Recommended mobile pattern:
+
+1. Install IMS from `https://ims.piyamtravel.com`.
+2. Open `Employee Module` from IMS.
+3. IMS authenticates the user and opens Frio at `/hrms`.
+4. Install the Frio HRMS companion app from the `/hrms` screen.
+5. If the Frio companion app is opened later without a valid Frappe session, it redirects to IMS and
+   IMS signs the user back into Frio.
 
 ### 6. Frappe branding
 

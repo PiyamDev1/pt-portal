@@ -57,7 +57,14 @@ describe('Frappe IMS handoff', () => {
     })
 
     const payload = verifyFrappeHandoffTokenForTests(token, 'handoff-secret')
-    expect(payload.target).toBe('/app')
+    expect(payload.target).toBe('/hrms')
+  })
+
+  it('defaults handoff tokens to the HRMS app shell', () => {
+    const token = createFrappeHandoffToken(identity)
+
+    const payload = verifyFrappeHandoffTokenForTests(token, 'handoff-secret')
+    expect(payload.target).toBe('/hrms')
   })
 
   it('builds the bridge consume URL', () => {

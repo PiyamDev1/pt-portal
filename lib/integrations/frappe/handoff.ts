@@ -3,6 +3,7 @@ import { createHmac, randomUUID, timingSafeEqual } from 'crypto'
 const HANDOFF_ISSUER = 'pt-portal'
 const HANDOFF_AUDIENCE = 'frappe-hrms'
 const DEFAULT_TTL_SECONDS = 90
+const DEFAULT_TARGET_PATH = '/hrms'
 
 export type FrappeHandoffIdentity = {
   employeeId: string
@@ -53,10 +54,10 @@ function getHandoffSecret() {
 }
 
 function normalizeTargetPath(value: string | null | undefined) {
-  if (!value) return '/app'
-  if (!value.startsWith('/') || value.startsWith('//')) return '/app'
+  if (!value) return DEFAULT_TARGET_PATH
+  if (!value.startsWith('/') || value.startsWith('//')) return DEFAULT_TARGET_PATH
   if (value.startsWith('/api/') || value.startsWith('/assets/') || value.startsWith('/files/')) {
-    return '/app'
+    return DEFAULT_TARGET_PATH
   }
   return value
 }

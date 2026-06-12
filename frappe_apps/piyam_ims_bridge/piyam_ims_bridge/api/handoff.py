@@ -12,6 +12,7 @@ from werkzeug.utils import redirect
 HANDOFF_ISSUER = "pt-portal"
 HANDOFF_AUDIENCE = "frappe-hrms"
 MAX_CLOCK_SKEW_SECONDS = 30
+DEFAULT_TARGET_PATH = "/hrms"
 
 
 class HandoffError(Exception):
@@ -75,11 +76,11 @@ def _decode_token(token):
 
 
 def _safe_target(target):
-    target = str(target or "/app")
+    target = str(target or DEFAULT_TARGET_PATH)
     if not target.startswith("/") or target.startswith("//"):
-        return "/app"
+        return DEFAULT_TARGET_PATH
     if target.startswith(("/api/", "/assets/", "/files/")):
-        return "/app"
+        return DEFAULT_TARGET_PATH
     return target
 
 
@@ -142,7 +143,15 @@ def _should_guard_path(path):
         return False
     if path.startswith(("/assets/", "/files/", "/private/files/", "/socket.io")):
         return False
-    if path in {"/favicon.ico", "/manifest.json", "/website_script.js"}:
+    if path in {
+        "/favicon.ico",
+        "/manifest.json",
+        "/manifest.webmanifest",
+        "/website_script.js",
+        "/hrms/manifest.json",
+        "/hrms/manifest.webmanifest",
+        "/hrms/sw.js",
+    }:
         return False
     if path.startswith("/api/") and not _is_direct_login_api(path):
         return False

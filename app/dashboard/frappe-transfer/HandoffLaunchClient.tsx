@@ -5,11 +5,19 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { ArrowRight, CheckCircle2, ExternalLink, Loader2, ShieldCheck, Smartphone } from 'lucide-react'
+import {
+  ArrowRight,
+  CheckCircle2,
+  ExternalLink,
+  Loader2,
+  ShieldCheck,
+  Smartphone,
+} from 'lucide-react'
 import { isMobileDevice, isStandalonePwa } from '@/lib/auth/webauthnClient'
 
 type FrappeHandoffLaunchClientProps = {
   employeeName?: string | null
+  returningFromFrappe?: boolean
 }
 
 type LaunchState = 'preparing' | 'opening' | 'opened' | 'blocked' | 'failed'
@@ -23,13 +31,16 @@ type HandoffResponse = {
 function buildHandoffEndpoint(format: 'redirect' | 'json') {
   const endpoint = new URL('/api/integrations/frappe/handoff', window.location.origin)
   const current = new URL(window.location.href)
-  const target = current.searchParams.get('target')
-  if (target) endpoint.searchParams.set('target', target)
+  const target = current.searchParams.get('target') || '/hrms'
+  endpoint.searchParams.set('target', target)
   if (format === 'json') endpoint.searchParams.set('format', 'json')
   return endpoint.toString()
 }
 
-export function FrappeHandoffLaunchClient({ employeeName }: FrappeHandoffLaunchClientProps) {
+export function FrappeHandoffLaunchClient({
+  employeeName,
+  returningFromFrappe = false,
+}: FrappeHandoffLaunchClientProps) {
   const [handoffUrl, setHandoffUrl] = useState<string | null>(null)
   const [launchState, setLaunchState] = useState<LaunchState>('preparing')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -101,13 +112,15 @@ export function FrappeHandoffLaunchClient({ employeeName }: FrappeHandoffLaunchC
   const stateLabel = {
     preparing: 'Preparing secure link',
     opening: 'Opening Frappe',
-    opened: 'Frappe opened separately',
+    opened: 'HRMS opened separately',
     blocked: 'Tap to continue',
     failed: 'Handoff needs attention',
   }[launchState]
 
   const stateMessage = mobileMode
-    ? 'IMS will stay here while Frappe opens separately, so your installed HRMS web app or browser can take over.'
+    ? returningFromFrappe
+      ? 'Frio asked IMS to approve access. We are signing you back into the HRMS companion app now.'
+      : 'For the smoothest phone experience, install the HRMS companion app when Frio opens. Future HRMS launches will still be approved by IMS first.'
     : 'We are creating a short-lived secure handoff and opening your HRMS workspace.'
 
   return (
@@ -179,31 +192,45 @@ export function FrappeHandoffLaunchClient({ employeeName }: FrappeHandoffLaunchC
 
           {mobileMode && launchState === 'opened' && (
             <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
-              If Frappe did not appear, use the button below. Some mobile browsers block automatic
-              app switching unless you tap once.
+              If HRMS did not appear, use the button below. If you see Frio in the browser with a
+              close button, install the HRMS app from the browser menu while on the HRMS screen.
             </div>
           )}
 
           {mobileMode && launchState === 'blocked' && (
             <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-              Your browser blocked the automatic switch. Tap the button below to open Frappe HRMS
-              outside the IMS app container.
+              Your browser blocked the automatic switch. Tap the button below; if the HRMS app is
+              installed, your phone should route this link there. If not, Frio opens in the browser
+              so you can install it from <span className="font-bold">/hrms</span>.
+            </div>
+          )}
+
+          {mobileMode && !returningFromFrappe && (
+            <div className="mt-5 rounded-2xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900">
+              <p className="font-bold">Companion app setup</p>
+              <p className="mt-1">
+                Install HRMS once from the Frio screen. Direct Frio logins stay blocked; opening
+                HRMS later will bounce through IMS for approval and return you to Frio.
+              </p>
             </div>
           )}
 
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
             {mobileMode ? (
-              <button
-                type="button"
-                onClick={() => {
-                  if (handoffUrl) void openExternal(handoffUrl)
+              <a
+                href={handoffUrl || undefined}
+                onClick={(event) => {
+                  if (!handoffUrl) event.preventDefault()
                 }}
-                disabled={!handoffUrl}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                className={`inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-bold text-white transition ${
+                  handoffUrl
+                    ? 'bg-emerald-600 hover:bg-emerald-700'
+                    : 'pointer-events-none bg-emerald-600 opacity-60'
+                }`}
               >
-                Open Frappe HRMS
+                Open HRMS App
                 <ExternalLink className="h-4 w-4" />
-              </button>
+              </a>
             ) : (
               <a
                 href="/api/integrations/frappe/handoff"
