@@ -416,7 +416,7 @@ export default function TimeclockClient() {
   }, [detectorSupported, handleSubmit, isIOS, isScanning, stopStream])
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 md:space-y-6">
       <ScanSuccessPopup
         show={showSuccessPopup}
         result={result}
@@ -448,7 +448,7 @@ export default function TimeclockClient() {
           setMessage('')
         }}
       />
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
+      <div className="space-y-4 rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm md:rounded-2xl md:p-6">
         <div>
           <h2 className="text-lg font-semibold text-slate-800">Manual Entry</h2>
           <p className="text-sm text-slate-500">
@@ -467,7 +467,7 @@ export default function TimeclockClient() {
           }}
           maxLength={256}
           inputMode="numeric"
-          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full rounded-xl border border-slate-200 px-4 py-3 text-center text-lg font-semibold tracking-[0.2em] text-slate-700 focus:outline-none focus:ring-2 focus:ring-red-500 md:rounded-lg md:px-3 md:py-2 md:text-left md:text-sm md:font-normal md:tracking-normal"
           placeholder="1234-5678"
         />
         <p className="text-xs text-slate-500">
@@ -477,14 +477,14 @@ export default function TimeclockClient() {
           type="button"
           onClick={() => handleSubmit()}
           disabled={showSuccessPopup || isCooldownActive || status === 'submitting'}
-          className={`px-4 py-2 rounded-lg text-white text-sm font-semibold ${showSuccessPopup || isCooldownActive || status === 'submitting' ? 'bg-slate-400 cursor-not-allowed' : 'bg-slate-900 hover:bg-slate-800'}`}
+          className={`min-h-11 w-full rounded-xl px-4 py-2 text-sm font-semibold text-white md:w-auto md:rounded-lg ${showSuccessPopup || isCooldownActive || status === 'submitting' ? 'bg-slate-400 cursor-not-allowed' : 'bg-slate-900 hover:bg-slate-800'}`}
         >
           {isCooldownActive ? `Wait ${cooldownSeconds}s` : 'Submit Code'}
         </button>
       </div>
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-3">
+      <div className="space-y-3 rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm md:rounded-2xl md:p-6">
         <h2 className="text-lg font-semibold text-slate-800">Status</h2>
-        <p className={`text-sm ${status === 'error' ? 'text-red-600' : 'text-slate-600'}`}>
+        <p className={`rounded-2xl px-3 py-2 text-sm md:rounded-none md:p-0 ${status === 'error' ? 'bg-red-50 text-red-600 md:bg-transparent' : status === 'success' ? 'bg-emerald-50 text-emerald-700 md:bg-transparent' : 'bg-slate-50 text-slate-600 md:bg-transparent'}`}>
           {message || 'Waiting for scan.'}
         </p>
         {result && (

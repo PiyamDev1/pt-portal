@@ -41,36 +41,36 @@ export function ScanSectionCard({
   const disabled = showSuccessPopup || isCooldownActive || status === 'submitting'
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div className="space-y-4 rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm md:rounded-2xl md:p-6">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-slate-800">Scan QR</h2>
-          <p className="text-sm text-slate-500">
+          <h2 className="text-xl font-semibold text-slate-800 md:text-lg">Scan QR</h2>
+          <p className="text-sm leading-5 text-slate-500">
             {isIOS
               ? 'Point your camera at the QR code (iOS compatible)'
               : 'Allow camera access to scan the device QR.'}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="grid grid-cols-2 gap-2 md:flex">
           <button
             type="button"
             onClick={onStartCamera}
             disabled={disabled}
-            className={`px-4 py-2 rounded-lg text-white text-sm font-semibold ${disabled ? 'bg-slate-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
+            className={`col-span-2 min-h-11 rounded-xl px-4 py-2 text-sm font-semibold text-white md:col-span-1 md:min-h-0 md:rounded-lg ${disabled ? 'bg-slate-400 cursor-not-allowed' : 'bg-[#8b1d2c] hover:bg-[#741725]'}`}
           >
             {isCooldownActive ? `Scanned (${cooldownSeconds}s)` : 'Start Camera'}
           </button>
           <button
             type="button"
             onClick={onEnableCamera}
-            className="px-4 py-2 rounded-lg border border-slate-200 text-slate-700 text-sm font-semibold hover:bg-slate-50"
+            className="min-h-11 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 md:min-h-0 md:rounded-lg"
           >
             Enable Camera
           </button>
           <button
             type="button"
             onClick={onStop}
-            className="px-4 py-2 rounded-lg border border-slate-200 text-slate-700 text-sm font-semibold hover:bg-slate-50"
+            className="min-h-11 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 md:min-h-0 md:rounded-lg"
           >
             Stop
           </button>
@@ -83,16 +83,16 @@ export function ScanSectionCard({
         </div>
       )}
 
-      <div className="relative rounded-xl border border-slate-200 bg-slate-900 overflow-hidden">
+      <div className="relative overflow-hidden rounded-[1.4rem] border border-slate-200 bg-slate-900 shadow-inner md:rounded-xl">
         <video
           ref={(node) => {
             videoRef.current = node
           }}
-          className="w-full h-64 object-cover"
+          className="h-[min(58vh,460px)] min-h-[280px] w-full object-cover md:h-64 md:min-h-0"
         />
         {!isScanning && (
-          <div className="absolute inset-0 flex items-center justify-center text-slate-200 text-sm">
-            Camera preview will appear here.
+          <div className="absolute inset-0 flex items-center justify-center px-8 text-center text-sm font-medium text-slate-200">
+            Tap Start Camera and hold the device QR inside this frame.
           </div>
         )}
       </div>

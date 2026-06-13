@@ -488,6 +488,7 @@ export default function BookingsClient({
   const [mobileWeekDayIndex, setMobileWeekDayIndex] = useState(0)
   const [mobileListMode, setMobileListMode] = useState<'day' | 'week'>('day')
   const [mobileCalendarMode, setMobileCalendarMode] = useState<'grid' | 'agenda'>('grid')
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
 
   const [bookings, setBookings] = useState<BookingWithService[]>([])
   const [loading, setLoading] = useState(false)
@@ -1684,7 +1685,7 @@ export default function BookingsClient({
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.12),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(99,102,241,0.14),_transparent_28%),linear-gradient(180deg,_#f8fafc_0%,_#eef2ff_100%)]">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-6 relative">
+      <div className="max-w-6xl mx-auto px-3 py-4 sm:px-6 md:py-8 space-y-6 relative">
         <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-56 rounded-[2rem] bg-white/40 blur-3xl" />
 
         <div className="animate-enter-fade-up rounded-[28px] border border-white/70 bg-white/80 p-5 shadow-[0_24px_80px_-32px_rgba(15,23,42,0.35)] backdrop-blur xl:p-6">
@@ -1741,7 +1742,165 @@ export default function BookingsClient({
               </div>
             </div>
 
-            <div className="flex items-center gap-2 flex-wrap rounded-2xl border border-slate-200/80 bg-slate-50/85 p-2.5 shadow-inner shadow-white/60 sm:p-3">
+            <div className="space-y-3 rounded-[1.5rem] border border-red-100 bg-white/90 p-3 shadow-sm md:hidden">
+              <div className="grid grid-cols-[auto_1fr_auto] gap-2">
+                <button
+                  onClick={goToPrev}
+                  className="ui-tap ui-focus inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-slate-600"
+                  title={view === 'multi' ? 'Previous month' : 'Previous week'}
+                >
+                  <ChevronLeftIcon className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={goToToday}
+                  className={`ui-tap ui-focus inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border px-3 text-sm font-semibold ${
+                    isCurrentPeriod
+                      ? 'border-red-200 bg-red-50 text-red-700'
+                      : 'border-slate-200 bg-white text-slate-700'
+                  }`}
+                >
+                  <ClockIcon className="h-4 w-4" />
+                  Today
+                </button>
+                <button
+                  onClick={goToNext}
+                  className="ui-tap ui-focus inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-slate-600"
+                  title={view === 'multi' ? 'Next month' : 'Next week'}
+                >
+                  <ChevronRightIcon className="h-4 w-4" />
+                </button>
+              </div>
+
+              {isAdmin && (
+                <button
+                  onClick={() => setShowSettings((prev) => !prev)}
+                  className={`ui-tap ui-focus inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border px-3 text-sm font-semibold ${
+                    showSettings
+                      ? 'border-red-700 bg-red-700 text-white'
+                      : 'border-slate-200 bg-white text-slate-700'
+                  }`}
+                >
+                  <SettingsIcon className="h-4 w-4" />
+                  {showSettings ? 'Back to Appointments' : 'Booking Settings'}
+                </button>
+              )}
+
+              {!showSettings && (
+                <>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => openCreateAppointment()}
+                      className="ui-tap ui-focus inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-[#8b1d2c] px-3 text-sm font-semibold text-white shadow-sm"
+                    >
+                      <PlusIcon className="h-4 w-4" />
+                      Add
+                    </button>
+                    <button
+                      onClick={() => fetchBookings(true)}
+                      disabled={refreshing}
+                      className="ui-tap ui-focus inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 disabled:opacity-50"
+                    >
+                      <RefreshIcon className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+                      Refresh
+                    </button>
+                  </div>
+
+                  <input
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search customer, email, phone"
+                    className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700"
+                  />
+
+                  <button
+                    onClick={() => setMobileFiltersOpen((prev) => !prev)}
+                    className="ui-tap ui-focus inline-flex min-h-11 w-full items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-700"
+                  >
+                    <span className="inline-flex items-center gap-2">
+                      <FilterIcon className="h-4 w-4" />
+                      Filters
+                    </span>
+                    <span className="text-xs text-slate-500">
+                      {mobileFiltersOpen ? 'Hide' : 'Show'}
+                    </span>
+                  </button>
+
+                  {mobileFiltersOpen && (
+                    <div className="grid gap-2 rounded-2xl border border-slate-100 bg-slate-50 p-3">
+                      {isAdmin && branchLocations.length > 0 && (
+                        <select
+                          value={selectedLocationId}
+                          onChange={(e) => setSelectedLocationId(e.target.value)}
+                          className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700"
+                        >
+                          {branchLocations.map((location) => (
+                            <option key={location.id} value={location.id}>
+                              {location.name}{location.branch_code ? ` (${location.branch_code})` : ''}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                      <select
+                        value={sourceFilter}
+                        onChange={(e) => setSourceFilter(e.target.value as 'all' | BookingSource)}
+                        className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700"
+                      >
+                        <option value="all">All sources</option>
+                        <option value={BookingSource.PORTAL}>Portal</option>
+                        <option value={BookingSource.WHATSAPP}>WhatsApp</option>
+                        <option value={BookingSource.WEBSITE}>Website</option>
+                      </select>
+                      <select
+                        value={statusFilter}
+                        onChange={(e) => setStatusFilter(e.target.value as 'all' | BookingStatus)}
+                        className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700"
+                      >
+                        <option value="all">All statuses</option>
+                        <option value={BookingStatus.PENDING}>Pending</option>
+                        <option value={BookingStatus.CONFIRMED}>Confirmed</option>
+                        <option value={BookingStatus.COMPLETED}>Completed</option>
+                        <option value={BookingStatus.CANCELLED}>Cancelled</option>
+                      </select>
+                      <select
+                        value={serviceFilter}
+                        onChange={(e) => setServiceFilter(e.target.value)}
+                        className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700"
+                      >
+                        <option value="all">All services</option>
+                        {serviceOptions.map((service) => (
+                          <option key={service.id} value={service.id}>{service.name}</option>
+                        ))}
+                      </select>
+                      <label className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={showCancelled}
+                          onChange={(e) => setShowCancelled(e.target.checked)}
+                          className="h-4 w-4 rounded border-slate-300 text-red-700"
+                        />
+                        Show cancelled
+                      </label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          onClick={openSaveViewForm}
+                          className="ui-tap ui-focus min-h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700"
+                        >
+                          Save View
+                        </button>
+                        <button
+                          onClick={exportBookings}
+                          className="ui-tap ui-focus min-h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700"
+                        >
+                          Export CSV
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            <div className="hidden items-center gap-2 flex-wrap rounded-2xl border border-slate-200/80 bg-slate-50/85 p-2.5 shadow-inner shadow-white/60 sm:p-3 md:flex">
 
             <button
               onClick={goToPrev}
@@ -2398,9 +2557,9 @@ export default function BookingsClient({
       </div>
 
       {showAppointmentModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-[2px]">
-          <div className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-[28px] border border-white/70 bg-white p-5 shadow-[0_28px_90px_-36px_rgba(15,23,42,0.5)] transition-all duration-200 space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/45 p-0 backdrop-blur-[2px] md:items-center md:p-4">
+          <div className="max-h-[94vh] w-full max-w-3xl space-y-4 overflow-y-auto rounded-b-none rounded-t-[24px] border border-white/70 bg-white p-4 shadow-[0_28px_90px_-36px_rgba(15,23,42,0.5)] transition-all duration-200 md:max-h-[90vh] md:rounded-[28px] md:p-5">
+            <div className="sticky top-0 z-20 -mx-4 -mt-4 flex items-center justify-between border-b border-slate-100 bg-white/95 px-4 py-3 backdrop-blur md:static md:m-0 md:bg-transparent md:p-0 md:pb-3">
               <div>
                 <h2 className="inline-flex items-center gap-2 text-lg font-semibold text-slate-800">
                   <CalendarIcon className="h-5 w-5 text-indigo-600" />
@@ -2733,11 +2892,11 @@ export default function BookingsClient({
                   </button>
                 </div>
               )}
-              <div className="flex items-center justify-end gap-2">
+              <div className="sticky bottom-0 z-20 -mx-4 -mb-4 flex flex-col gap-2 border-t border-slate-100 bg-white/95 px-4 py-3 backdrop-blur md:static md:m-0 md:flex-row md:items-center md:justify-end md:border-t-0 md:bg-transparent md:p-0">
                 {editingBooking && (
                   <button
                     onClick={() => setHistoryBookingId(editingBooking.id)}
-                    className="ui-tap ui-focus inline-flex items-center gap-1.5 px-4 py-2 rounded border border-slate-200 bg-white text-sm text-slate-700"
+                    className="ui-tap ui-focus inline-flex min-h-11 w-full items-center justify-center gap-1.5 rounded border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700 md:min-h-0 md:w-auto"
                   >
                     History
                   </button>
@@ -2746,7 +2905,7 @@ export default function BookingsClient({
                   <button
                     onClick={() => void resendBookingEmail(editingBooking)}
                     disabled={resendingBookingId === editingBooking.id}
-                    className="ui-tap ui-focus inline-flex items-center gap-1.5 px-4 py-2 rounded border border-indigo-200 bg-indigo-50 text-sm text-indigo-700 disabled:opacity-50"
+                    className="ui-tap ui-focus inline-flex min-h-11 w-full items-center justify-center gap-1.5 rounded border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm text-indigo-700 disabled:opacity-50 md:min-h-0 md:w-auto"
                   >
                     {resendingBookingId === editingBooking.id ? 'Re-sending…' : 'Re-send Email'}
                   </button>
@@ -2755,19 +2914,19 @@ export default function BookingsClient({
                   <button
                     onClick={() => setCancelConfirmOpen(true)}
                     disabled={savingBooking || updatingId === editingBooking.id}
-                    className="ui-tap ui-focus inline-flex items-center gap-1.5 px-4 py-2 rounded border border-red-200 bg-red-50 text-sm text-red-600 disabled:opacity-50"
+                    className="ui-tap ui-focus inline-flex min-h-11 w-full items-center justify-center gap-1.5 rounded border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-600 disabled:opacity-50 md:min-h-0 md:w-auto"
                   >
                     <CloseIcon className="h-4 w-4" />
                     Cancel Appointment
                   </button>
                 )}
-                <button onClick={closeAppointmentModal} className="ui-tap ui-focus inline-flex items-center gap-1.5 px-4 py-2 rounded border border-slate-300 text-sm"><CloseIcon className="h-4 w-4" />Close</button>
-                <button onClick={saveAppointment} disabled={savingBooking || invalidLocalPhone} className="ui-tap ui-focus inline-flex items-center gap-1.5 px-4 py-2 rounded bg-indigo-600 text-white text-sm disabled:opacity-50">
+                <button onClick={closeAppointmentModal} className="ui-tap ui-focus inline-flex min-h-11 w-full items-center justify-center gap-1.5 rounded border border-slate-300 px-4 py-2 text-sm md:min-h-0 md:w-auto"><CloseIcon className="h-4 w-4" />Close</button>
+                <button onClick={saveAppointment} disabled={savingBooking || invalidLocalPhone} className="ui-tap ui-focus inline-flex min-h-11 w-full items-center justify-center gap-1.5 rounded bg-indigo-600 px-4 py-2 text-sm text-white disabled:opacity-50 md:min-h-0 md:w-auto">
                   {!savingBooking && <CheckIcon className="h-4 w-4" />}
                   {savingBooking ? 'Saving...' : editingBooking ? 'Save Changes' : 'Create Appointment'}
                 </button>
                 {editingBooking && editingBooking.status !== BookingStatus.CANCELLED && (
-                  <button onClick={() => void flagNoShow(editingBooking)} disabled={updatingId === editingBooking.id} className="ui-tap ui-focus inline-flex items-center gap-1.5 rounded border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-700 disabled:opacity-50">
+                  <button onClick={() => void flagNoShow(editingBooking)} disabled={updatingId === editingBooking.id} className="ui-tap ui-focus inline-flex min-h-11 w-full items-center justify-center gap-1.5 rounded border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-700 disabled:opacity-50 md:min-h-0 md:w-auto">
                     Flag No-Show
                   </button>
                 )}
