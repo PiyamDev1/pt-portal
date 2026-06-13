@@ -19,10 +19,13 @@ import {
   ShieldCheck,
 } from 'lucide-react'
 import {
+  clearPasskeySession,
   getPasskeyLastEmail,
   getMobilePlatformLabel,
   hasPasskeyEnabledHint,
+  hasPasskeySession,
   isWebAuthnSupported,
+  markPasskeySession,
   preparePublicKeyRequestOptions,
   serializeAuthenticationCredential,
   setPasskeyLastEmail,
@@ -123,6 +126,16 @@ export default function LoginPage() {
     }
   }
 
+  const getSessionIdFromToken = (token: string | null | undefined) => {
+    if (!token) return ''
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')))
+      return typeof payload.session_id === 'string' ? payload.session_id : ''
+    } catch {
+      return ''
+    }
+  }
+
   useEffect(() => {
     let cancelled = false
 
@@ -138,7 +151,9 @@ export default function LoginPage() {
 
         if (cancelled) return
         if (session?.user) {
-          await postLoginChecks(session.user.id)
+          const sessionId = getSessionIdFromToken(session.access_token)
+          const passkeySession = hasPasskeySession(sessionId)
+          await postLoginChecks(session.user.id, { skipMfa: passkeySession })
           return
         }
       } catch (error: unknown) {
@@ -163,6 +178,7 @@ export default function LoginPage() {
   // --- HANDLER: Standard Login ---
   const handleStandardLogin = async (e: React.FormEvent) => {
     e.preventDefault()
+    clearPasskeySession()
     setLoading(true)
     setErrorMsg('')
     const loginEmail = email.trim().toLowerCase()
@@ -242,6 +258,10 @@ export default function LoginPage() {
       })
       if (error) throw error
 
+      const sessionId = data?.session?.access_token
+        ? getSessionIdFromToken(data.session.access_token)
+        : ''
+      markPasskeySession(sessionId)
       setPasskeyLastEmail(verifyData.email || loginEmail)
       await postLoginChecks(data.user?.id || verifyData.user_id, { skipMfa: true })
     } catch (err: any) {
@@ -252,6 +272,7 @@ export default function LoginPage() {
 
   // --- HANDLER: Microsoft SSO ---
   const handleMicrosoftLogin = async () => {
+    clearPasskeySession()
     await supabase.auth.signInWithOAuth({
       provider: 'azure',
       options: {

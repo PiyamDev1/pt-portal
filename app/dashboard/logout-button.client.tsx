@@ -6,6 +6,7 @@
 'use client'
 import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
 import { useRouter } from 'next/navigation'
+import { clearPasskeySession } from '@/lib/auth/webauthnClient'
 
 export default function LogoutButton() {
   const router = useRouter()
@@ -15,6 +16,7 @@ export default function LogoutButton() {
   )
 
   const handleLogout = async () => {
+    clearPasskeySession()
     await supabase.auth.signOut()
     router.push('/login')
     router.refresh()

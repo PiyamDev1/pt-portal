@@ -10,6 +10,7 @@ import { useState } from 'react'
 import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
 import { useRouter } from 'next/navigation'
 import { Shield, Loader2 } from 'lucide-react'
+import { clearPasskeySession } from '@/lib/auth/webauthnClient'
 
 export default function Verify2FAPage() {
   const [code, setCode] = useState('')
@@ -33,6 +34,7 @@ export default function Verify2FAPage() {
   }
 
   const handleBackToLogin = async () => {
+    clearPasskeySession()
     await supabase.auth.signOut().catch(() => undefined)
     router.push('/login')
   }

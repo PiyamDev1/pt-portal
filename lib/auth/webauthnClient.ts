@@ -1,6 +1,8 @@
 const PASSKEY_PROMPT_DISMISSED_KEY = 'pt-ims-passkey-prompt-dismissed'
 const PASSKEY_ENABLED_HINT_KEY = 'pt-ims-passkey-enabled-hint'
 const PASSKEY_LAST_EMAIL_KEY = 'pt-ims-passkey-last-email'
+const PASSKEY_SESSION_KEY = 'pt-ims-passkey-session'
+const PASSKEY_SESSION_ID_KEY = 'pt-ims-passkey-session-id'
 const HRMS_COMPANION_INSTALLED_HINT_KEY = 'pt-ims-hrms-companion-installed'
 
 function base64urlToArrayBuffer(value: string) {
@@ -89,6 +91,32 @@ export function setPasskeyLastEmail(email: string | null | undefined) {
 export function getPasskeyLastEmail() {
   if (typeof window === 'undefined') return ''
   return window.localStorage.getItem(PASSKEY_LAST_EMAIL_KEY) || ''
+}
+
+export function markPasskeySession(sessionId?: string) {
+  if (typeof window === 'undefined') return
+  window.localStorage.setItem(PASSKEY_SESSION_KEY, '1')
+  if (sessionId) {
+    window.localStorage.setItem(PASSKEY_SESSION_ID_KEY, sessionId)
+  }
+}
+
+export function clearPasskeySession() {
+  if (typeof window === 'undefined') return
+  window.localStorage.removeItem(PASSKEY_SESSION_KEY)
+  window.localStorage.removeItem(PASSKEY_SESSION_ID_KEY)
+}
+
+export function getPasskeySessionId() {
+  if (typeof window === 'undefined') return ''
+  return window.localStorage.getItem(PASSKEY_SESSION_ID_KEY) || ''
+}
+
+export function hasPasskeySession(sessionId?: string) {
+  if (typeof window === 'undefined') return false
+  if (window.localStorage.getItem(PASSKEY_SESSION_KEY) !== '1') return false
+  if (!sessionId) return true
+  return window.localStorage.getItem(PASSKEY_SESSION_ID_KEY) === sessionId
 }
 
 export function clearPasskeyLastEmail() {
