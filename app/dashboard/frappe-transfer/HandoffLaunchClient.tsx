@@ -51,20 +51,36 @@ export function FrappeHandoffLaunchClient({
   returningFromFrappe = false,
 }: FrappeHandoffLaunchClientProps) {
   const [launchState, setLaunchState] = useState<LaunchState>('preparing')
-  const [mobileMode] = useState(() => isMobileDevice() || isStandalonePwa())
-  const [companionInstalled, setCompanionInstalled] = useState(() => hasConfirmedHrmsCompanionInstall())
-  const [showInstallSteps, setShowInstallSteps] = useState(
-    () => !hasConfirmedHrmsCompanionInstall(),
-  )
+  const [mobileMode, setMobileMode] = useState(false)
+  const [platformReady, setPlatformReady] = useState(false)
+  const [companionInstalled, setCompanionInstalled] = useState(false)
+  const [showInstallSteps, setShowInstallSteps] = useState(false)
 
   useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      const mobile = isMobileDevice() || isStandalonePwa()
+      const installed = hasConfirmedHrmsCompanionInstall()
+      setMobileMode(mobile)
+      setCompanionInstalled(installed)
+      setShowInstallSteps(!installed)
+      setPlatformReady(true)
+    })
+
+    return () => window.cancelAnimationFrame(frame)
+  }, [])
+
+  useEffect(() => {
+    if (!platformReady) return undefined
+
     const timeout = window.setTimeout(() => {
       setLaunchState('ready')
-      window.location.replace(buildHandoffEndpoint('redirect'))
+      if (!mobileMode) {
+        window.location.replace(buildHandoffEndpoint('redirect'))
+      }
     }, mobileMode ? 900 : 650)
 
     return () => window.clearTimeout(timeout)
-  }, [mobileMode])
+  }, [mobileMode, platformReady])
 
   const stateLabel = {
     preparing: 'Preparing secure link',
@@ -88,6 +104,10 @@ export function FrappeHandoffLaunchClient({
     resetHrmsCompanionInstallConfirmation()
     setCompanionInstalled(false)
     setShowInstallSteps(true)
+  }
+
+  const openFrioHandoff = () => {
+    window.location.assign(buildHandoffEndpoint('redirect'))
   }
 
   return (
@@ -241,7 +261,7 @@ export function FrappeHandoffLaunchClient({
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
             <button
               type="button"
-              onClick={() => window.location.replace(buildHandoffEndpoint('redirect'))}
+              onClick={openFrioHandoff}
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-emerald-700"
             >
               {launchState === 'ready' ? 'Open HRMS App' : 'Continue to HRMS'}
