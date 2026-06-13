@@ -4,7 +4,8 @@
  * branches, maintenance, and issue-report administration.
  */
 'use client'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
 import SecurityTab from './components/SecurityTab'
 import BranchesTab from './components/BranchesTab'
@@ -41,6 +42,7 @@ export default function SettingsClient({
   initialRoles,
   initialEmployees,
 }: SettingsClientProps) {
+  const searchParams = useSearchParams()
   // Organization admins can manage hierarchy/staff/branches.
   const isOrgAdmin = ['Admin', 'Master Admin'].includes(userRole)
   // Maintenance admins can access maintenance and document migration tooling.
@@ -48,8 +50,17 @@ export default function SettingsClient({
   const canManageIssueReports = userRole === 'Master Admin'
   const hasAdminConsole = isOrgAdmin || canAccessMaintenance
 
-  const [activeTab, setActiveTab] = useState(hasAdminConsole ? 'admin-overview' : 'security')
+  const requestedTab = searchParams.get('tab')
+  const [activeTab, setActiveTab] = useState(
+    requestedTab || (hasAdminConsole ? 'admin-overview' : 'security'),
+  )
   const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (!requestedTab) return undefined
+    const frame = window.requestAnimationFrame(() => setActiveTab(requestedTab))
+    return () => window.cancelAnimationFrame(frame)
+  }, [requestedTab])
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

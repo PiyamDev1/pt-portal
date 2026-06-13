@@ -1,29 +1,83 @@
 /**
  * Page Header
  *
- * Shared dashboard header. Desktop keeps the full identity controls, while mobile uses
- * a fixed compact bar with a hamburger menu so pages have more working space.
+ * Shared dashboard header. Desktop keeps the full identity controls; mobile keeps the
+ * bar compact and uses the hamburger for account and page-specific actions.
  */
 'use client'
 
 import Link from 'next/link'
 import Image from 'next/image'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { useState } from 'react'
-import { CalendarDays, Clock3, HeartPulse, Home, Menu, Settings, UserRound, X } from 'lucide-react'
+import {
+  Building2,
+  Database,
+  FileText,
+  Home,
+  Menu,
+  Settings,
+  ShieldCheck,
+  UserRound,
+  UsersRound,
+  X,
+} from 'lucide-react'
 import LogoutButton from '@/app/dashboard/logout-button.client'
 
-const MOBILE_MENU_ITEMS = [
+type MenuItem = {
+  href: string
+  label: string
+  icon: typeof Home
+  allowedRoles?: string[]
+}
+
+const MOBILE_ACCOUNT_ITEMS: MenuItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: Home },
-  { href: '/dashboard/timeclock', label: 'Timeclock', icon: Clock3 },
-  { href: '/dashboard/frappe-transfer', label: 'HRMS', icon: HeartPulse },
-  { href: '/dashboard/bookings', label: 'Bookings', icon: CalendarDays },
   { href: '/dashboard/account', label: 'My Account', icon: UserRound },
+]
+
+const PAGE_MENU_ITEMS: Array<{ match: string; title: string; items: MenuItem[] }> = [
   {
-    href: '/dashboard/settings',
-    label: 'Settings',
-    icon: Settings,
-    allowedRoles: ['Admin', 'Master Admin', 'Maintenance Admin'],
+    match: '/dashboard/settings',
+    title: 'Settings menu',
+    items: [
+      { href: '/dashboard/settings', label: 'Settings Home', icon: Settings },
+      { href: '/dashboard/settings?tab=security', label: 'Security', icon: ShieldCheck },
+      {
+        href: '/dashboard/settings?tab=staff',
+        label: 'Staff Management',
+        icon: UsersRound,
+        allowedRoles: ['Admin', 'Master Admin'],
+      },
+      {
+        href: '/dashboard/settings?tab=branches',
+        label: 'Branches',
+        icon: Building2,
+        allowedRoles: ['Admin', 'Master Admin'],
+      },
+      {
+        href: '/dashboard/settings?tab=maintenance',
+        label: 'Maintenance',
+        icon: Database,
+        allowedRoles: ['Admin', 'Master Admin', 'Maintenance Admin'],
+      },
+      {
+        href: '/dashboard/settings?tab=notice-board',
+        label: 'Notice Board',
+        icon: FileText,
+        allowedRoles: ['Admin', 'Master Admin'],
+      },
+    ],
+  },
+  {
+    match: '/dashboard/applications',
+    title: 'Application menu',
+    items: [
+      { href: '/dashboard/applications', label: 'Applications Hub', icon: FileText },
+      { href: '/dashboard/applications/nadra', label: 'NADRA', icon: FileText },
+      { href: '/dashboard/applications/passports-gb', label: 'GB Passport', icon: FileText },
+      { href: '/dashboard/applications/visa', label: 'Visa', icon: FileText },
+    ],
   },
 ]
 
@@ -41,6 +95,7 @@ export default function PageHeader({
   showBack?: boolean
 }) {
   const router = useRouter()
+  const pathname = usePathname()
   const [menuOpen, setMenuOpen] = useState(false)
 
   const initials = employeeName
@@ -56,15 +111,18 @@ export default function PageHeader({
     ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/avatars/${userId}/avatar.png`
     : null
 
+  const pageMenu = PAGE_MENU_ITEMS.find((menu) => pathname.startsWith(menu.match))
+  const canSee = (item: MenuItem) => !item.allowedRoles || item.allowedRoles.includes(role || '')
+
   return (
     <>
-      <nav className="fixed inset-x-0 top-0 z-40 flex items-center justify-between border-b border-slate-200 bg-white/95 px-3 py-3 shadow-sm backdrop-blur sm:px-6 sm:py-4 lg:static lg:bg-white">
-        <div className="flex min-w-0 items-center gap-3 sm:gap-4">
+      <nav className="fixed inset-x-0 top-0 z-40 flex items-center justify-between border-b border-slate-200 bg-white/95 px-2.5 py-2.5 shadow-sm backdrop-blur sm:px-6 sm:py-4 lg:static lg:bg-white">
+        <div className="flex min-w-0 items-center gap-2 sm:gap-4">
           <Link
             href="/dashboard"
-            className="flex cursor-pointer items-center gap-2 transition hover:opacity-80"
+            className="flex shrink-0 cursor-pointer items-center gap-2 transition hover:opacity-80"
           >
-            <div className="relative aspect-[797/313] h-8 w-auto sm:h-10">
+            <div className="relative aspect-[797/313] h-6 w-auto sm:h-10">
               <Image
                 src="/logo.png"
                 alt="Piyam Travels"
@@ -77,11 +135,12 @@ export default function PageHeader({
           </Link>
 
           <div className="min-w-0">
-            <h1 className="truncate text-sm font-black text-slate-800 sm:text-lg">
-              Piyam Travels Portal
+            <h1 className="truncate !text-[12px] font-black leading-tight text-slate-800 sm:!text-lg">
+              Piyam Travels
             </h1>
-            <p className="truncate text-[11px] text-slate-500 sm:text-xs">
-              {location?.name} ({location?.branch_code})
+            <p className="truncate text-[10px] leading-tight text-slate-500 sm:text-xs">
+              {location?.name || 'Portal'}{' '}
+              {location?.branch_code ? `(${location.branch_code})` : ''}
             </p>
           </div>
           {showBack && (
@@ -131,7 +190,7 @@ export default function PageHeader({
           <button
             type="button"
             onClick={() => setMenuOpen((current) => !current)}
-            className="flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-800 shadow-sm sm:hidden"
+            className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-800 shadow-sm sm:hidden"
             aria-label={menuOpen ? 'Close mobile menu' : 'Open mobile menu'}
             aria-expanded={menuOpen}
           >
@@ -141,17 +200,16 @@ export default function PageHeader({
       </nav>
 
       {menuOpen && (
-        <div className="fixed inset-x-0 top-[4.35rem] z-40 border-b border-slate-200 bg-white p-3 shadow-xl sm:hidden">
+        <div className="fixed inset-x-0 top-[3.55rem] z-40 border-b border-slate-200 bg-white p-3 shadow-xl sm:hidden">
           <div className="rounded-2xl bg-[#4b0f16] p-4 text-white">
             <p className="text-sm font-black">{employeeName || 'Portal user'}</p>
             <p className="mt-1 text-xs text-red-100">
               {role || 'Staff'} {location?.name ? `- ${location.name}` : ''}
             </p>
           </div>
+
           <div className="mt-3 grid grid-cols-2 gap-2">
-            {MOBILE_MENU_ITEMS.filter(
-              (item) => !item.allowedRoles || item.allowedRoles.includes(role || ''),
-            ).map((item) => {
+            {MOBILE_ACCOUNT_ITEMS.filter(canSee).map((item) => {
               const Icon = item.icon
               return (
                 <Link
@@ -166,6 +224,31 @@ export default function PageHeader({
               )
             })}
           </div>
+
+          {pageMenu && (
+            <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+              <p className="mb-2 text-xs font-black uppercase tracking-[0.16em] text-slate-500">
+                {pageMenu.title}
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                {pageMenu.items.filter(canSee).map((item) => {
+                  const Icon = item.icon
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={() => setMenuOpen(false)}
+                      className="flex items-center gap-2 rounded-xl bg-white px-3 py-2.5 text-xs font-black text-slate-800 shadow-sm"
+                    >
+                      <Icon className="h-4 w-4 text-[#8b1e2d]" />
+                      {item.label}
+                    </Link>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
           <div className="mt-3 rounded-2xl border border-red-100 bg-red-50 p-2">
             <LogoutButton />
           </div>

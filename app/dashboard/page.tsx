@@ -104,11 +104,15 @@ function MobileDashboard({
         {primaryModules.map((moduleItem) => (
           <Link key={moduleItem.id} href={moduleItem.href} className="group">
             <div
-              className={`min-h-36 rounded-[1.5rem] bg-gradient-to-br ${moduleItem.accent} p-4 shadow-lg`}
+              className={`min-h-36 rounded-[1.5rem] bg-gradient-to-br ${moduleItem.tileTone} p-4 text-slate-950 shadow-lg ring-1 ring-slate-900/5`}
             >
-              <ModuleIcon moduleItem={moduleItem} className="h-7 w-7" />
+              <div
+                className={`flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br ${moduleItem.iconTone} shadow-lg`}
+              >
+                <ModuleIcon moduleItem={moduleItem} className="h-7 w-7" />
+              </div>
               <h2 className="mt-5 text-lg font-black">{moduleItem.title}</h2>
-              <p className="mt-1 text-xs leading-5 opacity-85">{moduleItem.desc}</p>
+              <p className="mt-1 text-xs leading-5 text-slate-600">{moduleItem.desc}</p>
             </div>
           </Link>
         ))}
@@ -126,9 +130,11 @@ function MobileDashboard({
             <Link
               key={moduleItem.id}
               href={moduleItem.href}
-              className="rounded-2xl bg-slate-50 p-3 text-center"
+              className={`rounded-2xl bg-gradient-to-br ${moduleItem.tileTone} p-3 text-center shadow-sm ring-1 ring-slate-900/5`}
             >
-              <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-white text-slate-800 shadow-sm">
+              <div
+                className={`mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br ${moduleItem.iconTone} shadow-sm`}
+              >
                 <ModuleIcon moduleItem={moduleItem} className="h-5 w-5" />
               </div>
               <p className="mt-2 text-[11px] font-bold leading-tight text-slate-700">
@@ -144,11 +150,11 @@ function MobileDashboard({
           <Link
             key={moduleItem.id}
             href={moduleItem.href}
-            className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+            className={`rounded-2xl border border-white/70 bg-gradient-to-br ${moduleItem.tileTone} p-4 shadow-sm ring-1 ring-slate-900/5`}
           >
             <div className="flex items-center gap-3">
               <div
-                className={`flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br ${moduleItem.accent}`}
+                className={`flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br ${moduleItem.iconTone} shadow-sm`}
               >
                 <ModuleIcon moduleItem={moduleItem} className="h-5 w-5" />
               </div>
