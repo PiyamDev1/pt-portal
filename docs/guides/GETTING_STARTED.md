@@ -1,360 +1,169 @@
-# 🎯 Getting Started Checklist
+# Getting Started
 
-## Your Complete Onboarding Path
+This guide is the fastest reliable path to getting PT-Portal running locally and understanding how the repo is organized.
 
-Choose your path below and follow the checklist:
+## What you are setting up
 
----
+PT-Portal is a Next.js application that depends on:
 
-## 👤 I'm a User - I Want to Use the Application
+- Supabase for auth and database access
+- Mailgun for email delivery
+- MinIO for document storage
+- Frappe HRMS credentials if you want to exercise the HRMS bridge
 
-### ✅ Pre-Start Checklist
+You can still run the app without every integration being fully live, but the closer your `.env.local` is to production, the more realistic your local testing will be.
 
-- [ ] I have login credentials (email + password)
-- [ ] I have access to the PT-Portal application
-- [ ] I understand what PT-Portal does (travel services, passports, visas)
+## Prerequisites
 
-### 📚 Learning Path
+Install these first:
 
-**Follow these in order:**
+- `Node.js 20+`
+- `npm`
+- `Git`
 
-1. **Read the Overview** (5 minutes)
-   - [ ] Read [README.md](README.md) - Features section
-2. **Learn the Dashboard** (10 minutes)
-   - [ ] Open [USAGE_GUIDE.md](USAGE_GUIDE.md)
-   - [ ] Read: Dashboard Overview section
-   - [ ] Read: Navigation Menu section
+Recommended tools:
 
-3. **Learn Your Main Tasks** (20 minutes)
-   - [ ] Read the section relevant to your role:
-     - Applications manager → Read "Applications Dashboard"
-     - Payment processor → Read "Loan Management System (LMS)"
-     - Pricing manager → Read "Pricing Management"
-     - Admin → Read "Settings & Administration"
+- `VS Code`
+- `Supabase dashboard` access
+- `Vercel` access if you deploy from the platform
 
-4. **Practice in the App** (30 minutes)
-   - [ ] Log in to the application
-   - [ ] Navigate through the sections you read about
-   - [ ] Try creating/editing a test entry
-   - [ ] Try filtering and searching data
+## Initial setup
 
-5. **Ask Questions** (Ongoing)
-   - [ ] If stuck, search [USAGE_GUIDE.md](USAGE_GUIDE.md) FAQ section
-   - [ ] Read "Troubleshooting" section
-   - [ ] Contact your admin for help
-
-### 🎓 You're Ready To!
-
-- [ ] Navigate the dashboard confidently
-- [ ] Complete your day-to-day tasks
-- [ ] Use search and filters effectively
-- [ ] Export reports and data
-- [ ] Know who to contact for help
-
----
-
-## 👨‍💻 I'm a Developer - I Want to Set Up Locally
-
-### ✅ Prerequisites Checklist
-
-Before starting, you need:
-
-- [ ] **Windows/Mac/Linux computer** with admin access
-- [ ] **Visual Studio Code** (or your preferred editor)
-- [ ] **Internet connection** (stable)
-- [ ] **Time**: ~1 hour for first-time setup
-
-### 📥 Installation Phase (30 minutes)
-
-**Choose your operating system:**
-
-#### Windows Users
-
-- [ ] Go to [WINDOWS_SETUP_GUIDE.md](WINDOWS_SETUP_GUIDE.md)
-- [ ] Follow "Prerequisites" section
-- [ ] Follow "Step 1-7" (Stop after "Running the Application")
-- [ ] **Verify**: Can access http://localhost:3000
-
-#### Mac Users
-
-- [ ] Install Node.js: [nodejs.org](https://nodejs.org/)
-- [ ] Install Git: [git-scm.com](https://git-scm.com/)
-- [ ] Open Terminal
-- [ ] Follow commands from [QUICK_REFERENCE.md](QUICK_REFERENCE.md#macos-users---complete-setup)
-- [ ] **Verify**: Can access http://localhost:3000
-
-#### Linux Users
-
-- [ ] Install Node.js via your package manager
-- [ ] Install Git via your package manager
-- [ ] Open Terminal
-- [ ] Follow commands from [QUICK_REFERENCE.md](QUICK_REFERENCE.md#macos-users---complete-setup)
-- [ ] **Verify**: Can access http://localhost:3000
-
-### 🔧 Configuration Phase (15 minutes)
-
-- [ ] Create `.env.local` file in project root
-- [ ] Add Supabase credentials:
-  ```
-  NEXT_PUBLIC_SUPABASE_URL=your_url
-  NEXT_PUBLIC_SUPABASE_ANON_KEY=your_key
-  ```
-- [ ] Get credentials from [Supabase Dashboard](https://supabase.com/dashboard)
-- [ ] **Verify**: Can log in on http://localhost:3000
-
-### 📚 Learning Phase (15 minutes)
-
-- [ ] Open [ARCHITECTURE_GUIDE.md](ARCHITECTURE_GUIDE.md)
-- [ ] Read: "Project Structure Explained" section
-- [ ] Read: "Component Architecture" section
-- [ ] Read: "Data Flow" section
-- [ ] Skim the rest for reference
-
-### 🎯 First Task
-
-Pick one:
-
-- [ ] **Read code**: Open `app/dashboard/page.tsx` and understand its structure
-- [ ] **Create simple API**: Follow "Creating a New API Route" in [ARCHITECTURE_GUIDE.md](ARCHITECTURE_GUIDE.md)
-- [ ] **Fix a bug**: Check GitHub Issues for "good first issue"
-- [ ] **Add a feature**: Pick something small from your task list
-
-### ✅ You're Ready To!
-
-- [ ] Start the dev server (`npm run dev`)
-- [ ] Make code changes and see them live
-- [ ] Understand the project structure
-- [ ] Read and understand existing code
-- [ ] Ask smart questions in code reviews
-
----
-
-## 🏢 I'm a Team Lead - I Want to Set Up for My Team
-
-### 👥 Team Setup Phase
-
-1. **Documentation Review** (30 minutes)
-   - [ ] Read [README.md](README.md) entirely
-   - [ ] Read [ARCHITECTURE_GUIDE.md](ARCHITECTURE_GUIDE.md) sections:
-     - Architecture Overview
-     - Component Architecture
-     - Custom Hooks
-   - [ ] Review [PAYMENT_SERVICE_OPTIMIZATION.md](PAYMENT_SERVICE_OPTIMIZATION.md) for performance context
-
-2. **Server Setup** (1 hour)
-   - [ ] Choose deployment platform (Vercel recommended)
-   - [ ] Set up Supabase project
-   - [ ] Configure environment variables on server
-   - [ ] Deploy the application
-   - [ ] Test deployment
-
-3. **Team Documentation** (30 minutes)
-   - [ ] Create team-specific docs:
-     - [ ] Who to contact for issues
-     - [ ] Deployment process
-     - [ ] Code review guidelines
-     - [ ] Development workflow
-   - [ ] Share these links with team:
-     - [ ] [README.md](README.md) - Project overview
-     - [ ] [ARCHITECTURE_GUIDE.md](ARCHITECTURE_GUIDE.md) - Technical structure
-     - [ ] [WINDOWS_SETUP_GUIDE.md](WINDOWS_SETUP_GUIDE.md) - Development setup
-     - [ ] [QUICK_REFERENCE.md](QUICK_REFERENCE.md) - Common commands
-
-4. **Team Onboarding** (Ongoing)
-   - [ ] Each developer: Follow developer checklist above
-   - [ ] Pair programming session for first real task
-   - [ ] Weekly code review to ensure standards
-   - [ ] Create issues for new features
-
-5. **Setup Verification** (1 hour)
-   - [ ] All developers can run locally
-   - [ ] All can access staging/production
-   - [ ] All understand the architecture
-   - [ ] All know the deployment process
-
-### 📋 Create Team Guidelines
-
-Create a document with:
-
-- [ ] Git workflow (branching strategy)
-- [ ] Code style (use existing linting config)
-- [ ] PR review process
-- [ ] Deployment checklist
-- [ ] On-call rotation (if applicable)
-- [ ] Incident response process
-
-### 🚀 Deployment Checklist
-
-Before going live:
-
-- [ ] All tests pass
-- [ ] Code reviewed and approved
-- [ ] Staging environment tested
-- [ ] Performance acceptable
-- [ ] Security check completed
-- [ ] Database migrations run
-- [ ] Backup created
-- [ ] Monitoring set up
-- [ ] Rollback plan ready
-
----
-
-## 🔍 I Found a Bug - How to Report It
-
-### Bug Report Checklist
-
-- [ ] **Describe the problem** (what should happen vs what actually happens)
-- [ ] **Steps to reproduce**:
-  1. [ ] Step 1
-  2. [ ] Step 2
-  3. [ ] Step 3
-- [ ] **Environment info**:
-  - [ ] OS (Windows/Mac/Linux)
-  - [ ] Browser (Chrome/Firefox/Safari)
-  - [ ] Node.js version (run `node --version`)
-- [ ] **Screenshots/Videos** (if visual issue)
-  - [ ] Screenshot of the bug
-  - [ ] Screenshot of error message (if any)
-- [ ] **Is this reproducible?** (Yes/No)
-  - [ ] Every time
-  - [ ] Sometimes
-  - [ ] Once only
-
-### Where to Report
-
-1. **Critical/Security issues**: Email support@ptportal.com
-2. **General bugs**: [GitHub Issues](https://github.com/PiyamDev1/pt-portal/issues)
-3. **Questions**: Email or reach out to team lead
-
----
-
-## ✨ I Want to Contribute - How to Get Started
-
-### 1. Find Something to Work On
-
-- [ ] Check [GitHub Issues](https://github.com/PiyamDev1/pt-portal/issues)
-- [ ] Look for "good first issue" label
-- [ ] Or suggest your own improvement
-
-### 2. Set Up Locally
-
-- [ ] Follow Developer checklist above
-- [ ] Get the code running locally
-- [ ] Verify dev server works
-
-### 3. Create Feature Branch
+1. Clone the repository.
 
 ```bash
-git checkout -b feature/my-feature
-# or
-git checkout -b fix/my-bug
+git clone https://github.com/PiyamDev1/pt-portal.git
+cd pt-portal
 ```
 
-### 4. Make Changes
-
-- [ ] Write your code
-- [ ] Test it locally (`npm run dev`)
-- [ ] Check for errors (`npm run lint`)
-- [ ] Format code (`npm run format`)
-
-### 5. Commit & Push
+2. Install dependencies.
 
 ```bash
-git add .
-git commit -m "Add my feature"
-git push origin feature/my-feature
+npm install
 ```
 
-### 6. Create Pull Request
+3. Create your local environment file.
 
-- [ ] Go to GitHub
-- [ ] Click "New Pull Request"
-- [ ] Describe what you changed
-- [ ] Link any related issues
-- [ ] Request review
+```bash
+cp .env.example .env.local
+```
 
-### 7. Address Feedback
+4. Fill in the required variables from Supabase and your operational services.
 
-- [ ] Make requested changes
-- [ ] Push updates
-- [ ] Re-request review
+Minimum local baseline:
 
-### 8. Celebrate! 🎉
+```env
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+NEXT_PUBLIC_SITE_URL=http://localhost:3000
+```
 
-- [ ] Your code is merged
-- [ ] You're now a contributor!
+Commonly needed for real feature testing:
 
----
+```env
+MAILGUN_API_KEY=
+MAILGUN_DOMAIN=
+MINIO_ENDPOINT=
+MINIO_ACCESS_KEY=
+MINIO_SECRET_KEY=
+MINIO_BUCKET_NAME=
+NEXT_PUBLIC_MINIO_ENDPOINT=
+FRAPPE_BASE_URL=
+FRAPPE_API_KEY=
+FRAPPE_API_SECRET=
+FRAPPE_WEBHOOK_SECRET=
+FRAPPE_HANDOFF_SECRET=
+```
 
-## 🎓 I Want to Learn More
+5. Start the app.
 
-### Documentation Recommended Reading Order
+```bash
+npm run dev
+```
 
-1. **[README.md](README.md)** (5 min)
-   - Overview and features
+6. Open `http://localhost:3000`.
 
-2. **[USAGE_GUIDE.md](USAGE_GUIDE.md)** (20 min)
-   - How to use the application
+## Verification checklist
 
-3. **[QUICK_REFERENCE.md](QUICK_REFERENCE.md)** (10 min)
-   - Common commands and snippets
+You should be able to confirm:
 
-4. **[WINDOWS_SETUP_GUIDE.md](WINDOWS_SETUP_GUIDE.md)** (30 min)
-   - Detailed setup instructions
+- the login page loads
+- the app compiles without startup errors
+- authenticated pages work with your Supabase-backed user
+- basic dashboard navigation works
 
-5. **[ARCHITECTURE_GUIDE.md](ARCHITECTURE_GUIDE.md)** (45 min)
-   - Technical structure and patterns
+Before making changes, it is worth running:
 
-### External Resources
+```bash
+npx tsc --noEmit
+npm run lint
+```
 
-- **React**: [react.dev](https://react.dev)
-- **Next.js**: [nextjs.org/docs](https://nextjs.org/docs)
-- **TypeScript**: [typescriptlang.org/docs](https://www.typescriptlang.org/docs/)
-- **Supabase**: [supabase.com/docs](https://supabase.com/docs)
-- **Tailwind CSS**: [tailwindcss.com](https://tailwindcss.com)
+## Common working commands
 
----
+```bash
+npm run dev
+npm run build
+npm start
+npm run lint
+npm run lint:fix
+npm run format
+npm run format:check
+npm run test:unit
+```
 
-## 📞 Still Need Help?
+For smoke tests:
 
-| Issue                     | Solution                                                                        |
-| ------------------------- | ------------------------------------------------------------------------------- |
-| **Setup stuck**           | Read [WINDOWS_SETUP_GUIDE.md](WINDOWS_SETUP_GUIDE.md#-common-issues--solutions) |
-| **Don't understand code** | Read [ARCHITECTURE_GUIDE.md](ARCHITECTURE_GUIDE.md)                             |
-| **App won't start**       | Check [QUICK_REFERENCE.md](QUICK_REFERENCE.md#-quick-troubleshooting)           |
-| **Have a question**       | Ask in GitHub Discussions or email support                                      |
-| **Found a bug**           | Create GitHub Issue with details                                                |
-| **Want to contribute**    | Follow "I Want to Contribute" section above                                     |
+```bash
+npm run test:smoke
+```
 
----
+## How the repo is laid out
 
-## ✅ Final Verification
+Main areas you will touch most often:
 
-After completing your checklist:
+- `app/` for pages, route handlers, and dashboard UI
+- `lib/` for shared server-side helpers and integrations
+- `components/` for reusable UI primitives
+- `hooks/` for reusable hooks
+- `scripts/migrations/` for SQL migrations
+- `docs/` for product, technical, and operational documentation
+- `.github/workflows/` for automation
 
-### Users
+For a deeper technical walk-through, read [ARCHITECTURE_GUIDE.md](ARCHITECTURE_GUIDE.md).
 
-- [ ] Can log in successfully
-- [ ] Understand where to find features
-- [ ] Know how to complete your tasks
-- [ ] Know who to ask for help
+## Suggested onboarding path
 
-### Developers
+If you are new to the project, read in this order:
 
-- [ ] Project runs locally
-- [ ] Understand project structure
-- [ ] Can write and test code
-- [ ] Know how to create PRs
+1. [Repository README](https://github.com/PiyamDev1/pt-portal/blob/main/README.md)
+2. [ARCHITECTURE_GUIDE.md](ARCHITECTURE_GUIDE.md)
+3. [USAGE_GUIDE.md](USAGE_GUIDE.md)
+4. [INTEGRATIONS_GUIDE.md](INTEGRATIONS_GUIDE.md)
+5. [QUICK_REFERENCE.md](QUICK_REFERENCE.md)
 
-### Team Leads
+## Troubleshooting
 
-- [ ] Team set up and trained
-- [ ] Deployment process documented
-- [ ] Monitoring in place
-- [ ] Support process established
+### `npm install` fails
 
----
+- Ensure you are on Node `20+`
+- Delete `node_modules` and retry `npm install`
+- If lockfile drift is suspected, keep `package-lock.json` and retry from a clean checkout
 
-**🎉 Congratulations! You're ready to go!**
+### App starts but auth does not work
 
-**Last Updated**: June 2026
+- Check `NEXT_PUBLIC_SUPABASE_URL`
+- Check `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- Check `SUPABASE_SERVICE_ROLE_KEY` for server-side routes
+
+### Storage or email features fail locally
+
+- Those features require real MinIO and Mailgun credentials
+- If you are only working on UI, avoid flows that send mail or upload files until env is complete
+
+### Frappe handoff or provisioning fails
+
+- Confirm all `FRAPPE_*` variables are set
+- Read [FRAPPE_HRMS_SETUP.md](FRAPPE_HRMS_SETUP.md)
+- Confirm the Frappe bridge app and matching handoff secret are deployed

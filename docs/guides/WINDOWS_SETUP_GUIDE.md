@@ -216,15 +216,15 @@ Open your browser and go to: **http://localhost:3000**
 
 ### Terminal Commands (run in VS Code terminal)
 
-| Command              | Purpose                              |
-| -------------------- | ------------------------------------ |
-| `npm run dev`        | Start development server (port 3000) |
-| `npm run build`      | Build for production                 |
-| `npm start`          | Start production server              |
-| `npm run lint`       | Check code quality                   |
-| `npm run format`     | Auto-format code                     |
-| `npm run type-check` | Run TypeScript type checking         |
-| `npm test`           | Run tests (if configured)            |
+| Command             | Purpose                              |
+| ------------------- | ------------------------------------ |
+| `npm run dev`       | Start development server (port 3000) |
+| `npm run build`     | Build for production                 |
+| `npm start`         | Start production server              |
+| `npm run lint`      | Check code quality                   |
+| `npm run format`    | Auto-format code                     |
+| `npx tsc --noEmit`  | Run TypeScript type checking         |
+| `npm run test:unit` | Run unit tests                       |
 
 ---
 

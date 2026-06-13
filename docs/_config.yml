@@ -1,0 +1,12 @@
+title: PT-Portal Documentation
+description: Setup, architecture, deployment, operations, and usage documentation for PT-Portal.
+theme: minima
+markdown: kramdown
+plugins:
+  - jekyll-relative-links
+relative_links:
+  enabled: true
+  collections: true
+exclude:
+  - Gemfile
+  - Gemfile.lock

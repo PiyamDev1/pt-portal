@@ -1,177 +1,72 @@
 # PT-Portal Documentation
 
-> **By Rathobixz Inc.** — Last updated June 2026
+This folder is the source of truth for PT-Portal documentation. It is written to support three use cases:
 
----
+- local developer onboarding
+- operations and deployment work
+- GitHub Pages publishing
 
-## Documentation Structure
+If you are reading this inside the repo, start here. If you are reading the published docs site, the equivalent landing page is [index.md](index.md).
 
-```
-docs/
-├── guides/
-│   ├── ARCHITECTURE_GUIDE.md          ← System architecture & data flow
-│   ├── BOOKINGS_GUIDE.md              ← Appointment booking system status + usage
-│   ├── DOCUMENT_MANAGEMENT_GUIDE.md   ← Document system (upload, preview, storage)
-│   ├── GETTING_STARTED.md             ← Developer onboarding
-│   ├── QUICK_REFERENCE.md             ← Command cheat sheet
-│   ├── USAGE_GUIDE.md                 ← End-user manual
-│   └── WINDOWS_SETUP_GUIDE.md        ← Windows dev setup
-│
-└── technical/
-    ├── STORAGE_SYSTEM.md              ← MinIO + R2 dual-storage deep dive
-    ├── SECURITY.md                    ← Auth, rate limiting, 2FA
-    ├── API_REFERENCE.md               ← All API route reference
-    ├── AUTHENTICATION_FLOW.md         ← Session/authz lifecycle and 2FA flows
-    ├── DATABASE_SCHEMA_OVERVIEW.md    ← Domain-level DB map + migration source of truth
-    ├── DEPLOYMENT_ENVIRONMENT_SETUP.md← Local/deploy env + release validation checklist
-    ├── BUILD_PERFORMANCE.md
-    ├── BUNDLE_ANALYSIS.md
-    ├── CODE_AUDIT.md
-    ├── CODE_QUALITY_REPORT.md
-    ├── PAYMENT_SERVICE_OPTIMIZATION.md
-    └── REFRESH_LOOP_FIX_SUMMARY.md
-```
+## Documentation structure
 
----
+### Start here
 
-## Quick Start by Role
+- Overview and project entry point: [Repository README](https://github.com/PiyamDev1/pt-portal/blob/main/README.md)
+- Docs site landing page: [index.md](index.md)
+- Setup and onboarding: [guides/GETTING_STARTED.md](guides/GETTING_STARTED.md)
+- Quick reference: [guides/QUICK_REFERENCE.md](guides/QUICK_REFERENCE.md)
 
-### For End Users
+### Product and workflow guides
 
-→ **[guides/USAGE_GUIDE.md](guides/USAGE_GUIDE.md)** — step-by-step feature guide
+- Usage guide: [guides/USAGE_GUIDE.md](guides/USAGE_GUIDE.md)
+- Appointment bookings: [guides/BOOKINGS_GUIDE.md](guides/BOOKINGS_GUIDE.md)
+- Document management: [guides/DOCUMENT_MANAGEMENT_GUIDE.md](guides/DOCUMENT_MANAGEMENT_GUIDE.md)
+- Deployment and release: [guides/DEPLOYMENT_GUIDE.md](guides/DEPLOYMENT_GUIDE.md)
+- External services and integrations: [guides/INTEGRATIONS_GUIDE.md](guides/INTEGRATIONS_GUIDE.md)
+- Frappe HRMS implementation: [guides/FRAPPE_HRMS_SETUP.md](guides/FRAPPE_HRMS_SETUP.md)
+- Windows setup: [guides/WINDOWS_SETUP_GUIDE.md](guides/WINDOWS_SETUP_GUIDE.md)
 
-### For Developers
+### Technical reference
 
-1. **[guides/GETTING_STARTED.md](guides/GETTING_STARTED.md)** — environment setup
-2. **[guides/ARCHITECTURE_GUIDE.md](guides/ARCHITECTURE_GUIDE.md)** — how the system fits together
-3. **[guides/BOOKINGS_GUIDE.md](guides/BOOKINGS_GUIDE.md)** — appointment bookings module status
-4. **[technical/API_REFERENCE.md](technical/API_REFERENCE.md)** — all API endpoints
-5. **[guides/QUICK_REFERENCE.md](guides/QUICK_REFERENCE.md)** — common commands
-6. **[TYPES.md](TYPES.md)** — shared type system conventions
+- Architecture: [guides/ARCHITECTURE_GUIDE.md](guides/ARCHITECTURE_GUIDE.md)
+- API surface: [technical/API_REFERENCE.md](technical/API_REFERENCE.md)
+- Authentication flow: [technical/AUTHENTICATION_FLOW.md](technical/AUTHENTICATION_FLOW.md)
+- Database overview: [technical/DATABASE_SCHEMA_OVERVIEW.md](technical/DATABASE_SCHEMA_OVERVIEW.md)
+- Security: [technical/SECURITY.md](technical/SECURITY.md)
+- Storage: [technical/STORAGE_SYSTEM.md](technical/STORAGE_SYSTEM.md)
+- Deployment environment notes: [technical/DEPLOYMENT_ENVIRONMENT_SETUP.md](technical/DEPLOYMENT_ENVIRONMENT_SETUP.md)
+- Shared type conventions: [TYPES.md](TYPES.md)
 
-### For Understanding Storage
+## Recommended reading paths
 
-→ **[technical/STORAGE_SYSTEM.md](technical/STORAGE_SYSTEM.md)** — MinIO primary + R2 fallback, migration, status checks
+### New developer
 
-### For Appointment Bookings
+1. [Repository README](https://github.com/PiyamDev1/pt-portal/blob/main/README.md)
+2. [guides/GETTING_STARTED.md](guides/GETTING_STARTED.md)
+3. [guides/ARCHITECTURE_GUIDE.md](guides/ARCHITECTURE_GUIDE.md)
+4. [guides/INTEGRATIONS_GUIDE.md](guides/INTEGRATIONS_GUIDE.md)
+5. [guides/QUICK_REFERENCE.md](guides/QUICK_REFERENCE.md)
 
-→ **[guides/BOOKINGS_GUIDE.md](guides/BOOKINGS_GUIDE.md)** — current booking capabilities, branch settings, reminders, and unfinished areas
+### Product/admin user
 
-### For Security/Auth
+1. [guides/USAGE_GUIDE.md](guides/USAGE_GUIDE.md)
+2. [guides/BOOKINGS_GUIDE.md](guides/BOOKINGS_GUIDE.md)
+3. [guides/DOCUMENT_MANAGEMENT_GUIDE.md](guides/DOCUMENT_MANAGEMENT_GUIDE.md)
 
-→ **[technical/SECURITY.md](technical/SECURITY.md)** — auth flow, 2FA, rate limiting, session handling
+### Deployment/ops
 
-### For Document Management
+1. [guides/DEPLOYMENT_GUIDE.md](guides/DEPLOYMENT_GUIDE.md)
+2. [guides/INTEGRATIONS_GUIDE.md](guides/INTEGRATIONS_GUIDE.md)
+3. [guides/FRAPPE_HRMS_SETUP.md](guides/FRAPPE_HRMS_SETUP.md)
+4. [technical/SECURITY.md](technical/SECURITY.md)
 
-→ **[guides/DOCUMENT_MANAGEMENT_GUIDE.md](guides/DOCUMENT_MANAGEMENT_GUIDE.md)** — upload, preview, PDF thumbnails, categorisation
+## GitHub Pages
 
----
+The docs folder is set up to be publishable as a GitHub Pages site:
 
-## 📖 Main Guides
+- Site landing page: [index.md](index.md)
+- Jekyll config: [\_config.yml](_config.yml)
+- Deployment workflow: [GitHub Pages workflow](https://github.com/PiyamDev1/pt-portal/blob/main/.github/workflows/github-pages.yml)
 
-### User Guides
-
-| Guide                                           | Description          | Time   |
-| ----------------------------------------------- | -------------------- | ------ |
-| [USAGE_GUIDE.md](guides/USAGE_GUIDE.md)         | Complete user manual | 45 min |
-| Dashboard, Applications, LMS, Pricing, Settings | All features covered | -      |
-
-### Developer Guides
-
-| Guide                                                   | Description             | Time   |
-| ------------------------------------------------------- | ----------------------- | ------ |
-| [WINDOWS_SETUP_GUIDE.md](guides/WINDOWS_SETUP_GUIDE.md) | Windows + VS Code setup | 1 hour |
-| [ARCHITECTURE_GUIDE.md](guides/ARCHITECTURE_GUIDE.md)   | Technical deep-dive     | 1 hour |
-| [BOOKINGS_GUIDE.md](guides/BOOKINGS_GUIDE.md)           | Appointment booking system | 15 min |
-| [QUICK_REFERENCE.md](guides/QUICK_REFERENCE.md)         | Commands & snippets     | 5 min  |
-| [GETTING_STARTED.md](guides/GETTING_STARTED.md)         | Onboarding checklists   | 15 min |
-
-### Technical Documentation
-
-| Guide                                                                        | Description                                  |
-| ---------------------------------------------------------------------------- | -------------------------------------------- |
-| [PAYMENT_SERVICE_OPTIMIZATION.md](technical/PAYMENT_SERVICE_OPTIMIZATION.md) | LMS performance optimization                 |
-| [REFRESH_LOOP_FIX_SUMMARY.md](technical/REFRESH_LOOP_FIX_SUMMARY.md)         | React optimization patterns                  |
-| [BUILD_PERFORMANCE.md](technical/BUILD_PERFORMANCE.md)                       | Build optimization                           |
-| [CODE_QUALITY_REPORT.md](technical/CODE_QUALITY_REPORT.md)                   | Code quality metrics                         |
-| [DEPENDENCY_AUDIT.md](technical/DEPENDENCY_AUDIT.md)                         | Dependency vulnerability and upgrade actions |
-| [AUTHENTICATION_FLOW.md](technical/AUTHENTICATION_FLOW.md)                   | Authentication/session + role authorization flow |
-| [DATABASE_SCHEMA_OVERVIEW.md](technical/DATABASE_SCHEMA_OVERVIEW.md)         | High-level schema domains and migration process |
-| [DEPLOYMENT_ENVIRONMENT_SETUP.md](technical/DEPLOYMENT_ENVIRONMENT_SETUP.md) | Deployment config and validation checklist |
-
----
-
-## 🔍 Find What You Need
-
-### Setup & Installation
-
-- **First time?** → [guides/GETTING_STARTED.md](guides/GETTING_STARTED.md)
-- **Windows?** → [guides/WINDOWS_SETUP_GUIDE.md](guides/WINDOWS_SETUP_GUIDE.md)
-- **Environment variables?** → [guides/WINDOWS_SETUP_GUIDE.md#step-4](guides/WINDOWS_SETUP_GUIDE.md#step-4)
-- **Database setup?** → [guides/WINDOWS_SETUP_GUIDE.md#step-5](guides/WINDOWS_SETUP_GUIDE.md#step-5)
-
-### Using the Application
-
-- **Dashboard?** → [guides/USAGE_GUIDE.md#dashboard-overview](guides/USAGE_GUIDE.md#dashboard-overview)
-- **Applications?** → [guides/USAGE_GUIDE.md#applications-dashboard](guides/USAGE_GUIDE.md#applications-dashboard)
-- **Bookings?** → [guides/USAGE_GUIDE.md#appointment-bookings](guides/USAGE_GUIDE.md#appointment-bookings)
-- **Payments?** → [guides/USAGE_GUIDE.md#payments--transactions](guides/USAGE_GUIDE.md#payments--transactions)
-- **Pricing?** → [guides/USAGE_GUIDE.md#pricing-management](guides/USAGE_GUIDE.md#pricing-management)
-
-### Development
-
-- **Architecture?** → [guides/ARCHITECTURE_GUIDE.md](guides/ARCHITECTURE_GUIDE.md)
-- **API routes?** → [guides/ARCHITECTURE_GUIDE.md#api-routes](guides/ARCHITECTURE_GUIDE.md#api-routes)
-- **Components?** → [guides/ARCHITECTURE_GUIDE.md#component-architecture](guides/ARCHITECTURE_GUIDE.md#component-architecture)
-- **Hooks?** → [guides/ARCHITECTURE_GUIDE.md#custom-hooks](guides/ARCHITECTURE_GUIDE.md#custom-hooks)
-
-### Troubleshooting
-
-- **Common issues?** → [guides/WINDOWS_SETUP_GUIDE.md#common-issues](guides/WINDOWS_SETUP_GUIDE.md#common-issues)
-- **Quick fixes?** → [guides/QUICK_REFERENCE.md#troubleshooting](guides/QUICK_REFERENCE.md#troubleshooting)
-- **FAQ?** → [guides/USAGE_GUIDE.md#faq](guides/USAGE_GUIDE.md#faq)
-
----
-
-## 📊 Documentation Stats
-
-```
-Total Files: 25+
-Total Lines: ~10,000 lines
-Coverage: 95%+ of features
-Languages: Markdown, SQL
-Updated: February 2026
-```
-
----
-
-## 🆘 Need Help?
-
-1. **Can't find something?** Use Ctrl+F in this file or check [../DOCUMENTATION_INDEX.md](../DOCUMENTATION_INDEX.md)
-2. **Setup issues?** Read [guides/WINDOWS_SETUP_GUIDE.md#troubleshooting](guides/WINDOWS_SETUP_GUIDE.md#troubleshooting)
-3. **Still stuck?** Open an issue on [GitHub](https://github.com/PiyamDev1/pt-portal/issues)
-
----
-
-## 📝 Contributing to Docs
-
-Found an error or want to improve documentation?
-
-1. Edit the relevant file
-2. Commit with clear message
-3. Submit pull request
-4. Documentation team will review
-
----
-
-## 🔗 Quick Links
-
-- **Main README**: [../README.md](../README.md)
-- **Documentation Index**: [../DOCUMENTATION_INDEX.md](../DOCUMENTATION_INDEX.md)
-- **GitHub Repo**: [PiyamDev1/pt-portal](https://github.com/PiyamDev1/pt-portal)
-
----
-
-**© 2026 Rathobixz Inc. All rights reserved.**
-
-Last Updated: June 2026
+This keeps the repo docs and the published docs using the same source files instead of maintaining two separate documentation sets.
