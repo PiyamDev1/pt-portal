@@ -44,7 +44,7 @@ function getHandoffClientKind() {
 function buildHandoffEndpoint(format: 'redirect' | 'json') {
   const endpoint = new URL('/api/integrations/frappe/handoff', window.location.origin)
   const current = new URL(window.location.href)
-  const target = current.searchParams.get('target') || '/hrms'
+  const target = current.searchParams.get('target') || 'auto'
   endpoint.searchParams.set('target', target)
   endpoint.searchParams.set('client', getHandoffClientKind())
   if (isStandalonePwa()) endpoint.searchParams.set('standalone', '1')
@@ -83,7 +83,7 @@ export function FrappeHandoffLaunchClient({
     const prepareMobileHandoff = async () => {
       try {
         const response = await fetch(buildHandoffEndpoint('json'), { cache: 'no-store' })
-        const data = await response.json().catch(() => ({})) as HandoffResponse
+        const data = (await response.json().catch(() => ({}))) as HandoffResponse
 
         if (data.redirect && !response.ok) {
           window.location.assign(data.redirect)
@@ -221,8 +221,8 @@ export function FrappeHandoffLaunchClient({
               </div>
               <p className="mt-3 font-bold">Preparing your secure HRMS launch...</p>
               <p className="mt-1 text-white/70">
-                Keeping you on this IMS screen until the Frio handoff link is ready avoids the
-                blank external browser screen during token creation.
+                Keeping you on this IMS screen until the Frio handoff link is ready avoids the blank
+                external browser screen during token creation.
               </p>
             </div>
           )}
@@ -282,8 +282,7 @@ export function FrappeHandoffLaunchClient({
                     onClick={markCompanionInstalled}
                     className="mt-1 inline-flex w-fit items-center gap-2 rounded-lg bg-sky-700 px-3 py-2 text-xs font-bold text-white transition hover:bg-sky-800"
                   >
-                    <CheckCircle2 className="h-3.5 w-3.5" />
-                    I installed HRMS on this device
+                    <CheckCircle2 className="h-3.5 w-3.5" />I installed HRMS on this device
                   </button>
                 </div>
               )}
@@ -308,7 +307,7 @@ export function FrappeHandoffLaunchClient({
               </a>
             ) : (
               <a
-                href="/api/integrations/frappe/handoff?target=/hrms"
+                href="/api/integrations/frappe/handoff?target=auto"
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-emerald-700"
               >
                 Open now

@@ -52,7 +52,7 @@ const MODULES: DashboardModule[] = [
     href: '/dashboard/timeclock',
     group: 'staff',
     priority: 'primary',
-    accent: 'from-slate-950 to-slate-700 text-white',
+    accent: 'from-[#3a3a3a] to-black text-white',
     icon: Clock3,
   },
   {
@@ -71,7 +71,7 @@ const MODULES: DashboardModule[] = [
     desc: 'NADRA, passports, visas and document work',
     href: '/dashboard/applications',
     group: 'operations',
-    accent: 'from-orange-600 to-amber-500 text-white',
+    accent: 'from-[#8b1e2d] to-[#c43b42] text-white',
     icon: FileText,
   },
   {
@@ -80,7 +80,7 @@ const MODULES: DashboardModule[] = [
     desc: 'Appointments, waitlist and no-show handling',
     href: '/dashboard/bookings',
     group: 'operations',
-    accent: 'from-indigo-700 to-blue-600 text-white',
+    accent: 'from-[#6f1422] to-[#a32234] text-white',
     icon: CalendarDays,
   },
   {
@@ -89,7 +89,7 @@ const MODULES: DashboardModule[] = [
     desc: 'PNR work, fares and ticket operations',
     href: '/dashboard/ticketing',
     group: 'operations',
-    accent: 'from-sky-700 to-cyan-600 text-white',
+    accent: 'from-[#991b1b] to-[#dc2626] text-white',
     icon: Plane,
   },
   {
@@ -98,7 +98,7 @@ const MODULES: DashboardModule[] = [
     desc: 'British passport services',
     href: '/dashboard/applications/passports-gb',
     group: 'operations',
-    accent: 'from-blue-950 to-blue-800 text-white',
+    accent: 'from-[#4b5563] to-[#111827] text-white',
     icon: BriefcaseBusiness,
   },
   {
@@ -107,7 +107,7 @@ const MODULES: DashboardModule[] = [
     desc: 'Customer balances and instalments',
     href: '/dashboard/lms',
     group: 'finance',
-    accent: 'from-yellow-400 to-amber-300 text-slate-950',
+    accent: 'from-[#f3f4f6] to-[#d1d5db] text-slate-950',
     icon: BadgePoundSterling,
   },
   {
@@ -116,7 +116,7 @@ const MODULES: DashboardModule[] = [
     desc: 'Sales earnings and staff commission view',
     href: '/dashboard/commissions',
     group: 'finance',
-    accent: 'from-slate-700 to-slate-500 text-white',
+    accent: 'from-[#3a3a3a] to-[#1f2937] text-white',
     icon: Ticket,
   },
   {
@@ -125,7 +125,7 @@ const MODULES: DashboardModule[] = [
     desc: 'Service pricing and branch offers',
     href: '/dashboard/pricing',
     group: 'finance',
-    accent: 'from-emerald-800 to-green-600 text-white',
+    accent: 'from-[#7f1d1d] to-[#b91c1c] text-white',
     icon: BadgePoundSterling,
   },
   {
@@ -134,7 +134,7 @@ const MODULES: DashboardModule[] = [
     desc: 'Security, branches, staff and maintenance',
     href: '/dashboard/settings',
     group: 'admin',
-    accent: 'from-slate-900 to-slate-700 text-white',
+    accent: 'from-[#111827] to-[#3a3a3a] text-white',
     icon: Settings,
   },
   {
@@ -143,7 +143,7 @@ const MODULES: DashboardModule[] = [
     desc: 'Passkeys, devices and recovery settings',
     href: '/dashboard/account',
     group: 'staff',
-    accent: 'from-cyan-700 to-blue-600 text-white',
+    accent: 'from-[#4b0f16] to-[#8b1e2d] text-white',
     icon: FingerprintPattern,
   },
 ]
@@ -184,10 +184,10 @@ function MobileDashboard({
 
   return (
     <section className="lg:hidden">
-      <div className="rounded-[2rem] bg-slate-950 p-5 text-white shadow-2xl shadow-slate-950/20">
+      <div className="rounded-[2rem] bg-[#4b0f16] p-5 text-white shadow-2xl shadow-red-950/20">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.22em] text-emerald-300">
+            <p className="text-xs font-bold uppercase tracking-[0.22em] text-red-100">
               Staff launchpad
             </p>
             <h1 className="mt-2 text-2xl font-black leading-tight">Hi {userName || 'there'}</h1>
@@ -277,128 +277,134 @@ function DesktopDashboard({
   branchName?: string | null
 }) {
   const primaryModules = modules.filter((moduleItem) => moduleItem.priority === 'primary')
-  const groupedModules = (
-    ['operations', 'finance', 'admin', 'staff'] as DashboardModule['group'][]
-  ).map((group) => ({
-    group,
-    modules: modules.filter(
-      (moduleItem) => moduleItem.group === group && moduleItem.priority !== 'primary',
-    ),
-  }))
+  const sortedModules = [...modules].sort((a, b) => a.title.localeCompare(b.title))
+  const operationsModules = modules.filter((moduleItem) => moduleItem.group === 'operations')
 
   return (
-    <section className="hidden lg:block">
-      <div className="grid grid-cols-[1.1fr_0.9fr] gap-6">
-        <div className="overflow-hidden rounded-[2rem] bg-slate-950 p-8 text-white shadow-2xl shadow-slate-950/20">
-          <div className="flex items-start justify-between gap-6">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.24em] text-emerald-300">
-                IMS command centre
-              </p>
-              <h1 className="mt-4 max-w-xl text-4xl font-black leading-tight">
-                Welcome back, {userName || 'team member'}.
-              </h1>
-              <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-300">
-                Start with staff-critical actions, then move into applications, finance, bookings,
-                or admin work from one authenticated entry point.
-              </p>
-            </div>
-            <div className="rounded-2xl border border-white/10 bg-white/10 p-4 text-right">
-              <p className="text-xs uppercase tracking-[0.18em] text-slate-300">Branch</p>
-              <p className="mt-1 font-black">{branchName || 'Unassigned'}</p>
-              <p className="mt-3 text-xs uppercase tracking-[0.18em] text-slate-300">Role</p>
-              <p className="mt-1 font-black">{roleName || 'Staff'}</p>
-            </div>
-          </div>
-
-          <div className="mt-8 grid grid-cols-2 gap-4">
-            {primaryModules.map((moduleItem) => (
-              <Link key={moduleItem.id} href={moduleItem.href} className="group">
-                <div
-                  className={`rounded-[1.5rem] bg-gradient-to-br ${moduleItem.accent} p-5 transition duration-200 group-hover:-translate-y-1 group-hover:shadow-xl`}
-                >
-                  <div className="flex items-center justify-between">
-                    <ModuleIcon moduleItem={moduleItem} className="h-8 w-8" />
-                    <span className="rounded-full bg-white/15 px-3 py-1 text-xs font-bold">
-                      Popular
-                    </span>
-                  </div>
-                  <h2 className="mt-8 text-2xl font-black">{moduleItem.title}</h2>
-                  <p className="mt-2 text-sm leading-6 opacity-85">{moduleItem.desc}</p>
-                </div>
-              </Link>
-            ))}
-          </div>
+    <section className="hidden space-y-8 lg:block">
+      <div className="flex items-end justify-between gap-6">
+        <div>
+          <p className="text-sm font-black uppercase tracking-[0.22em] text-[#8b1e2d]">Dashboard</p>
+          <h1 className="mt-2 text-4xl font-black tracking-tight text-slate-950">
+            Welcome back, {userName || 'team member'}
+          </h1>
+          <p className="mt-2 text-sm text-slate-500">
+            {roleName || 'Staff'} {branchName ? `at ${branchName}` : 'workspace'}
+          </p>
         </div>
-
-        <div className="grid gap-4">
-          <div className="rounded-[1.5rem] border border-emerald-100 bg-emerald-50 p-6">
-            <div className="flex items-start gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-700 text-white">
-                <ShieldCheck className="h-6 w-6" />
-              </div>
-              <div>
-                <h2 className="text-lg font-black text-emerald-950">Security posture</h2>
-                <p className="mt-2 text-sm leading-6 text-emerald-900">
-                  Passkeys, 2FA, session controls, auth telemetry, and Frappe handoff auditing are
-                  now wired into the portal flow.
-                </p>
-              </div>
-            </div>
-          </div>
-          <div className="rounded-[1.5rem] border border-slate-200 bg-white p-6 shadow-sm">
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">Today</p>
-            <div className="mt-4 grid grid-cols-3 gap-3">
-              {[
-                ['Access', 'IMS'],
-                ['HR', 'Frappe'],
-                ['Devices', 'Managed'],
-              ].map(([label, value]) => (
-                <div key={label} className="rounded-2xl bg-slate-50 p-4 text-center">
-                  <p className="text-xl font-black text-slate-950">{value}</p>
-                  <p className="mt-1 text-xs font-bold uppercase tracking-wide text-slate-400">
-                    {label}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
+        <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4 text-right shadow-sm">
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">IMS access</p>
+          <p className="mt-1 text-lg font-black text-[#4b0f16]">Secured</p>
         </div>
       </div>
 
-      <div className="mt-8 grid grid-cols-2 gap-6 xl:grid-cols-4">
-        {groupedModules.map(({ group, modules: groupModules }) => (
-          <div
-            key={group}
-            className="rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm"
-          >
-            <h2 className="text-sm font-black uppercase tracking-[0.18em] text-slate-500">
-              {GROUP_LABELS[group]}
-            </h2>
-            <div className="mt-4 space-y-3">
-              {groupModules.map((moduleItem) => (
-                <Link
-                  key={moduleItem.id}
-                  href={moduleItem.href}
-                  className="group flex items-center gap-3 rounded-2xl p-2 transition hover:bg-slate-50"
-                >
-                  <div
-                    className={`flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br ${moduleItem.accent}`}
-                  >
-                    <ModuleIcon moduleItem={moduleItem} />
-                  </div>
-                  <div className="min-w-0">
-                    <h3 className="truncate text-sm font-black text-slate-900 group-hover:text-emerald-700">
-                      {moduleItem.title}
-                    </h3>
-                    <p className="truncate text-xs text-slate-500">{moduleItem.desc}</p>
-                  </div>
-                </Link>
-              ))}
+      <div className="grid grid-cols-3 gap-4">
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
+                Priority actions
+              </p>
+              <h2 className="mt-2 text-3xl font-black text-slate-950">2</h2>
+            </div>
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#4b0f16] text-white">
+              <Sparkles className="h-6 w-6" />
             </div>
           </div>
+          <p className="mt-4 text-sm text-slate-500">Timeclock and HRMS stay one click away.</p>
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
+                Operations modules
+              </p>
+              <h2 className="mt-2 text-3xl font-black text-slate-950">
+                {operationsModules.length}
+              </h2>
+            </div>
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-50 text-[#8b1e2d]">
+              <FileText className="h-6 w-6" />
+            </div>
+          </div>
+          <p className="mt-4 text-sm text-slate-500">
+            Applications, bookings, ticketing and passports.
+          </p>
+        </div>
+        <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-6 shadow-sm">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-700">
+                HRMS handoff
+              </p>
+              <h2 className="mt-2 text-3xl font-black text-emerald-950">Ready</h2>
+            </div>
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-700 text-white">
+              <ShieldCheck className="h-6 w-6" />
+            </div>
+          </div>
+          <p className="mt-4 text-sm text-emerald-900">
+            Desktop opens Frappe desktop, mobile opens HRMS app shell.
+          </p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-5">
+        {primaryModules.map((moduleItem) => (
+          <Link key={moduleItem.id} href={moduleItem.href} className="group">
+            <div
+              className={`min-h-56 overflow-hidden rounded-[1.75rem] bg-gradient-to-br ${moduleItem.accent} p-7 shadow-xl transition duration-200 group-hover:-translate-y-1 group-hover:shadow-2xl`}
+            >
+              <div className="flex items-start justify-between">
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/15">
+                  <ModuleIcon moduleItem={moduleItem} className="h-8 w-8" />
+                </div>
+                <span className="rounded-full bg-white/15 px-3 py-1 text-xs font-black uppercase tracking-wide">
+                  Popular
+                </span>
+              </div>
+              <h2 className="mt-12 text-3xl font-black">{moduleItem.title}</h2>
+              <p className="mt-3 max-w-sm text-sm leading-6 opacity-85">{moduleItem.desc}</p>
+            </div>
+          </Link>
         ))}
       </div>
+
+      <section>
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-black text-slate-950">All modules</h2>
+            <p className="text-sm text-slate-500">
+              Roomier desktop cards for day-to-day branch work.
+            </p>
+          </div>
+          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-500">
+            {sortedModules.length} modules
+          </span>
+        </div>
+        <div className="grid grid-cols-3 gap-5 xl:grid-cols-5">
+          {sortedModules.map((moduleItem) => (
+            <Link key={moduleItem.id} href={moduleItem.href} className="group">
+              <div className="flex min-h-44 flex-col rounded-2xl border border-slate-200 bg-white p-5 text-center shadow-sm transition duration-200 hover:-translate-y-1 hover:border-[#8b1e2d]/40 hover:shadow-lg">
+                <div
+                  className={`mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br ${moduleItem.accent} shadow-sm`}
+                >
+                  <ModuleIcon moduleItem={moduleItem} className="h-7 w-7" />
+                </div>
+                <h3 className="mt-5 text-base font-black text-slate-950 group-hover:text-[#8b1e2d]">
+                  {moduleItem.title}
+                </h3>
+                <p className="mt-2 line-clamp-2 text-xs leading-5 text-slate-500">
+                  {moduleItem.desc}
+                </p>
+                <p className="mt-auto pt-4 text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">
+                  {GROUP_LABELS[moduleItem.group]}
+                </p>
+              </div>
+            </Link>
+          ))}
+        </div>
+      </section>
     </section>
   )
 }
@@ -440,7 +446,7 @@ export default async function Dashboard() {
 
   return (
     <DashboardClientWrapper>
-      <div className="min-h-screen bg-[#f4f7f3]">
+      <div className="min-h-screen bg-[#f5f5f5]">
         <PageHeader
           employeeName={employee?.full_name}
           role={role?.name}

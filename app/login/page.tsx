@@ -262,12 +262,12 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="min-h-screen overflow-hidden bg-[#f3f8f4] text-slate-950">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(7,89,54,0.18),_transparent_34%),linear-gradient(135deg,_#f7fbf7_0%,_#e7f2ea_45%,_#f8fafc_100%)]" />
-      <div className="absolute right-[-10rem] top-[-12rem] h-96 w-96 rounded-full bg-emerald-200/40 blur-3xl" />
+    <main className="min-h-screen overflow-hidden bg-[#f5f5f5] text-slate-950">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(139,30,45,0.18),_transparent_34%),linear-gradient(135deg,_#f7fbf7_0%,_#f1e7e9_45%,_#f8fafc_100%)]" />
+      <div className="absolute right-[-10rem] top-[-12rem] h-96 w-96 rounded-full bg-red-200/30 blur-3xl" />
       <div className="relative mx-auto grid min-h-screen w-full max-w-6xl grid-cols-1 items-center gap-8 px-5 py-10 lg:grid-cols-[1fr_440px] lg:px-8">
         <section className="hidden max-w-2xl lg:block">
-          <div className="mb-8 inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white/70 px-4 py-2 text-sm font-semibold text-emerald-900 shadow-sm backdrop-blur">
+          <div className="mb-8 inline-flex items-center gap-2 rounded-full border border-red-200 bg-white/70 px-4 py-2 text-sm font-semibold text-[#4b0f16] shadow-sm backdrop-blur">
             <ShieldCheck className="h-4 w-4" />
             IMS secure access
           </div>
@@ -283,7 +283,7 @@ export default function LoginPage() {
                 key={label}
                 className="rounded-lg border border-white/80 bg-white/70 p-4 shadow-sm"
               >
-                <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-800">
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#7f1d1d]">
                   Protected
                 </p>
                 <p className="mt-2 text-sm font-semibold text-slate-800">{label}</p>
@@ -292,22 +292,22 @@ export default function LoginPage() {
           </div>
         </section>
 
-        <section className="rounded-lg border border-white/80 bg-white/90 p-6 shadow-2xl shadow-emerald-950/10 backdrop-blur md:p-8">
+        <section className="rounded-lg border border-white/80 bg-white/90 p-6 shadow-2xl shadow-red-950/10 backdrop-blur md:p-8">
           <div className="mb-7 flex items-start justify-between gap-4">
             <div>
-              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-emerald-900 text-white">
+              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-[#4b0f16] text-white">
                 <Building2 className="h-6 w-6" />
               </div>
               <h2 className="text-2xl font-black text-slate-950">PT-IMS</h2>
               <p className="mt-1 text-sm font-medium text-slate-500">Secure employee access</p>
             </div>
-            <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-800">
+            <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-bold text-[#7f1d1d]">
               Live
             </span>
           </div>
 
           {checkingExistingSession && (
-            <div className="mb-5 flex items-center gap-3 rounded-lg border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-900">
+            <div className="mb-5 flex items-center gap-3 rounded-lg border border-red-100 bg-red-50 px-4 py-3 text-sm font-semibold text-[#4b0f16]">
               <Loader2 className="h-4 w-4 animate-spin" />
               Checking your secure IMS session
             </div>
@@ -323,7 +323,7 @@ export default function LoginPage() {
             <button
               onClick={() => void handleBiometricLogin()}
               disabled={biometricLoading || checkingExistingSession}
-              className="mb-4 flex w-full items-center justify-center gap-3 rounded-lg bg-emerald-900 px-4 py-3.5 font-bold text-white shadow-lg shadow-emerald-900/20 transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60"
+              className="mb-4 flex w-full items-center justify-center gap-3 rounded-lg bg-[#4b0f16] px-4 py-3.5 font-bold text-white shadow-lg shadow-emerald-900/20 transition hover:bg-[#6f1422] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {biometricLoading ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
@@ -339,14 +339,14 @@ export default function LoginPage() {
           )}
 
           {passkeySupported && passkeyHint && !checkingExistingSession && (
-            <p className="mb-5 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800">
+            <p className="mb-5 rounded-lg bg-red-50 px-3 py-2 text-xs font-semibold text-[#7f1d1d]">
               Biometric login will use the remembered email on this device.
             </p>
           )}
 
           <button
             onClick={handleMicrosoftLogin}
-            className="mb-6 flex w-full items-center justify-center gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 font-bold text-slate-800 transition hover:border-emerald-200 hover:bg-emerald-50"
+            className="mb-6 flex w-full items-center justify-center gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 font-bold text-slate-800 transition hover:border-red-200 hover:bg-red-50"
           >
             Sign in with Microsoft
           </button>
@@ -369,7 +369,7 @@ export default function LoginPage() {
                   type="email"
                   required
                   autoComplete="email"
-                  className="w-full rounded-lg border border-slate-200 bg-slate-50 py-3 pl-10 pr-3 text-slate-950 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-100"
+                  className="w-full rounded-lg border border-slate-200 bg-slate-50 py-3 pl-10 pr-3 text-slate-950 outline-none transition focus:border-[#8b1e2d] focus:bg-white focus:ring-4 focus:ring-red-100"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                 />
@@ -384,7 +384,7 @@ export default function LoginPage() {
                   type="password"
                   required
                   autoComplete="current-password"
-                  className="w-full rounded-lg border border-slate-200 bg-slate-50 py-3 pl-10 pr-3 text-slate-950 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-100"
+                  className="w-full rounded-lg border border-slate-200 bg-slate-50 py-3 pl-10 pr-3 text-slate-950 outline-none transition focus:border-[#8b1e2d] focus:bg-white focus:ring-4 focus:ring-red-100"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                 />
@@ -400,7 +400,7 @@ export default function LoginPage() {
                   required
                   autoComplete="organization"
                   placeholder="e.g. HQ-001"
-                  className="w-full rounded-lg border border-slate-200 bg-slate-50 py-3 pl-10 pr-3 uppercase tracking-wide text-slate-950 outline-none transition placeholder:normal-case placeholder:tracking-normal focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-100"
+                  className="w-full rounded-lg border border-slate-200 bg-slate-50 py-3 pl-10 pr-3 uppercase tracking-wide text-slate-950 outline-none transition placeholder:normal-case placeholder:tracking-normal focus:border-[#8b1e2d] focus:bg-white focus:ring-4 focus:ring-red-100"
                   value={branchCode}
                   onChange={(e) => setBranchCode(e.target.value.toUpperCase())}
                 />

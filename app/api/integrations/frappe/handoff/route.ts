@@ -61,6 +61,13 @@ function transferRedirect(request: Request, reason: string) {
   return NextResponse.redirect(url)
 }
 
+function resolveTargetPath(requestedTarget: string | null, clientKind: string) {
+  if (!requestedTarget || requestedTarget === 'auto') {
+    return clientKind === 'mobile' || clientKind === 'standalone' ? '/hrms' : '/app'
+  }
+  return normalizeFrappeHandoffTargetPath(requestedTarget)
+}
+
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url)
   const wantsJson = requestUrl.searchParams.get('format') === 'json'
@@ -68,7 +75,7 @@ export async function GET(request: Request) {
   const clientKind = getFrappeHandoffClientKind(request)
   const userAgent = request.headers.get('user-agent')
   const requestedTarget = requestUrl.searchParams.get('target')
-  const targetPath = normalizeFrappeHandoffTargetPath(requestedTarget)
+  const targetPath = resolveTargetPath(requestedTarget, clientKind)
   const user = await getSessionUser()
   if (!user) {
     await recordFrappeHandoffEvent({

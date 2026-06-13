@@ -105,7 +105,8 @@ export function FrappeTransferClient() {
   const [submitting, setSubmitting] = useState(false)
   const [candidate, setCandidate] = useState<Candidate | null>(null)
   const [options, setOptions] = useState<Options>(emptyOptions)
-  const [employeeProvisioning, setEmployeeProvisioning] = useState<EmployeeProvisioningReadiness | null>(null)
+  const [employeeProvisioning, setEmployeeProvisioning] =
+    useState<EmployeeProvisioningReadiness | null>(null)
   const [form, setForm] = useState<FormState>(initialForm)
 
   const adminMissingItems = useMemo(() => {
@@ -144,7 +145,9 @@ export function FrappeTransferClient() {
       const nextCandidate = data.candidate as Candidate
       setCandidate(nextCandidate)
       setOptions((data.options || emptyOptions) as Options)
-      setEmployeeProvisioning((data.employee_provisioning || null) as EmployeeProvisioningReadiness | null)
+      setEmployeeProvisioning(
+        (data.employee_provisioning || null) as EmployeeProvisioningReadiness | null,
+      )
       const defaultCompany = String(data.default_company || FALLBACK_DEFAULT_COMPANY)
       const nextOptions = (data.options || emptyOptions) as Options
       setForm((current) => ({
@@ -190,7 +193,7 @@ export function FrappeTransferClient() {
 
       setCandidate(data.candidate as Candidate)
       toast.success('HRMS transfer completed. Opening Frappe HRMS...')
-      window.location.assign('/api/integrations/frappe/handoff?target=/hrms')
+      window.location.assign('/api/integrations/frappe/handoff?target=auto')
     } catch (error: unknown) {
       toast.error(error instanceof Error ? error.message : 'Unable to complete HRMS transfer')
     } finally {
@@ -226,7 +229,7 @@ export function FrappeTransferClient() {
           Frappe Employee ID: <span className="font-mono">{candidate.frappe_employee_id}</span>
         </p>
         <a
-          href="/api/integrations/frappe/handoff?target=/hrms"
+          href="/api/integrations/frappe/handoff?target=auto"
           className="mt-5 inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-emerald-700"
         >
           <Send className="h-4 w-4" />
@@ -472,10 +475,18 @@ export function FrappeTransferClient() {
 
         <button
           onClick={() => void submitTransfer()}
-          disabled={submitting || candidate.status === 'missing_email' || employeeProvisioning?.ready === false}
+          disabled={
+            submitting ||
+            candidate.status === 'missing_email' ||
+            employeeProvisioning?.ready === false
+          }
           className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-emerald-700 disabled:opacity-50"
         >
-          {submitting ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+          {submitting ? (
+            <RefreshCw className="h-4 w-4 animate-spin" />
+          ) : (
+            <Send className="h-4 w-4" />
+          )}
           {submitting ? 'Submitting...' : 'Complete HRMS transfer'}
         </button>
       </section>
