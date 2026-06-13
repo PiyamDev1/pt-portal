@@ -138,7 +138,7 @@ export default function LoginPage() {
 
         if (cancelled) return
         if (session?.user) {
-          await postLoginChecks(session.user.id, { skipMfa: true })
+          await postLoginChecks(session.user.id)
           return
         }
       } catch (error: unknown) {

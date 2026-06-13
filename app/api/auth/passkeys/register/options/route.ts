@@ -25,6 +25,12 @@ export async function POST(request: Request) {
     .eq('user_id', user.id)
 
   if (existingError) return apiError(existingError.message, 500)
+  if (existingPasskeys && existingPasskeys.length > 0) {
+    return apiError(
+      'Only one biometric login device may be registered. Remove the existing passkey in account settings to add a new device.',
+      400,
+    )
+  }
 
   const { error: challengeError } = await admin.from('user_passkey_challenges').insert({
     challenge,

@@ -9,7 +9,6 @@
 import { useState } from 'react'
 import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
 import { Shield, Loader2 } from 'lucide-react'
 
 export default function Verify2FAPage() {
@@ -31,6 +30,11 @@ export default function Verify2FAPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ eventType: 'two_factor', status, metadata }),
     }).catch(() => undefined)
+  }
+
+  const handleBackToLogin = async () => {
+    await supabase.auth.signOut().catch(() => undefined)
+    router.push('/login')
   }
 
   const handleVerify = async (e: React.FormEvent) => {
@@ -155,9 +159,13 @@ export default function Verify2FAPage() {
                 >
                   Use a backup code
                 </button>
-                <Link href="/login" className="text-sm text-slate-400 hover:text-slate-600">
+                <button
+                  type="button"
+                  onClick={handleBackToLogin}
+                  className="text-sm text-slate-400 hover:text-slate-600"
+                >
                   Back to Login
-                </Link>
+                </button>
               </div>
             </>
           ) : (
@@ -197,9 +205,13 @@ export default function Verify2FAPage() {
                 >
                   Use authenticator app
                 </button>
-                <Link href="/login" className="text-sm text-slate-400 hover:text-slate-600">
+                <button
+                  type="button"
+                  onClick={handleBackToLogin}
+                  className="text-sm text-slate-400 hover:text-slate-600"
+                >
                   Back to Login
-                </Link>
+                </button>
               </div>
             </>
           )}
