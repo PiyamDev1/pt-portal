@@ -29,12 +29,6 @@ type FrappeHandoffLaunchClientProps = {
 
 type LaunchState = 'preparing' | 'ready' | 'failed'
 
-type HandoffResponse = {
-  url?: string
-  redirect?: string
-  error?: string
-}
-
 function getHandoffClientKind() {
   if (isStandalonePwa()) return 'standalone'
   if (isMobileDevice()) return 'mobile'
@@ -56,60 +50,21 @@ export function FrappeHandoffLaunchClient({
   employeeName,
   returningFromFrappe = false,
 }: FrappeHandoffLaunchClientProps) {
-  const [handoffUrl, setHandoffUrl] = useState<string | null>(null)
   const [launchState, setLaunchState] = useState<LaunchState>('preparing')
-  const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  const [mobileMode, setMobileMode] = useState(false)
-  const [companionInstalled, setCompanionInstalled] = useState(false)
-  const [showInstallSteps, setShowInstallSteps] = useState(false)
+  const [mobileMode] = useState(() => isMobileDevice() || isStandalonePwa())
+  const [companionInstalled, setCompanionInstalled] = useState(() => hasConfirmedHrmsCompanionInstall())
+  const [showInstallSteps, setShowInstallSteps] = useState(
+    () => !hasConfirmedHrmsCompanionInstall(),
+  )
 
   useEffect(() => {
-    const installed = hasConfirmedHrmsCompanionInstall()
-    const shouldOpenExternally = isMobileDevice() || isStandalonePwa()
-    setCompanionInstalled(installed)
-    setShowInstallSteps(!installed)
-    setMobileMode(shouldOpenExternally)
+    const timeout = window.setTimeout(() => {
+      setLaunchState('ready')
+      window.location.replace(buildHandoffEndpoint('redirect'))
+    }, mobileMode ? 900 : 650)
 
-    if (!shouldOpenExternally) {
-      const timeout = window.setTimeout(() => {
-        window.location.replace(buildHandoffEndpoint('redirect'))
-      }, 650)
-
-      return () => window.clearTimeout(timeout)
-    }
-
-    let cancelled = false
-
-    const prepareMobileHandoff = async () => {
-      try {
-        const response = await fetch(buildHandoffEndpoint('json'), { cache: 'no-store' })
-        const data = (await response.json().catch(() => ({}))) as HandoffResponse
-
-        if (data.redirect && !response.ok) {
-          window.location.assign(data.redirect)
-          return
-        }
-        if (!response.ok || !data.url) {
-          throw new Error(data.error || 'Unable to prepare Frappe handoff')
-        }
-
-        const url = data.url
-        if (cancelled) return
-        setHandoffUrl(url)
-        setLaunchState('ready')
-      } catch (error: unknown) {
-        if (cancelled) return
-        setErrorMessage(error instanceof Error ? error.message : 'Unable to open Frappe HRMS')
-        setLaunchState('failed')
-      }
-    }
-
-    void prepareMobileHandoff()
-
-    return () => {
-      cancelled = true
-    }
-  }, [])
+    return () => window.clearTimeout(timeout)
+  }, [mobileMode])
 
   const stateLabel = {
     preparing: 'Preparing secure link',
@@ -120,7 +75,7 @@ export function FrappeHandoffLaunchClient({
   const stateMessage = mobileMode
     ? returningFromFrappe
       ? 'Frio asked IMS to approve access. We are signing you back into the HRMS companion app now.'
-      : 'For the smoothest phone experience, install the HRMS companion app when Frio opens. Future HRMS launches will still be approved by IMS first.'
+      : 'For the smoothest phone experience, keep Frio installed as its own web app. IMS will approve the launch and then hand you over directly.'
     : 'We are creating a short-lived secure handoff and opening your HRMS workspace.'
 
   const markCompanionInstalled = () => {
@@ -208,12 +163,6 @@ export function FrappeHandoffLaunchClient({
             </div>
           </div>
 
-          {errorMessage && (
-            <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">
-              {errorMessage}
-            </div>
-          )}
-
           {mobileMode && launchState === 'preparing' && (
             <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200 bg-slate-950 p-4 text-sm text-white">
               <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
@@ -222,7 +171,7 @@ export function FrappeHandoffLaunchClient({
               <p className="mt-3 font-bold">Preparing your secure HRMS launch...</p>
               <p className="mt-1 text-white/70">
                 Keeping you on this IMS screen until the Frio handoff link is ready avoids the blank
-                external browser screen during token creation.
+                app shell while the secure token is created.
               </p>
             </div>
           )}
@@ -290,30 +239,14 @@ export function FrappeHandoffLaunchClient({
           )}
 
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
-            {mobileMode ? (
-              <a
-                href={handoffUrl || undefined}
-                onClick={(event) => {
-                  if (!handoffUrl) event.preventDefault()
-                }}
-                className={`inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-bold text-white transition ${
-                  handoffUrl
-                    ? 'bg-emerald-600 hover:bg-emerald-700'
-                    : 'pointer-events-none bg-emerald-600 opacity-60'
-                }`}
-              >
-                {handoffUrl ? 'Open HRMS App' : 'Preparing HRMS App'}
-                <ExternalLink className="h-4 w-4" />
-              </a>
-            ) : (
-              <a
-                href="/api/integrations/frappe/handoff?target=auto"
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-emerald-700"
-              >
-                Open now
-                <ExternalLink className="h-4 w-4" />
-              </a>
-            )}
+            <button
+              type="button"
+              onClick={() => window.location.replace(buildHandoffEndpoint('redirect'))}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-emerald-700"
+            >
+              {launchState === 'ready' ? 'Open HRMS App' : 'Continue to HRMS'}
+              <ExternalLink className="h-4 w-4" />
+            </button>
             <a
               href="/dashboard"
               className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-50"

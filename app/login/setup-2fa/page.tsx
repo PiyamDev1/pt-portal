@@ -73,9 +73,8 @@ export default function Setup2FAPage() {
     if (error) {
       setError('Incorrect code. Please try again.')
     } else {
-      // Replace the history so back button doesn't go to 2FA
-      window.history.replaceState(null, '', '/dashboard')
-      router.push('/dashboard')
+      // Replace the history so back button does not return to the enrollment step.
+      router.replace('/dashboard')
     }
   }
 

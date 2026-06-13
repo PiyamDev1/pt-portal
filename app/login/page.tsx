@@ -6,7 +6,7 @@
  */
 
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
 import { useRouter } from 'next/navigation'
 import {
@@ -25,6 +25,8 @@ import {
   hasPasskeyEnabledHint,
   hasPasskeySession,
   isWebAuthnSupported,
+  isMobileDevice,
+  isStandalonePwa,
   markPasskeySession,
   preparePublicKeyRequestOptions,
   serializeAuthenticationCredential,
@@ -41,12 +43,21 @@ export default function LoginPage() {
   const [passkeySupported, setPasskeySupported] = useState(false)
   const [passkeyHint, setPasskeyHint] = useState(false)
   const [checkingExistingSession, setCheckingExistingSession] = useState(true)
+  const [freshLaunch, setFreshLaunch] = useState(false)
+  const [freshLaunchResolved, setFreshLaunchResolved] = useState(false)
+  const autoBiometricPrompted = useRef(false)
 
   const router = useRouter()
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
   )
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    setFreshLaunch(params.get('fresh') === '1')
+    setFreshLaunchResolved(true)
+  }, [])
 
   const recordClientSecurityEvent = async (
     status: 'started' | 'success' | 'failed' | 'blocked',
@@ -97,7 +108,7 @@ export default function LoginPage() {
 
     // --- FORCE PASSWORD CHANGE CHECK ---
     if (employee?.is_temporary_password) {
-      router.push('/auth/new-password')
+      router.replace('/auth/new-password')
       return
     }
     // ----------------------------------------
@@ -112,7 +123,7 @@ export default function LoginPage() {
     }
 
     if (options.skipMfa) {
-      router.push('/dashboard')
+      router.replace('/dashboard')
       return
     }
 
@@ -120,9 +131,9 @@ export default function LoginPage() {
     const { data: mfa } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
 
     if (mfa?.nextLevel === 'aal2') {
-      router.push('/login/verify-2fa')
+      router.replace('/login/verify-2fa')
     } else {
-      router.push('/login/setup-2fa')
+      router.replace('/login/setup-2fa')
     }
   }
 
@@ -137,6 +148,8 @@ export default function LoginPage() {
   }
 
   useEffect(() => {
+    if (!freshLaunchResolved) return
+
     let cancelled = false
 
     setPasskeySupported(isWebAuthnSupported())
@@ -144,6 +157,11 @@ export default function LoginPage() {
     setEmail((current) => current || getPasskeyLastEmail())
 
     const resumeExistingSession = async () => {
+      if (freshLaunch) {
+        if (!cancelled) setCheckingExistingSession(false)
+        return
+      }
+
       try {
         const {
           data: { session },
@@ -173,7 +191,26 @@ export default function LoginPage() {
     // This is intentionally a mount-only resume check for installed/PWA launches.
     // Re-running while the user types would make the login form feel jumpy.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [freshLaunchResolved, freshLaunch])
+
+  useEffect(() => {
+    if (!freshLaunchResolved || freshLaunch) return
+    if (autoBiometricPrompted.current) return
+    if (checkingExistingSession || biometricLoading || loading) return
+    if (!passkeySupported || !passkeyHint) return
+    if (!getPasskeyLastEmail()) return
+    if (!(isMobileDevice() || isStandalonePwa())) return
+
+    autoBiometricPrompted.current = true
+    const timeout = window.setTimeout(() => {
+      void handleBiometricLogin()
+    }, 250)
+
+    return () => window.clearTimeout(timeout)
+    // The biometric launcher should only auto-fire once per page load so the
+    // installed app feels like a native sign-in surface on mobile.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [freshLaunchResolved, freshLaunch, checkingExistingSession, passkeyHint, passkeySupported, biometricLoading, loading])
 
   // --- HANDLER: Standard Login ---
   const handleStandardLogin = async (e: React.FormEvent) => {
@@ -276,7 +313,7 @@ export default function LoginPage() {
     await supabase.auth.signInWithOAuth({
       provider: 'azure',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
+        redirectTo: `${window.location.origin}/auth/callback?next=/dashboard`,
         scopes: 'email',
       },
     })

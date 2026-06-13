@@ -35,8 +35,8 @@ export default function Verify2FAPage() {
 
   const handleBackToLogin = async () => {
     clearPasskeySession()
-    await supabase.auth.signOut().catch(() => undefined)
-    router.push('/login')
+    await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined)
+    router.replace('/login?fresh=1')
   }
 
   const handleVerify = async (e: React.FormEvent) => {
@@ -65,8 +65,7 @@ export default function Verify2FAPage() {
             })
             if (!verifyError) {
               await recordTwoFactorEvent('success', { method: 'totp' })
-              window.history.replaceState(null, '', '/dashboard')
-              router.push('/dashboard')
+              router.replace('/dashboard')
               return
             }
           }
@@ -84,8 +83,7 @@ export default function Verify2FAPage() {
           body: JSON.stringify({ code }),
         })
         if (resp.ok) {
-          window.history.replaceState(null, '', '/dashboard')
-          router.push('/dashboard')
+          router.replace('/dashboard')
           return
         }
         setError('Invalid or used backup code. Please try again.')
@@ -120,7 +118,7 @@ export default function Verify2FAPage() {
               <Shield className="h-6 w-6" />
             </div>
             <h2 className="text-2xl font-black text-slate-950">Two-Factor Authentication</h2>
-            <p className="mt-2 text-sm text-slate-600">Prove it's you to finish signing in to Piyam Travels IMS.</p>
+            <p className="mt-2 text-sm text-slate-600">Prove it&apos;s you to finish signing in to Piyam Travels IMS.</p>
           </div>
           {!useBackup ? (
             <>

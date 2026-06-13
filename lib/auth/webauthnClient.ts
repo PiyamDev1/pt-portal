@@ -5,6 +5,68 @@ const PASSKEY_SESSION_KEY = 'pt-ims-passkey-session'
 const PASSKEY_SESSION_ID_KEY = 'pt-ims-passkey-session-id'
 const HRMS_COMPANION_INSTALLED_HINT_KEY = 'pt-ims-hrms-companion-installed'
 
+const COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 180
+
+function readCookie(name: string) {
+  if (typeof document === 'undefined') return ''
+  const entry = document.cookie
+    .split('; ')
+    .find((part) => part.startsWith(`${encodeURIComponent(name)}=`))
+  return entry ? decodeURIComponent(entry.slice(entry.indexOf('=') + 1)) : ''
+}
+
+function writeCookie(name: string, value: string, maxAgeSeconds = COOKIE_MAX_AGE_SECONDS) {
+  if (typeof document === 'undefined') return
+  document.cookie = [
+    `${encodeURIComponent(name)}=${encodeURIComponent(value)}`,
+    'Path=/',
+    'SameSite=Lax',
+    `Max-Age=${maxAgeSeconds}`,
+  ].join('; ')
+}
+
+function clearCookie(name: string) {
+  if (typeof document === 'undefined') return
+  document.cookie = [
+    `${encodeURIComponent(name)}=`,
+    'Path=/',
+    'SameSite=Lax',
+    'Max-Age=0',
+  ].join('; ')
+}
+
+function readStorageValue(key: string) {
+  if (typeof window === 'undefined') return ''
+  try {
+    return window.localStorage.getItem(key) || readCookie(key)
+  } catch {
+    return readCookie(key)
+  }
+}
+
+function writeStorageValue(key: string, value: string | null | undefined) {
+  if (typeof window === 'undefined') return
+  const normalized = value?.trim()
+  if (!normalized) return
+  try {
+    window.localStorage.setItem(key, normalized)
+  } catch {
+    // Some mobile web-app contexts can reject storage writes; the cookie fallback below
+    // keeps the device hint available without turning this helper into a hard failure.
+  }
+  writeCookie(key, normalized)
+}
+
+function removeStorageValue(key: string) {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.removeItem(key)
+  } catch {
+    // Ignore storage errors during sign-out cleanup.
+  }
+  clearCookie(key)
+}
+
 function base64urlToArrayBuffer(value: string) {
   const base64 = value.replace(/-/g, '+').replace(/_/g, '/')
   const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=')
@@ -73,55 +135,55 @@ export function resetPasskeyPromptDismissal() {
 
 export function setPasskeyEnabledHint() {
   if (typeof window === 'undefined') return
-  window.localStorage.setItem(PASSKEY_ENABLED_HINT_KEY, '1')
+  writeStorageValue(PASSKEY_ENABLED_HINT_KEY, '1')
 }
 
 export function hasPasskeyEnabledHint() {
   if (typeof window === 'undefined') return false
-  return window.localStorage.getItem(PASSKEY_ENABLED_HINT_KEY) === '1'
+  return readStorageValue(PASSKEY_ENABLED_HINT_KEY) === '1'
 }
 
 export function setPasskeyLastEmail(email: string | null | undefined) {
   if (typeof window === 'undefined') return
   const normalized = email?.trim().toLowerCase()
   if (!normalized) return
-  window.localStorage.setItem(PASSKEY_LAST_EMAIL_KEY, normalized)
+  writeStorageValue(PASSKEY_LAST_EMAIL_KEY, normalized)
 }
 
 export function getPasskeyLastEmail() {
   if (typeof window === 'undefined') return ''
-  return window.localStorage.getItem(PASSKEY_LAST_EMAIL_KEY) || ''
+  return readStorageValue(PASSKEY_LAST_EMAIL_KEY)
 }
 
 export function markPasskeySession(sessionId?: string) {
   if (typeof window === 'undefined') return
-  window.localStorage.setItem(PASSKEY_SESSION_KEY, '1')
+  writeStorageValue(PASSKEY_SESSION_KEY, '1')
   if (sessionId) {
-    window.localStorage.setItem(PASSKEY_SESSION_ID_KEY, sessionId)
+    writeStorageValue(PASSKEY_SESSION_ID_KEY, sessionId)
   }
 }
 
 export function clearPasskeySession() {
   if (typeof window === 'undefined') return
-  window.localStorage.removeItem(PASSKEY_SESSION_KEY)
-  window.localStorage.removeItem(PASSKEY_SESSION_ID_KEY)
+  removeStorageValue(PASSKEY_SESSION_KEY)
+  removeStorageValue(PASSKEY_SESSION_ID_KEY)
 }
 
 export function getPasskeySessionId() {
   if (typeof window === 'undefined') return ''
-  return window.localStorage.getItem(PASSKEY_SESSION_ID_KEY) || ''
+  return readStorageValue(PASSKEY_SESSION_ID_KEY)
 }
 
 export function hasPasskeySession(sessionId?: string) {
   if (typeof window === 'undefined') return false
-  if (window.localStorage.getItem(PASSKEY_SESSION_KEY) !== '1') return false
+  if (readStorageValue(PASSKEY_SESSION_KEY) !== '1') return false
   if (!sessionId) return true
-  return window.localStorage.getItem(PASSKEY_SESSION_ID_KEY) === sessionId
+  return readStorageValue(PASSKEY_SESSION_ID_KEY) === sessionId
 }
 
 export function clearPasskeyLastEmail() {
   if (typeof window === 'undefined') return
-  window.localStorage.removeItem(PASSKEY_LAST_EMAIL_KEY)
+  removeStorageValue(PASSKEY_LAST_EMAIL_KEY)
 }
 
 export function hasConfirmedHrmsCompanionInstall() {
