@@ -5,7 +5,7 @@
  * @module app/dashboard/applications/nadra/components/helpers
  */
 
-// Core formatting functions moved to app/lib/utils.ts
+// Core formatting functions live in root shared utilities under lib/utils.ts.
 
 import { formatCNIC as coreFormatCNIC, getStatusColor as coreGetStatusColor } from '@/lib/utils'
 import type { NadraApplication, NadraServiceDetails, NadraServiceRecord } from '@/app/types/nadra'

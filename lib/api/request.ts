@@ -1,18 +1,17 @@
 /**
- * API Request Processing Utilities
- * Parse and validate request bodies with Zod schemas
- * Helper functions for common request patterns
- * 
- * @module lib/api/request
+ * API request parsing helpers.
+ *
+ * These helpers keep route handlers focused on business logic instead of
+ * repetitive JSON parsing and validation boilerplate.
  */
 
 import { z } from 'zod'
 
 /**
- * Parse request JSON body and validate it against a Zod schema
- * @param request The fetch Request object
- * @param schema Zod schema to validate against
- * @returns Object with parsed data or error message
+ * Parse request JSON and validate it against a Zod schema.
+ *
+ * We return `{ data, error }` instead of throwing so route handlers can decide
+ * whether to surface a 400, enrich the message, or branch on validation state.
  */
 export async function parseBodyWithSchema<T>(request: Request, schema: z.ZodType<T>) {
   const parsedJson = await request
@@ -29,10 +28,7 @@ export async function parseBodyWithSchema<T>(request: Request, schema: z.ZodType
 }
 
 /**
- * Extract a query parameter from a URL string
- * @param url The full URL string
- * @param name The query parameter name to extract
- * @returns The parameter value or null if not found
+ * Small helper for routes that receive raw URL strings instead of a `URL` instance.
  */
 export function getSearchParam(url: string, name: string) {
   return new URL(url).searchParams.get(name)

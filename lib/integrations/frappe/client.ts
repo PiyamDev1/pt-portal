@@ -1,7 +1,13 @@
 /**
  * Frappe Integration Client
  *
- * Thin typed wrapper around Frappe REST API with retry and idempotent request support.
+ * Thin typed wrapper around the Frappe REST API with retry and idempotent
+ * request support.
+ *
+ * Why this exists:
+ * The portal talks to Frappe from multiple routes and sync flows. Centralizing
+ * auth, retry policy, timeout behavior, and error extraction keeps the bridge
+ * predictable and makes operational failures easier to diagnose.
  */
 
 import { toErrorMessage } from '@/lib/api/error'
@@ -47,6 +53,13 @@ export class FrappeApiError extends Error {
   }
 }
 
+/**
+ * Read connection details from environment variables.
+ *
+ * The bridge supports either a bearer-style token or the API key/secret pair
+ * commonly used by Frappe. We fail fast here so route handlers do not proceed
+ * into partial or misleading sync attempts.
+ */
 function getFrappeConfigFromEnv(): FrappeClientConfig {
   const baseUrl = process.env.FRAPPE_BASE_URL || ''
   const apiToken = process.env.FRAPPE_API_TOKEN
@@ -71,6 +84,12 @@ function buildAuthHeader(config: FrappeClientConfig) {
   return `token ${config.apiKey}:${config.apiSecret}`
 }
 
+/**
+ * Build a stable request URL while dropping nullish query params.
+ *
+ * That keeps upstream requests cleaner and avoids sending accidental "undefined"
+ * strings to Frappe filters.
+ */
 function buildUrl(baseUrl: string, path: string, query?: FrappeRequestOptions['query']) {
   const normalizedBase = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl
   const normalizedPath = path.startsWith('/') ? path : `/${path}`
@@ -112,7 +131,9 @@ function extractServerMessages(value: unknown) {
   return rawMessages
     .map((message) => {
       const parsedMessage = typeof message === 'string' ? parseJson(message) : message
-      return getStringField(parsedMessage, 'message') || (typeof message === 'string' ? message : null)
+      return (
+        getStringField(parsedMessage, 'message') || (typeof message === 'string' ? message : null)
+      )
     })
     .filter((message): message is string => Boolean(message))
 }
@@ -128,14 +149,23 @@ function extractFrappeErrorMessage(payload: string) {
   const serverMessages = extractServerMessages(record._server_messages)
   if (serverMessages.length > 0) return serverMessages.join(' ')
 
-  return getStringField(record, 'message')
-    || getStringField(record, 'exception')
-    || getStringField(record, 'exc_type')
-    || trimmedPayload
+  return (
+    getStringField(record, 'message') ||
+    getStringField(record, 'exception') ||
+    getStringField(record, 'exc_type') ||
+    trimmedPayload
+  )
 }
 
 const delay = async (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
+/**
+ * Execute a request against Frappe with:
+ * - portal-managed auth headers
+ * - abort-based timeout
+ * - bounded retry/backoff for transient failures
+ * - normalized error messages suitable for operator-facing toasts/logs
+ */
 export async function frappeRequest<T = unknown>(
   path: string,
   options: FrappeRequestOptions = {},

@@ -166,7 +166,7 @@ export const documentService: DocumentService = {
 
 #### 1.3 Create MinIO Connection Hook
 
-**File**: `app/hooks/useMinioConnection.ts`
+**File**: `hooks/useMinioConnection.ts`
 
 ```typescript
 export const useMinioConnection = () => {

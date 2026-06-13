@@ -7,7 +7,8 @@ import { findIdempotentBooking, recordIdempotentBooking, storeBookingEmailAttemp
 
 type ResendableEmailKind = 'confirmation' | 'modification' | 'cancellation'
 
-const SCHEMA_HINT = 'Booking schema is out of date. Run scripts/create-bookings-schema.sql in Supabase SQL editor.'
+const SCHEMA_HINT =
+  'Booking schema is out of date. Run scripts/bootstrap/create-bookings-schema.sql in Supabase SQL editor.'
 
 function isSchemaError(error: unknown): boolean {
   const code = (error as { code?: string } | null)?.code

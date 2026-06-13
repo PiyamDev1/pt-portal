@@ -1,7 +1,12 @@
 /**
  * Document Service Layer
- * Placeholder implementations for MinIO integration
- * Easy to swap with real implementations when backend is ready
+ *
+ * Shared document operations used by the UI.
+ *
+ * Despite the older "placeholder" wording, this module now represents the
+ * practical client-side orchestration layer for document uploads, downloads,
+ * validation, and preview helpers. It exists so feature screens do not each
+ * have to understand storage details or upload flow quirks.
  *
  * @module lib/services/documentService
  */
@@ -28,8 +33,7 @@ const MAX_FILE_SIZE = 2000000 // 2 MB in bytes
 const ALLOWED_MIME_TYPES = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp']
 
 /**
- * Document Service Interface
- * All methods are placeholder implementations
+ * Stable interface consumed by document-heavy UI surfaces.
  */
 export interface DocumentService {
   // Connection & Status
@@ -69,10 +73,10 @@ export interface DocumentService {
 }
 
 /**
- * Placeholder Document Service Implementation
+ * Current document service implementation.
  *
- * IMPORTANT: These are placeholder methods that simulate backend behavior
- * Replace with actual API calls when backend is ready
+ * We keep this behind an interface so the UI can depend on document behavior
+ * without binding itself directly to transport details.
  */
 class PlaceholderDocumentService implements DocumentService {
   private getServerS3Client(): S3Client {
@@ -81,13 +85,15 @@ class PlaceholderDocumentService implements DocumentService {
     }
 
     // Reuse the shared MinIO/S3 client so signing and direct object reads
-    // always use identical endpoint/region/credentials.
+    // always use identical endpoint, region, and credentials.
     return getS3Client()
   }
 
   /**
-   * PLACEHOLDER: Check MinIO server connection status
-   * In production: Will ping the MinIO endpoint and return actual status
+   * Check storage health via the server-side status endpoint.
+   *
+   * The server route is the source of truth because browser-side checks alone
+   * cannot tell us whether the backend can actually read/write the bucket.
    */
   async checkMinioStatus(): Promise<MinioStatus> {
     try {
@@ -119,8 +125,10 @@ class PlaceholderDocumentService implements DocumentService {
   }
 
   /**
-   * PLACEHOLDER: Ping MinIO server
-   * Returns latency in milliseconds
+   * Lightweight client-visible latency probe.
+   *
+   * This is useful for UI feedback but should not be treated as proof that the
+   * server-side storage pipeline is fully healthy.
    */
   async pingMinioServer(endpoint: string): Promise<number> {
     const startTime = performance.now()
@@ -136,8 +144,7 @@ class PlaceholderDocumentService implements DocumentService {
   }
 
   /**
-   * PLACEHOLDER: Get MinIO configuration
-   * Returns configuration from environment variables
+   * Return non-sensitive client-visible storage configuration.
    */
   async getMinioConfig(): Promise<MinioConfig> {
     return {
@@ -151,7 +158,11 @@ class PlaceholderDocumentService implements DocumentService {
   }
 
   /**
-   * Secure Direct-to-MinIO Upload
+   * Upload a document through the application server.
+   *
+   * We intentionally route uploads through the backend fallback here because it
+   * is more reliable for our current deployment shape and lets the server own
+   * final persistence and metadata recording.
    */
   async uploadDocument(
     file: File,
@@ -169,7 +180,8 @@ class PlaceholderDocumentService implements DocumentService {
       // Guarantee we have a type to send
       const safeFileType = file.type || 'application/octet-stream'
 
-      // 2. Upload through our server as a reliable fallback when presigned PUT is unstable.
+      // Upload through our server as a reliable fallback when presigned PUT is
+      // unstable across environments and mobile browsers.
       const uploadResult = await new Promise<{
         documentId: string
         minioKey: string
@@ -227,7 +239,8 @@ class PlaceholderDocumentService implements DocumentService {
 
       if (onProgress) onProgress(98)
 
-      // 4. Persist metadata to Supabase
+      // Persist metadata only after storage succeeds so the database does not
+      // claim a document exists when the underlying object write failed.
       await fetch(`${API_BASE}/documents`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -246,7 +259,7 @@ class PlaceholderDocumentService implements DocumentService {
 
       if (onProgress) onProgress(100)
 
-      // 5. Return the formatted Document object back to the UI
+      // Return the normalized document shape expected by the UI layer.
       return {
         id: documentId,
         fileName: file.name,

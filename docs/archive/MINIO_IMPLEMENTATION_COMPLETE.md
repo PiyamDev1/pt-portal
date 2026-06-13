@@ -164,7 +164,7 @@ import {
 #### Use Connection Hook
 
 ```tsx
-import { useMinioConnection } from '@/app/hooks/useMinioConnection'
+import { useMinioConnection } from '@/hooks/useMinioConnection'
 
 const { connected, ping, status, refresh } = useMinioConnection()
 ```

@@ -38,7 +38,7 @@ The receipt system is fully implemented end-to-end across backend, UI, metrics, 
 - Receipt history is opened from popup corner button and shown as logs-only entries.
 
 ### Persistence & Schema
-- New receipt storage table via `scripts/create-generated-receipts-table.sql`.
+- New receipt storage table via `scripts/bootstrap/create-generated-receipts-table.sql`.
 - Share-tracking columns: shared flag, shared timestamp, channel, and share count.
 - Safe fallback behavior if schema is not available (APIs remain stable with supported=false responses where applicable).
 
@@ -56,7 +56,7 @@ The receipt system is fully implemented end-to-end across backend, UI, metrics, 
 ### Admin Audit & Hardening
 - New admin API: `GET /api/admin/receipt-metrics` with maintenance-session protection.
 - New Settings tab: **Receipt Metrics** for generation/share/backfill visibility.
-- New backfill script: `scripts/backfill-generated-receipts-share-columns.sql`.
+- New backfill script: `scripts/manual/backfill-generated-receipts-share-columns.sql`.
 - New smoke flow: `tests/smoke/receipt-flow.spec.ts` (generate -> share -> verify -> list roundtrip).
 - New operations guide: `docs/guides/RECEIPT_OPERATIONS_GUIDE.md`.
 
@@ -207,7 +207,7 @@ The receipt system is fully implemented end-to-end across backend, UI, metrics, 
 - **[Type System Documentation](docs/TYPES.md)** - TypeScript type definitions
 - **[API Documentation](docs/technical/)** - API endpoints and usage patterns
 - **[Database Documentation](docs/database/)** - Complete schema reference
-- **[Code Structure Guide](CODEBASE_STRUCTURE_GUIDE.md)** - File organization and conventions
+- **[Code Structure Guide](../plans/CODEBASE_STRUCTURE_GUIDE.md)** - File organization and conventions
 
 ---
 

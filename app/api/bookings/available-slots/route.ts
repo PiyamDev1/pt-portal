@@ -3,7 +3,8 @@ import { getRouteSupabaseClient } from '@/lib/api/serverSupabase';
 import { AvailableSlot, AvailableSlotsResponse } from '@/app/types/bookings';
 import { buildDefaultBranchSchedule } from '@/lib/bookingBranchSchedule';
 
-const SCHEMA_HINT = 'Booking schema is out of date. Run scripts/create-bookings-schema.sql in Supabase SQL editor.';
+const SCHEMA_HINT =
+  'Booking schema is out of date. Run scripts/bootstrap/create-bookings-schema.sql in Supabase SQL editor.'
 const CANDIDATE_SLOT_STEP_MINUTES = 5;
 
 function isSchemaError(error: unknown): boolean {

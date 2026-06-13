@@ -15,6 +15,7 @@ If you are reading this inside the repo, start here. If you are reading the publ
 - Overview and project entry point: [Repository README](https://github.com/PiyamDev1/pt-portal/blob/main/README.md)
 - Docs site landing page: [index.md](index.md)
 - Setup and onboarding: [guides/GETTING_STARTED.md](guides/GETTING_STARTED.md)
+- Developer workflow: [guides/DEVELOPER_GUIDE.md](guides/DEVELOPER_GUIDE.md)
 - Quick reference: [guides/QUICK_REFERENCE.md](guides/QUICK_REFERENCE.md)
 
 ### Product and workflow guides
@@ -37,6 +38,12 @@ If you are reading this inside the repo, start here. If you are reading the publ
 - Storage: [technical/STORAGE_SYSTEM.md](technical/STORAGE_SYSTEM.md)
 - Deployment environment notes: [technical/DEPLOYMENT_ENVIRONMENT_SETUP.md](technical/DEPLOYMENT_ENVIRONMENT_SETUP.md)
 - Shared type conventions: [TYPES.md](TYPES.md)
+
+### Planning, operations, and archive
+
+- Planning index: [plans/README.md](plans/README.md)
+- Operations notes: [operations/README.md](operations/README.md)
+- Archive index: [archive/README.md](archive/README.md)
 
 ## Recommended reading paths
 

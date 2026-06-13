@@ -31,7 +31,7 @@ This will show:
 
 Run this script in your **Supabase SQL Editor**:
 
-Copy the entire contents of: [`scripts/create-timeclock-tables.sql`](scripts/create-timeclock-tables.sql)
+Copy the entire contents of: [`scripts/bootstrap/create-timeclock-tables.sql`](../../scripts/bootstrap/create-timeclock-tables.sql)
 
 This will:
 
@@ -67,9 +67,9 @@ DROP POLICY IF EXISTS "Users can delete their own codes" ON timeclock_manual_cod
 
 - `/app/api/timeclock/manual-entry/generate/route.ts` - API endpoint
 - `/app/api/timeclock/manual-entry/diagnostics/route.ts` - Diagnostics endpoint (NEW)
-- `/scripts/create-timeclock-tables.sql` - Complete table setup (NEW)
-- `/scripts/create-timeclock-manual-codes-table.sql` - Manual codes table only
-- `/scripts/fix-timeclock-manual-codes-rls.sql` - RLS fix script
+- `/scripts/bootstrap/create-timeclock-tables.sql` - Complete table setup (NEW)
+- `/scripts/bootstrap/create-timeclock-manual-codes-table.sql` - Manual codes table only
+- `/scripts/manual/fix-timeclock-manual-codes-rls.sql` - RLS fix script
 
 ## Why RLS is Disabled
 

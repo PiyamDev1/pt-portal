@@ -405,7 +405,7 @@ import DocumentHub from '@/app/dashboard/applications/nadra/components/DocumentH
 ## 📞 Support
 
 For questions or issues, refer to the main plan document:
-`/workspaces/pt-portal/Future Plans/MINIO_DOCUMENT_MANAGEMENT_PLAN.md`
+`/workspaces/pt-portal/docs/plans/future/MINIO_DOCUMENT_MANAGEMENT_PLAN.md`
 
 ---
 

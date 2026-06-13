@@ -1,4 +1,12 @@
 import { type BookingEmailKind, type BookingNotificationStatus } from '@/lib/bookingOperations'
+
+/**
+ * Thin persistence helpers for booking side effects.
+ *
+ * These helpers keep route handlers from duplicating the same idempotency and
+ * email-log write patterns in multiple endpoints.
+ */
+
 type SupabaseLikeClient = {
   from: (table: string) => any
 }
@@ -6,8 +14,12 @@ type SupabaseLikeClient = {
 export async function findIdempotentBooking(
   supabase: SupabaseLikeClient,
   actionName: string,
-  key: string
-): Promise<{ booking_id: string | null; response_code: number; metadata: Record<string, unknown> | null } | null> {
+  key: string,
+): Promise<{
+  booking_id: string | null
+  response_code: number
+  metadata: Record<string, unknown> | null
+} | null> {
   const { data, error } = await supabase
     .from('booking_idempotency_keys')
     .select('booking_id,response_code,metadata')
@@ -19,6 +31,12 @@ export async function findIdempotentBooking(
   return data
 }
 
+/**
+ * Record the result of a booking action under a caller-provided idempotency key.
+ *
+ * This protects booking mutations from duplicate submissions caused by retries,
+ * double-clicks, or flaky network behavior.
+ */
 export async function recordIdempotentBooking(
   supabase: SupabaseLikeClient,
   payload: {
@@ -28,18 +46,27 @@ export async function recordIdempotentBooking(
     bookingId?: string | null
     responseCode?: number
     metadata?: Record<string, unknown>
-  }
+  },
 ): Promise<void> {
-  await supabase.from('booking_idempotency_keys').upsert({
-    action_name: payload.actionName,
-    idempotency_key: payload.key,
-    location_id: payload.locationId ?? null,
-    booking_id: payload.bookingId ?? null,
-    response_code: payload.responseCode ?? 200,
-    metadata: payload.metadata ?? {},
-  }, { onConflict: 'action_name,idempotency_key' })
+  await supabase.from('booking_idempotency_keys').upsert(
+    {
+      action_name: payload.actionName,
+      idempotency_key: payload.key,
+      location_id: payload.locationId ?? null,
+      booking_id: payload.bookingId ?? null,
+      response_code: payload.responseCode ?? 200,
+      metadata: payload.metadata ?? {},
+    },
+    { onConflict: 'action_name,idempotency_key' },
+  )
 }
 
+/**
+ * Persist both the email attempt log and the latest summary state on the booking.
+ *
+ * The log is the audit trail, while the columns on `bookings` make it cheap for
+ * the UI to show the latest outbound email state without another join.
+ */
 export async function storeBookingEmailAttempt(
   supabase: SupabaseLikeClient,
   payload: {
@@ -52,7 +79,7 @@ export async function storeBookingEmailAttempt(
     notificationStatus: BookingNotificationStatus
     failureReason?: string | null
     metadata?: Record<string, unknown>
-  }
+  },
 ): Promise<void> {
   if (payload.notificationStatus !== 'skipped') {
     await supabase.from('booking_email_logs').insert({
@@ -63,7 +90,8 @@ export async function storeBookingEmailAttempt(
       email_subject: payload.emailSubject,
       sender_email: payload.senderEmail,
       status: payload.notificationStatus,
-      failure_reason: payload.notificationStatus === 'failed' ? payload.failureReason ?? null : null,
+      failure_reason:
+        payload.notificationStatus === 'failed' ? (payload.failureReason ?? null) : null,
       metadata: payload.metadata ?? {},
     })
   }
@@ -74,7 +102,8 @@ export async function storeBookingEmailAttempt(
       last_email_sent_at: payload.notificationStatus === 'sent' ? new Date().toISOString() : null,
       last_email_kind: payload.emailKind,
       last_email_status: payload.notificationStatus,
-      last_email_error: payload.notificationStatus === 'failed' ? payload.failureReason ?? null : null,
+      last_email_error:
+        payload.notificationStatus === 'failed' ? (payload.failureReason ?? null) : null,
       last_email_subject: payload.emailSubject,
       last_email_recipient: payload.customerEmail,
     })

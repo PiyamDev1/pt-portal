@@ -5,14 +5,13 @@ Purpose: keep shared, framework-agnostic business utilities in one stable module
 ## Rules
 
 - Use `@/lib/*` for shared utilities consumed by dashboard, API routes, and hooks.
-- Avoid introducing new imports from `@/app/lib/*` in feature code.
 - Keep UI-only or route-local helpers near their feature when they are not reusable.
+- Do not reintroduce duplicate utility layers under `app/lib`.
 
-## Migration Notes
+## Status
 
-- Transitional bridge modules exist in `lib/` for legacy `app/lib` implementations.
-- During migration, update imports first (`@/app/lib/*` -> `@/lib/*`) and then move implementations.
-- When moving implementations, keep exports stable to avoid breaking callers.
+- The old compatibility bridge from `app/lib` and `app/hooks` has been removed.
+- Shared imports should now point directly at `@/lib/*` and `@/hooks/*`.
 
 ## Current Target Modules
 
@@ -26,6 +25,6 @@ Purpose: keep shared, framework-agnostic business utilities in one stable module
 
 ## Done In This Pass
 
-- App code imports standardized to root aliases:
-  - `@/app/lib/*` -> `@/lib/*`
-  - `@/app/hooks/*` -> `@/hooks/*`
+- App code imports were standardized to root aliases:
+  - `@/lib/*`
+  - `@/hooks/*`

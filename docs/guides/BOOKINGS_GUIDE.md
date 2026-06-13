@@ -118,7 +118,7 @@ Main tables involved:
 
 Bootstrap schema:
 
-- `scripts/create-bookings-schema.sql`
+- `scripts/bootstrap/create-bookings-schema.sql`
 
 Recent incremental booking migrations:
 

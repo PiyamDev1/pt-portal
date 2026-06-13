@@ -12,7 +12,7 @@ Database structure is defined by SQL migrations in:
 
 - `scripts/migrations/`
 - root-level SQL utility scripts in `scripts/`
-- booking bootstrap schema in `scripts/create-bookings-schema.sql`
+- booking bootstrap schema in `scripts/bootstrap/create-bookings-schema.sql`
 
 Always treat migration files as authoritative over secondary documentation.
 

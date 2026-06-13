@@ -1,5 +1,12 @@
 import { createHmac, randomUUID, timingSafeEqual } from 'crypto'
 
+/**
+ * Signed browser handoff from IMS to Frappe.
+ *
+ * PT-Portal remains the front door. When a linked employee needs to enter
+ * Frio/HRMS, IMS issues a short-lived signed token and the bridge app on the
+ * Frappe side consumes it to establish a session.
+ */
 const HANDOFF_ISSUER = 'pt-portal'
 const HANDOFF_AUDIENCE = 'frappe-hrms'
 const DEFAULT_TTL_SECONDS = 90
@@ -53,6 +60,12 @@ function getHandoffSecret() {
   return secret
 }
 
+/**
+ * Reject dangerous or irrelevant target paths.
+ *
+ * Handoff should only send users to normal app pages, never API, assets, or
+ * file endpoints. That keeps the bridge predictable and reduces abuse surface.
+ */
 export function normalizeFrappeHandoffTargetPath(value: string | null | undefined) {
   if (!value) return DEFAULT_TARGET_PATH
   if (!value.startsWith('/') || value.startsWith('//')) return DEFAULT_TARGET_PATH
@@ -66,6 +79,12 @@ function signPayload(payloadBase64: string, secret: string) {
   return createHmac('sha256', secret).update(payloadBase64).digest('base64url')
 }
 
+/**
+ * Create a compact signed token with a very short lifetime.
+ *
+ * The TTL is intentionally small because this token represents a live browser
+ * handoff, not a reusable API credential.
+ */
 export function createFrappeHandoffToken(
   identity: FrappeHandoffIdentity,
   options: { ttlSeconds?: number; now?: Date } = {},
@@ -97,6 +116,9 @@ export function buildFrappeHandoffUrl(identity: FrappeHandoffIdentity) {
   return url.toString()
 }
 
+/**
+ * Test-only verifier used by unit tests to validate token shape and signature.
+ */
 export function verifyFrappeHandoffTokenForTests(token: string, secret: string) {
   const [payloadBase64, signature] = token.split('.')
   if (!payloadBase64 || !signature) {
@@ -107,8 +129,8 @@ export function verifyFrappeHandoffTokenForTests(token: string, secret: string) 
   const actualBuffer = Buffer.from(signature)
   const expectedBuffer = Buffer.from(expected)
   if (
-    actualBuffer.length !== expectedBuffer.length
-    || !timingSafeEqual(actualBuffer, expectedBuffer)
+    actualBuffer.length !== expectedBuffer.length ||
+    !timingSafeEqual(actualBuffer, expectedBuffer)
   ) {
     throw new Error('Invalid token signature')
   }

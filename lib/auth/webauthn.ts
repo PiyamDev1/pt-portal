@@ -2,6 +2,13 @@ import { createHash, createPublicKey, createVerify, randomBytes } from 'crypto'
 import type { JsonWebKey as NodeJsonWebKey } from 'crypto'
 import { base64urlToBuffer, bufferToBase64url } from '@/lib/auth/base64url'
 
+/**
+ * Minimal WebAuthn server-side helpers for the IMS PWA/passkey flow.
+ *
+ * We keep this implementation local and explicit so developers can follow the
+ * challenge, attestation, and assertion steps without having to treat a third-
+ * party library as a black box.
+ */
 const CHALLENGE_BYTES = 32
 const CHALLENGE_TTL_MS = 5 * 60 * 1000
 
@@ -90,6 +97,9 @@ class CborReader {
   }
 }
 
+/**
+ * Generate a random challenge that the client must sign once.
+ */
 export function createWebAuthnChallenge() {
   return bufferToBase64url(randomBytes(CHALLENGE_BYTES))
 }
@@ -98,6 +108,13 @@ export function getChallengeExpiry() {
   return new Date(Date.now() + CHALLENGE_TTL_MS).toISOString()
 }
 
+/**
+ * Derive the relying-party context from the incoming request.
+ *
+ * This matters because passkeys are origin- and RP-ID-bound. If these values do
+ * not match what the browser thinks it is authenticating for, verification must
+ * fail.
+ */
 export function getWebAuthnContext(request: Request): WebAuthnContext {
   const forwardedHost = request.headers.get('x-forwarded-host')
   const host = forwardedHost || request.headers.get('host') || new URL(request.url).host
@@ -140,6 +157,12 @@ export function verifyClientData(params: {
   }
 }
 
+/**
+ * Parse the authenticator data blob and enforce the most important guarantees:
+ * - the credential was created for this relying party
+ * - the user was present
+ * - the user was verified by the authenticator
+ */
 export function parseAuthenticatorData(authenticatorData: Buffer, rpId: string) {
   if (authenticatorData.length < 37) {
     throw new Error('Invalid authenticator data')
@@ -188,6 +211,9 @@ function coseToJwk(coseKey: CoseKey): NodeJsonWebKey {
   }
 }
 
+/**
+ * Validate registration attestation and extract the credential we will store.
+ */
 export function parseRegistrationAttestation(params: {
   attestationObject: string
   clientDataJSON: string
@@ -236,6 +262,9 @@ export function parseRegistrationAttestation(params: {
   }
 }
 
+/**
+ * Validate a login assertion and reject replayed counters when available.
+ */
 export function verifyAuthenticationAssertion(params: {
   credentialId: string
   authenticatorData: string

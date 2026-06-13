@@ -1,5 +1,11 @@
 import { BookingStatus } from '@/app/types/bookings'
 
+/**
+ * Booking workflow helpers.
+ *
+ * These functions hold small but important business rules that need to stay
+ * consistent across API routes, reminder logic, and UI behavior.
+ */
 export type BookingEmailKind = 'confirmation' | 'modification' | 'cancellation' | 'reminder'
 export type DirectBookingEmailKind = Exclude<BookingEmailKind, 'reminder'>
 
@@ -9,6 +15,13 @@ export function normalizeBookingEmail(value: string | null | undefined): string 
   return (value || '').trim().toLowerCase()
 }
 
+/**
+ * Normalize tags into a durable comparison format.
+ *
+ * Tags may originate from forms, edits, or restored drafts. We normalize them
+ * before comparing or storing so harmless formatting changes do not look like
+ * meaningful business updates.
+ */
 export function sanitizeBookingTags(input: unknown): string[] {
   if (!Array.isArray(input)) return []
   const seen = new Set<string>()
@@ -25,7 +38,10 @@ export function sanitizeBookingTags(input: unknown): string[] {
   return result
 }
 
-export function areBookingTagsEqual(a: string[] | null | undefined, b: string[] | null | undefined): boolean {
+export function areBookingTagsEqual(
+  a: string[] | null | undefined,
+  b: string[] | null | undefined,
+): boolean {
   const left = sanitizeBookingTags(a ?? [])
   const right = sanitizeBookingTags(b ?? [])
   if (left.length !== right.length) return false
@@ -37,7 +53,12 @@ export function getAllowedBookingTransitions(status: BookingStatus): BookingStat
     case BookingStatus.PENDING:
       return [BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.CANCELLED]
     case BookingStatus.CONFIRMED:
-      return [BookingStatus.CONFIRMED, BookingStatus.PENDING, BookingStatus.COMPLETED, BookingStatus.CANCELLED]
+      return [
+        BookingStatus.CONFIRMED,
+        BookingStatus.PENDING,
+        BookingStatus.COMPLETED,
+        BookingStatus.CANCELLED,
+      ]
     case BookingStatus.CANCELLED:
       return [BookingStatus.CANCELLED, BookingStatus.PENDING, BookingStatus.CONFIRMED]
     case BookingStatus.COMPLETED:
@@ -47,10 +68,19 @@ export function getAllowedBookingTransitions(status: BookingStatus): BookingStat
   }
 }
 
-export function isAllowedBookingTransition(currentStatus: BookingStatus, nextStatus: BookingStatus): boolean {
+export function isAllowedBookingTransition(
+  currentStatus: BookingStatus,
+  nextStatus: BookingStatus,
+): boolean {
   return getAllowedBookingTransitions(currentStatus).includes(nextStatus)
 }
 
+/**
+ * Decide which customer-facing email, if any, should be produced by a change.
+ *
+ * This logic is intentionally centralized because email side effects are one of
+ * the easiest places for booking flows to drift over time.
+ */
 export function deriveBookingEmailKind(params: {
   previousStatus: BookingStatus
   nextStatus: BookingStatus
@@ -61,7 +91,10 @@ export function deriveBookingEmailKind(params: {
     return 'cancellation'
   }
 
-  if (params.previousStatus === BookingStatus.PENDING && params.nextStatus === BookingStatus.CONFIRMED) {
+  if (
+    params.previousStatus === BookingStatus.PENDING &&
+    params.nextStatus === BookingStatus.CONFIRMED
+  ) {
     return 'confirmation'
   }
 
@@ -80,12 +113,20 @@ export function deriveBookingEmailSubject(params: {
   if (params.kind === 'cancellation') return 'Your appointment was cancelled'
   if (params.kind === 'reminder') return 'Appointment reminder'
   if (params.kind === 'confirmation') {
-    return params.manualResend ? 'Your appointment confirmation was re-sent' : 'Your appointment is booked'
+    return params.manualResend
+      ? 'Your appointment confirmation was re-sent'
+      : 'Your appointment is booked'
   }
   if (params.emailChanged || params.manualResend) return 'Your appointment details were re-sent'
   return 'Your appointment was updated'
 }
 
+/**
+ * Support idempotency from either a request header or body payload.
+ *
+ * Some callers are browser clients and others are scripted/admin integrations,
+ * so we accept both forms.
+ */
 export function getIdempotencyKey(request: Request, body: unknown): string | null {
   const headerKey = request.headers.get('idempotency-key')?.trim()
   if (headerKey) return headerKey

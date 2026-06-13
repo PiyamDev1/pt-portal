@@ -42,12 +42,14 @@ The documentation is split into a GitHub-friendly docs site and deeper guide/ref
 - Docs home: [docs/README.md](docs/README.md)
 - GitHub Pages landing page source: [docs/index.md](docs/index.md)
 - Setup and onboarding: [docs/guides/GETTING_STARTED.md](docs/guides/GETTING_STARTED.md)
+- Developer workflow and coding guidance: [docs/guides/DEVELOPER_GUIDE.md](docs/guides/DEVELOPER_GUIDE.md)
 - Day-to-day product usage: [docs/guides/USAGE_GUIDE.md](docs/guides/USAGE_GUIDE.md)
 - Deployment and release flow: [docs/guides/DEPLOYMENT_GUIDE.md](docs/guides/DEPLOYMENT_GUIDE.md)
 - Integrations and external services: [docs/guides/INTEGRATIONS_GUIDE.md](docs/guides/INTEGRATIONS_GUIDE.md)
 - Frappe HRMS setup: [docs/guides/FRAPPE_HRMS_SETUP.md](docs/guides/FRAPPE_HRMS_SETUP.md)
 - Architecture: [docs/guides/ARCHITECTURE_GUIDE.md](docs/guides/ARCHITECTURE_GUIDE.md)
 - API reference: [docs/technical/API_REFERENCE.md](docs/technical/API_REFERENCE.md)
+- Planning and historical notes: [docs/plans/README.md](docs/plans/README.md), [docs/operations/README.md](docs/operations/README.md), [docs/archive/README.md](docs/archive/README.md)
 
 ## Development commands
 

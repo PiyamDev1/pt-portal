@@ -39,8 +39,8 @@ Rollout status: Completed and in production use.
 
 Run both SQL scripts in order:
 
-1. `scripts/create-generated-receipts-table.sql`
-2. `scripts/backfill-generated-receipts-share-columns.sql`
+1. `scripts/bootstrap/create-generated-receipts-table.sql`
+2. `scripts/manual/backfill-generated-receipts-share-columns.sql`
 
 The backfill script is idempotent and safe to re-run.
 

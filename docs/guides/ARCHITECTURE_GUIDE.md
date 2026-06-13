@@ -333,7 +333,7 @@ All storage/database clients are module-level singletons — instantiated once p
 | `usePagination`   | Page index + page size management              |
 | `useTableFilters` | Column filter state for data tables            |
 
-### App Hooks (`app/hooks/`)
+### Shared Feature Hooks (`hooks/`)
 
 | Hook                  | Purpose                                                            |
 | --------------------- | ------------------------------------------------------------------ |
@@ -903,7 +903,7 @@ export async function POST(req) {
 
 #### 2. Create Hook for Export
 
-**File:** `app/hooks/useExportAccounts.ts`
+**File:** `hooks/useExportAccounts.ts`
 
 ```typescript
 export const useExportAccounts = () => {
@@ -931,7 +931,7 @@ export const useExportAccounts = () => {
 ```typescript
 'use client'
 
-import { useExportAccounts } from '@/app/hooks/useExportAccounts'
+import { useExportAccounts } from '@/hooks/useExportAccounts'
 
 export default function LMSClient() {
   const { exportToExcel, exporting } = useExportAccounts()

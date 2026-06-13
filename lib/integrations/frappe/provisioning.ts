@@ -1,6 +1,13 @@
 import { getSupabaseClient } from '@/lib/supabaseClient'
 import { FrappeApiError, frappeRequest } from '@/lib/integrations/frappe/client'
 
+/**
+ * Employee provisioning is intentionally opinionated around a single company.
+ *
+ * PT-Portal is the system deciding who is eligible to cross into HRMS, and the
+ * Frappe side is expected to mirror that canonical operating company rather
+ * than letting ad-hoc UI input create inconsistent employee placement.
+ */
 const FRAPPE_DOMAIN = 'hrms'
 const EMPLOYEE_DOCTYPE = 'Employee'
 export const FRAPPE_DEFAULT_COMPANY = 'Piyam Travel LTD'
@@ -29,7 +36,12 @@ type EmployeeRow = {
   manager_id: string | null
   is_active: boolean | null
   roles?: RelatedName
-  locations?: ({ name?: string | null; branch_code?: string | null } | Array<{ name?: string | null; branch_code?: string | null }>) | null
+  locations?:
+    | (
+        | { name?: string | null; branch_code?: string | null }
+        | Array<{ name?: string | null; branch_code?: string | null }>
+      )
+    | null
 }
 
 type IdentityMapRow = {
@@ -66,6 +78,13 @@ type FrappeUserRecord = {
   enabled?: number | boolean | null
 }
 
+/**
+ * Candidate is the portal-side view used by the transfer UI.
+ *
+ * It blends Supabase employee data with the cross-system identity map so admins
+ * can see whether a person is already linked, ready to transfer, or blocked by
+ * missing required fields.
+ */
 export type FrappeProvisioningCandidate = {
   employee_id: string
   full_name: string
@@ -151,6 +170,13 @@ function normalizeFrappeLookupKey(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]/g, '')
 }
 
+/**
+ * Normalize free-text portal values against Frappe reference data.
+ *
+ * Frappe labels are often entered manually by admins and may differ in spacing,
+ * capitalization, or punctuation. We normalize before matching so the portal
+ * can stay resilient to minor naming drift.
+ */
 function findFrappeName(value: unknown, options: string[]) {
   const text = compactString(value)
   if (!text) return null
@@ -190,12 +216,20 @@ function normalizeDate(value: unknown, label: string) {
 function isMissingEmployeeDoctypeError(error: unknown) {
   if (!(error instanceof FrappeApiError)) return false
   const message = error.frappeMessage.toLowerCase()
-  return error.status === 404
-    && message.includes('doctype')
-    && message.includes('employee')
-    && message.includes('not found')
+  return (
+    error.status === 404 &&
+    message.includes('doctype') &&
+    message.includes('employee') &&
+    message.includes('not found')
+  )
 }
 
+/**
+ * Convert raw upstream setup failures into a more actionable operator error.
+ *
+ * Without this normalization the admin UI would show low-level REST failures
+ * instead of telling the team that ERPNext/Employee is not actually installed.
+ */
 function normalizeFrappeProvisioningError(error: unknown): never {
   if (isMissingEmployeeDoctypeError(error)) {
     throw new FrappeProvisioningSetupError(EMPLOYEE_DOCTYPE_MISSING_MESSAGE)
@@ -238,6 +272,12 @@ async function assertFrappeEmployeeProvisioningReady() {
   }
 }
 
+/**
+ * Map portal-side transfer input into Frappe-ready values.
+ *
+ * This is where we enforce defaults and resolve optional reference fields
+ * against the current Frappe dictionaries before we attempt any writes.
+ */
 async function prepareFrappeEmployeeInput(input: FrappeProvisioningTransferInput) {
   const references = await getFrappeProvisioningReferenceOptions()
   const matchedCompany = findDefaultFrappeCompany(references.companies)
@@ -274,30 +314,22 @@ async function listFrappeNames(doctype: string) {
       },
     )
 
-    return (response.data || [])
-      .map((row) => String(row.name || '').trim())
-      .filter(Boolean)
+    return (response.data || []).map((row) => String(row.name || '').trim()).filter(Boolean)
   } catch {
     return []
   }
 }
 
 export async function getFrappeProvisioningReferenceOptions(): Promise<FrappeProvisioningReferenceOptions> {
-  const [
-    companies,
-    departments,
-    branches,
-    designations,
-    employmentTypes,
-    holidayLists,
-  ] = await Promise.all([
-    listFrappeNames('Company'),
-    listFrappeNames('Department'),
-    listFrappeNames('Branch'),
-    listFrappeNames('Designation'),
-    listFrappeNames('Employment Type'),
-    listFrappeNames('Holiday List'),
-  ])
+  const [companies, departments, branches, designations, employmentTypes, holidayLists] =
+    await Promise.all([
+      listFrappeNames('Company'),
+      listFrappeNames('Department'),
+      listFrappeNames('Branch'),
+      listFrappeNames('Designation'),
+      listFrappeNames('Employment Type'),
+      listFrappeNames('Holiday List'),
+    ])
 
   return {
     companies,
@@ -309,12 +341,21 @@ export async function getFrappeProvisioningReferenceOptions(): Promise<FrappePro
   }
 }
 
+/**
+ * Build the transfer list shown in IMS settings.
+ *
+ * Supabase remains the source of truth for who exists in PT-Portal. The Frappe
+ * identity map is joined on top to show cross-system state without making the
+ * admin screen depend on HRMS as the primary directory.
+ */
 export async function getFrappeProvisioningCandidates() {
   const supabase = getSupabaseClient()
 
   const { data: employees, error: employeesError } = await supabase
     .from('employees')
-    .select('id, full_name, email, role_id, department_id, location_id, manager_id, is_active, roles(name), locations(name, branch_code)')
+    .select(
+      'id, full_name, email, role_id, department_id, location_id, manager_id, is_active, roles(name), locations(name, branch_code)',
+    )
     .order('full_name', { ascending: true })
 
   if (employeesError) throw employeesError
@@ -325,16 +366,16 @@ export async function getFrappeProvisioningCandidates() {
   const [identityResult, departmentResult] = await Promise.all([
     employeeIds.length > 0
       ? supabase
-        .from('integration_identity_map')
-        .select('supabase_employee_id, frappe_employee_id, frappe_user_id')
-        .eq('domain', FRAPPE_DOMAIN)
-        .in('supabase_employee_id', employeeIds)
+          .from('integration_identity_map')
+          .select('supabase_employee_id, frappe_employee_id, frappe_user_id')
+          .eq('domain', FRAPPE_DOMAIN)
+          .in('supabase_employee_id', employeeIds)
       : Promise.resolve({ data: [], error: null }),
     employeeIds.length > 0
       ? supabase
-        .from('employee_departments')
-        .select('employee_id, departments(name)')
-        .in('employee_id', employeeIds)
+          .from('employee_departments')
+          .select('employee_id, departments(name)')
+          .in('employee_id', employeeIds)
       : Promise.resolve({ data: [], error: null }),
   ])
 
@@ -357,7 +398,8 @@ export async function getFrappeProvisioningCandidates() {
 
   return employeeRows.map((employee): FrappeProvisioningCandidate => {
     const identity = identities.get(employee.id)
-    const fullName = String(employee.full_name || '').trim() || String(employee.email || 'Unnamed employee')
+    const fullName =
+      String(employee.full_name || '').trim() || String(employee.email || 'Unnamed employee')
     const email = String(employee.email || '').trim()
     const mapped = Boolean(identity?.frappe_employee_id)
     const missingFields: string[] = []
@@ -387,7 +429,14 @@ export async function getFrappeProvisioningCandidate(employeeId: string) {
 }
 
 async function findFrappeEmployeeByEmail(email: string) {
-  const fields = JSON.stringify(['name', 'employee_name', 'user_id', 'company_email', 'personal_email', 'status'])
+  const fields = JSON.stringify([
+    'name',
+    'employee_name',
+    'user_id',
+    'company_email',
+    'personal_email',
+    'status',
+  ])
   const filtersToTry = [
     [['company_email', '=', email]],
     [['personal_email', '=', email]],
@@ -397,15 +446,18 @@ async function findFrappeEmployeeByEmail(email: string) {
   for (const filters of filtersToTry) {
     let response: FrappeListResponse<FrappeEmployeeRecord>
     try {
-      response = await frappeRequest<FrappeListResponse<FrappeEmployeeRecord>>('/api/resource/Employee', {
-        method: 'GET',
-        query: {
-          fields,
-          filters: JSON.stringify(filters),
-          limit_page_length: 1,
+      response = await frappeRequest<FrappeListResponse<FrappeEmployeeRecord>>(
+        '/api/resource/Employee',
+        {
+          method: 'GET',
+          query: {
+            fields,
+            filters: JSON.stringify(filters),
+            limit_page_length: 1,
+          },
+          retries: 0,
         },
-        retries: 0,
-      })
+      )
     } catch (error: unknown) {
       normalizeFrappeProvisioningError(error)
     }
@@ -431,7 +483,10 @@ async function findFrappeUserByEmail(email: string) {
   return response.data?.[0] || null
 }
 
-async function createOrFindFrappeUser(candidate: FrappeProvisioningCandidate, sendWelcomeEmail: boolean) {
+async function createOrFindFrappeUser(
+  candidate: FrappeProvisioningCandidate,
+  sendWelcomeEmail: boolean,
+) {
   const existing = await findFrappeUserByEmail(candidate.email)
   if (existing?.name) {
     return { userId: existing.name, created: false }
@@ -462,28 +517,31 @@ async function createFrappeEmployee(
   const { firstName, lastName } = splitName(candidate.full_name)
   let response: FrappeDocResponse<FrappeEmployeeRecord>
   try {
-    response = await frappeRequest<FrappeDocResponse<FrappeEmployeeRecord>>('/api/resource/Employee', {
-      method: 'POST',
-      body: {
-        first_name: firstName,
-        last_name: lastName || undefined,
-        employee_name: candidate.full_name,
-        company_email: candidate.email,
-        personal_email: candidate.email,
-        user_id: frappeUserId || undefined,
-        company: input.company,
-        date_of_joining: input.date_of_joining,
-        gender: input.gender,
-        date_of_birth: input.date_of_birth,
-        status: candidate.is_active ? 'Active' : 'Inactive',
-        employment_type: compactString(input.employment_type) || undefined,
-        holiday_list: compactString(input.holiday_list) || undefined,
-        department: compactString(input.department) || undefined,
-        branch: compactString(input.branch) || undefined,
-        designation: compactString(input.designation) || undefined,
+    response = await frappeRequest<FrappeDocResponse<FrappeEmployeeRecord>>(
+      '/api/resource/Employee',
+      {
+        method: 'POST',
+        body: {
+          first_name: firstName,
+          last_name: lastName || undefined,
+          employee_name: candidate.full_name,
+          company_email: candidate.email,
+          personal_email: candidate.email,
+          user_id: frappeUserId || undefined,
+          company: input.company,
+          date_of_joining: input.date_of_joining,
+          gender: input.gender,
+          date_of_birth: input.date_of_birth,
+          status: candidate.is_active ? 'Active' : 'Inactive',
+          employment_type: compactString(input.employment_type) || undefined,
+          holiday_list: compactString(input.holiday_list) || undefined,
+          department: compactString(input.department) || undefined,
+          branch: compactString(input.branch) || undefined,
+          designation: compactString(input.designation) || undefined,
+        },
+        retries: 0,
       },
-      retries: 0,
-    })
+    )
   } catch (error: unknown) {
     normalizeFrappeProvisioningError(error)
   }
@@ -562,7 +620,9 @@ export async function ensureFrappeLoginUserForEmployee(employeeId: string) {
   }
 }
 
-function validateTransferInput(input: FrappeProvisioningTransferInput): FrappeProvisioningTransferInput {
+function validateTransferInput(
+  input: FrappeProvisioningTransferInput,
+): FrappeProvisioningTransferInput {
   return {
     ...input,
     employee_id: requireValue(input.employee_id, 'Employee'),
@@ -619,7 +679,8 @@ export async function transferEmployeeToFrappe(
     createdUser = userResult.created
   }
 
-  const employee = existingEmployee || await createFrappeEmployee(candidate, preparedInput, frappeUserId)
+  const employee =
+    existingEmployee || (await createFrappeEmployee(candidate, preparedInput, frappeUserId))
   frappeUserId = frappeUserId || employee.user_id || null
 
   await upsertIdentityMap({

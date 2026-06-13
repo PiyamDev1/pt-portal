@@ -189,6 +189,35 @@ Closes #123
 
 ## 💻 Coding Standards
 
+### Commenting and Developer Guidance
+
+Comments in this repo should explain intent, constraints, and operational context.
+
+✅ Add comments when:
+
+- business rules are not obvious from the code alone
+- an implementation exists because of an external system limitation
+- a flow is security-sensitive or audit-sensitive
+- a fallback or workaround exists and future developers need to know why
+- a module acts as infrastructure for multiple features
+
+❌ Avoid comments that only restate the next line of code.
+
+Good examples:
+
+- why a Frappe handoff token is short-lived
+- why bookings use idempotency keys
+- why document uploads go through a server fallback instead of direct browser PUT
+- why a module reads from Supabase in a specific order
+
+Preferred places for explanation:
+
+- file-level module docblocks for shared infrastructure
+- short inline comments above non-obvious branches or data transformations
+- guide documents under `docs/guides/`, `docs/technical/`, and `docs/operations/`
+
+If you are changing architecture or workflow behavior, update the relevant docs in `docs/` in the same change.
+
 ### TypeScript
 
 ✅ **Do:**

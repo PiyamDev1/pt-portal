@@ -19,7 +19,7 @@
     "lint:fix": "eslint app lib hooks components --ext .ts,.tsx,.js --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "sync:pdf-worker": "node scripts/sync-pdf-worker.mjs",
+    "sync:pdf-worker": "node scripts/dev/sync-pdf-worker.mjs",
     "postinstall": "npm run sync:pdf-worker",
     "test:smoke": "playwright test",
     "test:smoke:headed": "playwright test --headed",

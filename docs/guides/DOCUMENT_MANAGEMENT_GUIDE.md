@@ -258,7 +258,7 @@ documents (
   deleted         boolean DEFAULT false
 )
 
--- Recommended indexes (see scripts/create-indexes.sql)
+-- Recommended indexes (see scripts/bootstrap/create-indexes.sql)
 CREATE INDEX ON documents (family_head_id, deleted);
 CREATE INDEX ON documents (family_head_id, category, deleted);
 CREATE INDEX ON documents (family_head_id, uploaded_at DESC);
@@ -1087,7 +1087,7 @@ className = 'bg-green-600 hover:bg-green-700 text-white'
 
 **Related Documentation**:
 
-- See `/Future Plans/MINIO_DOCUMENT_MANAGEMENT_PLAN.md` for the original planning history
+- See `docs/plans/future/MINIO_DOCUMENT_MANAGEMENT_PLAN.md` for the original planning history
 - See `/docs/guides/ARCHITECTURE_GUIDE.md` for overall system architecture
 - See `/docs/guides/USAGE_GUIDE.md` for general usage patterns
 
