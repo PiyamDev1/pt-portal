@@ -179,21 +179,26 @@ function DesktopDashboard({
 }) {
   return (
     <section className="hidden space-y-5 lg:block">
-      <div className="flex items-center justify-between gap-6 rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
-        <div>
-          <p className="text-xs font-black uppercase tracking-[0.22em] text-[#8b1e2d]">Dashboard</p>
-          <h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950">
-            Welcome back, {userName || 'team member'}
-          </h1>
-          <p className="mt-1 text-sm text-slate-500">
-            {roleName || 'Staff'} {branchName ? `at ${branchName}` : 'workspace'}
-          </p>
-        </div>
-        <div className="rounded-2xl bg-[#4b0f16] px-4 py-3 text-right text-white">
-          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-red-100">
-            IMS access
-          </p>
-          <p className="mt-1 text-base font-black">Secured</p>
+      <div className="relative overflow-hidden rounded-[1.5rem] border border-red-100 bg-gradient-to-r from-white via-red-50 to-slate-100 px-5 py-4 shadow-sm">
+        <div className="pointer-events-none absolute -right-10 -top-16 h-36 w-36 rounded-full bg-[#8b1e2d]/15 blur-3xl" />
+        <div className="relative flex items-center justify-between gap-6">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.22em] text-[#8b1e2d]">
+              Dashboard
+            </p>
+            <h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950">
+              Welcome back, {userName || 'team member'}
+            </h1>
+            <p className="mt-1 text-sm text-slate-500">
+              {roleName || 'Staff'} {branchName ? `at ${branchName}` : 'workspace'}
+            </p>
+          </div>
+          <div className="rounded-2xl bg-[#4b0f16] px-4 py-3 text-right text-white">
+            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-red-100">
+              IMS access
+            </p>
+            <p className="mt-1 text-base font-black">Secured</p>
+          </div>
         </div>
       </div>
 

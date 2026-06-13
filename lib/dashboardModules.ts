@@ -13,6 +13,8 @@ export type DashboardModule = {
   href: string
   group: DashboardModuleGroup
   accent: string
+  iconTone: string
+  tileTone: string
   allowedRoles?: string[]
   iconKey:
     | 'badge-pound'
@@ -49,6 +51,8 @@ export const DASHBOARD_MODULES: DashboardModule[] = [
     href: '/dashboard/timeclock',
     group: 'staff',
     accent: 'from-[#3a3a3a] to-black text-white',
+    iconTone: 'from-[#2b2b2b] via-[#111827] to-black text-white shadow-black/25',
+    tileTone: 'from-white via-slate-50 to-slate-200',
     iconKey: 'clock',
   },
   {
@@ -58,6 +62,8 @@ export const DASHBOARD_MODULES: DashboardModule[] = [
     href: '/dashboard/frappe-transfer',
     group: 'staff',
     accent: 'from-emerald-700 to-teal-600 text-white',
+    iconTone: 'from-emerald-500 via-emerald-700 to-teal-800 text-white shadow-emerald-900/25',
+    tileTone: 'from-emerald-50 via-white to-teal-50',
     iconKey: 'heart',
   },
   {
@@ -67,6 +73,8 @@ export const DASHBOARD_MODULES: DashboardModule[] = [
     href: '/dashboard/applications',
     group: 'operations',
     accent: 'from-[#8b1e2d] to-[#c43b42] text-white',
+    iconTone: 'from-[#8b1e2d] via-[#b91c1c] to-[#ef4444] text-white shadow-red-900/25',
+    tileTone: 'from-red-50 via-white to-rose-100',
     iconKey: 'file-text',
   },
   {
@@ -76,6 +84,8 @@ export const DASHBOARD_MODULES: DashboardModule[] = [
     href: '/dashboard/bookings',
     group: 'operations',
     accent: 'from-[#6f1422] to-[#a32234] text-white',
+    iconTone: 'from-[#6f1422] via-[#a32234] to-[#dc2626] text-white shadow-red-950/25',
+    tileTone: 'from-[#fff5f5] via-white to-[#fee2e2]',
     iconKey: 'calendar',
   },
   {
@@ -85,6 +95,8 @@ export const DASHBOARD_MODULES: DashboardModule[] = [
     href: '/dashboard/ticketing',
     group: 'operations',
     accent: 'from-[#991b1b] to-[#dc2626] text-white',
+    iconTone: 'from-[#991b1b] via-[#dc2626] to-[#f97316] text-white shadow-orange-900/25',
+    tileTone: 'from-orange-50 via-white to-red-100',
     iconKey: 'plane',
   },
   {
@@ -94,6 +106,8 @@ export const DASHBOARD_MODULES: DashboardModule[] = [
     href: '/dashboard/applications/passports-gb',
     group: 'operations',
     accent: 'from-[#4b5563] to-[#111827] text-white',
+    iconTone: 'from-[#4b5563] via-[#1f2937] to-[#111827] text-white shadow-slate-900/25',
+    tileTone: 'from-slate-50 via-white to-slate-200',
     iconKey: 'briefcase',
   },
   {
@@ -103,6 +117,8 @@ export const DASHBOARD_MODULES: DashboardModule[] = [
     href: '/dashboard/lms',
     group: 'finance',
     accent: 'from-[#f3f4f6] to-[#d1d5db] text-slate-950',
+    iconTone: 'from-[#f8fafc] via-[#e5e7eb] to-[#9ca3af] text-slate-950 shadow-slate-500/20',
+    tileTone: 'from-white via-slate-50 to-zinc-200',
     iconKey: 'badge-pound',
   },
   {
@@ -113,6 +129,8 @@ export const DASHBOARD_MODULES: DashboardModule[] = [
     group: 'finance',
     allowedRoles: ['Admin', 'Master Admin', 'Manager'],
     accent: 'from-[#3a3a3a] to-[#1f2937] text-white',
+    iconTone: 'from-[#3a3a3a] via-[#111827] to-black text-white shadow-black/25',
+    tileTone: 'from-zinc-50 via-white to-zinc-200',
     iconKey: 'ticket',
   },
   {
@@ -123,6 +141,8 @@ export const DASHBOARD_MODULES: DashboardModule[] = [
     group: 'finance',
     allowedRoles: ['Admin', 'Master Admin'],
     accent: 'from-[#7f1d1d] to-[#b91c1c] text-white',
+    iconTone: 'from-[#7f1d1d] via-[#b91c1c] to-[#ef4444] text-white shadow-red-900/25',
+    tileTone: 'from-red-50 via-white to-stone-100',
     iconKey: 'badge-pound',
   },
   {
@@ -133,6 +153,8 @@ export const DASHBOARD_MODULES: DashboardModule[] = [
     group: 'admin',
     allowedRoles: ['Admin', 'Master Admin', 'Maintenance Admin'],
     accent: 'from-[#111827] to-[#3a3a3a] text-white',
+    iconTone: 'from-[#111827] via-[#3a3a3a] to-[#6b7280] text-white shadow-slate-900/25',
+    tileTone: 'from-slate-100 via-white to-neutral-200',
     iconKey: 'settings',
   },
   {
@@ -142,6 +164,8 @@ export const DASHBOARD_MODULES: DashboardModule[] = [
     href: '/dashboard/account',
     group: 'staff',
     accent: 'from-[#4b0f16] to-[#8b1e2d] text-white',
+    iconTone: 'from-[#4b0f16] via-[#8b1e2d] to-[#c43b42] text-white shadow-red-950/25',
+    tileTone: 'from-rose-50 via-white to-red-100',
     iconKey: 'fingerprint',
   },
 ]
