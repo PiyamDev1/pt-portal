@@ -37,14 +37,14 @@ export default function PageHeader({
     : null
 
   return (
-    <nav className="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center shadow-sm">
-      <div className="flex items-center gap-4">
+    <nav className="sticky top-0 z-30 flex items-center justify-between border-b border-slate-200 bg-white/95 px-3 py-3 shadow-sm backdrop-blur sm:px-6 sm:py-4 lg:static lg:bg-white">
+      <div className="flex min-w-0 items-center gap-3 sm:gap-4">
         <Link
           href="/dashboard"
-          className="cursor-pointer hover:opacity-80 transition flex items-center gap-2"
+          className="flex cursor-pointer items-center gap-2 transition hover:opacity-80"
         >
           {/* --- COMPANY LOGO (Optimized) --- */}
-          <div className="relative h-10 w-auto aspect-[797/313]">
+          <div className="relative h-8 w-auto aspect-[797/313] sm:h-10">
             <Image
               src="/logo.png"
               alt="Piyam Travels"
@@ -56,30 +56,32 @@ export default function PageHeader({
           </div>
         </Link>
 
-        <div>
-          <h1 className="text-lg font-bold text-slate-800">Piyam Travels Portal</h1>
-          <p className="text-xs text-slate-500">
+        <div className="min-w-0">
+          <h1 className="truncate text-sm font-black text-slate-800 sm:text-lg">
+            Piyam Travels Portal
+          </h1>
+          <p className="truncate text-[11px] text-slate-500 sm:text-xs">
             {location?.name} ({location?.branch_code})
           </p>
         </div>
         {showBack && (
           <button
             onClick={() => router.back()}
-            className="ml-4 text-sm text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1"
+            className="hidden text-sm font-medium text-[#8b1e2d] hover:text-[#4b0f16] sm:ml-4 sm:flex sm:items-center sm:gap-1"
           >
             ← Back
           </button>
         )}
       </div>
 
-      <div className="flex items-center gap-4">
+      <div className="flex shrink-0 items-center gap-2 sm:gap-4">
         <Link
           href="/dashboard/settings"
-          className="relative hidden sm:flex items-center gap-3 group cursor-pointer hover:opacity-80 transition"
+          className="group relative hidden cursor-pointer items-center gap-3 transition hover:opacity-80 sm:flex"
         >
           <div className="text-right select-none">
             <p className="text-sm font-medium text-slate-900">{employeeName}</p>
-            <p className="text-xs text-blue-600 font-semibold">{role}</p>
+            <p className="text-xs font-semibold text-[#8b1e2d]">{role}</p>
           </div>
 
           {/* AVATAR PROFILE */}
@@ -102,7 +104,15 @@ export default function PageHeader({
           </div>
         </Link>
 
-        <div className="h-8 w-px bg-slate-200 mx-2 hidden sm:block"></div>
+        <Link
+          href="/dashboard/settings"
+          className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-slate-100 text-xs font-black text-slate-700 shadow-sm sm:hidden"
+          aria-label="Open account settings"
+        >
+          {initials}
+        </Link>
+
+        <div className="mx-2 hidden h-8 w-px bg-slate-200 sm:block"></div>
         <LogoutButton />
       </div>
     </nav>

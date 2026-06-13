@@ -64,19 +64,19 @@ export default function SettingsClient({
   const roleCount = Array.isArray(initialRoles) ? initialRoles.length : 0
 
   return (
-    <div className="flex flex-col md:flex-row gap-8 min-h-screen">
+    <div className="flex min-h-screen flex-col gap-4 md:flex-row md:gap-8">
       {/* Sidebar Navigation */}
-      <div className="w-full md:w-64 flex-shrink-0">
-        <div className="bg-white rounded-lg shadow border border-slate-200 overflow-hidden sticky top-24">
-          <div className="px-4 py-3 bg-slate-100 border-b border-slate-200 text-xs font-bold text-slate-500 uppercase tracking-wider">
+      <div className="w-full flex-shrink-0 md:w-64">
+        <div className="sticky top-20 z-20 flex gap-2 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow md:top-24 md:block md:overflow-hidden md:rounded-lg md:p-0">
+          <div className="hidden px-4 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 md:block md:border-b md:border-slate-200 md:bg-slate-100">
             My Account
           </div>
           <button
             onClick={() => setActiveTab('security')}
-            className={`w-full text-left px-4 py-3 border-l-4 transition-colors ${
+            className={`shrink-0 rounded-xl border px-4 py-3 text-left text-sm transition-colors md:w-full md:rounded-none md:border-0 md:border-l-4 ${
               activeTab === 'security'
-                ? 'border-blue-900 bg-blue-50 font-medium text-blue-900'
-                : 'border-transparent hover:bg-slate-50 text-slate-600'
+                ? 'border-[#8b1e2d] bg-red-50 font-medium text-[#8b1e2d]'
+                : 'border-slate-200 text-slate-600 hover:bg-slate-50 md:border-transparent'
             }`}
           >
             Security & Password
@@ -84,15 +84,15 @@ export default function SettingsClient({
 
           {hasAdminConsole && (
             <>
-              <div className="px-4 py-3 bg-slate-100 border-b border-slate-200 text-xs font-bold text-slate-500 uppercase tracking-wider border-t">
+              <div className="hidden px-4 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 md:block md:border-b md:border-t md:border-slate-200 md:bg-slate-100">
                 Admin Console
               </div>
               <button
                 onClick={() => setActiveTab('admin-overview')}
-                className={`w-full text-left px-4 py-3 border-l-4 transition-colors ${
+                className={`shrink-0 rounded-xl border px-4 py-3 text-left text-sm transition-colors md:w-full md:rounded-none md:border-0 md:border-l-4 ${
                   activeTab === 'admin-overview'
-                    ? 'border-blue-900 bg-blue-50 font-medium text-blue-900'
-                    : 'border-transparent hover:bg-slate-50 text-slate-600'
+                    ? 'border-[#8b1e2d] bg-red-50 font-medium text-[#8b1e2d]'
+                    : 'border-slate-200 text-slate-600 hover:bg-slate-50 md:border-transparent'
                 }`}
               >
                 Overview
@@ -101,10 +101,10 @@ export default function SettingsClient({
               {canManageIssueReports && (
                 <button
                   onClick={() => setActiveTab('issue-reports')}
-                  className={`w-full text-left px-4 py-3 border-l-4 transition-colors ${
+                  className={`shrink-0 rounded-xl border px-4 py-3 text-left text-sm transition-colors md:w-full md:rounded-none md:border-0 md:border-l-4 ${
                     activeTab === 'issue-reports'
-                      ? 'border-blue-900 bg-blue-50 font-medium text-blue-900'
-                      : 'border-transparent hover:bg-slate-50 text-slate-600'
+                      ? 'border-[#8b1e2d] bg-red-50 font-medium text-[#8b1e2d]'
+                      : 'border-slate-200 text-slate-600 hover:bg-slate-50 md:border-transparent'
                   }`}
                 >
                   Issue Reports
@@ -113,45 +113,45 @@ export default function SettingsClient({
 
               {isOrgAdmin && (
                 <>
-                  <div className="px-4 py-3 bg-slate-100 border-b border-slate-200 text-xs font-bold text-slate-500 uppercase tracking-wider border-t">
+                  <div className="hidden px-4 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 md:block md:border-b md:border-t md:border-slate-200 md:bg-slate-100">
                     Organization
                   </div>
                   <button
                     onClick={() => setActiveTab('branches')}
-                    className={`w-full text-left px-4 py-3 border-l-4 transition-colors ${
+                    className={`shrink-0 rounded-xl border px-4 py-3 text-left text-sm transition-colors md:w-full md:rounded-none md:border-0 md:border-l-4 ${
                       activeTab === 'branches'
-                        ? 'border-blue-900 bg-blue-50 font-medium text-blue-900'
-                        : 'border-transparent hover:bg-slate-50 text-slate-600'
+                        ? 'border-[#8b1e2d] bg-red-50 font-medium text-[#8b1e2d]'
+                        : 'border-slate-200 text-slate-600 hover:bg-slate-50 md:border-transparent'
                     }`}
                   >
                     Branches & Locations
                   </button>
                   <button
                     onClick={() => setActiveTab('staff')}
-                    className={`w-full text-left px-4 py-3 border-l-4 transition-colors ${
+                    className={`shrink-0 rounded-xl border px-4 py-3 text-left text-sm transition-colors md:w-full md:rounded-none md:border-0 md:border-l-4 ${
                       activeTab === 'staff'
-                        ? 'border-blue-900 bg-blue-50 font-medium text-blue-900'
-                        : 'border-transparent hover:bg-slate-50 text-slate-600'
+                        ? 'border-[#8b1e2d] bg-red-50 font-medium text-[#8b1e2d]'
+                        : 'border-slate-200 text-slate-600 hover:bg-slate-50 md:border-transparent'
                     }`}
                   >
                     Staff Management
                   </button>
                   <button
                     onClick={() => setActiveTab('hierarchy')}
-                    className={`w-full text-left px-4 py-3 border-l-4 transition-colors ${
+                    className={`shrink-0 rounded-xl border px-4 py-3 text-left text-sm transition-colors md:w-full md:rounded-none md:border-0 md:border-l-4 ${
                       activeTab === 'hierarchy'
-                        ? 'border-blue-900 bg-blue-50 font-medium text-blue-900'
-                        : 'border-transparent hover:bg-slate-50 text-slate-600'
+                        ? 'border-[#8b1e2d] bg-red-50 font-medium text-[#8b1e2d]'
+                        : 'border-slate-200 text-slate-600 hover:bg-slate-50 md:border-transparent'
                     }`}
                   >
                     Hierarchy Tree
                   </button>
                   <button
                     onClick={() => setActiveTab('frappe-provisioning')}
-                    className={`w-full text-left px-4 py-3 border-l-4 transition-colors ${
+                    className={`shrink-0 rounded-xl border px-4 py-3 text-left text-sm transition-colors md:w-full md:rounded-none md:border-0 md:border-l-4 ${
                       activeTab === 'frappe-provisioning'
-                        ? 'border-blue-900 bg-blue-50 font-medium text-blue-900'
-                        : 'border-transparent hover:bg-slate-50 text-slate-600'
+                        ? 'border-[#8b1e2d] bg-red-50 font-medium text-[#8b1e2d]'
+                        : 'border-slate-200 text-slate-600 hover:bg-slate-50 md:border-transparent'
                     }`}
                   >
                     Frappe Transfer
@@ -161,35 +161,35 @@ export default function SettingsClient({
 
               {canAccessMaintenance && (
                 <>
-                  <div className="px-4 py-3 bg-slate-100 border-b border-slate-200 text-xs font-bold text-slate-500 uppercase tracking-wider border-t">
+                  <div className="hidden px-4 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 md:block md:border-b md:border-t md:border-slate-200 md:bg-slate-100">
                     Maintenance
                   </div>
                   <button
                     onClick={() => setActiveTab('document-storage')}
-                    className={`w-full text-left px-4 py-3 border-l-4 transition-colors ${
+                    className={`shrink-0 rounded-xl border px-4 py-3 text-left text-sm transition-colors md:w-full md:rounded-none md:border-0 md:border-l-4 ${
                       activeTab === 'document-storage'
-                        ? 'border-blue-900 bg-blue-50 font-medium text-blue-900'
-                        : 'border-transparent hover:bg-slate-50 text-slate-600'
+                        ? 'border-[#8b1e2d] bg-red-50 font-medium text-[#8b1e2d]'
+                        : 'border-slate-200 text-slate-600 hover:bg-slate-50 md:border-transparent'
                     }`}
                   >
                     Document Storage
                   </button>
                   <button
                     onClick={() => setActiveTab('receipt-metrics')}
-                    className={`w-full text-left px-4 py-3 border-l-4 transition-colors ${
+                    className={`shrink-0 rounded-xl border px-4 py-3 text-left text-sm transition-colors md:w-full md:rounded-none md:border-0 md:border-l-4 ${
                       activeTab === 'receipt-metrics'
-                        ? 'border-blue-900 bg-blue-50 font-medium text-blue-900'
-                        : 'border-transparent hover:bg-slate-50 text-slate-600'
+                        ? 'border-[#8b1e2d] bg-red-50 font-medium text-[#8b1e2d]'
+                        : 'border-slate-200 text-slate-600 hover:bg-slate-50 md:border-transparent'
                     }`}
                   >
                     Receipt Metrics
                   </button>
                   <button
                     onClick={() => setActiveTab('maintenance')}
-                    className={`w-full text-left px-4 py-3 border-l-4 transition-colors ${
+                    className={`shrink-0 rounded-xl border px-4 py-3 text-left text-sm transition-colors md:w-full md:rounded-none md:border-0 md:border-l-4 ${
                       activeTab === 'maintenance'
-                        ? 'border-blue-900 bg-blue-50 font-medium text-blue-900'
-                        : 'border-transparent hover:bg-slate-50 text-slate-600'
+                        ? 'border-[#8b1e2d] bg-red-50 font-medium text-[#8b1e2d]'
+                        : 'border-slate-200 text-slate-600 hover:bg-slate-50 md:border-transparent'
                     }`}
                   >
                     Data Maintenance
@@ -199,12 +199,12 @@ export default function SettingsClient({
 
               {isOrgAdmin && (
                 <>
-                  <div className="px-4 py-3 bg-slate-100 border-b border-slate-200 text-xs font-bold text-slate-500 uppercase tracking-wider border-t">
+                  <div className="hidden px-4 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 md:block md:border-b md:border-t md:border-slate-200 md:bg-slate-100">
                     Others
                   </div>
                   <Link
                     href="/dashboard/pricing"
-                    className="w-full text-left px-4 py-3 border-l-4 border-transparent hover:bg-slate-50 text-slate-600 block"
+                    className="block shrink-0 rounded-xl border border-slate-200 px-4 py-3 text-left text-sm text-slate-600 hover:bg-slate-50 md:w-full md:rounded-none md:border-0 md:border-l-4 md:border-transparent"
                   >
                     Pricing Management
                   </Link>
@@ -245,7 +245,15 @@ export default function SettingsClient({
 
         {activeTab === 'branches' && isOrgAdmin && (
           <BranchesTab
-            initialLocations={initialLocations as { id: string; name: string; branch_code: string | null; type: string; appointments_enabled?: boolean | null }[]}
+            initialLocations={
+              initialLocations as {
+                id: string
+                name: string
+                branch_code: string | null
+                type: string
+                appointments_enabled?: boolean | null
+              }[]
+            }
             supabase={supabase}
             loading={loading}
             setLoading={setLoading}
@@ -254,7 +262,18 @@ export default function SettingsClient({
 
         {activeTab === 'staff' && isOrgAdmin && (
           <StaffTab
-            initialEmployees={initialEmployees as unknown as { id: string; full_name: string; email: string; role_id: string | null; department_id: string | null; location_id: string | null; manager_id?: string | null; is_active?: boolean }[]}
+            initialEmployees={
+              initialEmployees as unknown as {
+                id: string
+                full_name: string
+                email: string
+                role_id: string | null
+                department_id: string | null
+                location_id: string | null
+                manager_id?: string | null
+                is_active?: boolean
+              }[]
+            }
             initialRoles={initialRoles as { id: string; name: string }[]}
             initialDepts={initialDepts as { id: string; name: string }[]}
             initialLocations={initialLocations as { id: string; name: string }[]}
@@ -267,7 +286,15 @@ export default function SettingsClient({
 
         {activeTab === 'hierarchy' && isOrgAdmin && (
           <HierarchyTab
-            initialEmployees={initialEmployees as unknown as { id: string; full_name: string; manager_id: string | null; role_id: string | null; location_id: string | null }[]}
+            initialEmployees={
+              initialEmployees as unknown as {
+                id: string
+                full_name: string
+                manager_id: string | null
+                role_id: string | null
+                location_id: string | null
+              }[]
+            }
             initialRoles={initialRoles as { id: string; name: string }[]}
             initialLocations={initialLocations as { id: string; name: string }[]}
             supabase={supabase}
@@ -283,7 +310,6 @@ export default function SettingsClient({
         {activeTab === 'receipt-metrics' && canAccessMaintenance && <ReceiptMetricsTab />}
 
         {activeTab === 'maintenance' && canAccessMaintenance && <MaintenanceTab />}
-
       </div>
     </div>
   )
