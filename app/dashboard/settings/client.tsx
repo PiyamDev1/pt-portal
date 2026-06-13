@@ -16,6 +16,7 @@ import { ReceiptMetricsTab } from './components/ReceiptMetricsTab'
 import { MaintenanceTab } from './components/MaintenanceTab'
 import { IssueReportsTab } from './components/IssueReportsTab'
 import { FrappeProvisioningTab } from './components/FrappeProvisioningTab'
+import { NoticeBoardTab } from './components/NoticeBoardTab'
 import Link from 'next/link'
 import type { AuthUser } from '@/app/types/auth'
 
@@ -108,6 +109,19 @@ export default function SettingsClient({
                   }`}
                 >
                   Issue Reports
+                </button>
+              )}
+
+              {isOrgAdmin && (
+                <button
+                  onClick={() => setActiveTab('notice-board')}
+                  className={`shrink-0 rounded-xl border px-4 py-3 text-left text-sm transition-colors md:w-full md:rounded-none md:border-0 md:border-l-4 ${
+                    activeTab === 'notice-board'
+                      ? 'border-[#8b1e2d] bg-red-50 font-medium text-[#8b1e2d]'
+                      : 'border-slate-200 text-slate-600 hover:bg-slate-50 md:border-transparent'
+                  }`}
+                >
+                  Notice Board
                 </button>
               )}
 
@@ -233,6 +247,14 @@ export default function SettingsClient({
         )}
 
         {activeTab === 'issue-reports' && canManageIssueReports && <IssueReportsTab />}
+
+        {activeTab === 'notice-board' && isOrgAdmin && (
+          <NoticeBoardTab
+            roles={initialRoles as { id: string; name: string }[]}
+            departments={initialDepts as { id: string; name: string }[]}
+            locations={initialLocations as { id: string; name: string }[]}
+          />
+        )}
 
         {activeTab === 'security' && (
           <SecurityTab
