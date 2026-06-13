@@ -98,7 +98,7 @@ export default function SecurityTab({
     const res = await fetch('/api/auth/reset-2fa', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: currentUser.id }),
+      body: JSON.stringify({}),
     })
     if (res.ok) {
       toast.success('2FA reset successfully')
@@ -120,7 +120,7 @@ export default function SecurityTab({
     const res = await fetch('/api/auth/generate-backup-codes', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: currentUser.id, count: 10 }),
+      body: JSON.stringify({ count: 10 }),
     })
     const data = await res.json()
     if (res.ok) {

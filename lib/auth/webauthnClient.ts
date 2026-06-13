@@ -1,5 +1,6 @@
 const PASSKEY_PROMPT_DISMISSED_KEY = 'pt-ims-passkey-prompt-dismissed'
 const PASSKEY_ENABLED_HINT_KEY = 'pt-ims-passkey-enabled-hint'
+const PASSKEY_LAST_EMAIL_KEY = 'pt-ims-passkey-last-email'
 const HRMS_COMPANION_INSTALLED_HINT_KEY = 'pt-ims-hrms-companion-installed'
 
 function base64urlToArrayBuffer(value: string) {
@@ -21,10 +22,12 @@ function arrayBufferToBase64url(value: ArrayBuffer) {
 }
 
 export function isWebAuthnSupported() {
-  return typeof window !== 'undefined'
-    && Boolean(window.PublicKeyCredential)
-    && typeof navigator.credentials?.create === 'function'
-    && typeof navigator.credentials?.get === 'function'
+  return (
+    typeof window !== 'undefined' &&
+    Boolean(window.PublicKeyCredential) &&
+    typeof navigator.credentials?.create === 'function' &&
+    typeof navigator.credentials?.get === 'function'
+  )
 }
 
 export function getMobilePlatformLabel() {
@@ -47,8 +50,10 @@ export function isIosDevice() {
 
 export function isStandalonePwa() {
   if (typeof window === 'undefined') return false
-  return window.matchMedia('(display-mode: standalone)').matches
-    || (window.navigator as Navigator & { standalone?: boolean }).standalone === true
+  return (
+    window.matchMedia('(display-mode: standalone)').matches ||
+    (window.navigator as Navigator & { standalone?: boolean }).standalone === true
+  )
 }
 
 export function hasDismissedPasskeyPrompt() {
@@ -72,6 +77,23 @@ export function setPasskeyEnabledHint() {
 export function hasPasskeyEnabledHint() {
   if (typeof window === 'undefined') return false
   return window.localStorage.getItem(PASSKEY_ENABLED_HINT_KEY) === '1'
+}
+
+export function setPasskeyLastEmail(email: string | null | undefined) {
+  if (typeof window === 'undefined') return
+  const normalized = email?.trim().toLowerCase()
+  if (!normalized) return
+  window.localStorage.setItem(PASSKEY_LAST_EMAIL_KEY, normalized)
+}
+
+export function getPasskeyLastEmail() {
+  if (typeof window === 'undefined') return ''
+  return window.localStorage.getItem(PASSKEY_LAST_EMAIL_KEY) || ''
+}
+
+export function clearPasskeyLastEmail() {
+  if (typeof window === 'undefined') return
+  window.localStorage.removeItem(PASSKEY_LAST_EMAIL_KEY)
 }
 
 export function hasConfirmedHrmsCompanionInstall() {

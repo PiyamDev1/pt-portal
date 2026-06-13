@@ -2,7 +2,7 @@
  * Security Sessions Hook
  * Manages active device sessions and backup code count for account security
  * Fetches device information from backend and provides methods to manage sessions
- * 
+ *
  * @module hooks/useSecuritySessions
  */
 
@@ -28,7 +28,7 @@ export function useSecuritySessions({ userId }: UseSecuritySessionsParams) {
   useEffect(() => {
     let isActive = true
 
-    fetch(`/api/auth/backup-codes/count?userId=${userId}`)
+    fetch('/api/auth/backup-codes/count')
       .then((res) => res.json())
       .then((data) => {
         if (isActive) {

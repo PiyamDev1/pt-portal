@@ -9,6 +9,7 @@
 import { useState, useEffect } from 'react'
 import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 
 export default function NewPasswordPage() {
   const [password, setPassword] = useState('')
@@ -16,7 +17,6 @@ export default function NewPasswordPage() {
   const [loading, setLoading] = useState(false)
   // New: We need email to re-login
   const [userEmail, setUserEmail] = useState('')
-  const [userId, setUserId] = useState('')
   const router = useRouter()
 
   const supabase = createBrowserClient(
@@ -30,9 +30,7 @@ export default function NewPasswordPage() {
       const {
         data: { user },
       } = await supabase.auth.getUser()
-      if (user) setUserId(user.id)
       if (user) {
-        setUserId(user.id)
         setUserEmail(user.email || '') // Store email for re-login
       } else router.push('/login')
     }
@@ -57,16 +55,22 @@ export default function NewPasswordPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (password !== confirm) return alert('Passwords do not match')
+    if (password !== confirm) {
+      toast.error('Passwords do not match')
+      return
+    }
     const pwdErrors = validatePassword(password)
-    if (pwdErrors.length > 0) return alert('Password must contain: ' + pwdErrors.join(', '))
+    if (pwdErrors.length > 0) {
+      toast.error('Password must contain: ' + pwdErrors.join(', '))
+      return
+    }
 
     setLoading(true)
 
     const res = await fetch('/api/auth/update-password', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, newPassword: password }),
+      body: JSON.stringify({ newPassword: password }),
     })
 
     const data = await res.json()
@@ -79,14 +83,14 @@ export default function NewPasswordPage() {
       })
 
       if (loginError) {
-        alert('Password updated, but auto-login failed. Please sign in manually.')
+        toast.warning('Password updated, but auto-login failed. Please sign in manually.')
         router.push('/login')
       } else {
         // 3. Now we have a valid session -> Go to 2FA
         router.push('/login/setup-2fa')
       }
     } else {
-      alert('Error: ' + data.error)
+      toast.error(data.error || 'Unable to update password')
     }
     setLoading(false)
   }

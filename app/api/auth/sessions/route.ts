@@ -19,6 +19,7 @@ import { createClient } from '@supabase/supabase-js'
 import { apiOk, apiError } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
 import { cookies } from 'next/headers'
+import { recordAuthSecurityEvent } from '@/lib/auth/securityEvents'
 
 export const dynamic = 'force-dynamic'
 
@@ -189,11 +190,27 @@ export async function DELETE(request: Request) {
         { auth: { autoRefreshToken: false, persistSession: false } },
       )
       await supabaseAdmin.auth.admin.signOut(user.id)
+      await recordAuthSecurityEvent({
+        request,
+        userId: user.id,
+        email: user.email,
+        eventType: 'session_revoke',
+        status: 'revoked',
+        metadata: { type: 'all' },
+      })
       return apiOk({ message: 'All devices signed out' })
     } else if (type === 'single' && id) {
       // Use the RPC function to revoke a specific session
       const { error } = await supabase.rpc('revoke_my_session', { session_id: id })
       if (error) throw error
+      await recordAuthSecurityEvent({
+        request,
+        userId: user.id,
+        email: user.email,
+        eventType: 'session_revoke',
+        status: 'revoked',
+        metadata: { type: 'single', sessionId: id },
+      })
       return apiOk({ message: 'Session revoked' })
     }
 

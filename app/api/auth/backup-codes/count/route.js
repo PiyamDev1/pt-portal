@@ -1,18 +1,19 @@
 /**
  * API Route: Backup Code Count
  *
- * GET /api/auth/backup-codes/count?userId=<id>
+ * GET /api/auth/backup-codes/count
  *
- * Returns the number of unused backup codes for a given user.
+ * Returns the number of unused backup codes for the authenticated user.
  * Returns { count: 0 } gracefully if the backup_codes table does not
  * exist yet (code 42P01), preventing crashes before migration is run.
  *
- * Authentication: Service role key
- * Response Errors: 400 Missing userId | 500 DB error
+ * Authentication: Current session cookie
+ * Response Errors: 401 Unauthorized | 500 DB error
  */
 import { createClient } from '@supabase/supabase-js'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
+import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
 
 export const dynamic = 'force-dynamic'
 
@@ -29,18 +30,19 @@ const getSupabaseAdmin = () => {
 
 export async function GET(request) {
   try {
+    const supabase = await getRouteSupabaseClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) return apiError('Unauthorized', 401)
+
     const supabaseAdmin = getSupabaseAdmin()
-
-    // FIX: Use standard URL parsing to avoid 500 errors
-    const { searchParams } = new URL(request.url)
-    const userId = searchParams.get('userId')
-
-    if (!userId) return apiError('userId required', 400)
 
     const { data, error } = await supabaseAdmin
       .from('backup_codes')
       .select('id')
-      .eq('employee_id', userId)
+      .eq('employee_id', user.id)
       .eq('used', false)
 
     if (error) {

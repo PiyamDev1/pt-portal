@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => {
   const listFactors = vi.fn()
   const deleteFactor = vi.fn()
+  const getUser = vi.fn()
+  const getRouteSupabaseClient = vi.fn(async () => ({ auth: { getUser } }))
 
   const updateEq = vi.fn()
   const update = vi.fn(() => ({ eq: updateEq }))
@@ -13,10 +15,22 @@ const mocks = vi.hoisted(() => {
     from,
   }))
 
-  return { listFactors, deleteFactor, updateEq, update, from, createClient }
+  return {
+    listFactors,
+    deleteFactor,
+    getUser,
+    getRouteSupabaseClient,
+    updateEq,
+    update,
+    from,
+    createClient,
+  }
 })
 
 vi.mock('@supabase/supabase-js', () => ({ createClient: mocks.createClient }))
+vi.mock('@/lib/api/serverSupabase', () => ({
+  getRouteSupabaseClient: mocks.getRouteSupabaseClient,
+}))
 
 import { POST } from '@/app/api/auth/reset-2fa/route'
 
@@ -41,16 +55,21 @@ describe('POST /api/auth/reset-2fa', () => {
     })
     mocks.from.mockReturnValue({ update: mocks.update })
     mocks.update.mockReturnValue({ eq: mocks.updateEq })
+    mocks.getUser.mockResolvedValue({
+      data: { user: { id: 'u-1', email: 'user@example.com' } },
+      error: null,
+    })
   })
 
-  it('returns 400 when userId is missing', async () => {
+  it('returns 401 when the user is not authenticated', async () => {
+    mocks.getUser.mockResolvedValueOnce({ data: { user: null }, error: null })
     const res = await POST(makeRequest({}))
-    expect(res.status).toBe(400)
+    expect(res.status).toBe(401)
   })
 
   it('returns 500 when factor listing fails', async () => {
     mocks.listFactors.mockResolvedValue({ data: null, error: { message: 'list failed' } })
-    const res = await POST(makeRequest({ userId: 'u-1' }))
+    const res = await POST(makeRequest({}))
     expect(res.status).toBe(500)
   })
 
@@ -62,7 +81,7 @@ describe('POST /api/auth/reset-2fa', () => {
     mocks.deleteFactor.mockResolvedValue({ error: null })
     mocks.updateEq.mockResolvedValue({ error: null })
 
-    const res = await POST(makeRequest({ userId: 'u-1' }))
+    const res = await POST(makeRequest({}))
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body).toEqual({ resetUserId: 'u-1', removedFactors: 2 })

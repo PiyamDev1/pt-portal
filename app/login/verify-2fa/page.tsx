@@ -21,6 +21,17 @@ export default function Verify2FAPage() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
   )
 
+  const recordTwoFactorEvent = async (
+    status: 'success' | 'failed',
+    metadata: Record<string, unknown> = {},
+  ) => {
+    await fetch('/api/auth/security-events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ eventType: 'two_factor', status, metadata }),
+    }).catch(() => undefined)
+  }
+
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
@@ -46,6 +57,7 @@ export default function Verify2FAPage() {
               code,
             })
             if (!verifyError) {
+              await recordTwoFactorEvent('success', { method: 'totp' })
               window.history.replaceState(null, '', '/dashboard')
               router.push('/dashboard')
               return
@@ -55,13 +67,14 @@ export default function Verify2FAPage() {
           // ignore and fall back
         }
         // If failed, show error and suggest backup code
+        await recordTwoFactorEvent('failed', { method: triedMfa ? 'totp' : 'totp_unavailable' })
         setError('Incorrect 2FA code. You can also try a backup code below.')
       } else {
         // Try backup code
         const resp = await fetch('/api/auth/consume-backup-code', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: user.id, code }),
+          body: JSON.stringify({ code }),
         })
         if (resp.ok) {
           window.history.replaceState(null, '', '/dashboard')

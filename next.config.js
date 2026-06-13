@@ -4,7 +4,9 @@
  */
 /** @type {import('next').NextConfig} */
 const minioEndpoint =
-  process.env.MINIO_ENDPOINT || process.env.NEXT_PUBLIC_MINIO_ENDPOINT || 'https://eu49v2.piyamtravel.com'
+  process.env.MINIO_ENDPOINT ||
+  process.env.NEXT_PUBLIC_MINIO_ENDPOINT ||
+  'https://eu49v2.piyamtravel.com'
 let minioOrigin = 'https://eu49v2.piyamtravel.com'
 
 try {
@@ -43,6 +45,11 @@ const nextConfig = {
 
   // Headers for caching and security
   async headers() {
+    const isProduction = process.env.NODE_ENV === 'production'
+    const scriptSrc = isProduction
+      ? "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://*.supabase.co"
+      : "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://*.supabase.co"
+
     return [
       {
         source: '/:path*',
@@ -61,7 +68,11 @@ const nextConfig = {
           },
           {
             key: 'X-XSS-Protection',
-            value: '1; mode=block',
+            value: '0',
+          },
+          {
+            key: 'Strict-Transport-Security',
+            value: 'max-age=63072000; includeSubDomains; preload',
           },
           {
             key: 'Referrer-Policy',
@@ -73,8 +84,20 @@ const nextConfig = {
           },
           {
             key: 'Content-Security-Policy',
-            value:
-              `default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://*.supabase.co; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: https:; font-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com; connect-src 'self' https://*.supabase.co https://api.github.com ${minioOrigin}; frame-src 'self' ${minioOrigin}; object-src 'none'; base-uri 'self'; form-action 'self';`,
+            value: `default-src 'self'; ${scriptSrc}; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: https:; font-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com; connect-src 'self' https://*.supabase.co https://api.github.com ${minioOrigin}; frame-src 'self' ${minioOrigin}; frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests;`,
+          },
+        ],
+      },
+      {
+        source: '/api/auth/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'no-store, max-age=0',
+          },
+          {
+            key: 'Pragma',
+            value: 'no-cache',
           },
         ],
       },

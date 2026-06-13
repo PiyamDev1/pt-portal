@@ -1,6 +1,7 @@
 import { apiError, apiOk } from '@/lib/api/http'
 import { getSupabaseClient } from '@/lib/supabaseClient'
 import { getWebAuthnContext, verifyAuthenticationAssertion } from '@/lib/auth/webauthn'
+import { recordAuthSecurityEvent } from '@/lib/auth/securityEvents'
 import type { JsonWebKey as NodeJsonWebKey } from 'crypto'
 
 export const runtime = 'nodejs'
@@ -20,15 +21,15 @@ type AuthenticationBody = {
 }
 
 export async function POST(request: Request) {
-  const body = await request.json().catch(() => ({})) as AuthenticationBody
+  const body = (await request.json().catch(() => ({}))) as AuthenticationBody
   const credentialId = body.credential?.rawId || body.credential?.id
 
   if (
-    !body.challenge
-    || !credentialId
-    || !body.credential?.response?.clientDataJSON
-    || !body.credential.response.authenticatorData
-    || !body.credential.response.signature
+    !body.challenge ||
+    !credentialId ||
+    !body.credential?.response?.clientDataJSON ||
+    !body.credential.response.authenticatorData ||
+    !body.credential.response.signature
   ) {
     return apiError('Invalid biometric login response', 400)
   }
@@ -59,6 +60,13 @@ export async function POST(request: Request) {
   if (passkeyError) return apiError(passkeyError.message, 500)
   if (!passkey) return apiError('Biometric credential not found', 404)
   if (challengeRow.user_email && passkey.user_email !== challengeRow.user_email) {
+    await recordAuthSecurityEvent({
+      request,
+      email: challengeRow.user_email,
+      eventType: 'passkey_login',
+      status: 'failed',
+      metadata: { reason: 'credential_mismatch' },
+    })
     return apiError('Biometric credential does not match this login challenge', 403)
   }
 
@@ -99,6 +107,15 @@ export async function POST(request: Request) {
     const tokenHash = (linkData.properties as { hashed_token?: string } | undefined)?.hashed_token
     if (!tokenHash) return apiError('Unable to create biometric login session', 500)
 
+    await recordAuthSecurityEvent({
+      request,
+      userId: passkey.user_id,
+      email: passkey.user_email,
+      eventType: 'passkey_login',
+      status: 'success',
+      metadata: { credentialId: passkey.id },
+    })
+
     return apiOk({
       ok: true,
       token_hash: tokenHash,
@@ -106,6 +123,16 @@ export async function POST(request: Request) {
       user_id: passkey.user_id,
     })
   } catch (error: unknown) {
-    return apiError(error instanceof Error ? error.message : 'Unable to verify biometric login', 400)
+    await recordAuthSecurityEvent({
+      request,
+      email: challengeRow.user_email,
+      eventType: 'passkey_login',
+      status: 'failed',
+      metadata: { reason: error instanceof Error ? error.message : 'verify_failed' },
+    })
+    return apiError(
+      error instanceof Error ? error.message : 'Unable to verify biometric login',
+      400,
+    )
   }
 }

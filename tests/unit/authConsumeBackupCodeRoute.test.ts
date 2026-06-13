@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => {
   const compare = vi.fn()
+  const getUser = vi.fn()
+  const getRouteSupabaseClient = vi.fn(async () => ({ auth: { getUser } }))
 
   const updateEq = vi.fn()
   const update = vi.fn(() => ({ eq: updateEq }))
@@ -18,11 +20,24 @@ const mocks = vi.hoisted(() => {
 
   const createClient = vi.fn(() => ({ from }))
 
-  return { compare, updateEq, update, selectEq, select, from, createClient }
+  return {
+    compare,
+    getUser,
+    getRouteSupabaseClient,
+    updateEq,
+    update,
+    selectEq,
+    select,
+    from,
+    createClient,
+  }
 })
 
 vi.mock('@supabase/supabase-js', () => ({ createClient: mocks.createClient }))
 vi.mock('bcryptjs', () => ({ default: { compare: mocks.compare, hash: vi.fn() } }))
+vi.mock('@/lib/api/serverSupabase', () => ({
+  getRouteSupabaseClient: mocks.getRouteSupabaseClient,
+}))
 
 import { POST } from '@/app/api/auth/consume-backup-code/route'
 
@@ -43,16 +58,26 @@ describe('POST /api/auth/consume-backup-code', () => {
     mocks.from.mockReturnValue({ select: mocks.select, update: mocks.update })
     mocks.select.mockReturnValue({ eq: mocks.selectEq })
     mocks.update.mockReturnValue({ eq: mocks.updateEq })
+    mocks.getUser.mockResolvedValue({
+      data: { user: { id: 'u-1', email: 'user@example.com' } },
+      error: null,
+    })
   })
 
-  it('returns 400 when userId or code missing', async () => {
-    const res = await POST(makeRequest({ userId: 'u-1' }))
+  it('returns 401 when the user is not authenticated', async () => {
+    mocks.getUser.mockResolvedValueOnce({ data: { user: null }, error: null })
+    const res = await POST(makeRequest({ code: 'ABCD' }))
+    expect(res.status).toBe(401)
+  })
+
+  it('returns 400 when code is missing', async () => {
+    const res = await POST(makeRequest({}))
     expect(res.status).toBe(400)
   })
 
   it('returns 500 when backup code query fails', async () => {
     mocks.selectEq.mockResolvedValue({ data: null, error: { message: 'db fail' } })
-    const res = await POST(makeRequest({ userId: 'u-1', code: 'ABCD' }))
+    const res = await POST(makeRequest({ code: 'ABCD' }))
     expect(res.status).toBe(500)
   })
 
@@ -67,7 +92,7 @@ describe('POST /api/auth/consume-backup-code', () => {
     mocks.compare.mockImplementation(async (_code: string, hash: string) => hash === 'h2')
     mocks.updateEq.mockResolvedValue({ error: null })
 
-    const res = await POST(makeRequest({ userId: 'u-1', code: 'ABCD-EFGH' }))
+    const res = await POST(makeRequest({ code: 'ABCD-EFGH' }))
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body).toEqual({ consumedCodeId: 'c-2' })
@@ -81,7 +106,7 @@ describe('POST /api/auth/consume-backup-code', () => {
     })
     mocks.compare.mockResolvedValue(false)
 
-    const res = await POST(makeRequest({ userId: 'u-1', code: 'BAD' }))
+    const res = await POST(makeRequest({ code: 'BAD' }))
     expect(res.status).toBe(400)
   })
 })

@@ -12,6 +12,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 import QRCode from 'qrcode'
+import { toast } from 'sonner'
 
 export default function Setup2FAPage() {
   const [qrCodeUrl, setQrCodeUrl] = useState('')
@@ -19,7 +20,6 @@ export default function Setup2FAPage() {
   const [factorId, setFactorId] = useState('')
   const [error, setError] = useState('')
   const [secretKey, setSecretKey] = useState('')
-  const [showKey, setShowKey] = useState(false)
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -81,7 +81,7 @@ export default function Setup2FAPage() {
 
   const handleCopyKey = async () => {
     await navigator.clipboard.writeText(secretKey)
-    alert('Secret key copied to clipboard!')
+    toast.success('Secret key copied to clipboard')
   }
 
   return (

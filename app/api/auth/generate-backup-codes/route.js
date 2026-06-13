@@ -9,16 +9,17 @@
  * Plaintext codes are returned once — the caller must present them to the
  * user immediately; only bcrypt hashes are stored in the database.
  *
- * Request Body: { userId: string, count?: number }
+ * Request Body: { count?: number }
  * Response Success (200): { codes: string[], generatedCount: number }
- * Response Errors: 400 Missing userId | 500 DB insert failed
+ * Response Errors: 401 Unauthorized | 500 DB insert failed
  *
- * Authentication: Service role key (internal admin call)
+ * Authentication: Current session cookie
  */
 import { createClient } from '@supabase/supabase-js'
 import bcrypt from 'bcryptjs'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
+import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -33,26 +34,33 @@ function makeCode() {
 
 export async function POST(request) {
   try {
+    const supabase = await getRouteSupabaseClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) return apiError('Unauthorized', 401)
+
     // Initialize client inside the function
     const supabaseAdmin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
       process.env.SUPABASE_SERVICE_ROLE_KEY,
     )
 
-    const { userId, count = 10 } = await request.json()
-    if (!userId) return apiError('userId required', 400)
+    const { count = 10 } = await request.json().catch(() => ({}))
+    const safeCount = Math.min(Math.max(Number(count) || 10, 1), 10)
 
     const codesPlain = []
     const rows = []
-    for (let i = 0; i < count; i++) {
+    for (let i = 0; i < safeCount; i++) {
       const code = makeCode()
       const hash = await bcrypt.hash(code, 12)
       codesPlain.push(code)
-      rows.push({ employee_id: userId, code_hash: hash, used: false })
+      rows.push({ employee_id: user.id, code_hash: hash, used: false })
     }
 
     // remove existing unused codes for user and insert new set
-    await supabaseAdmin.from('backup_codes').delete().eq('employee_id', userId)
+    await supabaseAdmin.from('backup_codes').delete().eq('employee_id', user.id)
     const { error } = await supabaseAdmin.from('backup_codes').insert(rows)
     if (error) {
       return apiError(error.message, 500)

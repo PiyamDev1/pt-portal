@@ -1,15 +1,15 @@
 /**
  * My Account Page
- * 
+ *
  * User account management interface with features:
  * - View and update user profile information
  * - Change password with verification
  * - Manage 2FA settings (enable/disable)
  * - View and regenerate backup codes
  * - Reset authentication credentials
- * 
+ *
  * Client component that authenticates the user and manages account security settings.
- * 
+ *
  * @module app/dashboard/account/page
  */
 'use client'
@@ -115,7 +115,7 @@ export default function MyAccountPage() {
     const res = await fetch('/api/auth/reset-2fa', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: user.id }),
+      body: JSON.stringify({}),
     })
 
     if (res.ok) {
@@ -135,7 +135,7 @@ export default function MyAccountPage() {
   useEffect(() => {
     if (!user) return
     const fetchBackupCodeCount = async () => {
-      const res = await fetch(`/api/auth/backup-codes/count?userId=${user.id}`)
+      const res = await fetch('/api/auth/backup-codes/count')
       if (res.ok) {
         const data = await res.json()
         setBackupCodeCount(data.count || 0)
@@ -158,7 +158,7 @@ export default function MyAccountPage() {
     const res = await fetch('/api/auth/generate-backup-codes', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: user.id, count: 10 }),
+      body: JSON.stringify({ count: 10 }),
     })
     const data = await res.json()
     if (res.ok) {
