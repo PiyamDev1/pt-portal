@@ -262,59 +262,82 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="min-h-screen overflow-hidden bg-[#f5f5f5] text-slate-950">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(139,30,45,0.18),_transparent_34%),linear-gradient(135deg,_#f7fbf7_0%,_#f1e7e9_45%,_#f8fafc_100%)]" />
-      <div className="absolute right-[-10rem] top-[-12rem] h-96 w-96 rounded-full bg-red-200/30 blur-3xl" />
-      <div className="relative mx-auto grid min-h-screen w-full max-w-6xl grid-cols-1 items-center gap-8 px-5 py-10 lg:grid-cols-[1fr_440px] lg:px-8">
-        <section className="hidden max-w-2xl lg:block">
-          <div className="mb-8 inline-flex items-center gap-2 rounded-full border border-red-200 bg-white/70 px-4 py-2 text-sm font-semibold text-[#4b0f16] shadow-sm backdrop-blur">
+    <main className="relative min-h-screen overflow-hidden bg-[#f5f5f5] text-slate-950">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(139,30,45,0.18),_transparent_34%),linear-gradient(135deg,_#f7fbf7_0%,_#f1e7e9_45%,_#f8fafc_100%)]" />
+      <div className="pointer-events-none absolute right-[-10rem] top-[-12rem] h-96 w-96 rounded-full bg-red-200/30 blur-3xl" />
+
+      <div className="relative mx-auto grid min-h-screen w-full max-w-6xl gap-8 px-5 py-10 lg:grid-cols-[1.1fr_0.95fr] lg:px-8">
+        <section className="hidden rounded-[2rem] border border-red-100 bg-white/90 p-10 shadow-2xl shadow-red-950/10 backdrop-blur lg:block">
+          <div className="inline-flex items-center gap-2 rounded-full border border-red-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-900 shadow-sm">
             <ShieldCheck className="h-4 w-4" />
-            IMS secure access
+            Secure IMS authentication
           </div>
-          <h1 className="text-5xl font-black leading-tight tracking-normal text-slate-950">
-            One front door for Piyam Travel operations.
-          </h1>
-          <p className="mt-5 max-w-xl text-lg leading-8 text-slate-700">
-            Staff access, branch checks, passkeys, 2FA, and HRMS handoff all start here.
-          </p>
-          <div className="mt-10 grid max-w-xl grid-cols-3 gap-3">
-            {['Passkey ready', 'Branch bound', '2FA enforced'].map((label) => (
+
+          <div className="mt-10 space-y-6">
+            <h1 className="text-5xl font-black leading-tight text-slate-950">
+              One secure entrance for PT Portal staff.
+            </h1>
+            <p className="max-w-lg text-lg leading-8 text-slate-700">
+              Authenticate with branch credentials, passkeys, or Microsoft SSO to get to HRMS, bookings, applications, and finance workflows.
+            </p>
+          </div>
+
+          <div className="mt-10 grid gap-4">
+            {[
+              {
+                label: 'Fast branch validation',
+                description: 'Branch code verification keeps access restricted to assigned locations.',
+              },
+              {
+                label: 'Biometric ready',
+                description: 'Passkeys are supported for faster, password-free login on modern devices.',
+              },
+              {
+                label: '2FA enforced',
+                description: 'Multi-factor security helps protect your IMS session and HRMS handoff.',
+              },
+            ].map((item) => (
               <div
-                key={label}
-                className="rounded-lg border border-white/80 bg-white/70 p-4 shadow-sm"
+                key={item.label}
+                className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-5 shadow-sm"
               >
-                <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#7f1d1d]">
-                  Protected
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">
+                  {item.label}
                 </p>
-                <p className="mt-2 text-sm font-semibold text-slate-800">{label}</p>
+                <p className="mt-2 text-sm leading-6 text-slate-700">{item.description}</p>
               </div>
             ))}
           </div>
         </section>
 
-        <section className="rounded-lg border border-white/80 bg-white/90 p-6 shadow-2xl shadow-red-950/10 backdrop-blur md:p-8">
-          <div className="mb-7 flex items-start justify-between gap-4">
+        <section className="rounded-[2rem] border border-white/80 bg-white/95 p-8 shadow-2xl shadow-slate-900/10 backdrop-blur md:p-10">
+          <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-[#4b0f16] text-white">
+              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-3xl bg-[#4b0f16] text-white shadow-lg shadow-emerald-900/15">
                 <Building2 className="h-6 w-6" />
               </div>
-              <h2 className="text-2xl font-black text-slate-950">PT-IMS</h2>
-              <p className="mt-1 text-sm font-medium text-slate-500">Secure employee access</p>
+              <p className="text-xs font-bold uppercase tracking-[0.24em] text-[#8b1e2d]">
+                IMS access
+              </p>
+              <h2 className="mt-3 text-3xl font-black text-slate-950">Welcome back</h2>
+              <p className="mt-2 text-sm text-slate-600">
+                Authenticate once to continue to your dashboard, HRMS handoff, and staff workflows.
+              </p>
             </div>
-            <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-bold text-[#7f1d1d]">
-              Live
-            </span>
+            <div className="rounded-3xl bg-red-50 px-4 py-3 text-sm font-semibold text-[#7f1d1d] shadow-sm">
+              Live secure portal
+            </div>
           </div>
 
           {checkingExistingSession && (
-            <div className="mb-5 flex items-center gap-3 rounded-lg border border-red-100 bg-red-50 px-4 py-3 text-sm font-semibold text-[#4b0f16]">
+            <div className="mb-5 flex items-center gap-3 rounded-3xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-semibold text-[#4b0f16] shadow-sm">
               <Loader2 className="h-4 w-4 animate-spin" />
               Checking your secure IMS session
             </div>
           )}
 
           {errorMsg && (
-            <div className="mb-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+            <div className="mb-5 rounded-3xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
               {errorMsg}
             </div>
           )}
@@ -323,7 +346,7 @@ export default function LoginPage() {
             <button
               onClick={() => void handleBiometricLogin()}
               disabled={biometricLoading || checkingExistingSession}
-              className="mb-4 flex w-full items-center justify-center gap-3 rounded-lg bg-[#4b0f16] px-4 py-3.5 font-bold text-white shadow-lg shadow-emerald-900/20 transition hover:bg-[#6f1422] disabled:cursor-not-allowed disabled:opacity-60"
+              className="mb-4 flex w-full items-center justify-center gap-3 rounded-[1.75rem] bg-[#4b0f16] px-5 py-4 font-bold text-white shadow-xl shadow-emerald-900/15 transition hover:bg-[#6f1422] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {biometricLoading ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
@@ -339,14 +362,14 @@ export default function LoginPage() {
           )}
 
           {passkeySupported && passkeyHint && !checkingExistingSession && (
-            <p className="mb-5 rounded-lg bg-red-50 px-3 py-2 text-xs font-semibold text-[#7f1d1d]">
+            <p className="mb-5 rounded-3xl bg-red-50 px-3 py-2 text-xs font-semibold text-[#7f1d1d]">
               Biometric login will use the remembered email on this device.
             </p>
           )}
 
           <button
             onClick={handleMicrosoftLogin}
-            className="mb-6 flex w-full items-center justify-center gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 font-bold text-slate-800 transition hover:border-red-200 hover:bg-red-50"
+            className="mb-6 flex w-full items-center justify-center gap-3 rounded-[1.75rem] border border-slate-200 bg-white px-4 py-4 font-bold text-slate-800 transition hover:border-red-200 hover:bg-red-50"
           >
             Sign in with Microsoft
           </button>
@@ -355,21 +378,21 @@ export default function LoginPage() {
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t border-slate-200" />
             </div>
-            <div className="relative flex justify-center text-xs font-bold uppercase tracking-[0.16em]">
-              <span className="bg-white px-3 text-slate-400">Branch credentials</span>
+            <div className="relative flex justify-center text-xs font-black uppercase tracking-[0.16em] text-slate-400">
+              <span className="bg-white px-3">Branch credentials</span>
             </div>
           </div>
 
-          <form onSubmit={handleStandardLogin} className="space-y-4">
+          <form onSubmit={handleStandardLogin} className="space-y-5">
             <label className="block">
-              <span className="mb-1.5 block text-sm font-bold text-slate-700">Email</span>
+              <span className="mb-2 block text-sm font-bold text-slate-700">Email</span>
               <span className="relative block">
-                <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <Mail className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <input
                   type="email"
                   required
                   autoComplete="email"
-                  className="w-full rounded-lg border border-slate-200 bg-slate-50 py-3 pl-10 pr-3 text-slate-950 outline-none transition focus:border-[#8b1e2d] focus:bg-white focus:ring-4 focus:ring-red-100"
+                  className="w-full rounded-[1.5rem] border border-slate-200 bg-slate-50 py-4 pl-12 pr-4 text-slate-950 outline-none transition focus:border-[#8b1e2d] focus:bg-white focus:ring-4 focus:ring-red-100"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                 />
@@ -377,14 +400,14 @@ export default function LoginPage() {
             </label>
 
             <label className="block">
-              <span className="mb-1.5 block text-sm font-bold text-slate-700">Password</span>
+              <span className="mb-2 block text-sm font-bold text-slate-700">Password</span>
               <span className="relative block">
-                <LockKeyhole className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <LockKeyhole className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <input
                   type="password"
                   required
                   autoComplete="current-password"
-                  className="w-full rounded-lg border border-slate-200 bg-slate-50 py-3 pl-10 pr-3 text-slate-950 outline-none transition focus:border-[#8b1e2d] focus:bg-white focus:ring-4 focus:ring-red-100"
+                  className="w-full rounded-[1.5rem] border border-slate-200 bg-slate-50 py-4 pl-12 pr-4 text-slate-950 outline-none transition focus:border-[#8b1e2d] focus:bg-white focus:ring-4 focus:ring-red-100"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                 />
@@ -392,15 +415,15 @@ export default function LoginPage() {
             </label>
 
             <label className="block">
-              <span className="mb-1.5 block text-sm font-bold text-slate-700">Branch code</span>
+              <span className="mb-2 block text-sm font-bold text-slate-700">Branch code</span>
               <span className="relative block">
-                <MapPin className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <MapPin className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <input
                   type="text"
                   required
                   autoComplete="organization"
                   placeholder="e.g. HQ-001"
-                  className="w-full rounded-lg border border-slate-200 bg-slate-50 py-3 pl-10 pr-3 uppercase tracking-wide text-slate-950 outline-none transition placeholder:normal-case placeholder:tracking-normal focus:border-[#8b1e2d] focus:bg-white focus:ring-4 focus:ring-red-100"
+                  className="w-full rounded-[1.5rem] border border-slate-200 bg-slate-50 py-4 pl-12 pr-4 uppercase tracking-wide text-slate-950 outline-none transition placeholder:normal-case placeholder:tracking-normal focus:border-[#8b1e2d] focus:bg-white focus:ring-4 focus:ring-red-100"
                   value={branchCode}
                   onChange={(e) => setBranchCode(e.target.value.toUpperCase())}
                 />
@@ -410,10 +433,10 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading || checkingExistingSession}
-              className="flex w-full items-center justify-center gap-2 rounded-lg bg-slate-950 px-4 py-3.5 font-black text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+              className="flex w-full items-center justify-center gap-2 rounded-[1.75rem] bg-slate-950 px-5 py-4 text-sm font-black uppercase tracking-[0.12em] text-white shadow-xl shadow-slate-900/10 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {loading && <Loader2 className="h-5 w-5 animate-spin" />}
-              {loading ? 'Verifying access...' : 'Continue securely'}
+              {loading ? 'Verifying access…' : 'Continue securely'}
             </button>
           </form>
         </section>
