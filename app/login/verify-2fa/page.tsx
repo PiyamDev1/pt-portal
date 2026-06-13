@@ -10,6 +10,7 @@ import { useState } from 'react'
 import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { Shield, Loader2 } from 'lucide-react'
 
 export default function Verify2FAPage() {
   const [code, setCode] = useState('')
@@ -89,115 +90,121 @@ export default function Verify2FAPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50">
-      <div className="absolute top-4 left-4">
-        <Link
-          href="/login"
-          className="flex items-center gap-2 text-blue-600 hover:text-blue-800 text-sm font-medium"
-        >
-          ← Back to Login
-        </Link>
-      </div>
-      <div className="w-full max-w-md p-8 bg-white rounded-xl shadow-lg border border-slate-200 text-center">
-        <div className="mx-auto w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mb-4">
-          <svg
-            className="w-8 h-8 text-blue-900"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2"
-              d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
-            ></path>
-          </svg>
-        </div>
+    <main className="relative min-h-screen overflow-hidden bg-[#f5f5f5] text-slate-950">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(139,30,45,0.12),_transparent_30%),linear-gradient(135deg,_#f7fbf7_0%,_#f1e7e9_45%,_#f8fafc_100%)]" />
+      <div className="pointer-events-none absolute right-[-8rem] top-[-10rem] h-80 w-80 rounded-full bg-red-200/30 blur-3xl" />
 
-        <h2 className="text-2xl font-bold text-slate-800 mb-2">Two-Factor Authentication</h2>
-        {!useBackup ? (
-          <>
-            <p className="text-slate-500 mb-6 text-sm">
-              Open Google Authenticator and enter the code for <strong>Piyam Travels</strong>.
+      <div className="relative mx-auto grid min-h-screen w-full max-w-6xl grid-cols-1 items-center gap-8 px-5 py-10 lg:grid-cols-[1fr_440px] lg:px-8">
+        <section className="hidden lg:block rounded-[2rem] border border-red-100 bg-white/90 p-10 shadow-2xl shadow-red-950/10 backdrop-blur">
+          <div className="flex items-center gap-3 rounded-3xl bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700 shadow-sm">
+            <Shield className="h-4 w-4" />
+            IMS secure access
+          </div>
+          <div className="mt-10">
+            <h1 className="text-4xl font-black tracking-tight text-slate-950">Confirm your identity</h1>
+            <p className="mt-6 max-w-xl text-lg leading-8 text-slate-600">
+              Enter your authenticator code or a backup code to complete secure sign-in to the IMS dashboard.
             </p>
-            <form onSubmit={handleVerify} className="space-y-6">
-              <input
-                type="text"
-                placeholder="000 000"
-                maxLength={6}
-                autoFocus
-                className="w-full text-center text-3xl tracking-[0.5em] p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-900 outline-none font-mono"
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-              />
-              {error && <div className="p-3 bg-red-50 text-red-600 text-sm rounded">{error}</div>}
-              <button
-                type="submit"
-                className="w-full py-3 bg-blue-900 text-white rounded-lg font-bold hover:bg-blue-800 transition"
-              >
-                Verify Identity
-              </button>
-            </form>
-            <div className="mt-4 flex flex-col items-center gap-2">
-              <button
-                type="button"
-                className="text-sm text-blue-700 hover:underline"
-                onClick={() => {
-                  setUseBackup(true)
-                  setError('')
-                  setCode('')
-                }}
-              >
-                Use backup code
-              </button>
+          </div>
+        </section>
+
+        <section className="rounded-[1.5rem] border border-white/80 bg-white/95 p-8 shadow-2xl shadow-slate-900/10 backdrop-blur md:p-10">
+          <div className="mb-6 text-center">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-3xl bg-[#4b0f16] text-white shadow-lg mb-4">
+              <Shield className="h-6 w-6" />
             </div>
-          </>
-        ) : (
-          <>
-            <p className="text-slate-500 mb-6 text-sm">
-              Enter one of your backup codes. Each code can only be used once.
-            </p>
-            <form onSubmit={handleVerify} className="space-y-6">
-              <input
-                type="text"
-                placeholder="Backup code"
-                maxLength={16}
-                autoFocus
-                className="w-full text-center text-xl p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-900 outline-none font-mono"
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-              />
-              {error && <div className="p-3 bg-red-50 text-red-600 text-sm rounded">{error}</div>}
-              <button
-                type="submit"
-                className="w-full py-3 bg-blue-900 text-white rounded-lg font-bold hover:bg-blue-800 transition"
-              >
-                Verify with Backup Code
-              </button>
-            </form>
-            <div className="mt-4 flex flex-col items-center gap-2">
-              <button
-                type="button"
-                className="text-sm text-blue-700 hover:underline"
-                onClick={() => {
-                  setUseBackup(false)
-                  setError('')
-                  setCode('')
-                }}
-              >
-                Use authenticator app
-              </button>
-              <button
-                onClick={() => router.push('/login')}
-                className="text-sm text-slate-400 hover:text-slate-600"
-              >
-                Back to Login
-              </button>
-            </div>
-          </>
-        )}
+            <h2 className="text-2xl font-black text-slate-950">Two-Factor Authentication</h2>
+            <p className="mt-2 text-sm text-slate-600">Prove it's you to finish signing in to Piyam Travels IMS.</p>
+          </div>
+          {!useBackup ? (
+            <>
+              <p className="text-slate-500 mb-6 text-sm">
+                Open your authenticator app and enter the 6‑digit code for <strong>Piyam Travels</strong>.
+              </p>
+
+              <form onSubmit={handleVerify} className="space-y-6">
+                <input
+                  type="text"
+                  placeholder="000 000"
+                  maxLength={6}
+                  autoFocus
+                  className="w-full text-center text-3xl tracking-[0.5em] p-3 border border-slate-300 rounded-2xl focus:ring-4 focus:ring-red-100 outline-none font-mono"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                />
+
+                {error && <div className="p-3 bg-red-50 text-red-600 text-sm rounded">{error}</div>}
+
+                <button
+                  type="submit"
+                  className="flex w-full items-center justify-center gap-2 rounded-[1.75rem] bg-[#4b0f16] px-5 py-3 text-sm font-black uppercase tracking-[0.12em] text-white shadow-xl transition hover:bg-[#6f1422] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <span>Verify identity</span>
+                </button>
+              </form>
+
+              <div className="mt-4 flex flex-col items-center gap-2">
+                <button
+                  type="button"
+                  className="text-sm text-[#8b1e2d] hover:underline"
+                  onClick={() => {
+                    setUseBackup(true)
+                    setError('')
+                    setCode('')
+                  }}
+                >
+                  Use a backup code
+                </button>
+                <Link href="/login" className="text-sm text-slate-400 hover:text-slate-600">
+                  Back to Login
+                </Link>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="text-slate-500 mb-6 text-sm">Enter one of your single-use backup codes.</p>
+
+              <form onSubmit={handleVerify} className="space-y-6">
+                <input
+                  type="text"
+                  placeholder="Backup code"
+                  maxLength={32}
+                  autoFocus
+                  className="w-full text-center text-xl p-3 border border-slate-300 rounded-2xl focus:ring-4 focus:ring-red-100 outline-none font-mono"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                />
+
+                {error && <div className="p-3 bg-red-50 text-red-600 text-sm rounded">{error}</div>}
+
+                <button
+                  type="submit"
+                  className="flex w-full items-center justify-center gap-2 rounded-[1.75rem] bg-[#4b0f16] px-5 py-3 text-sm font-black uppercase tracking-[0.12em] text-white shadow-xl transition hover:bg-[#6f1422] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <span>Verify with backup code</span>
+                </button>
+              </form>
+
+              <div className="mt-4 flex flex-col items-center gap-2">
+                <button
+                  type="button"
+                  className="text-sm text-[#8b1e2d] hover:underline"
+                  onClick={() => {
+                    setUseBackup(false)
+                    setError('')
+                    setCode('')
+                  }}
+                >
+                  Use authenticator app
+                </button>
+                <Link href="/login" className="text-sm text-slate-400 hover:text-slate-600">
+                  Back to Login
+                </Link>
+              </div>
+            </>
+          )}
+        </section>
       </div>
-    </div>
+    </main>
   )
 }
