@@ -9,6 +9,7 @@ import type { Metadata, Viewport } from 'next'
 import { Toaster } from 'sonner'
 import { ProgressBarProvider } from './components/ProgressBarProvider'
 import { WebVitalsReporter } from './components/WebVitalsReporter'
+import { ApiLatencyReporter } from './components/ApiLatencyReporter'
 import { GlobalFooter } from './components/GlobalFooter'
 import { IssueReporterWidget } from './components/IssueReporterWidget'
 import { PWAInstallPrompt } from './components/PWAInstallPrompt'
@@ -77,6 +78,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Toaster position="top-center" richColors />
         <IssueReporterWidget />
         <WebVitalsReporter />
+        <ApiLatencyReporter />
         <PWAInstallPrompt />
         <ServiceWorkerRegistrar />
       </body>

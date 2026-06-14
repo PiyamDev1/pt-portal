@@ -1,9 +1,17 @@
 import { cookies } from 'next/headers'
 import { createServerClient } from '@supabase/auth-helpers-nextjs'
 import { redirect } from 'next/navigation'
+import dynamic from 'next/dynamic'
 import PageHeader from '@/app/components/PageHeader.client'
 import DashboardClientWrapper from '@/app/dashboard/client-wrapper'
-import BookingsClient from './BookingsClient'
+
+const BookingsClient = dynamic(() => import('./BookingsClient'), {
+  loading: () => (
+    <div className="mx-auto max-w-6xl px-4 py-6">
+      <div className="h-96 animate-pulse rounded-[2rem] border border-slate-200 bg-white" />
+    </div>
+  ),
+})
 
 interface BranchLocationOption {
   id: string

@@ -17,8 +17,17 @@ import { toErrorMessage } from '@/lib/api/error'
 
 export async function POST(request: Request) {
   try {
-    await request.json()
-    // TODO: send to analytics provider (consider Vercel Web Analytics or Datadog)
+    const metric = await request.json()
+    // Keep payloads low-sensitivity: only metric name, timing, route path, and status.
+    if (metric?.name === 'api-latency') {
+      console.warn('[perf:api-latency]', {
+        path: metric.path,
+        value: metric.value,
+        status: metric.status,
+        rating: metric.rating,
+      })
+    }
+    // TODO: send to analytics provider (consider Vercel Web Analytics or Datadog).
     return apiOk({ received: true })
   } catch (error) {
     return apiError(toErrorMessage(error, 'Invalid payload'), 400)

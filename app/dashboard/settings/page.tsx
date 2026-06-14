@@ -18,9 +18,15 @@
 import { createServerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
-import SettingsClient from './client'
+import dynamic from 'next/dynamic'
 import PageHeader from '@/app/components/PageHeader.client'
 import DashboardClientWrapper from '@/app/dashboard/client-wrapper'
+
+const SettingsClient = dynamic(() => import('./client'), {
+  loading: () => (
+    <div className="h-96 animate-pulse rounded-[2rem] border border-slate-200 bg-white" />
+  ),
+})
 
 export default async function SettingsPage() {
   const cookieStore = await cookies()

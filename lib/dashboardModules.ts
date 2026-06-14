@@ -23,6 +23,7 @@ export type DashboardModule = {
     | 'clock'
     | 'file-text'
     | 'fingerprint'
+    | 'graduation'
     | 'heart'
     | 'plane'
     | 'settings'
@@ -65,6 +66,17 @@ export const DASHBOARD_MODULES: DashboardModule[] = [
     iconTone: 'from-emerald-500 via-emerald-700 to-teal-800 text-white shadow-emerald-900/25',
     tileTone: 'from-emerald-50 via-white to-teal-50',
     iconKey: 'heart',
+  },
+  {
+    id: 'training',
+    title: 'Training',
+    desc: 'Courses, certificates and compliance refreshers',
+    href: '/dashboard/training',
+    group: 'staff',
+    accent: 'from-[#7f1d1d] to-[#111827] text-white',
+    iconTone: 'from-[#8b1e2d] via-[#c43b42] to-[#111827] text-white shadow-red-950/25',
+    tileTone: 'from-red-50 via-white to-slate-100',
+    iconKey: 'graduation',
   },
   {
     id: 'applications',

@@ -16,9 +16,15 @@
  */
 import { createServerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
+import dynamic from 'next/dynamic'
 import PageHeader from '@/app/components/PageHeader.client'
-import LMSClient from './client'
 import DashboardClientWrapper from '@/app/dashboard/client-wrapper'
+
+const LMSClient = dynamic(() => import('./client'), {
+  loading: () => (
+    <div className="h-96 animate-pulse rounded-[2rem] border border-slate-200 bg-white" />
+  ),
+})
 
 export default async function LMSPage() {
   const cookieStore = await cookies()

@@ -13,6 +13,7 @@ import { CalendarDays, Clock3, HeartPulse, Home, Settings } from 'lucide-react'
 // import { useSessionTimeout } from '@/hooks/useSessionTimeout'
 import { SessionWarningHeader } from '@/app/components/SessionWarningHeader'
 import { PasskeySetupPrompt } from '@/app/components/PasskeySetupPrompt'
+import { RouteWarmup } from './RouteWarmup'
 
 const MOBILE_NAV_ITEMS = [
   { href: '/dashboard', label: 'Home', icon: Home },
@@ -64,6 +65,7 @@ export default function DashboardClientWrapper({ children }: { children: React.R
   return (
     <div className="dashboard-mobile-shell">
       <SessionWarningHeader showWarning={showWarning} secondsRemaining={secondsRemaining} />
+      <RouteWarmup />
       {children}
       <MobileDashboardNav />
       <PasskeySetupPrompt />

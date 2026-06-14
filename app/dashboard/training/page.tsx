@@ -1,19 +1,10 @@
 /**
- * Pricing Management Page
- * 
- * Service pricing configuration and management interface (Admin only):
- * - View and edit service fee pricing
- * - Manage pricing tiers and discounts
- * - Configure surcharges and additional fees
- * - Set pricing effective dates
- * 
- * Server component that:
- * - Verifies admin authorization
- * - Loads current pricing configuration from database
- * - Renders pricing table for editing
- * 
- * @module app/dashboard/pricing/page
+ * Training and Certification Page.
+ *
+ * Server component that protects the module behind IMS auth and passes the
+ * current staff identity into the shared dashboard chrome.
  */
+
 import { createServerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
@@ -21,13 +12,18 @@ import dynamic from 'next/dynamic'
 import PageHeader from '@/app/components/PageHeader.client'
 import DashboardClientWrapper from '@/app/dashboard/client-wrapper'
 
-const PricingClient = dynamic(() => import('./client'), {
+const TrainingClient = dynamic(() => import('./client'), {
   loading: () => (
     <div className="h-96 animate-pulse rounded-[2rem] border border-slate-200 bg-white" />
   ),
 })
 
-export default async function PricingPage() {
+export const metadata = {
+  title: 'Training & Certification - PT Portal',
+  description: 'Internal staff training, certification, and compliance tracking',
+}
+
+export default async function TrainingPage() {
   const cookieStore = await cookies()
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -51,36 +47,30 @@ export default async function PricingPage() {
   const {
     data: { session },
   } = await supabase.auth.getSession()
+
   if (!session) redirect('/login')
 
-  const { data: employeeData } = await supabase
+  const { data: employee } = await supabase
     .from('employees')
     .select('full_name, roles(name), locations(name, branch_code)')
     .eq('id', session.user.id)
     .single()
 
-  const location = Array.isArray(employeeData?.locations)
-    ? employeeData.locations[0]
-    : employeeData?.locations
-  const role = Array.isArray(employeeData?.roles) ? employeeData.roles[0] : employeeData?.roles
-  const userRole = role?.name || 'Employee'
+  const role = Array.isArray(employee?.roles) ? employee.roles[0] : employee?.roles
+  const location = Array.isArray(employee?.locations) ? employee.locations[0] : employee?.locations
 
   return (
     <DashboardClientWrapper>
       <div className="min-h-screen bg-slate-50">
         <PageHeader
-          employeeName={employeeData?.full_name}
-          role={userRole}
+          employeeName={employee?.full_name}
+          role={role?.name || 'Employee'}
           location={location}
           userId={session.user.id}
           showBack={true}
         />
-
-        <main className="max-w-7xl mx-auto p-6">
-          <h1 className="text-3xl font-bold text-slate-800 mb-2">Pricing Management</h1>
-          <p className="text-slate-500 mb-8">Manage pricing for all services and offerings.</p>
-
-          <PricingClient userRole={userRole} />
+        <main className="mx-auto w-full max-w-7xl px-3 py-4 sm:px-6 md:py-8">
+          <TrainingClient />
         </main>
       </div>
     </DashboardClientWrapper>

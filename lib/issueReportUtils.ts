@@ -64,6 +64,7 @@ export function deriveModuleFromPath(pathname: string) {
 
   const checks: Array<[string, string]> = [
     ['/dashboard/timeclock', 'timeclock'],
+    ['/dashboard/training', 'training'],
     ['/dashboard/applications/nadra', 'nadra'],
     ['/dashboard/applications/passports-gb', 'passports-gb'],
     ['/dashboard/applications/passports', 'passports'],
