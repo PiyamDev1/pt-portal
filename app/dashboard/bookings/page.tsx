@@ -53,7 +53,7 @@ export default async function BookingsDashboard() {
 
   let branchLocations: BranchLocationOption[] = []
 
-  if (isAdmin) {
+    // Load appointment-enabled locations so all staff can pick an alternate site
     const { data: locationsData } = await supabase
       .from('locations')
       .select('id, name, branch_code, appointments_enabled')
@@ -61,11 +61,12 @@ export default async function BookingsDashboard() {
       .eq('appointments_enabled', true)
       .order('name')
     branchLocations = (locationsData || []) as BranchLocationOption[]
-  }
 
-  const effectiveUserLocationId = location?.appointments_enabled === false
-    ? branchLocations[0]?.id || null
-    : location?.id || null
+  const effectiveUserLocationId =
+      // By default, show user's own location if appointment-enabled; otherwise fall back to the next available appointment-enabled site
+      location?.appointments_enabled === false
+        ? branchLocations[0]?.id || null
+        : location?.id || null
 
   return (
     <DashboardClientWrapper>
