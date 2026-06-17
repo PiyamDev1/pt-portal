@@ -14,7 +14,13 @@ export const dynamic = 'force-dynamic'
 
 const TRAINING_ADMIN_ROLES = new Set(['Admin', 'Master Admin', 'Maintenance Admin', 'Manager'])
 
-type TrainingAction = 'create-course' | 'enroll' | 'start' | 'complete'
+type TrainingAction =
+  | 'create-course'
+  | 'create-lesson'
+  | 'create-question'
+  | 'enroll'
+  | 'start'
+  | 'complete'
 
 type TrainingRequestBody = {
   action?: TrainingAction
@@ -30,6 +36,14 @@ type TrainingRequestBody = {
   passingScore?: number
   certificateValidDays?: number | null
   isRequired?: boolean
+  lessonTitle?: string
+  lessonBody?: string
+  questionPrompt?: string
+  questionOptions?: string[]
+  correctOptionIndex?: number
+  explanation?: string
+  sortOrder?: number
+  answers?: Record<string, number>
 }
 
 async function getCurrentEmployee(supabase: Awaited<ReturnType<typeof getRouteSupabaseClient>>, userId: string) {
@@ -63,6 +77,11 @@ function normaliseScore(score: unknown) {
   return Math.max(0, Math.min(100, Math.round(value)))
 }
 
+function normaliseOptions(options: unknown) {
+  if (!Array.isArray(options)) return []
+  return options.map((option) => String(option || '').trim()).filter(Boolean).slice(0, 6)
+}
+
 export async function GET() {
   try {
     const supabase = await getRouteSupabaseClient()
@@ -77,13 +96,13 @@ export async function GET() {
 
     const enrollmentQuery = supabase
       .from('training_enrollments')
-      .select('*, training_courses(*), training_certificates(*)')
+      .select('*, training_courses(*, training_lessons(*), training_quiz_questions(*)), training_certificates(*)')
       .order('updated_at', { ascending: false })
 
     const [coursesResult, enrollmentsResult, employeesResult] = await Promise.all([
       supabase
         .from('training_courses')
-        .select('*')
+        .select('*, training_lessons(*), training_quiz_questions(*)')
         .order('is_required', { ascending: false })
         .order('title'),
       admin ? enrollmentQuery : enrollmentQuery.eq('employee_id', user.id),
@@ -152,6 +171,52 @@ export async function POST(request: Request) {
 
     if (!body.courseId) return apiError('courseId is required', 400)
 
+    if (body.action === 'create-lesson') {
+      if (!admin) return apiError('Only managers or admins can add training lessons', 403)
+      if (!body.lessonTitle?.trim()) return apiError('Lesson title is required', 400)
+
+      const { data, error } = await supabase
+        .from('training_lessons')
+        .insert({
+          course_id: body.courseId,
+          title: body.lessonTitle.trim(),
+          body: body.lessonBody?.trim() || '',
+          sort_order: Number(body.sortOrder || 0),
+        })
+        .select('*')
+        .single()
+
+      if (error) throw error
+      return apiOk({ lesson: data })
+    }
+
+    if (body.action === 'create-question') {
+      if (!admin) return apiError('Only managers or admins can add quiz questions', 403)
+      if (!body.questionPrompt?.trim()) return apiError('Question prompt is required', 400)
+      const options = normaliseOptions(body.questionOptions)
+      if (options.length < 2) return apiError('Add at least two answer options', 400)
+      const correctIndex = Math.max(
+        0,
+        Math.min(options.length - 1, Number(body.correctOptionIndex || 0)),
+      )
+
+      const { data, error } = await supabase
+        .from('training_quiz_questions')
+        .insert({
+          course_id: body.courseId,
+          prompt: body.questionPrompt.trim(),
+          options,
+          correct_option_index: correctIndex,
+          explanation: body.explanation?.trim() || null,
+          sort_order: Number(body.sortOrder || 0),
+        })
+        .select('*')
+        .single()
+
+      if (error) throw error
+      return apiOk({ question: data })
+    }
+
     const targetEmployeeId = body.employeeId || user.id
     if (targetEmployeeId !== user.id && !admin) {
       return apiError('Only managers or admins can assign training to other staff', 403)
@@ -211,7 +276,21 @@ export async function POST(request: Request) {
     }
 
     if (body.action === 'complete') {
-      const score = normaliseScore(body.score)
+      const { data: questions, error: questionsError } = await supabase
+        .from('training_quiz_questions')
+        .select('id, correct_option_index')
+        .eq('course_id', body.courseId)
+
+      if (questionsError) throw questionsError
+
+      const answers = body.answers || {}
+      const hasQuiz = Boolean(questions?.length)
+      const correctAnswers = (questions || []).filter(
+        (question) => Number(answers[question.id]) === Number(question.correct_option_index),
+      ).length
+      const score = hasQuiz
+        ? normaliseScore((correctAnswers / Math.max(1, questions!.length)) * 100)
+        : normaliseScore(body.score)
       const passed = score >= Number(course.passing_score || 80)
       const certificateExpiresAt = course.certificate_valid_days
         ? new Date(Date.now() + Number(course.certificate_valid_days) * 24 * 60 * 60 * 1000).toISOString()
@@ -240,6 +319,7 @@ export async function POST(request: Request) {
         employee_id: targetEmployeeId,
         score,
         passed,
+        answers,
         notes: body.notes?.trim() || null,
       })
 

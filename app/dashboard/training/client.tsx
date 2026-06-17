@@ -20,6 +20,22 @@ import {
   UserPlus,
 } from 'lucide-react'
 
+type TrainingLesson = {
+  id: string
+  title: string
+  body: string
+  sort_order: number
+}
+
+type TrainingQuizQuestion = {
+  id: string
+  prompt: string
+  options: string[]
+  correct_option_index: number
+  explanation: string | null
+  sort_order: number
+}
+
 type TrainingCourse = {
   id: string
   title: string
@@ -30,6 +46,8 @@ type TrainingCourse = {
   certificate_valid_days: number | null
   is_required: boolean
   is_active: boolean
+  training_lessons?: TrainingLesson[]
+  training_quiz_questions?: TrainingQuizQuestion[]
 }
 
 type TrainingEnrollment = {
@@ -80,6 +98,20 @@ const defaultNewCourse = {
   isRequired: false,
 }
 
+const defaultLessonForm = {
+  lessonTitle: '',
+  lessonBody: '',
+  sortOrder: 0,
+}
+
+const defaultQuestionForm = {
+  questionPrompt: '',
+  questionOptionsText: '',
+  correctOptionIndex: 0,
+  explanation: '',
+  sortOrder: 0,
+}
+
 function statusLabel(status: TrainingEnrollment['status']) {
   if (status === 'in_progress') return 'In progress'
   return status.charAt(0).toUpperCase() + status.slice(1)
@@ -107,9 +139,13 @@ export default function TrainingClient() {
   const [selectedCourseId, setSelectedCourseId] = useState('')
   const [dueDate, setDueDate] = useState('')
   const [newCourse, setNewCourse] = useState(defaultNewCourse)
+  const [lessonForm, setLessonForm] = useState(defaultLessonForm)
+  const [questionForm, setQuestionForm] = useState(defaultQuestionForm)
+  const [activeCourseId, setActiveCourseId] = useState<string | null>(null)
+  const [answers, setAnswers] = useState<Record<string, number>>({})
 
-  const loadTraining = useCallback(async () => {
-    setLoading(true)
+  const loadTraining = useCallback(async (showPageLoader = true) => {
+    if (showPageLoader) setLoading(true)
     try {
       const response = await fetch('/api/training', { cache: 'no-store' })
       const json = await response.json()
@@ -120,7 +156,7 @@ export default function TrainingClient() {
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to load training')
     } finally {
-      setLoading(false)
+      if (showPageLoader) setLoading(false)
     }
   }, [])
 
@@ -137,6 +173,13 @@ export default function TrainingClient() {
     }
     return map
   }, [payload])
+
+  const activeCourse = useMemo(
+    () => payload?.courses.find((course) => course.id === activeCourseId) || null,
+    [activeCourseId, payload?.courses],
+  )
+
+  const activeEnrollment = activeCourse ? enrollmentByCourse.get(activeCourse.id) : undefined
 
   const stats = useMemo(() => {
     const ownEnrollments = (payload?.enrollments || []).filter(
@@ -161,7 +204,7 @@ export default function TrainingClient() {
       const json = await response.json()
       if (!response.ok) throw new Error(json.error || 'Training update failed')
       toast.success(successMessage)
-      await loadTraining()
+      await loadTraining(false)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Training update failed')
     } finally {
@@ -181,6 +224,95 @@ export default function TrainingClient() {
       'Training course created',
     )
     setNewCourse(defaultNewCourse)
+  }
+
+  async function createLesson() {
+    if (!selectedCourseId) return toast.error('Select a course first')
+    if (!lessonForm.lessonTitle.trim()) return toast.error('Lesson title is required')
+
+    await postTraining(
+      'create-lesson',
+      {
+        courseId: selectedCourseId,
+        ...lessonForm,
+      },
+      'Lesson added',
+    )
+    setLessonForm(defaultLessonForm)
+  }
+
+  async function createQuestion() {
+    if (!selectedCourseId) return toast.error('Select a course first')
+    if (!questionForm.questionPrompt.trim()) return toast.error('Question prompt is required')
+    const options = questionForm.questionOptionsText
+      .split('\n')
+      .map((option) => option.trim())
+      .filter(Boolean)
+    if (options.length < 2) return toast.error('Add at least two answer options')
+
+    await postTraining(
+      'create-question',
+      {
+        courseId: selectedCourseId,
+        questionPrompt: questionForm.questionPrompt,
+        questionOptions: options,
+        correctOptionIndex: questionForm.correctOptionIndex,
+        explanation: questionForm.explanation,
+        sortOrder: questionForm.sortOrder,
+      },
+      'Quiz question added',
+    )
+    setQuestionForm(defaultQuestionForm)
+  }
+
+  function openCourse(course: TrainingCourse) {
+    setActiveCourseId(course.id)
+    setAnswers({})
+    const enrollment = enrollmentByCourse.get(course.id)
+    if (!enrollment || enrollment.status === 'assigned') {
+      void postTraining('start', { courseId: course.id }, 'Training started')
+    }
+  }
+
+  async function submitQuiz(course: TrainingCourse) {
+    const questions = [...(course.training_quiz_questions || [])].sort(
+      (a, b) => a.sort_order - b.sort_order,
+    )
+    const missing = questions.some((question) => typeof answers[question.id] !== 'number')
+    if (missing) return toast.error('Answer all quiz questions before submitting')
+
+    await postTraining(
+      'complete',
+      {
+        courseId: course.id,
+        answers,
+      },
+      'Training submitted',
+    )
+    setActiveCourseId(null)
+    setAnswers({})
+  }
+
+  function downloadCertificate(course: TrainingCourse, enrollment: TrainingEnrollment) {
+    const certificate = enrollment.training_certificates?.[0]
+    const certificateText = [
+      'Piyam Travels LTD',
+      'Training Certificate',
+      '',
+      `Course: ${course.title}`,
+      `Employee: ${payload?.currentEmployee.full_name || 'Staff member'}`,
+      `Score: ${enrollment.score ?? '-'}%`,
+      `Completed: ${formatDate(enrollment.completed_at)}`,
+      `Certificate: ${certificate?.certificate_number || enrollment.id}`,
+      `Expires: ${formatDate(enrollment.certificate_expires_at)}`,
+    ].join('\n')
+    const blob = new Blob([certificateText], { type: 'text/plain;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = `${course.title.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-certificate.txt`
+    anchor.click()
+    URL.revokeObjectURL(url)
   }
 
   if (loading) {
@@ -353,6 +485,100 @@ export default function TrainingClient() {
               </button>
             </div>
           </div>
+
+          <div className="rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm lg:col-span-2">
+            <h2 className="flex items-center gap-2 text-lg font-black text-slate-900">
+              <BookOpenCheck className="h-5 w-5 text-[#8b1d2c]" />
+              Course content builder
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Add lesson text and quiz questions. Questions are scored server-side when staff submit.
+            </p>
+            <div className="mt-4 grid gap-4 lg:grid-cols-2">
+              <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3">
+                <select
+                  value={selectedCourseId}
+                  onChange={(event) => setSelectedCourseId(event.target.value)}
+                  className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm"
+                >
+                  {payload.courses.map((course) => (
+                    <option key={course.id} value={course.id}>
+                      {course.title}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  value={lessonForm.lessonTitle}
+                  onChange={(event) => setLessonForm((current) => ({ ...current, lessonTitle: event.target.value }))}
+                  placeholder="Lesson title"
+                  className="mt-3 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm"
+                />
+                <textarea
+                  value={lessonForm.lessonBody}
+                  onChange={(event) => setLessonForm((current) => ({ ...current, lessonBody: event.target.value }))}
+                  placeholder="Lesson content"
+                  rows={5}
+                  className="mt-3 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                />
+                <button
+                  onClick={() => void createLesson()}
+                  disabled={savingAction === 'create-lesson'}
+                  className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#8b1d2c] px-4 text-sm font-black text-white disabled:opacity-50"
+                >
+                  {savingAction === 'create-lesson' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                  Add lesson
+                </button>
+              </div>
+
+              <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3">
+                <input
+                  value={questionForm.questionPrompt}
+                  onChange={(event) => setQuestionForm((current) => ({ ...current, questionPrompt: event.target.value }))}
+                  placeholder="Quiz question"
+                  className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm"
+                />
+                <textarea
+                  value={questionForm.questionOptionsText}
+                  onChange={(event) => setQuestionForm((current) => ({ ...current, questionOptionsText: event.target.value }))}
+                  placeholder={'Answer options, one per line\nFirst option\nSecond option'}
+                  rows={4}
+                  className="mt-3 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                />
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <input
+                    type="number"
+                    min={0}
+                    value={questionForm.correctOptionIndex}
+                    onChange={(event) => setQuestionForm((current) => ({ ...current, correctOptionIndex: Number(event.target.value) }))}
+                    placeholder="Correct option number"
+                    className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm"
+                  />
+                  <input
+                    type="number"
+                    value={questionForm.sortOrder}
+                    onChange={(event) => setQuestionForm((current) => ({ ...current, sortOrder: Number(event.target.value) }))}
+                    placeholder="Sort order"
+                    className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm"
+                  />
+                </div>
+                <textarea
+                  value={questionForm.explanation}
+                  onChange={(event) => setQuestionForm((current) => ({ ...current, explanation: event.target.value }))}
+                  placeholder="Optional explanation shown after review"
+                  rows={2}
+                  className="mt-3 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                />
+                <button
+                  onClick={() => void createQuestion()}
+                  disabled={savingAction === 'create-question'}
+                  className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 text-sm font-black text-white disabled:opacity-50"
+                >
+                  {savingAction === 'create-question' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                  Add question
+                </button>
+              </div>
+            </div>
+          </div>
         </section>
       )}
 
@@ -380,6 +606,14 @@ export default function TrainingClient() {
               </div>
               <h3 className="mt-4 text-lg font-black text-slate-950">{course.title}</h3>
               <p className="mt-2 flex-1 text-sm leading-6 text-slate-600">{course.description}</p>
+              <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-bold uppercase tracking-wide">
+                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-600">
+                  {course.training_lessons?.length || 0} lessons
+                </span>
+                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-600">
+                  {course.training_quiz_questions?.length || 0} questions
+                </span>
+              </div>
               <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
                 <div className="rounded-2xl bg-slate-50 p-3 text-slate-600">
                   <Clock3 className="h-4 w-4" />
@@ -405,18 +639,21 @@ export default function TrainingClient() {
               <div className="mt-4 grid gap-2">
                 {!complete && (
                   <button
-                    onClick={() =>
-                      postTraining(
-                        enrollment?.status === 'in_progress' ? 'complete' : 'start',
-                        { courseId: course.id, score: 100 },
-                        enrollment?.status === 'in_progress' ? 'Training completed' : 'Training started',
-                      )
-                    }
+                    onClick={() => openCourse(course)}
                     disabled={savingAction === 'start' || savingAction === 'complete'}
                     className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#8b1d2c] px-4 text-sm font-black text-white disabled:opacity-50"
                   >
                     {savingAction ? <Loader2 className="h-4 w-4 animate-spin" /> : <BookOpenCheck className="h-4 w-4" />}
-                    {enrollment?.status === 'in_progress' ? 'Mark complete' : 'Start training'}
+                    {enrollment?.status === 'in_progress' ? 'Continue training' : 'Start training'}
+                  </button>
+                )}
+                {complete && enrollment && (
+                  <button
+                    onClick={() => downloadCertificate(course, enrollment)}
+                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 text-sm font-black text-emerald-700"
+                  >
+                    <Award className="h-4 w-4" />
+                    Download certificate
                   </button>
                 )}
               </div>
@@ -424,6 +661,111 @@ export default function TrainingClient() {
           )
         })}
       </section>
+
+      {activeCourse && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-0 backdrop-blur-sm md:items-center md:p-4">
+          <div className="max-h-[94vh] w-full max-w-4xl overflow-y-auto rounded-b-none rounded-t-[1.75rem] bg-white p-4 shadow-2xl md:rounded-[2rem] md:p-6">
+            <div className="sticky top-0 z-10 -mx-4 -mt-4 flex items-start justify-between gap-4 border-b border-slate-100 bg-white/95 px-4 py-4 backdrop-blur md:static md:m-0 md:p-0 md:pb-4">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-[#8b1d2c]">
+                  Training session
+                </p>
+                <h2 className="mt-1 text-2xl font-black text-slate-950">{activeCourse.title}</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Status: {statusLabel(activeEnrollment?.status || 'assigned')}
+                </p>
+              </div>
+              <button
+                onClick={() => setActiveCourseId(null)}
+                className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-600"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="mt-5 grid gap-5 lg:grid-cols-[1.1fr_0.9fr]">
+              <div className="space-y-3">
+                <h3 className="text-sm font-black uppercase tracking-[0.16em] text-slate-500">
+                  Lessons
+                </h3>
+                {[...(activeCourse.training_lessons || [])]
+                  .sort((a, b) => a.sort_order - b.sort_order)
+                  .map((lesson, index) => (
+                    <article key={lesson.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                      <p className="text-xs font-black uppercase tracking-wide text-[#8b1d2c]">
+                        Lesson {index + 1}
+                      </p>
+                      <h4 className="mt-1 text-lg font-black text-slate-900">{lesson.title}</h4>
+                      <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-600">
+                        {lesson.body || 'No lesson content has been added yet.'}
+                      </p>
+                    </article>
+                  ))}
+                {(activeCourse.training_lessons || []).length === 0 && (
+                  <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+                    No lesson content has been added. Staff can still complete this course if no quiz
+                    questions are configured.
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-3">
+                <h3 className="text-sm font-black uppercase tracking-[0.16em] text-slate-500">
+                  Quiz
+                </h3>
+                {[...(activeCourse.training_quiz_questions || [])]
+                  .sort((a, b) => a.sort_order - b.sort_order)
+                  .map((question, index) => (
+                    <fieldset key={question.id} className="rounded-2xl border border-slate-200 bg-white p-4">
+                      <legend className="text-sm font-black text-slate-900">
+                        {index + 1}. {question.prompt}
+                      </legend>
+                      <div className="mt-3 space-y-2">
+                        {(question.options || []).map((option, optionIndex) => (
+                          <label
+                            key={`${question.id}-${optionIndex}`}
+                            className={`flex cursor-pointer items-center gap-3 rounded-xl border px-3 py-2 text-sm ${
+                              answers[question.id] === optionIndex
+                                ? 'border-[#8b1d2c] bg-red-50 text-[#8b1d2c]'
+                                : 'border-slate-200 bg-slate-50 text-slate-700'
+                            }`}
+                          >
+                            <input
+                              type="radio"
+                              name={question.id}
+                              checked={answers[question.id] === optionIndex}
+                              onChange={() =>
+                                setAnswers((current) => ({ ...current, [question.id]: optionIndex }))
+                              }
+                              className="h-4 w-4 text-[#8b1d2c]"
+                            />
+                            {option}
+                          </label>
+                        ))}
+                      </div>
+                    </fieldset>
+                  ))}
+                {(activeCourse.training_quiz_questions || []).length === 0 && (
+                  <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+                    No quiz questions configured. Completing this course will award a full score.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="sticky bottom-0 -mx-4 -mb-4 mt-5 border-t border-slate-100 bg-white/95 px-4 py-4 backdrop-blur md:static md:m-0 md:bg-transparent md:p-0 md:pt-5">
+              <button
+                onClick={() => void submitQuiz(activeCourse)}
+                disabled={savingAction === 'complete'}
+                className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#8b1d2c] px-4 text-sm font-black text-white disabled:opacity-50 md:w-auto"
+              >
+                {savingAction === 'complete' ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                Submit training
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
