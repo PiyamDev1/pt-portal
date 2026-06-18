@@ -22,6 +22,14 @@ type TrainingAction =
   | 'start'
   | 'complete'
 
+type TrainingQuestionType = 'single_choice' | 'multi_select' | 'true_false' | 'image_choice'
+
+type TrainingQuestionOption = {
+  id: string
+  label: string
+  imageUrl?: string | null
+}
+
 type TrainingRequestBody = {
   action?: TrainingAction
   courseId?: string
@@ -39,11 +47,15 @@ type TrainingRequestBody = {
   lessonTitle?: string
   lessonBody?: string
   questionPrompt?: string
-  questionOptions?: string[]
+  questionType?: TrainingQuestionType
+  questionOptions?: Array<string | TrainingQuestionOption>
+  correctAnswerIds?: string[]
   correctOptionIndex?: number
   explanation?: string
+  imageUrl?: string
+  points?: number
   sortOrder?: number
-  answers?: Record<string, number>
+  answers?: Record<string, string | string[] | number | number[]>
 }
 
 async function getCurrentEmployee(supabase: Awaited<ReturnType<typeof getRouteSupabaseClient>>, userId: string) {
@@ -77,9 +89,110 @@ function normaliseScore(score: unknown) {
   return Math.max(0, Math.min(100, Math.round(value)))
 }
 
-function normaliseOptions(options: unknown) {
+function normaliseQuestionType(type: unknown): TrainingQuestionType {
+  if (type === 'multi_select' || type === 'true_false' || type === 'image_choice') return type
+  return 'single_choice'
+}
+
+function normaliseOptions(options: unknown, questionType: TrainingQuestionType): TrainingQuestionOption[] {
+  const source =
+    questionType === 'true_false'
+      ? [
+          { id: 'true', label: 'True' },
+          { id: 'false', label: 'False' },
+        ]
+      : Array.isArray(options)
+        ? options
+        : []
+
+  return source
+    .map((option, index) => {
+      if (typeof option === 'string') {
+        return {
+          id: String(index),
+          label: option.trim(),
+          imageUrl: null,
+        }
+      }
+
+      const typedOption = option as Partial<TrainingQuestionOption>
+      return {
+        id: String(typedOption.id || String.fromCharCode(97 + index)).trim(),
+        label: String(typedOption.label || '').trim(),
+        imageUrl: typedOption.imageUrl ? String(typedOption.imageUrl).trim() : null,
+      }
+    })
+    .filter((option) => option.id && option.label)
+    .slice(0, 8)
+}
+
+function normaliseCorrectAnswerIds(
+  correctAnswerIds: unknown,
+  options: TrainingQuestionOption[],
+  questionType: TrainingQuestionType,
+  fallbackIndex = 0,
+) {
+  const validIds = new Set(options.map((option) => option.id))
+  const fallback = options[Math.max(0, Math.min(options.length - 1, fallbackIndex))]?.id
+  const raw = Array.isArray(correctAnswerIds) ? correctAnswerIds : fallback ? [fallback] : []
+  const selected = [...new Set(raw.map(String).filter((id) => validIds.has(id)))]
+
+  return questionType === 'multi_select' ? selected : selected.slice(0, 1)
+}
+
+function normaliseStoredOptions(options: unknown): TrainingQuestionOption[] {
   if (!Array.isArray(options)) return []
-  return options.map((option) => String(option || '').trim()).filter(Boolean).slice(0, 6)
+  return options
+    .map((option, index) => {
+      if (typeof option === 'string') {
+        return {
+          id: String(index),
+          label: option,
+          imageUrl: null,
+        }
+      }
+
+      const typedOption = option as Partial<TrainingQuestionOption>
+      return {
+        id: String(typedOption.id || String(index)),
+        label: String(typedOption.label || ''),
+        imageUrl: typedOption.imageUrl ? String(typedOption.imageUrl) : null,
+      }
+    })
+    .filter((option) => option.id && option.label)
+}
+
+function getQuestionCorrectIds(question: Record<string, unknown>) {
+  const options = normaliseStoredOptions(question.options)
+  const storedAnswer = question.correct_answer
+  if (Array.isArray(storedAnswer) && storedAnswer.length > 0) {
+    return storedAnswer.map(String)
+  }
+
+  const legacyIndex = Number(question.correct_option_index || 0)
+  const fallback = options[Math.max(0, Math.min(options.length - 1, legacyIndex))]
+  return fallback ? [fallback.id] : []
+}
+
+function getSubmittedAnswerIds(answer: unknown, question: Record<string, unknown>) {
+  const options = normaliseStoredOptions(question.options)
+  const optionByIndex = new Map(options.map((option, index) => [index, option.id]))
+  const values = Array.isArray(answer) ? answer : typeof answer !== 'undefined' ? [answer] : []
+
+  return [...new Set(values
+    .map((value) => {
+      if (typeof value === 'number') return optionByIndex.get(value) || String(value)
+      const asNumber = Number(value)
+      if (Number.isInteger(asNumber) && optionByIndex.has(asNumber)) return optionByIndex.get(asNumber)!
+      return String(value)
+    })
+    .filter(Boolean))]
+}
+
+function answersMatch(expected: string[], actual: string[]) {
+  if (expected.length !== actual.length) return false
+  const actualSet = new Set(actual)
+  return expected.every((id) => actualSet.has(id))
 }
 
 export async function GET() {
@@ -193,12 +306,17 @@ export async function POST(request: Request) {
     if (body.action === 'create-question') {
       if (!admin) return apiError('Only managers or admins can add quiz questions', 403)
       if (!body.questionPrompt?.trim()) return apiError('Question prompt is required', 400)
-      const options = normaliseOptions(body.questionOptions)
+      const questionType = normaliseQuestionType(body.questionType)
+      const options = normaliseOptions(body.questionOptions, questionType)
       if (options.length < 2) return apiError('Add at least two answer options', 400)
-      const correctIndex = Math.max(
-        0,
-        Math.min(options.length - 1, Number(body.correctOptionIndex || 0)),
+      const correctAnswerIds = normaliseCorrectAnswerIds(
+        body.correctAnswerIds,
+        options,
+        questionType,
+        Number(body.correctOptionIndex || 0),
       )
+      if (correctAnswerIds.length === 0) return apiError('Select at least one correct answer', 400)
+      const correctIndex = Math.max(0, options.findIndex((option) => option.id === correctAnswerIds[0]))
 
       const { data, error } = await supabase
         .from('training_quiz_questions')
@@ -207,7 +325,11 @@ export async function POST(request: Request) {
           prompt: body.questionPrompt.trim(),
           options,
           correct_option_index: correctIndex,
+          question_type: questionType,
+          correct_answer: correctAnswerIds,
           explanation: body.explanation?.trim() || null,
+          image_url: body.imageUrl?.trim() || null,
+          points: Math.max(1, Math.min(20, Number(body.points || 1))),
           sort_order: Number(body.sortOrder || 0),
         })
         .select('*')
@@ -278,18 +400,24 @@ export async function POST(request: Request) {
     if (body.action === 'complete') {
       const { data: questions, error: questionsError } = await supabase
         .from('training_quiz_questions')
-        .select('id, correct_option_index')
+        .select('*')
         .eq('course_id', body.courseId)
 
       if (questionsError) throw questionsError
 
       const answers = body.answers || {}
       const hasQuiz = Boolean(questions?.length)
-      const correctAnswers = (questions || []).filter(
-        (question) => Number(answers[question.id]) === Number(question.correct_option_index),
-      ).length
+      const totalPoints = (questions || []).reduce(
+        (total, question) => total + Math.max(1, Number(question.points || 1)),
+        0,
+      )
+      const earnedPoints = (questions || []).reduce((total, question) => {
+        const expected = getQuestionCorrectIds(question)
+        const actual = getSubmittedAnswerIds(answers[question.id], question)
+        return answersMatch(expected, actual) ? total + Math.max(1, Number(question.points || 1)) : total
+      }, 0)
       const score = hasQuiz
-        ? normaliseScore((correctAnswers / Math.max(1, questions!.length)) * 100)
+        ? normaliseScore((earnedPoints / Math.max(1, totalPoints)) * 100)
         : normaliseScore(body.score)
       const passed = score >= Number(course.passing_score || 80)
       const certificateExpiresAt = course.certificate_valid_days
@@ -341,7 +469,7 @@ export async function POST(request: Request) {
         if (certificateError) throw certificateError
       }
 
-      return apiOk({ enrollment, passed })
+      return apiOk({ enrollment, passed, score })
     }
 
     return apiError('Unsupported training action', 400)
