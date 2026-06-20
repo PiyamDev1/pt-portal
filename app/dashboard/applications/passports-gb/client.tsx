@@ -49,6 +49,7 @@ export default function GbPassportsClient({ initialData, currentUserId }: GbPass
     services: [],
     pricing: [],
   })
+  const [resolvedPricingId, setResolvedPricingId] = useState<string | null>(null)
 
   // Edit modal state
   const [editModal, setEditModal] = useState<GbPassportItem | null>(null)
@@ -127,7 +128,7 @@ export default function GbPassportsClient({ initialData, currentUserId }: GbPass
       const res = await fetch('/api/passports/gb/add', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...formData, currentUserId }),
+        body: JSON.stringify({ ...formData, currentUserId, pricingId: resolvedPricingId }),
       })
 
       if (!res.ok) {
@@ -147,6 +148,7 @@ export default function GbPassportsClient({ initialData, currentUserId }: GbPass
         pages: '',
         serviceType: '',
       })
+      setResolvedPricingId(null)
       setShowForm(false)
       router.refresh()
     } catch (e: unknown) {
@@ -339,10 +341,11 @@ export default function GbPassportsClient({ initialData, currentUserId }: GbPass
         formData={formData}
         isSubmitting={isSubmitting}
         onInputChange={handleInputChange}
-        onSubmit={handleSubmit}
-        onToggle={() => setShowForm(!showForm)}
-        metadata={metadata}
-      />
+      onSubmit={handleSubmit}
+      onToggle={() => setShowForm(!showForm)}
+      metadata={metadata}
+      onResolvedPricing={setResolvedPricingId}
+    />
 
       {/* Ledger Table */}
       <LedgerTable

@@ -43,6 +43,7 @@ export interface GbPassportItem {
 }
 
 export interface GbPricingRule {
+  id: string
   age: string
   pages: string
   service: string

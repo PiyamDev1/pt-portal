@@ -19,7 +19,18 @@ function normalisePageValue(value) {
   return numeric || normalisePricingText(text)
 }
 
-async function findGbPassportPricing(supabase, { ageGroup, pages, serviceType }) {
+async function findGbPassportPricing(supabase, { pricingId, ageGroup, pages, serviceType }) {
+  if (pricingId) {
+    const { data: pricingById, error: idError } = await supabase
+      .from('gb_passport_pricing')
+      .select('id, cost_price, sale_price, age_group, pages, service_type, is_active')
+      .eq('id', pricingId)
+      .maybeSingle()
+
+    if (idError) throw new Error(`Pricing lookup failed: ${idError.message}`)
+    if (pricingById && pricingById.is_active !== false) return pricingById
+  }
+
   const requestedAge = normalisePricingText(ageGroup)
   const requestedPages = normalisePageValue(pages)
   const requestedService = normalisePricingText(serviceType)
@@ -62,6 +73,7 @@ export async function POST(request) {
       dateOfBirth,
       phoneNumber,
       pexNumber,
+      pricingId,
       ageGroup,
       serviceType,
       pages,
@@ -69,8 +81,9 @@ export async function POST(request) {
     } = body
 
     // 1. LOOKUP FINANCIALS FROM DB (Secure)
-    // Match tolerant labels like "34" and "34 Pages", but always use current DB pricing.
-    const pricing = await findGbPassportPricing(supabase, { ageGroup, pages, serviceType })
+    // Prefer an exact pricing record when the frontend already resolved one.
+    // Fall back to tolerant matching only when we do not have a pricing ID.
+    const pricing = await findGbPassportPricing(supabase, { pricingId, ageGroup, pages, serviceType })
 
     // 2. Find or Create Applicant
     let applicantId = null

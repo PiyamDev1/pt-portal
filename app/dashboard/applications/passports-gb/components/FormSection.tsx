@@ -6,7 +6,7 @@
 'use client'
 
 import { Save } from 'lucide-react'
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import type { ChangeEvent } from 'react'
 import type { GbMetadata, GbPricingRule } from './types'
 
@@ -29,6 +29,7 @@ interface FormSectionProps {
   onSubmit: () => void
   onToggle: () => void
   metadata: GbMetadata
+  onResolvedPricing?: (pricingId: string | null) => void
 }
 
 function normalisePricingText(value: string) {
@@ -49,6 +50,7 @@ export default function FormSection({
   onSubmit,
   onToggle,
   metadata,
+  onResolvedPricing,
 }: FormSectionProps) {
   const emitInputChange = (name: string, value: string) => {
     onInputChange({ target: { name, value } } as unknown as ChangeEvent<
@@ -71,8 +73,14 @@ export default function FormSection({
         (p.pagesKey || normalisePageValue(p.pages)) === pagesKey &&
         (p.serviceKey || normalisePricingText(p.service)) === serviceKey,
     )
-    return rule ? { cost: rule.cost, price: rule.price, matched: true } : { cost: 0, price: 0, matched: false }
+    return rule
+      ? { cost: rule.cost, price: rule.price, matched: true, pricingId: rule.id }
+      : { cost: 0, price: 0, matched: false, pricingId: null }
   }, [formData, metadata])
+
+  useEffect(() => {
+    onResolvedPricing?.(pricing.pricingId ?? null)
+  }, [onResolvedPricing, pricing.pricingId])
 
   return (
     <>
