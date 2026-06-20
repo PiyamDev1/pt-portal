@@ -9,6 +9,45 @@ import { createClient } from '@supabase/supabase-js'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
 
+function normalisePricingText(value) {
+  return String(value || '').trim().toLowerCase().replace(/\s+/g, ' ')
+}
+
+function normalisePageValue(value) {
+  const text = String(value || '').trim()
+  const numeric = text.match(/\d+/)?.[0]
+  return numeric || normalisePricingText(text)
+}
+
+async function findGbPassportPricing(supabase, { ageGroup, pages, serviceType }) {
+  const requestedAge = normalisePricingText(ageGroup)
+  const requestedPages = normalisePageValue(pages)
+  const requestedService = normalisePricingText(serviceType)
+
+  const { data: pricingRows, error } = await supabase
+    .from('gb_passport_pricing')
+    .select('id, cost_price, sale_price, age_group, pages, service_type, is_active')
+
+  if (error) throw new Error(`Pricing lookup failed: ${error.message}`)
+
+  const pricing = (pricingRows || []).find((row) => {
+    if (row.is_active === false) return false
+    return (
+      normalisePricingText(row.age_group) === requestedAge &&
+      normalisePageValue(row.pages) === requestedPages &&
+      normalisePricingText(row.service_type) === requestedService
+    )
+  })
+
+  if (!pricing) {
+    throw new Error(
+      `Pricing not found for Age "${ageGroup}", Pages "${pages}", Service "${serviceType}"`,
+    )
+  }
+
+  return pricing
+}
+
 export async function POST(request) {
   try {
     const supabase = createClient(
@@ -30,18 +69,8 @@ export async function POST(request) {
     } = body
 
     // 1. LOOKUP FINANCIALS FROM DB (Secure)
-    // Pricing table stores text values for age_group/pages/service_type
-    const { data: pricing, error: pErr } = await supabase
-      .from('gb_passport_pricing')
-      .select('id, cost_price, sale_price')
-      .eq('age_group', ageGroup)
-      .eq('pages', pages)
-      .eq('service_type', serviceType)
-      .single()
-
-    if (pErr || !pricing) {
-      throw new Error('Pricing not found for this combination')
-    }
+    // Match tolerant labels like "34" and "34 Pages", but always use current DB pricing.
+    const pricing = await findGbPassportPricing(supabase, { ageGroup, pages, serviceType })
 
     // 2. Find or Create Applicant
     let applicantId = null

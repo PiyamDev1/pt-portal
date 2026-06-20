@@ -31,6 +31,16 @@ interface FormSectionProps {
   metadata: GbMetadata
 }
 
+function normalisePricingText(value: string) {
+  return String(value || '').trim().toLowerCase().replace(/\s+/g, ' ')
+}
+
+function normalisePageValue(value: string) {
+  const text = String(value || '').trim()
+  const numeric = text.match(/\d+/)?.[0]
+  return numeric || normalisePricingText(text)
+}
+
 export default function FormSection({
   showForm,
   formData,
@@ -48,15 +58,20 @@ export default function FormSection({
 
   // Real-time price lookup from Metadata
   const pricing = useMemo(() => {
-    if (!formData.ageGroup || !formData.pages || !formData.serviceType) return { cost: 0, price: 0 }
+    if (!formData.ageGroup || !formData.pages || !formData.serviceType) {
+      return { cost: 0, price: 0, matched: false }
+    }
 
+    const ageKey = normalisePricingText(formData.ageGroup)
+    const pagesKey = normalisePageValue(formData.pages)
+    const serviceKey = normalisePricingText(formData.serviceType)
     const rule = metadata.pricing.find(
       (p: GbPricingRule) =>
-        p.age === formData.ageGroup &&
-        p.pages === formData.pages &&
-        p.service === formData.serviceType,
+        (p.ageKey || normalisePricingText(p.age)) === ageKey &&
+        (p.pagesKey || normalisePageValue(p.pages)) === pagesKey &&
+        (p.serviceKey || normalisePricingText(p.service)) === serviceKey,
     )
-    return rule ? { cost: rule.cost, price: rule.price } : { cost: 0, price: 0 }
+    return rule ? { cost: rule.cost, price: rule.price, matched: true } : { cost: 0, price: 0, matched: false }
   }, [formData, metadata])
 
   return (
@@ -208,7 +223,7 @@ export default function FormSection({
                   <label className="text-[10px] text-slate-400 font-bold uppercase mb-2 block">
                     Agency Price
                   </label>
-                  {pricing.price > 0 ? (
+                  {pricing.matched ? (
                     <div className="group relative bg-gradient-to-r from-slate-900 to-slate-800 p-3 rounded-lg border border-slate-900 cursor-help">
                       <div className="text-2xl font-bold text-white">
                         £{pricing.price.toFixed(2)}
@@ -220,7 +235,9 @@ export default function FormSection({
                     </div>
                   ) : (
                     <div className="text-xs text-amber-700 bg-amber-50 p-2 rounded border border-amber-200">
-                      Select Options
+                      {formData.ageGroup && formData.pages && formData.serviceType
+                        ? 'No matching price yet. Save will check latest DB pricing.'
+                        : 'Select Options'}
                     </div>
                   )}
                 </div>
@@ -238,7 +255,7 @@ export default function FormSection({
             </button>
             <button
               onClick={onSubmit}
-              disabled={isSubmitting || pricing.price === 0}
+              disabled={isSubmitting}
               className="px-6 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-sm font-bold flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Save className="w-4 h-4" /> {isSubmitting ? 'Saving...' : 'Save Application'}

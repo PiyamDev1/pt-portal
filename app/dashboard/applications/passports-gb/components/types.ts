@@ -46,6 +46,9 @@ export interface GbPricingRule {
   age: string
   pages: string
   service: string
+  ageKey?: string
+  pagesKey?: string
+  serviceKey?: string
   cost: number
   price: number
 }

@@ -9,8 +9,17 @@ import { createClient } from '@supabase/supabase-js'
 import { apiOk, apiError } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
 
-// Metadata doesn't change often - cache for 1 hour
-export const revalidate = 3600
+export const dynamic = 'force-dynamic'
+
+function normalisePricingText(value) {
+  return String(value || '').trim().toLowerCase().replace(/\s+/g, ' ')
+}
+
+function normalisePageValue(value) {
+  const text = String(value || '').trim()
+  const numeric = text.match(/\d+/)?.[0]
+  return numeric || normalisePricingText(text)
+}
 
 export async function GET() {
   try {
@@ -30,20 +39,29 @@ export async function GET() {
         sale_price,
         age_group,
         pages,
-        service_type
+        service_type,
+        is_active
       `),
     ])
 
+    const errors = [ages.error, pages.error, services.error, pricing.error].filter(Boolean)
+    if (errors.length > 0) throw errors[0]
+
     // Flatten pricing for easier frontend lookup
     const flatPricing =
-      pricing.data?.map((p) => ({
-        id: p.id,
-        cost: p.cost_price,
-        price: p.sale_price,
-        age: p.age_group,
-        pages: p.pages,
-        service: p.service_type,
-      })) || []
+      pricing.data
+        ?.filter((p) => p.is_active !== false)
+        .map((p) => ({
+          id: p.id,
+          cost: p.cost_price,
+          price: p.sale_price,
+          age: p.age_group,
+          pages: p.pages,
+          service: p.service_type,
+          ageKey: normalisePricingText(p.age_group),
+          pagesKey: normalisePageValue(p.pages),
+          serviceKey: normalisePricingText(p.service_type),
+        })) || []
 
     return apiOk(
       {
@@ -54,7 +72,7 @@ export async function GET() {
       },
       {
         headers: {
-          'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=86400',
+          'Cache-Control': 'no-store',
         },
       },
     )

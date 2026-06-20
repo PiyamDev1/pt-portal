@@ -53,7 +53,17 @@ describe('GET /api/passports/gb/metadata', () => {
     expect(body.pages).toHaveLength(1)
     expect(body.services).toHaveLength(1)
     expect(body.pricing).toEqual([
-      { id: 'p-1', cost: 90, price: 120, age: 'Adult', pages: '34', service: 'Standard' },
+      {
+        id: 'p-1',
+        cost: 90,
+        price: 120,
+        age: 'Adult',
+        pages: '34',
+        service: 'Standard',
+        ageKey: 'adult',
+        pagesKey: '34',
+        serviceKey: 'standard',
+      },
     ])
   })
 

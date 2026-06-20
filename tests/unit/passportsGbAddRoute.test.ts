@@ -1,11 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => {
-  const pricingSingle = vi.fn()
-  const pricingEqService = vi.fn(() => ({ single: pricingSingle }))
-  const pricingEqPages = vi.fn(() => ({ eq: pricingEqService }))
-  const pricingEqAge = vi.fn(() => ({ eq: pricingEqPages }))
-  const pricingSelect = vi.fn(() => ({ eq: pricingEqAge }))
+  const pricingSelect = vi.fn()
 
   const applicantMaybeSingle = vi.fn()
   const applicantEqPassport = vi.fn(() => ({ maybeSingle: applicantMaybeSingle }))
@@ -35,11 +31,7 @@ const mocks = vi.hoisted(() => {
   const createClient = vi.fn(() => ({ from }))
 
   return {
-    pricingSingle,
     pricingSelect,
-    pricingEqAge,
-    pricingEqPages,
-    pricingEqService,
     applicantMaybeSingle,
     applicantSelect,
     applicantEqPassport,
@@ -87,10 +79,6 @@ describe('POST /api/passports/gb/add', () => {
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-key'
 
     mocks.createClient.mockReturnValue({ from: mocks.from })
-    mocks.pricingSelect.mockReturnValue({ eq: mocks.pricingEqAge })
-    mocks.pricingEqAge.mockReturnValue({ eq: mocks.pricingEqPages })
-    mocks.pricingEqPages.mockReturnValue({ eq: mocks.pricingEqService })
-    mocks.pricingEqService.mockReturnValue({ single: mocks.pricingSingle })
 
     mocks.applicantSelect.mockReturnValue({ eq: mocks.applicantEqPassport })
     mocks.applicantEqPassport.mockReturnValue({ maybeSingle: mocks.applicantMaybeSingle })
@@ -102,7 +90,7 @@ describe('POST /api/passports/gb/add', () => {
   })
 
   it('returns 500 when pricing is missing', async () => {
-    mocks.pricingSingle.mockResolvedValue({ data: null, error: { message: 'no pricing' } })
+    mocks.pricingSelect.mockResolvedValue({ data: [], error: null })
 
     const res = await POST(makeRequest(baseBody))
     expect(res.status).toBe(500)
@@ -111,8 +99,18 @@ describe('POST /api/passports/gb/add', () => {
   })
 
   it('creates records successfully when applicant exists', async () => {
-    mocks.pricingSingle.mockResolvedValue({
-      data: { id: 'pr-1', cost_price: 80, sale_price: 120 },
+    mocks.pricingSelect.mockResolvedValue({
+      data: [
+        {
+          id: 'pr-1',
+          age_group: 'Adult',
+          pages: '34',
+          service_type: 'Fast Track',
+          cost_price: 80,
+          sale_price: 120,
+          is_active: true,
+        },
+      ],
       error: null,
     })
     mocks.applicantMaybeSingle.mockResolvedValue({ data: { id: 'a-1' }, error: null })
@@ -120,7 +118,7 @@ describe('POST /api/passports/gb/add', () => {
     mocks.appInsertSingle.mockResolvedValue({ data: { id: 'app-1' }, error: null })
     mocks.gbInsert.mockResolvedValue({ error: null })
 
-    const res = await POST(makeRequest(baseBody))
+    const res = await POST(makeRequest({ ...baseBody, pages: '34 Pages' }))
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body).toEqual({ applicantId: 'a-1', applicationId: 'app-1' })
@@ -128,8 +126,18 @@ describe('POST /api/passports/gb/add', () => {
   })
 
   it('creates applicant when not found', async () => {
-    mocks.pricingSingle.mockResolvedValue({
-      data: { id: 'pr-1', cost_price: 80, sale_price: 120 },
+    mocks.pricingSelect.mockResolvedValue({
+      data: [
+        {
+          id: 'pr-1',
+          age_group: 'Adult',
+          pages: '34',
+          service_type: 'Fast Track',
+          cost_price: 80,
+          sale_price: 120,
+          is_active: true,
+        },
+      ],
       error: null,
     })
     mocks.applicantMaybeSingle.mockResolvedValue({ data: null, error: null })
