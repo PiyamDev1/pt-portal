@@ -10,6 +10,56 @@ import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
 import { tryGenerateReceiptForStatusTrigger } from '@/lib/services/receiptGenerator'
 
+function normalisePricingText(value) {
+  return String(value || '').trim().toLowerCase().replace(/\s+/g, ' ')
+}
+
+function normalisePageValue(value) {
+  const text = String(value || '').trim()
+  const numeric = text.match(/\d+/)?.[0]
+  return numeric || normalisePricingText(text)
+}
+
+async function findGbPassportPricing(supabase, { pricingId, ageGroup, pages, serviceType }) {
+  if (pricingId) {
+    const { data: pricingById, error: idError } = await supabase
+      .from('gb_passport_pricing')
+      .select('id, cost_price, sale_price, age_group, pages, service_type, is_active')
+      .eq('id', pricingId)
+      .maybeSingle()
+
+    if (idError) throw new Error(`Pricing lookup failed: ${idError.message}`)
+    if (pricingById && pricingById.is_active !== false) return pricingById
+  }
+
+  const requestedAge = normalisePricingText(ageGroup)
+  const requestedPages = normalisePageValue(pages)
+  const requestedService = normalisePricingText(serviceType)
+
+  const { data: pricingRows, error } = await supabase
+    .from('gb_passport_pricing')
+    .select('id, cost_price, sale_price, age_group, pages, service_type, is_active')
+
+  if (error) throw new Error(`Pricing lookup failed: ${error.message}`)
+
+  const pricing = (pricingRows || []).find((row) => {
+    if (row.is_active === false) return false
+    return (
+      normalisePricingText(row.age_group) === requestedAge &&
+      normalisePageValue(row.pages) === requestedPages &&
+      normalisePricingText(row.service_type) === requestedService
+    )
+  })
+
+  if (!pricing) {
+    throw new Error(
+      `Pricing not found for Age "${ageGroup}", Pages "${pages}", Service "${serviceType}"`,
+    )
+  }
+
+  return pricing
+}
+
 export async function POST(request) {
   try {
     const supabase = createClient(
@@ -28,12 +78,16 @@ export async function POST(request) {
       dateOfBirth,
       phoneNumber,
       pexNumber,
+      pricingId,
+      ageGroup,
+      pages,
+      serviceType,
     } = body
 
     // Get the applicant ID and current status (BEFORE any updates)
     const { data: gbApp, error: gbErr } = await supabase
       .from('british_passport_applications')
-      .select('applicant_id, status')
+      .select('applicant_id, status, pricing_id, age_group, pages, service_type')
       .eq('id', id)
       .single()
 
@@ -42,6 +96,12 @@ export async function POST(request) {
     }
 
     const oldStatus = gbApp.status
+    const resolvedPricing = await findGbPassportPricing(supabase, {
+      pricingId: pricingId || gbApp.pricing_id,
+      ageGroup: ageGroup || gbApp.age_group,
+      pages: pages || gbApp.pages,
+      serviceType: serviceType || gbApp.service_type,
+    })
 
     // Update applicant record if any applicant fields provided
     const applicantUpdate = {}
@@ -67,15 +127,19 @@ export async function POST(request) {
     const gbUpdate = {}
     if (pexNumber) gbUpdate.pex_number = pexNumber.toUpperCase()
     if (status) gbUpdate.status = status
+    gbUpdate.pricing_id = resolvedPricing.id
+    gbUpdate.cost_price = resolvedPricing.cost_price
+    gbUpdate.sale_price = resolvedPricing.sale_price
+    gbUpdate.age_group = resolvedPricing.age_group
+    gbUpdate.pages = resolvedPricing.pages
+    gbUpdate.service_type = resolvedPricing.service_type
 
-    if (Object.keys(gbUpdate).length > 0) {
-      const { error: gbUpdateErr } = await supabase
-        .from('british_passport_applications')
-        .update(gbUpdate)
-        .eq('id', id)
+    const { error: gbUpdateErr } = await supabase
+      .from('british_passport_applications')
+      .update(gbUpdate)
+      .eq('id', id)
 
-      if (gbUpdateErr) throw new Error(`Failed to update application: ${gbUpdateErr.message}`)
-    }
+    if (gbUpdateErr) throw new Error(`Failed to update application: ${gbUpdateErr.message}`)
 
     // Log status history if status changed
     if (status && status !== oldStatus) {
