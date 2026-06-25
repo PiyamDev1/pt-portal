@@ -67,6 +67,7 @@ export function MaintenanceTab() {
   const [frappeHealth, setFrappeHealth] = useState<FrappeHealthResult | null>(null)
   const [attendanceBackfillLoading, setAttendanceBackfillLoading] = useState(false)
   const [attendanceBackfillResult, setAttendanceBackfillResult] = useState<{ queued?: number; daysBack?: number; error?: string } | null>(null)
+  const [frappeActionLabel, setFrappeActionLabel] = useState<string | null>(null)
 
   const migrateInstallments = async () => {
     setMigrating(true)
@@ -101,8 +102,10 @@ export function MaintenanceTab() {
   const runFrappeAction = async (
     endpoint: string,
     successMessage: string,
+    actionLabel: string,
   ) => {
     setFrappeLoading(true)
+    setFrappeActionLabel(actionLabel)
     try {
       const res = await fetch(endpoint, {
         method: endpoint.endsWith('/health') ? 'GET' : 'POST',
@@ -122,6 +125,7 @@ export function MaintenanceTab() {
       toast.error(message)
     } finally {
       setFrappeLoading(false)
+      setFrappeActionLabel(null)
     }
   }
 
@@ -176,7 +180,7 @@ export function MaintenanceTab() {
 
               <div className="flex flex-wrap gap-2">
                 <button
-                  onClick={() => void runFrappeAction('/api/integrations/frappe/health', 'Frappe health refreshed')}
+                  onClick={() => void runFrappeAction('/api/integrations/frappe/health', 'Frappe health refreshed', 'Refreshing health')}
                   disabled={frappeLoading}
                   className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
                 >
@@ -184,7 +188,7 @@ export function MaintenanceTab() {
                   Health
                 </button>
                 <button
-                  onClick={() => void runFrappeAction('/api/integrations/frappe/sync/pull', 'Frappe leave pull completed')}
+                  onClick={() => void runFrappeAction('/api/integrations/frappe/sync/pull', 'Frappe leave pull completed', 'Pulling leave')}
                   disabled={frappeLoading}
                   className="inline-flex items-center gap-2 rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
                 >
@@ -192,7 +196,7 @@ export function MaintenanceTab() {
                   Pull Leave
                 </button>
                 <button
-                  onClick={() => void runFrappeAction('/api/integrations/frappe/sync/push', 'Frappe outbox push completed')}
+                  onClick={() => void runFrappeAction('/api/integrations/frappe/sync/push', 'Frappe outbox push completed', 'Pushing outbox')}
                   disabled={frappeLoading}
                   className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
                 >
@@ -200,7 +204,7 @@ export function MaintenanceTab() {
                   Push Outbox
                 </button>
                 <button
-                  onClick={() => void runFrappeAction('/api/integrations/frappe/reconcile', 'Frappe reconcile completed')}
+                  onClick={() => void runFrappeAction('/api/integrations/frappe/reconcile', 'Frappe reconcile completed', 'Reconciling bridge data')}
                   disabled={frappeLoading}
                   className="inline-flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
                 >
@@ -212,7 +216,7 @@ export function MaintenanceTab() {
               {frappeLoading && (
                 <div className="inline-flex items-center gap-2 text-sm text-slate-500">
                   <RefreshCw className="w-4 h-4 animate-spin" />
-                  Running integration action...
+                  {frappeActionLabel || 'Running integration action...'}
                 </div>
               )}
 
@@ -253,7 +257,7 @@ export function MaintenanceTab() {
                   <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-4">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div>
-                        <h4 className="font-bold text-slate-900 mb-1">Timeclock Attendance Sync</h4>
+                        <h4 className="mb-1 font-bold text-slate-900">Timeclock Attendance Sync</h4>
                         <p className="text-xs text-slate-600">
                           Queues IMS clock-in summaries to Frappe. Staff should keep clocking in through IMS only.
                         </p>

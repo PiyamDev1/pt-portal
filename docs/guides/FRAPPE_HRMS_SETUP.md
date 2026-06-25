@@ -31,6 +31,7 @@ Already implemented in this repo:
 - IMS-controlled browser handoff into the Frappe HRMS `/hrms` app shell
 - Handoff audit trail in Supabase for issued, blocked, and failed launches
 - Mobile companion-app guidance for installing IMS and Frio HRMS PWAs
+- Timeclock attendance summaries that flow from IMS into Frappe
 - Integration foundation migrations
 - Leave domain seed data and identity map bootstrap
 
@@ -46,6 +47,7 @@ Key PT Portal endpoints:
 - `GET/POST /api/integrations/frappe/provisioning/me`
 - `GET /api/integrations/frappe/handoff`
 - `GET /api/cron/integrations/frappe/outbox`
+- `GET /api/cron/integrations/frappe/timeclock-attendance`
 
 ## PT Portal Environment Variables
 
@@ -220,6 +222,7 @@ Recommended purpose:
 - Leave sync
 - Attendance sync
 - Webhook generation
+- IMS-signed browser handoff
 
 Do not use `Administrator` for PT Portal integration.
 
@@ -328,6 +331,23 @@ Use Frappe's own settings for the company logo:
 
 The IMS bridge app adds the `Back to IMS` button automatically after `bench build --app
 piyam_ims_bridge`.
+
+### 8. Timeclock attendance sync
+
+IMS remains the clock-in source of truth.
+
+PT Portal periodically:
+
+- groups punch events into daily attendance summaries
+- queues those summaries for Frappe
+- exposes pending / dead-letter counts in the dashboard and maintenance panels
+
+If an employee punches in late or the punch stream needs reprocessing, use:
+
+- the dashboard bridge card backfill action
+- the maintenance tab attendance backfill action
+
+Both actions queue recent summaries again without changing the source punch records.
 
 ### 9. First employee transfer flow
 

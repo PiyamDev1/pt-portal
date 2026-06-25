@@ -26,6 +26,7 @@ If you are reading this inside the repo, start here. If you are reading the publ
 - Deployment and release: [guides/DEPLOYMENT_GUIDE.md](guides/DEPLOYMENT_GUIDE.md)
 - External services and integrations: [guides/INTEGRATIONS_GUIDE.md](guides/INTEGRATIONS_GUIDE.md)
 - Frappe HRMS implementation: [guides/FRAPPE_HRMS_SETUP.md](guides/FRAPPE_HRMS_SETUP.md)
+- Frappe attendance sync and bridge behavior are documented in the HRMS setup guide
 - Windows setup: [guides/WINDOWS_SETUP_GUIDE.md](guides/WINDOWS_SETUP_GUIDE.md)
 
 ### Technical reference
