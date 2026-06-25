@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { RefreshCw, ShieldCheck, ArrowRight } from 'lucide-react'
+import { toast } from 'sonner'
 
 type SyncHealth = {
   counts?: {
@@ -21,9 +22,11 @@ type SyncHealth = {
 export function DashboardFrappeSyncCard() {
   const [health, setHealth] = useState<SyncHealth | null>(null)
   const [loading, setLoading] = useState(true)
+  const [backfilling, setBackfilling] = useState(false)
 
-  useEffect(() => {
+  const loadHealth = () => {
     let cancelled = false
+    setLoading(true)
     fetch('/api/integrations/frappe/health')
       .then((res) => (res.ok ? res.json() : Promise.reject(res)))
       .then((data) => {
@@ -39,7 +42,38 @@ export function DashboardFrappeSyncCard() {
     return () => {
       cancelled = true
     }
+  }
+
+  useEffect(() => {
+    const cleanup = loadHealth()
+    return cleanup
   }, [])
+
+  const handleBackfill = async () => {
+    setBackfilling(true)
+    const toastId = toast.loading('Queueing attendance backfill...')
+    try {
+      const res = await fetch('/api/cron/integrations/frappe/timeclock-attendance?daysBack=3')
+      const data = (await res.json().catch(() => null)) as null | {
+        error?: string
+        message?: string
+        queued?: number
+      }
+      if (!res.ok) {
+        throw new Error(data?.error || data?.message || 'Unable to queue backfill')
+      }
+      toast.success(data?.message || `Queued ${data?.queued || 0} attendance summaries`, {
+        id: toastId,
+      })
+      loadHealth()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Unable to queue backfill', {
+        id: toastId,
+      })
+    } finally {
+      setBackfilling(false)
+    }
+  }
 
   const attendance = health?.sync_state?.find((item) => item.domain === 'attendance')
 
@@ -82,7 +116,18 @@ export function DashboardFrappeSyncCard() {
         </Link>
         <button
           type="button"
-          onClick={() => window.location.reload()}
+          onClick={handleBackfill}
+          disabled={backfilling}
+          className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-black text-emerald-800 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {backfilling ? 'Queueing...' : 'Backfill now'}
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            loadHealth()
+            toast.info('Refreshing Frappe sync status')
+          }}
           className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-xs font-black text-slate-700"
         >
           <RefreshCw className="h-3.5 w-3.5" />
