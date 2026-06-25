@@ -31,7 +31,6 @@ import {
 } from 'lucide-react'
 import PageHeader from '@/app/components/PageHeader.client'
 import DashboardClientWrapper from './client-wrapper'
-import { DashboardFrappeSyncCard } from './DashboardFrappeSyncCard'
 import { BackupCodesReminder } from './lms/components/BackupCodesReminder'
 import { DashboardModulesClient } from './DashboardModulesClient'
 import { NoticeBoardClient } from './NoticeBoardClient'
@@ -180,13 +179,11 @@ function DesktopDashboard({
   userName,
   roleName,
   branchName,
-  showFrappeBridge,
 }: {
   modules: DashboardModule[]
   userName?: string | null
   roleName?: string | null
   branchName?: string | null
-  showFrappeBridge: boolean
 }) {
   return (
     <section className="hidden space-y-5 lg:block">
@@ -214,10 +211,7 @@ function DesktopDashboard({
       </div>
 
       <div className="grid grid-cols-[minmax(0,1fr)_21rem] gap-5 xl:grid-cols-[minmax(0,1fr)_24rem]">
-        <div className="space-y-5">
-          {showFrappeBridge && <DashboardFrappeSyncCard />}
-          <DashboardModulesClient modules={modules} />
-        </div>
+        <DashboardModulesClient modules={modules} />
         <NoticeBoardClient showMobilePopup={false} />
       </div>
     </section>
@@ -258,9 +252,6 @@ export default async function Dashboard() {
 
   const location = Array.isArray(employee?.locations) ? employee.locations[0] : employee?.locations
   const role = Array.isArray(employee?.roles) ? employee.roles[0] : employee?.roles
-  const showFrappeBridge = ['Admin', 'Master Admin', 'Maintenance Admin', 'Manager'].includes(
-    role?.name || '',
-  )
   const visibleModules = DASHBOARD_MODULES.filter(
     (moduleItem) => !moduleItem.allowedRoles || moduleItem.allowedRoles.includes(role?.name || ''),
   )
@@ -283,7 +274,6 @@ export default async function Dashboard() {
             userName={employee?.full_name}
             roleName={role?.name}
             branchName={location?.name}
-            showFrappeBridge={showFrappeBridge}
           />
           <NoticeBoardClient showDesktopRail={false} />
         </main>
