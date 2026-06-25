@@ -33,6 +33,8 @@ type FrappeHealthResult = {
   counts: {
     outbox_pending: number
     outbox_dead_letter: number
+    timeclock_attendance_pending?: number
+    timeclock_attendance_dead_letter?: number
     inbox_pending: number
     conflicts_open: number
     identity_map_rows: number
@@ -63,6 +65,8 @@ export function MaintenanceTab() {
   const [showMigrationConfirm, setShowMigrationConfirm] = useState(false)
   const [frappeLoading, setFrappeLoading] = useState(false)
   const [frappeHealth, setFrappeHealth] = useState<FrappeHealthResult | null>(null)
+  const [attendanceBackfillLoading, setAttendanceBackfillLoading] = useState(false)
+  const [attendanceBackfillResult, setAttendanceBackfillResult] = useState<{ queued?: number; daysBack?: number; error?: string } | null>(null)
 
   const migrateInstallments = async () => {
     setMigrating(true)
@@ -118,6 +122,28 @@ export function MaintenanceTab() {
       toast.error(message)
     } finally {
       setFrappeLoading(false)
+    }
+  }
+
+  const runAttendanceBackfill = async () => {
+    setAttendanceBackfillLoading(true)
+    setAttendanceBackfillResult(null)
+    try {
+      const res = await fetch('/api/cron/integrations/frappe/timeclock-attendance?daysBack=3', {
+        method: 'GET',
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data.error || 'Attendance backfill failed')
+      }
+      setAttendanceBackfillResult({ queued: data.queued, daysBack: data.daysBack })
+      toast.success(`Queued ${data.queued || 0} attendance summaries`)
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Attendance backfill failed'
+      setAttendanceBackfillResult({ error: message })
+      toast.error(message)
+    } finally {
+      setAttendanceBackfillLoading(false)
     }
   }
 
@@ -222,6 +248,51 @@ export function MaintenanceTab() {
                     <MetricCard label="Identity rows" value={frappeHealth.counts.identity_map_rows} />
                     <MetricCard label="Handoffs 24h" value={frappeHealth.counts.handoff_issued_24h || 0} />
                     <MetricCard label="Handoff issues" value={frappeHealth.counts.handoff_problem_24h || 0} />
+                  </div>
+
+                  <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <h4 className="font-bold text-slate-900 mb-1">Timeclock Attendance Sync</h4>
+                        <p className="text-xs text-slate-600">
+                          Queues IMS clock-in summaries to Frappe. Staff should keep clocking in through IMS only.
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => void runAttendanceBackfill()}
+                        disabled={attendanceBackfillLoading}
+                        className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+                      >
+                        <RefreshCw className={`w-4 h-4 ${attendanceBackfillLoading ? 'animate-spin' : ''}`} />
+                        {attendanceBackfillLoading ? 'Queueing...' : 'Backfill 3 Days'}
+                      </button>
+                    </div>
+                    <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-3">
+                      <MetricCard
+                        label="Attendance pending"
+                        value={frappeHealth.counts.timeclock_attendance_pending || 0}
+                      />
+                      <MetricCard
+                        label="Attendance dead letters"
+                        value={frappeHealth.counts.timeclock_attendance_dead_letter || 0}
+                      />
+                      <MetricCard
+                        label="Attendance sync state"
+                        value={
+                          Number(
+                            frappeHealth.sync_state.find((item) => item.domain === 'attendance')
+                              ?.health_status === 'healthy',
+                          )
+                        }
+                      />
+                    </div>
+                    {attendanceBackfillResult && (
+                      <p className="mt-3 text-xs text-slate-700">
+                        {attendanceBackfillResult.error
+                          ? attendanceBackfillResult.error
+                          : `Queued ${attendanceBackfillResult.queued || 0} summaries for ${attendanceBackfillResult.daysBack || 3} days.`}
+                      </p>
+                    )}
                   </div>
 
                   <div className="mt-4 space-y-2">

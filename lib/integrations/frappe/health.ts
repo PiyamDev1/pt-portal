@@ -12,6 +12,8 @@ export async function getFrappeIntegrationHealth() {
     syncStateResult,
     outboxPendingResult,
     outboxDeadLetterResult,
+    attendanceOutboxPendingResult,
+    attendanceOutboxDeadLetterResult,
     inboxPendingResult,
     conflictOpenResult,
     identityMapResult,
@@ -32,6 +34,16 @@ export async function getFrappeIntegrationHealth() {
     supabase
       .from('integration_outbox')
       .select('id', { count: 'exact', head: true })
+      .eq('status', 'dead_letter'),
+    supabase
+      .from('integration_outbox')
+      .select('id', { count: 'exact', head: true })
+      .eq('domain', 'attendance')
+      .in('status', ['pending', 'processing']),
+    supabase
+      .from('integration_outbox')
+      .select('id', { count: 'exact', head: true })
+      .eq('domain', 'attendance')
       .eq('status', 'dead_letter'),
     supabase
       .from('integration_inbox')
@@ -80,6 +92,8 @@ export async function getFrappeIntegrationHealth() {
   const counts = {
     outbox_pending: getExactCount(outboxPendingResult),
     outbox_dead_letter: getExactCount(outboxDeadLetterResult),
+    timeclock_attendance_pending: getExactCount(attendanceOutboxPendingResult),
+    timeclock_attendance_dead_letter: getExactCount(attendanceOutboxDeadLetterResult),
     inbox_pending: getExactCount(inboxPendingResult),
     conflicts_open: getExactCount(conflictOpenResult),
     identity_map_rows: getExactCount(identityMapResult),
