@@ -106,6 +106,12 @@ export function DashboardFrappeSyncCard() {
         {attendance?.last_pull_at && <p className="mt-1">Last pull: {attendance.last_pull_at}</p>}
       </div>
 
+      {backfilling && (
+        <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800">
+          Backfill queued. We are refreshing the sync summary now.
+        </div>
+      )}
+
       <div className="mt-4 flex flex-wrap gap-2">
         <Link
           href="/dashboard/settings?tab=maintenance"
@@ -120,7 +126,7 @@ export function DashboardFrappeSyncCard() {
           disabled={backfilling}
           className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-black text-emerald-800 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {backfilling ? 'Queueing...' : 'Backfill now'}
+          {backfilling ? 'Backfilling...' : 'Backfill now'}
         </button>
         <button
           type="button"
