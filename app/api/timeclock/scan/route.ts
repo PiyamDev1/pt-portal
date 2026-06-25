@@ -46,6 +46,7 @@ import { createClient } from '@supabase/supabase-js'
 import crypto from 'crypto'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
+import { queueAttendanceSyncForEmployeeDay } from '@/lib/integrations/frappe/syncEngine'
 
 export const dynamic = 'force-dynamic'
 
@@ -311,6 +312,8 @@ export async function POST(request: Request) {
       }
       throw new Error(insertError.message || 'Failed to insert scan event')
     }
+
+    await queueAttendanceSyncForEmployeeDay(session.user.id, inserted?.scanned_at?.slice(0, 10) || new Date().toISOString().slice(0, 10))
 
     return apiOk({
       eventId: inserted?.id,

@@ -51,6 +51,24 @@ type FrappeLeaveRecord = {
   modified?: string | null
 }
 
+type TimeclockEventRow = {
+  employee_id: string
+  punch_type: string | null
+  scanned_at: string | null
+  adjusted_scanned_at: string | null
+  device_ts: string | null
+  adjusted_device_ts: string | null
+}
+
+type AttendanceSummary = {
+  employeeId: string
+  attendanceDate: string
+  firstPunchAt: string | null
+  lastPunchAt: string | null
+  workedMinutes: number
+  status: 'present' | 'half_day'
+}
+
 const MAX_RETRIES = 6
 const FRAPPE_DOMAIN = 'hrms'
 
@@ -63,6 +81,73 @@ function getFrappeEndpoint(row: OutboxRow) {
   if (row.domain === 'leave') return '/api/resource/Leave Application'
   if (row.domain === 'attendance') return '/api/resource/Attendance'
   return '/api/resource/Employee'
+}
+
+function getEffectivePunchTime(row: TimeclockEventRow) {
+  return row.adjusted_scanned_at || row.scanned_at || row.adjusted_device_ts || row.device_ts || null
+}
+
+function getAttendanceDate(iso: string) {
+  return iso.slice(0, 10)
+}
+
+function getPunchType(row: TimeclockEventRow) {
+  return String(row.punch_type || '').trim().toUpperCase()
+}
+
+function calculateAttendanceSummary(rows: TimeclockEventRow[]): AttendanceSummary | null {
+  const ordered = rows
+    .map((row) => ({
+      ...row,
+      effectiveTime: getEffectivePunchTime(row),
+    }))
+    .filter((row): row is TimeclockEventRow & { effectiveTime: string } => Boolean(row.effectiveTime))
+    .sort((a, b) => new Date(a.effectiveTime).getTime() - new Date(b.effectiveTime).getTime())
+
+  if (ordered.length === 0) return null
+
+  const firstPunchAt = ordered[0].effectiveTime
+  const lastPunchAt = ordered[ordered.length - 1].effectiveTime
+  const firstTime = new Date(firstPunchAt).getTime()
+  const lastTime = new Date(lastPunchAt).getTime()
+
+  let workedMinutes = 0
+  let openPunch: string | null = null
+
+  for (const row of ordered) {
+    const punchTime = row.effectiveTime
+    const punchType = getPunchType(row)
+
+    if (punchType === 'IN' || punchType === 'CLOCK_IN' || punchType === 'PUNCH_IN') {
+      openPunch = punchTime
+      continue
+    }
+
+    if (punchType === 'OUT' || punchType === 'CLOCK_OUT' || punchType === 'PUNCH_OUT') {
+      if (openPunch) {
+        const duration = (new Date(punchTime).getTime() - new Date(openPunch).getTime()) / 60000
+        if (duration > 0) {
+          workedMinutes += duration
+        }
+      }
+      openPunch = null
+    }
+  }
+
+  if (workedMinutes === 0 && firstTime > 0 && lastTime > firstTime) {
+    workedMinutes = Math.round((lastTime - firstTime) / 60000)
+  }
+
+  const status = workedMinutes >= 240 ? 'present' : 'half_day'
+
+  return {
+    employeeId: ordered[0].employee_id,
+    attendanceDate: getAttendanceDate(firstPunchAt),
+    firstPunchAt,
+    lastPunchAt,
+    workedMinutes: Math.max(0, Math.round(workedMinutes)),
+    status,
+  }
 }
 
 async function resolveFrappeEmployeeId(employeeId: string) {
@@ -129,6 +214,96 @@ async function normalizePayload(row: OutboxRow) {
     ...record,
     employee_id: frappeEmployeeId,
   })
+}
+
+async function listAttendancePunchesForDay(employeeId: string, attendanceDate: string) {
+  const supabase = getSupabaseClient()
+  const start = `${attendanceDate}T00:00:00.000Z`
+  const end = `${attendanceDate}T23:59:59.999Z`
+  const { data, error } = await supabase
+    .from('timeclock_events')
+    .select('employee_id, punch_type, scanned_at, adjusted_scanned_at, device_ts, adjusted_device_ts')
+    .eq('employee_id', employeeId)
+    .gte('scanned_at', start)
+    .lte('scanned_at', end)
+    .order('scanned_at', { ascending: true })
+
+  if (error) throw error
+  return (data || []) as TimeclockEventRow[]
+}
+
+async function enqueueAttendanceSummary(summary: AttendanceSummary) {
+  const supabase = getSupabaseClient()
+  const dedupeKey = `attendance:${summary.employeeId}:${summary.attendanceDate}`
+  const payload = {
+    employee_id: summary.employeeId,
+    attendance_date: summary.attendanceDate,
+    first_punch_at: summary.firstPunchAt,
+    last_punch_at: summary.lastPunchAt,
+    worked_minutes: summary.workedMinutes,
+    status: summary.status,
+    source: 'timeclock',
+  }
+
+  const { error } = await supabase.from('integration_outbox').upsert(
+    {
+      domain: 'attendance',
+      event_type: 'attendance.summary',
+      aggregate_id: `${summary.employeeId}:${summary.attendanceDate}`,
+      dedupe_key: dedupeKey,
+      payload,
+      status: 'pending',
+      next_retry_at: new Date().toISOString(),
+    },
+    { onConflict: 'dedupe_key' },
+  )
+
+  if (error) throw error
+}
+
+export async function queueAttendanceSyncForEmployeeDay(employeeId: string, attendanceDate: string) {
+  const rows = await listAttendancePunchesForDay(employeeId, attendanceDate)
+  const summary = calculateAttendanceSummary(rows)
+  if (!summary) return { queued: false, reason: 'No punches found for day' }
+
+  await enqueueAttendanceSummary(summary)
+  return { queued: true, attendanceDate, employeeId, status: summary.status }
+}
+
+export async function queueRecentTimeclockAttendance(daysBack = 3) {
+  const supabase = getSupabaseClient()
+  const start = new Date()
+  start.setUTCDate(start.getUTCDate() - Math.max(0, daysBack))
+  start.setUTCHours(0, 0, 0, 0)
+  const startIso = start.toISOString()
+
+  const { data, error } = await supabase
+    .from('timeclock_events')
+    .select('employee_id, scanned_at, adjusted_scanned_at')
+    .gte('scanned_at', startIso)
+    .order('scanned_at', { ascending: true })
+
+  if (error) throw error
+
+  const buckets = new Map<string, Set<string>>()
+  for (const row of (data || []) as Array<{ employee_id: string; scanned_at: string; adjusted_scanned_at?: string | null }>) {
+    const effective = row.adjusted_scanned_at || row.scanned_at
+    if (!effective) continue
+    const key = `${row.employee_id}:${effective.slice(0, 10)}`
+    if (!buckets.has(row.employee_id)) buckets.set(row.employee_id, new Set())
+    buckets.get(row.employee_id)!.add(key)
+  }
+
+  let queued = 0
+  for (const [employeeId, dayKeys] of buckets.entries()) {
+    for (const key of dayKeys) {
+      const attendanceDate = key.split(':').slice(1).join(':')
+      const result = await queueAttendanceSyncForEmployeeDay(employeeId, attendanceDate)
+      if (result.queued) queued += 1
+    }
+  }
+
+  return { queued }
 }
 
 export async function enqueueIntegrationEvent(params: {

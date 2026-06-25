@@ -28,6 +28,7 @@ import { createClient } from '@supabase/supabase-js'
 import crypto from 'crypto'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
+import { queueAttendanceSyncForEmployeeDay } from '@/lib/integrations/frappe/syncEngine'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -186,6 +187,8 @@ export async function POST(request: Request) {
 
     // Delete the used code
     await adminSupabase.from('timeclock_manual_codes').delete().eq('code', code)
+
+    await queueAttendanceSyncForEmployeeDay(session.user.id, nowIso.slice(0, 10))
 
     return apiOk({
       eventId: insertedEvent?.id,

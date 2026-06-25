@@ -23,6 +23,7 @@ import { requireMaintenanceSession } from '@/lib/adminSessionAuth'
 import { getSupabaseClient } from '@/lib/supabaseClient'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
+import { queueAttendanceSyncForEmployeeDay } from '@/lib/integrations/frappe/syncEngine'
 
 type RouteContext = {
   params: Promise<{
@@ -114,6 +115,11 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     if (!updatedEvent) {
       return apiError('This punch has already been adjusted once', 409)
+    }
+
+    const attendanceDate = adjustedIso.slice(0, 10)
+    if (existingEvent.employee_id) {
+      await queueAttendanceSyncForEmployeeDay(existingEvent.employee_id, attendanceDate)
     }
 
     return apiOk({
