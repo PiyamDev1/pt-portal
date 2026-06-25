@@ -250,7 +250,7 @@ export function DashboardModulesClient({ modules }: { modules: DashboardModule[]
 
   return (
     <div className="space-y-5">
-      <section className="grid grid-cols-2 gap-4">
+      <section className="grid grid-cols-3 gap-4">
         <div className="rounded-[1.5rem] border border-red-100/80 bg-gradient-to-br from-white via-red-50/60 to-stone-100 p-4 shadow-sm">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-black text-slate-950">Favorites</h2>
@@ -309,7 +309,7 @@ export function DashboardModulesClient({ modules }: { modules: DashboardModule[]
                 <h3 className="mb-3 inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-black uppercase tracking-[0.18em] text-slate-500">
                   {DASHBOARD_GROUP_LABELS[group]}
                 </h3>
-                <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
+                <div className="grid grid-cols-3 gap-3 xl:grid-cols-4">
                   {groupModules.map((moduleItem) => renderModuleCard(moduleItem))}
                 </div>
               </div>
