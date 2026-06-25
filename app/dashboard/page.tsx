@@ -31,6 +31,7 @@ import {
 } from 'lucide-react'
 import PageHeader from '@/app/components/PageHeader.client'
 import DashboardClientWrapper from './client-wrapper'
+import { DashboardFrappeSyncCard } from './DashboardFrappeSyncCard'
 import { BackupCodesReminder } from './lms/components/BackupCodesReminder'
 import { DashboardModulesClient } from './DashboardModulesClient'
 import { NoticeBoardClient } from './NoticeBoardClient'
@@ -211,7 +212,10 @@ function DesktopDashboard({
       </div>
 
       <div className="grid grid-cols-[minmax(0,1fr)_21rem] gap-5 xl:grid-cols-[minmax(0,1fr)_24rem]">
-        <DashboardModulesClient modules={modules} />
+        <div className="space-y-5">
+          <DashboardModulesClient modules={modules} />
+          <DashboardFrappeSyncCard />
+        </div>
         <NoticeBoardClient showMobilePopup={false} />
       </div>
     </section>
