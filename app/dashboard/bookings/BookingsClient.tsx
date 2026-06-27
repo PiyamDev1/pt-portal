@@ -2650,6 +2650,10 @@ export default function BookingsClient({
 
               {appointmentForm.manual_override && (
                 <>
+                  <div className="md:col-span-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                    Manual override uses your local browser time zone. Set the exact start and end time you want saved.
+                  </div>
+
                   <label className="text-sm text-slate-700">
                     Start time
                     <input
