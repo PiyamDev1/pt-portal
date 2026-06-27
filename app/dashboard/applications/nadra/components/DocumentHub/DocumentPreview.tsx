@@ -13,8 +13,7 @@
  * @component
  */
 
-import Image from 'next/image'
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { ConfirmationDialog } from '@/components/ConfirmationDialog'
 import { Document } from './types'
 import {
@@ -22,10 +21,10 @@ import {
   Download,
   Trash2,
   FileText,
-  ChevronLeft,
-  ChevronRight,
   ZoomIn,
   ZoomOut,
+  RotateCcw,
+  RotateCw,
 } from 'lucide-react'
 
 export interface DocumentPreviewProps {
@@ -67,6 +66,7 @@ export function DocumentPreview({
   className = '',
 }: DocumentPreviewProps) {
   const [zoom, setZoom] = useState(100)
+  const [rotation, setRotation] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
@@ -96,6 +96,15 @@ export function DocumentPreview({
   const previewSrc = document
     ? `/api/documents/preview?key=${encodeURIComponent(document.minio.key)}`
     : ''
+
+  const rotatePreview = (direction: 'left' | 'right') => {
+    setRotation((current) => (current + (direction === 'right' ? 90 : -90) + 360) % 360)
+  }
+
+  const resetPreviewTransform = () => {
+    setZoom(100)
+    setRotation(0)
+  }
 
   // Empty state
   if (!document) {
@@ -139,20 +148,20 @@ export function DocumentPreview({
         <div className="flex-1 overflow-auto flex items-center justify-center bg-slate-50 p-4 relative">
           {isImage ? (
             // Image Preview
-              <div className="flex items-center justify-center w-full h-full">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={previewSrc || ''}
-                  alt={document.fileName}
-                  className="max-w-full max-h-full rounded-md"
-                  style={{
-                    transform: `scale(${zoom / 100})`,
-                    transition: 'transform 0.2s ease-out',
-                  }}
-                  onLoad={() => setIsLoading(false)}
-                  onError={() => setIsLoading(false)}
-                />
-              </div>
+            <div className="flex items-center justify-center w-full h-full">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={previewSrc || ''}
+                alt={document.fileName}
+                className="max-w-full max-h-full rounded-md"
+                style={{
+                  transform: `scale(${zoom / 100}) rotate(${rotation}deg)`,
+                  transition: 'transform 0.2s ease-out',
+                }}
+                onLoad={() => setIsLoading(false)}
+                onError={() => setIsLoading(false)}
+              />
+            </div>
           ) : isPDF ? (
             // PDF Preview
             <div className="w-full h-full min-h-[360px] bg-white rounded-md border border-slate-200 overflow-hidden">
@@ -215,7 +224,25 @@ export function DocumentPreview({
             <div className="w-px h-6 bg-slate-300 mx-1" />
 
             <button
-              onClick={() => setZoom(100)}
+              onClick={() => rotatePreview('left')}
+              className="p-2 text-slate-600 hover:bg-white rounded-md hover:text-slate-800 transition-colors"
+              title="Rotate left"
+            >
+              <RotateCcw className="w-4 h-4" />
+            </button>
+
+            <button
+              onClick={() => rotatePreview('right')}
+              className="p-2 text-slate-600 hover:bg-white rounded-md hover:text-slate-800 transition-colors"
+              title="Rotate right"
+            >
+              <RotateCw className="w-4 h-4" />
+            </button>
+
+            <div className="w-px h-6 bg-slate-300 mx-1" />
+
+            <button
+              onClick={resetPreviewTransform}
               className="px-2 py-1 text-xs font-medium text-slate-600 hover:bg-white rounded-md hover:text-slate-800 transition-colors"
             >
               Reset
