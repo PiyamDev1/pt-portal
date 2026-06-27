@@ -78,6 +78,11 @@ type FrappeUserRecord = {
   enabled?: number | boolean | null
 }
 
+type FrappeEmployeeLookupResult = {
+  exists: boolean
+  record: FrappeEmployeeRecord | null
+}
+
 /**
  * Candidate is the portal-side view used by the transfer UI.
  *
@@ -396,31 +401,45 @@ export async function getFrappeProvisioningCandidates() {
     }
   }
 
-  return employeeRows.map((employee): FrappeProvisioningCandidate => {
-    const identity = identities.get(employee.id)
-    const fullName =
-      String(employee.full_name || '').trim() || String(employee.email || 'Unnamed employee')
-    const email = String(employee.email || '').trim()
-    const mapped = Boolean(identity?.frappe_employee_id)
-    const missingFields: string[] = []
+  return Promise.all(
+    employeeRows.map(async (employee): Promise<FrappeProvisioningCandidate> => {
+      const identity = identities.get(employee.id)
+      const fullName =
+        String(employee.full_name || '').trim() || String(employee.email || 'Unnamed employee')
+      const email = String(employee.email || '').trim()
+      const missingFields: string[] = []
 
-    if (!email) missingFields.push('email')
+      if (!email) missingFields.push('email')
 
-    return {
-      employee_id: employee.id,
-      full_name: fullName,
-      email,
-      role_name: firstRelatedName(employee.roles),
-      department_name: departments.get(employee.id) || null,
-      location_name: firstLocationName(employee.locations),
-      manager_id: employee.manager_id || null,
-      is_active: employee.is_active !== false,
-      frappe_employee_id: identity?.frappe_employee_id || null,
-      frappe_user_id: identity?.frappe_user_id || null,
-      status: mapped ? 'linked' : email ? 'ready_for_transfer' : 'missing_email',
-      missing_fields: missingFields,
-    }
-  })
+      let mapped = Boolean(identity?.frappe_employee_id)
+      if (mapped && identity?.frappe_employee_id) {
+        const employeeLookup = await checkFrappeEmployeeExists(identity.frappe_employee_id)
+        mapped = employeeLookup.exists
+        if (!mapped) {
+          await upsertIdentityMap({
+            employeeId: employee.id,
+            frappeEmployeeId: null,
+            frappeUserId: null,
+          })
+        }
+      }
+
+      return {
+        employee_id: employee.id,
+        full_name: fullName,
+        email,
+        role_name: firstRelatedName(employee.roles),
+        department_name: departments.get(employee.id) || null,
+        location_name: firstLocationName(employee.locations),
+        manager_id: employee.manager_id || null,
+        is_active: employee.is_active !== false,
+        frappe_employee_id: mapped ? identity?.frappe_employee_id || null : null,
+        frappe_user_id: mapped ? identity?.frappe_user_id || null : null,
+        status: mapped ? 'linked' : email ? 'ready_for_transfer' : 'missing_email',
+        missing_fields: missingFields,
+      }
+    }),
+  )
 }
 
 export async function getFrappeProvisioningCandidate(employeeId: string) {
@@ -481,6 +500,29 @@ async function findFrappeUserByEmail(email: string) {
   })
 
   return response.data?.[0] || null
+}
+
+async function checkFrappeEmployeeExists(employeeId: string): Promise<FrappeEmployeeLookupResult> {
+  try {
+    const response = await frappeRequest<FrappeDocResponse<FrappeEmployeeRecord>>(
+      `/api/resource/Employee/${encodeURIComponent(employeeId)}`,
+      {
+        method: 'GET',
+        retries: 0,
+      },
+    )
+
+    return {
+      exists: Boolean(response.data?.name),
+      record: response.data || null,
+    }
+  } catch (error: unknown) {
+    if (error instanceof FrappeApiError && error.status === 404) {
+      return { exists: false, record: null }
+    }
+
+    throw error
+  }
 }
 
 async function createOrFindFrappeUser(
@@ -555,7 +597,7 @@ async function createFrappeEmployee(
 
 async function upsertIdentityMap(params: {
   employeeId: string
-  frappeEmployeeId: string
+  frappeEmployeeId: string | null
   frappeUserId: string | null
 }) {
   const supabase = getSupabaseClient()
@@ -585,6 +627,13 @@ export async function ensureFrappeLoginUserForEmployee(employeeId: string) {
 
   if (!candidate.frappe_employee_id) {
     throw new Error('Complete your HRMS transfer before opening Frappe HRMS')
+  }
+
+  const employeeLookup = await checkFrappeEmployeeExists(candidate.frappe_employee_id)
+  if (!employeeLookup.exists) {
+    throw new Error(
+      'Frappe HRMS link is stale. Re-run the transfer before opening Frappe HRMS.',
+    )
   }
 
   if (candidate.frappe_user_id) {
@@ -656,14 +705,23 @@ export async function transferEmployeeToFrappe(
   }
 
   if (candidate.frappe_employee_id) {
-    return {
-      linked: true,
-      created_employee: false,
-      created_user: false,
-      frappe_employee_id: candidate.frappe_employee_id,
-      frappe_user_id: candidate.frappe_user_id,
-      candidate,
+    const employeeLookup = await checkFrappeEmployeeExists(candidate.frappe_employee_id)
+    if (employeeLookup.exists) {
+      return {
+        linked: true,
+        created_employee: false,
+        created_user: false,
+        frappe_employee_id: candidate.frappe_employee_id,
+        frappe_user_id: candidate.frappe_user_id,
+        candidate,
+      }
     }
+
+    await upsertIdentityMap({
+      employeeId: candidate.employee_id,
+      frappeEmployeeId: null,
+      frappeUserId: null,
+    })
   }
 
   await assertFrappeEmployeeProvisioningReady()
