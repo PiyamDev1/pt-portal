@@ -142,6 +142,8 @@ export async function PATCH(
       customer_email,
       service_id,
       start_time,
+      end_time,
+      manual_override,
       if_unmodified_since,
       notes,
       tags: rawTags,
@@ -153,6 +155,8 @@ export async function PATCH(
       customer_email?: string;
       service_id?: string;
       start_time?: string;
+      end_time?: string;
+      manual_override?: boolean;
       if_unmodified_since?: string;
       notes?: string | null;
       tags?: string[];
@@ -178,6 +182,8 @@ export async function PATCH(
       customer_email !== undefined ||
       service_id !== undefined ||
       start_time !== undefined ||
+      end_time !== undefined ||
+      manual_override !== undefined ||
       notes !== undefined ||
       tags !== undefined ||
       personCount !== undefined;
@@ -247,6 +253,7 @@ export async function PATCH(
 
     const nextServiceId = service_id ?? existing.service_id;
     const nextStartISO = start_time ?? existing.start_time;
+    const nextManualOverride = manual_override ?? Boolean(existing.manual_override);
     const nextStatus = status ?? existing.status;
     const nextCustomerName = customer_name ?? existing.customer_name;
     const nextCustomerPhone = customer_phone ?? existing.customer_phone;
@@ -293,10 +300,23 @@ export async function PATCH(
     const boundaryToleranceMinutes = Math.max(0, service.close_overrun_tolerance_minutes);
     let resolvedCapacity = 1;
 
-    const endTimeDate = new Date(startTimeDate.getTime() + serviceDurationMinutes * 60 * 1000);
-    const occupiedUntilDate = new Date(startTimeDate.getTime() + occupancyMinutes * 60 * 1000);
-    const nextEndISO = endTimeDate.toISOString();
-    const nextOccupiedUntilISO = occupiedUntilDate.toISOString();
+    const computedEndTimeDate = new Date(startTimeDate.getTime() + serviceDurationMinutes * 60 * 1000);
+    const computedOccupiedUntilDate = new Date(startTimeDate.getTime() + occupancyMinutes * 60 * 1000);
+    const manualEndDate = end_time ? new Date(end_time) : null;
+    const nextEndISO = nextManualOverride && manualEndDate ? manualEndDate.toISOString() : computedEndTimeDate.toISOString();
+    const nextOccupiedUntilISO = nextManualOverride && manualEndDate ? manualEndDate.toISOString() : computedOccupiedUntilDate.toISOString();
+
+    if (nextManualOverride) {
+      if (!end_time) {
+        return NextResponse.json({ error: 'Manual override requires end_time' }, { status: 400 });
+      }
+      if (!manualEndDate || Number.isNaN(manualEndDate.getTime())) {
+        return NextResponse.json({ error: 'Invalid end_time format' }, { status: 400 });
+      }
+      if (manualEndDate.getTime() <= startTimeDate.getTime()) {
+        return NextResponse.json({ error: 'End time must be later than start time' }, { status: 400 });
+      }
+    }
 
     // Only enforce slot/staff checks if the booking is moving to a new slot or service
     const isSameSchedulingWindow =
@@ -365,8 +385,12 @@ export async function PATCH(
       const serviceEndBound = service.service_end_time ?? closeTime;
 
       const bookingStartMinutes = timeToMinutes(extractUtcTimeHHMMSS(startTimeDate));
-      const bookingEndMinutes = timeToMinutes(extractUtcTimeHHMMSS(endTimeDate));
-      const bookingOccupiedUntilMinutes = timeToMinutes(extractUtcTimeHHMMSS(occupiedUntilDate));
+      const bookingEndMinutes = timeToMinutes(extractUtcTimeHHMMSS(
+        nextManualOverride && manualEndDate ? manualEndDate : computedEndTimeDate
+      ));
+      const bookingOccupiedUntilMinutes = timeToMinutes(extractUtcTimeHHMMSS(
+        nextManualOverride && manualEndDate ? manualEndDate : computedOccupiedUntilDate
+      ));
       const serviceStartMinutes = timeToMinutes(serviceStartBound);
       const serviceEndMinutes = timeToMinutes(serviceEndBound);
 
@@ -449,6 +473,7 @@ export async function PATCH(
       tags: nextTags,
       start_time: nextStartISO,
       end_time: nextEndISO,
+      manual_override: nextManualOverride,
     };
 
     if (notes !== undefined) updates.notes = notes;

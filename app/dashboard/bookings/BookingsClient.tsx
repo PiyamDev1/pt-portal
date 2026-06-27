@@ -23,6 +23,7 @@ interface BookingWithService {
   status: BookingStatus
   source: BookingSource
   notes: string | null
+  manual_override?: boolean
   last_email_sent_at?: string | null
   last_email_status?: string | null
   last_email_subject?: string | null
@@ -1132,6 +1133,8 @@ export default function BookingsClient({
       ? booking.customer_phone.slice(code.length).trim()
       : booking.customer_phone
 
+    const hasCustomManualTime = Boolean(booking.manual_override)
+
     setEditingBooking(booking)
     setSlotsError(null)
     setShowDayAgendaModal(false)
@@ -1149,7 +1152,7 @@ export default function BookingsClient({
       date: booking.start_time.slice(0, 10),
       start_time: booking.start_time,
       end_time: booking.end_time,
-      manual_override: false,
+      manual_override: hasCustomManualTime,
       person_count: booking.person_count ?? 1,
     })
     setShowAppointmentModal(true)
@@ -1446,10 +1449,10 @@ export default function BookingsClient({
     }
 
     const manualStartIso = appointmentForm.manual_override && appointmentForm.date && appointmentForm.start_time
-      ? new Date(`${appointmentForm.date}T${appointmentForm.start_time}:00Z`).toISOString()
+      ? new Date(`${appointmentForm.date}T${appointmentForm.start_time}:00`).toISOString()
       : ''
     const manualEndIso = appointmentForm.manual_override && appointmentForm.date && appointmentForm.end_time
-      ? new Date(`${appointmentForm.date}T${appointmentForm.end_time}:00Z`).toISOString()
+      ? new Date(`${appointmentForm.date}T${appointmentForm.end_time}:00`).toISOString()
       : ''
 
     if (appointmentForm.manual_override) {
@@ -1457,8 +1460,8 @@ export default function BookingsClient({
         toast.error('Manual override needs date, start time, and end time')
         return
       }
-      const parsedStart = new Date(`${appointmentForm.date}T${appointmentForm.start_time}:00Z`)
-      const parsedEnd = new Date(`${appointmentForm.date}T${appointmentForm.end_time}:00Z`)
+      const parsedStart = new Date(`${appointmentForm.date}T${appointmentForm.start_time}:00`)
+      const parsedEnd = new Date(`${appointmentForm.date}T${appointmentForm.end_time}:00`)
       if (Number.isNaN(parsedStart.getTime()) || Number.isNaN(parsedEnd.getTime())) {
         toast.error('Invalid manual start/end time')
         return
@@ -2645,7 +2648,7 @@ export default function BookingsClient({
                 </label>
               )}
 
-              {appointmentForm.manual_override && !editingBooking && (
+              {appointmentForm.manual_override && (
                 <>
                   <label className="text-sm text-slate-700">
                     Start time
@@ -2829,7 +2832,7 @@ export default function BookingsClient({
               )
             })()}
 
-            {appointmentForm.manual_override && !editingBooking && (
+            {appointmentForm.manual_override && (
               <div className="space-y-3">
                 <div className="text-sm text-slate-700 rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3">
                   <p className="font-medium text-indigo-700">Manual override enabled</p>
