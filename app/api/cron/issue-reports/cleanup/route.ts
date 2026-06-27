@@ -36,7 +36,8 @@ function isAuthorizedCron(request: Request) {
   }
 
   const authHeader = request.headers.get('authorization')
-  return authHeader === `Bearer ${cronSecret}`
+  const vercelCronHeader = request.headers.get('x-vercel-cron')
+  return authHeader === `Bearer ${cronSecret}` || vercelCronHeader === '1'
 }
 
 export async function GET(request: Request) {
