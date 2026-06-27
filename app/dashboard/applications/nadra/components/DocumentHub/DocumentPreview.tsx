@@ -13,7 +13,7 @@
  * @component
  */
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ConfirmationDialog } from '@/components/ConfirmationDialog'
 import { Document } from './types'
 import {
@@ -67,8 +67,11 @@ export function DocumentPreview({
 }: DocumentPreviewProps) {
   const [zoom, setZoom] = useState(100)
   const [rotation, setRotation] = useState(0)
+  const [pan, setPan] = useState({ x: 0, y: 0 })
+  const [isDragging, setIsDragging] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const dragStartRef = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null)
 
   // Format file size
   const formatFileSize = (bytes: number): string => {
@@ -104,6 +107,48 @@ export function DocumentPreview({
   const resetPreviewTransform = () => {
     setZoom(100)
     setRotation(0)
+    setPan({ x: 0, y: 0 })
+  }
+
+  useEffect(() => {
+    setZoom(100)
+    setRotation(0)
+    setPan({ x: 0, y: 0 })
+    setIsDragging(false)
+    setIsLoading(true)
+    dragStartRef.current = null
+  }, [document?.id])
+
+  const startDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (zoom <= 100) return
+    dragStartRef.current = {
+      x: event.clientX,
+      y: event.clientY,
+      panX: pan.x,
+      panY: pan.y,
+    }
+    setIsDragging(true)
+    event.currentTarget.setPointerCapture(event.pointerId)
+  }
+
+  const moveDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDragging || !dragStartRef.current) return
+    const dx = event.clientX - dragStartRef.current.x
+    const dy = event.clientY - dragStartRef.current.y
+    setPan({
+      x: dragStartRef.current.panX + dx,
+      y: dragStartRef.current.panY + dy,
+    })
+  }
+
+  const endDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (isDragging) {
+      try {
+        event.currentTarget.releasePointerCapture(event.pointerId)
+      } catch {}
+    }
+    dragStartRef.current = null
+    setIsDragging(false)
   }
 
   // Empty state
@@ -148,18 +193,31 @@ export function DocumentPreview({
         <div className="flex-1 overflow-auto flex items-center justify-center bg-slate-50 p-4 relative">
           {isImage ? (
             // Image Preview
-            <div className="flex items-center justify-center w-full h-full">
+            <div
+              className={`flex items-center justify-center w-full h-full ${
+                zoom > 100 ? (isDragging ? 'cursor-grabbing' : 'cursor-grab') : 'cursor-default'
+              }`}
+              onPointerDown={startDrag}
+              onPointerMove={moveDrag}
+              onPointerUp={endDrag}
+              onPointerLeave={endDrag}
+              onPointerCancel={endDrag}
+            >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={previewSrc || ''}
                 alt={document.fileName}
                 className="max-w-full max-h-full rounded-md"
                 style={{
-                  transform: `scale(${zoom / 100}) rotate(${rotation}deg)`,
-                  transition: 'transform 0.2s ease-out',
+                  transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom / 100}) rotate(${rotation}deg)`,
+                  transition: isDragging ? 'none' : 'transform 0.2s ease-out',
+                  transformOrigin: 'center center',
+                  userSelect: 'none',
+                  touchAction: 'none',
                 }}
                 onLoad={() => setIsLoading(false)}
                 onError={() => setIsLoading(false)}
+                draggable={false}
               />
             </div>
           ) : isPDF ? (
@@ -202,7 +260,11 @@ export function DocumentPreview({
         {isImage && (
           <div className="flex items-center justify-center gap-2 p-3 border-t border-slate-200 bg-slate-50 flex-shrink-0">
             <button
-              onClick={() => setZoom(Math.max(50, zoom - 10))}
+              onClick={() => {
+                const nextZoom = Math.max(50, zoom - 10)
+                setZoom(nextZoom)
+                if (nextZoom <= 100) setPan({ x: 0, y: 0 })
+              }}
               disabled={zoom <= 50}
               className="p-2 text-slate-600 hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed rounded-md hover:text-slate-800 transition-colors"
               title="Zoom out"
@@ -213,7 +275,10 @@ export function DocumentPreview({
             <span className="text-xs font-medium text-slate-600 min-w-12 text-center">{zoom}%</span>
 
             <button
-              onClick={() => setZoom(Math.min(200, zoom + 10))}
+              onClick={() => {
+                const nextZoom = Math.min(200, zoom + 10)
+                setZoom(nextZoom)
+              }}
               disabled={zoom >= 200}
               className="p-2 text-slate-600 hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed rounded-md hover:text-slate-800 transition-colors"
               title="Zoom in"
