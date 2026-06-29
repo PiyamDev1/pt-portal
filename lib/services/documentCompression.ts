@@ -118,19 +118,30 @@ async function compressImageFile(
 function loadImage(file: File): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const image = new Image()
-    const objectUrl = URL.createObjectURL(file)
+    const reader = new FileReader()
 
     image.onload = () => {
-      URL.revokeObjectURL(objectUrl)
       resolve(image)
     }
 
     image.onerror = () => {
-      URL.revokeObjectURL(objectUrl)
       reject(new Error(`Could not read "${file.name}" for compression`))
     }
 
-    image.src = objectUrl
+    reader.onload = () => {
+      if (typeof reader.result !== 'string') {
+        reject(new Error(`Could not read "${file.name}" for compression`))
+        return
+      }
+
+      image.src = reader.result
+    }
+
+    reader.onerror = () => {
+      reject(new Error(`Could not read "${file.name}" for compression`))
+    }
+
+    reader.readAsDataURL(file)
   })
 }
 
