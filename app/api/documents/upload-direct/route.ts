@@ -9,6 +9,7 @@ import { getS3Client } from '@/lib/s3Client'
 import { getR2Client, isR2Configured } from '@/lib/r2Client'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
+import { DOCUMENT_MAX_FILE_SIZE_BYTES, DOCUMENT_MAX_FILE_SIZE_LABEL } from '@/lib/documentConstraints'
 
 const MINIO_BUCKET = process.env.MINIO_BUCKET_NAME || 'portal-documents'
 const R2_BUCKET = process.env.R2_BUCKET_NAME || 'portal-fallback'
@@ -30,13 +31,18 @@ export async function POST(request: NextRequest) {
       return apiError('Missing required fields', 400)
     }
 
+    const buffer = Buffer.from(await file.arrayBuffer())
+    const fileSize = Math.max(Number(file.size || 0), buffer.byteLength)
+
+    if (fileSize > DOCUMENT_MAX_FILE_SIZE_BYTES) {
+      return apiError(`File size exceeds maximum of ${DOCUMENT_MAX_FILE_SIZE_LABEL}`, 413)
+    }
+
     const safeCategory = category || 'general'
     const documentId = `doc-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`
     const scopePrefix = employeeId ? `employee-${employeeId}` : `family-${familyHeadId}`
     const minioKey = `${scopePrefix}/${safeCategory}/${Date.now()}-${file.name.replace(/\s+/g, '-')}`
 
-    // Stream file directly without buffering entire file in memory
-    const buffer = Buffer.from(await file.arrayBuffer())
     let etag = `unknown-${documentId}`
     let storageProvider: 'minio' | 'r2' = 'minio'
     let storageBucket = MINIO_BUCKET

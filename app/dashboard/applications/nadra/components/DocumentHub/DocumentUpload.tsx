@@ -351,7 +351,7 @@ export function DocumentUpload({
           </div>
 
           <p className="text-xs text-slate-500 mt-2">
-            Max file size: 1.5 MB • Supported: PDF, JPG, PNG, WEBP
+            Max file size: 1.5 MB • Large images compress automatically • PDF, JPG, PNG, WEBP
           </p>
         </div>
       </div>

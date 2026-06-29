@@ -7,6 +7,7 @@ import { NextRequest } from 'next/server'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
 import { getSupabaseClient } from '@/lib/supabaseClient'
+import { DOCUMENT_MAX_FILE_SIZE_BYTES, DOCUMENT_MAX_FILE_SIZE_LABEL } from '@/lib/documentConstraints'
 
 type DocumentRow = {
   id: string
@@ -114,6 +115,10 @@ export async function POST(request: NextRequest) {
 
     if (!documentId || !fileName || !familyHeadId || !minioKey) {
       return apiError('Missing required fields', 400)
+    }
+
+    if (Number(fileSize || 0) > DOCUMENT_MAX_FILE_SIZE_BYTES) {
+      return apiError(`File size exceeds maximum of ${DOCUMENT_MAX_FILE_SIZE_LABEL}`, 413)
     }
 
     const bucket = storageBucket || process.env.MINIO_BUCKET_NAME || 'portal-documents'

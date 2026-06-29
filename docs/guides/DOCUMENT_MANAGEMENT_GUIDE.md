@@ -274,7 +274,7 @@ CREATE INDEX ON documents (family_head_id, uploaded_at DESC);
 | Allowed types | PDF, JPG, PNG, WEBP                                        |
 | MIME types    | `application/pdf`, `image/jpeg`, `image/png`, `image/webp` |
 
-These limits are enforced both client-side (UI message) and server-side (route validation).
+Images above 1.5 MB are compressed in the browser before upload. Oversized PDFs must be reduced before upload because PDF-safe optimization requires a dedicated PDF optimizer. These limits are enforced both client-side (UI message) and server-side (route validation).
 
 ---
 

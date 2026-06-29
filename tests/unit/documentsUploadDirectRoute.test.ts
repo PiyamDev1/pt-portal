@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { DOCUMENT_MAX_FILE_SIZE_BYTES } from '@/lib/documentConstraints'
 
 const mocks = vi.hoisted(() => {
   const minioSend = vi.fn()
@@ -64,6 +65,24 @@ describe('POST /api/documents/upload-direct', () => {
     )
     expect(body.documentId).toMatch(/^doc-/)
     expect(body.minioKey).toContain('family-fh-1/general/')
+  })
+
+  it('rejects files larger than the document size cap', async () => {
+    const fd = new FormData()
+    fd.append(
+      'file',
+      new File(['x'.repeat(DOCUMENT_MAX_FILE_SIZE_BYTES + 1)], 'big.pdf', {
+        type: 'application/pdf',
+      }),
+    )
+    fd.append('familyHeadId', 'fh-1')
+
+    const res = await POST({ formData: async () => fd } as never)
+    const body = await res.json()
+
+    expect(res.status).toBe(413)
+    expect(body.error).toContain('File size exceeds maximum')
+    expect(mocks.minioSend).not.toHaveBeenCalled()
   })
 
   it('falls back to R2 when MinIO fails and R2 is configured', async () => {

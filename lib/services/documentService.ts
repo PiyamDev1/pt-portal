@@ -15,6 +15,15 @@ import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { getS3Client } from '@/lib/s3Client'
 import {
+  DOCUMENT_ALLOWED_MIME_TYPES,
+  DOCUMENT_MAX_FILE_SIZE_BYTES,
+  DOCUMENT_MAX_FILE_SIZE_LABEL,
+} from '@/lib/documentConstraints'
+import {
+  isCompressibleDocumentFile,
+  prepareDocumentUploadFile,
+} from '@/lib/services/documentCompression'
+import {
   Document,
   MinioStatus,
   MinioConfig,
@@ -29,8 +38,8 @@ const MINIO_BUCKET =
 const MINIO_REGION = process.env.MINIO_REGION || 'eu-west-1'
 
 // Constants
-const MAX_FILE_SIZE = 2000000 // 2 MB in bytes
-const ALLOWED_MIME_TYPES = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp']
+const MAX_FILE_SIZE = DOCUMENT_MAX_FILE_SIZE_BYTES
+const ALLOWED_MIME_TYPES = DOCUMENT_ALLOWED_MIME_TYPES
 
 /**
  * Stable interface consumed by document-heavy UI surfaces.
@@ -170,15 +179,23 @@ class PlaceholderDocumentService implements DocumentService {
     category: 'receipt' | 'application-review' | 'general' = 'general',
     onProgress?: (percent: number) => void,
   ): Promise<Document> {
+    const mimeValidation = this.validateFileMimeType(file)
+    if (!mimeValidation.valid) {
+      throw new Error(mimeValidation.error || 'File validation failed')
+    }
+
+    const preparedUpload = await prepareDocumentUploadFile(file)
+    const uploadFile = preparedUpload.file
+
     // 1. Validate file size and type first
-    const validation = this.validateFile(file)
+    const validation = this.validateFile(uploadFile)
     if (!validation.valid) {
       throw new Error(validation.error || 'File validation failed')
     }
 
     try {
       // Guarantee we have a type to send
-      const safeFileType = file.type || 'application/octet-stream'
+      const safeFileType = uploadFile.type || 'application/octet-stream'
 
       // Upload through our server as a reliable fallback when presigned PUT is
       // unstable across environments and mobile browsers.
@@ -229,7 +246,7 @@ class PlaceholderDocumentService implements DocumentService {
         xhr.timeout = 120000
 
         const formData = new FormData()
-        formData.append('file', file)
+        formData.append('file', uploadFile)
         formData.append('familyHeadId', familyHeadId)
         formData.append('category', category)
         xhr.send(formData)
@@ -246,8 +263,8 @@ class PlaceholderDocumentService implements DocumentService {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           documentId,
-          fileName: file.name,
-          fileSize: file.size,
+          fileName: uploadFile.name,
+          fileSize: uploadFile.size,
           fileType: safeFileType,
           category,
           familyHeadId,
@@ -262,8 +279,8 @@ class PlaceholderDocumentService implements DocumentService {
       // Return the normalized document shape expected by the UI layer.
       return {
         id: documentId,
-        fileName: file.name,
-        fileSize: file.size,
+        fileName: uploadFile.name,
+        fileSize: uploadFile.size,
         fileType: safeFileType,
         category,
         uploadedAt: new Date().toISOString(),
@@ -427,16 +444,16 @@ class PlaceholderDocumentService implements DocumentService {
    * Validate file against all criteria
    */
   validateFile(file: File): ValidationResult {
-    // Check size
-    const sizeValidation = this.validateFileSize(file)
-    if (!sizeValidation.valid) {
-      return sizeValidation
-    }
-
     // Check MIME type
     const mimeValidation = this.validateFileMimeType(file)
     if (!mimeValidation.valid) {
       return mimeValidation
+    }
+
+    // Check size
+    const sizeValidation = this.validateFileSize(file)
+    if (!sizeValidation.valid && !isCompressibleDocumentFile(file)) {
+      return sizeValidation
     }
 
     return { valid: true }
@@ -449,7 +466,7 @@ class PlaceholderDocumentService implements DocumentService {
     if (file.size > MAX_FILE_SIZE) {
       return {
         valid: false,
-        error: `File size exceeds maximum of ${MAX_FILE_SIZE / 1024 / 1024} MB`,
+        error: `File size exceeds maximum of ${DOCUMENT_MAX_FILE_SIZE_LABEL}`,
       }
     }
     return { valid: true }
