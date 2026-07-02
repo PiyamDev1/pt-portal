@@ -9,6 +9,7 @@ import BookingSettingsTab, {
 import BookingHistoryModal from '@/app/dashboard/bookings/BookingHistoryModal'
 import BookingWaitlistModal from '@/app/dashboard/bookings/BookingWaitlistModal'
 import { useBookingDraft } from '@/app/dashboard/bookings/useBookingDraft'
+import { resolveAppointmentStartTime } from '@/lib/bookingTimeSelection'
 
 interface BookingWithService {
   id: string
@@ -526,6 +527,7 @@ export default function BookingsClient({
   const [serviceOptions, setServiceOptions] = useState<BookingServiceOption[]>([])
   const [showAppointmentModal, setShowAppointmentModal] = useState(false)
   const [showWaitlistModal, setShowWaitlistModal] = useState(false)
+  const [showRescheduleOnly, setShowRescheduleOnly] = useState(false)
   const [editingBooking, setEditingBooking] = useState<BookingWithService | null>(null)
   const [historyBookingId, setHistoryBookingId] = useState<string | null>(null)
   const [resendingBookingId, setResendingBookingId] = useState<string | null>(null)
@@ -1136,6 +1138,7 @@ export default function BookingsClient({
     const hasCustomManualTime = Boolean(booking.manual_override)
 
     setEditingBooking(booking)
+    setShowRescheduleOnly(false)
     setSlotsError(null)
     setShowDayAgendaModal(false)
     setShowNotesEditor(Boolean(booking.notes))
@@ -1161,6 +1164,7 @@ export default function BookingsClient({
   const closeAppointmentModal = useCallback(() => {
     setShowAppointmentModal(false)
     setCancelConfirmOpen(false)
+    setShowRescheduleOnly(false)
     if (!editingBooking) {
       void clearDraft()
     }
@@ -1349,35 +1353,17 @@ export default function BookingsClient({
   useEffect(() => {
     if (!showAppointmentModal || loadingSlots) return
 
-    // In edit mode, keep the original booked time unless the user explicitly picks another slot.
-    // This allows same-slot updates (e.g. person count adjustments) even when recalculated slots differ.
-    if (editingBooking && appointmentForm.start_time === editingBooking.start_time) {
-      return
-    }
+    const nextStartTime = resolveAppointmentStartTime({
+      availableSlots,
+      currentStartTime: appointmentForm.start_time,
+      editingBookingStartTime: editingBooking?.start_time,
+      isEditing: Boolean(editingBooking),
+    })
 
-    if (availableSlots.length === 0) {
-      if (editingBooking && appointmentForm.start_time === editingBooking.start_time) {
-        return
-      }
-      if (appointmentForm.start_time) {
-        setAppointmentForm((prev) => ({ ...prev, start_time: '' }))
-      }
-      return
-    }
+    if (nextStartTime === appointmentForm.start_time) return
 
-    const hasCurrentSelection = availableSlots.some((slot) => slot.isoString === appointmentForm.start_time)
-    if (hasCurrentSelection) return
-
-    if (editingBooking) {
-      const stillAvailable = availableSlots.find((slot) => slot.isoString === editingBooking.start_time)
-      if (stillAvailable) {
-        setAppointmentForm((prev) => ({ ...prev, start_time: stillAvailable.isoString }))
-        return
-      }
-    }
-
-    setAppointmentForm((prev) => ({ ...prev, start_time: availableSlots[0].isoString }))
-  }, [availableSlots, appointmentForm.start_time, editingBooking, loadingSlots, showAppointmentModal])
+    setAppointmentForm((prev) => ({ ...prev, start_time: nextStartTime }))
+  }, [appointmentForm.start_time, availableSlots, editingBooking, loadingSlots, showAppointmentModal])
 
   useEffect(() => {
     latestNotesRef.current = appointmentForm.notes
@@ -1626,6 +1612,38 @@ export default function BookingsClient({
   const manualDurationMinutes = appointmentForm.manual_override && appointmentForm.start_time && appointmentForm.end_time
     ? timeHHMMToMins(appointmentForm.end_time) - timeHHMMToMins(appointmentForm.start_time)
     : null
+  const editingBookingStartMinutes = editingBooking
+    ? timeHHMMToMins(editingBooking.start_time.slice(11, 16))
+    : null
+  const currentSelectedMinutes = appointmentForm.start_time
+    ? timeHHMMToMins(appointmentForm.start_time.slice(11, 16))
+    : null
+  const rescheduleSuggestions = useMemo(() => {
+    if (
+      !editingBooking ||
+      appointmentForm.manual_override ||
+      availableSlots.length === 0 ||
+      editingBookingStartMinutes === null
+    ) {
+      return []
+    }
+
+    const seen = new Set<string>()
+    return availableSlots
+      .slice()
+      .sort((a, b) => {
+        const left = Math.abs(timeHHMMToMins(a.time) - editingBookingStartMinutes)
+        const right = Math.abs(timeHHMMToMins(b.time) - editingBookingStartMinutes)
+        if (left !== right) return left - right
+        return timeHHMMToMins(a.time) - timeHHMMToMins(b.time)
+      })
+      .filter((slot) => {
+        if (seen.has(slot.isoString)) return false
+        seen.add(slot.isoString)
+        return true
+      })
+      .slice(0, 5)
+  }, [appointmentForm.manual_override, availableSlots, editingBooking, editingBookingStartMinutes])
   const manualOverrideWarning = expectedManualDuration !== null && manualDurationMinutes !== null
     ? (manualDurationMinutes <= 0
         ? 'End time must be later than start time.'
@@ -2578,16 +2596,109 @@ export default function BookingsClient({
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {editingBooking && (
+                <div className="md:col-span-2 rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-3">
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="space-y-1">
+                      <p className="text-sm font-semibold text-indigo-900">Quick reschedule</p>
+                      <p className="text-xs text-indigo-700">
+                        Keep the booking details and move the appointment time in one tap. Current slot: {formatTime(editingBooking.start_time)}.
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowRescheduleOnly((prev) => !prev)}
+                        className="ui-tap ui-focus rounded-full border border-indigo-200 bg-white px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100"
+                      >
+                        {showRescheduleOnly ? 'Show full edit' : 'Reschedule only'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAppointmentForm((p) => ({ ...p, start_time: editingBooking.start_time }))}
+                        className="ui-tap ui-focus rounded-full border border-indigo-200 bg-white px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100"
+                      >
+                        Keep current time
+                      </button>
+                      {[15, 30, 60].map((minutes) => {
+                        const shifted = new Date(new Date(editingBooking.start_time).getTime() + minutes * 60000).toISOString()
+                        return (
+                          <button
+                            key={`later-${minutes}`}
+                            type="button"
+                            onClick={() => setAppointmentForm((p) => ({ ...p, start_time: shifted, manual_override: false }))}
+                            className="ui-tap ui-focus rounded-full border border-indigo-200 bg-white px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100"
+                          >
+                            +{minutes} min
+                          </button>
+                        )
+                      })}
+                      {availableSlots.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const nextLaterSlot = availableSlots.find((slot) => slot.isoString > editingBooking.start_time)
+                            const fallback = availableSlots[0]
+                            setAppointmentForm((p) => ({ ...p, start_time: nextLaterSlot?.isoString || fallback.isoString, manual_override: false }))
+                          }}
+                          className="ui-tap ui-focus rounded-full border border-emerald-200 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100"
+                        >
+                          Next available
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (availableSlots[0]) setAppointmentForm((p) => ({ ...p, start_time: availableSlots[0].isoString, manual_override: false }))
+                      }}
+                      disabled={availableSlots.length === 0}
+                      className="ui-tap ui-focus rounded-full bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+                    >
+                      First available
+                    </button>
+                    {rescheduleSuggestions.map((slot) => (
+                      <button
+                        key={slot.isoString}
+                        type="button"
+                        onClick={() => setAppointmentForm((p) => ({ ...p, start_time: slot.isoString, manual_override: false }))}
+                        className={`ui-tap ui-focus rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                          slot.isoString === appointmentForm.start_time
+                            ? 'border-emerald-300 bg-emerald-100 text-emerald-800'
+                            : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        {slot.time}
+                      </button>
+                    ))}
+                  </div>
+
+                  {currentSelectedMinutes !== null && editingBookingStartMinutes !== null && currentSelectedMinutes !== editingBookingStartMinutes && (
+                    <p className="mt-2 text-xs font-medium text-emerald-700">
+                      New time selected: {formatTime(appointmentForm.start_time)}.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {!showRescheduleOnly && (
               <label className="text-sm text-slate-700">
                 Name
                 <input value={appointmentForm.customer_name} onChange={(e) => setAppointmentForm((p) => ({ ...p, customer_name: e.target.value }))} className="mt-1 w-full border border-slate-300 rounded px-3 py-2" />
               </label>
+              )}
 
+              {!showRescheduleOnly && (
               <label className="text-sm text-slate-700">
                 Email address
                 <input type="email" value={appointmentForm.customer_email} onChange={(e) => setAppointmentForm((p) => ({ ...p, customer_email: e.target.value }))} className="mt-1 w-full border border-slate-300 rounded px-3 py-2" />
               </label>
+              )}
 
+              {!showRescheduleOnly && (
               <label className="text-sm text-slate-700">
                 Country code
                 <select value={appointmentForm.phone_country_code} onChange={(e) => setAppointmentForm((p) => ({ ...p, phone_country_code: e.target.value }))} className="mt-1 w-full border border-slate-300 rounded px-3 py-2">
@@ -2596,13 +2707,17 @@ export default function BookingsClient({
                   ))}
                 </select>
               </label>
+              )}
 
+              {!showRescheduleOnly && (
               <label className="text-sm text-slate-700">
                 Phone number
                 <input value={appointmentForm.phone_local} onChange={(e) => setAppointmentForm((p) => ({ ...p, phone_local: e.target.value }))} className="mt-1 w-full border border-slate-300 rounded px-3 py-2" />
                 {invalidLocalPhone && <p className="mt-1 text-xs text-red-600">Enter 6-14 digits (spaces and dashes are allowed).</p>}
               </label>
+              )}
 
+              {!showRescheduleOnly && (
               <label className="text-sm text-slate-700">
                 Service
                 <select value={appointmentForm.service_id} onChange={(e) => setAppointmentForm((p) => ({ ...p, service_id: e.target.value, start_time: '', person_count: 1 }))} className="mt-1 w-full border border-slate-300 rounded px-3 py-2">
@@ -2612,12 +2727,14 @@ export default function BookingsClient({
                   ))}
                 </select>
               </label>
+              )}
 
               <label className="text-sm text-slate-700">
                 Date
                 <input type="date" min={editingBooking ? undefined : todayDateKey} value={appointmentForm.date} onChange={(e) => setAppointmentForm((p) => ({ ...p, date: e.target.value, start_time: p.manual_override ? p.start_time : '' }))} className="mt-1 w-full border border-slate-300 rounded px-3 py-2" />
               </label>
 
+              {!showRescheduleOnly && (
               <label className="text-sm text-slate-700 md:col-span-2">
                 Tags
                 <input
@@ -2628,8 +2745,9 @@ export default function BookingsClient({
                 />
                 <p className="mt-1 text-xs text-slate-400">Comma-separated internal tags.</p>
               </label>
+              )}
 
-              {!editingBooking && (
+              {!editingBooking && !showRescheduleOnly && (
                 <label className="text-sm text-slate-700 md:col-span-2">
                   <span className="inline-flex items-center gap-2">
                     <input
@@ -2679,6 +2797,7 @@ export default function BookingsClient({
                 </>
               )}
 
+              {!showRescheduleOnly && (
               <div className="md:col-span-2">
                 <button
                   type="button"
@@ -2709,6 +2828,7 @@ export default function BookingsClient({
                   </label>
                 )}
               </div>
+              )}
             </div>
 
             {(() => {
@@ -2831,7 +2951,7 @@ export default function BookingsClient({
                   {editingBooking && !loadingSlots && availableSlots.length === 0 && appointmentForm.date && appointmentForm.service_id && appointmentForm.start_time === editingBooking.start_time && (
                     <p className="mt-1 text-xs text-emerald-700">Current booked time retained.</p>
                   )}
-                  {editingBooking && <p className="mt-1 text-xs text-slate-500">Current booking time is preselected. Click a different time to reschedule.</p>}
+                  {editingBooking && <p className="mt-1 text-xs text-slate-500">Tip: use the quick reschedule chips above or click a new time on the timeline.</p>}
                 </div>
               )
             })()}
@@ -4140,14 +4260,15 @@ function SlotTimeline({
                     <button
                       type="button"
                       key={b.id}
-                      className="absolute left-1 right-1 rounded bg-indigo-500 px-2 overflow-hidden z-10"
+                      className="absolute left-1 right-1 rounded bg-indigo-500 px-2 overflow-hidden z-10 shadow-sm ring-1 ring-indigo-300/30 hover:bg-indigo-600"
                       style={{ top, height }}
                       onClick={(e) => {
                         e.stopPropagation()
                         onBookingClick?.(b.booking)
                       }}
-                      title="Amend this appointment"
+                      title="Click to open edit / reschedule"
                     >
+                      <div className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-white/80" />
                       <p className="text-[10px] font-semibold text-white truncate leading-tight pt-0.5">{b.name}</p>
                       {b.service && <p className="text-[9px] text-indigo-200 truncate">{b.service}</p>}
                     </button>
