@@ -112,6 +112,17 @@ export const DASHBOARD_MODULES: DashboardModule[] = [
     iconKey: 'plane',
   },
   {
+    id: 'packages',
+    title: 'Packages',
+    desc: 'Holidays, ziyarat and umrah quotes',
+    href: '/dashboard/packages',
+    group: 'operations',
+    accent: 'from-[#4b0f16] to-[#8b1e2d] text-white',
+    iconTone: 'from-[#4b0f16] via-[#8b1e2d] to-[#c43b42] text-white shadow-red-950/25',
+    tileTone: 'from-rose-50 via-white to-slate-100',
+    iconKey: 'plane',
+  },
+  {
     id: 'gb-passport',
     title: 'GB Passport',
     desc: 'British passport services',
