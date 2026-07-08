@@ -57,7 +57,7 @@ const ICONS: Record<DashboardModule['iconKey'], ComponentType<IconProps>> = {
 }
 
 const MOBILE_PRIMARY_IDS = new Set(['timeclock', 'hrms-transfer'])
-const MOBILE_QUICK_IDS = new Set(['account', 'applications', 'bookings'])
+const MOBILE_QUICK_IDS = new Set(['account', 'applications', 'bookings', 'packages'])
 
 function ModuleIcon({
   moduleItem,
@@ -127,7 +127,7 @@ function MobileDashboard({
           </h2>
           <Sparkles className="h-4 w-4 text-amber-500" />
         </div>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           {quickModules.map((moduleItem) => (
             <Link
               key={moduleItem.id}
