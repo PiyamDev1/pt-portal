@@ -128,6 +128,7 @@ CREATE TABLE IF NOT EXISTS bookings (
   end_time        TIMESTAMPTZ NOT NULL,
   status          booking_status NOT NULL DEFAULT 'pending',
   source          booking_source NOT NULL DEFAULT 'portal',
+  manual_override BOOLEAN NOT NULL DEFAULT false,
   notes           TEXT,
   last_email_sent_at TIMESTAMPTZ,
   last_email_kind TEXT,
@@ -155,6 +156,7 @@ ALTER TABLE bookings
   ADD COLUMN IF NOT EXISTS last_email_recipient TEXT,
   ADD COLUMN IF NOT EXISTS last_rescheduled_at TIMESTAMPTZ,
   ADD COLUMN IF NOT EXISTS reschedule_count INTEGER NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS manual_override BOOLEAN NOT NULL DEFAULT false,
   ADD COLUMN IF NOT EXISTS attendance_status TEXT NOT NULL DEFAULT 'unknown';
 
 -- Add address/contact fields to locations if not already present
@@ -255,6 +257,9 @@ CREATE TABLE IF NOT EXISTS booking_capacity_reservations (
 
 DO $$
 BEGIN
+  ALTER TABLE booking_capacity_reservations
+    DROP CONSTRAINT IF EXISTS booking_capacity_reservations_no_overlap;
+
   ALTER TABLE booking_capacity_reservations
     ADD CONSTRAINT booking_capacity_reservations_no_overlap
     EXCLUDE USING gist (
