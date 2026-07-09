@@ -7,7 +7,7 @@
 
 'use client'
 
-import { ArrowRight, Database, GitBranch, Network, ShieldCheck, Users } from 'lucide-react'
+import { ArrowRight, Database, GitBranch, Network, Server, ShieldCheck, Users } from 'lucide-react'
 
 type AdminOverviewTabProps = {
   userRole: string
@@ -19,6 +19,7 @@ type AdminOverviewTabProps = {
   canManageOrganization: boolean
   canAccessMaintenance: boolean
   canManageIssueReports: boolean
+  canControlServer: boolean
   onSelectTab: (tab: string) => void
 }
 
@@ -64,6 +65,7 @@ export function AdminOverviewTab({
   canManageOrganization,
   canAccessMaintenance,
   canManageIssueReports,
+  canControlServer,
   onSelectTab,
 }: AdminOverviewTabProps) {
   const quickActions: QuickAction[] = [
@@ -123,6 +125,13 @@ export function AdminOverviewTab({
       description: 'Run controlled maintenance tasks and review the result before wider changes.',
       icon: Database,
       visible: canAccessMaintenance,
+    },
+    {
+      id: 'server-control',
+      title: 'Server Control',
+      description: 'Check Hetzner status and run protected start, stop, or restart actions.',
+      icon: Server,
+      visible: canControlServer,
     },
   ]
 

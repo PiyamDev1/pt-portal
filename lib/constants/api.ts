@@ -31,6 +31,7 @@ export const API_ENDPOINTS = {
   ADMIN_DISABLE_EMPLOYEE: '/api/admin/disable-enable-employee',
   ADMIN_DELETE_EMPLOYEE: '/api/admin/delete-employee',
   ADMIN_RECEIPT_METRICS: '/api/admin/receipt-metrics',
+  ADMIN_SERVER_CONTROL: '/api/admin/server-control',
 
   // Auth
   AUTH_BACKUP_CODES: '/api/auth/backup-codes',

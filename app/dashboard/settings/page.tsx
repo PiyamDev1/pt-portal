@@ -1,18 +1,18 @@
 /**
  * Admin Settings Page
- * 
+ *
  * Comprehensive admin configuration interface (Admin only):
  * - Manage organization branches and staff hierarchy
  * - Configure LMS pricing tables and charges
  * - Set maintenance windows and notifications
  * - Manage active security sessions
  * - View device and access logs
- * 
+ *
  * Server component that:
  * - Verifies admin authorization
  * - Loads organizational structure and settings
  * - Renders configuration tabs for different admin functions
- * 
+ *
  * @module app/dashboard/settings/page
  */
 import { createServerClient } from '@supabase/auth-helpers-nextjs'
@@ -77,7 +77,10 @@ export default async function SettingsPage() {
     ? employeeData.data.roles[0]
     : employeeData?.data?.roles
   const userRole = role?.name || 'Employee'
-  const hasAdminConsole = ['Admin', 'Master Admin', 'Maintenance Admin'].includes(userRole)
+  const normalizedRole = userRole.trim().toLowerCase()
+  const hasAdminConsole = ['admin', 'master admin', 'maintenance admin', 'super admin'].includes(
+    normalizedRole,
+  )
 
   // 3. Pass data to the Client Component (The Dashboard UI)
   return (

@@ -48,6 +48,17 @@ Key production groups:
 - `FRAPPE_WEBHOOK_SECRET`
 - `FRAPPE_HANDOFF_SECRET`
 
+### Server Control
+
+- `HETZNER_API_TOKEN`
+- `HETZNER_SERVER_ID`
+- `HETZNER_SERVER_IP`
+- `HETZNER_SERVER_LABEL`
+- `SERVER_CONTROL_SERVICES`
+- `SERVER_CONTROL_SERVICE_HEALTH_URLS`
+
+`HETZNER_SERVER_IP` accepts an IPv4 address, a Hetzner IPv6 `/64`, or both separated by commas.
+
 ## Local-to-production rule
 
 Do not rely on `.env.local` assumptions when documenting or debugging production behavior. Production should always be treated as its own config surface with explicit platform secrets.
