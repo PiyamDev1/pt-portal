@@ -4,6 +4,7 @@ import {
   formatPackageCombinationForCopy,
   getDefaultPackageExpiry,
   isPackageQuoteExpired,
+  normalizePackageQuotePayload,
   resolvePackageSelection,
 } from '@/lib/packageQuote'
 import type { PackageQuotePayload } from '@/app/types/packages'
@@ -91,5 +92,30 @@ describe('package quote calculator', () => {
     expect(diffHours).toBeLessThanOrEqual(72)
     expect(isPackageQuoteExpired(expiresAt, now)).toBe(false)
     expect(isPackageQuoteExpired(new Date(now - 1000).toISOString(), now)).toBe(true)
+  })
+
+  it('preserves textarea spacing in component summaries', () => {
+    const normalized = normalizePackageQuotePayload({
+      ...payload,
+      stayGroups: [
+        {
+          id: 'makkah',
+          label: 'Makkah',
+          options: [
+            {
+              id: 'mk-space',
+              title: 'Makkah spaced',
+              summary: 'Line one\n\n  Line two with leading space',
+              price: 400,
+            },
+          ],
+        },
+        payload.stayGroups[1],
+      ],
+    })
+
+    expect(normalized.stayGroups[0].options[0].summary).toBe(
+      'Line one\n\n  Line two with leading space',
+    )
   })
 })

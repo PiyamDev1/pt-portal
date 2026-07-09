@@ -42,6 +42,10 @@ function asString(value: unknown, fallback = '') {
   return typeof value === 'string' ? value.trim() : fallback
 }
 
+function asText(value: unknown, fallback = '') {
+  return typeof value === 'string' ? value : fallback
+}
+
 function asNumber(value: unknown, fallback = 0) {
   const parsed = Number(value)
   if (!Number.isFinite(parsed)) return fallback
@@ -64,15 +68,16 @@ function normalizeCurrency(value: unknown) {
 function normalizeOption(raw: unknown, fallbackId: string): PackageComponentOption | null {
   const candidate = raw as Partial<PackageComponentOption> | null
   const title = asString(candidate?.title)
-  const summary = asString(candidate?.summary)
+  const summary = asText(candidate?.summary)
+  const summaryText = summary.trim()
   const price = asNumber(candidate?.price)
   const id = asString(candidate?.id, fallbackId)
 
-  if (!title && !summary && price <= 0) return null
+  if (!title && !summaryText && price <= 0) return null
 
   return {
     id,
-    title: title || summary.split('\n')[0] || 'Option',
+    title: title || summaryText.split('\n')[0] || 'Option',
     summary,
     price,
   }
@@ -128,7 +133,7 @@ export function normalizePackageQuotePayload(input: unknown): PackageQuotePayloa
     stayGroups,
     flightOptions: normalizeOptions(candidate.flightOptions, 'flight'),
     transportOptions: normalizeOptions(candidate.transportOptions, 'transport'),
-    notes: asString(candidate.notes),
+    notes: asText(candidate.notes),
   }
 }
 

@@ -265,7 +265,7 @@ export default function PackagesClient({ currentUserId }: PackagesClientProps) {
   }, [quoteFilter, quotes])
 
   const updatePayload = (changes: Partial<PackageQuotePayload>) => {
-    setPayload((current) => normalizePackageQuotePayload({ ...current, ...changes }))
+    setPayload((current) => ({ ...current, ...changes }))
   }
 
   const loadQuotes = async () => {
