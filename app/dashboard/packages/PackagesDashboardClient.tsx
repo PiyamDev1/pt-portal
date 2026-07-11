@@ -23,7 +23,7 @@ import { toast } from 'sonner'
 import type { TravelPackageQuote } from '@/app/types/packages'
 import type { TravelPackageFolder } from '@/app/types/packages'
 import {
-  buildPackageCombinations,
+  buildCustomerPackageOptions,
   formatMoney,
   isPackageQuoteExpired,
 } from '@/lib/packageQuote'
@@ -107,7 +107,7 @@ function formatDate(value: string) {
 }
 
 function getQuoteStartingPrice(quote: TravelPackageQuote) {
-  return buildPackageCombinations(quote.payload, 1)[0] || null
+  return buildCustomerPackageOptions(quote.payload, 1)[0]?.combination || null
 }
 
 function getPassengerLabel(quote: TravelPackageQuote) {

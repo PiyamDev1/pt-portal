@@ -48,6 +48,9 @@ export async function POST(
       selected_option: resolved,
       selected_at: new Date().toISOString(),
       selection_note: resolved.selection.note || null,
+      customer_name: resolved.selection.customerName || null,
+      customer_phone: resolved.selection.customerPhone || null,
+      customer_email: resolved.selection.customerEmail || null,
     })
     .eq('id', quote.id)
 

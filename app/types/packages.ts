@@ -54,6 +54,10 @@ export interface PackageComponentOption {
   summary: string
   price: number
   pricingMode?: PackagePricingMode
+  isDefault?: boolean
+  adultPrice?: number
+  childPrice?: number
+  infantPrice?: number
 }
 
 export interface PackageStayGroup {
@@ -111,6 +115,17 @@ export interface PackageCombination {
   servicePassengers: number
   currency: string
   appliedOffers: PackageLimitedTimeOffer[]
+}
+
+export interface PackagePassengerPriceBreakdown {
+  adult: number
+  child: number
+  infant: number
+  adultTotal: number
+  childTotal: number
+  infantTotal: number
+  total: number
+  currency: string
 }
 
 export interface PackageSelectionInput {

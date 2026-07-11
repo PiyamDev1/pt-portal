@@ -20,6 +20,7 @@ import type {
 } from '@/app/types/packages'
 import {
   formatMoney,
+  getDefaultPackageSelection,
   isLimitedTimeOfferActive,
   normalizePackageQuotePayload,
   resolvePackageSelection,
@@ -47,14 +48,7 @@ type CustomerFields = {
 }
 
 function firstSelections(payload: PackageQuotePayload) {
-  return {
-    stayOptionIds: Object.fromEntries(
-      payload.stayGroups.map((group) => [group.id, group.options[0]?.id || '']),
-    ),
-    flightOptionId: payload.flightOptions[0]?.id || null,
-    visaOptionId: payload.visaOptions[0]?.id || null,
-    transportOptionId: payload.transportOptions[0]?.id || null,
-  }
+  return getDefaultPackageSelection(payload)
 }
 
 function formatOfferDeadline(value: string) {

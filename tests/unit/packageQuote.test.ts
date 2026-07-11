@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildPackageCombinations,
+  createTravelPackageReference,
+  formatPackageQuoteForCopy,
   formatPackageCombinationForCopy,
+  getDefaultPackageSelection,
+  getPackagePassengerPriceBreakdown,
   getDefaultPackageExpiry,
   isPackageQuoteExpired,
   normalizePackageQuotePayload,
@@ -66,6 +70,10 @@ const payload: PackageQuotePayload = {
 }
 
 describe('package quote calculator', () => {
+  it('creates compact package references with the PT prefix', () => {
+    expect(createTravelPackageReference()).toMatch(/^PT-[A-Z0-9]{6}$/)
+  })
+
   it('generates sorted combinations including hotels, flights, and transport', () => {
     const combinations = buildPackageCombinations(payload)
 
@@ -227,5 +235,83 @@ describe('package quote calculator', () => {
     expect(copy).toContain('****EARLY BIRD OFFER****')
     expect(copy).toContain('*Discount Applied: -£120.00*')
     expect(copy).toContain('*Total Package Cost: £1,785.00*')
+  })
+
+  it('uses preferred flights and tiered adult child infant pricing', () => {
+    const tieredPayload: PackageQuotePayload = {
+      ...payload,
+      flightOptions: [
+        {
+          id: 'flight-standard',
+          title: 'Standard flights',
+          summary: 'Standard flights',
+          price: 0,
+          pricingMode: 'per_person',
+          isDefault: true,
+          adultPrice: 600,
+          childPrice: 500,
+          infantPrice: 120,
+        },
+        {
+          id: 'flight-direct',
+          title: 'Direct flights',
+          summary: 'Direct flights',
+          price: 0,
+          pricingMode: 'per_person',
+          adultPrice: 700,
+          childPrice: 575,
+          infantPrice: 150,
+        },
+      ],
+    }
+
+    const selection = getDefaultPackageSelection(tieredPayload)
+    const resolved = resolvePackageSelection(tieredPayload, selection)
+    const breakdown = getPackagePassengerPriceBreakdown(tieredPayload, resolved.combination)
+
+    expect(selection.flightOptionId).toBe('flight-standard')
+    expect(resolved.combination.totalPrice).toBe(2825)
+    expect(breakdown.adult).toBeCloseTo(903.33, 2)
+    expect(breakdown.child).toBeCloseTo(803.33, 2)
+    expect(breakdown.infant).toBe(215)
+  })
+
+  it('formats a single WhatsApp quote with defaults and option deltas', () => {
+    const tieredPayload: PackageQuotePayload = {
+      ...payload,
+      title: 'September Umrah Package',
+      flightOptions: [
+        {
+          id: 'flight-standard',
+          title: 'Standard flights',
+          summary: 'Standard flights',
+          price: 0,
+          pricingMode: 'per_person',
+          isDefault: true,
+          adultPrice: 600,
+          childPrice: 500,
+          infantPrice: 120,
+        },
+        {
+          id: 'flight-direct',
+          title: 'Direct flights',
+          summary: 'Direct flights',
+          price: 0,
+          pricingMode: 'per_person',
+          adultPrice: 700,
+          childPrice: 575,
+          infantPrice: 150,
+        },
+      ],
+    }
+
+    const copy = formatPackageQuoteForCopy(tieredPayload)
+
+    expect(copy).toContain('****September Umrah Package****')
+    expect(copy).toContain('****Flight Included****')
+    expect(copy).toContain('- Direct flights: Adult +£100.00 / Child +£75.00 / Under 5 +£30.00')
+    expect(copy).toContain('----------------------------')
+    expect(copy).toContain('*Option 1: Included*')
+    expect(copy).toContain('*Option 2: +')
   })
 })

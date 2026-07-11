@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { createServerClient } from '@supabase/auth-helpers-nextjs'
 import PageHeader from '@/app/components/PageHeader.client'
 import PackagesClient from '../../../PackagesClient'
+import { getPackagePageHeader } from '../../../packagePageHeader'
 
 export const metadata = {
   title: 'Edit Package Quote - PT Portal',
@@ -41,14 +42,18 @@ export default async function EditPackageQuotationPage({
 
   if (!session) redirect('/login')
 
-  const location = { name: 'Packages Desk', branch_code: 'PKG' }
+  const header = await getPackagePageHeader(
+    supabase,
+    session.user.id,
+    session.user.user_metadata?.full_name,
+  )
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-950">
       <PageHeader
-        employeeName={session.user.user_metadata?.full_name}
-        role="Employee"
-        location={location}
+        employeeName={header.employeeName}
+        role={header.role}
+        location={header.location}
         userId={session.user.id}
       />
 

@@ -14,11 +14,13 @@ import {
   FolderOpen,
   Loader2,
   PackageCheck,
+  Pencil,
   Plane,
   Plus,
   ShieldCheck,
   Stamp,
   Users,
+  X,
 } from 'lucide-react'
 import type {
   TravelPackageFolder,
@@ -81,6 +83,16 @@ type ReservationItemFormState = {
   description: string
 }
 
+type ReservationFinancialFormState = {
+  bookedCostTotal: string
+  soldPriceTotal: string
+  discountTotal: string
+  commissionExpectedTotal: string
+  depositRequired: boolean
+  depositAmount: string
+  paymentDueAt: string
+}
+
 const reservationTypeOptions: Array<{ value: TravelPackageReservationType; label: string }> = [
   { value: 'flight', label: 'Flight' },
   { value: 'hotel', label: 'Hotel' },
@@ -127,7 +139,14 @@ const reservationItemStatusOptions: Array<{
   { value: 'cancelled', label: 'Cancelled' },
 ]
 
-function createInitialReservationForm(): ReservationFormState {
+function toDateTimeLocalValue(value: Date | string = new Date()) {
+  const date = value instanceof Date ? value : new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60 * 1000)
+  return localDate.toISOString().slice(0, 16)
+}
+
+function createInitialReservationForm(soldPriceTotal = 0): ReservationFormState {
   return {
     reservationType: 'flight',
     title: '',
@@ -135,12 +154,12 @@ function createInitialReservationForm(): ReservationFormState {
     supplierName: '',
     supplierReference: '',
     bookedCostTotal: '',
-    soldPriceTotal: '',
+    soldPriceTotal: soldPriceTotal > 0 ? String(soldPriceTotal) : '',
     discountTotal: '',
     commissionExpectedTotal: '',
     depositRequired: false,
     depositAmount: '',
-    paymentDueAt: '',
+    paymentDueAt: toDateTimeLocalValue(),
     internalNotes: '',
   }
 }
@@ -175,6 +194,25 @@ function formatDate(value: string | null | undefined) {
 
 function formatReservationStatus(status: string) {
   return status.replace(/_/g, ' ')
+}
+
+function parseMoneyInput(value: string | number | null | undefined) {
+  const parsed = Number(value ?? 0)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+function createReservationFinancialForm(
+  reservation: TravelPackageReservation,
+): ReservationFinancialFormState {
+  return {
+    bookedCostTotal: String(reservation.booked_cost_total || ''),
+    soldPriceTotal: String(reservation.sold_price_total || ''),
+    discountTotal: String(reservation.discount_total || ''),
+    commissionExpectedTotal: String(reservation.commission_expected_total || ''),
+    depositRequired: reservation.deposit_required,
+    depositAmount: String(reservation.deposit_amount || ''),
+    paymentDueAt: reservation.payment_due_at ? toDateTimeLocalValue(reservation.payment_due_at) : '',
+  }
 }
 
 function getReservationIcon(type: TravelPackageReservationType) {
@@ -214,13 +252,18 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
     createInitialReservationForm(),
   )
   const [itemForms, setItemForms] = useState<Record<string, ReservationItemFormState>>({})
+  const [reservationFinancialForms, setReservationFinancialForms] = useState<
+    Record<string, ReservationFinancialFormState>
+  >({})
   const [loading, setLoading] = useState(true)
   const [reservationsLoading, setReservationsLoading] = useState(false)
   const [savingReservation, setSavingReservation] = useState(false)
   const [savingItemReservationId, setSavingItemReservationId] = useState<string | null>(null)
+  const [savingReservationFinancialId, setSavingReservationFinancialId] = useState<string | null>(null)
   const [updatingReservationId, setUpdatingReservationId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [reservationError, setReservationError] = useState<string | null>(null)
+  const [showQuoteSnapshot, setShowQuoteSnapshot] = useState(false)
 
   useEffect(() => {
     const loadPackageFolder = async () => {
@@ -289,6 +332,15 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
           })
           return next
         })
+        setReservationFinancialForms((current) => {
+          const next = { ...current }
+          withItems.forEach((reservation) => {
+            if (!next[reservation.id]) {
+              next[reservation.id] = createReservationFinancialForm(reservation)
+            }
+          })
+          return next
+        })
       } catch (loadError) {
         setReservationError(
           loadError instanceof Error ? loadError.message : 'Unable to load package reservations',
@@ -302,11 +354,40 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
   }, [packageId])
 
   const selectedCombination = packageFolder?.selected_quote_snapshot.selection?.combination
+  const selectedPayload = packageFolder?.selected_quote_snapshot.payload
+  const selectedSelection = packageFolder?.selected_quote_snapshot.selection
+  const selectedQuote = packageFolder?.selected_quote_snapshot.quote
+  const defaultSoldPrice = selectedCombination?.totalPrice || 0
   const passengerSummary = packageFolder?.passenger_summary
+  const quoteTitle =
+    selectedPayload?.title || selectedQuote?.title || packageFolder?.package_reference || 'Final quotation'
+  const quoteCustomerName =
+    selectedSelection?.selection.customerName
+    || packageFolder?.customer_name
+    || selectedPayload?.customerName
+    || selectedQuote?.customer_name
+    || 'No customer name'
+  const quoteCustomerPhone =
+    selectedSelection?.selection.customerPhone
+    || packageFolder?.customer_phone
+    || selectedPayload?.customerPhone
+    || selectedQuote?.customer_phone
+    || 'No phone'
+  const quoteCustomerEmail =
+    selectedSelection?.selection.customerEmail
+    || packageFolder?.customer_email
+    || selectedPayload?.customerEmail
+    || selectedQuote?.customer_email
+    || 'No email'
+  const quoteSelectionNote =
+    selectedSelection?.selection.note || selectedQuote?.selection_note || selectedPayload?.notes || ''
   const dateRange = useMemo(() => {
     if (!packageFolder) return 'Dates not set'
     return `${formatDate(packageFolder.departure_date)} to ${formatDate(packageFolder.return_date)}`
   }, [packageFolder])
+  const quoteDateRange = `${formatDate(
+    selectedPayload?.departureDate || packageFolder?.departure_date,
+  )} to ${formatDate(selectedPayload?.returnDate || packageFolder?.return_date)}`
   const publicSummaryCurrency =
     typeof packageFolder?.current_public_summary?.currency === 'string'
       ? packageFolder.current_public_summary.currency
@@ -324,11 +405,23 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
       { booked: 0, sold: 0, discount: 0, commission: 0 },
     )
   }, [reservations])
-  const estimatedMargin =
+  const bookedSoldDifference =
     reservationTotals.sold
     - reservationTotals.discount
     - reservationTotals.booked
-    + reservationTotals.commission
+  const estimatedMargin = bookedSoldDifference + reservationTotals.commission
+
+  useEffect(() => {
+    if (defaultSoldPrice <= 0) return
+    setReservationForm((current) => {
+      if (current.soldPriceTotal) return current
+      return {
+        ...current,
+        soldPriceTotal: String(defaultSoldPrice),
+        paymentDueAt: current.paymentDueAt || toDateTimeLocalValue(),
+      }
+    })
+  }, [defaultSoldPrice])
 
   const updateReservationForm = <Key extends keyof ReservationFormState>(
     key: Key,
@@ -378,7 +471,11 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
           createdReservation.reservation_type,
         ),
       }))
-      setReservationForm(createInitialReservationForm())
+      setReservationFinancialForms((current) => ({
+        ...current,
+        [createdReservation.id]: createReservationFinancialForm(createdReservation),
+      }))
+      setReservationForm(createInitialReservationForm(defaultSoldPrice))
     } catch (saveError) {
       setReservationError(
         saveError instanceof Error ? saveError.message : 'Failed to create reservation',
@@ -420,6 +517,69 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
       )
     } finally {
       setUpdatingReservationId(null)
+    }
+  }
+
+  const getReservationFinancialForm = (reservation: TravelPackageReservation) => {
+    return reservationFinancialForms[reservation.id] || createReservationFinancialForm(reservation)
+  }
+
+  const updateReservationFinancialForm = <Key extends keyof ReservationFinancialFormState>(
+    reservation: TravelPackageReservation,
+    key: Key,
+    value: ReservationFinancialFormState[Key],
+  ) => {
+    setReservationFinancialForms((current) => ({
+      ...current,
+      [reservation.id]: {
+        ...(current[reservation.id] || createReservationFinancialForm(reservation)),
+        [key]: value,
+      },
+    }))
+  }
+
+  const saveReservationFinancials = async (reservation: TravelPackageReservation) => {
+    const financialForm = getReservationFinancialForm(reservation)
+    setSavingReservationFinancialId(reservation.id)
+    setReservationError(null)
+    try {
+      const response = await fetch(
+        `/api/travel-packages/${encodeURIComponent(packageId)}/reservations/${encodeURIComponent(
+          reservation.id,
+        )}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            bookedCostTotal: financialForm.bookedCostTotal,
+            soldPriceTotal: financialForm.soldPriceTotal,
+            discountTotal: financialForm.discountTotal,
+            commissionExpectedTotal: financialForm.commissionExpectedTotal,
+            depositRequired: financialForm.depositRequired,
+            depositAmount: financialForm.depositAmount,
+            paymentDueAt: financialForm.paymentDueAt,
+          }),
+        },
+      )
+      const data = (await response.json()) as ReservationsResponse
+      if (!response.ok || !data.reservation) {
+        throw new Error(data.message || data.error || 'Failed to update reservation financials')
+      }
+      setReservations((current) =>
+        current.map((item) =>
+          item.id === reservation.id ? { ...data.reservation!, items: item.items } : item,
+        ),
+      )
+      setReservationFinancialForms((current) => ({
+        ...current,
+        [reservation.id]: createReservationFinancialForm(data.reservation!),
+      }))
+    } catch (saveError) {
+      setReservationError(
+        saveError instanceof Error ? saveError.message : 'Failed to update reservation financials',
+      )
+    } finally {
+      setSavingReservationFinancialId(null)
     }
   }
 
@@ -492,6 +652,12 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
         ...current,
         [reservation.id]: createInitialReservationItemForm(reservation.reservation_type),
       }))
+      if (data.reservation) {
+        setReservationFinancialForms((current) => ({
+          ...current,
+          [reservation.id]: createReservationFinancialForm(data.reservation!),
+        }))
+      }
     } catch (saveError) {
       setReservationError(
         saveError instanceof Error ? saveError.message : 'Failed to create reservation item',
@@ -552,13 +718,14 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
               documents, invoices, and payment plans will attach here as the next phases are built.
             </p>
           </div>
-          {packageFolder.source_quote_id && (
-            <Link
-              href={`/dashboard/packages/quotations/${packageFolder.source_quote_id}/edit`}
+          {selectedCombination && (
+            <button
+              type="button"
+              onClick={() => setShowQuoteSnapshot(true)}
               className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-200 px-4 text-sm font-black text-slate-700 transition hover:bg-slate-100"
             >
-              Open Source Quote
-            </Link>
+              View Final Quotation
+            </button>
           )}
         </div>
       </section>
@@ -597,15 +764,61 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
             </div>
             {selectedCombination ? (
               <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-                <p className="text-sm font-black text-slate-950">
-                  {formatMoney(selectedCombination.totalPrice, selectedCombination.currency)}
-                </p>
-                <p className="mt-1 text-xs font-bold text-[#8b1e2d]">
-                  {formatMoney(selectedCombination.perPersonPrice, selectedCombination.currency)} per
-                  hotel-paying guest
-                </p>
+                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <p className="text-xs font-bold uppercase text-slate-500">Selected quote</p>
+                    <p className="mt-1 text-base font-black text-slate-950">{quoteTitle}</p>
+                    <p className="mt-1 text-xs font-bold text-slate-500">
+                      {quoteCustomerName} · {quoteDateRange}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowQuoteSnapshot(true)}
+                    className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:bg-slate-100"
+                  >
+                    <FileText className="h-4 w-4" />
+                    Open Snapshot
+                  </button>
+                </div>
+
+                <div className="mt-4 grid gap-3 md:grid-cols-3">
+                  <div>
+                    <p className="text-xs font-bold uppercase text-slate-500">Customer</p>
+                    <p className="mt-1 text-sm font-black text-slate-950">{quoteCustomerName}</p>
+                    <p className="mt-1 text-xs text-slate-500">{quoteCustomerPhone}</p>
+                    <p className="mt-1 break-all text-xs text-slate-500">{quoteCustomerEmail}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold uppercase text-slate-500">Passengers</p>
+                    <p className="mt-1 text-sm font-black text-slate-950">
+                      {passengerSummary?.totalPassengers ?? selectedCombination.servicePassengers}{' '}
+                      total
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {passengerSummary?.adults ?? selectedPayload?.adults ?? 0} adults ·{' '}
+                      {passengerSummary?.childrenPaying ?? selectedPayload?.childrenPaying ?? 0}{' '}
+                      children 5+ ·{' '}
+                      {passengerSummary?.childrenFree ?? selectedPayload?.childrenFree ?? 0} under 5
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold uppercase text-slate-500">Sold total</p>
+                    <p className="mt-1 text-sm font-black text-slate-950">
+                      {formatMoney(selectedCombination.totalPrice, selectedCombination.currency)}
+                    </p>
+                    <p className="mt-1 text-xs font-bold text-[#8b1e2d]">
+                      {formatMoney(
+                        selectedCombination.perPersonPrice,
+                        selectedCombination.currency,
+                      )}{' '}
+                      per hotel-paying guest
+                    </p>
+                  </div>
+                </div>
+
                 {selectedCombination.offerDiscountTotal > 0 && (
-                  <p className="mt-1 text-xs font-bold text-emerald-700">
+                  <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700">
                     Discount applied:{' '}
                     {formatMoney(
                       selectedCombination.offerDiscountTotal,
@@ -613,32 +826,70 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
                     )}
                   </p>
                 )}
-                <div className="mt-3 space-y-1 text-xs text-slate-600">
+
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
                   {selectedCombination.flightOption && (
-                    <p>
-                      <span className="font-bold text-slate-800">Flight:</span>{' '}
-                      {selectedCombination.flightOption.title}
-                    </p>
+                    <div className="rounded-lg border border-slate-200 bg-white p-3">
+                      <p className="text-xs font-bold uppercase text-slate-500">Flight</p>
+                      <p className="mt-1 text-sm font-black text-slate-950">
+                        {selectedCombination.flightOption.title}
+                      </p>
+                      {selectedCombination.flightOption.summary && (
+                        <p className="mt-1 whitespace-pre-line text-xs leading-5 text-slate-600">
+                          {selectedCombination.flightOption.summary}
+                        </p>
+                      )}
+                    </div>
                   )}
                   {selectedCombination.visaOption && (
-                    <p>
-                      <span className="font-bold text-slate-800">Visa:</span>{' '}
-                      {selectedCombination.visaOption.title}
-                    </p>
+                    <div className="rounded-lg border border-slate-200 bg-white p-3">
+                      <p className="text-xs font-bold uppercase text-slate-500">Visa</p>
+                      <p className="mt-1 text-sm font-black text-slate-950">
+                        {selectedCombination.visaOption.title}
+                      </p>
+                      {selectedCombination.visaOption.summary && (
+                        <p className="mt-1 whitespace-pre-line text-xs leading-5 text-slate-600">
+                          {selectedCombination.visaOption.summary}
+                        </p>
+                      )}
+                    </div>
                   )}
                   {selectedCombination.transportOption && (
-                    <p>
-                      <span className="font-bold text-slate-800">Transport:</span>{' '}
-                      {selectedCombination.transportOption.title}
-                    </p>
+                    <div className="rounded-lg border border-slate-200 bg-white p-3">
+                      <p className="text-xs font-bold uppercase text-slate-500">Transport</p>
+                      <p className="mt-1 text-sm font-black text-slate-950">
+                        {selectedCombination.transportOption.title}
+                      </p>
+                      {selectedCombination.transportOption.summary && (
+                        <p className="mt-1 whitespace-pre-line text-xs leading-5 text-slate-600">
+                          {selectedCombination.transportOption.summary}
+                        </p>
+                      )}
+                    </div>
                   )}
                   {selectedCombination.staySelections.map((stay) => (
-                    <p key={stay.groupId}>
-                      <span className="font-bold text-slate-800">{stay.groupLabel}:</span>{' '}
-                      {stay.option.title}
-                    </p>
+                    <div key={stay.groupId} className="rounded-lg border border-slate-200 bg-white p-3">
+                      <p className="text-xs font-bold uppercase text-slate-500">
+                        {stay.groupLabel}
+                      </p>
+                      <p className="mt-1 text-sm font-black text-slate-950">
+                        {stay.option.title}
+                      </p>
+                      {stay.option.summary && (
+                        <p className="mt-1 whitespace-pre-line text-xs leading-5 text-slate-600">
+                          {stay.option.summary}
+                        </p>
+                      )}
+                    </div>
                   ))}
                 </div>
+
+                {quoteSelectionNote && (
+                  <p className="mt-4 rounded-lg bg-white px-3 py-2 text-xs leading-5 text-slate-600">
+                    <span className="font-black text-slate-800">Selection note:</span>{' '}
+                    {quoteSelectionNote}
+                  </p>
+                )}
               </div>
             ) : (
               <p className="text-sm text-slate-500">No selected quote snapshot found.</p>
@@ -693,10 +944,15 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
                 </p>
               </div>
               <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                <p className="text-xs font-bold uppercase text-slate-500">Margin estimate</p>
+                <p className="text-xs font-bold uppercase text-slate-500">Sold - booked</p>
                 <p className="mt-1 text-sm font-black text-[#8b1e2d]">
-                  {formatMoney(estimatedMargin, reservationCurrency)}
+                  {formatMoney(bookedSoldDifference, reservationCurrency)}
                 </p>
+                {reservationTotals.commission > 0 && (
+                  <p className="mt-1 text-xs font-bold text-slate-500">
+                    With commission: {formatMoney(estimatedMargin, reservationCurrency)}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -899,6 +1155,15 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
                   const ReservationIcon = getReservationIcon(reservation.reservation_type)
                   const itemForm = getReservationItemForm(reservation)
                   const savingThisItem = savingItemReservationId === reservation.id
+                  const financialForm = getReservationFinancialForm(reservation)
+                  const savingFinancials = savingReservationFinancialId === reservation.id
+                  const netSold =
+                    parseMoneyInput(financialForm.soldPriceTotal)
+                    - parseMoneyInput(financialForm.discountTotal)
+                  const reservationDifference =
+                    netSold - parseMoneyInput(financialForm.bookedCostTotal)
+                  const reservationWithCommission =
+                    reservationDifference + parseMoneyInput(financialForm.commissionExpectedTotal)
                   return (
                     <div
                       key={reservation.id}
@@ -944,43 +1209,165 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
                         </select>
                       </div>
 
-                      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-                        <div>
-                          <p className="text-xs font-bold uppercase text-slate-500">Booked</p>
-                          <p className="text-sm font-black text-slate-950">
-                            {formatMoney(reservation.booked_cost_total, reservation.currency)}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-xs font-bold uppercase text-slate-500">Sold</p>
-                          <p className="text-sm font-black text-slate-950">
-                            {formatMoney(reservation.sold_price_total, reservation.currency)}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-xs font-bold uppercase text-slate-500">Discount</p>
-                          <p className="text-sm font-black text-slate-950">
-                            {formatMoney(reservation.discount_total, reservation.currency)}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-xs font-bold uppercase text-slate-500">Commission</p>
-                          <p className="text-sm font-black text-slate-950">
-                            {formatMoney(
-                              reservation.commission_expected_total,
-                              reservation.currency,
+                      <form
+                        className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3"
+                        onSubmit={(event) => {
+                          event.preventDefault()
+                          void saveReservationFinancials(reservation)
+                        }}
+                      >
+                        <div className="mb-3 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                          <div>
+                            <p className="text-xs font-black uppercase text-slate-500">
+                              Reservation pricing
+                            </p>
+                            <p className="mt-1 text-xs font-bold text-slate-500">
+                              Difference:{' '}
+                              <span className="text-[#8b1e2d]">
+                                {formatMoney(reservationDifference, reservation.currency)}
+                              </span>{' '}
+                              sold minus discount and booked cost
+                            </p>
+                            {parseMoneyInput(financialForm.commissionExpectedTotal) > 0 && (
+                              <p className="mt-1 text-xs font-bold text-slate-500">
+                                With commission:{' '}
+                                {formatMoney(reservationWithCommission, reservation.currency)}
+                              </p>
                             )}
-                          </p>
+                          </div>
+                          <button
+                            type="submit"
+                            disabled={savingFinancials}
+                            className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg bg-slate-900 px-3 text-xs font-black text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+                          >
+                            {savingFinancials ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <CheckCircle2 className="h-4 w-4" />
+                            )}
+                            Save Pricing
+                          </button>
                         </div>
-                        <div>
-                          <p className="text-xs font-bold uppercase text-slate-500">Deposit</p>
-                          <p className="text-sm font-black text-slate-950">
-                            {reservation.deposit_required
-                              ? formatMoney(reservation.deposit_amount, reservation.currency)
-                              : 'Not required'}
-                          </p>
+
+                        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                          <label className="text-xs font-bold uppercase text-slate-500">
+                            Booked cost
+                            <input
+                              value={financialForm.bookedCostTotal}
+                              onChange={(event) =>
+                                updateReservationFinancialForm(
+                                  reservation,
+                                  'bookedCostTotal',
+                                  event.target.value,
+                                )
+                              }
+                              className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                              inputMode="decimal"
+                              placeholder="0.00"
+                            />
+                          </label>
+
+                          <label className="text-xs font-bold uppercase text-slate-500">
+                            Sold price
+                            <input
+                              value={financialForm.soldPriceTotal}
+                              onChange={(event) =>
+                                updateReservationFinancialForm(
+                                  reservation,
+                                  'soldPriceTotal',
+                                  event.target.value,
+                                )
+                              }
+                              className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                              inputMode="decimal"
+                              placeholder="0.00"
+                            />
+                          </label>
+
+                          <label className="text-xs font-bold uppercase text-slate-500">
+                            Discount
+                            <input
+                              value={financialForm.discountTotal}
+                              onChange={(event) =>
+                                updateReservationFinancialForm(
+                                  reservation,
+                                  'discountTotal',
+                                  event.target.value,
+                                )
+                              }
+                              className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                              inputMode="decimal"
+                              placeholder="0.00"
+                            />
+                          </label>
+
+                          <label className="text-xs font-bold uppercase text-slate-500">
+                            Commission due
+                            <input
+                              value={financialForm.commissionExpectedTotal}
+                              onChange={(event) =>
+                                updateReservationFinancialForm(
+                                  reservation,
+                                  'commissionExpectedTotal',
+                                  event.target.value,
+                                )
+                              }
+                              className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                              inputMode="decimal"
+                              placeholder="0.00"
+                            />
+                          </label>
+
+                          <label className="flex min-h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700">
+                            <input
+                              checked={financialForm.depositRequired}
+                              onChange={(event) =>
+                                updateReservationFinancialForm(
+                                  reservation,
+                                  'depositRequired',
+                                  event.target.checked,
+                                )
+                              }
+                              type="checkbox"
+                              className="h-4 w-4 rounded border-slate-300 text-[#8b1e2d]"
+                            />
+                            Deposit required
+                          </label>
+
+                          <label className="text-xs font-bold uppercase text-slate-500">
+                            Deposit amount
+                            <input
+                              value={financialForm.depositAmount}
+                              onChange={(event) =>
+                                updateReservationFinancialForm(
+                                  reservation,
+                                  'depositAmount',
+                                  event.target.value,
+                                )
+                              }
+                              className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                              inputMode="decimal"
+                              placeholder="0.00"
+                            />
+                          </label>
+
+                          <label className="text-xs font-bold uppercase text-slate-500">
+                            Payment due
+                            <input
+                              value={financialForm.paymentDueAt}
+                              onChange={(event) =>
+                                updateReservationFinancialForm(
+                                  reservation,
+                                  'paymentDueAt',
+                                  event.target.value,
+                                )
+                              }
+                              className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                              type="datetime-local"
+                            />
+                          </label>
                         </div>
-                      </div>
+                      </form>
 
                       {reservation.internal_notes && (
                         <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-600">
@@ -1300,6 +1687,158 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
           </div>
         </aside>
       </section>
+
+      {showQuoteSnapshot && selectedCombination && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/60 p-4">
+          <div className="my-8 w-full max-w-4xl rounded-xl bg-white shadow-2xl">
+            <div className="flex items-start justify-between gap-4 border-b border-slate-200 p-5">
+              <div>
+                <p className="text-xs font-bold uppercase text-slate-500">Final quotation</p>
+                <h2 className="mt-1 text-xl font-black text-slate-950">{quoteTitle}</h2>
+                <p className="mt-1 text-sm font-bold text-slate-600">
+                  {packageFolder.package_reference} · {quoteDateRange}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowQuoteSnapshot(false)}
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition hover:bg-slate-100 hover:text-slate-950"
+                aria-label="Close final quotation snapshot"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="space-y-5 p-5">
+              <div className="grid gap-3 md:grid-cols-3">
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-xs font-bold uppercase text-slate-500">Customer</p>
+                  <p className="mt-1 text-sm font-black text-slate-950">{quoteCustomerName}</p>
+                  <p className="mt-1 text-xs text-slate-500">{quoteCustomerPhone}</p>
+                  <p className="mt-1 break-all text-xs text-slate-500">{quoteCustomerEmail}</p>
+                </div>
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-xs font-bold uppercase text-slate-500">Passengers</p>
+                  <p className="mt-1 text-sm font-black text-slate-950">
+                    {passengerSummary?.totalPassengers ?? selectedCombination.servicePassengers}{' '}
+                    total
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {passengerSummary?.adults ?? selectedPayload?.adults ?? 0} adults ·{' '}
+                    {passengerSummary?.childrenPaying ?? selectedPayload?.childrenPaying ?? 0}{' '}
+                    children 5+ ·{' '}
+                    {passengerSummary?.childrenFree ?? selectedPayload?.childrenFree ?? 0} under 5
+                  </p>
+                </div>
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-xs font-bold uppercase text-slate-500">Final sold total</p>
+                  <p className="mt-1 text-sm font-black text-slate-950">
+                    {formatMoney(selectedCombination.totalPrice, selectedCombination.currency)}
+                  </p>
+                  <p className="mt-1 text-xs font-bold text-[#8b1e2d]">
+                    {formatMoney(
+                      selectedCombination.perPersonPrice,
+                      selectedCombination.currency,
+                    )}{' '}
+                    per hotel-paying guest
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-2">
+                {selectedCombination.flightOption && (
+                  <div className="rounded-lg border border-slate-200 p-3">
+                    <p className="text-xs font-bold uppercase text-slate-500">Flight</p>
+                    <p className="mt-1 text-sm font-black text-slate-950">
+                      {selectedCombination.flightOption.title}
+                    </p>
+                    {selectedCombination.flightOption.summary && (
+                      <p className="mt-1 whitespace-pre-line text-xs leading-5 text-slate-600">
+                        {selectedCombination.flightOption.summary}
+                      </p>
+                    )}
+                  </div>
+                )}
+                {selectedCombination.visaOption && (
+                  <div className="rounded-lg border border-slate-200 p-3">
+                    <p className="text-xs font-bold uppercase text-slate-500">Visa</p>
+                    <p className="mt-1 text-sm font-black text-slate-950">
+                      {selectedCombination.visaOption.title}
+                    </p>
+                    {selectedCombination.visaOption.summary && (
+                      <p className="mt-1 whitespace-pre-line text-xs leading-5 text-slate-600">
+                        {selectedCombination.visaOption.summary}
+                      </p>
+                    )}
+                  </div>
+                )}
+                {selectedCombination.transportOption && (
+                  <div className="rounded-lg border border-slate-200 p-3">
+                    <p className="text-xs font-bold uppercase text-slate-500">Transport</p>
+                    <p className="mt-1 text-sm font-black text-slate-950">
+                      {selectedCombination.transportOption.title}
+                    </p>
+                    {selectedCombination.transportOption.summary && (
+                      <p className="mt-1 whitespace-pre-line text-xs leading-5 text-slate-600">
+                        {selectedCombination.transportOption.summary}
+                      </p>
+                    )}
+                  </div>
+                )}
+                {selectedCombination.staySelections.map((stay) => (
+                  <div key={stay.groupId} className="rounded-lg border border-slate-200 p-3">
+                    <p className="text-xs font-bold uppercase text-slate-500">
+                      {stay.groupLabel}
+                    </p>
+                    <p className="mt-1 text-sm font-black text-slate-950">{stay.option.title}</p>
+                    {stay.option.summary && (
+                      <p className="mt-1 whitespace-pre-line text-xs leading-5 text-slate-600">
+                        {stay.option.summary}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {selectedCombination.offerDiscountTotal > 0 && (
+                <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-700">
+                  Discount applied:{' '}
+                  {formatMoney(
+                    selectedCombination.offerDiscountTotal,
+                    selectedCombination.currency,
+                  )}
+                </p>
+              )}
+
+              {quoteSelectionNote && (
+                <p className="rounded-lg bg-slate-50 px-3 py-2 text-sm leading-6 text-slate-600">
+                  <span className="font-black text-slate-800">Selection note:</span>{' '}
+                  {quoteSelectionNote}
+                </p>
+              )}
+            </div>
+
+            {packageFolder.source_quote_id && (
+              <div className="flex flex-col gap-2 border-t border-slate-200 p-5 sm:flex-row sm:justify-end">
+                <Link
+                  href={`/dashboard/packages/quotations/${packageFolder.source_quote_id}/edit`}
+                  className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 text-sm font-black text-slate-700 transition hover:bg-slate-100"
+                >
+                  <Pencil className="h-4 w-4" />
+                  Edit Quote
+                </Link>
+                <Link
+                  href={`/dashboard/packages/quotations/${packageFolder.source_quote_id}/sales`}
+                  className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-black text-white transition hover:bg-slate-800"
+                >
+                  <PackageCheck className="h-4 w-4" />
+                  Sales Mode
+                </Link>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

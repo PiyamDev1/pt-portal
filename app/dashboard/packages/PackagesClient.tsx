@@ -30,9 +30,9 @@ import type {
   TravelPackageType,
 } from '@/app/types/packages'
 import {
-  buildPackageCombinations,
+  buildCustomerPackageOptions,
+  formatPackageQuoteForCopy,
   formatMoney,
-  formatPackageCombinationForCopy,
   getDefaultPackageExpiry,
   isPackageQuoteExpired,
   normalizePackageQuotePayload,
@@ -79,7 +79,7 @@ function makeId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1000)}`
 }
 
-function newOption(prefix: string): PackageComponentOption {
+function newOption(prefix: string, overrides: Partial<PackageComponentOption> = {}): PackageComponentOption {
   const pricingMode =
     prefix === 'flight' || prefix === 'visa'
       ? 'per_person'
@@ -91,6 +91,11 @@ function newOption(prefix: string): PackageComponentOption {
     summary: '',
     price: 0,
     pricingMode,
+    isDefault: false,
+    adultPrice: 0,
+    childPrice: 0,
+    infantPrice: 0,
+    ...overrides,
   }
 }
 
@@ -132,7 +137,7 @@ function createInitialPayload(): PackageQuotePayload {
         options: [newOption('madinah-hotel')],
       },
     ],
-    flightOptions: [newOption('flight')],
+    flightOptions: [newOption('flight', { isDefault: true })],
     visaOptions: [newOption('visa')],
     transportOptions: [newOption('transport')],
     limitedTimeOffers: [],
@@ -146,7 +151,7 @@ function buildShareUrl(token?: string) {
 }
 
 function getQuoteStartingPrice(quote: TravelPackageQuote) {
-  return buildPackageCombinations(quote.payload, 1)[0] || null
+  return buildCustomerPackageOptions(quote.payload, 1)[0]?.combination || null
 }
 
 function toDateTimeLocalValue(value: string) {
@@ -205,6 +210,8 @@ function OptionEditor({
   summaryPlaceholder,
   priceLabel = 'Total price',
   showPricingMode = false,
+  showFlightPricing = false,
+  showDefaultToggle = false,
   canRemove,
 }: {
   option: PackageComponentOption
@@ -214,6 +221,8 @@ function OptionEditor({
   summaryPlaceholder: string
   priceLabel?: string
   showPricingMode?: boolean
+  showFlightPricing?: boolean
+  showDefaultToggle?: boolean
   canRemove: boolean
 }) {
   return (
@@ -235,6 +244,19 @@ function OptionEditor({
           <Trash2 className="h-4 w-4" />
         </button>
       </div>
+      {showDefaultToggle && (
+        <button
+          type="button"
+          onClick={() => onChange({ ...option, isDefault: true })}
+          className={`mb-2 min-h-9 rounded-lg px-3 text-xs font-black transition ${
+            option.isDefault
+              ? 'bg-emerald-100 text-emerald-800'
+              : 'border border-slate-200 text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          {option.isDefault ? 'Preferred flight' : 'Mark preferred'}
+        </button>
+      )}
       <textarea
         value={option.summary}
         onChange={(event) => onChange({ ...option, summary: event.target.value })}
@@ -242,23 +264,54 @@ function OptionEditor({
         rows={3}
         className="w-full resize-y rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-900"
       />
-      <div className="mt-2 grid gap-2 sm:grid-cols-[minmax(0,1fr)_9.5rem]">
-        <label className="block">
-          <span className="block text-xs font-bold text-slate-500">{priceLabel}</span>
-          <div className="mt-1 flex min-h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-3">
-            <span className="mr-2 text-sm font-black text-slate-500">GBP</span>
-            <input
-              value={option.price || ''}
-              onChange={(event) => onChange({ ...option, price: Number(event.target.value || 0) })}
-              type="number"
-              min="0"
-              step="0.01"
-              placeholder="0.00"
-              className="w-full bg-transparent text-sm font-bold outline-none"
-            />
-          </div>
-        </label>
-        {showPricingMode && (
+      {showFlightPricing ? (
+        <div className="mt-2 grid gap-2 sm:grid-cols-3">
+          {[
+            ['Adult 12+', 'adultPrice'],
+            ['Child 2-12', 'childPrice'],
+            ['Infant / under 5', 'infantPrice'],
+          ].map(([label, key]) => (
+            <label key={key} className="block">
+              <span className="block text-xs font-bold text-slate-500">{label}</span>
+              <div className="mt-1 flex min-h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-3">
+                <span className="mr-2 text-sm font-black text-slate-500">GBP</span>
+                <input
+                  value={option[key as 'adultPrice' | 'childPrice' | 'infantPrice'] || ''}
+                  onChange={(event) =>
+                    onChange({
+                      ...option,
+                      [key]: Number(event.target.value || 0),
+                      pricingMode: 'per_person',
+                    })
+                  }
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="0.00"
+                  className="w-full bg-transparent text-sm font-bold outline-none"
+                />
+              </div>
+            </label>
+          ))}
+        </div>
+      ) : (
+        <div className="mt-2 grid gap-2 sm:grid-cols-[minmax(0,1fr)_9.5rem]">
+          <label className="block">
+            <span className="block text-xs font-bold text-slate-500">{priceLabel}</span>
+            <div className="mt-1 flex min-h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-3">
+              <span className="mr-2 text-sm font-black text-slate-500">GBP</span>
+              <input
+                value={option.price || ''}
+                onChange={(event) => onChange({ ...option, price: Number(event.target.value || 0) })}
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="0.00"
+                className="w-full bg-transparent text-sm font-bold outline-none"
+              />
+            </div>
+          </label>
+          {showPricingMode && (
           <label className="block">
             <span className="block text-xs font-bold text-slate-500">Mode</span>
             <select
@@ -275,8 +328,9 @@ function OptionEditor({
               <option value="per_person">Per person</option>
             </select>
           </label>
-        )}
-      </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -293,7 +347,7 @@ export default function PackagesClient({ currentUserId, initialQuoteId = null }:
   const [saving, setSaving] = useState(false)
   const [setupMessage, setSetupMessage] = useState<string | null>(null)
 
-  const combinations = useMemo(() => buildPackageCombinations(payload, 80), [payload])
+  const customerOptions = useMemo(() => buildCustomerPackageOptions(payload, 80), [payload])
   const shareUrl = buildShareUrl(activeQuote?.share_token)
   const filteredQuotes = useMemo(() => {
     if (quoteFilter === 'live') {
@@ -361,8 +415,12 @@ export default function PackagesClient({ currentUserId, initialQuoteId = null }:
     optionIndex: number,
     nextOption: PackageComponentOption,
   ) => {
+    const nextOptions = payload[key].map((option, index) => (index === optionIndex ? nextOption : option))
     updatePayload({
-      [key]: payload[key].map((option, index) => (index === optionIndex ? nextOption : option)),
+      [key]:
+        key === 'flightOptions' && nextOption.isDefault
+          ? nextOptions.map((option, index) => ({ ...option, isDefault: index === optionIndex }))
+          : nextOptions,
     } as Partial<PackageQuotePayload>)
   }
 
@@ -380,7 +438,14 @@ export default function PackagesClient({ currentUserId, initialQuoteId = null }:
     key: 'flightOptions' | 'visaOptions' | 'transportOptions',
     prefix: string,
   ) => {
-    updatePayload({ [key]: [...payload[key], newOption(prefix)] } as Partial<PackageQuotePayload>)
+    updatePayload({
+      [key]: [
+        ...payload[key],
+        newOption(prefix, {
+          isDefault: key === 'flightOptions' && payload.flightOptions.length === 0,
+        }),
+      ],
+    } as Partial<PackageQuotePayload>)
   }
 
   const updateLimitedTimeOffer = (offerIndex: number, nextOffer: PackageLimitedTimeOffer) => {
@@ -464,11 +529,8 @@ export default function PackagesClient({ currentUserId, initialQuoteId = null }:
   }
 
   const copyAllOptions = async () => {
-    if (combinations.length === 0) return
-    const text = combinations
-      .slice(0, 20)
-      .map((combination, index) => formatPackageCombinationForCopy(payload, combination, index + 1))
-      .join('\n----------------------------\n\n')
+    if (customerOptions.length === 0) return
+    const text = formatPackageQuoteForCopy(payload)
     await navigator.clipboard.writeText(text)
     toast.success('Package options copied')
   }
@@ -519,6 +581,15 @@ export default function PackagesClient({ currentUserId, initialQuoteId = null }:
             <RefreshCw className="h-4 w-4" />
             New
           </button>
+          {activeQuote && (
+            <a
+              href={`/dashboard/packages/quotations/${activeQuote.id}/sales`}
+              className="flex min-h-10 items-center gap-2 rounded-lg border border-slate-200 px-3 text-sm font-bold text-slate-700 transition hover:bg-slate-100"
+            >
+              <PackageCheck className="h-4 w-4" />
+              Sales Mode
+            </a>
+          )}
           <button
             type="button"
             onClick={() => void saveQuote(false)}
@@ -759,7 +830,8 @@ export default function PackagesClient({ currentUserId, initialQuoteId = null }:
                     titlePlaceholder="Flight option"
                     summaryPlaceholder="Airline, route, connection time, baggage"
                     priceLabel="Flight cost"
-                    showPricingMode
+                    showFlightPricing
+                    showDefaultToggle
                     canRemove
                     onChange={(next) => updateComponentOption('flightOptions', index, next)}
                     onRemove={() => removeComponentOption('flightOptions', index)}
@@ -1036,7 +1108,7 @@ export default function PackagesClient({ currentUserId, initialQuoteId = null }:
                 <button
                   type="button"
                   onClick={() => void copyAllOptions()}
-                  disabled={combinations.length === 0}
+                  disabled={customerOptions.length === 0}
                   className="flex min-h-9 items-center gap-2 rounded-lg border border-slate-200 px-3 text-xs font-bold text-slate-700 transition hover:bg-slate-100 disabled:opacity-40"
                 >
                   <Copy className="h-4 w-4" />
@@ -1044,14 +1116,14 @@ export default function PackagesClient({ currentUserId, initialQuoteId = null }:
                 </button>
               }
             />
-            {combinations.length === 0 ? (
+            {customerOptions.length === 0 ? (
               <div className="rounded-lg border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">
                 Add at least one priced hotel option in each stay group and one paying guest to
                 generate totals.
               </div>
             ) : (
               <div className="max-h-[44rem] space-y-3 overflow-y-auto pr-1">
-                {combinations.slice(0, 30).map((combination, index) => (
+                {customerOptions.slice(0, 30).map(({ combination }, index) => (
                   <div key={combination.id} className="rounded-lg border border-slate-200 p-3">
                     <div className="mb-2 flex items-start justify-between gap-3">
                       <div>
