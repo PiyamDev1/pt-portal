@@ -40,10 +40,28 @@ const payload: PackageQuotePayload = {
       ],
     },
   ],
-  flightOptions: [{ id: 'flt-a', title: 'Direct flights', summary: 'Direct flights', price: 900 }],
+  flightOptions: [
+    {
+      id: 'flt-a',
+      title: 'Direct flights',
+      summary: 'Direct flights',
+      price: 900,
+      pricingMode: 'total',
+    },
+  ],
+  visaOptions: [
+    {
+      id: 'visa-a',
+      title: 'ETA visas',
+      summary: '4 x ETA visas',
+      price: 50,
+      pricingMode: 'per_person',
+    },
+  ],
   transportOptions: [
     { id: 'tr-a', title: 'Private transfers', summary: 'Private transfers', price: 180 },
   ],
+  limitedTimeOffers: [],
   notes: '',
 }
 
@@ -53,9 +71,10 @@ describe('package quote calculator', () => {
 
     expect(combinations).toHaveLength(4)
     expect(combinations[0].staySelections.map((stay) => stay.option.id)).toEqual(['mk-b', 'md-b'])
-    expect(combinations[0].totalPrice).toBe(1705)
-    expect(combinations[0].perPersonPrice).toBeCloseTo(568.333, 3)
-    expect(combinations.at(-1)?.totalPrice).toBe(1780)
+    expect(combinations[0].totalPrice).toBe(1905)
+    expect(combinations[0].perPersonPrice).toBeCloseTo(635, 3)
+    expect(combinations[0].servicePassengers).toBe(4)
+    expect(combinations.at(-1)?.totalPrice).toBe(1980)
   })
 
   it('formats WhatsApp-friendly copy for an option', () => {
@@ -63,19 +82,23 @@ describe('package quote calculator', () => {
     const copy = formatPackageCombinationForCopy(payload, first, 1)
 
     expect(copy).toContain('*Option 1*')
+    expect(copy).toContain('***UMRAH PACKAGE***')
+    expect(copy).toContain('***Flights***')
+    expect(copy).toContain('****Visa****')
+    expect(copy).toContain('*********HOTELS**********')
     expect(copy).toContain('*(Makkah)*')
-    expect(copy).toContain('*Flight*')
-    expect(copy).toContain('*Total Package Cost: £1,705.00*')
+    expect(copy).toContain('*Total Package Cost: £1,905.00*')
   })
 
   it('resolves a customer selection and rejects invalid option ids', () => {
     const resolved = resolvePackageSelection(payload, {
       stayOptionIds: { makkah: 'mk-a', madinah: 'md-b' },
       flightOptionId: 'flt-a',
+      visaOptionId: 'visa-a',
       transportOptionId: 'tr-a',
     })
 
-    expect(resolved.combination.totalPrice).toBe(1755)
+    expect(resolved.combination.totalPrice).toBe(1955)
     expect(() =>
       resolvePackageSelection(payload, {
         stayOptionIds: { makkah: 'missing', madinah: 'md-b' },
@@ -117,5 +140,92 @@ describe('package quote calculator', () => {
     expect(normalized.stayGroups[0].options[0].summary).toBe(
       'Line one\n\n  Line two with leading space',
     )
+  })
+
+  it('charges under-5 passengers for per-person services but not hotel payer count', () => {
+    const servicePayload: PackageQuotePayload = {
+      ...payload,
+      adults: 2,
+      childrenPaying: 0,
+      childrenFree: 1,
+      stayGroups: [
+        {
+          id: 'makkah',
+          label: 'Makkah',
+          options: [{ id: 'mk-only', title: 'Makkah', summary: 'Makkah', price: 1000 }],
+        },
+      ],
+      flightOptions: [
+        {
+          id: 'flight-pp',
+          title: 'Per person flight',
+          summary: 'Per person flight',
+          price: 300,
+          pricingMode: 'per_person',
+        },
+      ],
+      visaOptions: [
+        {
+          id: 'visa-pp',
+          title: 'Per person visa',
+          summary: 'Per person visa',
+          price: 50,
+          pricingMode: 'per_person',
+        },
+      ],
+      transportOptions: [
+        {
+          id: 'transport-total',
+          title: 'Total transport',
+          summary: 'Total transport',
+          price: 200,
+          pricingMode: 'total',
+        },
+      ],
+    }
+
+    const [combination] = buildPackageCombinations(servicePayload)
+
+    expect(combination.payingGuests).toBe(2)
+    expect(combination.servicePassengers).toBe(3)
+    expect(combination.totalPrice).toBe(2250)
+    expect(combination.perPersonPrice).toBe(1125)
+  })
+
+  it('applies active limited-time offers to the final package total', () => {
+    const offerPayload: PackageQuotePayload = {
+      ...payload,
+      limitedTimeOffers: [
+        {
+          id: 'early-bird',
+          title: 'Early bird offer',
+          summary: 'Book today and save.',
+          expiresAt: '2999-01-01T12:00:00.000Z',
+          discountAmount: 120,
+          discountMode: 'total',
+          active: true,
+        },
+        {
+          id: 'inactive-offer',
+          title: 'Inactive offer',
+          summary: '',
+          expiresAt: '2999-01-01T12:00:00.000Z',
+          discountAmount: 999,
+          discountMode: 'total',
+          active: false,
+        },
+      ],
+    }
+
+    const [combination] = buildPackageCombinations(offerPayload)
+    const copy = formatPackageCombinationForCopy(offerPayload, combination, 1)
+
+    expect(combination.grossPrice).toBe(1905)
+    expect(combination.offerDiscountTotal).toBe(120)
+    expect(combination.totalPrice).toBe(1785)
+    expect(combination.appliedOffers.map((offer) => offer.id)).toEqual(['early-bird'])
+    expect(copy).toContain('****EARLY BIRD OFFER****')
+    expect(copy).toContain('*Discount Applied: -£120.00*')
+    expect(copy).toContain('*Total Package Cost: £1,785.00*')
   })
 })

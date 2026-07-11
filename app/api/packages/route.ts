@@ -35,6 +35,8 @@ function selectPackageColumns() {
     selected_option,
     selected_at,
     selection_note,
+    converted_package_id,
+    converted_at,
     created_by,
     created_at,
     updated_at

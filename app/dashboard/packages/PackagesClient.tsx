@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Building2,
   Bus,
@@ -8,6 +8,7 @@ import {
   Clock3,
   Copy,
   ExternalLink,
+  FileText,
   Link2,
   PackageCheck,
   Pencil,
@@ -16,11 +17,13 @@ import {
   RefreshCw,
   Save,
   Send,
+  Tag,
   Trash2,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import type {
   PackageComponentOption,
+  PackageLimitedTimeOffer,
   PackageQuotePayload,
   PackageStayGroup,
   TravelPackageQuote,
@@ -37,6 +40,7 @@ import {
 
 type PackagesClientProps = {
   currentUserId: string
+  initialQuoteId?: string | null
 }
 
 type PackagesResponse = {
@@ -76,11 +80,29 @@ function makeId(prefix: string) {
 }
 
 function newOption(prefix: string): PackageComponentOption {
+  const pricingMode =
+    prefix === 'flight' || prefix === 'visa'
+      ? 'per_person'
+      : 'total'
+
   return {
     id: makeId(prefix),
     title: '',
     summary: '',
     price: 0,
+    pricingMode,
+  }
+}
+
+function newLimitedTimeOffer(): PackageLimitedTimeOffer {
+  return {
+    id: makeId('offer'),
+    title: 'Early bird offer',
+    summary: 'Book and purchase this package by the deadline and get a discount.',
+    expiresAt: '',
+    discountAmount: 0,
+    discountMode: 'total',
+    active: true,
   }
 }
 
@@ -111,7 +133,9 @@ function createInitialPayload(): PackageQuotePayload {
       },
     ],
     flightOptions: [newOption('flight')],
+    visaOptions: [newOption('visa')],
     transportOptions: [newOption('transport')],
+    limitedTimeOffers: [],
     notes: '',
   }
 }
@@ -179,6 +203,8 @@ function OptionEditor({
   onRemove,
   titlePlaceholder,
   summaryPlaceholder,
+  priceLabel = 'Total price',
+  showPricingMode = false,
   canRemove,
 }: {
   option: PackageComponentOption
@@ -186,6 +212,8 @@ function OptionEditor({
   onRemove: () => void
   titlePlaceholder: string
   summaryPlaceholder: string
+  priceLabel?: string
+  showPricingMode?: boolean
   canRemove: boolean
 }) {
   return (
@@ -214,24 +242,46 @@ function OptionEditor({
         rows={3}
         className="w-full resize-y rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-900"
       />
-      <label className="mt-2 block text-xs font-bold text-slate-500">Total price</label>
-      <div className="mt-1 flex min-h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-3">
-        <span className="mr-2 text-sm font-black text-slate-500">GBP</span>
-        <input
-          value={option.price || ''}
-          onChange={(event) => onChange({ ...option, price: Number(event.target.value || 0) })}
-          type="number"
-          min="0"
-          step="0.01"
-          placeholder="0.00"
-          className="w-full bg-transparent text-sm font-bold outline-none"
-        />
+      <div className="mt-2 grid gap-2 sm:grid-cols-[minmax(0,1fr)_9.5rem]">
+        <label className="block">
+          <span className="block text-xs font-bold text-slate-500">{priceLabel}</span>
+          <div className="mt-1 flex min-h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-3">
+            <span className="mr-2 text-sm font-black text-slate-500">GBP</span>
+            <input
+              value={option.price || ''}
+              onChange={(event) => onChange({ ...option, price: Number(event.target.value || 0) })}
+              type="number"
+              min="0"
+              step="0.01"
+              placeholder="0.00"
+              className="w-full bg-transparent text-sm font-bold outline-none"
+            />
+          </div>
+        </label>
+        {showPricingMode && (
+          <label className="block">
+            <span className="block text-xs font-bold text-slate-500">Mode</span>
+            <select
+              value={option.pricingMode || 'total'}
+              onChange={(event) =>
+                onChange({
+                  ...option,
+                  pricingMode: event.target.value as PackageComponentOption['pricingMode'],
+                })
+              }
+              className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-black outline-none focus:border-slate-900"
+            >
+              <option value="total">Total</option>
+              <option value="per_person">Per person</option>
+            </select>
+          </label>
+        )}
       </div>
     </div>
   )
 }
 
-export default function PackagesClient({ currentUserId }: PackagesClientProps) {
+export default function PackagesClient({ currentUserId, initialQuoteId = null }: PackagesClientProps) {
   const [payload, setPayload] = useState<PackageQuotePayload>(() => createInitialPayload())
   const [expiresAtInput, setExpiresAtInput] = useState(() =>
     toDateTimeLocalValue(getDefaultPackageExpiry()),
@@ -268,24 +318,33 @@ export default function PackagesClient({ currentUserId }: PackagesClientProps) {
     setPayload((current) => ({ ...current, ...changes }))
   }
 
-  const loadQuotes = async () => {
+  const loadQuotes = useCallback(async () => {
     setLoading(true)
     try {
       const response = await fetch('/api/packages')
       const data = (await response.json()) as PackagesResponse
       if (!response.ok) throw new Error((data as { error?: string }).error || 'Failed to load packages')
-      setQuotes(data.packages || [])
+      const loadedQuotes = data.packages || []
+      setQuotes(loadedQuotes)
+      if (initialQuoteId) {
+        const initialQuote = loadedQuotes.find((quote) => quote.id === initialQuoteId)
+        if (initialQuote) {
+          setActiveQuote(initialQuote)
+          setPayload(normalizePackageQuotePayload(initialQuote.payload))
+          setExpiresAtInput(toDateTimeLocalValue(initialQuote.expires_at))
+        }
+      }
       setSetupMessage(data.setupRequired ? data.message || 'Package quote schema is required.' : null)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to load packages')
     } finally {
       setLoading(false)
     }
-  }
+  }, [initialQuoteId])
 
   useEffect(() => {
     void loadQuotes()
-  }, [])
+  }, [loadQuotes])
 
   const updateStayGroup = (groupIndex: number, nextGroup: PackageStayGroup) => {
     const nextGroups = payload.stayGroups.map((group, index) =>
@@ -298,7 +357,7 @@ export default function PackagesClient({ currentUserId }: PackagesClientProps) {
   }
 
   const updateComponentOption = (
-    key: 'flightOptions' | 'transportOptions',
+    key: 'flightOptions' | 'visaOptions' | 'transportOptions',
     optionIndex: number,
     nextOption: PackageComponentOption,
   ) => {
@@ -307,15 +366,39 @@ export default function PackagesClient({ currentUserId }: PackagesClientProps) {
     } as Partial<PackageQuotePayload>)
   }
 
-  const removeComponentOption = (key: 'flightOptions' | 'transportOptions', optionIndex: number) => {
+  const removeComponentOption = (
+    key: 'flightOptions' | 'visaOptions' | 'transportOptions',
+    optionIndex: number,
+  ) => {
     const current = payload[key]
     updatePayload({
-      [key]: current.length > 1 ? current.filter((_, index) => index !== optionIndex) : current,
+      [key]: current.filter((_, index) => index !== optionIndex),
     } as Partial<PackageQuotePayload>)
   }
 
-  const addComponentOption = (key: 'flightOptions' | 'transportOptions', prefix: string) => {
+  const addComponentOption = (
+    key: 'flightOptions' | 'visaOptions' | 'transportOptions',
+    prefix: string,
+  ) => {
     updatePayload({ [key]: [...payload[key], newOption(prefix)] } as Partial<PackageQuotePayload>)
+  }
+
+  const updateLimitedTimeOffer = (offerIndex: number, nextOffer: PackageLimitedTimeOffer) => {
+    updatePayload({
+      limitedTimeOffers: payload.limitedTimeOffers.map((offer, index) =>
+        index === offerIndex ? nextOffer : offer,
+      ),
+    })
+  }
+
+  const removeLimitedTimeOffer = (offerIndex: number) => {
+    updatePayload({
+      limitedTimeOffers: payload.limitedTimeOffers.filter((_, index) => index !== offerIndex),
+    })
+  }
+
+  const addLimitedTimeOffer = () => {
+    updatePayload({ limitedTimeOffers: [...payload.limitedTimeOffers, newLimitedTimeOffer()] })
   }
 
   const saveQuote = async (shareEnabled: boolean) => {
@@ -614,6 +697,150 @@ export default function PackagesClient({ currentUserId }: PackagesClientProps) {
                 />
               </label>
             </div>
+            <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <span className="mb-2 block text-xs font-bold text-slate-500">Itinerary order</span>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {[
+                  {
+                    label: 'Makkah first',
+                    order: ['makkah', 'madinah'],
+                  },
+                  {
+                    label: 'Madinah first',
+                    order: ['madinah', 'makkah'],
+                  },
+                ].map((item) => {
+                  const active = item.order.join('|') === payload.itineraryOrder.slice(0, 2).join('|')
+                  return (
+                    <button
+                      key={item.label}
+                      type="button"
+                      onClick={() => updatePayload({ itineraryOrder: item.order })}
+                      className={`min-h-10 rounded-lg px-3 text-sm font-black transition ${
+                        active
+                          ? 'bg-slate-900 text-white'
+                          : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-100'
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          </section>
+
+          <section className="grid gap-5 lg:grid-cols-3">
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+              <SectionHeader
+                icon={Plane}
+                title="Flight options"
+                action={
+                  <button
+                    type="button"
+                    onClick={() => addComponentOption('flightOptions', 'flight')}
+                    className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900 text-white transition hover:bg-black"
+                    title="Add flight"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </button>
+                }
+              />
+              <div className="space-y-3">
+                {payload.flightOptions.length === 0 && (
+                  <p className="rounded-lg border border-dashed border-slate-300 p-3 text-sm font-semibold text-slate-500">
+                    No flight included. Use the plus button to add flight options.
+                  </p>
+                )}
+                {payload.flightOptions.map((option, index) => (
+                  <OptionEditor
+                    key={option.id}
+                    option={option}
+                    titlePlaceholder="Flight option"
+                    summaryPlaceholder="Airline, route, connection time, baggage"
+                    priceLabel="Flight cost"
+                    showPricingMode
+                    canRemove
+                    onChange={(next) => updateComponentOption('flightOptions', index, next)}
+                    onRemove={() => removeComponentOption('flightOptions', index)}
+                  />
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+              <SectionHeader
+                icon={FileText}
+                title="Visa options"
+                action={
+                  <button
+                    type="button"
+                    onClick={() => addComponentOption('visaOptions', 'visa')}
+                    className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900 text-white transition hover:bg-black"
+                    title="Add visa"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </button>
+                }
+              />
+              <div className="space-y-3">
+                {payload.visaOptions.length === 0 && (
+                  <p className="rounded-lg border border-dashed border-slate-300 p-3 text-sm font-semibold text-slate-500">
+                    No visa included. Use the plus button to add visa options.
+                  </p>
+                )}
+                {payload.visaOptions.map((option, index) => (
+                  <OptionEditor
+                    key={option.id}
+                    option={option}
+                    titlePlaceholder="Visa option"
+                    summaryPlaceholder="ETA, tourist visa, multiple entry, insurance notes"
+                    priceLabel="Visa cost"
+                    showPricingMode
+                    canRemove
+                    onChange={(next) => updateComponentOption('visaOptions', index, next)}
+                    onRemove={() => removeComponentOption('visaOptions', index)}
+                  />
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+              <SectionHeader
+                icon={Bus}
+                title="Transport options"
+                action={
+                  <button
+                    type="button"
+                    onClick={() => addComponentOption('transportOptions', 'transport')}
+                    className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900 text-white transition hover:bg-black"
+                    title="Add transport"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </button>
+                }
+              />
+              <div className="space-y-3">
+                {payload.transportOptions.length === 0 && (
+                  <p className="rounded-lg border border-dashed border-slate-300 p-3 text-sm font-semibold text-slate-500">
+                    No transport included. Use the plus button to add transport options.
+                  </p>
+                )}
+                {payload.transportOptions.map((option, index) => (
+                  <OptionEditor
+                    key={option.id}
+                    option={option}
+                    titlePlaceholder="Transport option"
+                    summaryPlaceholder="Airport transfers, hotel transfers, ziyarat, vehicle type"
+                    priceLabel="Transport cost"
+                    showPricingMode
+                    canRemove
+                    onChange={(next) => updateComponentOption('transportOptions', index, next)}
+                    onRemove={() => removeComponentOption('transportOptions', index)}
+                  />
+                ))}
+              </div>
+            </div>
           </section>
 
           <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -673,67 +900,131 @@ export default function PackagesClient({ currentUserId }: PackagesClientProps) {
             </div>
           </section>
 
-          <section className="grid gap-5 lg:grid-cols-2">
-            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-              <SectionHeader
-                icon={Plane}
-                title="Flight options"
-                action={
-                  <button
-                    type="button"
-                    onClick={() => addComponentOption('flightOptions', 'flight')}
-                    className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900 text-white transition hover:bg-black"
-                    title="Add flight"
-                  >
-                    <Plus className="h-4 w-4" />
-                  </button>
-                }
-              />
+          <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <SectionHeader
+              icon={Tag}
+              title="Limited time offers"
+              action={
+                <button
+                  type="button"
+                  onClick={addLimitedTimeOffer}
+                  className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900 text-white transition hover:bg-black"
+                  title="Add offer"
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
+              }
+            />
+            {payload.limitedTimeOffers.length === 0 ? (
+              <p className="rounded-lg border border-dashed border-slate-300 p-4 text-sm font-semibold text-slate-500">
+                No limited-time offer added. Use the plus button to add an early bird or deadline
+                discount.
+              </p>
+            ) : (
               <div className="space-y-3">
-                {payload.flightOptions.map((option, index) => (
-                  <OptionEditor
-                    key={option.id}
-                    option={option}
-                    titlePlaceholder="Flight option"
-                    summaryPlaceholder="Airline, route, dates, baggage, PNR notes"
-                    canRemove={payload.flightOptions.length > 1}
-                    onChange={(next) => updateComponentOption('flightOptions', index, next)}
-                    onRemove={() => removeComponentOption('flightOptions', index)}
-                  />
+                {payload.limitedTimeOffers.map((offer, index) => (
+                  <div key={offer.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                    <div className="mb-3 flex items-center gap-2">
+                      <input
+                        value={offer.title}
+                        onChange={(event) =>
+                          updateLimitedTimeOffer(index, { ...offer, title: event.target.value })
+                        }
+                        placeholder="Offer title"
+                        className="min-h-10 flex-1 rounded-lg border border-slate-200 bg-white px-3 text-sm font-black outline-none focus:border-slate-900"
+                      />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          updateLimitedTimeOffer(index, { ...offer, active: !offer.active })
+                        }
+                        className={`min-h-10 rounded-lg px-3 text-xs font-black transition ${
+                          offer.active
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : 'bg-slate-200 text-slate-600'
+                        }`}
+                      >
+                        {offer.active ? 'Active' : 'Off'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => removeLimitedTimeOffer(index)}
+                        className="flex h-10 w-10 items-center justify-center rounded-lg border border-red-100 bg-white text-red-600 transition hover:bg-red-50"
+                        title="Remove offer"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_10rem_10rem]">
+                      <label className="block">
+                        <span className="mb-1 block text-xs font-bold text-slate-500">Deadline</span>
+                        <input
+                          type="datetime-local"
+                          value={offer.expiresAt ? toDateTimeLocalValue(offer.expiresAt) : ''}
+                          onChange={(event) =>
+                            updateLimitedTimeOffer(index, {
+                              ...offer,
+                              expiresAt: event.target.value
+                                ? fromDateTimeLocalValue(event.target.value)
+                                : '',
+                            })
+                          }
+                          className="min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold outline-none focus:border-slate-900"
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="mb-1 block text-xs font-bold text-slate-500">Discount</span>
+                        <div className="flex min-h-10 items-center rounded-lg border border-slate-200 bg-white px-3">
+                          <span className="mr-2 text-sm font-black text-slate-500">GBP</span>
+                          <input
+                            value={offer.discountAmount || ''}
+                            onChange={(event) =>
+                              updateLimitedTimeOffer(index, {
+                                ...offer,
+                                discountAmount: Number(event.target.value || 0),
+                              })
+                            }
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            placeholder="0.00"
+                            className="w-full bg-transparent text-sm font-bold outline-none"
+                          />
+                        </div>
+                      </label>
+                      <label className="block">
+                        <span className="mb-1 block text-xs font-bold text-slate-500">Mode</span>
+                        <select
+                          value={offer.discountMode}
+                          onChange={(event) =>
+                            updateLimitedTimeOffer(index, {
+                              ...offer,
+                              discountMode: event.target
+                                .value as PackageLimitedTimeOffer['discountMode'],
+                            })
+                          }
+                          className="min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-black outline-none focus:border-slate-900"
+                        >
+                          <option value="total">Total</option>
+                          <option value="per_person">Per person</option>
+                        </select>
+                      </label>
+                    </div>
+                    <textarea
+                      value={offer.summary}
+                      onChange={(event) =>
+                        updateLimitedTimeOffer(index, { ...offer, summary: event.target.value })
+                      }
+                      placeholder="Public offer wording"
+                      rows={3}
+                      className="mt-3 w-full resize-y rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-900"
+                    />
+                  </div>
                 ))}
               </div>
-            </div>
-
-            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-              <SectionHeader
-                icon={Bus}
-                title="Transport options"
-                action={
-                  <button
-                    type="button"
-                    onClick={() => addComponentOption('transportOptions', 'transport')}
-                    className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900 text-white transition hover:bg-black"
-                    title="Add transport"
-                  >
-                    <Plus className="h-4 w-4" />
-                  </button>
-                }
-              />
-              <div className="space-y-3">
-                {payload.transportOptions.map((option, index) => (
-                  <OptionEditor
-                    key={option.id}
-                    option={option}
-                    titlePlaceholder="Transport option"
-                    summaryPlaceholder="Private car, coach, ziyarah tour, airport transfers"
-                    canRemove={payload.transportOptions.length > 1}
-                    onChange={(next) => updateComponentOption('transportOptions', index, next)}
-                    onRemove={() => removeComponentOption('transportOptions', index)}
-                  />
-                ))}
-              </div>
-            </div>
+            )}
           </section>
+
         </div>
 
         <aside className="space-y-5">
@@ -766,14 +1057,22 @@ export default function PackagesClient({ currentUserId }: PackagesClientProps) {
                       <div>
                         <p className="text-sm font-black text-slate-950">Option {index + 1}</p>
                         <p className="text-xs text-slate-500">
-                          {combination.payingGuests} paying guest
+                          {combination.payingGuests} hotel-paying guest
                           {combination.payingGuests === 1 ? '' : 's'}
+                          {combination.servicePassengers !== combination.payingGuests
+                            ? ` · ${combination.servicePassengers} service passengers`
+                            : ''}
                         </p>
                       </div>
                       <div className="text-right">
                         <p className="text-base font-black text-slate-950">
                           {formatMoney(combination.totalPrice, combination.currency)}
                         </p>
+                        {combination.offerDiscountTotal > 0 && (
+                          <p className="text-[11px] font-bold text-emerald-700">
+                            {formatMoney(combination.offerDiscountTotal, combination.currency)} off
+                          </p>
+                        )}
                         <p className="text-xs font-bold text-[#8b1e2d]">
                           {formatMoney(combination.perPersonPrice, combination.currency)} pp
                         </p>
@@ -792,10 +1091,22 @@ export default function PackagesClient({ currentUserId }: PackagesClientProps) {
                           {combination.flightOption.title}
                         </p>
                       )}
+                      {combination.visaOption && (
+                        <p>
+                          <span className="font-bold text-slate-800">Visa:</span>{' '}
+                          {combination.visaOption.title}
+                        </p>
+                      )}
                       {combination.transportOption && (
                         <p>
                           <span className="font-bold text-slate-800">Transport:</span>{' '}
                           {combination.transportOption.title}
+                        </p>
+                      )}
+                      {combination.appliedOffers.length > 0 && (
+                        <p>
+                          <span className="font-bold text-slate-800">Offer:</span>{' '}
+                          {combination.appliedOffers.map((offer) => offer.title).join(', ')}
                         </p>
                       )}
                     </div>

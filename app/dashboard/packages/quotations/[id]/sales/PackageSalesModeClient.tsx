@@ -1,7 +1,18 @@
 'use client'
 
+import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
-import { Building2, Bus, CheckCircle2, FileText, Loader2, Plane, Send, Tag } from 'lucide-react'
+import {
+  ArrowLeft,
+  Building2,
+  Bus,
+  CheckCircle2,
+  FileText,
+  Loader2,
+  Plane,
+  Send,
+  Tag,
+} from 'lucide-react'
 import type {
   PackageQuotePayload,
   PackageResolvedSelection,
@@ -14,8 +25,8 @@ import {
   resolvePackageSelection,
 } from '@/lib/packageQuote'
 
-type PackageShareClientProps = {
-  token: string
+type PackageSalesModeClientProps = {
+  quoteId: string
 }
 
 type QuoteResponse = {
@@ -44,18 +55,6 @@ function firstSelections(payload: PackageQuotePayload) {
     visaOptionId: payload.visaOptions[0]?.id || null,
     transportOptionId: payload.transportOptions[0]?.id || null,
   }
-}
-
-function formatExpiry(value: string) {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return 'expiry unavailable'
-  return date.toLocaleString('en-GB', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
 }
 
 function formatOfferDeadline(value: string) {
@@ -115,7 +114,24 @@ function OptionButton({
   )
 }
 
-export default function PackageShareClient({ token }: PackageShareClientProps) {
+function SectionTitle({
+  icon: Icon,
+  title,
+}: {
+  icon: typeof Building2
+  title: string
+}) {
+  return (
+    <div className="mb-3 flex items-center gap-2">
+      <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900 text-white">
+        <Icon className="h-4 w-4" />
+      </span>
+      <h2 className="text-lg font-black">{title}</h2>
+    </div>
+  )
+}
+
+export default function PackageSalesModeClient({ quoteId }: PackageSalesModeClientProps) {
   const [quote, setQuote] = useState<TravelPackageQuote | null>(null)
   const [payload, setPayload] = useState<PackageQuotePayload | null>(null)
   const [selection, setSelection] = useState<ReturnType<typeof firstSelections> | null>(null)
@@ -125,40 +141,53 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
     customerEmail: '',
     note: '',
   })
+  const [savedSelection, setSavedSelection] = useState<PackageResolvedSelection | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [savedSelection, setSavedSelection] = useState<PackageResolvedSelection | null>(null)
 
   useEffect(() => {
     const loadQuote = async () => {
       setLoading(true)
       setError(null)
       try {
-        const response = await fetch(`/api/packages/share/${encodeURIComponent(token)}`)
+        const response = await fetch(`/api/packages/${encodeURIComponent(quoteId)}`)
         const data = (await response.json()) as QuoteResponse
         if (!response.ok || !data.quote) throw new Error(data.error || 'Package quote not found')
 
         const normalized = normalizePackageQuotePayload(data.quote.payload)
+        const existingSelection = data.quote.selected_option?.selection
         setQuote(data.quote)
         setPayload(normalized)
-        setSelection(firstSelections(normalized))
+        setSelection(
+          existingSelection
+            ? {
+                stayOptionIds: existingSelection.stayOptionIds,
+                flightOptionId: existingSelection.flightOptionId || null,
+                visaOptionId: existingSelection.visaOptionId || null,
+                transportOptionId: existingSelection.transportOptionId || null,
+              }
+            : firstSelections(normalized),
+        )
         setCustomer({
-          customerName: data.quote.customer_name || normalized.customerName,
-          customerPhone: data.quote.customer_phone || normalized.customerPhone,
-          customerEmail: data.quote.customer_email || normalized.customerEmail,
-          note: '',
+          customerName:
+            existingSelection?.customerName || data.quote.customer_name || normalized.customerName,
+          customerPhone:
+            existingSelection?.customerPhone || data.quote.customer_phone || normalized.customerPhone,
+          customerEmail:
+            existingSelection?.customerEmail || data.quote.customer_email || normalized.customerEmail,
+          note: existingSelection?.note || data.quote.selection_note || '',
         })
         setSavedSelection(data.quote.selected_option)
       } catch (loadError) {
-        setError(loadError instanceof Error ? loadError.message : 'Unable to load package quote')
+        setError(loadError instanceof Error ? loadError.message : 'Unable to load quote')
       } finally {
         setLoading(false)
       }
     }
 
     void loadQuote()
-  }, [token])
+  }, [quoteId])
 
   const resolved = useMemo(() => {
     if (!payload || !selection) return null
@@ -188,21 +217,23 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
     setCustomer((current) => ({ ...current, ...changes }))
   }
 
-  const submitSelection = async () => {
+  const finaliseSelection = async () => {
     if (!payload || !selection) return
     setSaving(true)
     setError(null)
     try {
-      const response = await fetch(`/api/packages/share/${encodeURIComponent(token)}/selection`, {
+      const response = await fetch(`/api/packages/${encodeURIComponent(quoteId)}/selection`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...selection, ...customer }),
       })
       const data = (await response.json()) as SelectionResponse
-      if (!response.ok || !data.selected) throw new Error(data.error || 'Unable to save selection')
+      if (!response.ok || !data.selected) {
+        throw new Error(data.error || 'Unable to finalise selection')
+      }
       setSavedSelection(data.selected)
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : 'Unable to save selection')
+      setError(saveError instanceof Error ? saveError.message : 'Unable to finalise selection')
     } finally {
       setSaving(false)
     }
@@ -210,63 +241,66 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
 
   if (loading) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
+      <div className="flex min-h-[24rem] items-center justify-center">
         <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-5 py-4 text-slate-700 shadow-sm">
           <Loader2 className="h-5 w-5 animate-spin" />
-          <span className="text-sm font-bold">Loading package quote</span>
+          <span className="text-sm font-bold">Loading sales mode</span>
         </div>
-      </main>
+      </div>
     )
   }
 
   if (error && !payload) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
-        <div className="max-w-lg rounded-xl border border-red-200 bg-white p-6 text-center shadow-sm">
-          <p className="text-lg font-black text-slate-950">Package quote unavailable</p>
-          <p className="mt-2 text-sm text-slate-600">{error}</p>
-        </div>
-      </main>
+      <div className="rounded-xl border border-red-200 bg-white p-6 text-center shadow-sm">
+        <p className="text-lg font-black text-slate-950">Sales mode unavailable</p>
+        <p className="mt-2 text-sm text-slate-600">{error}</p>
+        <Link
+          href="/dashboard/packages"
+          className="mt-4 inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-black text-white"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to Packages
+        </Link>
+      </div>
     )
   }
 
   if (!quote || !payload || !selection) return null
 
   return (
-    <main className="min-h-screen bg-slate-50 text-slate-950">
-      <section className="bg-[#4b0f16] px-4 py-6 text-white">
-        <div className="mx-auto max-w-6xl">
-          <p className="text-sm font-bold text-red-100">Piyam Travel package quote</p>
-          <h1 className="mt-2 text-3xl font-black">{payload.title}</h1>
-          <div className="mt-4 flex flex-wrap gap-2 text-sm">
-            <span className="rounded-lg bg-white/10 px-3 py-1 font-bold">{payload.packageType}</span>
-            <span className="rounded-lg bg-white/10 px-3 py-1 font-bold">
-              Valid until {formatExpiry(quote.expires_at)}
-            </span>
-            {payload.departureDate && (
-              <span className="rounded-lg bg-white/10 px-3 py-1 font-bold">
-                Depart {new Date(payload.departureDate).toLocaleDateString('en-GB')}
-              </span>
-            )}
-            {payload.returnDate && (
-              <span className="rounded-lg bg-white/10 px-3 py-1 font-bold">
-                Return {new Date(payload.returnDate).toLocaleDateString('en-GB')}
-              </span>
-            )}
+    <div className="space-y-5">
+      <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <Link
+              href="/dashboard/packages"
+              className="inline-flex items-center gap-2 text-sm font-bold text-slate-600 hover:text-slate-950"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back to Packages
+            </Link>
+            <p className="mt-3 text-xs font-bold uppercase text-slate-500">Sales / Clerk Mode</p>
+            <h1 className="mt-1 text-2xl font-black text-slate-950">{payload.title}</h1>
+            <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">
+              Select and finalise the package privately while working with the customer in person
+              or over the phone. The customer does not see this internal screen.
+            </p>
           </div>
+          <Link
+            href={`/dashboard/packages/quotations/${quote.id}/edit`}
+            className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-200 px-4 text-sm font-black text-slate-700 transition hover:bg-slate-100"
+          >
+            Edit Quote
+          </Link>
         </div>
       </section>
 
-      <div className="mx-auto grid max-w-6xl gap-5 px-4 py-5 lg:grid-cols-[minmax(0,1fr)_22rem]">
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="space-y-5">
           {payload.flightOptions.length > 0 && (
             <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="mb-3 flex items-center gap-2">
-                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900 text-white">
-                  <Plane className="h-4 w-4" />
-                </span>
-                <h2 className="text-lg font-black">Flights</h2>
-              </div>
+              <SectionTitle icon={Plane} title="Flights" />
               <div className="space-y-3">
                 {payload.flightOptions.map((option) => (
                   <OptionButton
@@ -290,12 +324,7 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
 
           {payload.visaOptions.length > 0 && (
             <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="mb-3 flex items-center gap-2">
-                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900 text-white">
-                  <FileText className="h-4 w-4" />
-                </span>
-                <h2 className="text-lg font-black">Visa</h2>
-              </div>
+              <SectionTitle icon={FileText} title="Visa" />
               <div className="space-y-3">
                 {payload.visaOptions.map((option) => (
                   <OptionButton
@@ -319,12 +348,7 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
 
           {payload.transportOptions.length > 0 && (
             <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="mb-3 flex items-center gap-2">
-                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900 text-white">
-                  <Bus className="h-4 w-4" />
-                </span>
-                <h2 className="text-lg font-black">Transport</h2>
-              </div>
+              <SectionTitle icon={Bus} title="Transport" />
               <div className="space-y-3">
                 {payload.transportOptions.map((option) => (
                   <OptionButton
@@ -347,12 +371,7 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
           )}
 
           <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="mb-3 flex items-center gap-2">
-              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900 text-white">
-                <Building2 className="h-4 w-4" />
-              </span>
-              <h2 className="text-lg font-black">Hotels</h2>
-            </div>
+            <SectionTitle icon={Building2} title="Hotels" />
             <div className="space-y-4">
               {orderedStayGroups.map((group) => (
                 <div key={group.id}>
@@ -387,12 +406,7 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
 
           {visibleOffers.length > 0 && (
             <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="mb-3 flex items-center gap-2">
-                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900 text-white">
-                  <Tag className="h-4 w-4" />
-                </span>
-                <h2 className="text-lg font-black">Limited Time Offers</h2>
-              </div>
+              <SectionTitle icon={Tag} title="Limited Time Offers" />
               <div className="space-y-3">
                 {visibleOffers.map((offer) => {
                   const active = isLimitedTimeOfferActive(offer)
@@ -403,29 +417,20 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                         active ? 'border-emerald-200 bg-emerald-50' : 'border-slate-200 bg-slate-50'
                       }`}
                     >
-                      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                        <div>
-                          <p className="text-sm font-black text-slate-950">{offer.title}</p>
-                          {offer.summary && (
-                            <p className="mt-1 whitespace-pre-line text-sm leading-6 text-slate-600">
-                              {offer.summary}
-                            </p>
-                          )}
-                          {offer.expiresAt && (
-                            <p className="mt-2 text-xs font-bold text-slate-500">
-                              Valid until {formatOfferDeadline(offer.expiresAt)}
-                            </p>
-                          )}
-                        </div>
-                        <div className="shrink-0 rounded-lg bg-white px-3 py-2 text-right shadow-sm">
-                          <p className="text-sm font-black text-emerald-700">
-                            {formatMoney(offer.discountAmount, payload.currency)} off
-                          </p>
-                          <p className="text-[11px] font-bold text-slate-500">
-                            {offer.discountMode === 'per_person' ? 'per person' : 'total'}
-                          </p>
-                        </div>
-                      </div>
+                      <p className="text-sm font-black text-slate-950">{offer.title}</p>
+                      {offer.summary && (
+                        <p className="mt-1 whitespace-pre-line text-sm leading-6 text-slate-600">
+                          {offer.summary}
+                        </p>
+                      )}
+                      <p className="mt-2 text-xs font-bold text-slate-500">
+                        {offer.discountAmount > 0
+                          ? `${formatMoney(offer.discountAmount, payload.currency)} off ${
+                              offer.discountMode === 'per_person' ? 'per person' : 'total'
+                            }`
+                          : 'No discount amount set'}
+                        {offer.expiresAt ? ` · valid until ${formatOfferDeadline(offer.expiresAt)}` : ''}
+                      </p>
                     </div>
                   )
                 })}
@@ -436,7 +441,7 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
 
         <aside className="space-y-4 lg:sticky lg:top-5 lg:self-start">
           <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <p className="text-sm font-black text-slate-950">Total</p>
+            <p className="text-sm font-black text-slate-950">Final package total</p>
             {resolved ? (
               <>
                 {resolved.combination.offerDiscountTotal > 0 && (
@@ -458,11 +463,6 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                   )}{' '}
                   per hotel-paying guest
                 </p>
-                {resolved.combination.servicePassengers !== resolved.combination.payingGuests && (
-                  <p className="mt-1 text-xs font-semibold text-slate-500">
-                    Services calculated for {resolved.combination.servicePassengers} passengers.
-                  </p>
-                )}
               </>
             ) : (
               <p className="mt-2 text-sm text-red-600">Selection is incomplete.</p>
@@ -474,7 +474,7 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
               <input
                 value={customer.customerName}
                 onChange={(event) => updateCustomer({ customerName: event.target.value })}
-                placeholder="Name"
+                placeholder="Customer name"
                 className="min-h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-slate-900"
               />
               <input
@@ -492,28 +492,23 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
               <textarea
                 value={customer.note}
                 onChange={(event) => updateCustomer({ note: event.target.value })}
-                placeholder="Notes"
+                placeholder="Internal/customer note"
                 rows={3}
                 className="w-full resize-y rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-900"
               />
-              <p className="rounded-lg bg-slate-50 p-3 text-xs font-semibold leading-5 text-slate-600">
-                Finalising sends your preferred option to Piyam Travel. This is not a confirmed
-                booking until availability is checked and reservations are completed by an agent.
-                Passport copies should be sent via WhatsApp.
-              </p>
               <button
                 type="button"
-                onClick={() => void submitSelection()}
+                onClick={() => void finaliseSelection()}
                 disabled={!resolved || saving}
                 className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#8b1e2d] px-3 text-sm font-black text-white transition hover:bg-[#6f1422] disabled:opacity-50"
               >
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                Finalise Selection
+                Finalise In Sales Mode
               </button>
             </div>
             {savedSelection && (
               <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm font-bold text-emerald-800">
-                Selection sent to Piyam Travel:{' '}
+                Selection finalised:{' '}
                 {formatMoney(savedSelection.combination.totalPrice, savedSelection.combination.currency)}
               </div>
             )}
@@ -521,6 +516,6 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
           </section>
         </aside>
       </div>
-    </main>
+    </div>
   )
 }

@@ -2,14 +2,19 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createServerClient } from '@supabase/auth-helpers-nextjs'
 import PageHeader from '@/app/components/PageHeader.client'
-import PackagesDashboardClient from './PackagesDashboardClient'
+import PackageOverviewClient from './PackageOverviewClient'
 
 export const metadata = {
-  title: 'Packages - PT Portal',
-  description: 'Create and share holidays, ziyarat, and umrah package quotes',
+  title: 'Package Folder - PT Portal',
+  description: 'View a travel package operational folder',
 }
 
-export default async function PackagesPage() {
+export default async function TravelPackageFolderPage({
+  params,
+}: {
+  params: Promise<{ id: string }>
+}) {
+  const { id } = await params
   const cookieStore = await cookies()
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -48,7 +53,7 @@ export default async function PackagesPage() {
       />
 
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-        <PackagesDashboardClient currentUserId={session.user.id} />
+        <PackageOverviewClient packageId={id} />
       </main>
     </div>
   )
