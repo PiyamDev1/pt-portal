@@ -17,17 +17,22 @@ import type {
 } from '@/app/types/packages'
 import { selectTravelPackageReservationItemColumns } from '../reservations/[reservationId]/items/route'
 import { selectTravelPackageReservationColumns } from '../reservations/route'
+import { recordPackageAuditEvent } from '@/lib/packageAudit'
 
 const SCHEMA_HINT =
   'Travel package invoice schema is not installed yet. Run scripts/migrations/20260712_create_travel_package_invoices.sql in Supabase SQL editor.'
 
 const INVOICE_STATUSES = new Set<TravelPackageInvoiceStatus>([
   'draft',
+  'internal_review',
+  'finalised',
   'pending_payment',
   'part_paid',
   'paid',
   'released',
+  'amended',
   'void',
+  'closed',
 ])
 
 function isInvoiceSchemaError(error: unknown) {
@@ -64,6 +69,10 @@ export function selectTravelPackageInvoiceColumns() {
     created_at,
     updated_at,
     voided_at
+    ,due_at
+    ,finalised_at
+    ,amendment_reason
+    ,released_version
   `
 }
 
@@ -156,6 +165,9 @@ function mapInvoiceStatusToPackageStatus(
   if (status === 'void') return 'void'
   if (releasedToCustomer || status === 'released') return 'released_to_customer'
   if (status === 'draft') return 'draft'
+  if (status === 'amended') return 'amended'
+  if (status === 'internal_review') return 'internal_review'
+  if (status === 'closed') return 'closed'
   return 'finalised'
 }
 
@@ -294,7 +306,19 @@ export async function POST(
     items: itemsByReservation.get(reservation.id) || [],
   }))
   const invoiceLines = createPackageInvoiceLinesFromReservations(reservationsWithItems)
-  const totals = calculatePackageInvoiceTotals(invoiceLines)
+  const { data: existingPaymentData } = await supabase
+    .from('travel_package_payments')
+    .select('amount, payment_type, payment_status')
+    .eq('package_id', id)
+  const existingTotalPaid = roundPackageInvoiceMoney(
+    (existingPaymentData || []).reduce((total, payment) => {
+      if (payment.payment_status !== 'completed') return total
+      if (['deposit', 'payment'].includes(payment.payment_type)) return total + Number(payment.amount || 0)
+      if (['refund', 'chargeback'].includes(payment.payment_type)) return total - Number(payment.amount || 0)
+      return total
+    }, 0),
+  )
+  const totals = calculatePackageInvoiceTotals(invoiceLines, existingTotalPaid)
   const packageFolder = packageData as Pick<
     TravelPackageFolder,
     'package_reference' | 'source_quote_id'
@@ -324,6 +348,7 @@ export async function POST(
       customer_terms: cleanText(body.customerTerms) || null,
       internal_notes: cleanText(body.internalNotes) || null,
       metadata: { source: 'reservations' },
+      due_at: cleanText(body.dueAt) || new Date().toISOString(),
     })
     .select(selectTravelPackageInvoiceColumns())
     .single()
@@ -351,6 +376,12 @@ export async function POST(
     }
     createdLines = (lineData || []) as unknown as TravelPackageInvoiceLine[]
   }
+
+  await supabase
+    .from('travel_package_payments')
+    .update({ invoice_id: (invoiceData as unknown as { id: string }).id })
+    .eq('package_id', id)
+    .is('invoice_id', null)
 
   await syncPackageInvoiceStatus(supabase, id, 'draft', false)
 
@@ -430,6 +461,12 @@ export async function PATCH(
     : hasBodyKey(body, 'released_to_customer')
       ? Boolean(body.released_to_customer)
       : existingInvoice.released_to_customer
+  if (
+    !existingInvoice.released_to_customer
+    && (releasedToCustomer || status === 'released')
+  ) {
+    return apiError('Use the invoice release action so a customer snapshot and audit event are created', 409)
+  }
   const totalSold = roundPackageInvoiceMoney(subtotalSold - discountTotal)
   const balanceDue = roundPackageInvoiceMoney(totalSold - totalPaid)
   const projectedMargin = roundPackageInvoiceMoney(
@@ -466,6 +503,16 @@ export async function PATCH(
       : hasBodyKey(body, 'internal_notes')
         ? cleanText(body.internal_notes) || null
         : existingInvoice.internal_notes,
+    due_at: hasBodyKey(body, 'dueAt')
+      ? cleanText(body.dueAt) || null
+      : hasBodyKey(body, 'due_at')
+        ? cleanText(body.due_at) || null
+        : existingInvoice.due_at || null,
+    amendment_reason: hasBodyKey(body, 'amendmentReason')
+      ? cleanText(body.amendmentReason) || null
+      : hasBodyKey(body, 'amendment_reason')
+        ? cleanText(body.amendment_reason) || null
+        : existingInvoice.amendment_reason || null,
     voided_at: status === 'void' ? existingInvoice.voided_at || new Date().toISOString() : null,
   }
 
@@ -487,6 +534,19 @@ export async function PATCH(
     id,
     (data as unknown as TravelPackageInvoice).status,
     (data as unknown as TravelPackageInvoice).released_to_customer,
+  )
+
+  await recordPackageAuditEvent(
+    supabase as unknown as Parameters<typeof recordPackageAuditEvent>[0],
+    {
+      packageId: id,
+      quoteId: existingInvoice.quote_id,
+      actorId: user.id,
+      eventType: shouldRelease ? 'invoice_updated_and_released' : 'invoice_updated',
+      eventSummary: `Invoice ${existingInvoice.invoice_number} updated.`,
+      beforeData: existingInvoice,
+      afterData: data,
+    },
   )
 
   const { data: lineData } = await loadInvoiceLines(supabase, id, invoiceId)

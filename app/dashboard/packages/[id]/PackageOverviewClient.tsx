@@ -47,6 +47,8 @@ import {
   PACKAGE_DOCUMENT_CATEGORIES,
   groupPackageDocumentsByCategory,
 } from '@/lib/packageDocuments'
+import PackageOperationsWorkspace from './PackageOperationsWorkspace'
+import PackageInvoiceLinesEditor from './PackageInvoiceLinesEditor'
 
 type PackageOverviewClientProps = {
   packageId: string
@@ -155,6 +157,8 @@ type InvoiceFormState = {
   releasedToCustomer: boolean
   customerTerms: string
   internalNotes: string
+  dueAt: string
+  amendmentReason: string
 }
 
 const reservationTypeOptions: Array<{ value: TravelPackageReservationType; label: string }> = [
@@ -205,11 +209,15 @@ const reservationItemStatusOptions: Array<{
 
 const invoiceStatusOptions: Array<{ value: TravelPackageInvoiceStatus; label: string }> = [
   { value: 'draft', label: 'Draft' },
+  { value: 'internal_review', label: 'Internal review' },
+  { value: 'finalised', label: 'Finalised' },
   { value: 'pending_payment', label: 'Pending payment' },
   { value: 'part_paid', label: 'Part paid' },
   { value: 'paid', label: 'Paid' },
-  { value: 'released', label: 'Released' },
+  { value: 'released', label: 'Released (customer snapshot live)' },
+  { value: 'amended', label: 'Amended draft' },
   { value: 'void', label: 'Void' },
+  { value: 'closed', label: 'Closed' },
 ]
 
 function toDateTimeLocalValue(value: Date | string = new Date()) {
@@ -220,7 +228,9 @@ function toDateTimeLocalValue(value: Date | string = new Date()) {
 }
 
 function createDefaultDocumentAccessExpiry() {
-  return new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+  const expiry = new Date()
+  expiry.setMonth(expiry.getMonth() + 10)
+  return expiry
 }
 
 function toDocumentAccessExpiryInput(value: string | null | undefined) {
@@ -285,6 +295,8 @@ function createInitialInvoiceForm(invoice?: TravelPackageInvoice | null): Invoic
     releasedToCustomer: Boolean(invoice?.released_to_customer),
     customerTerms: invoice?.customer_terms || '',
     internalNotes: invoice?.internal_notes || '',
+    dueAt: invoice?.due_at ? toDateTimeLocalValue(invoice.due_at) : toDateTimeLocalValue(),
+    amendmentReason: invoice?.amendment_reason || '',
   }
 }
 
@@ -320,6 +332,9 @@ function mapInvoiceToPackageInvoiceStatus(invoice: TravelPackageInvoice) {
   if (invoice.status === 'void') return 'void'
   if (invoice.released_to_customer || invoice.status === 'released') return 'released_to_customer'
   if (invoice.status === 'draft') return 'draft'
+  if (invoice.status === 'amended') return 'amended'
+  if (invoice.status === 'internal_review') return 'internal_review'
+  if (invoice.status === 'closed') return 'closed'
   return 'finalised'
 }
 
@@ -596,8 +611,10 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
   ).length
   const documentPortalUrl =
     packageFolder?.document_access_token && typeof window !== 'undefined'
-      ? `${window.location.origin}/package-documents/${packageFolder.document_access_token}`
+      ? `${window.location.origin}/package-portal/${packageFolder.document_access_token}`
       : ''
+  const documentPortalRootUrl =
+    typeof window !== 'undefined' ? `${window.location.origin}/package-portal` : '/package-portal'
   const quoteTitle =
     selectedPayload?.title || selectedQuote?.title || packageFolder?.package_reference || 'Final quotation'
   const quoteCustomerName =
@@ -970,6 +987,7 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
           currency: reservationCurrency,
           customerTerms: invoiceForm.customerTerms,
           internalNotes: invoiceForm.internalNotes,
+          dueAt: invoiceForm.dueAt,
         }),
       })
       const data = (await response.json()) as InvoiceResponse
@@ -1015,6 +1033,8 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
           releasedToCustomer: invoiceForm.releasedToCustomer,
           customerTerms: invoiceForm.customerTerms,
           internalNotes: invoiceForm.internalNotes,
+          dueAt: invoiceForm.dueAt,
+          amendmentReason: invoiceForm.amendmentReason,
         }),
       })
       const data = (await response.json()) as InvoiceResponse
@@ -1035,6 +1055,94 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
       setInvoiceError(
         saveError instanceof Error ? saveError.message : 'Failed to save package invoice',
       )
+    } finally {
+      setSavingInvoice(false)
+    }
+  }
+
+  const releaseInvoice = async () => {
+    if (!invoice || savingInvoice) return
+    setSavingInvoice(true)
+    setInvoiceError(null)
+    try {
+      const saveResponse = await fetch(
+        `/api/travel-packages/${encodeURIComponent(packageId)}/invoice`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            invoiceId: invoice.id,
+            status: invoiceForm.status === 'amended' ? 'finalised' : invoiceForm.status,
+            subtotalSold: invoiceForm.subtotalSold,
+            discountTotal: invoiceForm.discountTotal,
+            totalPaid: invoiceForm.totalPaid,
+            totalBookedCost: invoiceForm.totalBookedCost,
+            expectedCommissionTotal: invoiceForm.expectedCommissionTotal,
+            receivedCommissionTotal: invoiceForm.receivedCommissionTotal,
+            releasedToCustomer: false,
+            customerTerms: invoiceForm.customerTerms,
+            internalNotes: invoiceForm.internalNotes,
+            dueAt: invoiceForm.dueAt,
+            amendmentReason: invoiceForm.amendmentReason,
+          }),
+        },
+      )
+      const savedData = (await saveResponse.json()) as InvoiceResponse
+      if (!saveResponse.ok || !savedData.invoice) {
+        throw new Error(savedData.message || savedData.error || 'Failed to save invoice before release')
+      }
+      const response = await fetch(
+        `/api/travel-packages/${encodeURIComponent(packageId)}/invoice/release`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ invoiceId: savedData.invoice.id, changeSummary: invoiceForm.amendmentReason }),
+        },
+      )
+      const data = (await response.json()) as InvoiceResponse
+      if (!response.ok || !data.invoice) {
+        throw new Error(data.message || data.error || 'Failed to release package invoice')
+      }
+      setInvoice(data.invoice)
+      setInvoiceForm(createInitialInvoiceForm(data.invoice))
+      setPackageFolder((current) => current ? { ...current, invoice_status: 'released_to_customer' } : current)
+    } catch (releaseError) {
+      setInvoiceError(
+        releaseError instanceof Error ? releaseError.message : 'Failed to release package invoice',
+      )
+    } finally {
+      setSavingInvoice(false)
+    }
+  }
+
+  const beginInvoiceAmendment = async () => {
+    if (!invoice || savingInvoice) return
+    const reason = invoiceForm.amendmentReason.trim()
+    if (!reason) {
+      setInvoiceError('Enter an amendment reason before reopening a released invoice.')
+      return
+    }
+    setSavingInvoice(true)
+    setInvoiceError(null)
+    try {
+      const response = await fetch(
+        `/api/travel-packages/${encodeURIComponent(packageId)}/invoice/amend`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ invoiceId: invoice.id, reason }),
+        },
+      )
+      const data = (await response.json()) as InvoiceResponse
+      if (!response.ok || !data.invoice) {
+        throw new Error(data.message || data.error || 'Failed to start invoice amendment')
+      }
+      const amendedInvoice = { ...data.invoice, lines: invoice.lines || [] }
+      setInvoice(amendedInvoice)
+      setInvoiceForm(createInitialInvoiceForm(amendedInvoice))
+      setPackageFolder((current) => current ? { ...current, invoice_status: 'amended' } : current)
+    } catch (amendError) {
+      setInvoiceError(amendError instanceof Error ? amendError.message : 'Failed to start amendment')
     } finally {
       setSavingInvoice(false)
     }
@@ -1234,8 +1342,8 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
               {packageFolder.customer_name || 'No customer'} · {packageFolder.package_type}
             </p>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-              This is the operational workspace created from the finalised quote. Reservations,
-              documents, invoices, and payment plans will attach here as the next phases are built.
+              Manage the package from final quotation through reservations, payments, released
+              documents, travel, return, and final earned closure.
             </p>
           </div>
           {selectedCombination && (
@@ -1256,6 +1364,16 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
         <StatusCard icon={CreditCard} label="Payment" value={packageFolder.payment_status} />
         <StatusCard icon={FileText} label="Invoice" value={packageFolder.invoice_status} />
       </section>
+
+      <PackageOperationsWorkspace
+        packageFolder={packageFolder}
+        invoice={invoice}
+        onPackageChange={setPackageFolder}
+        onInvoiceChange={(updatedInvoice) => {
+          setInvoice(updatedInvoice)
+          setInvoiceForm(createInitialInvoiceForm(updatedInvoice))
+        }}
+      />
 
       <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="space-y-5">
@@ -1333,9 +1451,13 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
                     Customer document portal
                   </p>
                   {packageFolder.document_access_enabled && documentPortalUrl ? (
-                    <p className="mt-1 break-all text-sm font-bold text-slate-700">
-                      {documentPortalUrl}
-                    </p>
+                    <div className="mt-1 space-y-1">
+                      <p className="break-all text-sm font-bold text-slate-700">{documentPortalUrl}</p>
+                      <p className="text-xs font-semibold text-slate-500">
+                        Customers can also use {documentPortalRootUrl} with this
+                        package reference and the lead passenger surname.
+                      </p>
+                    </div>
                   ) : (
                     <p className="mt-1 text-sm font-bold text-slate-500">
                       Customer access is not enabled.
@@ -2766,16 +2888,14 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
                     />
                   </label>
 
-                  <label className="flex min-h-10 items-center gap-2 self-end rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-700">
+                  <label className="text-xs font-bold uppercase text-slate-500">
+                    Payment due
                     <input
-                      type="checkbox"
-                      checked={invoiceForm.releasedToCustomer}
-                      onChange={(event) =>
-                        updateInvoiceForm('releasedToCustomer', event.target.checked)
-                      }
-                      className="h-4 w-4 rounded border-slate-300 text-[#8b1e2d] focus:ring-[#8b1e2d]"
+                      type="datetime-local"
+                      value={invoiceForm.dueAt}
+                      onChange={(event) => updateInvoiceForm('dueAt', event.target.value)}
+                      className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
                     />
-                    Release flag
                   </label>
 
                   <label className="text-xs font-bold uppercase text-slate-500 xl:col-span-2">
@@ -2797,6 +2917,18 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
                       placeholder="Agent-only notes, supplier cost changes, commission follow-up"
                     />
                   </label>
+
+                  {(invoice.released_to_customer || invoice.status === 'amended') && (
+                    <label className="text-xs font-bold uppercase text-slate-500 xl:col-span-2">
+                      Amendment / release summary
+                      <input
+                        value={invoiceForm.amendmentReason}
+                        onChange={(event) => updateInvoiceForm('amendmentReason', event.target.value)}
+                        className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                        placeholder="Explain what changed for the audit history"
+                      />
+                    </label>
+                  )}
                 </div>
 
                 {(invoice.lines || []).length > 0 && (
@@ -2847,7 +2979,38 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
                   </div>
                 )}
 
+                <PackageInvoiceLinesEditor
+                  packageId={packageId}
+                  invoice={invoice}
+                  disabled={invoice.released_to_customer}
+                  onInvoiceChange={(updatedInvoice) => {
+                    setInvoice(updatedInvoice)
+                    setInvoiceForm(createInitialInvoiceForm(updatedInvoice))
+                  }}
+                />
+
                 <div className="mt-4 flex flex-wrap justify-end gap-2">
+                  {invoice.released_to_customer ? (
+                    <button
+                      type="button"
+                      onClick={() => void beginInvoiceAmendment()}
+                      disabled={savingInvoice || !invoiceForm.amendmentReason.trim()}
+                      className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 text-sm font-black text-amber-900 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      <Pencil className="h-4 w-4" />
+                      Start Amendment
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => void releaseInvoice()}
+                      disabled={savingInvoice || invoice.total_sold <= 0}
+                      className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-[#8b1e2d] px-4 text-sm font-black text-white transition hover:bg-[#6f1824] disabled:cursor-not-allowed disabled:bg-slate-300"
+                    >
+                      <Eye className="h-4 w-4" />
+                      Release to Customer
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => {
@@ -2865,7 +3028,7 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
                   </button>
                   <button
                     type="submit"
-                    disabled={savingInvoice}
+                    disabled={savingInvoice || invoice.released_to_customer}
                     className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-black text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
                   >
                     {savingInvoice ? (

@@ -53,7 +53,7 @@ export default async function PackagesPage() {
       />
 
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-        <PackagesDashboardClient currentUserId={session.user.id} />
+        <PackagesDashboardClient currentUserId={session.user.id} currentUserRole={header.role} />
       </main>
     </div>
   )

@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   Clock3,
   Copy,
+  Database,
   ExternalLink,
   FileText,
   Link2,
@@ -22,14 +23,11 @@ import {
 import { toast } from 'sonner'
 import type { TravelPackageQuote } from '@/app/types/packages'
 import type { TravelPackageFolder } from '@/app/types/packages'
-import {
-  buildCustomerPackageOptions,
-  formatMoney,
-  isPackageQuoteExpired,
-} from '@/lib/packageQuote'
+import { buildCustomerPackageOptions, formatMoney, isPackageQuoteExpired } from '@/lib/packageQuote'
 
 type PackagesDashboardClientProps = {
   currentUserId: string
+  currentUserRole?: string
 }
 
 type PackagesResponse = {
@@ -116,7 +114,9 @@ function getPassengerLabel(quote: TravelPackageQuote) {
   if (total === 0) return 'No passengers'
   const parts = [
     payload.adults ? `${payload.adults} adult${payload.adults === 1 ? '' : 's'}` : '',
-    payload.childrenPaying ? `${payload.childrenPaying} child${payload.childrenPaying === 1 ? '' : 'ren'}` : '',
+    payload.childrenPaying
+      ? `${payload.childrenPaying} child${payload.childrenPaying === 1 ? '' : 'ren'}`
+      : '',
     payload.childrenFree ? `${payload.childrenFree} under 5` : '',
   ].filter(Boolean)
   return parts.join(', ')
@@ -158,7 +158,8 @@ function getPackageDateRange(packageFolder: TravelPackageFolder) {
 function getPackageStatusClass(status: string) {
   if (['returned', 'closed'].includes(status)) return 'bg-emerald-50 text-emerald-700'
   if (['cancelled', 'archived'].includes(status)) return 'bg-slate-100 text-slate-600'
-  if (['awaiting_deposit', 'awaiting_passports'].includes(status)) return 'bg-amber-50 text-amber-700'
+  if (['awaiting_deposit', 'awaiting_passports'].includes(status))
+    return 'bg-amber-50 text-amber-700'
   if (['travelling', 'travelling_soon'].includes(status)) return 'bg-blue-50 text-blue-700'
   return 'bg-red-50 text-[#8b1e2d]'
 }
@@ -169,6 +170,21 @@ function getPackageRiskClass(level: TravelPackageFolder['risk_level']) {
   if (level === 'medium') return 'border-amber-200 bg-amber-50 text-amber-700'
   if (level === 'low') return 'border-blue-200 bg-blue-50 text-blue-700'
   return 'border-slate-200 bg-slate-100 text-slate-600'
+}
+
+function getPackageOperationalSortValue(packageFolder: TravelPackageFolder) {
+  const riskRank = { none: 0, low: 1, medium: 2, high: 3, critical: 4 }[packageFolder.risk_level]
+  const dueAt = packageFolder.next_action_due_at
+    ? Date.parse(packageFolder.next_action_due_at)
+    : Number.NaN
+  const overdueRank = Number.isFinite(dueAt) && dueAt < Date.now() ? 1 : 0
+  const departure = packageFolder.departure_date
+    ? Date.parse(packageFolder.departure_date)
+    : Number.MAX_SAFE_INTEGER
+  const updated = packageFolder.updated_at
+    ? Date.parse(packageFolder.updated_at)
+    : Date.parse(packageFolder.created_at)
+  return { riskRank, overdueRank, departure, updated }
 }
 
 function tabMatchesPackage(activeTab: MainTab, packageFolder: TravelPackageFolder) {
@@ -191,7 +207,10 @@ function tabMatchesPackage(activeTab: MainTab, packageFolder: TravelPackageFolde
   return !['archived', 'cancelled', 'returned', 'closed'].includes(packageFolder.status)
 }
 
-export default function PackagesDashboardClient({ currentUserId }: PackagesDashboardClientProps) {
+export default function PackagesDashboardClient({
+  currentUserId,
+  currentUserRole,
+}: PackagesDashboardClientProps) {
   const [activeTab, setActiveTab] = useState<MainTab>('quotations')
   const [quoteView, setQuoteView] = useState<QuoteView>('all')
   const [searchTerm, setSearchTerm] = useState('')
@@ -291,21 +310,33 @@ export default function PackagesDashboardClient({ currentUserId }: PackagesDashb
 
   const filteredPackages = useMemo(() => {
     const query = searchTerm.trim().toLowerCase()
-    return packages.filter((packageFolder) => {
-      if (!tabMatchesPackage(activeTab, packageFolder)) return false
-      if (!query) return true
-      return [
-        packageFolder.package_reference,
-        packageFolder.customer_name,
-        packageFolder.customer_phone,
-        packageFolder.customer_email,
-        packageFolder.package_type,
-        packageFolder.destination,
-        packageFolder.next_action,
-      ]
-        .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(query))
-    })
+    return packages
+      .filter((packageFolder) => {
+        if (!tabMatchesPackage(activeTab, packageFolder)) return false
+        if (!query) return true
+        return [
+          packageFolder.package_reference,
+          packageFolder.customer_name,
+          packageFolder.customer_phone,
+          packageFolder.customer_email,
+          packageFolder.package_type,
+          packageFolder.destination,
+          packageFolder.next_action,
+        ]
+          .filter(Boolean)
+          .some((value) => String(value).toLowerCase().includes(query))
+      })
+      .sort((left, right) => {
+        const leftValue = getPackageOperationalSortValue(left)
+        const rightValue = getPackageOperationalSortValue(right)
+        if (leftValue.riskRank !== rightValue.riskRank)
+          return rightValue.riskRank - leftValue.riskRank
+        if (leftValue.overdueRank !== rightValue.overdueRank)
+          return rightValue.overdueRank - leftValue.overdueRank
+        if (leftValue.departure !== rightValue.departure)
+          return leftValue.departure - rightValue.departure
+        return rightValue.updated - leftValue.updated
+      })
   }, [activeTab, packages, searchTerm])
 
   const copyQuoteShareLink = async (quote: TravelPackageQuote) => {
@@ -326,7 +357,9 @@ export default function PackagesDashboardClient({ currentUserId }: PackagesDashb
         throw new Error(data.error || 'Failed to convert quote to package')
       }
       setPackages((current) => {
-        const withoutExisting = current.filter((packageFolder) => packageFolder.id !== data.package!.id)
+        const withoutExisting = current.filter(
+          (packageFolder) => packageFolder.id !== data.package!.id,
+        )
         return [data.package!, ...withoutExisting]
       })
       setQuotes((current) =>
@@ -359,22 +392,39 @@ export default function PackagesDashboardClient({ currentUserId }: PackagesDashb
             <p className="text-xs font-bold uppercase text-slate-500">Packages</p>
             <h1 className="mt-1 text-2xl font-black text-slate-950">Package operations</h1>
             <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">
-              Manage quotations now, then move finalised selections into package folders for
-              reservations, documents, invoice work, and customer travel follow-up.
+              Manage quotations and package folders through reservations, payments, customer
+              releases, travel, return, and earned closure.
             </p>
           </div>
-          <Link
-            href="/dashboard/packages/quotations/new"
-            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-[#8b1e2d] px-4 text-sm font-black text-white transition hover:bg-[#6f1422]"
-          >
-            <Plus className="h-4 w-4" />
-            Add New Package Quote
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            {currentUserRole?.trim().toLowerCase() === 'super admin' && (
+              <Link
+                href="/dashboard/packages/migration"
+                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 text-sm font-black text-slate-700 transition hover:bg-slate-100"
+              >
+                <Database className="h-4 w-4" />
+                Legacy Migration
+              </Link>
+            )}
+            <Link
+              href="/dashboard/packages/quotations/new"
+              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-[#8b1e2d] px-4 text-sm font-black text-white transition hover:bg-[#6f1422]"
+            >
+              <Plus className="h-4 w-4" />
+              Add New Package Quote
+            </Link>
+          </div>
         </div>
 
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {[
-            { label: 'Active packages', value: packages.length, icon: PackageCheck },
+            {
+              label: 'Active packages',
+              value: packages.filter(
+                (item) => !['closed', 'cancelled', 'archived'].includes(item.status),
+              ).length,
+              icon: PackageCheck,
+            },
             { label: 'Live links', value: quoteStats.live, icon: Link2 },
             { label: 'Selected', value: quoteStats.selected, icon: CheckCircle2 },
             { label: 'Expired', value: quoteStats.expired, icon: AlertTriangle },
@@ -460,7 +510,9 @@ export default function PackagesDashboardClient({ currentUserId }: PackagesDashb
             </div>
           ) : filteredPackages.length === 0 ? (
             <div className="mt-5 rounded-lg border border-dashed border-slate-300 p-8 text-center">
-              <p className="text-sm font-bold text-slate-700">No package folders match this view.</p>
+              <p className="text-sm font-bold text-slate-700">
+                No package folders match this view.
+              </p>
               <p className="mt-2 text-sm text-slate-500">
                 Finalise a quotation, then use Convert to package from the Quotations tab.
               </p>
@@ -484,9 +536,12 @@ export default function PackagesDashboardClient({ currentUserId }: PackagesDashb
                   {filteredPackages.map((packageFolder) => (
                     <tr key={packageFolder.id} className="align-top hover:bg-slate-50">
                       <td className="border-b border-slate-100 px-3 py-3">
-                        <p className="font-black text-slate-950">{packageFolder.package_reference}</p>
+                        <p className="font-black text-slate-950">
+                          {packageFolder.package_reference}
+                        </p>
                         <p className="text-xs text-slate-500">
-                          {packageFolder.package_type} · {packageFolder.destination || 'No destination'}
+                          {packageFolder.package_type} ·{' '}
+                          {packageFolder.destination || 'No destination'}
                         </p>
                       </td>
                       <td className="border-b border-slate-100 px-3 py-3">
@@ -665,11 +720,19 @@ export default function PackagesDashboardClient({ currentUserId }: PackagesDashb
                                     : 'bg-slate-100 text-slate-600'
                             }`}
                           >
-                            {expired ? 'Expired' : live ? 'Live' : selected ? 'Selected' : quote.status}
+                            {expired
+                              ? 'Expired'
+                              : live
+                                ? 'Live'
+                                : selected
+                                  ? 'Selected'
+                                  : quote.status}
                           </span>
                         </td>
                         <td className="border-b border-slate-100 px-3 py-3">
-                          <p className="text-xs font-black text-slate-800">{getQuoteNextAction(quote)}</p>
+                          <p className="text-xs font-black text-slate-800">
+                            {getQuoteNextAction(quote)}
+                          </p>
                           {selected && quote.selected_at && (
                             <p className="mt-1 text-[11px] text-slate-500">
                               Selected {formatDate(quote.selected_at)}
@@ -690,7 +753,8 @@ export default function PackagesDashboardClient({ currentUserId }: PackagesDashb
                                 {formatMoney(startingPrice.totalPrice, startingPrice.currency)}
                               </p>
                               <p className="text-xs font-bold text-[#8b1e2d]">
-                                {formatMoney(startingPrice.perPersonPrice, startingPrice.currency)} pp
+                                {formatMoney(startingPrice.perPersonPrice, startingPrice.currency)}{' '}
+                                pp
                               </p>
                             </div>
                           ) : (
@@ -698,7 +762,9 @@ export default function PackagesDashboardClient({ currentUserId }: PackagesDashb
                           )}
                         </td>
                         <td className="border-b border-slate-100 px-3 py-3">
-                          <p className={`text-xs font-bold ${expired ? 'text-red-700' : 'text-slate-700'}`}>
+                          <p
+                            className={`text-xs font-bold ${expired ? 'text-red-700' : 'text-slate-700'}`}
+                          >
                             {formatExpiry(quote.expires_at)}
                           </p>
                           {quote.share_enabled && (

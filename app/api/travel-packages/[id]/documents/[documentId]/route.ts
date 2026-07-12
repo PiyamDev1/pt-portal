@@ -7,6 +7,7 @@ import type {
   TravelPackageDocumentStatus,
 } from '@/app/types/packages'
 import { selectTravelPackageDocumentColumns } from '../route'
+import { recordPackageAuditEvent } from '@/lib/packageAudit'
 
 const SCHEMA_HINT =
   'Travel package document schema is not installed yet. Run scripts/migrations/20260712_create_travel_package_documents.sql in Supabase SQL editor.'
@@ -141,6 +142,19 @@ export async function PATCH(
 
   await syncDocumentReleaseStatus(supabase, id)
 
+  await recordPackageAuditEvent(
+    supabase as unknown as Parameters<typeof recordPackageAuditEvent>[0],
+    {
+      packageId: id,
+      actorId: user.id,
+      eventType: Boolean((data as { customer_visible?: boolean }).customer_visible)
+        ? 'document_released'
+        : 'document_updated',
+      eventSummary: `Document "${(data as { title?: string }).title || documentId}" updated.`,
+      afterData: data,
+    },
+  )
+
   return apiOk({
     document: data as unknown as TravelPackageDocument,
     setupRequired: false,
@@ -178,6 +192,17 @@ export async function DELETE(
   }
 
   await syncDocumentReleaseStatus(supabase, id)
+
+  await recordPackageAuditEvent(
+    supabase as unknown as Parameters<typeof recordPackageAuditEvent>[0],
+    {
+      packageId: id,
+      actorId: user.id,
+      eventType: 'document_deleted',
+      eventSummary: `Document "${(data as { title?: string }).title || documentId}" deleted.`,
+      afterData: data,
+    },
+  )
 
   return apiOk({
     document: data as unknown as TravelPackageDocument,

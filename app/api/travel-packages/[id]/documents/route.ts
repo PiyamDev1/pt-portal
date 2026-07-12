@@ -18,6 +18,7 @@ import type {
   TravelPackageDocumentCategory,
   TravelPackageFolder,
 } from '@/app/types/packages'
+import { recordPackageAuditEvent } from '@/lib/packageAudit'
 
 const SCHEMA_HINT =
   'Travel package document schema is not installed yet. Run scripts/migrations/20260712_create_travel_package_documents.sql in Supabase SQL editor.'
@@ -49,6 +50,11 @@ export function selectTravelPackageDocumentColumns() {
     storage_bucket,
     storage_key,
     storage_etag,
+    backup_provider,
+    backup_bucket,
+    backup_key,
+    backup_status,
+    backup_error,
     status,
     customer_visible,
     released_at,
@@ -198,6 +204,8 @@ export async function POST(
   }
 
   const backupConfig = getPackageBackupStorageConfig()
+  let backupStatus: 'pending' | 'copied' | 'failed' | 'skipped' = backupConfig ? 'pending' : 'skipped'
+  let backupError: string | null = null
   if (backupConfig) {
     try {
       const backupResult = await getPackageBackupStorageClient().send(
@@ -221,15 +229,18 @@ export async function POST(
         etag: backupResult.ETag || '',
         uploadedAt: new Date().toISOString(),
       }
-    } catch (backupError) {
+      backupStatus = 'copied'
+    } catch (backupFailure) {
       metadata.backupStorage = {
         provider: 'r3',
         status: 'failed',
         bucket: backupConfig.bucketName,
         key: storageKey,
-        error: backupError instanceof Error ? backupError.message : 'Backup upload failed',
+        error: backupFailure instanceof Error ? backupFailure.message : 'Backup upload failed',
         failedAt: new Date().toISOString(),
       }
+      backupStatus = 'failed'
+      backupError = backupFailure instanceof Error ? backupFailure.message : 'Backup upload failed'
     }
   }
 
@@ -251,6 +262,11 @@ export async function POST(
       storage_bucket: bucket,
       storage_key: storageKey,
       storage_etag: etag,
+      backup_provider: backupConfig ? 'r3' : null,
+      backup_bucket: backupConfig?.bucketName || null,
+      backup_key: backupConfig ? storageKey : null,
+      backup_status: backupStatus,
+      backup_error: backupError,
       status: customerVisible ? 'released' : 'ready_for_review',
       customer_visible: customerVisible,
       released_at: customerVisible ? now : null,
@@ -268,6 +284,18 @@ export async function POST(
   }
 
   await syncDocumentReleaseStatus(supabase, id)
+
+  await recordPackageAuditEvent(
+    supabase as unknown as Parameters<typeof recordPackageAuditEvent>[0],
+    {
+      packageId: id,
+      quoteId: packageData.source_quote_id,
+      actorId: user.id,
+      eventType: customerVisible ? 'document_uploaded_and_released' : 'document_uploaded',
+      eventSummary: `Document "${title}" uploaded${customerVisible ? ' and released to customer' : ''}.`,
+      afterData: data,
+    },
+  )
 
   return apiOk(
     { document: data as unknown as TravelPackageDocument, setupRequired: false },

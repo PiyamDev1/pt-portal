@@ -12,7 +12,9 @@ function isDocumentSchemaError(error: unknown) {
 }
 
 function getDefaultExpiry() {
-  return new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+  const expiry = new Date()
+  expiry.setUTCMonth(expiry.getUTCMonth() + 10)
+  return expiry.toISOString()
 }
 
 function normalizeExpiry(value: unknown) {
@@ -57,7 +59,7 @@ export async function PATCH(
 
   const { data: existing, error: existingError } = await supabase
     .from('travel_packages')
-    .select('id, document_access_token')
+    .select('id, document_access_token, customer_name, customer_access_last_name')
     .eq('id', id)
     .single()
 
@@ -67,6 +69,8 @@ export async function PATCH(
   }
 
   const currentToken = (existing as { document_access_token?: string | null }).document_access_token
+  const customerName = String((existing as { customer_name?: string | null }).customer_name || '')
+  const customerLastName = customerName.trim().split(/\s+/).at(-1)?.toLowerCase() || null
   const token = enabled
     ? regenerate || !currentToken
       ? createPackageDocumentAccessToken()
@@ -80,6 +84,10 @@ export async function PATCH(
       document_access_token: token,
       document_access_expires_at: expiresAt,
       document_release_status: enabled ? 'released' : 'revoked',
+      customer_access_last_name:
+        (existing as { customer_access_last_name?: string | null }).customer_access_last_name
+        || customerLastName,
+      portal_access_created_at: enabled ? new Date().toISOString() : null,
     })
     .eq('id', id)
     .select(

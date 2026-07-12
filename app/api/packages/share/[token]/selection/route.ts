@@ -3,6 +3,7 @@ import { apiError, apiOk } from '@/lib/api/http'
 import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
 import { isPackageQuoteExpired, resolvePackageSelection } from '@/lib/packageQuote'
 import type { PackageSelectionInput } from '@/app/types/packages'
+import { recordPackageAuditEvent } from '@/lib/packageAudit'
 
 export async function POST(
   request: NextRequest,
@@ -51,12 +52,27 @@ export async function POST(
       customer_name: resolved.selection.customerName || null,
       customer_phone: resolved.selection.customerPhone || null,
       customer_email: resolved.selection.customerEmail || null,
+      status: 'customer_selected',
+      finalised_at: new Date().toISOString(),
+      finalised_source: 'customer',
+      customer_selection_note: resolved.selection.note || null,
     })
     .eq('id', quote.id)
 
   if (updateError) {
     return apiError(updateError.message || 'Failed to save package selection', 500)
   }
+
+  await recordPackageAuditEvent(
+    supabase as unknown as Parameters<typeof recordPackageAuditEvent>[0],
+    {
+      quoteId: quote.id,
+      eventType: 'customer_quote_finalised',
+      eventSummary: 'Customer finalised a package selection.',
+      afterData: resolved,
+      metadata: { source: 'customer' },
+    },
+  )
 
   return apiOk({ selected: resolved })
 }

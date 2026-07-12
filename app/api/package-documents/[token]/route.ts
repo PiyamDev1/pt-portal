@@ -3,11 +3,9 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { NextRequest } from 'next/server'
 import { apiError, apiOk } from '@/lib/api/http'
 import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
+import { createPublicPackageDocument, createPublicTransportVoucher } from '@/lib/packagePortal'
 import { getS3Client } from '@/lib/s3Client'
-import type {
-  TravelPackageDocument,
-  TravelPackageFolder,
-} from '@/app/types/packages'
+import type { TravelPackageDocument, TravelPackageFolder } from '@/app/types/packages'
 
 function isExpired(value: string | null | undefined) {
   if (!value) return false
@@ -30,6 +28,7 @@ function selectPublicPackageColumns() {
     document_access_expires_at,
     document_release_status,
     current_public_summary
+    ,passport_status
   `
 }
 
@@ -37,10 +36,6 @@ function selectPublicDocumentColumns() {
   return `
     id,
     package_id,
-    reservation_id,
-    quote_id,
-    uploaded_by,
-    updated_by,
     category,
     title,
     file_name,
@@ -49,19 +44,11 @@ function selectPublicDocumentColumns() {
     storage_provider,
     storage_bucket,
     storage_key,
-    storage_etag,
     status,
     customer_visible,
     released_at,
-    released_by,
-    revoked_at,
-    revoked_by,
     public_notes,
-    internal_notes,
-    metadata,
-    created_at,
-    updated_at,
-    deleted_at
+    created_at
   `
 }
 
@@ -76,10 +63,7 @@ async function withSignedUrl(document: TravelPackageDocument) {
     { expiresIn: 15 * 60 },
   )
 
-  return {
-    ...document,
-    signed_url: signedUrl,
-  }
+  return createPublicPackageDocument(document, signedUrl)
 }
 
 export async function GET(
@@ -129,9 +113,59 @@ export async function GET(
     ((documentData || []) as unknown as TravelPackageDocument[]).map(withSignedUrl),
   )
 
+  const [{ data: invoiceVersionData }, { data: voucherData }] = await Promise.all([
+    supabase
+      .from('travel_package_versions')
+      .select('version_number, snapshot, released_at')
+      .eq('package_id', packageFolder.id)
+      .eq('object_type', 'invoice')
+      .eq('visibility', 'released_to_customer')
+      .order('version_number', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from('travel_package_transport_vouchers')
+      .select('id, version, status, voucher_data, rendered_html, released_at')
+      .eq('package_id', packageFolder.id)
+      .eq('customer_visible', true)
+      .eq('status', 'released_to_customer')
+      .order('version', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ])
+
+  let releasedInvoice = invoiceVersionData?.snapshot || null
+  if (!releasedInvoice) {
+    const { data: invoiceData } = await supabase
+      .from('travel_package_invoices')
+      .select(
+        'id, package_id, invoice_number, currency, subtotal_sold, discount_total, total_sold, total_paid, balance_due, customer_terms, due_at, version',
+      )
+      .eq('package_id', packageFolder.id)
+      .eq('released_to_customer', true)
+      .order('released_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (invoiceData) {
+      const { data: lineData } = await supabase
+        .from('travel_package_invoice_lines')
+        .select(
+          'id, line_type, description, quantity, unit_sold_price, total_sold_price, discount_amount, sort_order',
+        )
+        .eq('invoice_id', invoiceData.id)
+        .eq('customer_visible', true)
+        .order('sort_order', { ascending: true })
+      releasedInvoice = { ...invoiceData, lines: lineData || [] }
+    }
+  }
+
+  const publicVoucher = createPublicTransportVoucher(voucherData)
+
   return apiOk({
     package: packageFolder,
     documents,
+    releasedInvoice,
+    transportVoucher: publicVoucher,
     signedUrlExpiresIn: 15 * 60,
   })
 }

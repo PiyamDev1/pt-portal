@@ -43,6 +43,13 @@ function selectTravelPackageColumns() {
     document_access_enabled,
     document_access_expires_at,
     document_access_last_viewed_at,
+    customer_access_last_name,
+    portal_access_created_at,
+    travelled_at,
+    returned_at,
+    earned_at,
+    cancellation_reason,
+    metadata,
     created_at,
     updated_at,
     archived_at,
@@ -67,8 +74,6 @@ export async function GET(request: NextRequest) {
 
   if (status && status !== 'all') {
     query = query.eq('status', status)
-  } else {
-    query = query.neq('status', 'archived')
   }
 
   const { data, error } = await query

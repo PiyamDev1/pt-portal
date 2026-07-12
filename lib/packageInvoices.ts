@@ -1,4 +1,5 @@
 import type {
+  TravelPackageInvoice,
   TravelPackageInvoiceLine,
   TravelPackageInvoiceLineType,
   TravelPackageReservation,
@@ -158,6 +159,39 @@ export function createPackageInvoiceLinesFromReservations(
   })
 
   return lines
+}
+
+export function createCustomerInvoiceSnapshot(
+  invoice: TravelPackageInvoice,
+  lines: TravelPackageInvoiceLine[],
+) {
+  return {
+    id: invoice.id,
+    package_id: invoice.package_id,
+    quote_id: invoice.quote_id,
+    invoice_number: invoice.invoice_number,
+    currency: invoice.currency,
+    subtotal_sold: roundPackageInvoiceMoney(invoice.subtotal_sold),
+    discount_total: roundPackageInvoiceMoney(invoice.discount_total),
+    total_sold: roundPackageInvoiceMoney(invoice.total_sold),
+    total_paid: roundPackageInvoiceMoney(invoice.total_paid),
+    balance_due: roundPackageInvoiceMoney(invoice.balance_due),
+    customer_terms: invoice.customer_terms,
+    due_at: invoice.due_at || null,
+    version: invoice.version,
+    lines: lines
+      .filter((line) => line.customer_visible)
+      .map((line) => ({
+        id: line.id,
+        line_type: line.line_type,
+        description: line.description,
+        quantity: roundPackageInvoiceMoney(line.quantity),
+        unit_sold_price: roundPackageInvoiceMoney(line.unit_sold_price),
+        total_sold_price: roundPackageInvoiceMoney(line.total_sold_price),
+        discount_amount: roundPackageInvoiceMoney(line.discount_amount),
+        sort_order: line.sort_order,
+      })),
+  }
 }
 
 function createLineFromReservationItem(

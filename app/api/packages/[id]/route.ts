@@ -36,6 +36,13 @@ function selectPackageColumns() {
     selection_note,
     converted_package_id,
     converted_at,
+    finalised_at,
+    finalised_by,
+    finalised_source,
+    customer_selection_note,
+    agent_selection_note,
+    last_shared_by,
+    archived_at,
     created_by,
     created_at,
     updated_at
@@ -106,6 +113,12 @@ export async function PATCH(
     updates.selected_option = null
     updates.selected_at = null
     updates.selection_note = null
+    updates.finalised_at = null
+    updates.finalised_by = null
+    updates.finalised_source = null
+    updates.customer_selection_note = null
+    updates.agent_selection_note = null
+    updates.status = body.shareEnabled === true ? 'shared' : 'draft'
   }
 
   if (body.expiresAt !== undefined) {
@@ -117,8 +130,8 @@ export async function PATCH(
   }
 
   if (body.status !== undefined) {
-    if (!['draft', 'shared', 'archived'].includes(body.status)) {
-      return apiError('status must be draft, shared, or archived', 400)
+    if (!['draft', 'shared', 'expired', 'customer_selected', 'agent_selected', 'finalised', 'converted', 'archived'].includes(body.status)) {
+      return apiError('Invalid package quote status', 400)
     }
     updates.status = body.status
   }
@@ -134,7 +147,10 @@ export async function PATCH(
     updates.share_enabled = body.shareEnabled
     updates.status = body.shareEnabled ? 'shared' : updates.status || 'draft'
     updates.shared_at = body.shareEnabled ? new Date().toISOString() : null
+    updates.last_shared_by = body.shareEnabled ? user.id : null
   }
+
+  if (updates.status === 'archived') updates.archived_at = new Date().toISOString()
 
   if (Object.keys(updates).length === 0) {
     return apiError('No fields provided to update', 400)

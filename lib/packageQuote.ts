@@ -23,7 +23,8 @@ export const DEFAULT_PACKAGE_CURRENCY = 'GBP'
 export const DEFAULT_PACKAGE_EXPIRY_HOURS = 72
 
 export function getDefaultPackageExpiry(hours = DEFAULT_PACKAGE_EXPIRY_HOURS) {
-  return new Date(Date.now() + hours * 60 * 60 * 1000).toISOString()
+  const nowToSecond = Math.floor(Date.now() / 1000) * 1000
+  return new Date(nowToSecond + hours * 60 * 60 * 1000).toISOString()
 }
 
 export function normalizePackageExpiry(value: unknown, fallback = getDefaultPackageExpiry()) {

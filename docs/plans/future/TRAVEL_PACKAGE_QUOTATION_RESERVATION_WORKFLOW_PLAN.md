@@ -1,6 +1,6 @@
 # Travel Package Quotation, Reservation, Invoice, and Document Portal Plan
 
-**Status:** Planning Phase  
+**Status:** Implemented in PT-Portal; database rollout and legacy import validation pending
 **Created:** July 11, 2026  
 **Target Module:** Packages / Reservations  
 **Primary Repo:** `Piyam-Travel-LTD/pt-portal`  
@@ -11,7 +11,7 @@
 
 ## 1. Executive Summary
 
-PT-Portal should become the single operational system for holidays, ziyarat, and Umrah packages. The current package quote creator is a good foundation, but it should grow from a quote-only tool into a full quote-to-reservation-to-document-portal workflow. 
+PT-Portal should become the single operational system for holidays, ziyarat, and Umrah packages. The current package quote creator is a good foundation, but it should grow from a quote-only tool into a full quote-to-reservation-to-document-portal workflow.
 
 The intended flow is:
 
@@ -3103,3 +3103,192 @@ Recommended next coding sequence:
 11. Build automatic Firebase/cloud-storage migration tooling after credentials are connected.
 
 This order keeps the quoting work useful immediately while laying the foundation for reservations, invoices, storage, and migration.
+
+---
+
+## 27. Implementation Completion Record
+
+**Implementation date:** July 12, 2026
+
+The planned PT-Portal workflow is now implemented as one integrated Packages module. The remaining work is operational rollout rather than missing product foundations: apply the final SQL migration, connect the supplied Firebase/R3 credentials, run and reconcile the legacy import, train staff on the package workspace, and only then retire the old bookings portal.
+
+### 27.1 Delivered Product Flow
+
+The implemented flow is:
+
+```text
+Agent builds quotation
+-> Customer or agent finalises a selection
+-> Final quote becomes a PT-XXXXXX package folder
+-> Agent tracks passengers, passports, reservations, payments, and deadlines
+-> Internal invoice is edited and released as an immutable customer snapshot
+-> Documents and transport voucher are released through the customer portal
+-> Package moves through travelling and returned
+-> Agent closes it after reconciliation, which marks earnings as earned
+```
+
+Delivered quotation capabilities:
+
+- optional flights, visas, and transport
+- hotel-led combinations and included/default options
+- adult, child, and infant flight pricing
+- under-5 hotel exception while other services remain payable
+- Makkah-first/Madinah-first ordering
+- limited-time offers
+- payment method selection and card processing fee
+- 72-hour default quote expiry with agent override
+- customer contact details and final submission
+- Sales / Clerk Mode with return to quote editing
+- selection invalidation when a quote is edited
+- compact `PT-XXXXXX` package references
+
+Delivered package operations:
+
+- operational Packages dashboard and Quotations tab
+- final quotation snapshot
+- package lifecycle validation
+- passenger and passport tracking
+- flight, hotel, visa, transport, and other reservations
+- editable booked cost, sold price, discounts, and commission
+- automatic next-action and risk calculation
+- tasks, deadlines, manual risks, communications, and audit history
+- package payment and refund records
+- payment-driven invoice balance/status updates
+- installment schedule foundation with LMS linkage field
+- package closure/earned timestamps after customer return
+
+Delivered invoice controls:
+
+- editable invoice headers and individual lines
+- customer-visible flag per line
+- sold price, booked cost, discount, expected commission, and received commission
+- payment due date defaults to today
+- payments recorded before or after invoice creation remain reconciled
+- explicit customer release action
+- immutable customer-safe release snapshots
+- released invoice amendments create a new working version
+- the previous released version remains visible until the amendment is released
+- customer snapshots exclude booked cost, margin, commission, and internal notes
+
+Delivered storage and portal controls:
+
+- primary package storage in `MINIO_PACKAGES_BUCKET_NAME`
+- separate package/legacy backup storage through `R3_*`
+- explicit backup status fields and Super Admin reconciliation API
+- customer-visible document release/revoke controls
+- short-lived signed document downloads
+- customer access by secure token or package reference plus lead surname
+- failed-login rate limiting
+- default customer portal access period of ten months
+- released documents, invoice, checklist state, and transport voucher in one portal
+- versioned HTML transport voucher generation and MinIO/R3 storage
+
+Delivered automatic migration tooling:
+
+- Firebase service-account OAuth and Firestore REST reader
+- native Firestore value decoding
+- tolerant mapping for known legacy field aliases
+- R3 source-object reads and MinIO destination writes
+- idempotent migration map
+- scan, connection test, dry run, sample, batch, and retry modes
+- resumable page cursor
+- per-package and per-file error reporting
+- source payload and legacy object metadata retention
+- Super Admin migration dashboard at `/dashboard/packages/migration`
+
+### 27.2 Decisions Applied
+
+The open implementation questions were resolved as follows:
+
+1. Package bucket: `pt-packages` through `MINIO_PACKAGES_BUCKET_NAME`.
+2. New references: `PT-` plus six uppercase characters.
+3. Customer access: both secure token links and reference plus surname.
+4. Commission: expected commission contributes to projected margin; received commission remains separately tracked.
+5. Invoice release: versioned database snapshots rendered in the portal; PDF generation is not required for the first release.
+6. Legacy completed records: imported as closed historical packages, with original status retained in metadata.
+7. Passports: operational status tracking first; private upload remains optional.
+8. Package documents: package-specific table using the existing S3-compatible storage clients.
+9. Sales Mode: separate route with navigation back to edit mode.
+10. Legacy references: preserved when unique; a new PT reference is generated on collision and the old reference remains in migration metadata.
+11. Next actions/risks: calculated from live package data and persisted for dashboard filtering.
+12. Customer invoice: released snapshots are created only by the explicit release action.
+
+The one role-policy decision intentionally remains configurable: the current authenticated package-agent policies allow financial access, while a later role matrix can restrict booked cost/margin without changing the data model.
+
+### 27.3 Required Database Rollout
+
+Apply the migrations in this order if the earlier package migrations are not already live:
+
+```text
+20260708_create_travel_package_quotes.sql
+20260711_create_travel_package_folders.sql
+20260711_create_travel_package_reservations.sql
+20260712_create_travel_package_documents.sql
+20260712_create_travel_package_invoices.sql
+20260712_finalize_travel_package_workflow.sql
+```
+
+The final migration adds:
+
+- expanded quotation lifecycle fields
+- passenger rows
+- payments
+- payment plans and installments
+- audit events
+- transport vouchers
+- portal access attempt controls
+- invoice amendment/release fields
+- explicit document backup fields
+- legacy migration runs and idempotency map
+
+### 27.4 Required Environment Configuration
+
+The code is ready for these existing or planned values:
+
+```text
+MINIO_PACKAGES_BUCKET_NAME=pt-packages
+
+R3_ENDPOINT=...
+R3_PUBLIC_URL=...
+R3_ACCESS_KEY_ID=...
+R3_SECRET_ACCESS_KEY=...
+R3_BUCKET_NAME=...
+
+LEGACY_BOOKINGS_FIREBASE_PROJECT_ID=...
+LEGACY_BOOKINGS_FIREBASE_CLIENT_EMAIL=...
+LEGACY_BOOKINGS_FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+
+TRAVEL_PACKAGES_MAILGUN_SENDER_EMAIL="Piyam Travel <bookings.noreply@piyamtravel.com>"
+```
+
+### 27.5 Rollout and Decommission Checklist
+
+1. Apply the final database migration in a staging or reviewed production SQL session.
+2. Confirm MinIO package bucket read/write access.
+3. Confirm R3 list/read/write access from the migration dashboard.
+4. Confirm Firebase Firestore read access from the migration dashboard.
+5. Run a dry scan and inspect missing references, surnames, and file keys.
+6. Import a small sample and verify folder data, documents, customer access, and audit history.
+7. Run resumable migration batches until no cursor remains.
+8. Retry or document every partial/failed record.
+9. Reconcile legacy folder count, document count, copied objects, and source-only objects.
+10. Test active customer portals using reference plus surname and token access.
+11. Train agents on quotation, package control, payments, invoice release, and document release.
+12. Put the legacy portal into read-only mode.
+13. Keep R3/source storage for the agreed backup period.
+14. Decommission or redirect the old portal only after staff and reconciliation sign-off.
+
+### 27.6 Verification Completed
+
+Implementation verification includes:
+
+- TypeScript application check
+- optimized Next.js production build
+- package-focused unit and route tests
+- complete repository unit suite
+- lint with no new warnings
+- public customer portal route and invalid-token handling
+- authenticated dashboard, package folder, migration page, and payment API compile checks
+- desktop and mobile customer portal screenshots
+
+The live Firebase/R3 migration cannot be executed until valid credentials are connected. Decommissioning the external legacy portal remains deliberately blocked until its imported records and files have been reconciled.

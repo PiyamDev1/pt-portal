@@ -3,6 +3,7 @@ import { apiError, apiOk } from '@/lib/api/http'
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
 import { resolvePackageSelection } from '@/lib/packageQuote'
 import type { PackageSelectionInput, PackageResolvedSelection } from '@/app/types/packages'
+import { recordPackageAuditEvent } from '@/lib/packageAudit'
 
 function isPackageSchemaError(error: unknown) {
   const code = (error as { code?: string } | null)?.code
@@ -64,6 +65,11 @@ export async function POST(
       customer_name: customerName,
       customer_phone: customerPhone,
       customer_email: customerEmail,
+      status: 'agent_selected',
+      finalised_at: new Date().toISOString(),
+      finalised_by: user.id,
+      finalised_source: 'agent',
+      agent_selection_note: resolved.selection.note || null,
     })
     .eq('id', id)
 
@@ -73,6 +79,18 @@ export async function POST(
     }
     return apiError(updateError.message || 'Failed to finalise package selection', 500)
   }
+
+  await recordPackageAuditEvent(
+    supabase as unknown as Parameters<typeof recordPackageAuditEvent>[0],
+    {
+      quoteId: id,
+      actorId: user.id,
+      eventType: 'agent_quote_finalised',
+      eventSummary: 'Agent finalised a package selection in Sales Mode.',
+      afterData: resolved,
+      metadata: { source: 'agent' },
+    },
+  )
 
   return apiOk({ selected: resolved })
 }

@@ -6,7 +6,15 @@
  */
 
 export type TravelPackageType = 'umrah' | 'ziyarat' | 'holiday'
-export type TravelPackageStatus = 'draft' | 'shared' | 'archived'
+export type TravelPackageStatus =
+  | 'draft'
+  | 'shared'
+  | 'expired'
+  | 'customer_selected'
+  | 'agent_selected'
+  | 'finalised'
+  | 'converted'
+  | 'archived'
 export type TravelPackageFolderStatus =
   | 'selected'
   | 'awaiting_passports'
@@ -65,11 +73,15 @@ export type TravelPackageReservationItemType =
   | 'discount'
 export type TravelPackageInvoiceStatus =
   | 'draft'
+  | 'internal_review'
+  | 'finalised'
   | 'pending_payment'
   | 'part_paid'
   | 'paid'
   | 'released'
+  | 'amended'
   | 'void'
+  | 'closed'
 export type TravelPackageInvoiceLineType =
   | 'flight'
   | 'hotel'
@@ -78,6 +90,17 @@ export type TravelPackageInvoiceLineType =
   | 'discount'
   | 'commission'
   | 'other'
+export type TravelPackagePassengerType = 'adult' | 'child' | 'infant'
+export type TravelPackagePaymentType = 'deposit' | 'payment' | 'refund' | 'chargeback' | 'commission'
+export type TravelPackagePaymentMethod = 'cash' | 'bank_transfer' | 'card' | 'other'
+export type TravelPackagePaymentStatus = 'pending' | 'completed' | 'failed' | 'cancelled' | 'refunded'
+export type TravelPackageTaskStatus = 'open' | 'in_progress' | 'blocked' | 'completed' | 'cancelled'
+export type TravelPackagePriority = 'low' | 'medium' | 'high' | 'critical'
+export type TravelPackageDeadlineStatus = 'open' | 'met' | 'missed' | 'cancelled' | 'extended'
+export type TravelPackageRiskStatus = 'open' | 'acknowledged' | 'resolved'
+export type TravelPackageCommunicationChannel = 'whatsapp' | 'phone' | 'in_person' | 'email' | 'internal'
+export type TravelPackageCommunicationDirection = 'inbound' | 'outbound' | 'internal'
+export type TravelPackageVoucherStatus = 'draft' | 'generated' | 'released_to_customer' | 'amended' | 'revoked'
 
 export interface PackageComponentOption {
   id: string
@@ -201,6 +224,13 @@ export interface TravelPackageQuote {
   selection_note: string | null
   converted_package_id?: string | null
   converted_at?: string | null
+  finalised_at?: string | null
+  finalised_by?: string | null
+  finalised_source?: 'customer' | 'agent' | null
+  customer_selection_note?: string | null
+  agent_selection_note?: string | null
+  last_shared_by?: string | null
+  archived_at?: string | null
   created_by: string | null
   created_at: string
   updated_at: string | null
@@ -248,6 +278,13 @@ export interface TravelPackageFolder {
   document_access_enabled?: boolean | null
   document_access_expires_at?: string | null
   document_access_last_viewed_at?: string | null
+  customer_access_last_name?: string | null
+  portal_access_created_at?: string | null
+  travelled_at?: string | null
+  returned_at?: string | null
+  earned_at?: string | null
+  cancellation_reason?: string | null
+  metadata?: Record<string, unknown>
   created_at: string
   updated_at: string | null
   archived_at: string | null
@@ -259,6 +296,7 @@ export interface TravelPackageDocument {
   package_id: string
   reservation_id: string | null
   quote_id: string | null
+  invoice_id?: string | null
   uploaded_by: string | null
   updated_by: string | null
   category: TravelPackageDocumentCategory
@@ -270,6 +308,11 @@ export interface TravelPackageDocument {
   storage_bucket: string
   storage_key: string
   storage_etag: string
+  backup_provider?: string | null
+  backup_bucket?: string | null
+  backup_key?: string | null
+  backup_status?: 'pending' | 'copied' | 'failed' | 'skipped'
+  backup_error?: string | null
   status: TravelPackageDocumentStatus
   customer_visible: boolean
   released_at: string | null
@@ -395,5 +438,215 @@ export interface TravelPackageInvoice {
   created_at: string
   updated_at: string | null
   voided_at: string | null
+  due_at?: string | null
+  finalised_at?: string | null
+  amendment_reason?: string | null
+  released_version?: number | null
   lines?: TravelPackageInvoiceLine[]
+}
+
+export interface TravelPackagePassenger {
+  id: string
+  package_id: string
+  first_name: string | null
+  last_name: string | null
+  date_of_birth: string | null
+  passenger_type: TravelPackagePassengerType
+  passport_received: boolean
+  passport_checked: boolean
+  passport_issue_note: string | null
+  visa_status: 'not_started' | 'details_required' | 'submitted' | 'approved' | 'rejected' | 'not_required'
+  ticket_status: 'not_started' | 'held' | 'ticketed' | 'changed' | 'cancelled'
+  room_allocation: string | null
+  internal_notes: string | null
+  created_by: string | null
+  updated_by: string | null
+  created_at: string
+  updated_at: string | null
+}
+
+export interface TravelPackagePayment {
+  id: string
+  package_id: string
+  invoice_id: string | null
+  amount: number
+  currency: string
+  payment_type: TravelPackagePaymentType
+  payment_method: TravelPackagePaymentMethod
+  payment_status: TravelPackagePaymentStatus
+  requested_at: string | null
+  due_at: string | null
+  received_at: string | null
+  received_by: string | null
+  receipt_reference: string | null
+  receipt_document_id: string | null
+  notes: string | null
+  metadata: Record<string, unknown>
+  created_by: string | null
+  updated_by: string | null
+  created_at: string
+  updated_at: string | null
+}
+
+export interface TravelPackageInstallment {
+  id: string
+  plan_id: string
+  package_id: string
+  payment_id: string | null
+  sequence_number: number
+  amount: number
+  due_on: string
+  status: 'scheduled' | 'due' | 'paid' | 'overdue' | 'waived' | 'cancelled'
+  paid_at: string | null
+  notes: string | null
+  created_at: string
+  updated_at: string | null
+}
+
+export interface TravelPackagePaymentPlan {
+  id: string
+  package_id: string
+  invoice_id: string | null
+  lms_plan_id: string | null
+  status: 'draft' | 'active' | 'completed' | 'cancelled' | 'defaulted'
+  currency: string
+  total_amount: number
+  deposit_amount: number
+  frequency: 'weekly' | 'fortnightly' | 'monthly' | 'custom'
+  starts_on: string | null
+  internal_notes: string | null
+  created_by: string | null
+  updated_by: string | null
+  created_at: string
+  updated_at: string | null
+  installments?: TravelPackageInstallment[]
+}
+
+export interface TravelPackageTask {
+  id: string
+  package_id: string | null
+  quote_id: string | null
+  reservation_id?: string | null
+  invoice_id?: string | null
+  title: string
+  description: string | null
+  task_type: string
+  status: TravelPackageTaskStatus
+  priority: TravelPackagePriority
+  assigned_to: string | null
+  due_at: string | null
+  completed_at: string | null
+  completed_by: string | null
+  auto_generated: boolean
+  source_rule: string | null
+  metadata: Record<string, unknown>
+  created_at: string
+  updated_at: string | null
+}
+
+export interface TravelPackageDeadline {
+  id: string
+  package_id: string | null
+  quote_id: string | null
+  reservation_id?: string | null
+  invoice_id?: string | null
+  deadline_type: string
+  title: string
+  due_at: string
+  status: TravelPackageDeadlineStatus
+  severity: TravelPackagePriority
+  assigned_to: string | null
+  reminder_sent_at: string | null
+  resolved_at: string | null
+  resolved_by: string | null
+  notes: string | null
+  metadata: Record<string, unknown>
+  created_at: string
+  updated_at: string | null
+}
+
+export interface TravelPackageRiskFlag {
+  id: string
+  package_id: string | null
+  quote_id: string | null
+  risk_type: string
+  severity: TravelPackagePriority
+  status: TravelPackageRiskStatus
+  source: 'automatic' | 'manual'
+  title: string
+  description: string | null
+  assigned_to: string | null
+  due_at: string | null
+  acknowledged_at: string | null
+  acknowledged_by: string | null
+  resolved_at: string | null
+  resolved_by: string | null
+  resolution_note: string | null
+  metadata: Record<string, unknown>
+  created_at: string
+  updated_at: string | null
+}
+
+export interface TravelPackageCommunication {
+  id: string
+  package_id: string | null
+  quote_id: string | null
+  reservation_id?: string | null
+  invoice_id?: string | null
+  channel: TravelPackageCommunicationChannel
+  direction: TravelPackageCommunicationDirection
+  summary: string
+  follow_up_required: boolean
+  follow_up_due_at: string | null
+  created_by: string | null
+  created_at: string
+  metadata: Record<string, unknown>
+}
+
+export interface TravelPackageAuditEvent {
+  id: string
+  package_id: string | null
+  quote_id: string | null
+  actor_id: string | null
+  event_type: string
+  event_summary: string
+  before_data: Record<string, unknown> | null
+  after_data: Record<string, unknown> | null
+  metadata: Record<string, unknown>
+  created_at: string
+}
+
+export interface TravelPackageTransportVoucherData {
+  arrivalAirport: string
+  arrivalAt: string
+  departureAirport: string
+  departureAt: string
+  makkahHotel: string
+  madinahHotel: string
+  routes: string[]
+  vehicleType: string
+  transportCompany: string
+  driverContact: string
+  groundManager: string
+  publicNotes: string
+  internalNotes: string
+}
+
+export interface TravelPackageTransportVoucher {
+  id: string
+  package_id: string
+  reservation_id: string | null
+  document_id: string | null
+  version: number
+  status: TravelPackageVoucherStatus
+  customer_visible: boolean
+  voucher_data: TravelPackageTransportVoucherData
+  rendered_html: string | null
+  generated_at: string | null
+  released_at: string | null
+  released_by: string | null
+  created_by: string | null
+  updated_by: string | null
+  created_at: string
+  updated_at: string | null
 }

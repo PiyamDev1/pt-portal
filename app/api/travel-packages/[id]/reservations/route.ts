@@ -6,6 +6,7 @@ import type {
   TravelPackageReservationStatus,
   TravelPackageReservationType,
 } from '@/app/types/packages'
+import { recordPackageAuditEvent } from '@/lib/packageAudit'
 
 const SCHEMA_HINT =
   'Travel package reservation schema is not installed yet. Run scripts/migrations/20260711_create_travel_package_reservations.sql in Supabase SQL editor.'
@@ -207,6 +208,18 @@ export async function POST(
     }
     return apiError(error.message || 'Failed to create package reservation', 500)
   }
+
+  await recordPackageAuditEvent(
+    supabase as unknown as Parameters<typeof recordPackageAuditEvent>[0],
+    {
+      packageId: id,
+      quoteId: insertPayload.quote_id,
+      actorId: user.id,
+      eventType: 'reservation_created',
+      eventSummary: `${reservationType} reservation "${title}" created.`,
+      afterData: data,
+    },
+  )
 
   return apiOk(
     { reservation: data as unknown as TravelPackageReservation, setupRequired: false },

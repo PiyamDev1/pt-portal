@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { TravelPackageReservation } from '@/app/types/packages'
 import {
   calculatePackageInvoiceTotals,
+  createCustomerInvoiceSnapshot,
   createPackageInvoiceLinesFromReservations,
   createPackageInvoiceNumber,
   normalizePackageInvoiceLineType,
@@ -83,5 +84,35 @@ describe('package invoice helpers', () => {
       total_sold_price: 1100,
       expected_commission: 80,
     })
+  })
+
+  it('creates a customer snapshot without booked cost, margin, commission, or internal notes', () => {
+    const snapshot = createCustomerInvoiceSnapshot(
+      {
+        id: 'invoice-1', package_id: 'package-1', quote_id: 'quote-1', created_by: 'agent-1',
+        updated_by: 'agent-1', released_by: null, invoice_number: 'INV-PT-ABC123',
+        status: 'draft', currency: 'GBP', subtotal_sold: 1200, discount_total: 100,
+        total_sold: 1100, total_paid: 300, balance_due: 800, total_booked_cost: 700,
+        projected_margin: 450, expected_commission_total: 50, received_commission_total: 0,
+        released_to_customer: false, released_at: null, version: 1,
+        customer_terms: 'Terms apply', internal_notes: 'Supplier cost details', metadata: {},
+        created_at: '2026-07-01T00:00:00.000Z', updated_at: null, voided_at: null,
+      },
+      [{
+        id: 'line-1', invoice_id: 'invoice-1', package_id: 'package-1', reservation_id: null,
+        reservation_item_id: null, line_type: 'hotel', description: 'Hotels', quantity: 1,
+        unit_sold_price: 1200, total_sold_price: 1200, unit_booked_cost: 700,
+        total_booked_cost: 700, discount_amount: 100, expected_commission: 50,
+        received_commission: 0, customer_visible: true, sort_order: 0, metadata: {},
+        created_at: '2026-07-01T00:00:00.000Z', updated_at: null,
+      }],
+    )
+
+    expect(snapshot.lines[0]).toMatchObject({ description: 'Hotels', total_sold_price: 1200 })
+    expect(snapshot).not.toHaveProperty('total_booked_cost')
+    expect(snapshot).not.toHaveProperty('projected_margin')
+    expect(snapshot).not.toHaveProperty('internal_notes')
+    expect(snapshot.lines[0]).not.toHaveProperty('unit_booked_cost')
+    expect(snapshot.lines[0]).not.toHaveProperty('expected_commission')
   })
 })
