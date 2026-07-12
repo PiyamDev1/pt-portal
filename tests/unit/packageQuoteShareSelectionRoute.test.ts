@@ -25,6 +25,7 @@ const payload: PackageQuotePayload = {
   visaOptions: [],
   transportOptions: [],
   limitedTimeOffers: [],
+  cardProcessingFeePercent: 0,
   notes: '',
 }
 

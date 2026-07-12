@@ -170,6 +170,9 @@ export async function POST(
       selected_quote_snapshot: snapshot,
       current_public_summary: {
         title: payload.title,
+        packageSubtotalPrice: quote.selected_option.combination.packageSubtotalPrice,
+        paymentMethod: quote.selected_option.combination.paymentMethod,
+        paymentSurchargeTotal: quote.selected_option.combination.paymentSurchargeTotal,
         totalPrice: quote.selected_option.combination.totalPrice,
         currency: quote.selected_option.combination.currency,
       },

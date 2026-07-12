@@ -14,6 +14,7 @@ import {
   Tag,
 } from 'lucide-react'
 import type {
+  PackagePaymentMethod,
   PackageQuotePayload,
   PackageResolvedSelection,
   TravelPackageQuote,
@@ -108,6 +109,18 @@ function OptionButton({
   )
 }
 
+const PAYMENT_METHODS: Array<{ value: PackagePaymentMethod; label: string }> = [
+  { value: 'bank_transfer', label: 'Bank Transfer' },
+  { value: 'cash', label: 'Cash' },
+  { value: 'card', label: 'Card' },
+]
+
+function getVisaQuantity(option: { quantity?: number }, payload: PackageQuotePayload) {
+  return option.quantity && option.quantity > 0
+    ? option.quantity
+    : payload.adults + payload.childrenPaying + payload.childrenFree
+}
+
 function SectionTitle({
   icon: Icon,
   title,
@@ -160,6 +173,7 @@ export default function PackageSalesModeClient({ quoteId }: PackageSalesModeClie
                 flightOptionId: existingSelection.flightOptionId || null,
                 visaOptionId: existingSelection.visaOptionId || null,
                 transportOptionId: existingSelection.transportOptionId || null,
+                paymentMethod: existingSelection.paymentMethod || 'bank_transfer',
               }
             : firstSelections(normalized),
         )
@@ -321,20 +335,26 @@ export default function PackageSalesModeClient({ quoteId }: PackageSalesModeClie
               <SectionTitle icon={FileText} title="Visa" />
               <div className="space-y-3">
                 {payload.visaOptions.map((option) => (
-                  <OptionButton
+                  <div
                     key={option.id}
-                    selected={selection.visaOptionId === option.id}
-                    title={option.title}
-                    summary={option.summary}
-                    price={option.price}
-                    pricingMode={option.pricingMode}
-                    currency={payload.currency}
-                    onClick={() =>
-                      setSelection((current) =>
-                        current ? { ...current, visaOptionId: option.id } : current,
-                      )
-                    }
-                  />
+                    className="rounded-xl border border-slate-200 bg-white p-4"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-black text-slate-950">
+                          {option.title || 'Visa'}
+                        </p>
+                        {option.summary && (
+                          <p className="mt-1 whitespace-pre-line text-sm leading-6 text-slate-600">
+                            {option.summary}
+                          </p>
+                        )}
+                      </div>
+                      <p className="shrink-0 text-sm font-black text-slate-950">
+                        {getVisaQuantity(option, payload)} included
+                      </p>
+                    </div>
+                  </div>
                 ))}
               </div>
             </section>
@@ -450,6 +470,15 @@ export default function PackageSalesModeClient({ quoteId }: PackageSalesModeClie
                 <p className="mt-2 text-3xl font-black text-slate-950">
                   {formatMoney(resolved.combination.totalPrice, resolved.combination.currency)}
                 </p>
+                {resolved.combination.paymentSurchargeTotal > 0 && (
+                  <p className="mt-1 text-sm font-bold text-slate-600">
+                    Includes card charge:{' '}
+                    {formatMoney(
+                      resolved.combination.paymentSurchargeTotal,
+                      resolved.combination.currency,
+                    )}
+                  </p>
+                )}
                 <p className="text-sm font-bold text-[#8b1e2d]">
                   {formatMoney(
                     resolved.combination.perPersonPrice,
@@ -457,6 +486,37 @@ export default function PackageSalesModeClient({ quoteId }: PackageSalesModeClie
                   )}{' '}
                   per hotel-paying guest
                 </p>
+                <div className="mt-4 rounded-lg bg-slate-50 p-3">
+                  <p className="mb-2 text-xs font-black uppercase text-slate-500">
+                    Payment method
+                  </p>
+                  <div className="grid gap-2">
+                    {PAYMENT_METHODS.map((method) => {
+                      const active = (selection.paymentMethod || 'bank_transfer') === method.value
+                      return (
+                        <button
+                          key={method.value}
+                          type="button"
+                          onClick={() =>
+                            setSelection((current) =>
+                              current ? { ...current, paymentMethod: method.value } : current,
+                            )
+                          }
+                          className={`min-h-10 rounded-lg px-3 text-sm font-black transition ${
+                            active
+                              ? 'bg-slate-900 text-white'
+                              : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-100'
+                          }`}
+                        >
+                          {method.label}
+                          {method.value === 'card' && payload.cardProcessingFeePercent > 0
+                            ? ` +${payload.cardProcessingFeePercent}%`
+                            : ''}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
               </>
             ) : (
               <p className="mt-2 text-sm text-red-600">Selection is incomplete.</p>

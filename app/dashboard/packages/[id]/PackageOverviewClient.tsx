@@ -196,9 +196,19 @@ function formatReservationStatus(status: string) {
   return status.replace(/_/g, ' ')
 }
 
+function formatPaymentMethod(method: string | null | undefined) {
+  if (method === 'cash') return 'Cash'
+  if (method === 'card') return 'Card'
+  return 'Bank transfer'
+}
+
 function parseMoneyInput(value: string | number | null | undefined) {
   const parsed = Number(value ?? 0)
   return Number.isFinite(parsed) ? parsed : 0
+}
+
+function getVisaQuantity(option: { quantity?: number }, servicePassengers: number) {
+  return option.quantity && option.quantity > 0 ? option.quantity : servicePassengers
 }
 
 function createReservationFinancialForm(
@@ -807,6 +817,15 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
                     <p className="mt-1 text-sm font-black text-slate-950">
                       {formatMoney(selectedCombination.totalPrice, selectedCombination.currency)}
                     </p>
+                    <p className="mt-1 text-xs font-bold text-slate-500">
+                      {formatPaymentMethod(selectedCombination.paymentMethod)}
+                      {selectedCombination.paymentSurchargeTotal > 0
+                        ? ` · ${formatMoney(
+                            selectedCombination.paymentSurchargeTotal,
+                            selectedCombination.currency,
+                          )} card charge`
+                        : ''}
+                    </p>
                     <p className="mt-1 text-xs font-bold text-[#8b1e2d]">
                       {formatMoney(
                         selectedCombination.perPersonPrice,
@@ -841,17 +860,24 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
                       )}
                     </div>
                   )}
-                  {selectedCombination.visaOption && (
+                  {selectedCombination.visaOptions.length > 0 && (
                     <div className="rounded-lg border border-slate-200 bg-white p-3">
                       <p className="text-xs font-bold uppercase text-slate-500">Visa</p>
-                      <p className="mt-1 text-sm font-black text-slate-950">
-                        {selectedCombination.visaOption.title}
-                      </p>
-                      {selectedCombination.visaOption.summary && (
-                        <p className="mt-1 whitespace-pre-line text-xs leading-5 text-slate-600">
-                          {selectedCombination.visaOption.summary}
-                        </p>
-                      )}
+                      <div className="mt-1 space-y-2">
+                        {selectedCombination.visaOptions.map((option) => (
+                          <div key={option.id}>
+                            <p className="text-sm font-black text-slate-950">
+                              {getVisaQuantity(option, selectedCombination.servicePassengers)} x{' '}
+                              {option.title}
+                            </p>
+                            {option.summary && (
+                              <p className="mt-1 whitespace-pre-line text-xs leading-5 text-slate-600">
+                                {option.summary}
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
                   {selectedCombination.transportOption && (
@@ -1735,6 +1761,15 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
                   <p className="mt-1 text-sm font-black text-slate-950">
                     {formatMoney(selectedCombination.totalPrice, selectedCombination.currency)}
                   </p>
+                  <p className="mt-1 text-xs font-bold text-slate-500">
+                    {formatPaymentMethod(selectedCombination.paymentMethod)}
+                    {selectedCombination.paymentSurchargeTotal > 0
+                      ? ` · ${formatMoney(
+                          selectedCombination.paymentSurchargeTotal,
+                          selectedCombination.currency,
+                        )} card charge`
+                      : ''}
+                  </p>
                   <p className="mt-1 text-xs font-bold text-[#8b1e2d]">
                     {formatMoney(
                       selectedCombination.perPersonPrice,
@@ -1759,17 +1794,24 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
                     )}
                   </div>
                 )}
-                {selectedCombination.visaOption && (
+                {selectedCombination.visaOptions.length > 0 && (
                   <div className="rounded-lg border border-slate-200 p-3">
                     <p className="text-xs font-bold uppercase text-slate-500">Visa</p>
-                    <p className="mt-1 text-sm font-black text-slate-950">
-                      {selectedCombination.visaOption.title}
-                    </p>
-                    {selectedCombination.visaOption.summary && (
-                      <p className="mt-1 whitespace-pre-line text-xs leading-5 text-slate-600">
-                        {selectedCombination.visaOption.summary}
-                      </p>
-                    )}
+                    <div className="mt-1 space-y-2">
+                      {selectedCombination.visaOptions.map((option) => (
+                        <div key={option.id}>
+                          <p className="text-sm font-black text-slate-950">
+                            {getVisaQuantity(option, selectedCombination.servicePassengers)} x{' '}
+                            {option.title}
+                          </p>
+                          {option.summary && (
+                            <p className="mt-1 whitespace-pre-line text-xs leading-5 text-slate-600">
+                              {option.summary}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
                 {selectedCombination.transportOption && (

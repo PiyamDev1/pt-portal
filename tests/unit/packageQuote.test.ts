@@ -66,6 +66,7 @@ const payload: PackageQuotePayload = {
     { id: 'tr-a', title: 'Private transfers', summary: 'Private transfers', price: 180 },
   ],
   limitedTimeOffers: [],
+  cardProcessingFeePercent: 2.5,
   notes: '',
 }
 
@@ -313,5 +314,56 @@ describe('package quote calculator', () => {
     expect(copy).toContain('----------------------------')
     expect(copy).toContain('*Option 1: Included*')
     expect(copy).toContain('*Option 2: +')
+  })
+
+  it('prices multiple visa types by quantity', () => {
+    const mixedVisaPayload: PackageQuotePayload = {
+      ...payload,
+      adults: 5,
+      childrenPaying: 1,
+      childrenFree: 0,
+      visaOptions: [
+        {
+          id: 'gb-eta',
+          title: 'GB ETA',
+          summary: 'GB ETA visa',
+          price: 40,
+          pricingMode: 'per_person',
+          quantity: 4,
+        },
+        {
+          id: 'multi-entry',
+          title: '1 year multiple entry',
+          summary: 'Multiple entry visa with insurance',
+          price: 120,
+          pricingMode: 'per_person',
+          quantity: 2,
+        },
+      ],
+    }
+
+    const [combination] = buildPackageCombinations(mixedVisaPayload)
+    const copy = formatPackageQuoteForCopy(mixedVisaPayload)
+
+    expect(combination.visaOptions).toHaveLength(2)
+    expect(combination.totalPrice).toBe(2105)
+    expect(copy).toContain('4 x GB ETA visa')
+    expect(copy).toContain('2 x Multiple entry visa with insurance')
+  })
+
+  it('adds card processing charges only when card is selected', () => {
+    const bankSelection = resolvePackageSelection(payload, {
+      ...getDefaultPackageSelection(payload),
+      paymentMethod: 'bank_transfer',
+    })
+    const cardSelection = resolvePackageSelection(payload, {
+      ...getDefaultPackageSelection(payload),
+      paymentMethod: 'card',
+    })
+
+    expect(bankSelection.combination.paymentSurchargeTotal).toBe(0)
+    expect(bankSelection.combination.totalPrice).toBe(1905)
+    expect(cardSelection.combination.paymentSurchargeTotal).toBe(47.63)
+    expect(cardSelection.combination.totalPrice).toBe(1952.63)
   })
 })

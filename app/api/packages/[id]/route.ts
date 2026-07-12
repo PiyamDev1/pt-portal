@@ -103,6 +103,9 @@ export async function PATCH(
     updates.customer_phone = payload.customerPhone || null
     updates.customer_email = payload.customerEmail || null
     updates.payload = payload
+    updates.selected_option = null
+    updates.selected_at = null
+    updates.selection_note = null
   }
 
   if (body.expiresAt !== undefined) {

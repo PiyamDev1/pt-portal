@@ -7,6 +7,7 @@ import {
   Calculator,
   Clock3,
   Copy,
+  CreditCard,
   ExternalLink,
   FileText,
   Link2,
@@ -141,6 +142,7 @@ function createInitialPayload(): PackageQuotePayload {
     visaOptions: [newOption('visa')],
     transportOptions: [newOption('transport')],
     limitedTimeOffers: [],
+    cardProcessingFeePercent: 2.5,
     notes: '',
   }
 }
@@ -212,6 +214,8 @@ function OptionEditor({
   showPricingMode = false,
   showFlightPricing = false,
   showDefaultToggle = false,
+  showQuantity = false,
+  quantityFallback,
   canRemove,
 }: {
   option: PackageComponentOption
@@ -223,6 +227,8 @@ function OptionEditor({
   showPricingMode?: boolean
   showFlightPricing?: boolean
   showDefaultToggle?: boolean
+  showQuantity?: boolean
+  quantityFallback?: number
   canRemove: boolean
 }) {
   return (
@@ -256,6 +262,25 @@ function OptionEditor({
         >
           {option.isDefault ? 'Preferred flight' : 'Mark preferred'}
         </button>
+      )}
+      {showQuantity && (
+        <label className="mb-2 block">
+          <span className="block text-xs font-bold text-slate-500">Quantity</span>
+          <input
+            value={option.quantity ?? quantityFallback ?? ''}
+            onChange={(event) =>
+              onChange({
+                ...option,
+                quantity: Number(event.target.value || 0) || undefined,
+              })
+            }
+            type="number"
+            min="1"
+            step="1"
+            className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold outline-none focus:border-slate-900"
+            placeholder="Number of travellers"
+          />
+        </label>
       )}
       <textarea
         value={option.summary}
@@ -348,6 +373,7 @@ export default function PackagesClient({ currentUserId, initialQuoteId = null }:
   const [setupMessage, setSetupMessage] = useState<string | null>(null)
 
   const customerOptions = useMemo(() => buildCustomerPackageOptions(payload, 80), [payload])
+  const servicePassengerCount = payload.adults + payload.childrenPaying + payload.childrenFree
   const shareUrl = buildShareUrl(activeQuote?.share_token)
   const filteredQuotes = useMemo(() => {
     if (quoteFilter === 'live') {
@@ -443,6 +469,7 @@ export default function PackagesClient({ currentUserId, initialQuoteId = null }:
         ...payload[key],
         newOption(prefix, {
           isDefault: key === 'flightOptions' && payload.flightOptions.length === 0,
+          quantity: key === 'visaOptions' && servicePassengerCount > 0 ? servicePassengerCount : undefined,
         }),
       ],
     } as Partial<PackageQuotePayload>)
@@ -769,6 +796,33 @@ export default function PackagesClient({ currentUserId, initialQuoteId = null }:
               </label>
             </div>
             <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <label className="block">
+                <span className="mb-1 flex items-center gap-1 text-xs font-bold text-slate-500">
+                  <CreditCard className="h-3.5 w-3.5" />
+                  Card processing charge
+                </span>
+                <div className="flex min-h-11 items-center rounded-lg border border-slate-200 bg-white px-3">
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={payload.cardProcessingFeePercent || ''}
+                    onChange={(event) =>
+                      updatePayload({
+                        cardProcessingFeePercent: Number(event.target.value || 0),
+                      })
+                    }
+                    className="w-full bg-transparent text-sm font-bold outline-none"
+                    placeholder="0.00"
+                  />
+                  <span className="ml-2 text-sm font-black text-slate-500">%</span>
+                </div>
+                <p className="mt-1 text-xs text-slate-500">
+                  Applied only when the customer chooses card payment.
+                </p>
+              </label>
+            </div>
+            <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
               <span className="mb-2 block text-xs font-bold text-slate-500">Itinerary order</span>
               <div className="grid gap-2 sm:grid-cols-2">
                 {[
@@ -869,6 +923,8 @@ export default function PackagesClient({ currentUserId, initialQuoteId = null }:
                     summaryPlaceholder="ETA, tourist visa, multiple entry, insurance notes"
                     priceLabel="Visa cost"
                     showPricingMode
+                    showQuantity
+                    quantityFallback={servicePassengerCount}
                     canRemove
                     onChange={(next) => updateComponentOption('visaOptions', index, next)}
                     onRemove={() => removeComponentOption('visaOptions', index)}
@@ -1163,10 +1219,12 @@ export default function PackagesClient({ currentUserId, initialQuoteId = null }:
                           {combination.flightOption.title}
                         </p>
                       )}
-                      {combination.visaOption && (
+                      {combination.visaOptions.length > 0 && (
                         <p>
                           <span className="font-bold text-slate-800">Visa:</span>{' '}
-                          {combination.visaOption.title}
+                          {combination.visaOptions
+                            .map((option) => `${option.quantity || combination.servicePassengers} x ${option.title}`)
+                            .join(', ')}
                         </p>
                       )}
                       {combination.transportOption && (

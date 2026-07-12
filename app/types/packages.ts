@@ -24,6 +24,7 @@ export type TravelPackageFolderStatus =
   | 'archived'
 export type PackagePricingMode = 'total' | 'per_person'
 export type PackageDiscountMode = 'total' | 'per_person'
+export type PackagePaymentMethod = 'cash' | 'bank_transfer' | 'card'
 export type TravelPackageReservationType = 'flight' | 'hotel' | 'visa' | 'transport' | 'other'
 export type TravelPackageReservationStatus =
   | 'not_started'
@@ -58,6 +59,7 @@ export interface PackageComponentOption {
   adultPrice?: number
   childPrice?: number
   infantPrice?: number
+  quantity?: number
 }
 
 export interface PackageStayGroup {
@@ -94,6 +96,7 @@ export interface PackageQuotePayload {
   visaOptions: PackageComponentOption[]
   transportOptions: PackageComponentOption[]
   limitedTimeOffers: PackageLimitedTimeOffer[]
+  cardProcessingFeePercent: number
   notes: string
 }
 
@@ -106,7 +109,11 @@ export interface PackageCombination {
   }>
   flightOption: PackageComponentOption | null
   visaOption: PackageComponentOption | null
+  visaOptions: PackageComponentOption[]
   transportOption: PackageComponentOption | null
+  packageSubtotalPrice: number
+  paymentMethod: PackagePaymentMethod
+  paymentSurchargeTotal: number
   totalPrice: number
   grossPrice: number
   offerDiscountTotal: number
@@ -133,6 +140,7 @@ export interface PackageSelectionInput {
   flightOptionId?: string | null
   visaOptionId?: string | null
   transportOptionId?: string | null
+  paymentMethod?: PackagePaymentMethod | null
   customerName?: string
   customerPhone?: string
   customerEmail?: string
