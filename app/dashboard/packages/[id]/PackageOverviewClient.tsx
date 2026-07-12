@@ -30,6 +30,7 @@ import {
   X,
 } from 'lucide-react'
 import type {
+  PackageCombination,
   TravelPackageDocument,
   TravelPackageDocumentCategory,
   TravelPackageFolder,
@@ -356,6 +357,38 @@ function parseMoneyInput(value: string | number | null | undefined) {
   return Number.isFinite(parsed) ? parsed : 0
 }
 
+function normalizeSelectedCombination(
+  combination: PackageCombination | null | undefined,
+): PackageCombination | null {
+  if (!combination) return null
+
+  return {
+    ...combination,
+    staySelections: Array.isArray(combination.staySelections)
+      ? combination.staySelections.filter((stay) => stay?.option)
+      : [],
+    visaOptions: Array.isArray(combination.visaOptions)
+      ? combination.visaOptions.filter(Boolean)
+      : [],
+    appliedOffers: Array.isArray(combination.appliedOffers)
+      ? combination.appliedOffers.filter(Boolean)
+      : [],
+    flightOption: combination.flightOption || null,
+    visaOption: combination.visaOption || null,
+    transportOption: combination.transportOption || null,
+    packageSubtotalPrice: Number(combination.packageSubtotalPrice || 0),
+    paymentSurchargeTotal: Number(combination.paymentSurchargeTotal || 0),
+    totalPrice: Number(combination.totalPrice || 0),
+    grossPrice: Number(combination.grossPrice || combination.totalPrice || 0),
+    offerDiscountTotal: Number(combination.offerDiscountTotal || 0),
+    perPersonPrice: Number(combination.perPersonPrice || 0),
+    payingGuests: Number(combination.payingGuests || 0),
+    servicePassengers: Number(combination.servicePassengers || 0),
+    currency: combination.currency || 'GBP',
+    paymentMethod: combination.paymentMethod || 'bank_transfer',
+  }
+}
+
 function getVisaQuantity(option: { quantity?: number }, servicePassengers: number) {
   return option.quantity && option.quantity > 0 ? option.quantity : servicePassengers
 }
@@ -595,10 +628,12 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
     void loadInvoice()
   }, [packageId])
 
-  const selectedCombination = packageFolder?.selected_quote_snapshot.selection?.combination
-  const selectedPayload = packageFolder?.selected_quote_snapshot.payload
-  const selectedSelection = packageFolder?.selected_quote_snapshot.selection
-  const selectedQuote = packageFolder?.selected_quote_snapshot.quote
+  const selectedCombination = normalizeSelectedCombination(
+    packageFolder?.selected_quote_snapshot?.selection?.combination,
+  )
+  const selectedPayload = packageFolder?.selected_quote_snapshot?.payload
+  const selectedSelection = packageFolder?.selected_quote_snapshot?.selection
+  const selectedQuote = packageFolder?.selected_quote_snapshot?.quote
   const defaultSoldPrice = selectedCombination?.totalPrice || 0
   const passengerSummary = packageFolder?.passenger_summary
   const groupedDocuments = useMemo(() => groupPackageDocumentsByCategory(documents), [documents])
@@ -676,6 +711,13 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
   const invoiceProjectedMargin =
     invoiceTotalSold - invoiceTotalBookedCost + invoiceExpectedCommission
   const invoiceCurrency = invoice?.currency || reservationCurrency
+  const pageNavigation = [
+    { href: '#package-control', label: 'Control', icon: PackageCheck },
+    { href: '#package-documents', label: 'Documents', icon: Upload },
+    { href: '#final-quote', label: 'Final Quote', icon: FolderOpen },
+    { href: '#package-reservations', label: 'Reservations', icon: BadgePoundSterling },
+    { href: '#package-invoice', label: 'Invoice', icon: FileText },
+  ]
 
   useEffect(() => {
     if (defaultSoldPrice <= 0) return
@@ -1365,15 +1407,35 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
         <StatusCard icon={FileText} label="Invoice" value={packageFolder.invoice_status} />
       </section>
 
-      <PackageOperationsWorkspace
-        packageFolder={packageFolder}
-        invoice={invoice}
-        onPackageChange={setPackageFolder}
-        onInvoiceChange={(updatedInvoice) => {
-          setInvoice(updatedInvoice)
-          setInvoiceForm(createInitialInvoiceForm(updatedInvoice))
-        }}
-      />
+      <nav
+        aria-label="Package page navigation"
+        className="sticky top-0 z-20 -mx-1 overflow-x-auto border-y border-slate-200 bg-slate-50/95 px-1 py-2 backdrop-blur"
+      >
+        <div className="flex min-w-max gap-2">
+          {pageNavigation.map(({ href, label: navLabel, icon: Icon }) => (
+            <a
+              key={href}
+              href={href}
+              className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 shadow-sm transition hover:border-[#8b1e2d]/30 hover:text-[#8b1e2d]"
+            >
+              <Icon className="h-4 w-4" />
+              {navLabel}
+            </a>
+          ))}
+        </div>
+      </nav>
+
+      <section id="package-control" className="scroll-mt-20">
+        <PackageOperationsWorkspace
+          packageFolder={packageFolder}
+          invoice={invoice}
+          onPackageChange={setPackageFolder}
+          onInvoiceChange={(updatedInvoice) => {
+            setInvoice(updatedInvoice)
+            setInvoiceForm(createInitialInvoiceForm(updatedInvoice))
+          }}
+        />
+      </section>
 
       <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="space-y-5">
@@ -1393,7 +1455,10 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
             </p>
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div
+            id="package-documents"
+            className="scroll-mt-20 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+          >
             <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
               <div>
                 <div className="flex items-center gap-2">
@@ -1786,7 +1851,10 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
             </div>
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div
+            id="final-quote"
+            className="scroll-mt-20 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+          >
             <div className="mb-3 flex items-center gap-2">
               <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900 text-white">
                 <FolderOpen className="h-4 w-4" />
@@ -1943,7 +2011,10 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
             )}
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div
+            id="package-reservations"
+            className="scroll-mt-20 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+          >
             <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
               <div>
                 <div className="flex items-center gap-2">
@@ -2689,7 +2760,10 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
             </div>
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div
+            id="package-invoice"
+            className="scroll-mt-20 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+          >
             <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
               <div>
                 <div className="flex items-center gap-2">
