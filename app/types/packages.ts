@@ -25,6 +25,21 @@ export type TravelPackageFolderStatus =
 export type PackagePricingMode = 'total' | 'per_person'
 export type PackageDiscountMode = 'total' | 'per_person'
 export type PackagePaymentMethod = 'cash' | 'bank_transfer' | 'card'
+export type TravelPackageDocumentCategory =
+  | 'flight'
+  | 'hotel'
+  | 'transport'
+  | 'visa'
+  | 'e_sim'
+  | 'insurance'
+  | 'invoice'
+  | 'other'
+export type TravelPackageDocumentStatus =
+  | 'draft'
+  | 'ready_for_review'
+  | 'released'
+  | 'revoked'
+  | 'deleted'
 export type TravelPackageReservationType = 'flight' | 'hotel' | 'visa' | 'transport' | 'other'
 export type TravelPackageReservationStatus =
   | 'not_started'
@@ -48,6 +63,21 @@ export type TravelPackageReservationItemType =
   | TravelPackageReservationType
   | 'commission'
   | 'discount'
+export type TravelPackageInvoiceStatus =
+  | 'draft'
+  | 'pending_payment'
+  | 'part_paid'
+  | 'paid'
+  | 'released'
+  | 'void'
+export type TravelPackageInvoiceLineType =
+  | 'flight'
+  | 'hotel'
+  | 'visa'
+  | 'transport'
+  | 'discount'
+  | 'commission'
+  | 'other'
 
 export interface PackageComponentOption {
   id: string
@@ -214,10 +244,45 @@ export interface TravelPackageFolder {
   risk_level: 'none' | 'low' | 'medium' | 'high' | 'critical'
   minio_bucket: string | null
   minio_prefix: string | null
+  document_access_token?: string | null
+  document_access_enabled?: boolean | null
+  document_access_expires_at?: string | null
+  document_access_last_viewed_at?: string | null
   created_at: string
   updated_at: string | null
   archived_at: string | null
   closed_at: string | null
+}
+
+export interface TravelPackageDocument {
+  id: string
+  package_id: string
+  reservation_id: string | null
+  quote_id: string | null
+  uploaded_by: string | null
+  updated_by: string | null
+  category: TravelPackageDocumentCategory
+  title: string
+  file_name: string
+  file_size: number
+  file_type: string
+  storage_provider: 'minio' | 'r3_backup' | 'external'
+  storage_bucket: string
+  storage_key: string
+  storage_etag: string
+  status: TravelPackageDocumentStatus
+  customer_visible: boolean
+  released_at: string | null
+  released_by: string | null
+  revoked_at: string | null
+  revoked_by: string | null
+  public_notes: string | null
+  internal_notes: string | null
+  metadata: Record<string, unknown>
+  created_at: string
+  updated_at: string | null
+  deleted_at: string | null
+  signed_url?: string
 }
 
 export interface TravelPackageReservationItem {
@@ -277,4 +342,58 @@ export interface TravelPackageReservation {
   created_at: string
   updated_at: string | null
   items?: TravelPackageReservationItem[]
+}
+
+export interface TravelPackageInvoiceLine {
+  id: string
+  invoice_id: string
+  package_id: string
+  reservation_id: string | null
+  reservation_item_id: string | null
+  line_type: TravelPackageInvoiceLineType
+  description: string
+  quantity: number
+  unit_sold_price: number
+  total_sold_price: number
+  unit_booked_cost: number
+  total_booked_cost: number
+  discount_amount: number
+  expected_commission: number
+  received_commission: number
+  customer_visible: boolean
+  sort_order: number
+  metadata: Record<string, unknown>
+  created_at: string
+  updated_at: string | null
+}
+
+export interface TravelPackageInvoice {
+  id: string
+  package_id: string
+  quote_id: string | null
+  created_by: string | null
+  updated_by: string | null
+  released_by: string | null
+  invoice_number: string
+  status: TravelPackageInvoiceStatus
+  currency: string
+  subtotal_sold: number
+  discount_total: number
+  total_sold: number
+  total_paid: number
+  balance_due: number
+  total_booked_cost: number
+  projected_margin: number
+  expected_commission_total: number
+  received_commission_total: number
+  released_to_customer: boolean
+  released_at: string | null
+  version: number
+  customer_terms: string | null
+  internal_notes: string | null
+  metadata: Record<string, unknown>
+  created_at: string
+  updated_at: string | null
+  voided_at: string | null
+  lines?: TravelPackageInvoiceLine[]
 }

@@ -9,9 +9,14 @@ import {
   CalendarDays,
   Car,
   CheckCircle2,
+  Copy,
   CreditCard,
+  Download,
+  Eye,
+  EyeOff,
   FileText,
   FolderOpen,
+  Link2,
   Loader2,
   PackageCheck,
   Pencil,
@@ -19,11 +24,17 @@ import {
   Plus,
   ShieldCheck,
   Stamp,
+  Trash2,
+  Upload,
   Users,
   X,
 } from 'lucide-react'
 import type {
+  TravelPackageDocument,
+  TravelPackageDocumentCategory,
   TravelPackageFolder,
+  TravelPackageInvoice,
+  TravelPackageInvoiceStatus,
   TravelPackageReservation,
   TravelPackageReservationItem,
   TravelPackageReservationItemStatus,
@@ -32,6 +43,10 @@ import type {
   TravelPackageReservationType,
 } from '@/app/types/packages'
 import { formatMoney } from '@/lib/packageQuote'
+import {
+  PACKAGE_DOCUMENT_CATEGORIES,
+  groupPackageDocumentsByCategory,
+} from '@/lib/packageDocuments'
 
 type PackageOverviewClientProps = {
   packageId: string
@@ -49,6 +64,33 @@ type ReservationsResponse = {
   reservation?: TravelPackageReservation | null
   items?: TravelPackageReservationItem[]
   item?: TravelPackageReservationItem | null
+  setupRequired?: boolean
+  message?: string
+  error?: string
+}
+
+type DocumentsResponse = {
+  documents?: TravelPackageDocument[]
+  document?: TravelPackageDocument | null
+  setupRequired?: boolean
+  message?: string
+  error?: string
+}
+
+type InvoiceResponse = {
+  invoice?: TravelPackageInvoice | null
+  setupRequired?: boolean
+  message?: string
+  error?: string
+}
+
+type DocumentAccessResponse = {
+  access?: {
+    document_access_token?: string | null
+    document_access_enabled?: boolean | null
+    document_access_expires_at?: string | null
+    document_release_status?: string | null
+  }
   setupRequired?: boolean
   message?: string
   error?: string
@@ -91,6 +133,28 @@ type ReservationFinancialFormState = {
   depositRequired: boolean
   depositAmount: string
   paymentDueAt: string
+}
+
+type DocumentUploadFormState = {
+  title: string
+  category: TravelPackageDocumentCategory
+  reservationId: string
+  publicNotes: string
+  internalNotes: string
+  customerVisible: boolean
+}
+
+type InvoiceFormState = {
+  status: TravelPackageInvoiceStatus
+  subtotalSold: string
+  discountTotal: string
+  totalPaid: string
+  totalBookedCost: string
+  expectedCommissionTotal: string
+  receivedCommissionTotal: string
+  releasedToCustomer: boolean
+  customerTerms: string
+  internalNotes: string
 }
 
 const reservationTypeOptions: Array<{ value: TravelPackageReservationType; label: string }> = [
@@ -139,11 +203,28 @@ const reservationItemStatusOptions: Array<{
   { value: 'cancelled', label: 'Cancelled' },
 ]
 
+const invoiceStatusOptions: Array<{ value: TravelPackageInvoiceStatus; label: string }> = [
+  { value: 'draft', label: 'Draft' },
+  { value: 'pending_payment', label: 'Pending payment' },
+  { value: 'part_paid', label: 'Part paid' },
+  { value: 'paid', label: 'Paid' },
+  { value: 'released', label: 'Released' },
+  { value: 'void', label: 'Void' },
+]
+
 function toDateTimeLocalValue(value: Date | string = new Date()) {
   const date = value instanceof Date ? value : new Date(value)
   if (Number.isNaN(date.getTime())) return ''
   const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60 * 1000)
   return localDate.toISOString().slice(0, 16)
+}
+
+function createDefaultDocumentAccessExpiry() {
+  return new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+}
+
+function toDocumentAccessExpiryInput(value: string | null | undefined) {
+  return toDateTimeLocalValue(value || createDefaultDocumentAccessExpiry())
 }
 
 function createInitialReservationForm(soldPriceTotal = 0): ReservationFormState {
@@ -181,6 +262,32 @@ function createInitialReservationItemForm(
   }
 }
 
+function createInitialDocumentUploadForm(): DocumentUploadFormState {
+  return {
+    title: '',
+    category: 'flight',
+    reservationId: '',
+    publicNotes: '',
+    internalNotes: '',
+    customerVisible: false,
+  }
+}
+
+function createInitialInvoiceForm(invoice?: TravelPackageInvoice | null): InvoiceFormState {
+  return {
+    status: invoice?.status || 'draft',
+    subtotalSold: invoice ? String(invoice.subtotal_sold || '') : '',
+    discountTotal: invoice ? String(invoice.discount_total || '') : '',
+    totalPaid: invoice ? String(invoice.total_paid || '') : '',
+    totalBookedCost: invoice ? String(invoice.total_booked_cost || '') : '',
+    expectedCommissionTotal: invoice ? String(invoice.expected_commission_total || '') : '',
+    receivedCommissionTotal: invoice ? String(invoice.received_commission_total || '') : '',
+    releasedToCustomer: Boolean(invoice?.released_to_customer),
+    customerTerms: invoice?.customer_terms || '',
+    internalNotes: invoice?.internal_notes || '',
+  }
+}
+
 function formatDate(value: string | null | undefined) {
   if (!value) return 'Not set'
   const date = new Date(value)
@@ -192,8 +299,35 @@ function formatDate(value: string | null | undefined) {
   })
 }
 
+function formatDateTime(value: string | null | undefined) {
+  if (!value) return 'Not set'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return 'Not set'
+  return date.toLocaleString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
 function formatReservationStatus(status: string) {
   return status.replace(/_/g, ' ')
+}
+
+function mapInvoiceToPackageInvoiceStatus(invoice: TravelPackageInvoice) {
+  if (invoice.status === 'void') return 'void'
+  if (invoice.released_to_customer || invoice.status === 'released') return 'released_to_customer'
+  if (invoice.status === 'draft') return 'draft'
+  return 'finalised'
+}
+
+function formatFileSize(bytes: number) {
+  if (!bytes) return 'Unknown size'
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
 function formatPaymentMethod(method: string | null | undefined) {
@@ -258,21 +392,41 @@ function StatusCard({
 export default function PackageOverviewClient({ packageId }: PackageOverviewClientProps) {
   const [packageFolder, setPackageFolder] = useState<TravelPackageFolder | null>(null)
   const [reservations, setReservations] = useState<TravelPackageReservation[]>([])
+  const [documents, setDocuments] = useState<TravelPackageDocument[]>([])
+  const [invoice, setInvoice] = useState<TravelPackageInvoice | null>(null)
   const [reservationForm, setReservationForm] = useState<ReservationFormState>(() =>
     createInitialReservationForm(),
   )
+  const [documentUploadForm, setDocumentUploadForm] = useState<DocumentUploadFormState>(() =>
+    createInitialDocumentUploadForm(),
+  )
+  const [documentAccessExpiryInput, setDocumentAccessExpiryInput] = useState(() =>
+    toDocumentAccessExpiryInput(null),
+  )
+  const [invoiceForm, setInvoiceForm] = useState<InvoiceFormState>(() =>
+    createInitialInvoiceForm(),
+  )
+  const [selectedDocumentFile, setSelectedDocumentFile] = useState<File | null>(null)
   const [itemForms, setItemForms] = useState<Record<string, ReservationItemFormState>>({})
   const [reservationFinancialForms, setReservationFinancialForms] = useState<
     Record<string, ReservationFinancialFormState>
   >({})
   const [loading, setLoading] = useState(true)
   const [reservationsLoading, setReservationsLoading] = useState(false)
+  const [documentsLoading, setDocumentsLoading] = useState(false)
+  const [invoiceLoading, setInvoiceLoading] = useState(false)
   const [savingReservation, setSavingReservation] = useState(false)
   const [savingItemReservationId, setSavingItemReservationId] = useState<string | null>(null)
   const [savingReservationFinancialId, setSavingReservationFinancialId] = useState<string | null>(null)
+  const [savingDocument, setSavingDocument] = useState(false)
+  const [savingInvoice, setSavingInvoice] = useState(false)
+  const [updatingDocumentId, setUpdatingDocumentId] = useState<string | null>(null)
+  const [updatingDocumentAccess, setUpdatingDocumentAccess] = useState(false)
   const [updatingReservationId, setUpdatingReservationId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [reservationError, setReservationError] = useState<string | null>(null)
+  const [documentError, setDocumentError] = useState<string | null>(null)
+  const [invoiceError, setInvoiceError] = useState<string | null>(null)
   const [showQuoteSnapshot, setShowQuoteSnapshot] = useState(false)
 
   useEffect(() => {
@@ -286,6 +440,9 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
           throw new Error(data.message || data.error || 'Travel package not found')
         }
         setPackageFolder(data.package)
+        setDocumentAccessExpiryInput(
+          toDocumentAccessExpiryInput(data.package.document_access_expires_at),
+        )
       } catch (loadError) {
         setError(loadError instanceof Error ? loadError.message : 'Unable to load package')
       } finally {
@@ -363,12 +520,84 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
     void loadReservations()
   }, [packageId])
 
+  useEffect(() => {
+    const loadDocuments = async () => {
+      setDocumentsLoading(true)
+      setDocumentError(null)
+      try {
+        const response = await fetch(
+          `/api/travel-packages/${encodeURIComponent(packageId)}/documents`,
+        )
+        const data = (await response.json()) as DocumentsResponse
+        if (!response.ok) {
+          throw new Error(data.message || data.error || 'Unable to load package documents')
+        }
+        if (data.setupRequired) {
+          setDocumentError(data.message || 'Document schema is not installed yet')
+          setDocuments([])
+          return
+        }
+        setDocuments(data.documents || [])
+      } catch (loadError) {
+        setDocumentError(
+          loadError instanceof Error ? loadError.message : 'Unable to load package documents',
+        )
+      } finally {
+        setDocumentsLoading(false)
+      }
+    }
+
+    void loadDocuments()
+  }, [packageId])
+
+  useEffect(() => {
+    const loadInvoice = async () => {
+      setInvoiceLoading(true)
+      setInvoiceError(null)
+      try {
+        const response = await fetch(`/api/travel-packages/${encodeURIComponent(packageId)}/invoice`)
+        const data = (await response.json()) as InvoiceResponse
+        if (!response.ok) {
+          throw new Error(data.message || data.error || 'Unable to load package invoice')
+        }
+        if (data.setupRequired) {
+          setInvoiceError(data.message || 'Invoice schema is not installed yet')
+          setInvoice(null)
+          setInvoiceForm(createInitialInvoiceForm())
+          return
+        }
+        setInvoice(data.invoice || null)
+        setInvoiceForm(createInitialInvoiceForm(data.invoice || null))
+      } catch (loadError) {
+        setInvoiceError(
+          loadError instanceof Error ? loadError.message : 'Unable to load package invoice',
+        )
+      } finally {
+        setInvoiceLoading(false)
+      }
+    }
+
+    void loadInvoice()
+  }, [packageId])
+
   const selectedCombination = packageFolder?.selected_quote_snapshot.selection?.combination
   const selectedPayload = packageFolder?.selected_quote_snapshot.payload
   const selectedSelection = packageFolder?.selected_quote_snapshot.selection
   const selectedQuote = packageFolder?.selected_quote_snapshot.quote
   const defaultSoldPrice = selectedCombination?.totalPrice || 0
   const passengerSummary = packageFolder?.passenger_summary
+  const groupedDocuments = useMemo(() => groupPackageDocumentsByCategory(documents), [documents])
+  const reservationTitleById = useMemo(
+    () => new Map(reservations.map((reservation) => [reservation.id, reservation.title])),
+    [reservations],
+  )
+  const visibleDocumentCount = documents.filter(
+    (document) => document.customer_visible && document.status === 'released',
+  ).length
+  const documentPortalUrl =
+    packageFolder?.document_access_token && typeof window !== 'undefined'
+      ? `${window.location.origin}/package-documents/${packageFolder.document_access_token}`
+      : ''
   const quoteTitle =
     selectedPayload?.title || selectedQuote?.title || packageFolder?.package_reference || 'Final quotation'
   const quoteCustomerName =
@@ -420,6 +649,16 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
     - reservationTotals.discount
     - reservationTotals.booked
   const estimatedMargin = bookedSoldDifference + reservationTotals.commission
+  const invoiceSubtotalSold = parseMoneyInput(invoiceForm.subtotalSold)
+  const invoiceDiscountTotal = parseMoneyInput(invoiceForm.discountTotal)
+  const invoiceTotalPaid = parseMoneyInput(invoiceForm.totalPaid)
+  const invoiceTotalBookedCost = parseMoneyInput(invoiceForm.totalBookedCost)
+  const invoiceExpectedCommission = parseMoneyInput(invoiceForm.expectedCommissionTotal)
+  const invoiceTotalSold = invoiceSubtotalSold - invoiceDiscountTotal
+  const invoiceBalanceDue = invoiceTotalSold - invoiceTotalPaid
+  const invoiceProjectedMargin =
+    invoiceTotalSold - invoiceTotalBookedCost + invoiceExpectedCommission
+  const invoiceCurrency = invoice?.currency || reservationCurrency
 
   useEffect(() => {
     if (defaultSoldPrice <= 0) return
@@ -527,6 +766,277 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
       )
     } finally {
       setUpdatingReservationId(null)
+    }
+  }
+
+  const updateDocumentUploadForm = <Key extends keyof DocumentUploadFormState>(
+    key: Key,
+    value: DocumentUploadFormState[Key],
+  ) => {
+    setDocumentUploadForm((current) => ({ ...current, [key]: value }))
+  }
+
+  const uploadDocument = async () => {
+    if (!selectedDocumentFile || savingDocument) return
+
+    setSavingDocument(true)
+    setDocumentError(null)
+    try {
+      const formData = new FormData()
+      formData.append('file', selectedDocumentFile)
+      formData.append('title', documentUploadForm.title || selectedDocumentFile.name)
+      formData.append('category', documentUploadForm.category)
+      formData.append('reservationId', documentUploadForm.reservationId)
+      formData.append('publicNotes', documentUploadForm.publicNotes)
+      formData.append('internalNotes', documentUploadForm.internalNotes)
+      formData.append('customerVisible', String(documentUploadForm.customerVisible))
+
+      const response = await fetch(
+        `/api/travel-packages/${encodeURIComponent(packageId)}/documents`,
+        {
+          method: 'POST',
+          body: formData,
+        },
+      )
+      const data = (await response.json()) as DocumentsResponse
+      if (!response.ok || !data.document) {
+        throw new Error(data.message || data.error || 'Failed to upload package document')
+      }
+
+      setDocuments((current) => [data.document!, ...current])
+      setSelectedDocumentFile(null)
+      setDocumentUploadForm(createInitialDocumentUploadForm())
+    } catch (uploadError) {
+      setDocumentError(
+        uploadError instanceof Error ? uploadError.message : 'Failed to upload package document',
+      )
+    } finally {
+      setSavingDocument(false)
+    }
+  }
+
+  const updateDocumentVisibility = async (
+    document: TravelPackageDocument,
+    customerVisible: boolean,
+  ) => {
+    setUpdatingDocumentId(document.id)
+    setDocumentError(null)
+    try {
+      const response = await fetch(
+        `/api/travel-packages/${encodeURIComponent(packageId)}/documents/${encodeURIComponent(
+          document.id,
+        )}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ customerVisible }),
+        },
+      )
+      const data = (await response.json()) as DocumentsResponse
+      if (!response.ok || !data.document) {
+        throw new Error(data.message || data.error || 'Failed to update package document')
+      }
+      setDocuments((current) =>
+        current.map((item) => (item.id === document.id ? data.document! : item)),
+      )
+    } catch (updateError) {
+      setDocumentError(
+        updateError instanceof Error ? updateError.message : 'Failed to update package document',
+      )
+    } finally {
+      setUpdatingDocumentId(null)
+    }
+  }
+
+  const deleteDocument = async (document: TravelPackageDocument) => {
+    setUpdatingDocumentId(document.id)
+    setDocumentError(null)
+    try {
+      const response = await fetch(
+        `/api/travel-packages/${encodeURIComponent(packageId)}/documents/${encodeURIComponent(
+          document.id,
+        )}`,
+        { method: 'DELETE' },
+      )
+      const data = (await response.json()) as DocumentsResponse
+      if (!response.ok) {
+        throw new Error(data.message || data.error || 'Failed to delete package document')
+      }
+      setDocuments((current) => current.filter((item) => item.id !== document.id))
+    } catch (deleteError) {
+      setDocumentError(
+        deleteError instanceof Error ? deleteError.message : 'Failed to delete package document',
+      )
+    } finally {
+      setUpdatingDocumentId(null)
+    }
+  }
+
+  const downloadDocument = async (document: TravelPackageDocument) => {
+    setUpdatingDocumentId(document.id)
+    setDocumentError(null)
+    try {
+      const response = await fetch(
+        `/api/travel-packages/${encodeURIComponent(packageId)}/documents/${encodeURIComponent(
+          document.id,
+        )}/signed-url`,
+      )
+      const data = (await response.json()) as { url?: string; error?: string; message?: string }
+      if (!response.ok || !data.url) {
+        throw new Error(data.message || data.error || 'Failed to prepare document download')
+      }
+      window.open(data.url, '_blank', 'noopener,noreferrer')
+    } catch (downloadError) {
+      setDocumentError(
+        downloadError instanceof Error ? downloadError.message : 'Failed to prepare document download',
+      )
+    } finally {
+      setUpdatingDocumentId(null)
+    }
+  }
+
+  const updateDocumentAccess = async (enabled: boolean, regenerate = false) => {
+    if (updatingDocumentAccess) return
+    setUpdatingDocumentAccess(true)
+    setDocumentError(null)
+    try {
+      const body: { enabled: boolean; regenerate: boolean; expiresAt?: string } = {
+        enabled,
+        regenerate,
+      }
+      if (enabled) {
+        body.expiresAt =
+          documentAccessExpiryInput || toDateTimeLocalValue(createDefaultDocumentAccessExpiry())
+      }
+
+      const response = await fetch(
+        `/api/travel-packages/${encodeURIComponent(packageId)}/documents/access`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        },
+      )
+      const data = (await response.json()) as DocumentAccessResponse
+      if (!response.ok || !data.access) {
+        throw new Error(data.message || data.error || 'Failed to update document portal access')
+      }
+
+      const nextExpiresAt = data.access.document_access_expires_at || null
+      setDocumentAccessExpiryInput(toDocumentAccessExpiryInput(nextExpiresAt))
+      setPackageFolder((current) =>
+        current
+          ? {
+              ...current,
+              document_access_token: data.access?.document_access_token || null,
+              document_access_enabled: Boolean(data.access?.document_access_enabled),
+              document_access_expires_at: data.access?.document_access_expires_at || null,
+              document_release_status:
+                data.access?.document_release_status || current.document_release_status,
+            }
+          : current,
+      )
+    } catch (accessError) {
+      setDocumentError(
+        accessError instanceof Error ? accessError.message : 'Failed to update document portal access',
+      )
+    } finally {
+      setUpdatingDocumentAccess(false)
+    }
+  }
+
+  const copyDocumentPortalLink = async () => {
+    if (!documentPortalUrl) return
+    await navigator.clipboard.writeText(documentPortalUrl)
+  }
+
+  const updateInvoiceForm = <Key extends keyof InvoiceFormState>(
+    key: Key,
+    value: InvoiceFormState[Key],
+  ) => {
+    setInvoiceForm((current) => ({ ...current, [key]: value }))
+  }
+
+  const createInvoice = async (regenerate = false) => {
+    if (savingInvoice) return
+    setSavingInvoice(true)
+    setInvoiceError(null)
+    try {
+      const response = await fetch(`/api/travel-packages/${encodeURIComponent(packageId)}/invoice`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          regenerate,
+          currency: reservationCurrency,
+          customerTerms: invoiceForm.customerTerms,
+          internalNotes: invoiceForm.internalNotes,
+        }),
+      })
+      const data = (await response.json()) as InvoiceResponse
+      if (!response.ok || !data.invoice) {
+        throw new Error(data.message || data.error || 'Failed to create package invoice')
+      }
+      setInvoice(data.invoice)
+      setInvoiceForm(createInitialInvoiceForm(data.invoice))
+      setPackageFolder((current) =>
+        current
+          ? {
+              ...current,
+              invoice_status: mapInvoiceToPackageInvoiceStatus(data.invoice!),
+            }
+          : current,
+      )
+    } catch (createError) {
+      setInvoiceError(
+        createError instanceof Error ? createError.message : 'Failed to create package invoice',
+      )
+    } finally {
+      setSavingInvoice(false)
+    }
+  }
+
+  const saveInvoice = async () => {
+    if (!invoice || savingInvoice) return
+    setSavingInvoice(true)
+    setInvoiceError(null)
+    try {
+      const response = await fetch(`/api/travel-packages/${encodeURIComponent(packageId)}/invoice`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          invoiceId: invoice.id,
+          status: invoiceForm.status,
+          subtotalSold: invoiceForm.subtotalSold,
+          discountTotal: invoiceForm.discountTotal,
+          totalPaid: invoiceForm.totalPaid,
+          totalBookedCost: invoiceForm.totalBookedCost,
+          expectedCommissionTotal: invoiceForm.expectedCommissionTotal,
+          receivedCommissionTotal: invoiceForm.receivedCommissionTotal,
+          releasedToCustomer: invoiceForm.releasedToCustomer,
+          customerTerms: invoiceForm.customerTerms,
+          internalNotes: invoiceForm.internalNotes,
+        }),
+      })
+      const data = (await response.json()) as InvoiceResponse
+      if (!response.ok || !data.invoice) {
+        throw new Error(data.message || data.error || 'Failed to save package invoice')
+      }
+      setInvoice(data.invoice)
+      setInvoiceForm(createInitialInvoiceForm(data.invoice))
+      setPackageFolder((current) =>
+        current
+          ? {
+              ...current,
+              invoice_status: mapInvoiceToPackageInvoiceStatus(data.invoice!),
+            }
+          : current,
+      )
+    } catch (saveError) {
+      setInvoiceError(
+        saveError instanceof Error ? saveError.message : 'Failed to save package invoice',
+      )
+    } finally {
+      setSavingInvoice(false)
     }
   }
 
@@ -763,6 +1273,395 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
               First operational step after quote conversion. For most packages this starts with
               passport copies received via WhatsApp, then deposit/payment handling.
             </p>
+          </div>
+
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900 text-white">
+                    <Upload className="h-4 w-4" />
+                  </span>
+                  <h2 className="text-lg font-black text-slate-950">Documents</h2>
+                </div>
+                <p className="mt-2 text-sm leading-6 text-slate-600">
+                  Upload flight tickets, hotel vouchers, visa files, transport vouchers, and other
+                  final customer documents. Only released files appear in the customer portal.
+                </p>
+              </div>
+              {documentsLoading && (
+                <span className="inline-flex items-center gap-2 text-xs font-bold text-slate-500">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Loading documents
+                </span>
+              )}
+            </div>
+
+            {documentError && (
+              <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-900">
+                {documentError}
+              </div>
+            )}
+
+            <div className="mb-4 grid gap-3 md:grid-cols-3">
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <p className="text-xs font-bold uppercase text-slate-500">Total documents</p>
+                <p className="mt-1 text-sm font-black text-slate-950">{documents.length}</p>
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <p className="text-xs font-bold uppercase text-slate-500">Released to customer</p>
+                <p className="mt-1 text-sm font-black text-slate-950">{visibleDocumentCount}</p>
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <p className="text-xs font-bold uppercase text-slate-500">Portal status</p>
+                <p className="mt-1 text-sm font-black capitalize text-slate-950">
+                  {packageFolder.document_access_enabled ? 'Live' : 'Off'}
+                </p>
+                <p className="mt-1 text-xs font-bold text-slate-500">
+                  Expires {formatDateTime(packageFolder.document_access_expires_at)}
+                </p>
+                <p className="mt-1 text-xs font-bold text-slate-500">
+                  Last viewed {formatDateTime(packageFolder.document_access_last_viewed_at)}
+                </p>
+              </div>
+            </div>
+
+            <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
+              <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+                <div className="min-w-0">
+                  <p className="text-xs font-bold uppercase text-slate-500">
+                    Customer document portal
+                  </p>
+                  {packageFolder.document_access_enabled && documentPortalUrl ? (
+                    <p className="mt-1 break-all text-sm font-bold text-slate-700">
+                      {documentPortalUrl}
+                    </p>
+                  ) : (
+                    <p className="mt-1 text-sm font-bold text-slate-500">
+                      Customer access is not enabled.
+                    </p>
+                  )}
+                </div>
+                <label className="text-xs font-bold uppercase text-slate-500 xl:w-64">
+                  Portal expiry
+                  <input
+                    type="datetime-local"
+                    value={documentAccessExpiryInput}
+                    onChange={(event) => setDocumentAccessExpiryInput(event.target.value)}
+                    className="mt-1 min-h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                  />
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {packageFolder.document_access_enabled && documentPortalUrl ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void updateDocumentAccess(true)
+                        }}
+                        disabled={updatingDocumentAccess}
+                        className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300"
+                      >
+                        {updatingDocumentAccess ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <CalendarDays className="h-4 w-4" />
+                        )}
+                        Save Expiry
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void copyDocumentPortalLink()
+                        }}
+                        className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:bg-slate-100"
+                      >
+                        <Copy className="h-4 w-4" />
+                        Copy Link
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void updateDocumentAccess(true, true)
+                        }}
+                        disabled={updatingDocumentAccess}
+                        className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300"
+                      >
+                        {updatingDocumentAccess ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Link2 className="h-4 w-4" />
+                        )}
+                        New Link
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void updateDocumentAccess(false)
+                        }}
+                        disabled={updatingDocumentAccess}
+                        className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-rose-200 bg-white px-3 text-xs font-black text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:text-rose-300"
+                      >
+                        {updatingDocumentAccess ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <EyeOff className="h-4 w-4" />
+                        )}
+                        Revoke
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void updateDocumentAccess(true)
+                      }}
+                      disabled={updatingDocumentAccess}
+                      className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg bg-[#8b1e2d] px-3 text-xs font-black text-white transition hover:bg-[#6f1824] disabled:cursor-not-allowed disabled:bg-slate-300"
+                    >
+                      {updatingDocumentAccess ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Link2 className="h-4 w-4" />
+                      )}
+                      Enable Portal
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <form
+              className="rounded-lg border border-slate-200 bg-slate-50 p-4"
+              onSubmit={(event) => {
+                event.preventDefault()
+                void uploadDocument()
+              }}
+            >
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <label className="text-xs font-bold uppercase text-slate-500 xl:col-span-2">
+                  File
+                  <input
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx"
+                    onChange={(event) => setSelectedDocumentFile(event.target.files?.[0] || null)}
+                    className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-bold normal-case text-slate-900 outline-none transition file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-xs file:font-black file:text-slate-700 focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                    required
+                  />
+                </label>
+
+                <label className="text-xs font-bold uppercase text-slate-500">
+                  Category
+                  <select
+                    value={documentUploadForm.category}
+                    onChange={(event) =>
+                      updateDocumentUploadForm(
+                        'category',
+                        event.target.value as TravelPackageDocumentCategory,
+                      )
+                    }
+                    className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                  >
+                    {PACKAGE_DOCUMENT_CATEGORIES.map((category) => (
+                      <option key={category.value} value={category.value}>
+                        {category.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="text-xs font-bold uppercase text-slate-500">
+                  Linked reservation
+                  <select
+                    value={documentUploadForm.reservationId}
+                    onChange={(event) =>
+                      updateDocumentUploadForm('reservationId', event.target.value)
+                    }
+                    className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                  >
+                    <option value="">No reservation link</option>
+                    {reservations.map((reservation) => (
+                      <option key={reservation.id} value={reservation.id}>
+                        {reservation.title}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="flex min-h-10 items-center gap-2 self-end rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={documentUploadForm.customerVisible}
+                    onChange={(event) =>
+                      updateDocumentUploadForm('customerVisible', event.target.checked)
+                    }
+                    className="h-4 w-4 rounded border-slate-300 text-[#8b1e2d] focus:ring-[#8b1e2d]"
+                  />
+                  Release to customer
+                </label>
+
+                <label className="text-xs font-bold uppercase text-slate-500 xl:col-span-2">
+                  Title
+                  <input
+                    value={documentUploadForm.title}
+                    onChange={(event) => updateDocumentUploadForm('title', event.target.value)}
+                    className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                    placeholder={selectedDocumentFile?.name || 'Document title'}
+                  />
+                </label>
+
+                <label className="text-xs font-bold uppercase text-slate-500">
+                  Customer notes
+                  <textarea
+                    value={documentUploadForm.publicNotes}
+                    onChange={(event) =>
+                      updateDocumentUploadForm('publicNotes', event.target.value)
+                    }
+                    className="mt-1 min-h-24 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                    placeholder="Shown in customer portal"
+                  />
+                </label>
+
+                <label className="text-xs font-bold uppercase text-slate-500">
+                  Internal notes
+                  <textarea
+                    value={documentUploadForm.internalNotes}
+                    onChange={(event) =>
+                      updateDocumentUploadForm('internalNotes', event.target.value)
+                    }
+                    className="mt-1 min-h-24 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                    placeholder="Agent notes only"
+                  />
+                </label>
+              </div>
+
+              <div className="mt-3 flex justify-end">
+                <button
+                  type="submit"
+                  disabled={!selectedDocumentFile || savingDocument}
+                  className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-black text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                >
+                  {savingDocument ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Upload className="h-4 w-4" />
+                  )}
+                  Upload Document
+                </button>
+              </div>
+            </form>
+
+            <div className="mt-4 space-y-3">
+              {documents.length === 0 && !documentsLoading ? (
+                <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center text-sm font-bold text-slate-500">
+                  No package documents uploaded yet.
+                </div>
+              ) : (
+                groupedDocuments.map((group) => (
+                  <div key={group.value} className="rounded-lg border border-slate-200">
+                    <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3">
+                      <p className="text-sm font-black text-slate-950">{group.label}</p>
+                      <span className="rounded-full bg-white px-2 py-1 text-xs font-black text-slate-500">
+                        {group.documents.length}
+                      </span>
+                    </div>
+                    <div className="divide-y divide-slate-100">
+                      {group.documents.map((document) => {
+                        const updatingThisDocument = updatingDocumentId === document.id
+                        const documentIsReleased =
+                          document.customer_visible && document.status === 'released'
+                        return (
+                          <div
+                            key={document.id}
+                            className="flex flex-col gap-3 px-4 py-3 lg:flex-row lg:items-start lg:justify-between"
+                          >
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <p className="text-sm font-black text-slate-950">
+                                  {document.title}
+                                </p>
+                                <span
+                                  className={`rounded-full px-2 py-1 text-[11px] font-black uppercase ${
+                                    documentIsReleased
+                                      ? 'bg-emerald-50 text-emerald-700'
+                                      : 'bg-slate-100 text-slate-500'
+                                  }`}
+                                >
+                                  {documentIsReleased ? 'Released' : 'Internal'}
+                                </span>
+                              </div>
+                              <p className="mt-1 break-all text-xs font-bold text-slate-500">
+                                {document.file_name} · {formatFileSize(document.file_size)}
+                              </p>
+                              {document.reservation_id && (
+                                <p className="mt-1 text-xs font-bold text-slate-500">
+                                  Linked to{' '}
+                                  {reservationTitleById.get(document.reservation_id) ||
+                                    'reservation'}
+                                </p>
+                              )}
+                              {document.public_notes && (
+                                <p className="mt-2 whitespace-pre-line text-xs leading-5 text-slate-600">
+                                  {document.public_notes}
+                                </p>
+                              )}
+                              {document.internal_notes && (
+                                <p className="mt-2 whitespace-pre-line rounded-lg bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">
+                                  {document.internal_notes}
+                                </p>
+                              )}
+                            </div>
+                            <div className="flex shrink-0 flex-wrap gap-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  void downloadDocument(document)
+                                }}
+                                disabled={updatingThisDocument}
+                                className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300"
+                              >
+                                {updatingThisDocument ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Download className="h-4 w-4" />
+                                )}
+                                Open
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  void updateDocumentVisibility(document, !documentIsReleased)
+                                }}
+                                disabled={updatingThisDocument}
+                                className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300"
+                              >
+                                {documentIsReleased ? (
+                                  <EyeOff className="h-4 w-4" />
+                                ) : (
+                                  <Eye className="h-4 w-4" />
+                                )}
+                                {documentIsReleased ? 'Hide' : 'Release'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  void deleteDocument(document)
+                                }}
+                                disabled={updatingThisDocument}
+                                className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-rose-200 bg-white px-3 text-xs font-black text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:text-rose-300"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                                Delete
+                              </button>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
 
           <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -1666,6 +2565,319 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
                 })
               )}
             </div>
+          </div>
+
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900 text-white">
+                    <FileText className="h-4 w-4" />
+                  </span>
+                  <h2 className="text-lg font-black text-slate-950">Internal Invoice</h2>
+                </div>
+                <p className="mt-2 text-sm leading-6 text-slate-600">
+                  Editable agent invoice workspace. Supplier costs, commission, discounts, and
+                  margin stay internal until an agent explicitly releases the invoice later.
+                </p>
+              </div>
+              {invoiceLoading && (
+                <span className="inline-flex items-center gap-2 text-xs font-bold text-slate-500">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Loading invoice
+                </span>
+              )}
+            </div>
+
+            {invoiceError && (
+              <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-900">
+                {invoiceError}
+              </div>
+            )}
+
+            {!invoice ? (
+              <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center">
+                <p className="text-sm font-black text-slate-950">No invoice workspace yet</p>
+                <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-600">
+                  Create a draft invoice from the current reservation pricing. It can still be
+                  edited as booking costs, commission, discounts, and payments change.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    void createInvoice()
+                  }}
+                  disabled={savingInvoice || invoiceLoading}
+                  className="mt-4 inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-[#8b1e2d] px-4 text-sm font-black text-white transition hover:bg-[#6f1824] disabled:cursor-not-allowed disabled:bg-slate-300"
+                >
+                  {savingInvoice ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Plus className="h-4 w-4" />
+                  )}
+                  Create Invoice
+                </button>
+              </div>
+            ) : (
+              <form
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  void saveInvoice()
+                }}
+              >
+                <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                    <p className="text-xs font-bold uppercase text-slate-500">Invoice</p>
+                    <p className="mt-1 text-sm font-black text-slate-950">
+                      {invoice.invoice_number}
+                    </p>
+                    <p className="mt-1 text-xs font-bold capitalize text-slate-500">
+                      {invoice.status.replace(/_/g, ' ')} · v{invoice.version}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                    <p className="text-xs font-bold uppercase text-slate-500">Total sold</p>
+                    <p className="mt-1 text-sm font-black text-slate-950">
+                      {formatMoney(invoiceTotalSold, invoiceCurrency)}
+                    </p>
+                    <p className="mt-1 text-xs font-bold text-slate-500">
+                      Before discount: {formatMoney(invoiceSubtotalSold, invoiceCurrency)}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                    <p className="text-xs font-bold uppercase text-slate-500">Balance due</p>
+                    <p className="mt-1 text-sm font-black text-[#8b1e2d]">
+                      {formatMoney(invoiceBalanceDue, invoiceCurrency)}
+                    </p>
+                    <p className="mt-1 text-xs font-bold text-slate-500">
+                      Paid: {formatMoney(invoiceTotalPaid, invoiceCurrency)}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                    <p className="text-xs font-bold uppercase text-slate-500">Booked cost</p>
+                    <p className="mt-1 text-sm font-black text-slate-950">
+                      {formatMoney(invoiceTotalBookedCost, invoiceCurrency)}
+                    </p>
+                    <p className="mt-1 text-xs font-bold text-slate-500">
+                      Discount: {formatMoney(invoiceDiscountTotal, invoiceCurrency)}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                    <p className="text-xs font-bold uppercase text-slate-500">Projected margin</p>
+                    <p className="mt-1 text-sm font-black text-emerald-700">
+                      {formatMoney(invoiceProjectedMargin, invoiceCurrency)}
+                    </p>
+                    <p className="mt-1 text-xs font-bold text-slate-500">
+                      Includes {formatMoney(invoiceExpectedCommission, invoiceCurrency)} commission
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                  <label className="text-xs font-bold uppercase text-slate-500">
+                    Status
+                    <select
+                      value={invoiceForm.status}
+                      onChange={(event) =>
+                        updateInvoiceForm(
+                          'status',
+                          event.target.value as TravelPackageInvoiceStatus,
+                        )
+                      }
+                      className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                    >
+                      {invoiceStatusOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="text-xs font-bold uppercase text-slate-500">
+                    Subtotal sold
+                    <input
+                      value={invoiceForm.subtotalSold}
+                      onChange={(event) => updateInvoiceForm('subtotalSold', event.target.value)}
+                      className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                      inputMode="decimal"
+                      placeholder="0.00"
+                    />
+                  </label>
+
+                  <label className="text-xs font-bold uppercase text-slate-500">
+                    Discount
+                    <input
+                      value={invoiceForm.discountTotal}
+                      onChange={(event) => updateInvoiceForm('discountTotal', event.target.value)}
+                      className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                      inputMode="decimal"
+                      placeholder="0.00"
+                    />
+                  </label>
+
+                  <label className="text-xs font-bold uppercase text-slate-500">
+                    Total paid
+                    <input
+                      value={invoiceForm.totalPaid}
+                      onChange={(event) => updateInvoiceForm('totalPaid', event.target.value)}
+                      className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                      inputMode="decimal"
+                      placeholder="0.00"
+                    />
+                  </label>
+
+                  <label className="text-xs font-bold uppercase text-slate-500">
+                    Booked cost
+                    <input
+                      value={invoiceForm.totalBookedCost}
+                      onChange={(event) =>
+                        updateInvoiceForm('totalBookedCost', event.target.value)
+                      }
+                      className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                      inputMode="decimal"
+                      placeholder="0.00"
+                    />
+                  </label>
+
+                  <label className="text-xs font-bold uppercase text-slate-500">
+                    Commission expected
+                    <input
+                      value={invoiceForm.expectedCommissionTotal}
+                      onChange={(event) =>
+                        updateInvoiceForm('expectedCommissionTotal', event.target.value)
+                      }
+                      className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                      inputMode="decimal"
+                      placeholder="0.00"
+                    />
+                  </label>
+
+                  <label className="text-xs font-bold uppercase text-slate-500">
+                    Commission received
+                    <input
+                      value={invoiceForm.receivedCommissionTotal}
+                      onChange={(event) =>
+                        updateInvoiceForm('receivedCommissionTotal', event.target.value)
+                      }
+                      className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                      inputMode="decimal"
+                      placeholder="0.00"
+                    />
+                  </label>
+
+                  <label className="flex min-h-10 items-center gap-2 self-end rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={invoiceForm.releasedToCustomer}
+                      onChange={(event) =>
+                        updateInvoiceForm('releasedToCustomer', event.target.checked)
+                      }
+                      className="h-4 w-4 rounded border-slate-300 text-[#8b1e2d] focus:ring-[#8b1e2d]"
+                    />
+                    Release flag
+                  </label>
+
+                  <label className="text-xs font-bold uppercase text-slate-500 xl:col-span-2">
+                    Customer terms
+                    <textarea
+                      value={invoiceForm.customerTerms}
+                      onChange={(event) => updateInvoiceForm('customerTerms', event.target.value)}
+                      className="mt-1 min-h-24 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                      placeholder="Customer-facing terms when invoice release is implemented"
+                    />
+                  </label>
+
+                  <label className="text-xs font-bold uppercase text-slate-500 xl:col-span-2">
+                    Internal notes
+                    <textarea
+                      value={invoiceForm.internalNotes}
+                      onChange={(event) => updateInvoiceForm('internalNotes', event.target.value)}
+                      className="mt-1 min-h-24 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                      placeholder="Agent-only notes, supplier cost changes, commission follow-up"
+                    />
+                  </label>
+                </div>
+
+                {(invoice.lines || []).length > 0 && (
+                  <div className="mt-4 rounded-lg border border-slate-200">
+                    <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3">
+                      <p className="text-sm font-black text-slate-950">Invoice lines</p>
+                      <span className="text-xs font-bold text-slate-500">
+                        {(invoice.lines || []).length} from reservations
+                      </span>
+                    </div>
+                    <div className="divide-y divide-slate-100">
+                      {(invoice.lines || []).map((line) => (
+                        <div
+                          key={line.id}
+                          className="grid gap-2 px-4 py-3 text-xs text-slate-600 md:grid-cols-[minmax(0,1.5fr)_repeat(4,minmax(0,1fr))]"
+                        >
+                          <div>
+                            <p className="font-black text-slate-950">{line.description}</p>
+                            <p className="mt-1 capitalize text-slate-500">{line.line_type}</p>
+                          </div>
+                          <div>
+                            <p className="font-bold uppercase text-slate-400">Sold</p>
+                            <p className="font-black text-slate-800">
+                              {formatMoney(line.total_sold_price, invoiceCurrency)}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="font-bold uppercase text-slate-400">Booked</p>
+                            <p className="font-black text-slate-800">
+                              {formatMoney(line.total_booked_cost, invoiceCurrency)}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="font-bold uppercase text-slate-400">Discount</p>
+                            <p className="font-black text-slate-800">
+                              {formatMoney(line.discount_amount, invoiceCurrency)}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="font-bold uppercase text-slate-400">Commission</p>
+                            <p className="font-black text-slate-800">
+                              {formatMoney(line.expected_commission, invoiceCurrency)}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="mt-4 flex flex-wrap justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void createInvoice(true)
+                    }}
+                    disabled={savingInvoice}
+                    className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300"
+                  >
+                    {savingInvoice ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Pencil className="h-4 w-4" />
+                    )}
+                    New Draft From Reservations
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={savingInvoice}
+                    className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-black text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+                  >
+                    {savingInvoice ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <CheckCircle2 className="h-4 w-4" />
+                    )}
+                    Save Invoice
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
 
