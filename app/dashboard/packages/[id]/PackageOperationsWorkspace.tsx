@@ -1777,7 +1777,7 @@ export default function PackageOperationsWorkspace({
                 </button>
               </div>
 
-              <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_24rem]">
+              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_26rem] 2xl:grid-cols-[minmax(0,1fr)_34rem]">
                 <div className="space-y-4">
                   <div className="grid gap-3 md:grid-cols-3">
                     <label className="text-xs font-bold text-slate-600">

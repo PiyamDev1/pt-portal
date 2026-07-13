@@ -1,7 +1,9 @@
 'use client'
 
+import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
+  ArrowLeft,
   Building2,
   Bus,
   Calculator,
@@ -647,6 +649,13 @@ export default function PackagesClient({
     <div className="space-y-5">
       <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm lg:flex-row lg:items-center lg:justify-between">
         <div>
+          <Link
+            href="/dashboard/packages"
+            className="mb-3 inline-flex items-center gap-2 text-sm font-bold text-slate-600 transition hover:text-slate-950"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to Packages
+          </Link>
           <p className="text-xs font-bold text-slate-500">Package creator</p>
           <h1 className="mt-1 text-2xl font-black text-slate-950">Holidays, ziyarat and umrah</h1>
           <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">
