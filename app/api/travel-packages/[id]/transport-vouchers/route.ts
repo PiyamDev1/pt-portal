@@ -28,7 +28,15 @@ export function selectTravelPackageVoucherColumns() {
 
 function isSchemaError(error: unknown) {
   const code = (error as { code?: string } | null)?.code
-  return code === '42P01' || code === '42703'
+  return (
+    code === '42P01' ||
+    code === '42703' ||
+    code === '42P10' ||
+    code === '42501' ||
+    code === 'PGRST106' ||
+    code === 'PGRST204' ||
+    code === 'PGRST205'
+  )
 }
 
 function cleanText(value: unknown) {

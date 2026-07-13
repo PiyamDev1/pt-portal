@@ -4,6 +4,7 @@ import Image from 'next/image'
 import { useEffect, useMemo, useState } from 'react'
 import { Building2, Bus, CheckCircle2, FileText, Loader2, Plane, Send, Tag } from 'lucide-react'
 import type {
+  PackageComponentOption,
   PackagePaymentBreakdown,
   PackagePaymentIntent,
   PackagePaymentMethod,
@@ -12,9 +13,9 @@ import type {
   TravelPackageQuote,
 } from '@/app/types/packages'
 import {
-  buildCustomerPackageOptions,
   formatMoney,
   getDefaultPackageSelection,
+  getFlightOptionPassengerPrices,
   getFlightOptionTotalDelta,
   getPackagePassengerPriceBreakdown,
   getPackagePaymentBreakdownTotal,
@@ -45,7 +46,7 @@ type CustomerFields = {
   note: string
 }
 
-const TERMS_URL = 'https://piyamtravel.com/terms-and-conditions'
+const TERMS_URL = 'https://www.piyamtravel.com/terms-and-conditions'
 
 function firstSelections(payload: PackageQuotePayload) {
   return getDefaultPackageSelection(payload)
@@ -76,17 +77,49 @@ function formatOfferDeadline(value: string) {
   })
 }
 
+function SummaryText({ value }: { value: string }) {
+  const lines = value.split('\n').filter((line) => line.trim().length > 0)
+  if (lines.length === 0) return null
+
+  return (
+    <div className="mt-1 space-y-1 text-sm leading-6 text-slate-600">
+      {lines.map((line, index) => {
+        const bulletText = line.match(/^\*\s+(.+)$/)?.[1]
+        if (bulletText) {
+          return (
+            <div key={`${line}-${index}`} className="flex gap-2">
+              <span className="mt-[0.65rem] h-1.5 w-1.5 shrink-0 rounded-full bg-slate-400" />
+              <span>{bulletText}</span>
+            </div>
+          )
+        }
+        return <p key={`${line}-${index}`}>{line}</p>
+      })}
+    </div>
+  )
+}
+
 function OptionButton({
   selected,
   title,
   summary,
+  price,
+  pricingMode,
   priceLabel,
+  priceSubLabel,
+  badges,
+  currency,
   onClick,
 }: {
   selected: boolean
   title: string
   summary: string
-  priceLabel: string
+  price: number
+  pricingMode?: PackageComponentOption['pricingMode']
+  priceLabel?: string
+  priceSubLabel?: string
+  badges?: string[]
+  currency: string
   onClick: () => void
 }) {
   return (
@@ -102,13 +135,26 @@ function OptionButton({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-sm font-black text-slate-950">{title || 'Option'}</p>
-          {summary && (
-            <p className="mt-1 whitespace-pre-line text-sm leading-6 text-slate-600">{summary}</p>
+          {summary && <SummaryText value={summary} />}
+          {badges && badges.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {badges.map((badge) => (
+                <span
+                  key={badge}
+                  className="rounded-full bg-emerald-100 px-2 py-1 text-[11px] font-black text-emerald-800"
+                >
+                  {badge}
+                </span>
+              ))}
+            </div>
           )}
         </div>
         <div className="shrink-0 text-right">
-          <p className="max-w-[12rem] whitespace-normal text-sm font-black leading-5 text-slate-950">
-            {priceLabel}
+          <p className="text-sm font-black text-slate-950">
+            {priceLabel || formatMoney(price, currency)}
+          </p>
+          <p className="text-[11px] font-bold text-slate-500">
+            {priceSubLabel || (pricingMode === 'per_person' ? 'per person' : 'total')}
           </p>
           {selected && <CheckCircle2 className="ml-auto mt-2 h-5 w-5 text-[#8b1e2d]" />}
         </div>
@@ -134,17 +180,49 @@ const PAYMENT_BREAKDOWN_FIELDS: Array<{
 function getVisaQuantity(option: { quantity?: number }, payload: PackageQuotePayload) {
   return option.quantity && option.quantity > 0
     ? option.quantity
-    : payload.adults + payload.childrenPaying + payload.childrenFree
+    : payload.adults + payload.childrenPaying + payload.childrenFree + payload.infants
 }
 
 function getPreferredOption<T extends { isDefault?: boolean }>(options: T[]) {
   return options.find((option) => option.isDefault) || options[0] || null
 }
 
+function formatFlightPassengerPrices(
+  payload: PackageQuotePayload,
+  option: PackageComponentOption | null,
+) {
+  const prices = getFlightOptionPassengerPrices(payload, option)
+  const parts = [`Adult ${formatMoney(prices.adult, payload.currency)} pp`]
+  if (payload.childrenPaying + payload.childrenFree > 0) {
+    parts.push(`Child 2-12 ${formatMoney(prices.child, payload.currency)} pp`)
+  }
+  if (payload.infants > 0) {
+    parts.push(`Infant 0-<2 ${formatMoney(prices.infant, payload.currency)} pp`)
+  }
+  return parts.join(' / ')
+}
+
 function pickMethodFromBreakdown(breakdown: PackagePaymentBreakdown): PackagePaymentMethod {
   if (breakdown.card > 0) return 'card'
   if (breakdown.cash > 0) return 'cash'
   return 'bank_transfer'
+}
+
+function buildSelectionNote(note: string, promoCode: string) {
+  const parts = [note.trim()]
+  if (promoCode.trim()) parts.push(`Promo code requested: ${promoCode.trim()}`)
+  return parts.filter(Boolean).join('\n')
+}
+
+function SectionTitle({ icon: Icon, title }: { icon: typeof Building2; title: string }) {
+  return (
+    <div className="mb-3 flex items-center gap-2">
+      <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900 text-white">
+        <Icon className="h-4 w-4" />
+      </span>
+      <h2 className="text-lg font-black">{title}</h2>
+    </div>
+  )
 }
 
 export default function PackageShareClient({ token }: PackageShareClientProps) {
@@ -164,6 +242,7 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
   const [reviewingPayment, setReviewingPayment] = useState(false)
   const [paymentIntent, setPaymentIntent] = useState<PackagePaymentIntent>('full_payment')
   const [termsAccepted, setTermsAccepted] = useState(false)
+  const [promoCode, setPromoCode] = useState('')
 
   useEffect(() => {
     const loadQuote = async () => {
@@ -188,6 +267,7 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
         setReviewingPayment(false)
         setPaymentIntent('full_payment')
         setTermsAccepted(false)
+        setPromoCode('')
       } catch (loadError) {
         setError(loadError instanceof Error ? loadError.message : 'Unable to load package quote')
       } finally {
@@ -220,12 +300,19 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
     : 0
   const paymentBreakdownBalanced = !resolved || Math.abs(paymentBreakdownRemaining) < 0.01
 
-  const customerOptions = useMemo(() => {
+  const orderedStayGroups = useMemo(() => {
     if (!payload) return []
-    return buildCustomerPackageOptions(payload, 80)
+    const order =
+      payload.itineraryOrder.length > 0
+        ? payload.itineraryOrder
+        : payload.stayGroups.map((group) => group.id)
+    return [...payload.stayGroups].sort((a, b) => {
+      const aIndex = order.indexOf(a.id)
+      const bIndex = order.indexOf(b.id)
+      return (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex)
+    })
   }, [payload])
 
-  const baseTotal = customerOptions[0]?.combination.totalPrice || 0
   const priceBreakdown = useMemo(() => {
     if (!payload || !resolved) return null
     return getPackagePassengerPriceBreakdown(payload, resolved.combination)
@@ -283,6 +370,7 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
           depositPaymentMethod: paymentIntent === 'deposit_only' ? 'card' : null,
           termsAccepted,
           ...customer,
+          note: buildSelectionNote(customer.note, promoCode),
         }),
       })
       const data = (await response.json()) as SelectionResponse
@@ -388,11 +476,18 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                 </p>
               </div>
               <div className="rounded-lg bg-slate-50 p-3">
-                <p className="text-xs font-bold uppercase text-slate-500">Per person</p>
+                <p className="text-xs font-bold uppercase text-slate-500">Adult 12+ each</p>
                 <p className="mt-1 text-xl font-black text-[#8b1e2d]">
-                  {formatMoney(resolved.combination.perPersonPrice, resolved.combination.currency)}
+                  {priceBreakdown
+                    ? formatMoney(priceBreakdown.adult, priceBreakdown.currency)
+                    : formatMoney(
+                        resolved.combination.perPersonPrice,
+                        resolved.combination.currency,
+                      )}
                 </p>
-                <p className="mt-1 text-xs font-bold text-slate-500">hotel-paying guests</p>
+                <p className="mt-1 text-xs font-bold text-slate-500">
+                  child and infant prices below
+                </p>
               </div>
               <div className="rounded-lg bg-slate-50 p-3">
                 <p className="text-xs font-bold uppercase text-slate-500">Minimum deposit</p>
@@ -418,7 +513,7 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                   </div>
                   {payload.childrenPaying > 0 && (
                     <div className="flex items-center justify-between gap-3">
-                      <span className="font-bold text-slate-600">Child 5+</span>
+                      <span className="font-bold text-slate-600">Child 5-12</span>
                       <span className="font-black text-slate-950">
                         {formatMoney(priceBreakdown.child, priceBreakdown.currency)} each
                       </span>
@@ -426,13 +521,28 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                   )}
                   {payload.childrenFree > 0 && (
                     <div className="flex items-center justify-between gap-3">
-                      <span className="font-bold text-slate-600">Child under 5</span>
+                      <span className="font-bold text-slate-600">Child 2-4 (hotel-free)</span>
+                      <span className="font-black text-slate-950">
+                        {formatMoney(priceBreakdown.childTwoToFour, priceBreakdown.currency)} each
+                      </span>
+                    </div>
+                  )}
+                  {payload.infants > 0 && (
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="font-bold text-slate-600">Infant 0-&lt;2</span>
                       <span className="font-black text-slate-950">
                         {formatMoney(priceBreakdown.infant, priceBreakdown.currency)} each
                       </span>
                     </div>
                   )}
                 </div>
+              </div>
+            )}
+
+            {promoCode.trim() && (
+              <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
+                <p className="text-xs font-black uppercase text-slate-500">Promo code requested</p>
+                <p className="mt-1 font-black text-slate-950">{promoCode.trim()}</p>
               </div>
             )}
 
@@ -640,27 +750,22 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
           <div className="space-y-5">
             {payload.flightOptions.length > 0 && (
               <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                <div className="mb-3 flex items-center gap-2">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900 text-white">
-                    <Plane className="h-4 w-4" />
-                  </span>
-                  <h2 className="text-lg font-black">Flights</h2>
-                </div>
+                <SectionTitle icon={Plane} title="Flights" />
                 <div className="space-y-3">
                   {payload.flightOptions.map((option) => {
                     const defaultFlight = getPreferredOption(payload.flightOptions)
                     const delta = getFlightOptionTotalDelta(payload, option, defaultFlight)
-                    const priceLabel =
-                      option.id === defaultFlight?.id
-                        ? 'Included'
-                        : formatDelta(delta, payload.currency)
                     return (
                       <OptionButton
                         key={option.id}
                         selected={selection.flightOptionId === option.id}
                         title={option.title}
                         summary={option.summary}
-                        priceLabel={priceLabel}
+                        price={option.price}
+                        priceLabel={formatDelta(delta, payload.currency)}
+                        priceSubLabel={formatFlightPassengerPrices(payload, option)}
+                        pricingMode={option.pricingMode}
+                        currency={payload.currency}
                         onClick={() =>
                           setSelection((current) =>
                             current ? { ...current, flightOptionId: option.id } : current,
@@ -675,12 +780,7 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
 
             {payload.visaOptions.length > 0 && (
               <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                <div className="mb-3 flex items-center gap-2">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900 text-white">
-                    <FileText className="h-4 w-4" />
-                  </span>
-                  <h2 className="text-lg font-black">Visa</h2>
-                </div>
+                <SectionTitle icon={FileText} title="Visa" />
                 <div className="space-y-3">
                   {payload.visaOptions.map((option) => (
                     <div
@@ -692,11 +792,7 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                           <p className="text-sm font-black text-slate-950">
                             {option.title || 'Visa'}
                           </p>
-                          {option.summary && (
-                            <p className="mt-1 whitespace-pre-line text-sm leading-6 text-slate-600">
-                              {option.summary}
-                            </p>
-                          )}
+                          {option.summary && <SummaryText value={option.summary} />}
                         </div>
                         <p className="shrink-0 text-sm font-black text-slate-950">
                           {getVisaQuantity(option, payload)} included
@@ -710,29 +806,26 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
 
             {payload.transportOptions.length > 0 && (
               <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                <div className="mb-3 flex items-center gap-2">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900 text-white">
-                    <Bus className="h-4 w-4" />
-                  </span>
-                  <h2 className="text-lg font-black">Transport</h2>
-                </div>
+                <SectionTitle icon={Bus} title="Transport" />
                 <div className="space-y-3">
                   {payload.transportOptions.map((option) => {
                     const defaultTransport = getPreferredOption(payload.transportOptions)
                     const delta = option.price - (defaultTransport?.price || 0)
+                    const badges = [
+                      option.includesZiyarat ? 'Ziyarat included' : '',
+                      option.includesTourGuide ? 'Tour guide included' : '',
+                    ].filter((badge): badge is string => Boolean(badge))
                     return (
                       <OptionButton
                         key={option.id}
                         selected={selection.transportOptionId === option.id}
                         title={option.title}
-                        summary={[
-                          option.summary,
-                          option.includesZiyarat ? 'Ziyarat included' : '',
-                          option.includesTourGuide ? 'Tour guide included' : '',
-                        ]
-                          .filter(Boolean)
-                          .join('\n')}
+                        summary={option.summary}
+                        price={option.price}
                         priceLabel={formatDelta(delta, payload.currency)}
+                        pricingMode={option.pricingMode}
+                        badges={badges}
+                        currency={payload.currency}
                         onClick={() =>
                           setSelection((current) =>
                             current ? { ...current, transportOptionId: option.id } : current,
@@ -746,45 +839,45 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
             )}
 
             <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="mb-3 flex items-center gap-2">
-                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900 text-white">
-                  <Building2 className="h-4 w-4" />
-                </span>
-                <h2 className="text-lg font-black">Package Options</h2>
-              </div>
-              <div className="space-y-3">
-                {customerOptions.map(({ selection: optionSelection, combination }, index) => {
-                  const selected = Object.entries(optionSelection.stayOptionIds).every(
-                    ([groupId, optionId]) => selection.stayOptionIds[groupId] === optionId,
-                  )
-                  const delta = combination.totalPrice - baseTotal
-                  const summary = combination.staySelections
-                    .map(
-                      (stay) => `${stay.groupLabel}: ${stay.option.summary || stay.option.title}`,
-                    )
-                    .join('\n\n')
-                  return (
-                    <OptionButton
-                      key={combination.id}
-                      selected={selected}
-                      title={`Option ${index + 1}`}
-                      summary={summary}
-                      priceLabel={
-                        index === 0 ? 'Included' : formatDelta(delta, combination.currency)
-                      }
-                      onClick={() =>
-                        setSelection((current) =>
-                          current
-                            ? {
-                                ...current,
-                                stayOptionIds: optionSelection.stayOptionIds,
-                              }
-                            : current,
+              <SectionTitle icon={Building2} title="Hotels" />
+              <div className="space-y-4">
+                {orderedStayGroups.map((group) => (
+                  <div key={group.id}>
+                    <h3 className="mb-2 text-sm font-black text-slate-700">{group.label}</h3>
+                    <div className="space-y-3">
+                      {group.options.map((option) => {
+                        const preferredHotel = getPreferredOption(group.options)
+                        const delta = option.price - (preferredHotel?.price || 0)
+                        return (
+                          <OptionButton
+                            key={option.id}
+                            selected={selection.stayOptionIds[group.id] === option.id}
+                            title={option.title}
+                            summary={option.summary}
+                            price={option.price}
+                            priceLabel={formatDelta(delta, payload.currency)}
+                            priceSubLabel="hotel option"
+                            pricingMode={option.pricingMode}
+                            currency={payload.currency}
+                            onClick={() =>
+                              setSelection((current) =>
+                                current
+                                  ? {
+                                      ...current,
+                                      stayOptionIds: {
+                                        ...current.stayOptionIds,
+                                        [group.id]: option.id,
+                                      },
+                                    }
+                                  : current,
+                              )
+                            }
+                          />
                         )
-                      }
-                    />
-                  )
-                })}
+                      })}
+                    </div>
+                  </div>
+                ))}
               </div>
             </section>
 
@@ -811,11 +904,7 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                           <div>
                             <p className="text-sm font-black text-slate-950">{offer.title}</p>
-                            {offer.summary && (
-                              <p className="mt-1 whitespace-pre-line text-sm leading-6 text-slate-600">
-                                {offer.summary}
-                              </p>
-                            )}
+                            {offer.summary && <SummaryText value={offer.summary} />}
                             {offer.expiresAt && (
                               <p className="mt-2 text-xs font-bold text-slate-500">
                                 Valid until {formatOfferDeadline(offer.expiresAt)}
@@ -841,33 +930,72 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
 
           <aside className="space-y-4 lg:sticky lg:top-5 lg:self-start">
             <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-              <p className="text-sm font-black text-slate-950">Total</p>
+              <p className="text-sm font-black text-slate-950">Price summary</p>
               {resolved ? (
                 <>
-                  {resolved.combination.offerDiscountTotal > 0 && (
-                    <div className="mt-2 rounded-lg bg-emerald-50 p-3 text-sm font-bold text-emerald-800">
-                      Discount applied: -
-                      {formatMoney(
-                        resolved.combination.offerDiscountTotal,
-                        resolved.combination.currency,
-                      )}
-                    </div>
-                  )}
-                  <p className="mt-2 text-3xl font-black text-slate-950">
-                    {formatMoney(resolved.combination.totalPrice, resolved.combination.currency)}
+                  <p className="mt-2 text-xs font-black uppercase text-slate-500">
+                    Passenger prices
                   </p>
-                  {resolved.combination.paymentSurchargeTotal > 0 && (
-                    <p className="mt-1 text-sm font-bold text-slate-600">
-                      Includes Credit Card processing fee:{' '}
-                      {formatMoney(
-                        resolved.combination.paymentSurchargeTotal,
-                        resolved.combination.currency,
-                      )}{' '}
-                      (non-refundable)
-                    </p>
-                  )}
+                  <p className="mt-1 text-sm font-bold text-slate-600">
+                    Adult, child, and infant prices are listed below.
+                  </p>
+
+                  <div className="mt-4 space-y-2 rounded-lg bg-slate-50 p-3 text-sm">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="font-bold text-slate-600">Package subtotal</span>
+                      <span className="font-black text-slate-950">
+                        {formatMoney(
+                          resolved.combination.packageSubtotalPrice,
+                          resolved.combination.currency,
+                        )}
+                      </span>
+                    </div>
+                    {resolved.combination.offerDiscountTotal > 0 && (
+                      <div className="flex items-center justify-between gap-3 text-emerald-700">
+                        <span className="font-bold">Discounts applied</span>
+                        <span className="font-black">
+                          -
+                          {formatMoney(
+                            resolved.combination.offerDiscountTotal,
+                            resolved.combination.currency,
+                          )}
+                        </span>
+                      </div>
+                    )}
+                    {resolved.combination.paymentSurchargeTotal > 0 ? (
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="font-bold text-slate-600">Credit Card processing fee</span>
+                        <span className="font-black text-slate-950">
+                          {formatMoney(
+                            resolved.combination.paymentSurchargeTotal,
+                            resolved.combination.currency,
+                          )}
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="font-bold text-slate-600">Additional charges</span>
+                        <span className="font-black text-slate-950">None</span>
+                      </div>
+                    )}
+                    <div className="border-t border-slate-200 pt-2">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="font-black text-slate-950">Total package price</span>
+                        <span className="font-black text-slate-950">
+                          {formatMoney(
+                            resolved.combination.totalPrice,
+                            resolved.combination.currency,
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
                   {priceBreakdown && (
                     <div className="mt-3 space-y-2 rounded-lg bg-slate-50 p-3 text-sm">
+                      <p className="text-xs font-black uppercase text-slate-500">
+                        Passenger pricing
+                      </p>
                       <div className="flex items-center justify-between gap-3">
                         <span className="font-bold text-slate-600">Adult 12+</span>
                         <span className="font-black text-slate-950">
@@ -876,7 +1004,7 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                       </div>
                       {payload.childrenPaying > 0 && (
                         <div className="flex items-center justify-between gap-3">
-                          <span className="font-bold text-slate-600">Child 5+</span>
+                          <span className="font-bold text-slate-600">Child 5-12</span>
                           <span className="font-black text-slate-950">
                             {formatMoney(priceBreakdown.child, priceBreakdown.currency)} each
                           </span>
@@ -884,13 +1012,38 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                       )}
                       {payload.childrenFree > 0 && (
                         <div className="flex items-center justify-between gap-3">
-                          <span className="font-bold text-slate-600">Child under 5</span>
+                          <span className="font-bold text-slate-600">Child 2-4 (hotel-free)</span>
+                          <span className="font-black text-slate-950">
+                            {formatMoney(priceBreakdown.childTwoToFour, priceBreakdown.currency)}{' '}
+                            each
+                          </span>
+                        </div>
+                      )}
+                      {payload.infants > 0 && (
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="font-bold text-slate-600">Infant 0-&lt;2</span>
                           <span className="font-black text-slate-950">
                             {formatMoney(priceBreakdown.infant, priceBreakdown.currency)} each
                           </span>
                         </div>
                       )}
                     </div>
+                  )}
+                  <label className="mt-4 block">
+                    <span className="mb-1 block text-xs font-black uppercase text-slate-500">
+                      Promo code
+                    </span>
+                    <input
+                      value={promoCode}
+                      onChange={(event) => setPromoCode(event.target.value)}
+                      placeholder="Enter promo code if you have one"
+                      className="min-h-10 w-full rounded-lg border border-slate-200 px-3 text-sm font-bold outline-none focus:border-slate-900"
+                    />
+                  </label>
+                  {resolved.combination.paymentSurchargeTotal > 0 && (
+                    <p className="mt-2 text-xs font-semibold text-slate-500">
+                      Credit Card processing fees are non-refundable.
+                    </p>
                   )}
                   {resolved.combination.servicePassengers !== resolved.combination.payingGuests && (
                     <p className="mt-1 text-xs font-semibold text-slate-500">
@@ -911,7 +1064,7 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
               <p className="mb-3 text-sm font-black text-slate-950">Your contact details</p>
               <div className="space-y-3">
                 <label className="block">
-                  <span className="mb-1 block text-xs font-bold text-slate-500">Name</span>
+                  <span className="mb-1 block text-xs font-bold text-slate-500">Lead name</span>
                   <input
                     value={customer.customerName}
                     onChange={(event) => updateCustomer({ customerName: event.target.value })}
@@ -920,16 +1073,18 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                   />
                 </label>
                 <label className="block">
-                  <span className="mb-1 block text-xs font-bold text-slate-500">Phone</span>
+                  <span className="mb-1 block text-xs font-bold text-slate-500">
+                    WhatsApp contact number
+                  </span>
                   <input
                     value={customer.customerPhone}
                     onChange={(event) => updateCustomer({ customerPhone: event.target.value })}
-                    placeholder="Your WhatsApp or phone number"
+                    placeholder="Your WhatsApp number"
                     className="min-h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-slate-900"
                   />
                 </label>
                 <label className="block">
-                  <span className="mb-1 block text-xs font-bold text-slate-500">Email</span>
+                  <span className="mb-1 block text-xs font-bold text-slate-500">Email address</span>
                   <input
                     value={customer.customerEmail}
                     onChange={(event) => updateCustomer({ customerEmail: event.target.value })}
@@ -938,12 +1093,14 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                   />
                 </label>
                 <label className="block">
-                  <span className="mb-1 block text-xs font-bold text-slate-500">Notes</span>
+                  <span className="mb-1 block text-xs font-bold text-slate-500">
+                    Requirements and notes
+                  </span>
                   <textarea
                     value={customer.note}
                     onChange={(event) => updateCustomer({ note: event.target.value })}
-                    placeholder="Anything you want us to know"
-                    rows={3}
+                    placeholder="Tell us about wheelchair assistance, dietary requirements, room preferences, mobility needs, special assistance, or anything else we should know."
+                    rows={4}
                     className="w-full resize-y rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-900"
                   />
                 </label>

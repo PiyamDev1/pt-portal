@@ -23,6 +23,7 @@ const payload: PackageQuotePayload = {
   adults: 2,
   childrenPaying: 1,
   childrenFree: 1,
+  infants: 0,
   itineraryOrder: ['makkah', 'madinah'],
   departureDate: '',
   returnDate: '',
@@ -157,6 +158,7 @@ describe('package quote calculator', () => {
       adults: 2,
       childrenPaying: 0,
       childrenFree: 1,
+      infants: 0,
       stayGroups: [
         {
           id: 'makkah',
@@ -241,6 +243,8 @@ describe('package quote calculator', () => {
   it('uses preferred flights and tiered adult child infant pricing', () => {
     const tieredPayload: PackageQuotePayload = {
       ...payload,
+      childrenFree: 0,
+      infants: 1,
       flightOptions: [
         {
           id: 'flight-standard',
@@ -271,9 +275,9 @@ describe('package quote calculator', () => {
     const breakdown = getPackagePassengerPriceBreakdown(tieredPayload, resolved.combination)
 
     expect(selection.flightOptionId).toBe('flight-standard')
-    expect(resolved.combination.totalPrice).toBe(2825)
-    expect(breakdown.adult).toBeCloseTo(903.33, 2)
-    expect(breakdown.child).toBeCloseTo(803.33, 2)
+    expect(resolved.combination.totalPrice).toBe(2900)
+    expect(breakdown.adult).toBeCloseTo(928.33, 2)
+    expect(breakdown.child).toBeCloseTo(828.33, 2)
     expect(breakdown.infant).toBe(215)
   })
 
@@ -281,6 +285,8 @@ describe('package quote calculator', () => {
     const tieredPayload: PackageQuotePayload = {
       ...payload,
       title: 'September Umrah Package',
+      childrenFree: 0,
+      infants: 1,
       flightOptions: [
         {
           id: 'flight-standard',
@@ -310,10 +316,10 @@ describe('package quote calculator', () => {
 
     expect(copy).toContain('****September Umrah Package****')
     expect(copy).toContain('****Flight Included****')
-    expect(copy).toContain('- Direct flights: Adult +£100.00 / Child +£75.00 / Under 5 +£30.00')
+    expect(copy).toContain('- Direct flights: +£305.00 total')
     expect(copy).toContain('----------------------------')
     expect(copy).toContain('*Option 1: Included*')
-    expect(copy).toContain('*Option 2: +')
+    expect(copy).toContain('*Option 2: -£75.00*')
   })
 
   it('prices multiple visa types by quantity', () => {
@@ -322,6 +328,7 @@ describe('package quote calculator', () => {
       adults: 5,
       childrenPaying: 1,
       childrenFree: 0,
+      infants: 0,
       visaOptions: [
         {
           id: 'gb-eta',
@@ -362,8 +369,8 @@ describe('package quote calculator', () => {
     })
 
     expect(bankSelection.combination.paymentSurchargeTotal).toBe(0)
-    expect(bankSelection.combination.totalPrice).toBe(1905)
-    expect(cardSelection.combination.paymentSurchargeTotal).toBe(47.63)
-    expect(cardSelection.combination.totalPrice).toBe(1952.63)
+    expect(bankSelection.combination.totalPrice).toBe(1980)
+    expect(cardSelection.combination.paymentSurchargeTotal).toBe(49.5)
+    expect(cardSelection.combination.totalPrice).toBe(2029.5)
   })
 })

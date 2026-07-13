@@ -377,8 +377,9 @@ function getOptionSoldTotal(
   if (option.adultPrice || option.childPrice || option.infantPrice) {
     return (
       Number(option.adultPrice || 0) * Number(passengers?.adults || 0) +
-      Number(option.childPrice || 0) * Number(passengers?.childrenPaying || 0) +
-      Number(option.infantPrice || 0) * Number(passengers?.childrenFree || 0)
+      Number(option.childPrice || 0) *
+        (Number(passengers?.childrenPaying || 0) + Number(passengers?.childrenFree || 0)) +
+      Number(option.infantPrice || 0) * Number(passengers?.infants || 0)
     )
   }
   if (option.pricingMode === 'per_person') return Number(option.price || 0) * servicePassengers
@@ -1879,9 +1880,10 @@ The Piyam Travel Team`
                       <p className="mt-1 text-xs text-slate-500">
                         {passengerSummary?.adults ?? selectedPayload?.adults ?? 0} adults ·{' '}
                         {passengerSummary?.childrenPaying ?? selectedPayload?.childrenPaying ?? 0}{' '}
-                        children 5+ ·{' '}
-                        {passengerSummary?.childrenFree ?? selectedPayload?.childrenFree ?? 0} under
-                        5
+                        children 5-12 ·{' '}
+                        {passengerSummary?.childrenFree ?? selectedPayload?.childrenFree ?? 0}{' '}
+                        children 2-4 · {passengerSummary?.infants ?? selectedPayload?.infants ?? 0}{' '}
+                        infants 0- &lt;2
                       </p>
                     </div>
                     <div>
@@ -1903,7 +1905,7 @@ The Piyam Travel Team`
                           selectedCombination.perPersonPrice,
                           selectedCombination.currency,
                         )}{' '}
-                        per hotel-paying guest
+                        avg hotel payer
                       </p>
                     </div>
                   </div>
@@ -3226,7 +3228,12 @@ The Piyam Travel Team`
                   <span className="font-black">{passengerSummary?.childrenPaying ?? 0}</span>
                 </p>
                 <p>
-                  Under 5: <span className="font-black">{passengerSummary?.childrenFree ?? 0}</span>
+                  Children 2-4 hotel-free:{' '}
+                  <span className="font-black">{passengerSummary?.childrenFree ?? 0}</span>
+                </p>
+                <p>
+                  Infants 0-&lt;2 hotel-free:{' '}
+                  <span className="font-black">{passengerSummary?.infants ?? 0}</span>
                 </p>
                 <p className="border-t border-slate-100 pt-2 text-xs font-bold text-slate-500">
                   Hotel-paying guests: {passengerSummary?.hotelPayingGuests ?? 0}
@@ -3377,8 +3384,10 @@ The Piyam Travel Team`
                   <p className="mt-1 text-xs text-slate-500">
                     {passengerSummary?.adults ?? selectedPayload?.adults ?? 0} adults ·{' '}
                     {passengerSummary?.childrenPaying ?? selectedPayload?.childrenPaying ?? 0}{' '}
-                    children 5+ ·{' '}
-                    {passengerSummary?.childrenFree ?? selectedPayload?.childrenFree ?? 0} under 5
+                    children 5-12 ·{' '}
+                    {passengerSummary?.childrenFree ?? selectedPayload?.childrenFree ?? 0} children
+                    2-4 · {passengerSummary?.infants ?? selectedPayload?.infants ?? 0} infants
+                    0-&lt;2
                   </p>
                 </div>
                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
@@ -3397,7 +3406,7 @@ The Piyam Travel Team`
                   </p>
                   <p className="mt-1 text-xs font-bold text-[#8b1e2d]">
                     {formatMoney(selectedCombination.perPersonPrice, selectedCombination.currency)}{' '}
-                    per hotel-paying guest
+                    avg hotel payer
                   </p>
                 </div>
               </div>

@@ -126,19 +126,22 @@ function hasTieredFlightPricing(option: PackageComponentOption | null) {
 function flightTotal(option: PackageComponentOption | null, payload: PackageQuotePayload) {
   if (!option) return 0
   if (!hasTieredFlightPricing(option)) {
-    return optionTotal(option, payload.adults + payload.childrenPaying + payload.childrenFree)
+    return optionTotal(
+      option,
+      payload.adults + payload.childrenPaying + payload.childrenFree + payload.infants,
+    )
   }
   return roundMoney(
     (option.adultPrice || 0) * payload.adults +
-      (option.childPrice || 0) * payload.childrenPaying +
-      (option.infantPrice || 0) * payload.childrenFree,
+      (option.childPrice || 0) * (payload.childrenPaying + payload.childrenFree) +
+      (option.infantPrice || 0) * payload.infants,
   )
 }
 
 function visaQuantity(option: PackageComponentOption, payload: PackageQuotePayload) {
   return option.quantity && option.quantity > 0
     ? option.quantity
-    : payload.adults + payload.childrenPaying + payload.childrenFree
+    : payload.adults + payload.childrenPaying + payload.childrenFree + payload.infants
 }
 
 function visaTotal(option: PackageComponentOption, payload: PackageQuotePayload) {
@@ -166,7 +169,8 @@ function autoReservationRows({
   userId: string
   now: string
 }) {
-  const servicePassengers = payload.adults + payload.childrenPaying + payload.childrenFree
+  const servicePassengers =
+    payload.adults + payload.childrenPaying + payload.childrenFree + payload.infants
   const rows: Array<Record<string, unknown>> = []
   let componentTotal = 0
   const baseRow = {
@@ -499,7 +503,8 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
   const passengerRows = [
     ...Array.from({ length: passengerSummary.adults }, () => 'adult'),
     ...Array.from({ length: passengerSummary.childrenPaying }, () => 'child'),
-    ...Array.from({ length: passengerSummary.childrenFree }, () => 'infant'),
+    ...Array.from({ length: passengerSummary.childrenFree }, () => 'child'),
+    ...Array.from({ length: passengerSummary.infants }, () => 'infant'),
   ].map((passengerType) => ({
     package_id: packageFolder.id,
     passenger_type: passengerType,

@@ -286,22 +286,12 @@ export default function PackageOperationsWorkspace({
         },
         { plan?: TravelPackagePaymentPlan | null; error?: string },
       ]
-      const failed = [
-        passengerResponse,
-        paymentResponse,
-        operationsResponse,
-        voucherResponse,
-        planResponse,
-      ].find((response) => !response.ok)
+      const failed = [passengerResponse, paymentResponse, operationsResponse, planResponse].find(
+        (response) => !response.ok,
+      )
       if (failed) {
-        const responseData = [passengerData, paymentData, operationData, voucherData, planData][
-          [
-            passengerResponse,
-            paymentResponse,
-            operationsResponse,
-            voucherResponse,
-            planResponse,
-          ].indexOf(failed)
+        const responseData = [passengerData, paymentData, operationData, planData][
+          [passengerResponse, paymentResponse, operationsResponse, planResponse].indexOf(failed)
         ]
         throw new Error(responseData.error || 'Failed to load package operations')
       }
@@ -312,21 +302,23 @@ export default function PackageOperationsWorkspace({
       setRisks(operationData.risks || [])
       setCommunications(operationData.communications || [])
       setAuditEvents(operationData.auditEvents || [])
-      setVouchers(voucherData.vouchers || [])
+      setVouchers(voucherResponse.ok ? voucherData.vouchers || [] : [])
       setPaymentPlan(planData.plan || null)
       setSetupMessage(
         passengerData.setupRequired ||
           paymentData.setupRequired ||
           operationData.setupRequired ||
-          voucherData.setupRequired
+          voucherData.setupRequired ||
+          !voucherResponse.ok
           ? passengerData.message ||
               paymentData.message ||
               operationData.message ||
               voucherData.message ||
+              voucherData.error ||
               'Complete package workflow migration required.'
           : null,
       )
-      const latestVoucher = voucherData.vouchers?.[0]
+      const latestVoucher = voucherResponse.ok ? voucherData.vouchers?.[0] : null
       if (latestVoucher) {
         setVoucherForm(latestVoucher.voucher_data)
         setVoucherRoutesText(
@@ -1065,7 +1057,7 @@ export default function PackageOperationsWorkspace({
                   >
                     <option value="adult">Adult</option>
                     <option value="child">Child</option>
-                    <option value="infant">Infant / under 5</option>
+                    <option value="infant">Infant 0-&lt;2</option>
                   </select>
                 </label>
                 <button

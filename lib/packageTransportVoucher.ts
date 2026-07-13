@@ -134,8 +134,10 @@ export function createDefaultTransportVoucherData(
   const selectedPayload = packageFolder.selected_quote_snapshot?.payload
   const passengerSummary = packageFolder.passenger_summary || {}
   const adults = Number(passengerSummary.adults || selectedPayload?.adults || 0)
-  const children = Number(passengerSummary.childrenPaying || selectedPayload?.childrenPaying || 0)
-  const infants = Number(passengerSummary.childrenFree || selectedPayload?.childrenFree || 0)
+  const children =
+    Number(passengerSummary.childrenPaying || selectedPayload?.childrenPaying || 0) +
+    Number(passengerSummary.childrenFree || selectedPayload?.childrenFree || 0)
+  const infants = Number(passengerSummary.infants || selectedPayload?.infants || 0)
   const departureDate = dateOnly(packageFolder.departure_date || selectedPayload?.departureDate)
   const returnDate = dateOnly(packageFolder.return_date || selectedPayload?.returnDate)
   const transportOption = selectedCombination?.transportOption

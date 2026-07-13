@@ -164,6 +164,7 @@ export interface PackageQuotePayload {
   adults: number
   childrenPaying: number
   childrenFree: number
+  infants: number
   itineraryOrder: string[]
   departureDate: string
   returnDate: string
@@ -206,9 +207,11 @@ export interface PackageCombination {
 export interface PackagePassengerPriceBreakdown {
   adult: number
   child: number
+  childTwoToFour: number
   infant: number
   adultTotal: number
   childTotal: number
+  childTwoToFourTotal: number
   infantTotal: number
   total: number
   currency: string
@@ -292,6 +295,7 @@ export interface TravelPackageFolder {
     adults?: number
     childrenPaying?: number
     childrenFree?: number
+    infants?: number
     totalPassengers?: number
     hotelPayingGuests?: number
     servicePassengers?: number

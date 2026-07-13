@@ -264,6 +264,7 @@ export function normalizePackageQuotePayload(input: unknown): PackageQuotePayloa
     adults: asInteger(candidate.adults),
     childrenPaying: asInteger(candidate.childrenPaying),
     childrenFree: asInteger(candidate.childrenFree),
+    infants: asInteger(candidate.infants),
     itineraryOrder:
       itineraryOrder.length > 0 ? itineraryOrder : stayGroups.map((group) => group.id),
     departureDate: asString(candidate.departureDate),
@@ -287,9 +288,22 @@ export function getPayingGuestCount(
 }
 
 export function getServicePassengerCount(
-  payload: Pick<PackageQuotePayload, 'adults' | 'childrenPaying' | 'childrenFree'>,
+  payload: Pick<PackageQuotePayload, 'adults' | 'childrenPaying' | 'childrenFree' | 'infants'>,
 ) {
-  return Math.max(0, payload.adults + payload.childrenPaying + payload.childrenFree)
+  return Math.max(
+    0,
+    payload.adults + payload.childrenPaying + payload.childrenFree + payload.infants,
+  )
+}
+
+function getFlightChildPassengerCount(
+  payload: Pick<PackageQuotePayload, 'childrenPaying' | 'childrenFree'>,
+) {
+  return Math.max(0, payload.childrenPaying + payload.childrenFree)
+}
+
+function getInfantPassengerCount(payload: Pick<PackageQuotePayload, 'infants'>) {
+  return Math.max(0, payload.infants)
 }
 
 export function buildPassengerSummary(payloadInput: unknown) {
@@ -301,6 +315,7 @@ export function buildPassengerSummary(payloadInput: unknown) {
     adults: payload.adults,
     childrenPaying: payload.childrenPaying,
     childrenFree: payload.childrenFree,
+    infants: payload.infants,
     totalPassengers: servicePassengers,
     hotelPayingGuests,
     servicePassengers,
@@ -372,8 +387,8 @@ function getFlightOptionTotal(option: PackageComponentOption | null, payload: Pa
 
   return (
     (option.adultPrice || 0) * payload.adults +
-    (option.childPrice || 0) * payload.childrenPaying +
-    (option.infantPrice || 0) * payload.childrenFree
+    (option.childPrice || 0) * getFlightChildPassengerCount(payload) +
+    (option.infantPrice || 0) * getInfantPassengerCount(payload)
   )
 }
 
@@ -571,7 +586,10 @@ function formatPassengerSummary(payload: PackageQuotePayload) {
     payload.childrenPaying
       ? `${payload.childrenPaying} Child${payload.childrenPaying === 1 ? '' : 'ren'} 5-12`
       : '',
-    payload.childrenFree ? `${payload.childrenFree} Under 5` : '',
+    payload.childrenFree
+      ? `${payload.childrenFree} Child${payload.childrenFree === 1 ? '' : 'ren'} 2-4`
+      : '',
+    payload.infants ? `${payload.infants} Infant${payload.infants === 1 ? '' : 's'} 0-<2` : '',
   ].filter(Boolean)
 
   return parts.length > 0 ? parts.join(', ') : 'Passengers not set'
@@ -727,16 +745,23 @@ export function getPackagePassengerPriceBreakdown(
     0,
     hotelUnit + flightUnits.child + visaUnit + transportUnit - discountUnit + surchargeUnit,
   )
+  const childTwoToFour = Math.max(0, flightUnits.child + visaUnit + transportUnit)
   const infant = Math.max(0, flightUnits.infant + visaUnit + transportUnit)
 
   return {
     adult,
     child,
+    childTwoToFour,
     infant,
     adultTotal: adult * payload.adults,
     childTotal: child * payload.childrenPaying,
-    infantTotal: infant * payload.childrenFree,
-    total: adult * payload.adults + child * payload.childrenPaying + infant * payload.childrenFree,
+    childTwoToFourTotal: childTwoToFour * payload.childrenFree,
+    infantTotal: infant * payload.infants,
+    total:
+      adult * payload.adults +
+      child * payload.childrenPaying +
+      childTwoToFour * payload.childrenFree +
+      infant * payload.infants,
     currency: combination.currency,
   }
 }
@@ -859,7 +884,19 @@ export function formatPackageCombinationForCopy(
       )} (non-refundable)*`,
     )
   }
-  lines.push(`*Per Person Price: ${formatMoney(combination.perPersonPrice, combination.currency)}*`)
+  const breakdown = getPackagePassengerPriceBreakdown(payload, combination)
+  lines.push(`Adult 12+: ${formatMoney(breakdown.adult, breakdown.currency)} p.p.`)
+  if (payload.childrenPaying > 0) {
+    lines.push(`Child 5-12: ${formatMoney(breakdown.child, breakdown.currency)} p.p.`)
+  }
+  if (payload.childrenFree > 0) {
+    lines.push(
+      `Child 2-4 (hotel-free): ${formatMoney(breakdown.childTwoToFour, breakdown.currency)} p.p.`,
+    )
+  }
+  if (payload.infants > 0) {
+    lines.push(`Infant 0-<2: ${formatMoney(breakdown.infant, breakdown.currency)} p.p.`)
+  }
   lines.push(`*Total Package Cost: ${formatMoney(combination.totalPrice, combination.currency)}*`)
 
   return lines.join('\n').trim()
@@ -930,10 +967,18 @@ export function formatPackageQuoteForCopy(payloadInput: unknown, limit = 12) {
       const breakdown = getPackagePassengerPriceBreakdown(payload, combination)
       lines.push(`Adult: ${formatMoney(breakdown.adult, breakdown.currency)} p.p.`)
       if (payload.childrenPaying > 0) {
-        lines.push(`Child 5+: ${formatMoney(breakdown.child, breakdown.currency)} p.p.`)
+        lines.push(`Child 5-12: ${formatMoney(breakdown.child, breakdown.currency)} p.p.`)
       }
       if (payload.childrenFree > 0) {
-        lines.push(`Child under 5: ${formatMoney(breakdown.infant, breakdown.currency)} p.p.`)
+        lines.push(
+          `Child 2-4 (hotel-free): ${formatMoney(
+            breakdown.childTwoToFour,
+            breakdown.currency,
+          )} p.p.`,
+        )
+      }
+      if (payload.infants > 0) {
+        lines.push(`Infant 0-<2: ${formatMoney(breakdown.infant, breakdown.currency)} p.p.`)
       }
       lines.push(`Base total: ${formatMoney(combination.totalPrice, combination.currency)}`)
       if (payload.cardProcessingFeePercent > 0) {

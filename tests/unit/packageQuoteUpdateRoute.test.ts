@@ -11,6 +11,7 @@ const payload: PackageQuotePayload = {
   adults: 2,
   childrenPaying: 0,
   childrenFree: 0,
+  infants: 0,
   itineraryOrder: ['makkah'],
   departureDate: '',
   returnDate: '',

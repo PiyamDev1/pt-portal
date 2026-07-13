@@ -11,6 +11,7 @@ const payload: PackageQuotePayload = {
   adults: 2,
   childrenPaying: 1,
   childrenFree: 0,
+  infants: 0,
   itineraryOrder: ['makkah'],
   departureDate: '',
   returnDate: '',
@@ -91,6 +92,7 @@ describe('POST /api/packages/share/[token]/selection', () => {
         customerPhone: '+447111111111',
         customerEmail: 'customer@example.com',
         note: 'Please call after 5pm',
+        termsAccepted: true,
       }) as never,
       { params: Promise.resolve({ token: 'share-token' }) },
     )

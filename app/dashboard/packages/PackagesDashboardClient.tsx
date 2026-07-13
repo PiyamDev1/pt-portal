@@ -23,7 +23,12 @@ import {
 import { toast } from 'sonner'
 import type { TravelPackageQuote } from '@/app/types/packages'
 import type { TravelPackageFolder } from '@/app/types/packages'
-import { buildCustomerPackageOptions, formatMoney, isPackageQuoteExpired } from '@/lib/packageQuote'
+import {
+  buildCustomerPackageOptions,
+  formatMoney,
+  isPackageQuoteExpired,
+  normalizePackageQuotePayload,
+} from '@/lib/packageQuote'
 
 type PackagesDashboardClientProps = {
   currentUserId: string
@@ -109,15 +114,18 @@ function getQuoteStartingPrice(quote: TravelPackageQuote) {
 }
 
 function getPassengerLabel(quote: TravelPackageQuote) {
-  const payload = quote.payload
-  const total = payload.adults + payload.childrenPaying + payload.childrenFree
+  const payload = normalizePackageQuotePayload(quote.payload)
+  const total = payload.adults + payload.childrenPaying + payload.childrenFree + payload.infants
   if (total === 0) return 'No passengers'
   const parts = [
     payload.adults ? `${payload.adults} adult${payload.adults === 1 ? '' : 's'}` : '',
     payload.childrenPaying
-      ? `${payload.childrenPaying} child${payload.childrenPaying === 1 ? '' : 'ren'}`
+      ? `${payload.childrenPaying} child${payload.childrenPaying === 1 ? '' : 'ren'} 5-12`
       : '',
-    payload.childrenFree ? `${payload.childrenFree} under 5` : '',
+    payload.childrenFree
+      ? `${payload.childrenFree} child${payload.childrenFree === 1 ? '' : 'ren'} 2-4`
+      : '',
+    payload.infants ? `${payload.infants} infant${payload.infants === 1 ? '' : 's'} 0-<2` : '',
   ].filter(Boolean)
   return parts.join(', ')
 }
@@ -754,7 +762,7 @@ export default function PackagesDashboardClient({
                               </p>
                               <p className="text-xs font-bold text-[#8b1e2d]">
                                 {formatMoney(startingPrice.perPersonPrice, startingPrice.currency)}{' '}
-                                pp
+                                avg hotel payer
                               </p>
                             </div>
                           ) : (

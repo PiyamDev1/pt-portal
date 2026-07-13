@@ -12,6 +12,7 @@ const payload: PackageQuotePayload = {
   adults: 2,
   childrenPaying: 0,
   childrenFree: 0,
+  infants: 0,
   itineraryOrder: ['makkah'],
   departureDate: '2026-09-01',
   returnDate: '2026-09-10',
@@ -159,17 +160,23 @@ describe('POST /api/packages/[id]/convert', () => {
   it('requires an authenticated agent', async () => {
     mocks.getUser.mockResolvedValueOnce({ data: { user: null } })
 
-    const response = await POST(new Request('http://localhost/api/packages/quote-1/convert') as never, {
-      params: Promise.resolve({ id: 'quote-1' }),
-    })
+    const response = await POST(
+      new Request('http://localhost/api/packages/quote-1/convert') as never,
+      {
+        params: Promise.resolve({ id: 'quote-1' }),
+      },
+    )
 
     expect(response.status).toBe(401)
   })
 
   it('creates a package folder from a finalised quote', async () => {
-    const response = await POST(new Request('http://localhost/api/packages/quote-1/convert') as never, {
-      params: Promise.resolve({ id: 'quote-1' }),
-    })
+    const response = await POST(
+      new Request('http://localhost/api/packages/quote-1/convert') as never,
+      {
+        params: Promise.resolve({ id: 'quote-1' }),
+      },
+    )
     const body = await response.json()
 
     expect(response.status).toBe(201)

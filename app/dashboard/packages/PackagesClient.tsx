@@ -125,6 +125,7 @@ function createInitialPayload(): PackageQuotePayload {
     adults: 2,
     childrenPaying: 0,
     childrenFree: 0,
+    infants: 0,
     itineraryOrder: ['makkah', 'madinah'],
     departureDate: '',
     returnDate: '',
@@ -331,7 +332,7 @@ function OptionEditor({
           {[
             ['Adult 12+', 'adultPrice'],
             ['Child 2-12', 'childPrice'],
-            ['Infant / under 5', 'infantPrice'],
+            ['Infant 0-<2', 'infantPrice'],
           ].map(([label, key]) => (
             <label key={key} className="block">
               <span className="block text-xs font-bold text-slate-500">{label}</span>
@@ -416,7 +417,8 @@ export default function PackagesClient({
 
   const customerOptions = useMemo(() => buildCustomerPackageOptions(payload, 80), [payload])
   const baseCustomerOption = customerOptions[0]?.combination || null
-  const servicePassengerCount = payload.adults + payload.childrenPaying + payload.childrenFree
+  const servicePassengerCount =
+    payload.adults + payload.childrenPaying + payload.childrenFree + payload.infants
   const shareUrl = buildShareUrl(activeQuote?.share_token)
   const filteredQuotes = useMemo(() => {
     if (quoteFilter === 'live') {
@@ -825,16 +827,17 @@ export default function PackagesClient({
             </div>
             <div className="mt-3 grid gap-3 md:grid-cols-5">
               {[
-                ['Adults', 'adults'],
+                ['Adults 12+', 'adults'],
                 ['Children 5-12', 'childrenPaying'],
-                ['Children under 5', 'childrenFree'],
+                ['Children 2-4 (hotel-free)', 'childrenFree'],
+                ['Infants 0-<2 (hotel-free)', 'infants'],
               ].map(([label, key]) => (
                 <label key={key} className="block">
                   <span className="mb-1 block text-xs font-bold text-slate-500">{label}</span>
                   <input
                     type="number"
                     min="0"
-                    value={payload[key as 'adults' | 'childrenPaying' | 'childrenFree']}
+                    value={payload[key as 'adults' | 'childrenPaying' | 'childrenFree' | 'infants']}
                     onChange={(event) =>
                       updatePayload({
                         [key]: Number(event.target.value || 0),
@@ -1340,7 +1343,8 @@ export default function PackagesClient({
                             </p>
                           )}
                           <p className="text-xs font-bold text-[#8b1e2d]">
-                            {formatMoney(combination.perPersonPrice, combination.currency)} pp
+                            {formatMoney(combination.perPersonPrice, combination.currency)} avg
+                            hotel payer
                           </p>
                         </div>
                       </div>
@@ -1522,7 +1526,8 @@ export default function PackagesClient({
                               {formatMoney(startingPrice.totalPrice, startingPrice.currency)}
                             </p>
                             <p className="text-xs font-bold text-[#8b1e2d]">
-                              {formatMoney(startingPrice.perPersonPrice, startingPrice.currency)} pp
+                              {formatMoney(startingPrice.perPersonPrice, startingPrice.currency)}{' '}
+                              avg hotel payer
                             </p>
                           </div>
                         ) : (
