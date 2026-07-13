@@ -4,6 +4,7 @@ import Image from 'next/image'
 import { useEffect, useMemo, useState } from 'react'
 import { Building2, Bus, CheckCircle2, FileText, Loader2, Plane, Send, Tag } from 'lucide-react'
 import type {
+  PackagePaymentBreakdown,
   PackagePaymentMethod,
   PackageQuotePayload,
   PackageResolvedSelection,
@@ -13,9 +14,11 @@ import {
   buildCustomerPackageOptions,
   formatMoney,
   getDefaultPackageSelection,
-  getFlightOptionPriceDeltas,
+  getFlightOptionTotalDelta,
   getPackagePassengerPriceBreakdown,
+  getPackagePaymentBreakdownTotal,
   isLimitedTimeOfferActive,
+  normalizePackagePaymentBreakdown,
   normalizePackageQuotePayload,
   resolvePackageSelection,
 } from '@/lib/packageQuote'
@@ -111,19 +114,32 @@ function OptionButton({
 
 function formatDelta(value: number, currency: string) {
   if (Math.abs(value) < 0.005) return 'Included'
-  return `${value > 0 ? '+' : '-'}${formatMoney(Math.abs(value), currency)}`
+  return `${value > 0 ? '+' : '-'}${formatMoney(Math.abs(value), currency)} total`
 }
 
-const PAYMENT_METHODS: Array<{ value: PackagePaymentMethod; label: string }> = [
-  { value: 'bank_transfer', label: 'Bank Transfer' },
-  { value: 'cash', label: 'Cash' },
-  { value: 'card', label: 'Card' },
+const PAYMENT_BREAKDOWN_FIELDS: Array<{
+  key: keyof PackagePaymentBreakdown
+  label: string
+}> = [
+  { key: 'cash', label: 'Cash' },
+  { key: 'bankTransfer', label: 'Bank Transfer' },
+  { key: 'card', label: 'Credit Card' },
 ]
 
 function getVisaQuantity(option: { quantity?: number }, payload: PackageQuotePayload) {
   return option.quantity && option.quantity > 0
     ? option.quantity
     : payload.adults + payload.childrenPaying + payload.childrenFree
+}
+
+function getPreferredOption<T extends { isDefault?: boolean }>(options: T[]) {
+  return options.find((option) => option.isDefault) || options[0] || null
+}
+
+function pickMethodFromBreakdown(breakdown: PackagePaymentBreakdown): PackagePaymentMethod {
+  if (breakdown.card > 0) return 'card'
+  if (breakdown.cash > 0) return 'cash'
+  return 'bank_transfer'
 }
 
 export default function PackageShareClient({ token }: PackageShareClientProps) {
@@ -179,6 +195,19 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
       return null
     }
   }, [payload, selection])
+  const paymentBreakdown = useMemo(() => {
+    if (!payload || !selection || !resolved) return null
+    return normalizePackagePaymentBreakdown(
+      selection.paymentBreakdown,
+      resolved.combination.packageSubtotalPrice,
+      selection.paymentMethod || 'bank_transfer',
+    )
+  }, [payload, resolved, selection])
+  const paymentBreakdownTotal = getPackagePaymentBreakdownTotal(paymentBreakdown)
+  const paymentBreakdownRemaining = resolved
+    ? resolved.combination.packageSubtotalPrice - paymentBreakdownTotal
+    : 0
+  const paymentBreakdownBalanced = !resolved || Math.abs(paymentBreakdownRemaining) < 0.01
 
   const customerOptions = useMemo(() => {
     if (!payload) return []
@@ -201,14 +230,23 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
   }
 
   const submitSelection = async () => {
-    if (!payload || !selection) return
+    if (!payload || !selection || !resolved || !paymentBreakdown) return
+    if (!paymentBreakdownBalanced) {
+      setError('Payment breakdown must match the package subtotal before finalising.')
+      return
+    }
     setSaving(true)
     setError(null)
     try {
       const response = await fetch(`/api/packages/share/${encodeURIComponent(token)}/selection`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...selection, ...customer }),
+        body: JSON.stringify({
+          ...selection,
+          paymentMethod: pickMethodFromBreakdown(paymentBreakdown),
+          paymentBreakdown,
+          ...customer,
+        }),
       })
       const data = (await response.json()) as SelectionResponse
       if (!response.ok || !data.selected) throw new Error(data.error || 'Unable to save selection')
@@ -295,16 +333,12 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
               </div>
               <div className="space-y-3">
                 {payload.flightOptions.map((option) => {
-                  const defaultFlight = payload.flightOptions.find((item) => item.isDefault) || payload.flightOptions[0]
-                  const deltas = getFlightOptionPriceDeltas(payload, option, defaultFlight)
+                  const defaultFlight = getPreferredOption(payload.flightOptions)
+                  const delta = getFlightOptionTotalDelta(payload, option, defaultFlight)
                   const priceLabel =
                     option.id === defaultFlight?.id
                       ? 'Included'
-                      : [
-                          `Adult ${formatDelta(deltas.adult, payload.currency)}`,
-                          `Child ${formatDelta(deltas.child, payload.currency)}`,
-                          `Under 5 ${formatDelta(deltas.infant, payload.currency)}`,
-                        ].join(' / ')
+                      : formatDelta(delta, payload.currency)
                   return (
                     <OptionButton
                       key={option.id}
@@ -336,7 +370,7 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                 {payload.visaOptions.map((option) => (
                   <div
                     key={option.id}
-                    className="rounded-xl border border-slate-200 bg-white p-4"
+                    className="rounded-xl border border-emerald-200 bg-emerald-50 p-4"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>
@@ -368,27 +402,28 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                 <h2 className="text-lg font-black">Transport</h2>
               </div>
               <div className="space-y-3">
-                {payload.transportOptions.map((option, index) => (
-                  <OptionButton
-                    key={option.id}
-                    selected={selection.transportOptionId === option.id}
-                    title={option.title}
-                    summary={option.summary}
-                    priceLabel={
-                      index === 0
-                        ? 'Included'
-                        : formatDelta(
-                            option.price - (payload.transportOptions[0]?.price || 0),
-                            payload.currency,
-                          )
-                    }
-                    onClick={() =>
-                      setSelection((current) =>
-                        current ? { ...current, transportOptionId: option.id } : current,
-                      )
-                    }
-                  />
-                ))}
+                {payload.transportOptions.map((option) => {
+                  const defaultTransport = getPreferredOption(payload.transportOptions)
+                  const delta = option.price - (defaultTransport?.price || 0)
+                  return (
+                    <OptionButton
+                      key={option.id}
+                      selected={selection.transportOptionId === option.id}
+                      title={option.title}
+                      summary={[
+                        option.summary,
+                        option.includesZiyarat ? 'Ziyarat included' : '',
+                        option.includesTourGuide ? 'Tour guide included' : '',
+                      ].filter(Boolean).join('\n')}
+                      priceLabel={formatDelta(delta, payload.currency)}
+                      onClick={() =>
+                        setSelection((current) =>
+                          current ? { ...current, transportOptionId: option.id } : current,
+                        )
+                      }
+                    />
+                  )
+                })}
               </div>
             </section>
           )}
@@ -500,11 +535,12 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                 </p>
                 {resolved.combination.paymentSurchargeTotal > 0 && (
                   <p className="mt-1 text-sm font-bold text-slate-600">
-                    Includes card charge:{' '}
+                    Includes Credit Card processing fee:{' '}
                     {formatMoney(
                       resolved.combination.paymentSurchargeTotal,
                       resolved.combination.currency,
-                    )}
+                    )}{' '}
+                    (non-refundable)
                   </p>
                 )}
                 {priceBreakdown && (
@@ -543,31 +579,69 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                     How would you like to pay?
                   </p>
                   <div className="grid gap-2">
-                    {PAYMENT_METHODS.map((method) => {
-                      const active = (selection.paymentMethod || 'bank_transfer') === method.value
+                    {PAYMENT_BREAKDOWN_FIELDS.map((field) => {
+                      const value = paymentBreakdown?.[field.key] || ''
                       return (
-                        <button
-                          key={method.value}
-                          type="button"
-                          onClick={() =>
-                            setSelection((current) =>
-                              current ? { ...current, paymentMethod: method.value } : current,
-                            )
-                          }
-                          className={`min-h-10 rounded-lg px-3 text-sm font-black transition ${
-                            active
-                              ? 'bg-slate-900 text-white'
-                              : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-100'
-                          }`}
-                        >
-                          {method.label}
-                          {method.value === 'card' && payload.cardProcessingFeePercent > 0
-                            ? ` +${payload.cardProcessingFeePercent}%`
-                            : ''}
-                        </button>
+                        <label key={field.key} className="block">
+                          <span className="mb-1 block text-xs font-bold text-slate-500">
+                            {field.label}
+                            {field.key === 'card' && payload.cardProcessingFeePercent > 0
+                              ? ` +${payload.cardProcessingFeePercent}%`
+                              : ''}
+                          </span>
+                          <div className="flex min-h-10 items-center rounded-lg border border-slate-200 bg-white px-3">
+                            <span className="mr-2 text-sm font-black text-slate-500">GBP</span>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={value}
+                              onChange={(event) => {
+                                const nextBreakdown = {
+                                  ...(paymentBreakdown || { cash: 0, bankTransfer: 0, card: 0 }),
+                                  [field.key]: Number(event.target.value || 0),
+                                }
+                                setSelection((current) =>
+                                  current
+                                    ? {
+                                        ...current,
+                                        paymentMethod: pickMethodFromBreakdown(nextBreakdown),
+                                        paymentBreakdown: nextBreakdown,
+                                      }
+                                    : current,
+                                )
+                              }}
+                              className="w-full bg-transparent text-sm font-bold outline-none"
+                              placeholder="0.00"
+                            />
+                          </div>
+                        </label>
                       )
                     })}
                   </div>
+                  <div
+                    className={`mt-3 rounded-lg p-2 text-xs font-bold ${
+                      paymentBreakdownBalanced
+                        ? 'bg-emerald-50 text-emerald-800'
+                        : 'bg-amber-50 text-amber-800'
+                    }`}
+                  >
+                    {paymentBreakdownBalanced
+                      ? 'Payment split matches the package subtotal.'
+                      : `Remaining to allocate: ${formatMoney(paymentBreakdownRemaining, resolved.combination.currency)}`}
+                  </div>
+                  {payload.depositRequired && (payload.depositAmount || 0) > 0 && (
+                    <p className="mt-3 rounded-lg bg-amber-50 p-2 text-xs font-bold text-amber-800">
+                      Deposit required to secure:{' '}
+                      {formatMoney(payload.depositAmount || 0, payload.currency)}. This should be paid first
+                      before availability or reservations are secured.
+                    </p>
+                  )}
+                  {payload.cardProcessingFeePercent > 0 && (
+                    <p className="mt-2 text-xs font-semibold text-slate-500">
+                      Credit Card processing fees are non-refundable.
+                    </p>
+                  )}
                 </div>
               </>
             ) : (
@@ -623,7 +697,7 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
               <button
                 type="button"
                 onClick={() => void submitSelection()}
-                disabled={!resolved || saving}
+                disabled={!resolved || !paymentBreakdownBalanced || saving}
                 className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#8b1e2d] px-3 text-sm font-black text-white transition hover:bg-[#6f1422] disabled:opacity-50"
               >
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}

@@ -14,6 +14,7 @@ import {
   Tag,
 } from 'lucide-react'
 import type {
+  PackagePaymentBreakdown,
   PackagePaymentMethod,
   PackageQuotePayload,
   PackageResolvedSelection,
@@ -22,7 +23,10 @@ import type {
 import {
   formatMoney,
   getDefaultPackageSelection,
+  getFlightOptionTotalDelta,
+  getPackagePaymentBreakdownTotal,
   isLimitedTimeOfferActive,
+  normalizePackagePaymentBreakdown,
   normalizePackageQuotePayload,
   resolvePackageSelection,
 } from '@/lib/packageQuote'
@@ -71,6 +75,8 @@ function OptionButton({
   summary,
   price,
   pricingMode,
+  priceLabel,
+  badges,
   currency,
   onClick,
 }: {
@@ -79,6 +85,8 @@ function OptionButton({
   summary: string
   price: number
   pricingMode?: 'total' | 'per_person'
+  priceLabel?: string
+  badges?: string[]
   currency: string
   onClick: () => void
 }) {
@@ -96,9 +104,23 @@ function OptionButton({
         <div className="min-w-0">
           <p className="text-sm font-black text-slate-950">{title || 'Option'}</p>
           {summary && <p className="mt-1 whitespace-pre-line text-sm leading-6 text-slate-600">{summary}</p>}
+          {badges && badges.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {badges.map((badge) => (
+                <span
+                  key={badge}
+                  className="rounded-full bg-emerald-100 px-2 py-1 text-[11px] font-black text-emerald-800"
+                >
+                  {badge}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
         <div className="shrink-0 text-right">
-          <p className="text-sm font-black text-slate-950">{formatMoney(price, currency)}</p>
+          <p className="text-sm font-black text-slate-950">
+            {priceLabel || formatMoney(price, currency)}
+          </p>
           <p className="text-[11px] font-bold text-slate-500">
             {pricingMode === 'per_person' ? 'per person' : 'total'}
           </p>
@@ -109,16 +131,34 @@ function OptionButton({
   )
 }
 
-const PAYMENT_METHODS: Array<{ value: PackagePaymentMethod; label: string }> = [
-  { value: 'bank_transfer', label: 'Bank Transfer' },
-  { value: 'cash', label: 'Cash' },
-  { value: 'card', label: 'Card' },
+const PAYMENT_BREAKDOWN_FIELDS: Array<{
+  key: keyof PackagePaymentBreakdown
+  label: string
+}> = [
+  { key: 'cash', label: 'Cash' },
+  { key: 'bankTransfer', label: 'Bank Transfer' },
+  { key: 'card', label: 'Credit Card' },
 ]
 
 function getVisaQuantity(option: { quantity?: number }, payload: PackageQuotePayload) {
   return option.quantity && option.quantity > 0
     ? option.quantity
     : payload.adults + payload.childrenPaying + payload.childrenFree
+}
+
+function getPreferredOption<T extends { isDefault?: boolean }>(options: T[]) {
+  return options.find((option) => option.isDefault) || options[0] || null
+}
+
+function formatDelta(value: number, currency: string) {
+  if (Math.abs(value) < 0.005) return 'Included'
+  return `${value > 0 ? '+' : '-'}${formatMoney(Math.abs(value), currency)} total`
+}
+
+function pickMethodFromBreakdown(breakdown: PackagePaymentBreakdown): PackagePaymentMethod {
+  if (breakdown.card > 0) return 'card'
+  if (breakdown.cash > 0) return 'cash'
+  return 'bank_transfer'
 }
 
 function SectionTitle({
@@ -174,6 +214,7 @@ export default function PackageSalesModeClient({ quoteId }: PackageSalesModeClie
                 visaOptionId: existingSelection.visaOptionId || null,
                 transportOptionId: existingSelection.transportOptionId || null,
                 paymentMethod: existingSelection.paymentMethod || 'bank_transfer',
+                paymentBreakdown: existingSelection.paymentBreakdown || null,
               }
             : firstSelections(normalized),
         )
@@ -205,6 +246,19 @@ export default function PackageSalesModeClient({ quoteId }: PackageSalesModeClie
       return null
     }
   }, [payload, selection])
+  const paymentBreakdown = useMemo(() => {
+    if (!payload || !selection || !resolved) return null
+    return normalizePackagePaymentBreakdown(
+      selection.paymentBreakdown,
+      resolved.combination.packageSubtotalPrice,
+      selection.paymentMethod || 'bank_transfer',
+    )
+  }, [payload, resolved, selection])
+  const paymentBreakdownTotal = getPackagePaymentBreakdownTotal(paymentBreakdown)
+  const paymentBreakdownRemaining = resolved
+    ? resolved.combination.packageSubtotalPrice - paymentBreakdownTotal
+    : 0
+  const paymentBreakdownBalanced = !resolved || Math.abs(paymentBreakdownRemaining) < 0.01
 
   const orderedStayGroups = useMemo(() => {
     if (!payload) return []
@@ -226,14 +280,23 @@ export default function PackageSalesModeClient({ quoteId }: PackageSalesModeClie
   }
 
   const finaliseSelection = async () => {
-    if (!payload || !selection) return
+    if (!payload || !selection || !resolved || !paymentBreakdown) return
+    if (!paymentBreakdownBalanced) {
+      setError('Payment breakdown must match the package subtotal before finalising.')
+      return
+    }
     setSaving(true)
     setError(null)
     try {
       const response = await fetch(`/api/packages/${encodeURIComponent(quoteId)}/selection`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...selection, ...customer }),
+        body: JSON.stringify({
+          ...selection,
+          paymentMethod: pickMethodFromBreakdown(paymentBreakdown),
+          paymentBreakdown,
+          ...customer,
+        }),
       })
       const data = (await response.json()) as SelectionResponse
       if (!response.ok || !data.selected) {
@@ -310,22 +373,27 @@ export default function PackageSalesModeClient({ quoteId }: PackageSalesModeClie
             <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
               <SectionTitle icon={Plane} title="Flights" />
               <div className="space-y-3">
-                {payload.flightOptions.map((option) => (
-                  <OptionButton
-                    key={option.id}
-                    selected={selection.flightOptionId === option.id}
-                    title={option.title}
-                    summary={option.summary}
-                    price={option.price}
-                    pricingMode={option.pricingMode}
-                    currency={payload.currency}
-                    onClick={() =>
-                      setSelection((current) =>
-                        current ? { ...current, flightOptionId: option.id } : current,
-                      )
-                    }
-                  />
-                ))}
+                {payload.flightOptions.map((option) => {
+                  const defaultFlight = getPreferredOption(payload.flightOptions)
+                  const delta = getFlightOptionTotalDelta(payload, option, defaultFlight)
+                  return (
+                    <OptionButton
+                      key={option.id}
+                      selected={selection.flightOptionId === option.id}
+                      title={option.title}
+                      summary={option.summary}
+                      price={option.price}
+                      priceLabel={formatDelta(delta, payload.currency)}
+                      pricingMode={option.pricingMode}
+                      currency={payload.currency}
+                      onClick={() =>
+                        setSelection((current) =>
+                          current ? { ...current, flightOptionId: option.id } : current,
+                        )
+                      }
+                    />
+                  )
+                })}
               </div>
             </section>
           )}
@@ -337,7 +405,7 @@ export default function PackageSalesModeClient({ quoteId }: PackageSalesModeClie
                 {payload.visaOptions.map((option) => (
                   <div
                     key={option.id}
-                    className="rounded-xl border border-slate-200 bg-white p-4"
+                    className="rounded-xl border border-emerald-200 bg-emerald-50 p-4"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>
@@ -364,22 +432,32 @@ export default function PackageSalesModeClient({ quoteId }: PackageSalesModeClie
             <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
               <SectionTitle icon={Bus} title="Transport" />
               <div className="space-y-3">
-                {payload.transportOptions.map((option) => (
-                  <OptionButton
-                    key={option.id}
-                    selected={selection.transportOptionId === option.id}
-                    title={option.title}
-                    summary={option.summary}
-                    price={option.price}
-                    pricingMode={option.pricingMode}
-                    currency={payload.currency}
-                    onClick={() =>
-                      setSelection((current) =>
-                        current ? { ...current, transportOptionId: option.id } : current,
-                      )
-                    }
-                  />
-                ))}
+                {payload.transportOptions.map((option) => {
+                  const defaultTransport = getPreferredOption(payload.transportOptions)
+                  const delta = option.price - (defaultTransport?.price || 0)
+                  const badges = [
+                    option.includesZiyarat ? 'Ziyarat included' : '',
+                    option.includesTourGuide ? 'Tour guide included' : '',
+                  ].filter((badge): badge is string => Boolean(badge))
+                  return (
+                    <OptionButton
+                      key={option.id}
+                      selected={selection.transportOptionId === option.id}
+                      title={option.title}
+                      summary={option.summary}
+                      price={option.price}
+                      priceLabel={formatDelta(delta, payload.currency)}
+                      pricingMode={option.pricingMode}
+                      badges={badges}
+                      currency={payload.currency}
+                      onClick={() =>
+                        setSelection((current) =>
+                          current ? { ...current, transportOptionId: option.id } : current,
+                        )
+                      }
+                    />
+                  )
+                })}
               </div>
             </section>
           )}
@@ -472,11 +550,12 @@ export default function PackageSalesModeClient({ quoteId }: PackageSalesModeClie
                 </p>
                 {resolved.combination.paymentSurchargeTotal > 0 && (
                   <p className="mt-1 text-sm font-bold text-slate-600">
-                    Includes card charge:{' '}
+                    Includes Credit Card processing fee:{' '}
                     {formatMoney(
                       resolved.combination.paymentSurchargeTotal,
                       resolved.combination.currency,
-                    )}
+                    )}{' '}
+                    (non-refundable)
                   </p>
                 )}
                 <p className="text-sm font-bold text-[#8b1e2d]">
@@ -488,34 +567,72 @@ export default function PackageSalesModeClient({ quoteId }: PackageSalesModeClie
                 </p>
                 <div className="mt-4 rounded-lg bg-slate-50 p-3">
                   <p className="mb-2 text-xs font-black uppercase text-slate-500">
-                    Payment method
+                    Payment breakdown
                   </p>
                   <div className="grid gap-2">
-                    {PAYMENT_METHODS.map((method) => {
-                      const active = (selection.paymentMethod || 'bank_transfer') === method.value
+                    {PAYMENT_BREAKDOWN_FIELDS.map((field) => {
+                      const value = paymentBreakdown?.[field.key] || ''
                       return (
-                        <button
-                          key={method.value}
-                          type="button"
-                          onClick={() =>
-                            setSelection((current) =>
-                              current ? { ...current, paymentMethod: method.value } : current,
-                            )
-                          }
-                          className={`min-h-10 rounded-lg px-3 text-sm font-black transition ${
-                            active
-                              ? 'bg-slate-900 text-white'
-                              : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-100'
-                          }`}
-                        >
-                          {method.label}
-                          {method.value === 'card' && payload.cardProcessingFeePercent > 0
-                            ? ` +${payload.cardProcessingFeePercent}%`
-                            : ''}
-                        </button>
+                        <label key={field.key} className="block">
+                          <span className="mb-1 block text-xs font-bold text-slate-500">
+                            {field.label}
+                            {field.key === 'card' && payload.cardProcessingFeePercent > 0
+                              ? ` +${payload.cardProcessingFeePercent}%`
+                              : ''}
+                          </span>
+                          <div className="flex min-h-10 items-center rounded-lg border border-slate-200 bg-white px-3">
+                            <span className="mr-2 text-sm font-black text-slate-500">GBP</span>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={value}
+                              onChange={(event) => {
+                                const nextBreakdown = {
+                                  ...(paymentBreakdown || { cash: 0, bankTransfer: 0, card: 0 }),
+                                  [field.key]: Number(event.target.value || 0),
+                                }
+                                setSelection((current) =>
+                                  current
+                                    ? {
+                                        ...current,
+                                        paymentMethod: pickMethodFromBreakdown(nextBreakdown),
+                                        paymentBreakdown: nextBreakdown,
+                                      }
+                                    : current,
+                                )
+                              }}
+                              className="w-full bg-transparent text-sm font-bold outline-none"
+                              placeholder="0.00"
+                            />
+                          </div>
+                        </label>
                       )
                     })}
                   </div>
+                  <div
+                    className={`mt-3 rounded-lg p-2 text-xs font-bold ${
+                      paymentBreakdownBalanced
+                        ? 'bg-emerald-50 text-emerald-800'
+                        : 'bg-amber-50 text-amber-800'
+                    }`}
+                  >
+                    {paymentBreakdownBalanced
+                      ? 'Payment split matches the package subtotal.'
+                      : `Remaining to allocate: ${formatMoney(paymentBreakdownRemaining, resolved.combination.currency)}`}
+                  </div>
+                  {payload.depositRequired && (payload.depositAmount || 0) > 0 && (
+                    <p className="mt-3 rounded-lg bg-amber-50 p-2 text-xs font-bold text-amber-800">
+                      Deposit required to secure:{' '}
+                      {formatMoney(payload.depositAmount || 0, payload.currency)}. This should be paid first
+                      before availability or reservations are secured.
+                    </p>
+                  )}
+                  {payload.cardProcessingFeePercent > 0 && (
+                    <p className="mt-2 text-xs font-semibold text-slate-500">
+                      Credit Card processing fees are non-refundable.
+                    </p>
+                  )}
                 </div>
               </>
             ) : (
@@ -553,7 +670,7 @@ export default function PackageSalesModeClient({ quoteId }: PackageSalesModeClie
               <button
                 type="button"
                 onClick={() => void finaliseSelection()}
-                disabled={!resolved || saving}
+                disabled={!resolved || !paymentBreakdownBalanced || saving}
                 className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#8b1e2d] px-3 text-sm font-black text-white transition hover:bg-[#6f1422] disabled:opacity-50"
               >
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}

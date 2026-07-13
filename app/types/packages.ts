@@ -113,6 +113,8 @@ export interface PackageComponentOption {
   childPrice?: number
   infantPrice?: number
   quantity?: number
+  includesZiyarat?: boolean
+  includesTourGuide?: boolean
 }
 
 export interface PackageStayGroup {
@@ -150,6 +152,8 @@ export interface PackageQuotePayload {
   transportOptions: PackageComponentOption[]
   limitedTimeOffers: PackageLimitedTimeOffer[]
   cardProcessingFeePercent: number
+  depositRequired?: boolean
+  depositAmount?: number
   notes: string
 }
 
@@ -166,6 +170,7 @@ export interface PackageCombination {
   transportOption: PackageComponentOption | null
   packageSubtotalPrice: number
   paymentMethod: PackagePaymentMethod
+  paymentBreakdown?: PackagePaymentBreakdown | null
   paymentSurchargeTotal: number
   totalPrice: number
   grossPrice: number
@@ -188,12 +193,19 @@ export interface PackagePassengerPriceBreakdown {
   currency: string
 }
 
+export interface PackagePaymentBreakdown {
+  cash: number
+  bankTransfer: number
+  card: number
+}
+
 export interface PackageSelectionInput {
   stayOptionIds: Record<string, string>
   flightOptionId?: string | null
   visaOptionId?: string | null
   transportOptionId?: string | null
   paymentMethod?: PackagePaymentMethod | null
+  paymentBreakdown?: Partial<PackagePaymentBreakdown> | null
   customerName?: string
   customerPhone?: string
   customerEmail?: string

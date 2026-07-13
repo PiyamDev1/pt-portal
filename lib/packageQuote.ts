@@ -4,6 +4,7 @@ import type {
   PackageDiscountMode,
   PackageLimitedTimeOffer,
   PackagePassengerPriceBreakdown,
+  PackagePaymentBreakdown,
   PackagePaymentMethod,
   PackagePricingMode,
   PackageQuotePayload,
@@ -136,6 +137,8 @@ function normalizeOption(
     adultPrice,
     childPrice,
     infantPrice,
+    includesZiyarat: asBoolean(candidate?.includesZiyarat),
+    includesTourGuide: asBoolean(candidate?.includesTourGuide),
     ...(quantity ? { quantity } : {}),
   }
 }
@@ -214,6 +217,7 @@ export function normalizePackageQuotePayload(input: unknown): PackageQuotePayloa
     : stayGroups.map((group) => group.id)
 
   const flightOptions = normalizeDefaultOption(normalizeOptions(candidate.flightOptions, 'flight', 'per_person'))
+  const transportOptions = normalizeDefaultOption(normalizeOptions(candidate.transportOptions, 'transport', 'total'))
 
   return {
     title: asString(candidate.title, 'New package quote'),
@@ -231,9 +235,11 @@ export function normalizePackageQuotePayload(input: unknown): PackageQuotePayloa
     stayGroups,
     flightOptions,
     visaOptions: normalizeOptions(candidate.visaOptions, 'visa', 'per_person'),
-    transportOptions: normalizeOptions(candidate.transportOptions, 'transport', 'total'),
+    transportOptions,
     limitedTimeOffers: normalizeOffers(candidate.limitedTimeOffers),
     cardProcessingFeePercent: asNumber(candidate.cardProcessingFeePercent),
+    depositRequired: asBoolean(candidate.depositRequired),
+    depositAmount: asNumber(candidate.depositAmount),
     notes: asText(candidate.notes),
   }
 }
@@ -335,9 +341,54 @@ function getCheapestOption<T extends PackageComponentOption>(options: T[]) {
   return [...options].sort((a, b) => a.price - b.price)[0]
 }
 
+function roundMoney(value: number) {
+  return Math.round(value * 100) / 100
+}
+
 function getPaymentSurchargeTotal(subtotal: number, payload: PackageQuotePayload, method: PackagePaymentMethod) {
   if (method !== 'card' || payload.cardProcessingFeePercent <= 0) return 0
-  return Math.round((subtotal * payload.cardProcessingFeePercent / 100) * 100) / 100
+  return roundMoney((subtotal * payload.cardProcessingFeePercent) / 100)
+}
+
+export function getPackagePaymentBreakdownTotal(
+  breakdown: Partial<PackagePaymentBreakdown> | null | undefined,
+) {
+  if (!breakdown) return 0
+  return roundMoney(
+    asNumber(breakdown.cash)
+    + asNumber(breakdown.bankTransfer)
+    + asNumber(breakdown.card),
+  )
+}
+
+export function normalizePackagePaymentBreakdown(
+  value: unknown,
+  subtotal: number,
+  fallbackMethod: PackagePaymentMethod = 'bank_transfer',
+): PackagePaymentBreakdown {
+  const candidate = value as Partial<PackagePaymentBreakdown> | null
+  const explicit = Boolean(candidate && typeof candidate === 'object')
+  const breakdown = {
+    cash: explicit ? asNumber(candidate?.cash) : 0,
+    bankTransfer: explicit ? asNumber(candidate?.bankTransfer) : 0,
+    card: explicit ? asNumber(candidate?.card) : 0,
+  }
+
+  if (explicit && getPackagePaymentBreakdownTotal(breakdown) > 0) return breakdown
+
+  return {
+    cash: fallbackMethod === 'cash' ? subtotal : 0,
+    bankTransfer: fallbackMethod === 'bank_transfer' ? subtotal : 0,
+    card: fallbackMethod === 'card' ? subtotal : 0,
+  }
+}
+
+function getPaymentSurchargeFromBreakdown(
+  payload: PackageQuotePayload,
+  breakdown: PackagePaymentBreakdown,
+) {
+  if (payload.cardProcessingFeePercent <= 0 || breakdown.card <= 0) return 0
+  return roundMoney((breakdown.card * payload.cardProcessingFeePercent) / 100)
 }
 
 export function isLimitedTimeOfferActive(offer: PackageLimitedTimeOffer, now = Date.now()) {
@@ -427,6 +478,7 @@ export function buildPackageCombinations(payloadInput: unknown, limit = 250): Pa
           transportOption,
           packageSubtotalPrice,
           paymentMethod,
+          paymentBreakdown: null,
           paymentSurchargeTotal,
           totalPrice,
           grossPrice,
@@ -487,8 +539,9 @@ export function getDefaultPackageSelection(payloadInput: unknown): PackageSelect
     ),
     flightOptionId: getDefaultOption(payload.flightOptions)?.id || null,
     visaOptionId: payload.visaOptions[0]?.id || null,
-    transportOptionId: payload.transportOptions[0]?.id || null,
+    transportOptionId: getDefaultOption(payload.transportOptions)?.id || null,
     paymentMethod: 'bank_transfer',
+    paymentBreakdown: null,
   }
 }
 
@@ -569,6 +622,16 @@ export function getFlightOptionPriceDeltas(
   }
 }
 
+export function getFlightOptionTotalDelta(
+  payloadInput: unknown,
+  option: PackageComponentOption | null,
+  baseOption?: PackageComponentOption | null,
+) {
+  const payload = normalizePackageQuotePayload(payloadInput)
+  const base = baseOption || getDefaultOption(payload.flightOptions)
+  return getFlightOptionTotal(option, payload) - getFlightOptionTotal(base, payload)
+}
+
 export function getPackagePassengerPriceBreakdown(
   payloadInput: unknown,
   combination: PackageCombination,
@@ -608,13 +671,20 @@ function formatDelta(value: number, currency: string) {
 
 function formatPaymentMethodLabel(method: PackagePaymentMethod) {
   if (method === 'cash') return 'Cash'
-  if (method === 'card') return 'Card'
+  if (method === 'card') return 'Credit Card'
   return 'Bank transfer'
 }
 
 function formatVisaLine(option: PackageComponentOption, payload: PackageQuotePayload) {
   const quantity = getVisaOptionQuantity(option, getServicePassengerCount(payload))
   return `${quantity} x ${option.summary || option.title}`
+}
+
+function formatTransportLines(option: PackageComponentOption) {
+  const lines = [option.summary || option.title]
+  if (option.includesZiyarat) lines.push('Makkah & Madinah Ziyarat included')
+  if (option.includesTourGuide) lines.push('Tour guide included')
+  return lines
 }
 
 function getCombinationDelta(combination: PackageCombination, baseTotal: number) {
@@ -668,7 +738,7 @@ export function formatPackageCombinationForCopy(
 
   if (combination.transportOption) {
     lines.push('****Transport****')
-    lines.push(combination.transportOption.summary || combination.transportOption.title)
+    lines.push(...formatTransportLines(combination.transportOption))
     lines.push('')
   }
 
@@ -704,10 +774,10 @@ export function formatPackageCombinationForCopy(
   }
   if (combination.paymentSurchargeTotal > 0) {
     lines.push(
-      `*${formatPaymentMethodLabel(combination.paymentMethod)} charge: ${formatMoney(
+      `*${formatPaymentMethodLabel(combination.paymentMethod)} processing fee: ${formatMoney(
         combination.paymentSurchargeTotal,
         combination.currency,
-      )}*`,
+      )} (non-refundable)*`,
     )
   }
   lines.push(`*Per Person Price: ${formatMoney(combination.perPersonPrice, combination.currency)}*`)
@@ -721,7 +791,7 @@ export function formatPackageQuoteForCopy(payloadInput: unknown, limit = 12) {
   const customerOptions = buildCustomerPackageOptions(payload, 250)
   const baseTotal = customerOptions[0]?.combination.totalPrice ?? 0
   const defaultFlight = getDefaultOption(payload.flightOptions)
-  const defaultTransport = payload.transportOptions[0] || null
+  const defaultTransport = getDefaultOption(payload.transportOptions)
   const dateRange = formatDateRange(payload)
   const lines: string[] = []
 
@@ -735,13 +805,8 @@ export function formatPackageQuoteForCopy(payloadInput: unknown, limit = 12) {
     lines.push(defaultFlight.summary || defaultFlight.title)
     const flightAlternatives = payload.flightOptions.filter((option) => option.id !== defaultFlight.id)
     for (const option of flightAlternatives) {
-      const deltas = getFlightOptionPriceDeltas(payload, option, defaultFlight)
-      const deltaParts = [
-        `Adult ${formatDelta(deltas.adult, payload.currency)}`,
-        `Child ${formatDelta(deltas.child, payload.currency)}`,
-        `Under 5 ${formatDelta(deltas.infant, payload.currency)}`,
-      ]
-      lines.push(`- ${option.title}: ${deltaParts.join(' / ')}`)
+      const delta = getFlightOptionTotalDelta(payload, option, defaultFlight)
+      lines.push(`- ${option.title}: ${formatDelta(delta, payload.currency)} total`)
     }
     lines.push('')
   }
@@ -756,7 +821,11 @@ export function formatPackageQuoteForCopy(payloadInput: unknown, limit = 12) {
 
   if (defaultTransport) {
     lines.push('****Transport Included****')
-    lines.push(defaultTransport.summary || defaultTransport.title)
+    lines.push(...formatTransportLines(defaultTransport))
+    const transportAlternatives = payload.transportOptions.filter((option) => option.id !== defaultTransport.id)
+    for (const option of transportAlternatives) {
+      lines.push(`- ${option.title}: ${formatDelta(option.price - defaultTransport.price, payload.currency)} total`)
+    }
     lines.push('')
   }
 
@@ -783,7 +852,10 @@ export function formatPackageQuoteForCopy(payloadInput: unknown, limit = 12) {
       }
       lines.push(`Base total: ${formatMoney(combination.totalPrice, combination.currency)}`)
       if (payload.cardProcessingFeePercent > 0) {
-        lines.push(`Card payment charge: ${payload.cardProcessingFeePercent}%`)
+        lines.push(`Credit Card processing fee: ${payload.cardProcessingFeePercent}% (non-refundable)`)
+      }
+      if (payload.depositRequired && (payload.depositAmount || 0) > 0) {
+        lines.push(`Deposit required to secure: ${formatMoney(payload.depositAmount || 0, payload.currency)}`)
       }
     }
   })
@@ -862,7 +934,12 @@ export function resolvePackageSelection(
     0,
   )
   const packageSubtotalPrice = Math.max(0, grossPrice - offerDiscountTotal)
-  const paymentSurchargeTotal = getPaymentSurchargeTotal(packageSubtotalPrice, payload, paymentMethod)
+  const paymentBreakdown = normalizePackagePaymentBreakdown(
+    input.paymentBreakdown,
+    packageSubtotalPrice,
+    paymentMethod,
+  )
+  const paymentSurchargeTotal = getPaymentSurchargeFromBreakdown(payload, paymentBreakdown)
   const totalPrice = packageSubtotalPrice + paymentSurchargeTotal
 
   return {
@@ -872,6 +949,7 @@ export function resolvePackageSelection(
       visaOptionId: input.visaOptionId || null,
       transportOptionId: input.transportOptionId || null,
       paymentMethod,
+      paymentBreakdown,
       customerName: asString(input.customerName),
       customerPhone: asString(input.customerPhone),
       customerEmail: asString(input.customerEmail),
@@ -886,6 +964,9 @@ export function resolvePackageSelection(
           : 'no-visa',
         transportOption?.id || 'no-transport',
         paymentMethod,
+        paymentBreakdown.cash,
+        paymentBreakdown.bankTransfer,
+        paymentBreakdown.card,
       ].join('__'),
       staySelections,
       flightOption,
@@ -894,6 +975,7 @@ export function resolvePackageSelection(
       transportOption,
       packageSubtotalPrice,
       paymentMethod,
+      paymentBreakdown,
       paymentSurchargeTotal,
       totalPrice,
       grossPrice,

@@ -140,9 +140,11 @@ function createInitialPayload(): PackageQuotePayload {
     ],
     flightOptions: [newOption('flight', { isDefault: true })],
     visaOptions: [newOption('visa')],
-    transportOptions: [newOption('transport')],
+    transportOptions: [newOption('transport', { isDefault: true })],
     limitedTimeOffers: [],
     cardProcessingFeePercent: 2.5,
+    depositRequired: false,
+    depositAmount: 0,
     notes: '',
   }
 }
@@ -214,7 +216,9 @@ function OptionEditor({
   showPricingMode = false,
   showFlightPricing = false,
   showDefaultToggle = false,
+  defaultLabel = 'Preferred option',
   showQuantity = false,
+  showTransportExtras = false,
   quantityFallback,
   canRemove,
 }: {
@@ -227,7 +231,9 @@ function OptionEditor({
   showPricingMode?: boolean
   showFlightPricing?: boolean
   showDefaultToggle?: boolean
+  defaultLabel?: string
   showQuantity?: boolean
+  showTransportExtras?: boolean
   quantityFallback?: number
   canRemove: boolean
 }) {
@@ -260,8 +266,37 @@ function OptionEditor({
               : 'border border-slate-200 text-slate-600 hover:bg-slate-100'
           }`}
         >
-          {option.isDefault ? 'Preferred flight' : 'Mark preferred'}
+          {option.isDefault ? defaultLabel : 'Mark preferred'}
         </button>
+      )}
+      {showTransportExtras && (
+        <div className="mb-2 grid gap-2 sm:grid-cols-2">
+          {[
+            ['includesZiyarat', 'Ziyarat included'],
+            ['includesTourGuide', 'Tour guide included'],
+          ].map(([key, label]) => {
+            const active = Boolean(option[key as 'includesZiyarat' | 'includesTourGuide'])
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() =>
+                  onChange({
+                    ...option,
+                    [key]: !active,
+                  })
+                }
+                className={`min-h-9 rounded-lg px-3 text-xs font-black transition ${
+                  active
+                    ? 'bg-emerald-100 text-emerald-800'
+                    : 'border border-slate-200 text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                {label}
+              </button>
+            )
+          })}
+        </div>
       )}
       {showQuantity && (
         <label className="mb-2 block">
@@ -373,6 +408,7 @@ export default function PackagesClient({ currentUserId, initialQuoteId = null }:
   const [setupMessage, setSetupMessage] = useState<string | null>(null)
 
   const customerOptions = useMemo(() => buildCustomerPackageOptions(payload, 80), [payload])
+  const baseCustomerOption = customerOptions[0]?.combination || null
   const servicePassengerCount = payload.adults + payload.childrenPaying + payload.childrenFree
   const shareUrl = buildShareUrl(activeQuote?.share_token)
   const filteredQuotes = useMemo(() => {
@@ -442,9 +478,10 @@ export default function PackagesClient({ currentUserId, initialQuoteId = null }:
     nextOption: PackageComponentOption,
   ) => {
     const nextOptions = payload[key].map((option, index) => (index === optionIndex ? nextOption : option))
+    const supportsDefault = key === 'flightOptions' || key === 'transportOptions'
     updatePayload({
       [key]:
-        key === 'flightOptions' && nextOption.isDefault
+        supportsDefault && nextOption.isDefault
           ? nextOptions.map((option, index) => ({ ...option, isDefault: index === optionIndex }))
           : nextOptions,
     } as Partial<PackageQuotePayload>)
@@ -468,7 +505,9 @@ export default function PackagesClient({ currentUserId, initialQuoteId = null }:
       [key]: [
         ...payload[key],
         newOption(prefix, {
-          isDefault: key === 'flightOptions' && payload.flightOptions.length === 0,
+          isDefault:
+            (key === 'flightOptions' && payload.flightOptions.length === 0)
+            || (key === 'transportOptions' && payload.transportOptions.length === 0),
           quantity: key === 'visaOptions' && servicePassengerCount > 0 ? servicePassengerCount : undefined,
         }),
       ],
@@ -799,7 +838,7 @@ export default function PackagesClient({ currentUserId, initialQuoteId = null }:
               <label className="block">
                 <span className="mb-1 flex items-center gap-1 text-xs font-bold text-slate-500">
                   <CreditCard className="h-3.5 w-3.5" />
-                  Card processing charge
+                  Credit Card processing fee
                 </span>
                 <div className="flex min-h-11 items-center rounded-lg border border-slate-200 bg-white px-3">
                   <input
@@ -818,9 +857,38 @@ export default function PackagesClient({ currentUserId, initialQuoteId = null }:
                   <span className="ml-2 text-sm font-black text-slate-500">%</span>
                 </div>
                 <p className="mt-1 text-xs text-slate-500">
-                  Applied only when the customer chooses card payment.
+                  Applied only to the Credit Card amount. Processing fees are non-refundable.
                 </p>
               </label>
+              <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_12rem]">
+                <button
+                  type="button"
+                  onClick={() => updatePayload({ depositRequired: !payload.depositRequired })}
+                  className={`min-h-11 rounded-lg px-3 text-sm font-black transition ${
+                    payload.depositRequired
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-100'
+                  }`}
+                >
+                  {payload.depositRequired ? 'Deposit required to secure' : 'No deposit required'}
+                </button>
+                <label className="block">
+                  <span className="sr-only">Deposit amount</span>
+                  <div className="flex min-h-11 items-center rounded-lg border border-slate-200 bg-white px-3">
+                    <span className="mr-2 text-sm font-black text-slate-500">GBP</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={payload.depositAmount || ''}
+                      onChange={(event) => updatePayload({ depositAmount: Number(event.target.value || 0) })}
+                      disabled={!payload.depositRequired}
+                      className="w-full bg-transparent text-sm font-bold outline-none disabled:text-slate-400"
+                      placeholder="Deposit"
+                    />
+                  </div>
+                </label>
+              </div>
             </div>
             <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
               <span className="mb-2 block text-xs font-bold text-slate-500">Itinerary order</span>
@@ -886,6 +954,7 @@ export default function PackagesClient({ currentUserId, initialQuoteId = null }:
                     priceLabel="Flight cost"
                     showFlightPricing
                     showDefaultToggle
+                    defaultLabel="Preferred flight"
                     canRemove
                     onChange={(next) => updateComponentOption('flightOptions', index, next)}
                     onRemove={() => removeComponentOption('flightOptions', index)}
@@ -962,6 +1031,9 @@ export default function PackagesClient({ currentUserId, initialQuoteId = null }:
                     summaryPlaceholder="Airport transfers, hotel transfers, ziyarat, vehicle type"
                     priceLabel="Transport cost"
                     showPricingMode
+                    showDefaultToggle
+                    defaultLabel="Preferred transport"
+                    showTransportExtras
                     canRemove
                     onChange={(next) => updateComponentOption('transportOptions', index, next)}
                     onRemove={() => removeComponentOption('transportOptions', index)}
@@ -1179,69 +1251,59 @@ export default function PackagesClient({ currentUserId, initialQuoteId = null }:
               </div>
             ) : (
               <div className="max-h-[44rem] space-y-3 overflow-y-auto pr-1">
-                {customerOptions.slice(0, 30).map(({ combination }, index) => (
-                  <div key={combination.id} className="rounded-lg border border-slate-200 p-3">
-                    <div className="mb-2 flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-black text-slate-950">Option {index + 1}</p>
-                        <p className="text-xs text-slate-500">
-                          {combination.payingGuests} hotel-paying guest
-                          {combination.payingGuests === 1 ? '' : 's'}
-                          {combination.servicePassengers !== combination.payingGuests
-                            ? ` · ${combination.servicePassengers} service passengers`
-                            : ''}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-base font-black text-slate-950">
-                          {formatMoney(combination.totalPrice, combination.currency)}
-                        </p>
-                        {combination.offerDiscountTotal > 0 && (
-                          <p className="text-[11px] font-bold text-emerald-700">
-                            {formatMoney(combination.offerDiscountTotal, combination.currency)} off
-                          </p>
-                        )}
-                        <p className="text-xs font-bold text-[#8b1e2d]">
-                          {formatMoney(combination.perPersonPrice, combination.currency)} pp
-                        </p>
-                      </div>
-                    </div>
-                    <div className="space-y-1 text-xs text-slate-600">
-                      {combination.staySelections.map((stay) => (
-                        <p key={`${combination.id}-${stay.groupId}`}>
-                          <span className="font-bold text-slate-800">{stay.groupLabel}:</span>{' '}
-                          {stay.option.title || 'Hotel option'}
-                        </p>
-                      ))}
-                      {combination.flightOption && (
-                        <p>
-                          <span className="font-bold text-slate-800">Flight:</span>{' '}
-                          {combination.flightOption.title}
-                        </p>
-                      )}
-                      {combination.visaOptions.length > 0 && (
-                        <p>
-                          <span className="font-bold text-slate-800">Visa:</span>{' '}
-                          {combination.visaOptions
-                            .map((option) => `${option.quantity || combination.servicePassengers} x ${option.title}`)
-                            .join(', ')}
-                        </p>
-                      )}
-                      {combination.transportOption && (
-                        <p>
-                          <span className="font-bold text-slate-800">Transport:</span>{' '}
-                          {combination.transportOption.title}
-                        </p>
-                      )}
-                      {combination.appliedOffers.length > 0 && (
-                        <p>
-                          <span className="font-bold text-slate-800">Offer:</span>{' '}
-                          {combination.appliedOffers.map((offer) => offer.title).join(', ')}
-                        </p>
-                      )}
-                    </div>
+                {baseCustomerOption && (
+                  <div className="rounded-lg border border-[#8b1e2d]/20 bg-red-50 p-3 text-xs text-slate-700">
+                    <p className="text-sm font-black text-slate-950">Base package</p>
+                    <p className="mt-1">
+                      {baseCustomerOption.flightOption?.title || 'No flight'} ·{' '}
+                      {baseCustomerOption.transportOption?.title || 'No transport'} ·{' '}
+                      {baseCustomerOption.visaOptions.length > 0 ? 'Visa included' : 'No visa'}
+                    </p>
+                    <p className="mt-2 text-lg font-black text-slate-950">
+                      {formatMoney(baseCustomerOption.totalPrice, baseCustomerOption.currency)}
+                    </p>
                   </div>
-                ))}
+                )}
+                {customerOptions.slice(0, 30).map(({ combination }, index) => {
+                  const delta = baseCustomerOption
+                    ? combination.totalPrice - baseCustomerOption.totalPrice
+                    : 0
+                  return (
+                    <div key={combination.id} className="rounded-lg border border-slate-200 p-3">
+                      <div className="mb-2 flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-black text-slate-950">Option {index + 1}</p>
+                          <p className="text-xs text-slate-500">
+                            {index === 0
+                              ? 'Included base hotel combination'
+                              : `${delta >= 0 ? '+' : '-'}${formatMoney(Math.abs(delta), combination.currency)} total`}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-base font-black text-slate-950">
+                            {formatMoney(combination.totalPrice, combination.currency)}
+                          </p>
+                          {combination.offerDiscountTotal > 0 && (
+                            <p className="text-[11px] font-bold text-emerald-700">
+                              {formatMoney(combination.offerDiscountTotal, combination.currency)} off
+                            </p>
+                          )}
+                          <p className="text-xs font-bold text-[#8b1e2d]">
+                            {formatMoney(combination.perPersonPrice, combination.currency)} pp
+                          </p>
+                        </div>
+                      </div>
+                      <div className="space-y-1 text-xs text-slate-600">
+                        {combination.staySelections.map((stay) => (
+                          <p key={`${combination.id}-${stay.groupId}`}>
+                            <span className="font-bold text-slate-800">{stay.groupLabel}:</span>{' '}
+                            {stay.option.title || 'Hotel option'}
+                          </p>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
             )}
           </section>

@@ -9,14 +9,12 @@ import {
   CalendarDays,
   Car,
   CheckCircle2,
-  Copy,
   CreditCard,
   Download,
   Eye,
   EyeOff,
   FileText,
   FolderOpen,
-  Link2,
   Loader2,
   PackageCheck,
   Pencil,
@@ -82,18 +80,6 @@ type DocumentsResponse = {
 
 type InvoiceResponse = {
   invoice?: TravelPackageInvoice | null
-  setupRequired?: boolean
-  message?: string
-  error?: string
-}
-
-type DocumentAccessResponse = {
-  access?: {
-    document_access_token?: string | null
-    document_access_enabled?: boolean | null
-    document_access_expires_at?: string | null
-    document_release_status?: string | null
-  }
   setupRequired?: boolean
   message?: string
   error?: string
@@ -228,16 +214,6 @@ function toDateTimeLocalValue(value: Date | string = new Date()) {
   return localDate.toISOString().slice(0, 16)
 }
 
-function createDefaultDocumentAccessExpiry() {
-  const expiry = new Date()
-  expiry.setMonth(expiry.getMonth() + 10)
-  return expiry
-}
-
-function toDocumentAccessExpiryInput(value: string | null | undefined) {
-  return toDateTimeLocalValue(value || createDefaultDocumentAccessExpiry())
-}
-
 function createInitialReservationForm(soldPriceTotal = 0): ReservationFormState {
   return {
     reservationType: 'flight',
@@ -348,7 +324,7 @@ function formatFileSize(bytes: number) {
 
 function formatPaymentMethod(method: string | null | undefined) {
   if (method === 'cash') return 'Cash'
-  if (method === 'card') return 'Card'
+  if (method === 'card') return 'Credit Card'
   return 'Bank transfer'
 }
 
@@ -448,9 +424,6 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
   const [documentUploadForm, setDocumentUploadForm] = useState<DocumentUploadFormState>(() =>
     createInitialDocumentUploadForm(),
   )
-  const [documentAccessExpiryInput, setDocumentAccessExpiryInput] = useState(() =>
-    toDocumentAccessExpiryInput(null),
-  )
   const [invoiceForm, setInvoiceForm] = useState<InvoiceFormState>(() =>
     createInitialInvoiceForm(),
   )
@@ -469,7 +442,6 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
   const [savingDocument, setSavingDocument] = useState(false)
   const [savingInvoice, setSavingInvoice] = useState(false)
   const [updatingDocumentId, setUpdatingDocumentId] = useState<string | null>(null)
-  const [updatingDocumentAccess, setUpdatingDocumentAccess] = useState(false)
   const [updatingReservationId, setUpdatingReservationId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [reservationError, setReservationError] = useState<string | null>(null)
@@ -488,9 +460,6 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
           throw new Error(data.message || data.error || 'Travel package not found')
         }
         setPackageFolder(data.package)
-        setDocumentAccessExpiryInput(
-          toDocumentAccessExpiryInput(data.package.document_access_expires_at),
-        )
       } catch (loadError) {
         setError(loadError instanceof Error ? loadError.message : 'Unable to load package')
       } finally {
@@ -644,12 +613,10 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
   const visibleDocumentCount = documents.filter(
     (document) => document.customer_visible && document.status === 'released',
   ).length
-  const documentPortalUrl =
-    packageFolder?.document_access_token && typeof window !== 'undefined'
-      ? `${window.location.origin}/package-portal/${packageFolder.document_access_token}`
-      : ''
-  const documentPortalRootUrl =
-    typeof window !== 'undefined' ? `${window.location.origin}/package-portal` : '/package-portal'
+  const customerAccessLastName =
+    packageFolder?.customer_access_last_name
+    || packageFolder?.customer_name?.trim().split(/\s+/).pop()?.toLowerCase()
+    || 'lead surname'
   const quoteTitle =
     selectedPayload?.title || selectedQuote?.title || packageFolder?.package_reference || 'Final quotation'
   const quoteCustomerName =
@@ -952,61 +919,6 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
     } finally {
       setUpdatingDocumentId(null)
     }
-  }
-
-  const updateDocumentAccess = async (enabled: boolean, regenerate = false) => {
-    if (updatingDocumentAccess) return
-    setUpdatingDocumentAccess(true)
-    setDocumentError(null)
-    try {
-      const body: { enabled: boolean; regenerate: boolean; expiresAt?: string } = {
-        enabled,
-        regenerate,
-      }
-      if (enabled) {
-        body.expiresAt =
-          documentAccessExpiryInput || toDateTimeLocalValue(createDefaultDocumentAccessExpiry())
-      }
-
-      const response = await fetch(
-        `/api/travel-packages/${encodeURIComponent(packageId)}/documents/access`,
-        {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        },
-      )
-      const data = (await response.json()) as DocumentAccessResponse
-      if (!response.ok || !data.access) {
-        throw new Error(data.message || data.error || 'Failed to update document portal access')
-      }
-
-      const nextExpiresAt = data.access.document_access_expires_at || null
-      setDocumentAccessExpiryInput(toDocumentAccessExpiryInput(nextExpiresAt))
-      setPackageFolder((current) =>
-        current
-          ? {
-              ...current,
-              document_access_token: data.access?.document_access_token || null,
-              document_access_enabled: Boolean(data.access?.document_access_enabled),
-              document_access_expires_at: data.access?.document_access_expires_at || null,
-              document_release_status:
-                data.access?.document_release_status || current.document_release_status,
-            }
-          : current,
-      )
-    } catch (accessError) {
-      setDocumentError(
-        accessError instanceof Error ? accessError.message : 'Failed to update document portal access',
-      )
-    } finally {
-      setUpdatingDocumentAccess(false)
-    }
-  }
-
-  const copyDocumentPortalLink = async () => {
-    if (!documentPortalUrl) return
-    await navigator.clipboard.writeText(documentPortalUrl)
   }
 
   const updateInvoiceForm = <Key extends keyof InvoiceFormState>(
@@ -1496,124 +1408,36 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
                 <p className="mt-1 text-sm font-black text-slate-950">{visibleDocumentCount}</p>
               </div>
               <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                <p className="text-xs font-bold uppercase text-slate-500">Portal status</p>
-                <p className="mt-1 text-sm font-black capitalize text-slate-950">
-                  {packageFolder.document_access_enabled ? 'Live' : 'Off'}
-                </p>
+                <p className="text-xs font-bold uppercase text-slate-500">Customer access</p>
+                <p className="mt-1 text-sm font-black text-slate-950">Bookings portal</p>
                 <p className="mt-1 text-xs font-bold text-slate-500">
-                  Expires {formatDateTime(packageFolder.document_access_expires_at)}
-                </p>
-                <p className="mt-1 text-xs font-bold text-slate-500">
-                  Last viewed {formatDateTime(packageFolder.document_access_last_viewed_at)}
+                  Use PT reference and lead surname
                 </p>
               </div>
             </div>
 
             <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
-              <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+              <div className="grid gap-3 md:grid-cols-3">
                 <div className="min-w-0">
                   <p className="text-xs font-bold uppercase text-slate-500">
-                    Customer document portal
+                    Customer portal
                   </p>
-                  {packageFolder.document_access_enabled && documentPortalUrl ? (
-                    <div className="mt-1 space-y-1">
-                      <p className="break-all text-sm font-bold text-slate-700">{documentPortalUrl}</p>
-                      <p className="text-xs font-semibold text-slate-500">
-                        Customers can also use {documentPortalRootUrl} with this
-                        package reference and the lead passenger surname.
-                      </p>
-                    </div>
-                  ) : (
-                    <p className="mt-1 text-sm font-bold text-slate-500">
-                      Customer access is not enabled.
-                    </p>
-                  )}
+                  <p className="mt-1 text-sm font-black text-slate-950">bookings.piyamtravel.com</p>
+                  <p className="mt-1 text-xs font-semibold text-slate-500">
+                    No unique customer link is generated from this page.
+                  </p>
                 </div>
-                <label className="text-xs font-bold uppercase text-slate-500 xl:w-64">
-                  Portal expiry
-                  <input
-                    type="datetime-local"
-                    value={documentAccessExpiryInput}
-                    onChange={(event) => setDocumentAccessExpiryInput(event.target.value)}
-                    className="mt-1 min-h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
-                  />
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {packageFolder.document_access_enabled && documentPortalUrl ? (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          void updateDocumentAccess(true)
-                        }}
-                        disabled={updatingDocumentAccess}
-                        className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300"
-                      >
-                        {updatingDocumentAccess ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <CalendarDays className="h-4 w-4" />
-                        )}
-                        Save Expiry
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          void copyDocumentPortalLink()
-                        }}
-                        className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:bg-slate-100"
-                      >
-                        <Copy className="h-4 w-4" />
-                        Copy Link
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          void updateDocumentAccess(true, true)
-                        }}
-                        disabled={updatingDocumentAccess}
-                        className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300"
-                      >
-                        {updatingDocumentAccess ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Link2 className="h-4 w-4" />
-                        )}
-                        New Link
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          void updateDocumentAccess(false)
-                        }}
-                        disabled={updatingDocumentAccess}
-                        className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-rose-200 bg-white px-3 text-xs font-black text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:text-rose-300"
-                      >
-                        {updatingDocumentAccess ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <EyeOff className="h-4 w-4" />
-                        )}
-                        Revoke
-                      </button>
-                    </>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        void updateDocumentAccess(true)
-                      }}
-                      disabled={updatingDocumentAccess}
-                      className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg bg-[#8b1e2d] px-3 text-xs font-black text-white transition hover:bg-[#6f1824] disabled:cursor-not-allowed disabled:bg-slate-300"
-                    >
-                      {updatingDocumentAccess ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Link2 className="h-4 w-4" />
-                      )}
-                      Enable Portal
-                    </button>
-                  )}
+                <div>
+                  <p className="text-xs font-bold uppercase text-slate-500">Reference</p>
+                  <p className="mt-1 text-sm font-black text-slate-950">
+                    {packageFolder.package_reference}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs font-bold uppercase text-slate-500">Lead surname</p>
+                  <p className="mt-1 text-sm font-black capitalize text-slate-950">
+                    {customerAccessLastName}
+                  </p>
                 </div>
               </div>
             </div>
@@ -1912,7 +1736,7 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
                         ? ` · ${formatMoney(
                             selectedCombination.paymentSurchargeTotal,
                             selectedCombination.currency,
-                          )} card charge`
+                          )} processing fee`
                         : ''}
                     </p>
                     <p className="mt-1 text-xs font-bold text-[#8b1e2d]">
@@ -3216,7 +3040,7 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
                       ? ` · ${formatMoney(
                           selectedCombination.paymentSurchargeTotal,
                           selectedCombination.currency,
-                        )} card charge`
+                        )} processing fee`
                       : ''}
                   </p>
                   <p className="mt-1 text-xs font-bold text-[#8b1e2d]">
