@@ -29,6 +29,7 @@ import {
 } from 'lucide-react'
 import type {
   PackageCombination,
+  PackageComponentOption,
   TravelPackageDocument,
   TravelPackageDocumentCategory,
   TravelPackageFolder,
@@ -124,6 +125,14 @@ type ReservationFinancialFormState = {
   depositRequired: boolean
   depositAmount: string
   paymentDueAt: string
+}
+
+type QuoteReservationPrefill = {
+  key: string
+  reservationType: TravelPackageReservationType
+  title: string
+  soldPriceTotal: number
+  internalNotes: string
 }
 
 type DocumentUploadFormState = {
@@ -371,6 +380,30 @@ function getVisaQuantity(option: { quantity?: number }, servicePassengers: numbe
   return option.quantity && option.quantity > 0 ? option.quantity : servicePassengers
 }
 
+function getOptionSoldTotal(
+  option: PackageComponentOption | null | undefined,
+  servicePassengers: number,
+  passengers?: TravelPackageFolder['passenger_summary'],
+) {
+  if (!option) return 0
+  if (option.adultPrice || option.childPrice || option.infantPrice) {
+    return (
+      Number(option.adultPrice || 0) * Number(passengers?.adults || 0) +
+      Number(option.childPrice || 0) * Number(passengers?.childrenPaying || 0) +
+      Number(option.infantPrice || 0) * Number(passengers?.childrenFree || 0)
+    )
+  }
+  if (option.pricingMode === 'per_person') return Number(option.price || 0) * servicePassengers
+  return Number(option.price || 0)
+}
+
+function getReservationSummary(option: PackageComponentOption | null | undefined) {
+  return (
+    option?.summary?.trim() ||
+    'Pulled from the final quote. Agent to complete supplier references, booked cost, and confirmation status.'
+  )
+}
+
 function createReservationFinancialForm(
   reservation: TravelPackageReservation,
 ): ReservationFinancialFormState {
@@ -430,6 +463,8 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
   )
   const [invoiceForm, setInvoiceForm] = useState<InvoiceFormState>(() => createInitialInvoiceForm())
   const [selectedDocumentFile, setSelectedDocumentFile] = useState<File | null>(null)
+  const [draggingDocumentCategory, setDraggingDocumentCategory] =
+    useState<TravelPackageDocumentCategory | null>(null)
   const [itemForms, setItemForms] = useState<Record<string, ReservationItemFormState>>({})
   const [reservationFinancialForms, setReservationFinancialForms] = useState<
     Record<string, ReservationFinancialFormState>
@@ -611,6 +646,15 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
   const defaultSoldPrice = selectedCombination?.totalPrice || 0
   const passengerSummary = packageFolder?.passenger_summary
   const groupedDocuments = useMemo(() => groupPackageDocumentsByCategory(documents), [documents])
+  const documentCountsByCategory = useMemo(() => {
+    return documents.reduce(
+      (counts, document) => {
+        counts[document.category] = (counts[document.category] || 0) + 1
+        return counts
+      },
+      {} as Record<TravelPackageDocumentCategory, number>,
+    )
+  }, [documents])
   const reservationTitleById = useMemo(
     () => new Map(reservations.map((reservation) => [reservation.id, reservation.title])),
     [reservations],
@@ -677,6 +721,57 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
   const bookedSoldDifference =
     reservationTotals.sold - reservationTotals.discount - reservationTotals.booked
   const estimatedMargin = bookedSoldDifference + reservationTotals.commission
+  const quoteReservationPrefills = useMemo<QuoteReservationPrefill[]>(() => {
+    if (!selectedCombination) return []
+    const servicePassengers = selectedCombination.servicePassengers
+    const prefills: QuoteReservationPrefill[] = []
+    if (selectedCombination.flightOption) {
+      prefills.push({
+        key: `flight-${selectedCombination.flightOption.id}`,
+        reservationType: 'flight',
+        title: selectedCombination.flightOption.title,
+        soldPriceTotal: getOptionSoldTotal(
+          selectedCombination.flightOption,
+          servicePassengers,
+          passengerSummary,
+        ),
+        internalNotes: getReservationSummary(selectedCombination.flightOption),
+      })
+    }
+    selectedCombination.visaOptions.forEach((option) => {
+      const quantity = getVisaQuantity(option, servicePassengers)
+      prefills.push({
+        key: `visa-${option.id}`,
+        reservationType: 'visa',
+        title: `${quantity} x ${option.title}`,
+        soldPriceTotal: Number(option.price || 0) * quantity,
+        internalNotes: getReservationSummary(option),
+      })
+    })
+    if (selectedCombination.transportOption) {
+      prefills.push({
+        key: `transport-${selectedCombination.transportOption.id}`,
+        reservationType: 'transport',
+        title: selectedCombination.transportOption.title,
+        soldPriceTotal: getOptionSoldTotal(
+          selectedCombination.transportOption,
+          servicePassengers,
+          passengerSummary,
+        ),
+        internalNotes: getReservationSummary(selectedCombination.transportOption),
+      })
+    }
+    selectedCombination.staySelections.forEach((stay) => {
+      prefills.push({
+        key: `hotel-${stay.groupId}-${stay.option.id}`,
+        reservationType: 'hotel',
+        title: `${stay.groupLabel}: ${stay.option.title}`,
+        soldPriceTotal: Number(stay.option.price || 0),
+        internalNotes: getReservationSummary(stay.option),
+      })
+    })
+    return prefills
+  }, [passengerSummary, selectedCombination])
   const invoiceSubtotalSold = parseMoneyInput(invoiceForm.subtotalSold)
   const invoiceDiscountTotal = parseMoneyInput(invoiceForm.discountTotal)
   const invoiceTotalPaid = parseMoneyInput(invoiceForm.totalPaid)
@@ -699,16 +794,28 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
   ]
 
   useEffect(() => {
-    if (defaultSoldPrice <= 0) return
+    const firstPrefill = quoteReservationPrefills[0]
+    if (!firstPrefill && defaultSoldPrice <= 0) return
     setReservationForm((current) => {
-      if (current.soldPriceTotal) return current
+      if (current.title || current.soldPriceTotal) return current
+      if (firstPrefill) {
+        return {
+          ...current,
+          reservationType: firstPrefill.reservationType,
+          title: firstPrefill.title,
+          soldPriceTotal:
+            firstPrefill.soldPriceTotal > 0 ? String(firstPrefill.soldPriceTotal) : '',
+          internalNotes: firstPrefill.internalNotes,
+          paymentDueAt: current.paymentDueAt || toDateTimeLocalValue(),
+        }
+      }
       return {
         ...current,
         soldPriceTotal: String(defaultSoldPrice),
         paymentDueAt: current.paymentDueAt || toDateTimeLocalValue(),
       }
     })
-  }, [defaultSoldPrice])
+  }, [defaultSoldPrice, quoteReservationPrefills])
 
   const updateReservationForm = <Key extends keyof ReservationFormState>(
     key: Key,
@@ -772,6 +879,21 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
     }
   }
 
+  const applyReservationPrefill = (prefill: QuoteReservationPrefill) => {
+    setReservationForm((current) => ({
+      ...current,
+      reservationType: prefill.reservationType,
+      title: prefill.title,
+      status: 'reservation_pending',
+      soldPriceTotal: prefill.soldPriceTotal > 0 ? String(prefill.soldPriceTotal) : '',
+      bookedCostTotal: '',
+      supplierName: '',
+      supplierReference: '',
+      internalNotes: prefill.internalNotes,
+      paymentDueAt: current.paymentDueAt || toDateTimeLocalValue(),
+    }))
+  }
+
   const updateReservationStatus = async (
     reservation: TravelPackageReservation,
     status: TravelPackageReservationStatus,
@@ -814,20 +936,23 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
     setDocumentUploadForm((current) => ({ ...current, [key]: value }))
   }
 
-  const uploadDocument = async () => {
-    if (!selectedDocumentFile || savingDocument) return
-
+  const uploadDocumentFile = async (
+    file: File,
+    overrides: Partial<DocumentUploadFormState> = {},
+  ) => {
+    if (savingDocument) return
     setSavingDocument(true)
     setDocumentError(null)
     try {
+      const uploadForm = { ...documentUploadForm, ...overrides }
       const formData = new FormData()
-      formData.append('file', selectedDocumentFile)
-      formData.append('title', documentUploadForm.title || selectedDocumentFile.name)
-      formData.append('category', documentUploadForm.category)
-      formData.append('reservationId', documentUploadForm.reservationId)
-      formData.append('publicNotes', documentUploadForm.publicNotes)
-      formData.append('internalNotes', documentUploadForm.internalNotes)
-      formData.append('customerVisible', String(documentUploadForm.customerVisible))
+      formData.append('file', file)
+      formData.append('title', uploadForm.title || file.name)
+      formData.append('category', uploadForm.category)
+      formData.append('reservationId', uploadForm.reservationId)
+      formData.append('publicNotes', uploadForm.publicNotes)
+      formData.append('internalNotes', uploadForm.internalNotes)
+      formData.append('customerVisible', String(uploadForm.customerVisible))
 
       const response = await fetch(
         `/api/travel-packages/${encodeURIComponent(packageId)}/documents`,
@@ -850,7 +975,13 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
       )
     } finally {
       setSavingDocument(false)
+      setDraggingDocumentCategory(null)
     }
+  }
+
+  const uploadDocument = async () => {
+    if (!selectedDocumentFile) return
+    await uploadDocumentFile(selectedDocumentFile)
   }
 
   const updateDocumentVisibility = async (
@@ -1374,38 +1505,38 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
         </div>
       </nav>
 
-      {activePackageTab === 'overview' && (
-        <section id="package-control" className="scroll-mt-20">
-          <PackageOperationsWorkspace
-            packageFolder={packageFolder}
-            invoice={invoice}
-            onPackageChange={setPackageFolder}
-            onInvoiceChange={(updatedInvoice) => {
-              setInvoice(updatedInvoice)
-              setInvoiceForm(createInitialInvoiceForm(updatedInvoice))
-            }}
-          />
-        </section>
-      )}
-
       <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="space-y-5">
           {activePackageTab === 'overview' && (
-            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="mb-3 flex items-center gap-2">
-                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900 text-white">
-                  <CheckCircle2 className="h-4 w-4" />
-                </span>
-                <h2 className="text-lg font-black text-slate-950">Next action</h2>
+            <>
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="mb-3 flex items-center gap-2">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900 text-white">
+                    <CheckCircle2 className="h-4 w-4" />
+                  </span>
+                  <h2 className="text-lg font-black text-slate-950">Next action</h2>
+                </div>
+                <p className="text-base font-black text-[#8b1e2d]">
+                  {packageFolder.next_action || 'No next action set'}
+                </p>
+                <p className="mt-2 text-sm leading-6 text-slate-600">
+                  First operational step after quote conversion. For most packages this starts with
+                  passport copies received via WhatsApp, then deposit/payment handling.
+                </p>
               </div>
-              <p className="text-base font-black text-[#8b1e2d]">
-                {packageFolder.next_action || 'No next action set'}
-              </p>
-              <p className="mt-2 text-sm leading-6 text-slate-600">
-                First operational step after quote conversion. For most packages this starts with
-                passport copies received via WhatsApp, then deposit/payment handling.
-              </p>
-            </div>
+              <div className="h-2 rounded-full bg-slate-900" aria-hidden="true" />
+              <section id="package-control" className="scroll-mt-20">
+                <PackageOperationsWorkspace
+                  packageFolder={packageFolder}
+                  invoice={invoice}
+                  onPackageChange={setPackageFolder}
+                  onInvoiceChange={(updatedInvoice) => {
+                    setInvoice(updatedInvoice)
+                    setInvoiceForm(createInitialInvoiceForm(updatedInvoice))
+                  }}
+                />
+              </section>
+            </>
           )}
 
           {activePackageTab === 'documents' && (
@@ -1482,6 +1613,69 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
                     </p>
                   </div>
                 </div>
+              </div>
+
+              <div className="mb-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                {PACKAGE_DOCUMENT_CATEGORIES.map((category) => {
+                  const activeDrop = draggingDocumentCategory === category.value
+                  return (
+                    <label
+                      key={category.value}
+                      onDragOver={(event) => {
+                        event.preventDefault()
+                        setDraggingDocumentCategory(category.value)
+                      }}
+                      onDragLeave={() => setDraggingDocumentCategory(null)}
+                      onDrop={(event) => {
+                        event.preventDefault()
+                        setDraggingDocumentCategory(null)
+                        const file = event.dataTransfer.files?.[0]
+                        if (file) {
+                          void uploadDocumentFile(file, {
+                            category: category.value,
+                            title: file.name,
+                          })
+                        }
+                      }}
+                      className={`flex min-h-32 cursor-pointer flex-col justify-between rounded-lg border-2 border-dashed p-4 transition ${
+                        activeDrop
+                          ? 'border-[#8b1e2d] bg-red-50'
+                          : 'border-slate-300 bg-white hover:border-[#8b1e2d]/50 hover:bg-slate-50'
+                      }`}
+                    >
+                      <input
+                        type="file"
+                        accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx"
+                        className="sr-only"
+                        disabled={savingDocument}
+                        onChange={(event) => {
+                          const file = event.target.files?.[0]
+                          event.currentTarget.value = ''
+                          if (file) {
+                            void uploadDocumentFile(file, {
+                              category: category.value,
+                              title: file.name,
+                            })
+                          }
+                        }}
+                      />
+                      <span className="flex items-center justify-between gap-3">
+                        <span>
+                          <span className="block text-sm font-black text-slate-950">
+                            {category.label}
+                          </span>
+                          <span className="mt-1 block text-xs font-bold text-slate-500">
+                            {documentCountsByCategory[category.value] || 0} uploaded
+                          </span>
+                        </span>
+                        <Upload className="h-5 w-5 text-[#8b1e2d]" />
+                      </span>
+                      <span className="mt-3 text-xs font-semibold text-slate-500">
+                        Drop file here or click to upload instantly
+                      </span>
+                    </label>
+                  )
+                })}
               </div>
 
               <form
@@ -1947,6 +2141,46 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
                   )}
                 </div>
               </div>
+
+              {quoteReservationPrefills.length > 0 && (
+                <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
+                  <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-sm font-black text-slate-950">
+                        Final quote reservation source
+                      </p>
+                      <p className="text-xs font-semibold text-slate-500">
+                        Use these to create or correct reservation records. Supplier references,
+                        booked costs, and confirmation status remain agent-controlled.
+                      </p>
+                    </div>
+                    <span className="text-xs font-black uppercase text-slate-500">
+                      {quoteReservationPrefills.length} items
+                    </span>
+                  </div>
+                  <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                    {quoteReservationPrefills.map((prefill) => (
+                      <button
+                        key={prefill.key}
+                        type="button"
+                        onClick={() => applyReservationPrefill(prefill)}
+                        className="rounded-lg border border-slate-200 bg-white p-3 text-left transition hover:border-[#8b1e2d]/40 hover:bg-red-50"
+                      >
+                        <span className="text-[11px] font-black uppercase text-[#8b1e2d]">
+                          {prefill.reservationType}
+                        </span>
+                        <span className="mt-1 block text-sm font-black text-slate-950">
+                          {prefill.title}
+                        </span>
+                        <span className="mt-1 block text-xs font-bold text-slate-500">
+                          Sold from quote:{' '}
+                          {formatMoney(prefill.soldPriceTotal, reservationCurrency)}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <form
                 className="rounded-lg border border-slate-200 bg-slate-50 p-4"

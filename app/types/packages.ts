@@ -660,6 +660,26 @@ export interface TravelPackageAuditEvent {
 }
 
 export interface TravelPackageTransportVoucherData {
+  bookingId?: string
+  adults?: number
+  children?: number
+  infants?: number
+  passengers?: string
+  flightNumber?: string
+  airports?: string
+  landingDate?: string
+  landingTime?: string
+  vehicle?: string
+  maxBags?: string
+  extraBaggageFee?: string
+  providerName?: string
+  providerContact?: string
+  itinerary?: Array<{
+    type: string
+    description: string
+    date: string
+    time: string
+  }>
   arrivalAirport: string
   arrivalAt: string
   departureAirport: string

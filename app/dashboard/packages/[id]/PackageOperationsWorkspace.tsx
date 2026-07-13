@@ -45,6 +45,7 @@ import {
   calculatePackagePaymentSummary,
   getTravelPackageStatusTransitions,
 } from '@/lib/packageWorkflow'
+import { createDefaultTransportVoucherData } from '@/lib/packageTransportVoucher'
 
 type Props = {
   packageFolder: TravelPackageFolder
@@ -131,6 +132,21 @@ function label(value: string) {
 
 function emptyVoucher(): TravelPackageTransportVoucherData {
   return {
+    bookingId: '',
+    adults: 0,
+    children: 0,
+    infants: 0,
+    passengers: '',
+    flightNumber: '',
+    airports: '',
+    landingDate: '',
+    landingTime: '',
+    vehicle: 'H1',
+    maxBags: '6',
+    extraBaggageFee: '50 SAR per bag',
+    providerName: 'Barakat AlMusafar Trading',
+    providerContact: '+966555049005',
+    itinerary: [],
     arrivalAirport: '',
     arrivalAt: '',
     departureAirport: '',
@@ -145,6 +161,18 @@ function emptyVoucher(): TravelPackageTransportVoucherData {
     publicNotes: '',
     internalNotes: '',
   }
+}
+
+const TRANSPORT_VEHICLES = [
+  { name: 'Car', passengers: 4, bags: 3 },
+  { name: 'H1', passengers: 6, bags: 6 },
+  { name: 'Hiace', passengers: 13, bags: 13 },
+  { name: 'Coaster', passengers: 18, bags: 18 },
+  { name: 'Coach', passengers: 52, bags: 52 },
+]
+
+function getVehicleCapacity(vehicle: string | undefined) {
+  return TRANSPORT_VEHICLES.find((item) => item.name === vehicle)
 }
 
 export default function PackageOperationsWorkspace({
@@ -301,7 +329,17 @@ export default function PackageOperationsWorkspace({
       const latestVoucher = voucherData.vouchers?.[0]
       if (latestVoucher) {
         setVoucherForm(latestVoucher.voucher_data)
-        setVoucherRoutesText(latestVoucher.voucher_data.routes.join('\n'))
+        setVoucherRoutesText(
+          (
+            latestVoucher.voucher_data.routes ||
+            latestVoucher.voucher_data.itinerary?.map((item) => item.description) ||
+            []
+          ).join('\n'),
+        )
+      } else {
+        const defaultVoucher = createDefaultTransportVoucherData(packageFolder)
+        setVoucherForm(defaultVoucher)
+        setVoucherRoutesText(defaultVoucher.routes.join('\n'))
       }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to load package operations')
@@ -323,6 +361,12 @@ export default function PackageOperationsWorkspace({
     packageFolder.status,
     ...getTravelPackageStatusTransitions(packageFolder.status),
   ]
+  const selectedVehicle = getVehicleCapacity(voucherForm.vehicle || voucherForm.vehicleType)
+  const voucherSeatPassengers = Number(voucherForm.adults || 0) + Number(voucherForm.children || 0)
+  const voucherPassengerError =
+    selectedVehicle && voucherSeatPassengers > selectedVehicle.passengers
+      ? `Exceeds capacity of ${selectedVehicle.passengers}. Select a larger vehicle.`
+      : ''
 
   const patchPackage = async (body: Record<string, unknown>) => {
     setSaving('package')
@@ -617,15 +661,88 @@ export default function PackageOperationsWorkspace({
     }
   }
 
+  const updateVoucherField = <Key extends keyof TravelPackageTransportVoucherData>(
+    key: Key,
+    value: TravelPackageTransportVoucherData[Key],
+  ) => {
+    setVoucherForm((current) => ({ ...current, [key]: value }))
+  }
+
+  const updateVoucherItinerary = (
+    index: number,
+    updates: Partial<NonNullable<TravelPackageTransportVoucherData['itinerary']>[number]>,
+  ) => {
+    setVoucherForm((current) => {
+      const itinerary = [...(current.itinerary || [])]
+      const existing = itinerary[index]
+      itinerary[index] = {
+        type: existing?.type || '',
+        description: existing?.description || '',
+        date: existing?.date || '',
+        time: existing?.time || '',
+        ...updates,
+      }
+      return {
+        ...current,
+        itinerary,
+        routes: itinerary.map((item) => item.description.trim()).filter(Boolean),
+      }
+    })
+  }
+
+  const addVoucherItineraryItem = (type: string) => {
+    setVoucherForm((current) => ({
+      ...current,
+      itinerary: [...(current.itinerary || []), { type, description: '', date: '', time: '' }],
+    }))
+  }
+
+  const removeVoucherItineraryItem = (index: number) => {
+    setVoucherForm((current) => {
+      const itinerary = (current.itinerary || []).filter((_, itemIndex) => itemIndex !== index)
+      return {
+        ...current,
+        itinerary,
+        routes: itinerary.map((item) => item.description.trim()).filter(Boolean),
+      }
+    })
+  }
+
+  const resetVoucherFromFinalQuote = () => {
+    const defaultVoucher = createDefaultTransportVoucherData(packageFolder)
+    setVoucherForm(defaultVoucher)
+    setVoucherRoutesText(defaultVoucher.routes.join('\n'))
+    toast.success('Voucher fields reset from final quote')
+  }
+
   const generateVoucher = async (customerVisible: boolean) => {
     setSaving('voucher')
     try {
+      const itinerary = (voucherForm.itinerary || []).filter(
+        (item) => item.type || item.description || item.date || item.time,
+      )
       const voucherData = {
         ...voucherForm,
-        routes: voucherRoutesText
-          .split('\n')
-          .map((route) => route.trim())
-          .filter(Boolean),
+        passengers:
+          voucherForm.passengers ||
+          `${voucherForm.adults || 0} Adults, ${voucherForm.children || 0} Children${
+            voucherForm.infants ? `, ${voucherForm.infants} Infants` : ''
+          }`,
+        vehicleType: voucherForm.vehicleType || voucherForm.vehicle || '',
+        transportCompany: voucherForm.transportCompany || voucherForm.providerName || '',
+        groundManager: voucherForm.groundManager || voucherForm.providerContact || '',
+        arrivalAt:
+          voucherForm.arrivalAt ||
+          (voucherForm.landingDate && voucherForm.landingTime
+            ? `${voucherForm.landingDate}T${voucherForm.landingTime}`
+            : ''),
+        routes: itinerary.length
+          ? itinerary.map((item) => item.description.trim()).filter(Boolean)
+          : voucherRoutesText
+              .split('\n')
+              .map((route) => route.trim())
+              .filter(Boolean),
+        itinerary,
       }
       const response = await fetch(`/api/travel-packages/${packageFolder.id}/transport-vouchers`, {
         method: 'POST',
@@ -697,13 +814,56 @@ export default function PackageOperationsWorkspace({
         <div className="p-4 sm:p-5">
           {activeTab === 'control' && (
             <div className="space-y-5">
-              <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
+              <div className="grid gap-3 md:grid-cols-3">
+                <label className="block border border-slate-200 bg-slate-50 p-3 text-xs font-bold text-slate-600">
+                  Lifecycle status
+                  <select
+                    value={packageFolder.status}
+                    onChange={(event) =>
+                      void changePackageStatus(event.target.value as TravelPackageFolderStatus)
+                    }
+                    className="mt-1 w-full border border-slate-300 bg-white px-3 py-2 text-sm"
+                  >
+                    {availableStatuses.map((status) => (
+                      <option key={status} value={status}>
+                        {label(status)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block border border-slate-200 bg-slate-50 p-3 text-xs font-bold text-slate-600">
+                  Passport status
+                  <select
+                    value={packageFolder.passport_status}
+                    onChange={(event) => void patchPackage({ passportStatus: event.target.value })}
+                    className="mt-1 w-full border border-slate-300 bg-white px-3 py-2 text-sm"
+                  >
+                    {PASSPORT_STATUSES.map((status) => (
+                      <option key={status} value={status}>
+                        {label(status)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div className="border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-xs font-bold uppercase text-slate-500">Next action</p>
+                  <p className="mt-1 text-sm font-black text-slate-900">
+                    {packageFolder.next_action || 'Review package'}
+                  </p>
+                  {packageFolder.next_action_due_at && (
+                    <p className="mt-1 text-xs text-slate-500">
+                      Due {formatDateTime(packageFolder.next_action_due_at)}
+                    </p>
+                  )}
+                </div>
+              </div>
+              <div>
                 <form
                   onSubmit={(event) => {
                     event.preventDefault()
                     void patchPackage(customerForm)
                   }}
-                  className="grid gap-3 md:grid-cols-2"
+                  className="grid gap-3 md:grid-cols-3"
                 >
                   <label className="text-xs font-bold text-slate-600">
                     Lead customer
@@ -789,57 +949,12 @@ export default function PackageOperationsWorkspace({
                   <button
                     type="submit"
                     disabled={saving === 'package'}
-                    className="inline-flex items-center justify-center gap-2 bg-slate-900 px-3 py-2 text-xs font-black text-white md:col-span-2 md:justify-self-start"
+                    className="inline-flex items-center justify-center gap-2 bg-slate-900 px-3 py-2 text-xs font-black text-white md:col-span-3 md:justify-self-start"
                   >
                     <Save className="h-4 w-4" />
                     Save package details
                   </button>
                 </form>
-                <div className="space-y-3 border border-slate-200 bg-slate-50 p-4">
-                  <label className="block text-xs font-bold text-slate-600">
-                    Lifecycle status
-                    <select
-                      value={packageFolder.status}
-                      onChange={(event) =>
-                        void changePackageStatus(event.target.value as TravelPackageFolderStatus)
-                      }
-                      className="mt-1 w-full border border-slate-300 bg-white px-3 py-2 text-sm"
-                    >
-                      {availableStatuses.map((status) => (
-                        <option key={status} value={status}>
-                          {label(status)}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="block text-xs font-bold text-slate-600">
-                    Passport status
-                    <select
-                      value={packageFolder.passport_status}
-                      onChange={(event) =>
-                        void patchPackage({ passportStatus: event.target.value })
-                      }
-                      className="mt-1 w-full border border-slate-300 bg-white px-3 py-2 text-sm"
-                    >
-                      {PASSPORT_STATUSES.map((status) => (
-                        <option key={status} value={status}>
-                          {label(status)}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <div className="border-t border-slate-200 pt-3">
-                    <p className="text-xs font-bold uppercase text-slate-500">Next action</p>
-                    <p className="mt-1 text-sm font-black text-slate-900">
-                      {packageFolder.next_action || 'Review package'}
-                    </p>
-                    {packageFolder.next_action_due_at && (
-                      <p className="mt-1 text-xs text-slate-500">
-                        Due {formatDateTime(packageFolder.next_action_due_at)}
-                      </p>
-                    )}
-                  </div>
-                </div>
               </div>
               <div className="grid gap-3 md:grid-cols-3">
                 <div className="border border-slate-200 p-3">
@@ -899,44 +1014,60 @@ export default function PackageOperationsWorkspace({
                 }}
                 className="grid gap-3 border border-slate-200 bg-slate-50 p-4 md:grid-cols-5"
               >
-                <input
-                  placeholder="First name"
-                  value={passengerForm.firstName}
-                  onChange={(event) =>
-                    setPassengerForm((current) => ({ ...current, firstName: event.target.value }))
-                  }
-                  className="border border-slate-300 px-3 py-2 text-sm"
-                />
-                <input
-                  placeholder="Last name"
-                  value={passengerForm.lastName}
-                  onChange={(event) =>
-                    setPassengerForm((current) => ({ ...current, lastName: event.target.value }))
-                  }
-                  className="border border-slate-300 px-3 py-2 text-sm"
-                />
-                <input
-                  type="date"
-                  value={passengerForm.dateOfBirth}
-                  onChange={(event) =>
-                    setPassengerForm((current) => ({ ...current, dateOfBirth: event.target.value }))
-                  }
-                  className="border border-slate-300 px-3 py-2 text-sm"
-                />
-                <select
-                  value={passengerForm.passengerType}
-                  onChange={(event) =>
-                    setPassengerForm((current) => ({
-                      ...current,
-                      passengerType: event.target.value as TravelPackagePassengerType,
-                    }))
-                  }
-                  className="border border-slate-300 px-3 py-2 text-sm"
-                >
-                  <option value="adult">Adult</option>
-                  <option value="child">Child</option>
-                  <option value="infant">Infant / under 5</option>
-                </select>
+                <label className="text-xs font-bold text-slate-600">
+                  First name
+                  <input
+                    value={passengerForm.firstName}
+                    onChange={(event) =>
+                      setPassengerForm((current) => ({
+                        ...current,
+                        firstName: event.target.value,
+                      }))
+                    }
+                    className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
+                  />
+                </label>
+                <label className="text-xs font-bold text-slate-600">
+                  Last name
+                  <input
+                    value={passengerForm.lastName}
+                    onChange={(event) =>
+                      setPassengerForm((current) => ({ ...current, lastName: event.target.value }))
+                    }
+                    className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
+                  />
+                </label>
+                <label className="text-xs font-bold text-slate-600">
+                  Date of birth
+                  <input
+                    type="date"
+                    value={passengerForm.dateOfBirth}
+                    onChange={(event) =>
+                      setPassengerForm((current) => ({
+                        ...current,
+                        dateOfBirth: event.target.value,
+                      }))
+                    }
+                    className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
+                  />
+                </label>
+                <label className="text-xs font-bold text-slate-600">
+                  Passenger type
+                  <select
+                    value={passengerForm.passengerType}
+                    onChange={(event) =>
+                      setPassengerForm((current) => ({
+                        ...current,
+                        passengerType: event.target.value as TravelPackagePassengerType,
+                      }))
+                    }
+                    className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
+                  >
+                    <option value="adult">Adult</option>
+                    <option value="child">Child</option>
+                    <option value="infant">Infant / under 5</option>
+                  </select>
+                </label>
                 <button
                   type="submit"
                   className="inline-flex items-center justify-center gap-2 bg-[#8b1e2d] px-3 py-2 text-xs font-black text-white"
@@ -1393,14 +1524,17 @@ export default function PackageOperationsWorkspace({
                     className="border border-slate-300 px-3 py-2 text-sm"
                     required
                   />
-                  <input
-                    type="datetime-local"
-                    value={taskForm.dueAt}
-                    onChange={(event) =>
-                      setTaskForm((current) => ({ ...current, dueAt: event.target.value }))
-                    }
-                    className="border border-slate-300 px-2 py-2 text-xs"
-                  />
+                  <label className="text-[11px] font-bold uppercase text-slate-500">
+                    Due date
+                    <input
+                      type="datetime-local"
+                      value={taskForm.dueAt}
+                      onChange={(event) =>
+                        setTaskForm((current) => ({ ...current, dueAt: event.target.value }))
+                      }
+                      className="mt-1 w-full border border-slate-300 px-2 py-2 text-xs normal-case text-slate-900"
+                    />
+                  </label>
                   <select
                     value={taskForm.priority}
                     onChange={(event) =>
@@ -1467,15 +1601,18 @@ export default function PackageOperationsWorkspace({
                     className="border border-slate-300 px-3 py-2 text-sm"
                     required
                   />
-                  <input
-                    type="datetime-local"
-                    value={deadlineForm.dueAt}
-                    onChange={(event) =>
-                      setDeadlineForm((current) => ({ ...current, dueAt: event.target.value }))
-                    }
-                    className="border border-slate-300 px-2 py-2 text-xs"
-                    required
-                  />
+                  <label className="text-[11px] font-bold uppercase text-slate-500">
+                    Due date
+                    <input
+                      type="datetime-local"
+                      value={deadlineForm.dueAt}
+                      onChange={(event) =>
+                        setDeadlineForm((current) => ({ ...current, dueAt: event.target.value }))
+                      }
+                      className="mt-1 w-full border border-slate-300 px-2 py-2 text-xs normal-case text-slate-900"
+                      required
+                    />
+                  </label>
                   <select
                     value={deadlineForm.severity}
                     onChange={(event) =>
@@ -1587,17 +1724,20 @@ export default function PackageOperationsWorkspace({
                     Follow-up required
                   </label>
                   {communicationForm.followUpRequired && (
-                    <input
-                      type="datetime-local"
-                      value={communicationForm.followUpDueAt}
-                      onChange={(event) =>
-                        setCommunicationForm((current) => ({
-                          ...current,
-                          followUpDueAt: event.target.value,
-                        }))
-                      }
-                      className="border border-slate-300 px-2 py-2 text-xs"
-                    />
+                    <label className="text-[11px] font-bold uppercase text-slate-500">
+                      Follow-up due date
+                      <input
+                        type="datetime-local"
+                        value={communicationForm.followUpDueAt}
+                        onChange={(event) =>
+                          setCommunicationForm((current) => ({
+                            ...current,
+                            followUpDueAt: event.target.value,
+                          }))
+                        }
+                        className="mt-1 w-full border border-slate-300 px-2 py-2 text-xs normal-case text-slate-900"
+                      />
+                    </label>
                   )}
                 </form>
                 <div className="space-y-2">
@@ -1620,166 +1760,337 @@ export default function PackageOperationsWorkspace({
 
           {activeTab === 'voucher' && (
             <div className="space-y-4">
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                <label className="text-xs font-bold text-slate-600">
-                  Arrival airport
-                  <input
-                    value={voucherForm.arrivalAirport}
-                    onChange={(event) =>
-                      setVoucherForm((current) => ({
-                        ...current,
-                        arrivalAirport: event.target.value,
-                      }))
-                    }
-                    className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
-                  />
-                </label>
-                <label className="text-xs font-bold text-slate-600">
-                  Arrival date/time
-                  <input
-                    type="datetime-local"
-                    value={dateTimeInput(voucherForm.arrivalAt)}
-                    onChange={(event) =>
-                      setVoucherForm((current) => ({ ...current, arrivalAt: event.target.value }))
-                    }
-                    className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
-                  />
-                </label>
-                <label className="text-xs font-bold text-slate-600">
-                  Departure airport
-                  <input
-                    value={voucherForm.departureAirport}
-                    onChange={(event) =>
-                      setVoucherForm((current) => ({
-                        ...current,
-                        departureAirport: event.target.value,
-                      }))
-                    }
-                    className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
-                  />
-                </label>
-                <label className="text-xs font-bold text-slate-600">
-                  Departure date/time
-                  <input
-                    type="datetime-local"
-                    value={dateTimeInput(voucherForm.departureAt)}
-                    onChange={(event) =>
-                      setVoucherForm((current) => ({ ...current, departureAt: event.target.value }))
-                    }
-                    className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
-                  />
-                </label>
-                <label className="text-xs font-bold text-slate-600">
-                  Makkah hotel
-                  <input
-                    value={voucherForm.makkahHotel}
-                    onChange={(event) =>
-                      setVoucherForm((current) => ({ ...current, makkahHotel: event.target.value }))
-                    }
-                    className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
-                  />
-                </label>
-                <label className="text-xs font-bold text-slate-600">
-                  Madinah hotel
-                  <input
-                    value={voucherForm.madinahHotel}
-                    onChange={(event) =>
-                      setVoucherForm((current) => ({
-                        ...current,
-                        madinahHotel: event.target.value,
-                      }))
-                    }
-                    className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
-                  />
-                </label>
-                <label className="text-xs font-bold text-slate-600">
-                  Vehicle type
-                  <input
-                    value={voucherForm.vehicleType}
-                    onChange={(event) =>
-                      setVoucherForm((current) => ({ ...current, vehicleType: event.target.value }))
-                    }
-                    className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
-                  />
-                </label>
-                <label className="text-xs font-bold text-slate-600">
-                  Transport company
-                  <input
-                    value={voucherForm.transportCompany}
-                    onChange={(event) =>
-                      setVoucherForm((current) => ({
-                        ...current,
-                        transportCompany: event.target.value,
-                      }))
-                    }
-                    className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
-                  />
-                </label>
-                <label className="text-xs font-bold text-slate-600">
-                  Driver contact
-                  <input
-                    value={voucherForm.driverContact}
-                    onChange={(event) =>
-                      setVoucherForm((current) => ({
-                        ...current,
-                        driverContact: event.target.value,
-                      }))
-                    }
-                    className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
-                  />
-                </label>
-                <label className="text-xs font-bold text-slate-600">
-                  Ground manager
-                  <input
-                    value={voucherForm.groundManager}
-                    onChange={(event) =>
-                      setVoucherForm((current) => ({
-                        ...current,
-                        groundManager: event.target.value,
-                      }))
-                    }
-                    className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
-                  />
-                </label>
-                <label className="text-xs font-bold text-slate-600 md:col-span-2">
-                  Routes, one per line
-                  <textarea
-                    value={voucherRoutesText}
-                    onChange={(event) => setVoucherRoutesText(event.target.value)}
-                    rows={5}
-                    className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
-                  />
-                </label>
-                <label className="text-xs font-bold text-slate-600 md:col-span-2">
-                  Customer note
-                  <textarea
-                    value={voucherForm.publicNotes}
-                    onChange={(event) =>
-                      setVoucherForm((current) => ({ ...current, publicNotes: event.target.value }))
-                    }
-                    rows={3}
-                    className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
-                  />
-                </label>
-                <label className="text-xs font-bold text-slate-600">
-                  Internal note
-                  <textarea
-                    value={voucherForm.internalNotes}
-                    onChange={(event) =>
-                      setVoucherForm((current) => ({
-                        ...current,
-                        internalNotes: event.target.value,
-                      }))
-                    }
-                    rows={3}
-                    className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
-                  />
-                </label>
+              <div className="flex flex-wrap items-center justify-between gap-3 border border-slate-200 bg-slate-50 p-3">
+                <div>
+                  <p className="text-sm font-black text-slate-900">Dynamic Transport Voucher</p>
+                  <p className="mt-1 text-xs font-semibold text-slate-500">
+                    Final quote details are prefilled. Complete flight, landing, provider, and route
+                    timings before releasing.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={resetVoucherFromFinalQuote}
+                  className="border border-slate-300 bg-white px-3 py-2 text-xs font-black text-slate-700"
+                >
+                  Use final quote details
+                </button>
+              </div>
+
+              <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_24rem]">
+                <div className="space-y-4">
+                  <div className="grid gap-3 md:grid-cols-3">
+                    <label className="text-xs font-bold text-slate-600">
+                      Vehicle type
+                      <select
+                        value={voucherForm.vehicle || voucherForm.vehicleType || 'H1'}
+                        onChange={(event) => {
+                          const vehicle = getVehicleCapacity(event.target.value)
+                          updateVoucherField('vehicle', event.target.value)
+                          updateVoucherField('vehicleType', event.target.value)
+                          if (vehicle) updateVoucherField('maxBags', String(vehicle.bags))
+                        }}
+                        className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
+                      >
+                        {TRANSPORT_VEHICLES.map((vehicle) => (
+                          <option key={vehicle.name} value={vehicle.name}>
+                            {vehicle.name} ({vehicle.passengers} pax, {vehicle.bags} bags)
+                          </option>
+                        ))}
+                        {voucherForm.vehicle &&
+                          !TRANSPORT_VEHICLES.some((item) => item.name === voucherForm.vehicle) && (
+                            <option value={voucherForm.vehicle}>{voucherForm.vehicle}</option>
+                          )}
+                      </select>
+                    </label>
+                    <label className="text-xs font-bold text-slate-600">
+                      Max bags
+                      <input
+                        value={voucherForm.maxBags || ''}
+                        onChange={(event) => updateVoucherField('maxBags', event.target.value)}
+                        className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
+                      />
+                    </label>
+                    <label className="text-xs font-bold text-slate-600">
+                      Extra baggage fee
+                      <input
+                        value={voucherForm.extraBaggageFee || ''}
+                        onChange={(event) =>
+                          updateVoucherField('extraBaggageFee', event.target.value)
+                        }
+                        className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
+                      />
+                    </label>
+                  </div>
+
+                  <div className="grid gap-3 border-t border-slate-200 pt-3 md:grid-cols-3">
+                    <label className="text-xs font-bold text-slate-600">
+                      Adults
+                      <input
+                        type="number"
+                        min="0"
+                        value={voucherForm.adults || 0}
+                        onChange={(event) =>
+                          updateVoucherField('adults', Number(event.target.value))
+                        }
+                        className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
+                      />
+                    </label>
+                    <label className="text-xs font-bold text-slate-600">
+                      Children
+                      <input
+                        type="number"
+                        min="0"
+                        value={voucherForm.children || 0}
+                        onChange={(event) =>
+                          updateVoucherField('children', Number(event.target.value))
+                        }
+                        className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
+                      />
+                    </label>
+                    <label className="text-xs font-bold text-slate-600">
+                      Infants
+                      <input
+                        type="number"
+                        min="0"
+                        value={voucherForm.infants || 0}
+                        onChange={(event) =>
+                          updateVoucherField('infants', Number(event.target.value))
+                        }
+                        className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
+                      />
+                    </label>
+                    {voucherPassengerError && (
+                      <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700 md:col-span-3">
+                        {voucherPassengerError}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="grid gap-3 border-t border-slate-200 pt-3 md:grid-cols-2">
+                    <label className="text-xs font-bold text-slate-600">
+                      Booking ID
+                      <input
+                        value={voucherForm.bookingId || ''}
+                        onChange={(event) => updateVoucherField('bookingId', event.target.value)}
+                        className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
+                      />
+                    </label>
+                    <label className="text-xs font-bold text-slate-600">
+                      Flight number
+                      <input
+                        value={voucherForm.flightNumber || ''}
+                        onChange={(event) => updateVoucherField('flightNumber', event.target.value)}
+                        className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
+                      />
+                    </label>
+                    <label className="text-xs font-bold text-slate-600">
+                      Airports
+                      <input
+                        value={voucherForm.airports || ''}
+                        onChange={(event) => updateVoucherField('airports', event.target.value)}
+                        placeholder="LHR to JED"
+                        className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
+                      />
+                    </label>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <label className="text-xs font-bold text-slate-600">
+                        Landing date
+                        <input
+                          type="date"
+                          value={voucherForm.landingDate || ''}
+                          onChange={(event) =>
+                            updateVoucherField('landingDate', event.target.value)
+                          }
+                          className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
+                        />
+                      </label>
+                      <label className="text-xs font-bold text-slate-600">
+                        Landing time
+                        <input
+                          type="time"
+                          value={voucherForm.landingTime || ''}
+                          onChange={(event) =>
+                            updateVoucherField('landingTime', event.target.value)
+                          }
+                          className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
+                        />
+                      </label>
+                    </div>
+                    <label className="text-xs font-bold text-slate-600">
+                      Provider name
+                      <input
+                        value={voucherForm.providerName || voucherForm.transportCompany || ''}
+                        onChange={(event) => {
+                          updateVoucherField('providerName', event.target.value)
+                          updateVoucherField('transportCompany', event.target.value)
+                        }}
+                        className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
+                      />
+                    </label>
+                    <label className="text-xs font-bold text-slate-600">
+                      Provider contact
+                      <input
+                        value={voucherForm.providerContact || voucherForm.groundManager || ''}
+                        onChange={(event) => {
+                          updateVoucherField('providerContact', event.target.value)
+                          updateVoucherField('groundManager', event.target.value)
+                        }}
+                        className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
+                      />
+                    </label>
+                  </div>
+
+                  <div className="grid gap-3 border-t border-slate-200 pt-3 md:grid-cols-2">
+                    <label className="text-xs font-bold text-slate-600">
+                      Makkah hotel
+                      <input
+                        value={voucherForm.makkahHotel}
+                        onChange={(event) => updateVoucherField('makkahHotel', event.target.value)}
+                        className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
+                      />
+                    </label>
+                    <label className="text-xs font-bold text-slate-600">
+                      Madinah hotel
+                      <input
+                        value={voucherForm.madinahHotel}
+                        onChange={(event) => updateVoucherField('madinahHotel', event.target.value)}
+                        className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
+                      />
+                    </label>
+                    <label className="text-xs font-bold text-slate-600">
+                      Driver contact
+                      <input
+                        value={voucherForm.driverContact}
+                        onChange={(event) =>
+                          updateVoucherField('driverContact', event.target.value)
+                        }
+                        className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
+                      />
+                    </label>
+                    <label className="text-xs font-bold text-slate-600">
+                      Departure date/time
+                      <input
+                        type="datetime-local"
+                        value={dateTimeInput(voucherForm.departureAt)}
+                        onChange={(event) => updateVoucherField('departureAt', event.target.value)}
+                        className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
+                      />
+                    </label>
+                  </div>
+
+                  <div className="grid gap-3 border-t border-slate-200 pt-3 md:grid-cols-2">
+                    <label className="text-xs font-bold text-slate-600">
+                      Customer note
+                      <textarea
+                        value={voucherForm.publicNotes}
+                        onChange={(event) => updateVoucherField('publicNotes', event.target.value)}
+                        rows={3}
+                        className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
+                      />
+                    </label>
+                    <label className="text-xs font-bold text-slate-600">
+                      Internal note
+                      <textarea
+                        value={voucherForm.internalNotes}
+                        onChange={(event) =>
+                          updateVoucherField('internalNotes', event.target.value)
+                        }
+                        rows={3}
+                        className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                <div className="flex flex-col border border-slate-200 bg-slate-50 p-4">
+                  <h3 className="text-sm font-black text-slate-900">Itinerary Builder</h3>
+                  <div className="mt-3 max-h-[34rem] space-y-3 overflow-y-auto pr-1">
+                    {(voucherForm.itinerary || []).map((item, index) => (
+                      <div key={index} className="space-y-2 border border-slate-200 bg-white p-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-xs font-black text-slate-700">
+                            Segment #{index + 1}: {item.type || 'Transport Segment'}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => removeVoucherItineraryItem(index)}
+                            className="text-xs font-black text-red-600"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                        <input
+                          value={item.type}
+                          onChange={(event) =>
+                            updateVoucherItinerary(index, { type: event.target.value })
+                          }
+                          placeholder="Airport Pickup"
+                          className="w-full border border-slate-300 px-3 py-2 text-sm"
+                        />
+                        <input
+                          value={item.description}
+                          onChange={(event) =>
+                            updateVoucherItinerary(index, { description: event.target.value })
+                          }
+                          placeholder="JED Airport to Makkah Hotel"
+                          className="w-full border border-slate-300 px-3 py-2 text-sm"
+                        />
+                        <div className="grid grid-cols-2 gap-2">
+                          <input
+                            type="date"
+                            value={item.date}
+                            onChange={(event) =>
+                              updateVoucherItinerary(index, { date: event.target.value })
+                            }
+                            className="border border-slate-300 px-3 py-2 text-sm"
+                          />
+                          <input
+                            type="time"
+                            value={item.time}
+                            onChange={(event) =>
+                              updateVoucherItinerary(index, { time: event.target.value })
+                            }
+                            className="border border-slate-300 px-3 py-2 text-sm"
+                          />
+                        </div>
+                      </div>
+                    ))}
+                    {(voucherForm.itinerary || []).length === 0 && (
+                      <p className="border border-dashed border-slate-300 bg-white p-4 text-center text-sm font-bold text-slate-500">
+                        No itinerary segments yet.
+                      </p>
+                    )}
+                  </div>
+                  <div className="mt-4 grid grid-cols-2 gap-2 border-t border-slate-200 pt-4">
+                    <button
+                      type="button"
+                      onClick={() => addVoucherItineraryItem("Ziyara'at / Tour")}
+                      className="bg-blue-100 p-2 text-xs font-black text-blue-800"
+                    >
+                      Add Ziyara&apos;at
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => addVoucherItineraryItem('Hotel Transfer')}
+                      className="bg-emerald-100 p-2 text-xs font-black text-emerald-800"
+                    >
+                      Add Hotel Transfer
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => addVoucherItineraryItem('Return Transfer')}
+                      className="col-span-2 bg-slate-200 p-2 text-xs font-black text-slate-800"
+                    >
+                      Add Return to Airport
+                    </button>
+                  </div>
+                </div>
               </div>
               <div className="flex flex-wrap gap-2">
                 <button
                   onClick={() => void generateVoucher(false)}
-                  disabled={saving === 'voucher'}
+                  disabled={saving === 'voucher' || Boolean(voucherPassengerError)}
                   className="inline-flex items-center gap-2 border border-slate-300 bg-white px-3 py-2 text-xs font-black"
                 >
                   <Save className="h-4 w-4" />
@@ -1787,7 +2098,7 @@ export default function PackageOperationsWorkspace({
                 </button>
                 <button
                   onClick={() => void generateVoucher(true)}
-                  disabled={saving === 'voucher'}
+                  disabled={saving === 'voucher' || Boolean(voucherPassengerError)}
                   className="inline-flex items-center gap-2 bg-[#8b1e2d] px-3 py-2 text-xs font-black text-white"
                 >
                   <ShieldCheck className="h-4 w-4" />
