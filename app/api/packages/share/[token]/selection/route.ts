@@ -15,6 +15,9 @@ export async function POST(
 
   const body = (await request.json().catch(() => null)) as PackageSelectionInput | null
   if (!body || !body.stayOptionIds) return apiError('Missing package selection', 400)
+  if (!body.termsAccepted) {
+    return apiError('Please confirm that you have read the terms and conditions.', 400)
+  }
 
   const supabase = getServiceSupabaseClient()
   const { data: quote, error } = await supabase
@@ -30,7 +33,10 @@ export async function POST(
   }
 
   if (isPackageQuoteExpired((quote as { expires_at?: string }).expires_at)) {
-    return apiError('This package quote has expired. Please contact your agent for an updated quote.', 410)
+    return apiError(
+      'This package quote has expired. Please contact your agent for an updated quote.',
+      410,
+    )
   }
 
   let resolved

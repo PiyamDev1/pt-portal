@@ -33,6 +33,7 @@ export type TravelPackageFolderStatus =
 export type PackagePricingMode = 'total' | 'per_person'
 export type PackageDiscountMode = 'total' | 'per_person'
 export type PackagePaymentMethod = 'cash' | 'bank_transfer' | 'card'
+export type PackagePaymentIntent = 'full_payment' | 'deposit_only' | 'installment_request'
 export type TravelPackageDocumentCategory =
   | 'flight'
   | 'hotel'
@@ -91,16 +92,36 @@ export type TravelPackageInvoiceLineType =
   | 'commission'
   | 'other'
 export type TravelPackagePassengerType = 'adult' | 'child' | 'infant'
-export type TravelPackagePaymentType = 'deposit' | 'payment' | 'refund' | 'chargeback' | 'commission'
+export type TravelPackagePaymentType =
+  | 'deposit'
+  | 'payment'
+  | 'refund'
+  | 'chargeback'
+  | 'commission'
 export type TravelPackagePaymentMethod = 'cash' | 'bank_transfer' | 'card' | 'other'
-export type TravelPackagePaymentStatus = 'pending' | 'completed' | 'failed' | 'cancelled' | 'refunded'
+export type TravelPackagePaymentStatus =
+  | 'pending'
+  | 'completed'
+  | 'failed'
+  | 'cancelled'
+  | 'refunded'
 export type TravelPackageTaskStatus = 'open' | 'in_progress' | 'blocked' | 'completed' | 'cancelled'
 export type TravelPackagePriority = 'low' | 'medium' | 'high' | 'critical'
 export type TravelPackageDeadlineStatus = 'open' | 'met' | 'missed' | 'cancelled' | 'extended'
 export type TravelPackageRiskStatus = 'open' | 'acknowledged' | 'resolved'
-export type TravelPackageCommunicationChannel = 'whatsapp' | 'phone' | 'in_person' | 'email' | 'internal'
+export type TravelPackageCommunicationChannel =
+  | 'whatsapp'
+  | 'phone'
+  | 'in_person'
+  | 'email'
+  | 'internal'
 export type TravelPackageCommunicationDirection = 'inbound' | 'outbound' | 'internal'
-export type TravelPackageVoucherStatus = 'draft' | 'generated' | 'released_to_customer' | 'amended' | 'revoked'
+export type TravelPackageVoucherStatus =
+  | 'draft'
+  | 'generated'
+  | 'released_to_customer'
+  | 'amended'
+  | 'revoked'
 
 export interface PackageComponentOption {
   id: string
@@ -206,6 +227,10 @@ export interface PackageSelectionInput {
   transportOptionId?: string | null
   paymentMethod?: PackagePaymentMethod | null
   paymentBreakdown?: Partial<PackagePaymentBreakdown> | null
+  paymentIntent?: PackagePaymentIntent | null
+  installmentRequested?: boolean
+  depositPaymentMethod?: 'card' | null
+  termsAccepted?: boolean
   customerName?: string
   customerPhone?: string
   customerEmail?: string
@@ -467,7 +492,13 @@ export interface TravelPackagePassenger {
   passport_received: boolean
   passport_checked: boolean
   passport_issue_note: string | null
-  visa_status: 'not_started' | 'details_required' | 'submitted' | 'approved' | 'rejected' | 'not_required'
+  visa_status:
+    | 'not_started'
+    | 'details_required'
+    | 'submitted'
+    | 'approved'
+    | 'rejected'
+    | 'not_required'
   ticket_status: 'not_started' | 'held' | 'ticketed' | 'changed' | 'cancelled'
   room_allocation: string | null
   internal_notes: string | null

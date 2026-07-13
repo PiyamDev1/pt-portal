@@ -80,11 +80,11 @@ function makeId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1000)}`
 }
 
-function newOption(prefix: string, overrides: Partial<PackageComponentOption> = {}): PackageComponentOption {
-  const pricingMode =
-    prefix === 'flight' || prefix === 'visa'
-      ? 'per_person'
-      : 'total'
+function newOption(
+  prefix: string,
+  overrides: Partial<PackageComponentOption> = {},
+): PackageComponentOption {
+  const pricingMode = prefix === 'flight' || prefix === 'visa' ? 'per_person' : 'total'
 
   return {
     id: makeId(prefix),
@@ -130,12 +130,12 @@ function createInitialPayload(): PackageQuotePayload {
       {
         id: 'makkah',
         label: 'Makkah',
-        options: [newOption('makkah-hotel')],
+        options: [newOption('makkah-hotel', { isDefault: true })],
       },
       {
         id: 'madinah',
         label: 'Madinah',
-        options: [newOption('madinah-hotel')],
+        options: [newOption('madinah-hotel', { isDefault: true })],
       },
     ],
     flightOptions: [newOption('flight', { isDefault: true })],
@@ -362,7 +362,9 @@ function OptionEditor({
               <span className="mr-2 text-sm font-black text-slate-500">GBP</span>
               <input
                 value={option.price || ''}
-                onChange={(event) => onChange({ ...option, price: Number(event.target.value || 0) })}
+                onChange={(event) =>
+                  onChange({ ...option, price: Number(event.target.value || 0) })
+                }
                 type="number"
                 min="0"
                 step="0.01"
@@ -372,22 +374,22 @@ function OptionEditor({
             </div>
           </label>
           {showPricingMode && (
-          <label className="block">
-            <span className="block text-xs font-bold text-slate-500">Mode</span>
-            <select
-              value={option.pricingMode || 'total'}
-              onChange={(event) =>
-                onChange({
-                  ...option,
-                  pricingMode: event.target.value as PackageComponentOption['pricingMode'],
-                })
-              }
-              className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-black outline-none focus:border-slate-900"
-            >
-              <option value="total">Total</option>
-              <option value="per_person">Per person</option>
-            </select>
-          </label>
+            <label className="block">
+              <span className="block text-xs font-bold text-slate-500">Mode</span>
+              <select
+                value={option.pricingMode || 'total'}
+                onChange={(event) =>
+                  onChange({
+                    ...option,
+                    pricingMode: event.target.value as PackageComponentOption['pricingMode'],
+                  })
+                }
+                className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-black outline-none focus:border-slate-900"
+              >
+                <option value="total">Total</option>
+                <option value="per_person">Per person</option>
+              </select>
+            </label>
           )}
         </div>
       )}
@@ -395,7 +397,10 @@ function OptionEditor({
   )
 }
 
-export default function PackagesClient({ currentUserId, initialQuoteId = null }: PackagesClientProps) {
+export default function PackagesClient({
+  currentUserId,
+  initialQuoteId = null,
+}: PackagesClientProps) {
   const [payload, setPayload] = useState<PackageQuotePayload>(() => createInitialPayload())
   const [expiresAtInput, setExpiresAtInput] = useState(() =>
     toDateTimeLocalValue(getDefaultPackageExpiry()),
@@ -415,7 +420,9 @@ export default function PackagesClient({ currentUserId, initialQuoteId = null }:
     if (quoteFilter === 'live') {
       return quotes.filter(
         (quote) =>
-          quote.share_enabled && quote.status === 'shared' && !isPackageQuoteExpired(quote.expires_at),
+          quote.share_enabled &&
+          quote.status === 'shared' &&
+          !isPackageQuoteExpired(quote.expires_at),
       )
     }
     if (quoteFilter === 'draft') {
@@ -439,7 +446,8 @@ export default function PackagesClient({ currentUserId, initialQuoteId = null }:
     try {
       const response = await fetch('/api/packages')
       const data = (await response.json()) as PackagesResponse
-      if (!response.ok) throw new Error((data as { error?: string }).error || 'Failed to load packages')
+      if (!response.ok)
+        throw new Error((data as { error?: string }).error || 'Failed to load packages')
       const loadedQuotes = data.packages || []
       setQuotes(loadedQuotes)
       if (initialQuoteId) {
@@ -450,7 +458,9 @@ export default function PackagesClient({ currentUserId, initialQuoteId = null }:
           setExpiresAtInput(toDateTimeLocalValue(initialQuote.expires_at))
         }
       }
-      setSetupMessage(data.setupRequired ? data.message || 'Package quote schema is required.' : null)
+      setSetupMessage(
+        data.setupRequired ? data.message || 'Package quote schema is required.' : null,
+      )
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to load packages')
     } finally {
@@ -477,7 +487,9 @@ export default function PackagesClient({ currentUserId, initialQuoteId = null }:
     optionIndex: number,
     nextOption: PackageComponentOption,
   ) => {
-    const nextOptions = payload[key].map((option, index) => (index === optionIndex ? nextOption : option))
+    const nextOptions = payload[key].map((option, index) =>
+      index === optionIndex ? nextOption : option,
+    )
     const supportsDefault = key === 'flightOptions' || key === 'transportOptions'
     updatePayload({
       [key]:
@@ -506,9 +518,10 @@ export default function PackagesClient({ currentUserId, initialQuoteId = null }:
         ...payload[key],
         newOption(prefix, {
           isDefault:
-            (key === 'flightOptions' && payload.flightOptions.length === 0)
-            || (key === 'transportOptions' && payload.transportOptions.length === 0),
-          quantity: key === 'visaOptions' && servicePassengerCount > 0 ? servicePassengerCount : undefined,
+            (key === 'flightOptions' && payload.flightOptions.length === 0) ||
+            (key === 'transportOptions' && payload.transportOptions.length === 0),
+          quantity:
+            key === 'visaOptions' && servicePassengerCount > 0 ? servicePassengerCount : undefined,
         }),
       ],
     } as Partial<PackageQuotePayload>)
@@ -535,15 +548,18 @@ export default function PackagesClient({ currentUserId, initialQuoteId = null }:
   const saveQuote = async (shareEnabled: boolean) => {
     setSaving(true)
     try {
-      const response = await fetch(activeQuote ? `/api/packages/${activeQuote.id}` : '/api/packages', {
-        method: activeQuote ? 'PATCH' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          payload,
-          expiresAt: fromDateTimeLocalValue(expiresAtInput),
-          shareEnabled,
-        }),
-      })
+      const response = await fetch(
+        activeQuote ? `/api/packages/${activeQuote.id}` : '/api/packages',
+        {
+          method: activeQuote ? 'PATCH' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            payload,
+            expiresAt: fromDateTimeLocalValue(expiresAtInput),
+            shareEnabled,
+          }),
+        },
+      )
       const data = (await response.json()) as SaveResponse
 
       if (data.setupRequired) {
@@ -793,7 +809,9 @@ export default function PackagesClient({ currentUserId, initialQuoteId = null }:
                   onChange={(event) => setExpiresAtInput(event.target.value)}
                   className="min-h-11 w-full rounded-lg border border-slate-200 px-3 text-sm font-bold outline-none focus:border-slate-900"
                 />
-                <p className="mt-1 text-xs text-slate-500">Default is 72 hours from quote creation.</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Default is 72 hours from quote creation.
+                </p>
               </label>
             </div>
             <div className="mt-3 grid gap-3 md:grid-cols-5">
@@ -809,7 +827,9 @@ export default function PackagesClient({ currentUserId, initialQuoteId = null }:
                     min="0"
                     value={payload[key as 'adults' | 'childrenPaying' | 'childrenFree']}
                     onChange={(event) =>
-                      updatePayload({ [key]: Number(event.target.value || 0) } as Partial<PackageQuotePayload>)
+                      updatePayload({
+                        [key]: Number(event.target.value || 0),
+                      } as Partial<PackageQuotePayload>)
                     }
                     className="min-h-11 w-full rounded-lg border border-slate-200 px-3 text-sm font-bold outline-none focus:border-slate-900"
                   />
@@ -881,7 +901,9 @@ export default function PackagesClient({ currentUserId, initialQuoteId = null }:
                       min="0"
                       step="0.01"
                       value={payload.depositAmount || ''}
-                      onChange={(event) => updatePayload({ depositAmount: Number(event.target.value || 0) })}
+                      onChange={(event) =>
+                        updatePayload({ depositAmount: Number(event.target.value || 0) })
+                      }
                       disabled={!payload.depositRequired}
                       className="w-full bg-transparent text-sm font-bold outline-none disabled:text-slate-400"
                       placeholder="Deposit"
@@ -903,7 +925,8 @@ export default function PackagesClient({ currentUserId, initialQuoteId = null }:
                     order: ['madinah', 'makkah'],
                   },
                 ].map((item) => {
-                  const active = item.order.join('|') === payload.itineraryOrder.slice(0, 2).join('|')
+                  const active =
+                    item.order.join('|') === payload.itineraryOrder.slice(0, 2).join('|')
                   return (
                     <button
                       key={item.label}
@@ -1061,7 +1084,12 @@ export default function PackagesClient({ currentUserId, initialQuoteId = null }:
                       onClick={() =>
                         updateStayGroup(groupIndex, {
                           ...group,
-                          options: [...group.options, newOption(`${group.id}-hotel`)],
+                          options: [
+                            ...group.options,
+                            newOption(`${group.id}-hotel`, {
+                              isDefault: group.options.length === 0,
+                            }),
+                          ],
                         })
                       }
                       className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-900 text-white transition hover:bg-black"
@@ -1077,13 +1105,20 @@ export default function PackagesClient({ currentUserId, initialQuoteId = null }:
                         option={option}
                         titlePlaceholder={`${group.label} hotel`}
                         summaryPlaceholder={`${group.label} hotel summary, nights, board basis, distance`}
+                        showDefaultToggle
+                        defaultLabel="Preferred hotel"
                         canRemove={group.options.length > 1}
                         onChange={(next) =>
                           updateStayGroup(groupIndex, {
                             ...group,
-                            options: group.options.map((candidate, index) =>
-                              index === optionIndex ? next : candidate,
-                            ),
+                            options: next.isDefault
+                              ? group.options.map((candidate, index) => ({
+                                  ...(index === optionIndex ? next : candidate),
+                                  isDefault: index === optionIndex,
+                                }))
+                              : group.options.map((candidate, index) =>
+                                  index === optionIndex ? next : candidate,
+                                ),
                           })
                         }
                         onRemove={() =>
@@ -1123,7 +1158,10 @@ export default function PackagesClient({ currentUserId, initialQuoteId = null }:
             ) : (
               <div className="space-y-3">
                 {payload.limitedTimeOffers.map((offer, index) => (
-                  <div key={offer.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                  <div
+                    key={offer.id}
+                    className="rounded-lg border border-slate-200 bg-slate-50 p-3"
+                  >
                     <div className="mb-3 flex items-center gap-2">
                       <input
                         value={offer.title}
@@ -1157,7 +1195,9 @@ export default function PackagesClient({ currentUserId, initialQuoteId = null }:
                     </div>
                     <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_10rem_10rem]">
                       <label className="block">
-                        <span className="mb-1 block text-xs font-bold text-slate-500">Deadline</span>
+                        <span className="mb-1 block text-xs font-bold text-slate-500">
+                          Deadline
+                        </span>
                         <input
                           type="datetime-local"
                           value={offer.expiresAt ? toDateTimeLocalValue(offer.expiresAt) : ''}
@@ -1173,7 +1213,9 @@ export default function PackagesClient({ currentUserId, initialQuoteId = null }:
                         />
                       </label>
                       <label className="block">
-                        <span className="mb-1 block text-xs font-bold text-slate-500">Discount</span>
+                        <span className="mb-1 block text-xs font-bold text-slate-500">
+                          Discount
+                        </span>
                         <div className="flex min-h-10 items-center rounded-lg border border-slate-200 bg-white px-3">
                           <span className="mr-2 text-sm font-black text-slate-500">GBP</span>
                           <input
@@ -1224,7 +1266,6 @@ export default function PackagesClient({ currentUserId, initialQuoteId = null }:
               </div>
             )}
           </section>
-
         </div>
 
         <aside className="space-y-5">
@@ -1285,7 +1326,8 @@ export default function PackagesClient({ currentUserId, initialQuoteId = null }:
                           </p>
                           {combination.offerDiscountTotal > 0 && (
                             <p className="text-[11px] font-bold text-emerald-700">
-                              {formatMoney(combination.offerDiscountTotal, combination.currency)} off
+                              {formatMoney(combination.offerDiscountTotal, combination.currency)}{' '}
+                              off
                             </p>
                           )}
                           <p className="text-xs font-bold text-[#8b1e2d]">
@@ -1331,7 +1373,8 @@ export default function PackagesClient({ currentUserId, initialQuoteId = null }:
                       <div className="min-w-0">
                         <p className="truncate text-sm font-black text-slate-950">{quote.title}</p>
                         <p className="text-xs text-slate-500">
-                          {quote.package_type} · {new Date(quote.created_at).toLocaleDateString('en-GB')}
+                          {quote.package_type} ·{' '}
+                          {new Date(quote.created_at).toLocaleDateString('en-GB')}
                         </p>
                       </div>
                       <span className="rounded bg-slate-100 px-2 py-1 text-[11px] font-bold text-slate-600">
@@ -1432,7 +1475,9 @@ export default function PackagesClient({ currentUserId, initialQuoteId = null }:
                         <p className="font-bold text-slate-800">
                           {quote.customer_name || 'No customer'}
                         </p>
-                        <p className="text-xs text-slate-500">{quote.customer_phone || quote.customer_email || ''}</p>
+                        <p className="text-xs text-slate-500">
+                          {quote.customer_phone || quote.customer_email || ''}
+                        </p>
                       </td>
                       <td className="border-b border-slate-100 px-3 py-3">
                         <span
@@ -1440,17 +1485,19 @@ export default function PackagesClient({ currentUserId, initialQuoteId = null }:
                             expired
                               ? 'bg-red-50 text-red-700'
                               : live
-                              ? 'bg-emerald-50 text-emerald-700'
-                              : quote.status === 'draft'
-                                ? 'bg-amber-50 text-amber-700'
-                                : 'bg-slate-100 text-slate-600'
+                                ? 'bg-emerald-50 text-emerald-700'
+                                : quote.status === 'draft'
+                                  ? 'bg-amber-50 text-amber-700'
+                                  : 'bg-slate-100 text-slate-600'
                           }`}
                         >
                           {expired ? 'Expired' : live ? 'Live' : quote.status}
                         </span>
                       </td>
                       <td className="border-b border-slate-100 px-3 py-3">
-                        <p className={`text-xs font-bold ${expired ? 'text-red-700' : 'text-slate-700'}`}>
+                        <p
+                          className={`text-xs font-bold ${expired ? 'text-red-700' : 'text-slate-700'}`}
+                        >
                           {formatExpiry(quote.expires_at)}
                         </p>
                         {quote.share_enabled && (

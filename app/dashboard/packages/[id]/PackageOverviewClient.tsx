@@ -53,6 +53,8 @@ type PackageOverviewClientProps = {
   packageId: string
 }
 
+type PackageWorkspaceTab = 'overview' | 'documents' | 'reservations' | 'invoice'
+
 type PackageResponse = {
   package?: TravelPackageFolder | null
   setupRequired?: boolean
@@ -379,7 +381,9 @@ function createReservationFinancialForm(
     commissionExpectedTotal: String(reservation.commission_expected_total || ''),
     depositRequired: reservation.deposit_required,
     depositAmount: String(reservation.deposit_amount || ''),
-    paymentDueAt: reservation.payment_due_at ? toDateTimeLocalValue(reservation.payment_due_at) : '',
+    paymentDueAt: reservation.payment_due_at
+      ? toDateTimeLocalValue(reservation.payment_due_at)
+      : '',
   }
 }
 
@@ -424,9 +428,7 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
   const [documentUploadForm, setDocumentUploadForm] = useState<DocumentUploadFormState>(() =>
     createInitialDocumentUploadForm(),
   )
-  const [invoiceForm, setInvoiceForm] = useState<InvoiceFormState>(() =>
-    createInitialInvoiceForm(),
-  )
+  const [invoiceForm, setInvoiceForm] = useState<InvoiceFormState>(() => createInitialInvoiceForm())
   const [selectedDocumentFile, setSelectedDocumentFile] = useState<File | null>(null)
   const [itemForms, setItemForms] = useState<Record<string, ReservationItemFormState>>({})
   const [reservationFinancialForms, setReservationFinancialForms] = useState<
@@ -438,7 +440,9 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
   const [invoiceLoading, setInvoiceLoading] = useState(false)
   const [savingReservation, setSavingReservation] = useState(false)
   const [savingItemReservationId, setSavingItemReservationId] = useState<string | null>(null)
-  const [savingReservationFinancialId, setSavingReservationFinancialId] = useState<string | null>(null)
+  const [savingReservationFinancialId, setSavingReservationFinancialId] = useState<string | null>(
+    null,
+  )
   const [savingDocument, setSavingDocument] = useState(false)
   const [savingInvoice, setSavingInvoice] = useState(false)
   const [updatingDocumentId, setUpdatingDocumentId] = useState<string | null>(null)
@@ -448,6 +452,7 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
   const [documentError, setDocumentError] = useState<string | null>(null)
   const [invoiceError, setInvoiceError] = useState<string | null>(null)
   const [showQuoteSnapshot, setShowQuoteSnapshot] = useState(false)
+  const [activePackageTab, setActivePackageTab] = useState<PackageWorkspaceTab>('overview')
 
   useEffect(() => {
     const loadPackageFolder = async () => {
@@ -509,9 +514,7 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
           const next = { ...current }
           withItems.forEach((reservation) => {
             if (!next[reservation.id]) {
-              next[reservation.id] = createInitialReservationItemForm(
-                reservation.reservation_type,
-              )
+              next[reservation.id] = createInitialReservationItemForm(reservation.reservation_type)
             }
           })
           return next
@@ -572,7 +575,9 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
       setInvoiceLoading(true)
       setInvoiceError(null)
       try {
-        const response = await fetch(`/api/travel-packages/${encodeURIComponent(packageId)}/invoice`)
+        const response = await fetch(
+          `/api/travel-packages/${encodeURIComponent(packageId)}/invoice`,
+        )
         const data = (await response.json()) as InvoiceResponse
         if (!response.ok) {
           throw new Error(data.message || data.error || 'Unable to load package invoice')
@@ -614,31 +619,37 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
     (document) => document.customer_visible && document.status === 'released',
   ).length
   const customerAccessLastName =
-    packageFolder?.customer_access_last_name
-    || packageFolder?.customer_name?.trim().split(/\s+/).pop()?.toLowerCase()
-    || 'lead surname'
+    packageFolder?.customer_access_last_name ||
+    packageFolder?.customer_name?.trim().split(/\s+/).pop()?.toLowerCase() ||
+    'lead surname'
   const quoteTitle =
-    selectedPayload?.title || selectedQuote?.title || packageFolder?.package_reference || 'Final quotation'
+    selectedPayload?.title ||
+    selectedQuote?.title ||
+    packageFolder?.package_reference ||
+    'Final quotation'
   const quoteCustomerName =
-    selectedSelection?.selection.customerName
-    || packageFolder?.customer_name
-    || selectedPayload?.customerName
-    || selectedQuote?.customer_name
-    || 'No customer name'
+    selectedSelection?.selection.customerName ||
+    packageFolder?.customer_name ||
+    selectedPayload?.customerName ||
+    selectedQuote?.customer_name ||
+    'No customer name'
   const quoteCustomerPhone =
-    selectedSelection?.selection.customerPhone
-    || packageFolder?.customer_phone
-    || selectedPayload?.customerPhone
-    || selectedQuote?.customer_phone
-    || 'No phone'
+    selectedSelection?.selection.customerPhone ||
+    packageFolder?.customer_phone ||
+    selectedPayload?.customerPhone ||
+    selectedQuote?.customer_phone ||
+    'No phone'
   const quoteCustomerEmail =
-    selectedSelection?.selection.customerEmail
-    || packageFolder?.customer_email
-    || selectedPayload?.customerEmail
-    || selectedQuote?.customer_email
-    || 'No email'
+    selectedSelection?.selection.customerEmail ||
+    packageFolder?.customer_email ||
+    selectedPayload?.customerEmail ||
+    selectedQuote?.customer_email ||
+    'No email'
   const quoteSelectionNote =
-    selectedSelection?.selection.note || selectedQuote?.selection_note || selectedPayload?.notes || ''
+    selectedSelection?.selection.note ||
+    selectedQuote?.selection_note ||
+    selectedPayload?.notes ||
+    ''
   const dateRange = useMemo(() => {
     if (!packageFolder) return 'Dates not set'
     return `${formatDate(packageFolder.departure_date)} to ${formatDate(packageFolder.return_date)}`
@@ -664,9 +675,7 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
     )
   }, [reservations])
   const bookedSoldDifference =
-    reservationTotals.sold
-    - reservationTotals.discount
-    - reservationTotals.booked
+    reservationTotals.sold - reservationTotals.discount - reservationTotals.booked
   const estimatedMargin = bookedSoldDifference + reservationTotals.commission
   const invoiceSubtotalSold = parseMoneyInput(invoiceForm.subtotalSold)
   const invoiceDiscountTotal = parseMoneyInput(invoiceForm.discountTotal)
@@ -678,12 +687,15 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
   const invoiceProjectedMargin =
     invoiceTotalSold - invoiceTotalBookedCost + invoiceExpectedCommission
   const invoiceCurrency = invoice?.currency || reservationCurrency
-  const pageNavigation = [
-    { href: '#package-control', label: 'Control', icon: PackageCheck },
-    { href: '#package-documents', label: 'Documents', icon: Upload },
-    { href: '#final-quote', label: 'Final Quote', icon: FolderOpen },
-    { href: '#package-reservations', label: 'Reservations', icon: BadgePoundSterling },
-    { href: '#package-invoice', label: 'Invoice', icon: FileText },
+  const packageTabs: Array<{
+    value: PackageWorkspaceTab
+    label: string
+    icon: typeof PackageCheck
+  }> = [
+    { value: 'overview', label: 'Overview', icon: PackageCheck },
+    { value: 'documents', label: 'Documents', icon: Upload },
+    { value: 'reservations', label: 'Reservations', icon: BadgePoundSterling },
+    { value: 'invoice', label: 'Invoice', icon: FileText },
   ]
 
   useEffect(() => {
@@ -914,7 +926,9 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
       window.open(data.url, '_blank', 'noopener,noreferrer')
     } catch (downloadError) {
       setDocumentError(
-        downloadError instanceof Error ? downloadError.message : 'Failed to prepare document download',
+        downloadError instanceof Error
+          ? downloadError.message
+          : 'Failed to prepare document download',
       )
     } finally {
       setUpdatingDocumentId(null)
@@ -933,17 +947,20 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
     setSavingInvoice(true)
     setInvoiceError(null)
     try {
-      const response = await fetch(`/api/travel-packages/${encodeURIComponent(packageId)}/invoice`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          regenerate,
-          currency: reservationCurrency,
-          customerTerms: invoiceForm.customerTerms,
-          internalNotes: invoiceForm.internalNotes,
-          dueAt: invoiceForm.dueAt,
-        }),
-      })
+      const response = await fetch(
+        `/api/travel-packages/${encodeURIComponent(packageId)}/invoice`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            regenerate,
+            currency: reservationCurrency,
+            customerTerms: invoiceForm.customerTerms,
+            internalNotes: invoiceForm.internalNotes,
+            dueAt: invoiceForm.dueAt,
+          }),
+        },
+      )
       const data = (await response.json()) as InvoiceResponse
       if (!response.ok || !data.invoice) {
         throw new Error(data.message || data.error || 'Failed to create package invoice')
@@ -972,25 +989,28 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
     setSavingInvoice(true)
     setInvoiceError(null)
     try {
-      const response = await fetch(`/api/travel-packages/${encodeURIComponent(packageId)}/invoice`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          invoiceId: invoice.id,
-          status: invoiceForm.status,
-          subtotalSold: invoiceForm.subtotalSold,
-          discountTotal: invoiceForm.discountTotal,
-          totalPaid: invoiceForm.totalPaid,
-          totalBookedCost: invoiceForm.totalBookedCost,
-          expectedCommissionTotal: invoiceForm.expectedCommissionTotal,
-          receivedCommissionTotal: invoiceForm.receivedCommissionTotal,
-          releasedToCustomer: invoiceForm.releasedToCustomer,
-          customerTerms: invoiceForm.customerTerms,
-          internalNotes: invoiceForm.internalNotes,
-          dueAt: invoiceForm.dueAt,
-          amendmentReason: invoiceForm.amendmentReason,
-        }),
-      })
+      const response = await fetch(
+        `/api/travel-packages/${encodeURIComponent(packageId)}/invoice`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            invoiceId: invoice.id,
+            status: invoiceForm.status,
+            subtotalSold: invoiceForm.subtotalSold,
+            discountTotal: invoiceForm.discountTotal,
+            totalPaid: invoiceForm.totalPaid,
+            totalBookedCost: invoiceForm.totalBookedCost,
+            expectedCommissionTotal: invoiceForm.expectedCommissionTotal,
+            receivedCommissionTotal: invoiceForm.receivedCommissionTotal,
+            releasedToCustomer: invoiceForm.releasedToCustomer,
+            customerTerms: invoiceForm.customerTerms,
+            internalNotes: invoiceForm.internalNotes,
+            dueAt: invoiceForm.dueAt,
+            amendmentReason: invoiceForm.amendmentReason,
+          }),
+        },
+      )
       const data = (await response.json()) as InvoiceResponse
       if (!response.ok || !data.invoice) {
         throw new Error(data.message || data.error || 'Failed to save package invoice')
@@ -1043,14 +1063,19 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
       )
       const savedData = (await saveResponse.json()) as InvoiceResponse
       if (!saveResponse.ok || !savedData.invoice) {
-        throw new Error(savedData.message || savedData.error || 'Failed to save invoice before release')
+        throw new Error(
+          savedData.message || savedData.error || 'Failed to save invoice before release',
+        )
       }
       const response = await fetch(
         `/api/travel-packages/${encodeURIComponent(packageId)}/invoice/release`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ invoiceId: savedData.invoice.id, changeSummary: invoiceForm.amendmentReason }),
+          body: JSON.stringify({
+            invoiceId: savedData.invoice.id,
+            changeSummary: invoiceForm.amendmentReason,
+          }),
         },
       )
       const data = (await response.json()) as InvoiceResponse
@@ -1059,7 +1084,9 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
       }
       setInvoice(data.invoice)
       setInvoiceForm(createInitialInvoiceForm(data.invoice))
-      setPackageFolder((current) => current ? { ...current, invoice_status: 'released_to_customer' } : current)
+      setPackageFolder((current) =>
+        current ? { ...current, invoice_status: 'released_to_customer' } : current,
+      )
     } catch (releaseError) {
       setInvoiceError(
         releaseError instanceof Error ? releaseError.message : 'Failed to release package invoice',
@@ -1094,9 +1121,11 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
       const amendedInvoice = { ...data.invoice, lines: invoice.lines || [] }
       setInvoice(amendedInvoice)
       setInvoiceForm(createInitialInvoiceForm(amendedInvoice))
-      setPackageFolder((current) => current ? { ...current, invoice_status: 'amended' } : current)
+      setPackageFolder((current) => (current ? { ...current, invoice_status: 'amended' } : current))
     } catch (amendError) {
-      setInvoiceError(amendError instanceof Error ? amendError.message : 'Failed to start amendment')
+      setInvoiceError(
+        amendError instanceof Error ? amendError.message : 'Failed to start amendment',
+      )
     } finally {
       setSavingInvoice(false)
     }
@@ -1167,8 +1196,7 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
 
   const getReservationItemForm = (reservation: TravelPackageReservation) => {
     return (
-      itemForms[reservation.id]
-      || createInitialReservationItemForm(reservation.reservation_type)
+      itemForms[reservation.id] || createInitialReservationItemForm(reservation.reservation_type)
     )
   }
 
@@ -1180,7 +1208,8 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
     setItemForms((current) => ({
       ...current,
       [reservation.id]: {
-        ...(current[reservation.id] || createInitialReservationItemForm(reservation.reservation_type)),
+        ...(current[reservation.id] ||
+          createInitialReservationItemForm(reservation.reservation_type)),
         [key]: value,
       },
     }))
@@ -1320,1166 +1349,917 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
       </section>
 
       <nav
-        aria-label="Package page navigation"
+        aria-label="Package workspace"
         className="sticky top-0 z-20 -mx-1 overflow-x-auto border-y border-slate-200 bg-slate-50/95 px-1 py-2 backdrop-blur"
       >
         <div className="flex min-w-max gap-2">
-          {pageNavigation.map(({ href, label: navLabel, icon: Icon }) => (
-            <a
-              key={href}
-              href={href}
-              className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 shadow-sm transition hover:border-[#8b1e2d]/30 hover:text-[#8b1e2d]"
-            >
-              <Icon className="h-4 w-4" />
-              {navLabel}
-            </a>
-          ))}
+          {packageTabs.map(({ value, label: navLabel, icon: Icon }) => {
+            const active = activePackageTab === value
+            return (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setActivePackageTab(value)}
+                className={`inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border px-3 text-xs font-black shadow-sm transition ${
+                  active
+                    ? 'border-[#8b1e2d] bg-[#8b1e2d] text-white'
+                    : 'border-slate-200 bg-white text-slate-700 hover:border-[#8b1e2d]/30 hover:text-[#8b1e2d]'
+                }`}
+              >
+                <Icon className="h-4 w-4" />
+                {navLabel}
+              </button>
+            )
+          })}
         </div>
       </nav>
 
-      <section id="package-control" className="scroll-mt-20">
-        <PackageOperationsWorkspace
-          packageFolder={packageFolder}
-          invoice={invoice}
-          onPackageChange={setPackageFolder}
-          onInvoiceChange={(updatedInvoice) => {
-            setInvoice(updatedInvoice)
-            setInvoiceForm(createInitialInvoiceForm(updatedInvoice))
-          }}
-        />
-      </section>
+      {activePackageTab === 'overview' && (
+        <section id="package-control" className="scroll-mt-20">
+          <PackageOperationsWorkspace
+            packageFolder={packageFolder}
+            invoice={invoice}
+            onPackageChange={setPackageFolder}
+            onInvoiceChange={(updatedInvoice) => {
+              setInvoice(updatedInvoice)
+              setInvoiceForm(createInitialInvoiceForm(updatedInvoice))
+            }}
+          />
+        </section>
+      )}
 
       <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="space-y-5">
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="mb-3 flex items-center gap-2">
-              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900 text-white">
-                <CheckCircle2 className="h-4 w-4" />
-              </span>
-              <h2 className="text-lg font-black text-slate-950">Next action</h2>
-            </div>
-            <p className="text-base font-black text-[#8b1e2d]">
-              {packageFolder.next_action || 'No next action set'}
-            </p>
-            <p className="mt-2 text-sm leading-6 text-slate-600">
-              First operational step after quote conversion. For most packages this starts with
-              passport copies received via WhatsApp, then deposit/payment handling.
-            </p>
-          </div>
-
-          <div
-            id="package-documents"
-            className="scroll-mt-20 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
-          >
-            <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900 text-white">
-                    <Upload className="h-4 w-4" />
-                  </span>
-                  <h2 className="text-lg font-black text-slate-950">Documents</h2>
-                </div>
-                <p className="mt-2 text-sm leading-6 text-slate-600">
-                  Upload flight tickets, hotel vouchers, visa files, transport vouchers, and other
-                  final customer documents. Only released files appear in the customer portal.
-                </p>
-              </div>
-              {documentsLoading && (
-                <span className="inline-flex items-center gap-2 text-xs font-bold text-slate-500">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Loading documents
+          {activePackageTab === 'overview' && (
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="mb-3 flex items-center gap-2">
+                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900 text-white">
+                  <CheckCircle2 className="h-4 w-4" />
                 </span>
-              )}
+                <h2 className="text-lg font-black text-slate-950">Next action</h2>
+              </div>
+              <p className="text-base font-black text-[#8b1e2d]">
+                {packageFolder.next_action || 'No next action set'}
+              </p>
+              <p className="mt-2 text-sm leading-6 text-slate-600">
+                First operational step after quote conversion. For most packages this starts with
+                passport copies received via WhatsApp, then deposit/payment handling.
+              </p>
             </div>
+          )}
 
-            {documentError && (
-              <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-900">
-                {documentError}
-              </div>
-            )}
-
-            <div className="mb-4 grid gap-3 md:grid-cols-3">
-              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                <p className="text-xs font-bold uppercase text-slate-500">Total documents</p>
-                <p className="mt-1 text-sm font-black text-slate-950">{documents.length}</p>
-              </div>
-              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                <p className="text-xs font-bold uppercase text-slate-500">Released to customer</p>
-                <p className="mt-1 text-sm font-black text-slate-950">{visibleDocumentCount}</p>
-              </div>
-              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                <p className="text-xs font-bold uppercase text-slate-500">Customer access</p>
-                <p className="mt-1 text-sm font-black text-slate-950">Bookings portal</p>
-                <p className="mt-1 text-xs font-bold text-slate-500">
-                  Use PT reference and lead surname
-                </p>
-              </div>
-            </div>
-
-            <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
-              <div className="grid gap-3 md:grid-cols-3">
-                <div className="min-w-0">
-                  <p className="text-xs font-bold uppercase text-slate-500">
-                    Customer portal
-                  </p>
-                  <p className="mt-1 text-sm font-black text-slate-950">bookings.piyamtravel.com</p>
-                  <p className="mt-1 text-xs font-semibold text-slate-500">
-                    No unique customer link is generated from this page.
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs font-bold uppercase text-slate-500">Reference</p>
-                  <p className="mt-1 text-sm font-black text-slate-950">
-                    {packageFolder.package_reference}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs font-bold uppercase text-slate-500">Lead surname</p>
-                  <p className="mt-1 text-sm font-black capitalize text-slate-950">
-                    {customerAccessLastName}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <form
-              className="rounded-lg border border-slate-200 bg-slate-50 p-4"
-              onSubmit={(event) => {
-                event.preventDefault()
-                void uploadDocument()
-              }}
+          {activePackageTab === 'documents' && (
+            <div
+              id="package-documents"
+              className="scroll-mt-20 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
             >
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                <label className="text-xs font-bold uppercase text-slate-500 xl:col-span-2">
-                  File
-                  <input
-                    type="file"
-                    accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx"
-                    onChange={(event) => setSelectedDocumentFile(event.target.files?.[0] || null)}
-                    className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-bold normal-case text-slate-900 outline-none transition file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-xs file:font-black file:text-slate-700 focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
-                    required
-                  />
-                </label>
-
-                <label className="text-xs font-bold uppercase text-slate-500">
-                  Category
-                  <select
-                    value={documentUploadForm.category}
-                    onChange={(event) =>
-                      updateDocumentUploadForm(
-                        'category',
-                        event.target.value as TravelPackageDocumentCategory,
-                      )
-                    }
-                    className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
-                  >
-                    {PACKAGE_DOCUMENT_CATEGORIES.map((category) => (
-                      <option key={category.value} value={category.value}>
-                        {category.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <label className="text-xs font-bold uppercase text-slate-500">
-                  Linked reservation
-                  <select
-                    value={documentUploadForm.reservationId}
-                    onChange={(event) =>
-                      updateDocumentUploadForm('reservationId', event.target.value)
-                    }
-                    className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
-                  >
-                    <option value="">No reservation link</option>
-                    {reservations.map((reservation) => (
-                      <option key={reservation.id} value={reservation.id}>
-                        {reservation.title}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <label className="flex min-h-10 items-center gap-2 self-end rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-700">
-                  <input
-                    type="checkbox"
-                    checked={documentUploadForm.customerVisible}
-                    onChange={(event) =>
-                      updateDocumentUploadForm('customerVisible', event.target.checked)
-                    }
-                    className="h-4 w-4 rounded border-slate-300 text-[#8b1e2d] focus:ring-[#8b1e2d]"
-                  />
-                  Release to customer
-                </label>
-
-                <label className="text-xs font-bold uppercase text-slate-500 xl:col-span-2">
-                  Title
-                  <input
-                    value={documentUploadForm.title}
-                    onChange={(event) => updateDocumentUploadForm('title', event.target.value)}
-                    className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
-                    placeholder={selectedDocumentFile?.name || 'Document title'}
-                  />
-                </label>
-
-                <label className="text-xs font-bold uppercase text-slate-500">
-                  Customer notes
-                  <textarea
-                    value={documentUploadForm.publicNotes}
-                    onChange={(event) =>
-                      updateDocumentUploadForm('publicNotes', event.target.value)
-                    }
-                    className="mt-1 min-h-24 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
-                    placeholder="Shown in customer portal"
-                  />
-                </label>
-
-                <label className="text-xs font-bold uppercase text-slate-500">
-                  Internal notes
-                  <textarea
-                    value={documentUploadForm.internalNotes}
-                    onChange={(event) =>
-                      updateDocumentUploadForm('internalNotes', event.target.value)
-                    }
-                    className="mt-1 min-h-24 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
-                    placeholder="Agent notes only"
-                  />
-                </label>
-              </div>
-
-              <div className="mt-3 flex justify-end">
-                <button
-                  type="submit"
-                  disabled={!selectedDocumentFile || savingDocument}
-                  className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-black text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-300"
-                >
-                  {savingDocument ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Upload className="h-4 w-4" />
-                  )}
-                  Upload Document
-                </button>
-              </div>
-            </form>
-
-            <div className="mt-4 space-y-3">
-              {documents.length === 0 && !documentsLoading ? (
-                <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center text-sm font-bold text-slate-500">
-                  No package documents uploaded yet.
-                </div>
-              ) : (
-                groupedDocuments.map((group) => (
-                  <div key={group.value} className="rounded-lg border border-slate-200">
-                    <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3">
-                      <p className="text-sm font-black text-slate-950">{group.label}</p>
-                      <span className="rounded-full bg-white px-2 py-1 text-xs font-black text-slate-500">
-                        {group.documents.length}
-                      </span>
-                    </div>
-                    <div className="divide-y divide-slate-100">
-                      {group.documents.map((document) => {
-                        const updatingThisDocument = updatingDocumentId === document.id
-                        const documentIsReleased =
-                          document.customer_visible && document.status === 'released'
-                        return (
-                          <div
-                            key={document.id}
-                            className="flex flex-col gap-3 px-4 py-3 lg:flex-row lg:items-start lg:justify-between"
-                          >
-                            <div className="min-w-0">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <p className="text-sm font-black text-slate-950">
-                                  {document.title}
-                                </p>
-                                <span
-                                  className={`rounded-full px-2 py-1 text-[11px] font-black uppercase ${
-                                    documentIsReleased
-                                      ? 'bg-emerald-50 text-emerald-700'
-                                      : 'bg-slate-100 text-slate-500'
-                                  }`}
-                                >
-                                  {documentIsReleased ? 'Released' : 'Internal'}
-                                </span>
-                              </div>
-                              <p className="mt-1 break-all text-xs font-bold text-slate-500">
-                                {document.file_name} · {formatFileSize(document.file_size)}
-                              </p>
-                              {document.reservation_id && (
-                                <p className="mt-1 text-xs font-bold text-slate-500">
-                                  Linked to{' '}
-                                  {reservationTitleById.get(document.reservation_id) ||
-                                    'reservation'}
-                                </p>
-                              )}
-                              {document.public_notes && (
-                                <p className="mt-2 whitespace-pre-line text-xs leading-5 text-slate-600">
-                                  {document.public_notes}
-                                </p>
-                              )}
-                              {document.internal_notes && (
-                                <p className="mt-2 whitespace-pre-line rounded-lg bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">
-                                  {document.internal_notes}
-                                </p>
-                              )}
-                            </div>
-                            <div className="flex shrink-0 flex-wrap gap-2">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  void downloadDocument(document)
-                                }}
-                                disabled={updatingThisDocument}
-                                className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300"
-                              >
-                                {updatingThisDocument ? (
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : (
-                                  <Download className="h-4 w-4" />
-                                )}
-                                Open
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  void updateDocumentVisibility(document, !documentIsReleased)
-                                }}
-                                disabled={updatingThisDocument}
-                                className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300"
-                              >
-                                {documentIsReleased ? (
-                                  <EyeOff className="h-4 w-4" />
-                                ) : (
-                                  <Eye className="h-4 w-4" />
-                                )}
-                                {documentIsReleased ? 'Hide' : 'Release'}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  void deleteDocument(document)
-                                }}
-                                disabled={updatingThisDocument}
-                                className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-rose-200 bg-white px-3 text-xs font-black text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:text-rose-300"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                                Delete
-                              </button>
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
+              <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900 text-white">
+                      <Upload className="h-4 w-4" />
+                    </span>
+                    <h2 className="text-lg font-black text-slate-950">Documents</h2>
                   </div>
-                ))
-              )}
-            </div>
-          </div>
+                  <p className="mt-2 text-sm leading-6 text-slate-600">
+                    Upload flight tickets, hotel vouchers, visa files, transport vouchers, and other
+                    final customer documents. Only released files appear in the customer portal.
+                  </p>
+                </div>
+                {documentsLoading && (
+                  <span className="inline-flex items-center gap-2 text-xs font-bold text-slate-500">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Loading documents
+                  </span>
+                )}
+              </div>
 
-          <div
-            id="final-quote"
-            className="scroll-mt-20 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
-          >
-            <div className="mb-3 flex items-center gap-2">
-              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900 text-white">
-                <FolderOpen className="h-4 w-4" />
-              </span>
-              <h2 className="text-lg font-black text-slate-950">Final quote snapshot</h2>
-            </div>
-            {selectedCombination ? (
-              <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                  <div>
-                    <p className="text-xs font-bold uppercase text-slate-500">Selected quote</p>
-                    <p className="mt-1 text-base font-black text-slate-950">{quoteTitle}</p>
-                    <p className="mt-1 text-xs font-bold text-slate-500">
-                      {quoteCustomerName} · {quoteDateRange}
+              {documentError && (
+                <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-900">
+                  {documentError}
+                </div>
+              )}
+
+              <div className="mb-4 grid gap-3 md:grid-cols-3">
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-xs font-bold uppercase text-slate-500">Total documents</p>
+                  <p className="mt-1 text-sm font-black text-slate-950">{documents.length}</p>
+                </div>
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-xs font-bold uppercase text-slate-500">Released to customer</p>
+                  <p className="mt-1 text-sm font-black text-slate-950">{visibleDocumentCount}</p>
+                </div>
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-xs font-bold uppercase text-slate-500">Customer access</p>
+                  <p className="mt-1 text-sm font-black text-slate-950">Bookings portal</p>
+                  <p className="mt-1 text-xs font-bold text-slate-500">
+                    Use PT reference and lead surname
+                  </p>
+                </div>
+              </div>
+
+              <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
+                <div className="grid gap-3 md:grid-cols-3">
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold uppercase text-slate-500">Customer portal</p>
+                    <p className="mt-1 text-sm font-black text-slate-950">
+                      bookings.piyamtravel.com
+                    </p>
+                    <p className="mt-1 text-xs font-semibold text-slate-500">
+                      No unique customer link is generated from this page.
                     </p>
                   </div>
+                  <div>
+                    <p className="text-xs font-bold uppercase text-slate-500">Reference</p>
+                    <p className="mt-1 text-sm font-black text-slate-950">
+                      {packageFolder.package_reference}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold uppercase text-slate-500">Lead surname</p>
+                    <p className="mt-1 text-sm font-black capitalize text-slate-950">
+                      {customerAccessLastName}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <form
+                className="rounded-lg border border-slate-200 bg-slate-50 p-4"
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  void uploadDocument()
+                }}
+              >
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                  <label className="text-xs font-bold uppercase text-slate-500 xl:col-span-2">
+                    File
+                    <input
+                      type="file"
+                      accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx"
+                      onChange={(event) => setSelectedDocumentFile(event.target.files?.[0] || null)}
+                      className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-bold normal-case text-slate-900 outline-none transition file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-xs file:font-black file:text-slate-700 focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                      required
+                    />
+                  </label>
+
+                  <label className="text-xs font-bold uppercase text-slate-500">
+                    Category
+                    <select
+                      value={documentUploadForm.category}
+                      onChange={(event) =>
+                        updateDocumentUploadForm(
+                          'category',
+                          event.target.value as TravelPackageDocumentCategory,
+                        )
+                      }
+                      className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                    >
+                      {PACKAGE_DOCUMENT_CATEGORIES.map((category) => (
+                        <option key={category.value} value={category.value}>
+                          {category.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="text-xs font-bold uppercase text-slate-500">
+                    Linked reservation
+                    <select
+                      value={documentUploadForm.reservationId}
+                      onChange={(event) =>
+                        updateDocumentUploadForm('reservationId', event.target.value)
+                      }
+                      className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                    >
+                      <option value="">No reservation link</option>
+                      {reservations.map((reservation) => (
+                        <option key={reservation.id} value={reservation.id}>
+                          {reservation.title}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="flex min-h-10 items-center gap-2 self-end rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={documentUploadForm.customerVisible}
+                      onChange={(event) =>
+                        updateDocumentUploadForm('customerVisible', event.target.checked)
+                      }
+                      className="h-4 w-4 rounded border-slate-300 text-[#8b1e2d] focus:ring-[#8b1e2d]"
+                    />
+                    Release to customer
+                  </label>
+
+                  <label className="text-xs font-bold uppercase text-slate-500 xl:col-span-2">
+                    Title
+                    <input
+                      value={documentUploadForm.title}
+                      onChange={(event) => updateDocumentUploadForm('title', event.target.value)}
+                      className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                      placeholder={selectedDocumentFile?.name || 'Document title'}
+                    />
+                  </label>
+
+                  <label className="text-xs font-bold uppercase text-slate-500">
+                    Customer notes
+                    <textarea
+                      value={documentUploadForm.publicNotes}
+                      onChange={(event) =>
+                        updateDocumentUploadForm('publicNotes', event.target.value)
+                      }
+                      className="mt-1 min-h-24 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                      placeholder="Shown in customer portal"
+                    />
+                  </label>
+
+                  <label className="text-xs font-bold uppercase text-slate-500">
+                    Internal notes
+                    <textarea
+                      value={documentUploadForm.internalNotes}
+                      onChange={(event) =>
+                        updateDocumentUploadForm('internalNotes', event.target.value)
+                      }
+                      className="mt-1 min-h-24 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                      placeholder="Agent notes only"
+                    />
+                  </label>
+                </div>
+
+                <div className="mt-3 flex justify-end">
                   <button
-                    type="button"
-                    onClick={() => setShowQuoteSnapshot(true)}
-                    className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:bg-slate-100"
+                    type="submit"
+                    disabled={!selectedDocumentFile || savingDocument}
+                    className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-black text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-300"
                   >
-                    <FileText className="h-4 w-4" />
-                    Open Snapshot
+                    {savingDocument ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Upload className="h-4 w-4" />
+                    )}
+                    Upload Document
                   </button>
                 </div>
+              </form>
 
-                <div className="mt-4 grid gap-3 md:grid-cols-3">
-                  <div>
-                    <p className="text-xs font-bold uppercase text-slate-500">Customer</p>
-                    <p className="mt-1 text-sm font-black text-slate-950">{quoteCustomerName}</p>
-                    <p className="mt-1 text-xs text-slate-500">{quoteCustomerPhone}</p>
-                    <p className="mt-1 break-all text-xs text-slate-500">{quoteCustomerEmail}</p>
+              <div className="mt-4 space-y-3">
+                {documents.length === 0 && !documentsLoading ? (
+                  <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center text-sm font-bold text-slate-500">
+                    No package documents uploaded yet.
                   </div>
-                  <div>
-                    <p className="text-xs font-bold uppercase text-slate-500">Passengers</p>
-                    <p className="mt-1 text-sm font-black text-slate-950">
-                      {passengerSummary?.totalPassengers ?? selectedCombination.servicePassengers}{' '}
-                      total
-                    </p>
-                    <p className="mt-1 text-xs text-slate-500">
-                      {passengerSummary?.adults ?? selectedPayload?.adults ?? 0} adults ·{' '}
-                      {passengerSummary?.childrenPaying ?? selectedPayload?.childrenPaying ?? 0}{' '}
-                      children 5+ ·{' '}
-                      {passengerSummary?.childrenFree ?? selectedPayload?.childrenFree ?? 0} under 5
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs font-bold uppercase text-slate-500">Sold total</p>
-                    <p className="mt-1 text-sm font-black text-slate-950">
-                      {formatMoney(selectedCombination.totalPrice, selectedCombination.currency)}
-                    </p>
-                    <p className="mt-1 text-xs font-bold text-slate-500">
-                      {formatPaymentMethod(selectedCombination.paymentMethod)}
-                      {selectedCombination.paymentSurchargeTotal > 0
-                        ? ` · ${formatMoney(
-                            selectedCombination.paymentSurchargeTotal,
-                            selectedCombination.currency,
-                          )} processing fee`
-                        : ''}
-                    </p>
-                    <p className="mt-1 text-xs font-bold text-[#8b1e2d]">
-                      {formatMoney(
-                        selectedCombination.perPersonPrice,
-                        selectedCombination.currency,
-                      )}{' '}
-                      per hotel-paying guest
-                    </p>
-                  </div>
-                </div>
-
-                {selectedCombination.offerDiscountTotal > 0 && (
-                  <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700">
-                    Discount applied:{' '}
-                    {formatMoney(
-                      selectedCombination.offerDiscountTotal,
-                      selectedCombination.currency,
-                    )}
-                  </p>
-                )}
-
-                <div className="mt-4 grid gap-3 md:grid-cols-2">
-                  {selectedCombination.flightOption && (
-                    <div className="rounded-lg border border-slate-200 bg-white p-3">
-                      <p className="text-xs font-bold uppercase text-slate-500">Flight</p>
-                      <p className="mt-1 text-sm font-black text-slate-950">
-                        {selectedCombination.flightOption.title}
-                      </p>
-                      {selectedCombination.flightOption.summary && (
-                        <p className="mt-1 whitespace-pre-line text-xs leading-5 text-slate-600">
-                          {selectedCombination.flightOption.summary}
-                        </p>
-                      )}
-                    </div>
-                  )}
-                  {selectedCombination.visaOptions.length > 0 && (
-                    <div className="rounded-lg border border-slate-200 bg-white p-3">
-                      <p className="text-xs font-bold uppercase text-slate-500">Visa</p>
-                      <div className="mt-1 space-y-2">
-                        {selectedCombination.visaOptions.map((option) => (
-                          <div key={option.id}>
-                            <p className="text-sm font-black text-slate-950">
-                              {getVisaQuantity(option, selectedCombination.servicePassengers)} x{' '}
-                              {option.title}
-                            </p>
-                            {option.summary && (
-                              <p className="mt-1 whitespace-pre-line text-xs leading-5 text-slate-600">
-                                {option.summary}
-                              </p>
-                            )}
-                          </div>
-                        ))}
+                ) : (
+                  groupedDocuments.map((group) => (
+                    <div key={group.value} className="rounded-lg border border-slate-200">
+                      <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3">
+                        <p className="text-sm font-black text-slate-950">{group.label}</p>
+                        <span className="rounded-full bg-white px-2 py-1 text-xs font-black text-slate-500">
+                          {group.documents.length}
+                        </span>
+                      </div>
+                      <div className="divide-y divide-slate-100">
+                        {group.documents.map((document) => {
+                          const updatingThisDocument = updatingDocumentId === document.id
+                          const documentIsReleased =
+                            document.customer_visible && document.status === 'released'
+                          return (
+                            <div
+                              key={document.id}
+                              className="flex flex-col gap-3 px-4 py-3 lg:flex-row lg:items-start lg:justify-between"
+                            >
+                              <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <p className="text-sm font-black text-slate-950">
+                                    {document.title}
+                                  </p>
+                                  <span
+                                    className={`rounded-full px-2 py-1 text-[11px] font-black uppercase ${
+                                      documentIsReleased
+                                        ? 'bg-emerald-50 text-emerald-700'
+                                        : 'bg-slate-100 text-slate-500'
+                                    }`}
+                                  >
+                                    {documentIsReleased ? 'Released' : 'Internal'}
+                                  </span>
+                                </div>
+                                <p className="mt-1 break-all text-xs font-bold text-slate-500">
+                                  {document.file_name} · {formatFileSize(document.file_size)}
+                                </p>
+                                {document.reservation_id && (
+                                  <p className="mt-1 text-xs font-bold text-slate-500">
+                                    Linked to{' '}
+                                    {reservationTitleById.get(document.reservation_id) ||
+                                      'reservation'}
+                                  </p>
+                                )}
+                                {document.public_notes && (
+                                  <p className="mt-2 whitespace-pre-line text-xs leading-5 text-slate-600">
+                                    {document.public_notes}
+                                  </p>
+                                )}
+                                {document.internal_notes && (
+                                  <p className="mt-2 whitespace-pre-line rounded-lg bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">
+                                    {document.internal_notes}
+                                  </p>
+                                )}
+                              </div>
+                              <div className="flex shrink-0 flex-wrap gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    void downloadDocument(document)
+                                  }}
+                                  disabled={updatingThisDocument}
+                                  className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300"
+                                >
+                                  {updatingThisDocument ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <Download className="h-4 w-4" />
+                                  )}
+                                  Open
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    void updateDocumentVisibility(document, !documentIsReleased)
+                                  }}
+                                  disabled={updatingThisDocument}
+                                  className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300"
+                                >
+                                  {documentIsReleased ? (
+                                    <EyeOff className="h-4 w-4" />
+                                  ) : (
+                                    <Eye className="h-4 w-4" />
+                                  )}
+                                  {documentIsReleased ? 'Hide' : 'Release'}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    void deleteDocument(document)
+                                  }}
+                                  disabled={updatingThisDocument}
+                                  className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-rose-200 bg-white px-3 text-xs font-black text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:text-rose-300"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                  Delete
+                                </button>
+                              </div>
+                            </div>
+                          )
+                        })}
                       </div>
                     </div>
-                  )}
-                  {selectedCombination.transportOption && (
-                    <div className="rounded-lg border border-slate-200 bg-white p-3">
-                      <p className="text-xs font-bold uppercase text-slate-500">Transport</p>
-                      <p className="mt-1 text-sm font-black text-slate-950">
-                        {selectedCombination.transportOption.title}
-                      </p>
-                      {selectedCombination.transportOption.summary && (
-                        <p className="mt-1 whitespace-pre-line text-xs leading-5 text-slate-600">
-                          {selectedCombination.transportOption.summary}
-                        </p>
-                      )}
-                    </div>
-                  )}
-                  {selectedCombination.staySelections.map((stay) => (
-                    <div key={stay.groupId} className="rounded-lg border border-slate-200 bg-white p-3">
-                      <p className="text-xs font-bold uppercase text-slate-500">
-                        {stay.groupLabel}
-                      </p>
-                      <p className="mt-1 text-sm font-black text-slate-950">
-                        {stay.option.title}
-                      </p>
-                      {stay.option.summary && (
-                        <p className="mt-1 whitespace-pre-line text-xs leading-5 text-slate-600">
-                          {stay.option.summary}
-                        </p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-
-                {quoteSelectionNote && (
-                  <p className="mt-4 rounded-lg bg-white px-3 py-2 text-xs leading-5 text-slate-600">
-                    <span className="font-black text-slate-800">Selection note:</span>{' '}
-                    {quoteSelectionNote}
-                  </p>
-                )}
-              </div>
-            ) : (
-              <p className="text-sm text-slate-500">No selected quote snapshot found.</p>
-            )}
-          </div>
-
-          <div
-            id="package-reservations"
-            className="scroll-mt-20 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
-          >
-            <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900 text-white">
-                    <BadgePoundSterling className="h-4 w-4" />
-                  </span>
-                  <h2 className="text-lg font-black text-slate-950">Reservations</h2>
-                </div>
-                <p className="mt-2 text-sm leading-6 text-slate-600">
-                  Internal booking records for flights, hotels, visas, and transport. These are not
-                  shown to customers unless a later customer release step makes them visible.
-                </p>
-              </div>
-              {reservationsLoading && (
-                <span className="inline-flex items-center gap-2 text-xs font-bold text-slate-500">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Loading reservations
-                </span>
-              )}
-            </div>
-
-            {reservationError && (
-              <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-900">
-                {reservationError}
-              </div>
-            )}
-
-            <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                <p className="text-xs font-bold uppercase text-slate-500">Booked cost</p>
-                <p className="mt-1 text-sm font-black text-slate-950">
-                  {formatMoney(reservationTotals.booked, reservationCurrency)}
-                </p>
-              </div>
-              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                <p className="text-xs font-bold uppercase text-slate-500">Sold price</p>
-                <p className="mt-1 text-sm font-black text-slate-950">
-                  {formatMoney(reservationTotals.sold, reservationCurrency)}
-                </p>
-              </div>
-              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                <p className="text-xs font-bold uppercase text-slate-500">Commission due</p>
-                <p className="mt-1 text-sm font-black text-slate-950">
-                  {formatMoney(reservationTotals.commission, reservationCurrency)}
-                </p>
-              </div>
-              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                <p className="text-xs font-bold uppercase text-slate-500">Sold - booked</p>
-                <p className="mt-1 text-sm font-black text-[#8b1e2d]">
-                  {formatMoney(bookedSoldDifference, reservationCurrency)}
-                </p>
-                {reservationTotals.commission > 0 && (
-                  <p className="mt-1 text-xs font-bold text-slate-500">
-                    With commission: {formatMoney(estimatedMargin, reservationCurrency)}
-                  </p>
+                  ))
                 )}
               </div>
             </div>
+          )}
 
-            <form
-              className="rounded-lg border border-slate-200 bg-slate-50 p-4"
-              onSubmit={(event) => {
-                event.preventDefault()
-                void createReservation()
-              }}
+          {activePackageTab === 'overview' && (
+            <div
+              id="final-quote"
+              className="scroll-mt-20 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
             >
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                <label className="text-xs font-bold uppercase text-slate-500">
-                  Type
-                  <select
-                    value={reservationForm.reservationType}
-                    onChange={(event) =>
-                      updateReservationForm(
-                        'reservationType',
-                        event.target.value as TravelPackageReservationType,
-                      )
-                    }
-                    className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
-                  >
-                    {reservationTypeOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <label className="text-xs font-bold uppercase text-slate-500 xl:col-span-2">
-                  Reservation title
-                  <input
-                    value={reservationForm.title}
-                    onChange={(event) => updateReservationForm('title', event.target.value)}
-                    className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
-                    placeholder="Etihad flights, Swissotel Makkah, GB ETA visas"
-                    required
-                  />
-                </label>
-
-                <label className="text-xs font-bold uppercase text-slate-500">
-                  Status
-                  <select
-                    value={reservationForm.status}
-                    onChange={(event) =>
-                      updateReservationForm(
-                        'status',
-                        event.target.value as TravelPackageReservationStatus,
-                      )
-                    }
-                    className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
-                  >
-                    {reservationStatusOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <label className="text-xs font-bold uppercase text-slate-500">
-                  Supplier
-                  <input
-                    value={reservationForm.supplierName}
-                    onChange={(event) => updateReservationForm('supplierName', event.target.value)}
-                    className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
-                    placeholder="Airline, hotel, visa provider"
-                  />
-                </label>
-
-                <label className="text-xs font-bold uppercase text-slate-500">
-                  Supplier ref
-                  <input
-                    value={reservationForm.supplierReference}
-                    onChange={(event) =>
-                      updateReservationForm('supplierReference', event.target.value)
-                    }
-                    className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
-                    placeholder="PNR or booking ref"
-                  />
-                </label>
-
-                <label className="text-xs font-bold uppercase text-slate-500">
-                  Booked cost
-                  <input
-                    value={reservationForm.bookedCostTotal}
-                    onChange={(event) =>
-                      updateReservationForm('bookedCostTotal', event.target.value)
-                    }
-                    className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
-                    inputMode="decimal"
-                    placeholder="0.00"
-                  />
-                </label>
-
-                <label className="text-xs font-bold uppercase text-slate-500">
-                  Sold price
-                  <input
-                    value={reservationForm.soldPriceTotal}
-                    onChange={(event) => updateReservationForm('soldPriceTotal', event.target.value)}
-                    className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
-                    inputMode="decimal"
-                    placeholder="0.00"
-                  />
-                </label>
-
-                <label className="text-xs font-bold uppercase text-slate-500">
-                  Discount
-                  <input
-                    value={reservationForm.discountTotal}
-                    onChange={(event) => updateReservationForm('discountTotal', event.target.value)}
-                    className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
-                    inputMode="decimal"
-                    placeholder="0.00"
-                  />
-                </label>
-
-                <label className="text-xs font-bold uppercase text-slate-500">
-                  Commission due
-                  <input
-                    value={reservationForm.commissionExpectedTotal}
-                    onChange={(event) =>
-                      updateReservationForm('commissionExpectedTotal', event.target.value)
-                    }
-                    className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
-                    inputMode="decimal"
-                    placeholder="0.00"
-                  />
-                </label>
-
-                <label className="flex min-h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700">
-                  <input
-                    checked={reservationForm.depositRequired}
-                    onChange={(event) =>
-                      updateReservationForm('depositRequired', event.target.checked)
-                    }
-                    type="checkbox"
-                    className="h-4 w-4 rounded border-slate-300 text-[#8b1e2d]"
-                  />
-                  Deposit required
-                </label>
-
-                <label className="text-xs font-bold uppercase text-slate-500">
-                  Deposit amount
-                  <input
-                    value={reservationForm.depositAmount}
-                    onChange={(event) => updateReservationForm('depositAmount', event.target.value)}
-                    className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
-                    inputMode="decimal"
-                    placeholder="0.00"
-                  />
-                </label>
-
-                <label className="text-xs font-bold uppercase text-slate-500">
-                  Payment due
-                  <input
-                    value={reservationForm.paymentDueAt}
-                    onChange={(event) => updateReservationForm('paymentDueAt', event.target.value)}
-                    className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
-                    type="datetime-local"
-                  />
-                </label>
+              <div className="mb-3 flex items-center gap-2">
+                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900 text-white">
+                  <FolderOpen className="h-4 w-4" />
+                </span>
+                <h2 className="text-lg font-black text-slate-950">Final quote snapshot</h2>
               </div>
+              {selectedCombination ? (
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                    <div>
+                      <p className="text-xs font-bold uppercase text-slate-500">Selected quote</p>
+                      <p className="mt-1 text-base font-black text-slate-950">{quoteTitle}</p>
+                      <p className="mt-1 text-xs font-bold text-slate-500">
+                        {quoteCustomerName} · {quoteDateRange}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowQuoteSnapshot(true)}
+                      className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:bg-slate-100"
+                    >
+                      <FileText className="h-4 w-4" />
+                      Open Snapshot
+                    </button>
+                  </div>
 
-              <label className="mt-3 block text-xs font-bold uppercase text-slate-500">
-                Internal notes
-                <textarea
-                  value={reservationForm.internalNotes}
-                  onChange={(event) => updateReservationForm('internalNotes', event.target.value)}
-                  className="mt-1 min-h-20 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
-                  placeholder="Supplier conditions, amendment notes, deposit details"
-                />
-              </label>
+                  <div className="mt-4 grid gap-3 md:grid-cols-3">
+                    <div>
+                      <p className="text-xs font-bold uppercase text-slate-500">Customer</p>
+                      <p className="mt-1 text-sm font-black text-slate-950">{quoteCustomerName}</p>
+                      <p className="mt-1 text-xs text-slate-500">{quoteCustomerPhone}</p>
+                      <p className="mt-1 break-all text-xs text-slate-500">{quoteCustomerEmail}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold uppercase text-slate-500">Passengers</p>
+                      <p className="mt-1 text-sm font-black text-slate-950">
+                        {passengerSummary?.totalPassengers ?? selectedCombination.servicePassengers}{' '}
+                        total
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {passengerSummary?.adults ?? selectedPayload?.adults ?? 0} adults ·{' '}
+                        {passengerSummary?.childrenPaying ?? selectedPayload?.childrenPaying ?? 0}{' '}
+                        children 5+ ·{' '}
+                        {passengerSummary?.childrenFree ?? selectedPayload?.childrenFree ?? 0} under
+                        5
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold uppercase text-slate-500">Sold total</p>
+                      <p className="mt-1 text-sm font-black text-slate-950">
+                        {formatMoney(selectedCombination.totalPrice, selectedCombination.currency)}
+                      </p>
+                      <p className="mt-1 text-xs font-bold text-slate-500">
+                        {formatPaymentMethod(selectedCombination.paymentMethod)}
+                        {selectedCombination.paymentSurchargeTotal > 0
+                          ? ` · ${formatMoney(
+                              selectedCombination.paymentSurchargeTotal,
+                              selectedCombination.currency,
+                            )} processing fee`
+                          : ''}
+                      </p>
+                      <p className="mt-1 text-xs font-bold text-[#8b1e2d]">
+                        {formatMoney(
+                          selectedCombination.perPersonPrice,
+                          selectedCombination.currency,
+                        )}{' '}
+                        per hotel-paying guest
+                      </p>
+                    </div>
+                  </div>
 
-              <div className="mt-4 flex justify-end">
-                <button
-                  type="submit"
-                  disabled={!reservationForm.title.trim() || savingReservation}
-                  className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-black text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
-                >
-                  {savingReservation ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Plus className="h-4 w-4" />
+                  {selectedCombination.offerDiscountTotal > 0 && (
+                    <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700">
+                      Discount applied:{' '}
+                      {formatMoney(
+                        selectedCombination.offerDiscountTotal,
+                        selectedCombination.currency,
+                      )}
+                    </p>
                   )}
-                  Add Reservation
-                </button>
-              </div>
-            </form>
 
-            <div className="mt-4 space-y-3">
-              {reservations.length === 0 && !reservationsLoading ? (
-                <div className="rounded-lg border border-dashed border-slate-300 bg-white p-4 text-center text-sm font-bold text-slate-500">
-                  No reservations added yet.
+                  <div className="mt-4 grid gap-3 md:grid-cols-2">
+                    {selectedCombination.flightOption && (
+                      <div className="rounded-lg border border-slate-200 bg-white p-3">
+                        <p className="text-xs font-bold uppercase text-slate-500">Flight</p>
+                        <p className="mt-1 text-sm font-black text-slate-950">
+                          {selectedCombination.flightOption.title}
+                        </p>
+                        {selectedCombination.flightOption.summary && (
+                          <p className="mt-1 whitespace-pre-line text-xs leading-5 text-slate-600">
+                            {selectedCombination.flightOption.summary}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                    {selectedCombination.visaOptions.length > 0 && (
+                      <div className="rounded-lg border border-slate-200 bg-white p-3">
+                        <p className="text-xs font-bold uppercase text-slate-500">Visa</p>
+                        <div className="mt-1 space-y-2">
+                          {selectedCombination.visaOptions.map((option) => (
+                            <div key={option.id}>
+                              <p className="text-sm font-black text-slate-950">
+                                {getVisaQuantity(option, selectedCombination.servicePassengers)} x{' '}
+                                {option.title}
+                              </p>
+                              {option.summary && (
+                                <p className="mt-1 whitespace-pre-line text-xs leading-5 text-slate-600">
+                                  {option.summary}
+                                </p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {selectedCombination.transportOption && (
+                      <div className="rounded-lg border border-slate-200 bg-white p-3">
+                        <p className="text-xs font-bold uppercase text-slate-500">Transport</p>
+                        <p className="mt-1 text-sm font-black text-slate-950">
+                          {selectedCombination.transportOption.title}
+                        </p>
+                        {selectedCombination.transportOption.summary && (
+                          <p className="mt-1 whitespace-pre-line text-xs leading-5 text-slate-600">
+                            {selectedCombination.transportOption.summary}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                    {selectedCombination.staySelections.map((stay) => (
+                      <div
+                        key={stay.groupId}
+                        className="rounded-lg border border-slate-200 bg-white p-3"
+                      >
+                        <p className="text-xs font-bold uppercase text-slate-500">
+                          {stay.groupLabel}
+                        </p>
+                        <p className="mt-1 text-sm font-black text-slate-950">
+                          {stay.option.title}
+                        </p>
+                        {stay.option.summary && (
+                          <p className="mt-1 whitespace-pre-line text-xs leading-5 text-slate-600">
+                            {stay.option.summary}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  {quoteSelectionNote && (
+                    <p className="mt-4 rounded-lg bg-white px-3 py-2 text-xs leading-5 text-slate-600">
+                      <span className="font-black text-slate-800">Selection note:</span>{' '}
+                      {quoteSelectionNote}
+                    </p>
+                  )}
                 </div>
               ) : (
-                reservations.map((reservation) => {
-                  const ReservationIcon = getReservationIcon(reservation.reservation_type)
-                  const itemForm = getReservationItemForm(reservation)
-                  const savingThisItem = savingItemReservationId === reservation.id
-                  const financialForm = getReservationFinancialForm(reservation)
-                  const savingFinancials = savingReservationFinancialId === reservation.id
-                  const netSold =
-                    parseMoneyInput(financialForm.soldPriceTotal)
-                    - parseMoneyInput(financialForm.discountTotal)
-                  const reservationDifference =
-                    netSold - parseMoneyInput(financialForm.bookedCostTotal)
-                  const reservationWithCommission =
-                    reservationDifference + parseMoneyInput(financialForm.commissionExpectedTotal)
-                  return (
-                    <div
-                      key={reservation.id}
-                      className="rounded-lg border border-slate-200 bg-white p-4"
+                <p className="text-sm text-slate-500">No selected quote snapshot found.</p>
+              )}
+            </div>
+          )}
+
+          {activePackageTab === 'reservations' && (
+            <div
+              id="package-reservations"
+              className="scroll-mt-20 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+            >
+              <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900 text-white">
+                      <BadgePoundSterling className="h-4 w-4" />
+                    </span>
+                    <h2 className="text-lg font-black text-slate-950">Reservations</h2>
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-slate-600">
+                    Internal booking records for flights, hotels, visas, and transport. These are
+                    not shown to customers unless a later customer release step makes them visible.
+                  </p>
+                </div>
+                {reservationsLoading && (
+                  <span className="inline-flex items-center gap-2 text-xs font-bold text-slate-500">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Loading reservations
+                  </span>
+                )}
+              </div>
+
+              {reservationError && (
+                <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-900">
+                  {reservationError}
+                </div>
+              )}
+
+              <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-xs font-bold uppercase text-slate-500">Booked cost</p>
+                  <p className="mt-1 text-sm font-black text-slate-950">
+                    {formatMoney(reservationTotals.booked, reservationCurrency)}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-xs font-bold uppercase text-slate-500">Sold price</p>
+                  <p className="mt-1 text-sm font-black text-slate-950">
+                    {formatMoney(reservationTotals.sold, reservationCurrency)}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-xs font-bold uppercase text-slate-500">Commission due</p>
+                  <p className="mt-1 text-sm font-black text-slate-950">
+                    {formatMoney(reservationTotals.commission, reservationCurrency)}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-xs font-bold uppercase text-slate-500">Sold - booked</p>
+                  <p className="mt-1 text-sm font-black text-[#8b1e2d]">
+                    {formatMoney(bookedSoldDifference, reservationCurrency)}
+                  </p>
+                  {reservationTotals.commission > 0 && (
+                    <p className="mt-1 text-xs font-bold text-slate-500">
+                      With commission: {formatMoney(estimatedMargin, reservationCurrency)}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <form
+                className="rounded-lg border border-slate-200 bg-slate-50 p-4"
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  void createReservation()
+                }}
+              >
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                  <label className="text-xs font-bold uppercase text-slate-500">
+                    Type
+                    <select
+                      value={reservationForm.reservationType}
+                      onChange={(event) =>
+                        updateReservationForm(
+                          'reservationType',
+                          event.target.value as TravelPackageReservationType,
+                        )
+                      }
+                      className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
                     >
-                      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                        <div className="flex gap-3">
-                          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
-                            <ReservationIcon className="h-4 w-4" />
-                          </span>
-                          <div>
-                            <p className="text-sm font-black text-slate-950">
-                              {reservation.title}
-                            </p>
-                            <p className="mt-1 text-xs font-bold capitalize text-slate-500">
-                              {reservation.reservation_type}
-                              {reservation.supplier_name ? ` · ${reservation.supplier_name}` : ''}
-                            </p>
-                            {reservation.supplier_reference && (
-                              <p className="mt-1 text-xs text-slate-500">
-                                Ref: {reservation.supplier_reference}
-                              </p>
-                            )}
-                          </div>
-                        </div>
+                      {reservationTypeOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
 
-                        <select
-                          value={reservation.status}
-                          disabled={updatingReservationId === reservation.id}
-                          onChange={(event) =>
-                            void updateReservationStatus(
-                              reservation,
-                              event.target.value as TravelPackageReservationStatus,
-                            )
-                          }
-                          className="min-h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold capitalize text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20 disabled:bg-slate-100"
-                        >
-                          {reservationStatusOptions.map((option) => (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                  <label className="text-xs font-bold uppercase text-slate-500 xl:col-span-2">
+                    Reservation title
+                    <input
+                      value={reservationForm.title}
+                      onChange={(event) => updateReservationForm('title', event.target.value)}
+                      className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                      placeholder="Etihad flights, Swissotel Makkah, GB ETA visas"
+                      required
+                    />
+                  </label>
 
-                      <form
-                        className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3"
-                        onSubmit={(event) => {
-                          event.preventDefault()
-                          void saveReservationFinancials(reservation)
-                        }}
+                  <label className="text-xs font-bold uppercase text-slate-500">
+                    Status
+                    <select
+                      value={reservationForm.status}
+                      onChange={(event) =>
+                        updateReservationForm(
+                          'status',
+                          event.target.value as TravelPackageReservationStatus,
+                        )
+                      }
+                      className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                    >
+                      {reservationStatusOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="text-xs font-bold uppercase text-slate-500">
+                    Supplier
+                    <input
+                      value={reservationForm.supplierName}
+                      onChange={(event) =>
+                        updateReservationForm('supplierName', event.target.value)
+                      }
+                      className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                      placeholder="Airline, hotel, visa provider"
+                    />
+                  </label>
+
+                  <label className="text-xs font-bold uppercase text-slate-500">
+                    Supplier ref
+                    <input
+                      value={reservationForm.supplierReference}
+                      onChange={(event) =>
+                        updateReservationForm('supplierReference', event.target.value)
+                      }
+                      className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                      placeholder="PNR or booking ref"
+                    />
+                  </label>
+
+                  <label className="text-xs font-bold uppercase text-slate-500">
+                    Booked cost
+                    <input
+                      value={reservationForm.bookedCostTotal}
+                      onChange={(event) =>
+                        updateReservationForm('bookedCostTotal', event.target.value)
+                      }
+                      className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                      inputMode="decimal"
+                      placeholder="0.00"
+                    />
+                  </label>
+
+                  <label className="text-xs font-bold uppercase text-slate-500">
+                    Sold price
+                    <input
+                      value={reservationForm.soldPriceTotal}
+                      onChange={(event) =>
+                        updateReservationForm('soldPriceTotal', event.target.value)
+                      }
+                      className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                      inputMode="decimal"
+                      placeholder="0.00"
+                    />
+                  </label>
+
+                  <label className="text-xs font-bold uppercase text-slate-500">
+                    Discount
+                    <input
+                      value={reservationForm.discountTotal}
+                      onChange={(event) =>
+                        updateReservationForm('discountTotal', event.target.value)
+                      }
+                      className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                      inputMode="decimal"
+                      placeholder="0.00"
+                    />
+                  </label>
+
+                  <label className="text-xs font-bold uppercase text-slate-500">
+                    Commission due
+                    <input
+                      value={reservationForm.commissionExpectedTotal}
+                      onChange={(event) =>
+                        updateReservationForm('commissionExpectedTotal', event.target.value)
+                      }
+                      className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                      inputMode="decimal"
+                      placeholder="0.00"
+                    />
+                  </label>
+
+                  <label className="flex min-h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700">
+                    <input
+                      checked={reservationForm.depositRequired}
+                      onChange={(event) =>
+                        updateReservationForm('depositRequired', event.target.checked)
+                      }
+                      type="checkbox"
+                      className="h-4 w-4 rounded border-slate-300 text-[#8b1e2d]"
+                    />
+                    Deposit required
+                  </label>
+
+                  <label className="text-xs font-bold uppercase text-slate-500">
+                    Deposit amount
+                    <input
+                      value={reservationForm.depositAmount}
+                      onChange={(event) =>
+                        updateReservationForm('depositAmount', event.target.value)
+                      }
+                      className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                      inputMode="decimal"
+                      placeholder="0.00"
+                    />
+                  </label>
+
+                  <label className="text-xs font-bold uppercase text-slate-500">
+                    Payment due
+                    <input
+                      value={reservationForm.paymentDueAt}
+                      onChange={(event) =>
+                        updateReservationForm('paymentDueAt', event.target.value)
+                      }
+                      className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                      type="datetime-local"
+                    />
+                  </label>
+                </div>
+
+                <label className="mt-3 block text-xs font-bold uppercase text-slate-500">
+                  Internal notes
+                  <textarea
+                    value={reservationForm.internalNotes}
+                    onChange={(event) => updateReservationForm('internalNotes', event.target.value)}
+                    className="mt-1 min-h-20 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                    placeholder="Supplier conditions, amendment notes, deposit details"
+                  />
+                </label>
+
+                <div className="mt-4 flex justify-end">
+                  <button
+                    type="submit"
+                    disabled={!reservationForm.title.trim() || savingReservation}
+                    className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-black text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+                  >
+                    {savingReservation ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Plus className="h-4 w-4" />
+                    )}
+                    Add Reservation
+                  </button>
+                </div>
+              </form>
+
+              <div className="mt-4 space-y-3">
+                {reservations.length === 0 && !reservationsLoading ? (
+                  <div className="rounded-lg border border-dashed border-slate-300 bg-white p-4 text-center text-sm font-bold text-slate-500">
+                    No reservations added yet.
+                  </div>
+                ) : (
+                  reservations.map((reservation) => {
+                    const ReservationIcon = getReservationIcon(reservation.reservation_type)
+                    const itemForm = getReservationItemForm(reservation)
+                    const savingThisItem = savingItemReservationId === reservation.id
+                    const financialForm = getReservationFinancialForm(reservation)
+                    const savingFinancials = savingReservationFinancialId === reservation.id
+                    const netSold =
+                      parseMoneyInput(financialForm.soldPriceTotal) -
+                      parseMoneyInput(financialForm.discountTotal)
+                    const reservationDifference =
+                      netSold - parseMoneyInput(financialForm.bookedCostTotal)
+                    const reservationWithCommission =
+                      reservationDifference + parseMoneyInput(financialForm.commissionExpectedTotal)
+                    return (
+                      <div
+                        key={reservation.id}
+                        className="rounded-lg border border-slate-200 bg-white p-4"
                       >
-                        <div className="mb-3 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                          <div>
-                            <p className="text-xs font-black uppercase text-slate-500">
-                              Reservation pricing
-                            </p>
-                            <p className="mt-1 text-xs font-bold text-slate-500">
-                              Difference:{' '}
-                              <span className="text-[#8b1e2d]">
-                                {formatMoney(reservationDifference, reservation.currency)}
-                              </span>{' '}
-                              sold minus discount and booked cost
-                            </p>
-                            {parseMoneyInput(financialForm.commissionExpectedTotal) > 0 && (
-                              <p className="mt-1 text-xs font-bold text-slate-500">
-                                With commission:{' '}
-                                {formatMoney(reservationWithCommission, reservation.currency)}
+                        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                          <div className="flex gap-3">
+                            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
+                              <ReservationIcon className="h-4 w-4" />
+                            </span>
+                            <div>
+                              <p className="text-sm font-black text-slate-950">
+                                {reservation.title}
                               </p>
-                            )}
+                              <p className="mt-1 text-xs font-bold capitalize text-slate-500">
+                                {reservation.reservation_type}
+                                {reservation.supplier_name ? ` · ${reservation.supplier_name}` : ''}
+                              </p>
+                              {reservation.supplier_reference && (
+                                <p className="mt-1 text-xs text-slate-500">
+                                  Ref: {reservation.supplier_reference}
+                                </p>
+                              )}
+                            </div>
                           </div>
-                          <button
-                            type="submit"
-                            disabled={savingFinancials}
-                            className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg bg-slate-900 px-3 text-xs font-black text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+
+                          <select
+                            value={reservation.status}
+                            disabled={updatingReservationId === reservation.id}
+                            onChange={(event) =>
+                              void updateReservationStatus(
+                                reservation,
+                                event.target.value as TravelPackageReservationStatus,
+                              )
+                            }
+                            className="min-h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold capitalize text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20 disabled:bg-slate-100"
                           >
-                            {savingFinancials ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <CheckCircle2 className="h-4 w-4" />
-                            )}
-                            Save Pricing
-                          </button>
-                        </div>
-
-                        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                          <label className="text-xs font-bold uppercase text-slate-500">
-                            Booked cost
-                            <input
-                              value={financialForm.bookedCostTotal}
-                              onChange={(event) =>
-                                updateReservationFinancialForm(
-                                  reservation,
-                                  'bookedCostTotal',
-                                  event.target.value,
-                                )
-                              }
-                              className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
-                              inputMode="decimal"
-                              placeholder="0.00"
-                            />
-                          </label>
-
-                          <label className="text-xs font-bold uppercase text-slate-500">
-                            Sold price
-                            <input
-                              value={financialForm.soldPriceTotal}
-                              onChange={(event) =>
-                                updateReservationFinancialForm(
-                                  reservation,
-                                  'soldPriceTotal',
-                                  event.target.value,
-                                )
-                              }
-                              className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
-                              inputMode="decimal"
-                              placeholder="0.00"
-                            />
-                          </label>
-
-                          <label className="text-xs font-bold uppercase text-slate-500">
-                            Discount
-                            <input
-                              value={financialForm.discountTotal}
-                              onChange={(event) =>
-                                updateReservationFinancialForm(
-                                  reservation,
-                                  'discountTotal',
-                                  event.target.value,
-                                )
-                              }
-                              className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
-                              inputMode="decimal"
-                              placeholder="0.00"
-                            />
-                          </label>
-
-                          <label className="text-xs font-bold uppercase text-slate-500">
-                            Commission due
-                            <input
-                              value={financialForm.commissionExpectedTotal}
-                              onChange={(event) =>
-                                updateReservationFinancialForm(
-                                  reservation,
-                                  'commissionExpectedTotal',
-                                  event.target.value,
-                                )
-                              }
-                              className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
-                              inputMode="decimal"
-                              placeholder="0.00"
-                            />
-                          </label>
-
-                          <label className="flex min-h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700">
-                            <input
-                              checked={financialForm.depositRequired}
-                              onChange={(event) =>
-                                updateReservationFinancialForm(
-                                  reservation,
-                                  'depositRequired',
-                                  event.target.checked,
-                                )
-                              }
-                              type="checkbox"
-                              className="h-4 w-4 rounded border-slate-300 text-[#8b1e2d]"
-                            />
-                            Deposit required
-                          </label>
-
-                          <label className="text-xs font-bold uppercase text-slate-500">
-                            Deposit amount
-                            <input
-                              value={financialForm.depositAmount}
-                              onChange={(event) =>
-                                updateReservationFinancialForm(
-                                  reservation,
-                                  'depositAmount',
-                                  event.target.value,
-                                )
-                              }
-                              className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
-                              inputMode="decimal"
-                              placeholder="0.00"
-                            />
-                          </label>
-
-                          <label className="text-xs font-bold uppercase text-slate-500">
-                            Payment due
-                            <input
-                              value={financialForm.paymentDueAt}
-                              onChange={(event) =>
-                                updateReservationFinancialForm(
-                                  reservation,
-                                  'paymentDueAt',
-                                  event.target.value,
-                                )
-                              }
-                              className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
-                              type="datetime-local"
-                            />
-                          </label>
-                        </div>
-                      </form>
-
-                      {reservation.internal_notes && (
-                        <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-600">
-                          {reservation.internal_notes}
-                        </p>
-                      )}
-
-                      <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
-                        <div className="mb-3 flex items-center justify-between gap-3">
-                          <p className="text-xs font-black uppercase text-slate-500">
-                            Line items
-                          </p>
-                          <p className="text-xs font-bold text-slate-400">
-                            {(reservation.items || []).length} saved
-                          </p>
-                        </div>
-
-                        {(reservation.items || []).length > 0 && (
-                          <div className="mb-3 space-y-2">
-                            {(reservation.items || []).map((lineItem) => (
-                              <div
-                                key={lineItem.id}
-                                className="grid gap-2 rounded-lg border border-slate-200 bg-white p-3 text-xs text-slate-600 md:grid-cols-[minmax(0,1.5fr)_repeat(4,minmax(0,1fr))]"
-                              >
-                                <div>
-                                  <p className="font-black text-slate-950">{lineItem.title}</p>
-                                  <p className="mt-1 capitalize text-slate-500">
-                                    {lineItem.item_type} · {lineItem.status}
-                                  </p>
-                                  {lineItem.supplier_reference && (
-                                    <p className="mt-1 text-slate-500">
-                                      Ref: {lineItem.supplier_reference}
-                                    </p>
-                                  )}
-                                </div>
-                                <div>
-                                  <p className="font-bold uppercase text-slate-400">Qty</p>
-                                  <p className="font-black text-slate-800">{lineItem.quantity}</p>
-                                </div>
-                                <div>
-                                  <p className="font-bold uppercase text-slate-400">Booked</p>
-                                  <p className="font-black text-slate-800">
-                                    {formatMoney(lineItem.total_booked_cost, lineItem.currency)}
-                                  </p>
-                                </div>
-                                <div>
-                                  <p className="font-bold uppercase text-slate-400">Sold</p>
-                                  <p className="font-black text-slate-800">
-                                    {formatMoney(lineItem.total_sold_price, lineItem.currency)}
-                                  </p>
-                                </div>
-                                <div>
-                                  <p className="font-bold uppercase text-slate-400">Commission</p>
-                                  <p className="font-black text-slate-800">
-                                    {formatMoney(
-                                      lineItem.commission_expected_amount,
-                                      lineItem.currency,
-                                    )}
-                                  </p>
-                                </div>
-                              </div>
+                            {reservationStatusOptions.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
                             ))}
-                          </div>
-                        )}
+                          </select>
+                        </div>
 
                         <form
+                          className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3"
                           onSubmit={(event) => {
                             event.preventDefault()
-                            void createReservationItem(reservation)
+                            void saveReservationFinancials(reservation)
                           }}
                         >
-                          <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-6">
-                            <label className="text-xs font-bold uppercase text-slate-500">
-                              Item
-                              <select
-                                value={itemForm.itemType}
-                                onChange={(event) =>
-                                  updateReservationItemForm(
-                                    reservation,
-                                    'itemType',
-                                    event.target.value as TravelPackageReservationItemType,
-                                  )
-                                }
-                                className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
-                              >
-                                {reservationItemTypeOptions.map((option) => (
-                                  <option key={option.value} value={option.value}>
-                                    {option.label}
-                                  </option>
-                                ))}
-                              </select>
-                            </label>
+                          <div className="mb-3 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                            <div>
+                              <p className="text-xs font-black uppercase text-slate-500">
+                                Reservation pricing
+                              </p>
+                              <p className="mt-1 text-xs font-bold text-slate-500">
+                                Difference:{' '}
+                                <span className="text-[#8b1e2d]">
+                                  {formatMoney(reservationDifference, reservation.currency)}
+                                </span>{' '}
+                                sold minus discount and booked cost
+                              </p>
+                              {parseMoneyInput(financialForm.commissionExpectedTotal) > 0 && (
+                                <p className="mt-1 text-xs font-bold text-slate-500">
+                                  With commission:{' '}
+                                  {formatMoney(reservationWithCommission, reservation.currency)}
+                                </p>
+                              )}
+                            </div>
+                            <button
+                              type="submit"
+                              disabled={savingFinancials}
+                              className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg bg-slate-900 px-3 text-xs font-black text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+                            >
+                              {savingFinancials ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <CheckCircle2 className="h-4 w-4" />
+                              )}
+                              Save Pricing
+                            </button>
+                          </div>
 
-                            <label className="text-xs font-bold uppercase text-slate-500 xl:col-span-2">
-                              Title
+                          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                            <label className="text-xs font-bold uppercase text-slate-500">
+                              Booked cost
                               <input
-                                value={itemForm.title}
+                                value={financialForm.bookedCostTotal}
                                 onChange={(event) =>
-                                  updateReservationItemForm(
+                                  updateReservationFinancialForm(
                                     reservation,
-                                    'title',
-                                    event.target.value,
-                                  )
-                                }
-                                className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
-                                placeholder="Room, flight sector, visa, transfer"
-                              />
-                            </label>
-
-                            <label className="text-xs font-bold uppercase text-slate-500">
-                              Qty
-                              <input
-                                value={itemForm.quantity}
-                                onChange={(event) =>
-                                  updateReservationItemForm(
-                                    reservation,
-                                    'quantity',
-                                    event.target.value,
-                                  )
-                                }
-                                className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
-                                inputMode="decimal"
-                              />
-                            </label>
-
-                            <label className="text-xs font-bold uppercase text-slate-500">
-                              Status
-                              <select
-                                value={itemForm.status}
-                                onChange={(event) =>
-                                  updateReservationItemForm(
-                                    reservation,
-                                    'status',
-                                    event.target.value as TravelPackageReservationItemStatus,
-                                  )
-                                }
-                                className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
-                              >
-                                {reservationItemStatusOptions.map((option) => (
-                                  <option key={option.value} value={option.value}>
-                                    {option.label}
-                                  </option>
-                                ))}
-                              </select>
-                            </label>
-
-                            <label className="text-xs font-bold uppercase text-slate-500">
-                              Supplier ref
-                              <input
-                                value={itemForm.supplierReference}
-                                onChange={(event) =>
-                                  updateReservationItemForm(
-                                    reservation,
-                                    'supplierReference',
-                                    event.target.value,
-                                  )
-                                }
-                                className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
-                                placeholder="Optional"
-                              />
-                            </label>
-
-                            <label className="text-xs font-bold uppercase text-slate-500">
-                              Unit booked
-                              <input
-                                value={itemForm.unitBookedCost}
-                                onChange={(event) =>
-                                  updateReservationItemForm(
-                                    reservation,
-                                    'unitBookedCost',
+                                    'bookedCostTotal',
                                     event.target.value,
                                   )
                                 }
@@ -2490,13 +2270,13 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
                             </label>
 
                             <label className="text-xs font-bold uppercase text-slate-500">
-                              Unit sold
+                              Sold price
                               <input
-                                value={itemForm.unitSoldPrice}
+                                value={financialForm.soldPriceTotal}
                                 onChange={(event) =>
-                                  updateReservationItemForm(
+                                  updateReservationFinancialForm(
                                     reservation,
-                                    'unitSoldPrice',
+                                    'soldPriceTotal',
                                     event.target.value,
                                   )
                                 }
@@ -2509,11 +2289,11 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
                             <label className="text-xs font-bold uppercase text-slate-500">
                               Discount
                               <input
-                                value={itemForm.discountAmount}
+                                value={financialForm.discountTotal}
                                 onChange={(event) =>
-                                  updateReservationItemForm(
+                                  updateReservationFinancialForm(
                                     reservation,
-                                    'discountAmount',
+                                    'discountTotal',
                                     event.target.value,
                                   )
                                 }
@@ -2524,13 +2304,13 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
                             </label>
 
                             <label className="text-xs font-bold uppercase text-slate-500">
-                              Commission
+                              Commission due
                               <input
-                                value={itemForm.commissionExpectedAmount}
+                                value={financialForm.commissionExpectedTotal}
                                 onChange={(event) =>
-                                  updateReservationItemForm(
+                                  updateReservationFinancialForm(
                                     reservation,
-                                    'commissionExpectedAmount',
+                                    'commissionExpectedTotal',
                                     event.target.value,
                                   )
                                 }
@@ -2540,406 +2320,692 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
                               />
                             </label>
 
-                            <label className="text-xs font-bold uppercase text-slate-500 xl:col-span-2">
-                              Notes
+                            <label className="flex min-h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700">
                               <input
-                                value={itemForm.description}
+                                checked={financialForm.depositRequired}
                                 onChange={(event) =>
-                                  updateReservationItemForm(
+                                  updateReservationFinancialForm(
                                     reservation,
-                                    'description',
+                                    'depositRequired',
+                                    event.target.checked,
+                                  )
+                                }
+                                type="checkbox"
+                                className="h-4 w-4 rounded border-slate-300 text-[#8b1e2d]"
+                              />
+                              Deposit required
+                            </label>
+
+                            <label className="text-xs font-bold uppercase text-slate-500">
+                              Deposit amount
+                              <input
+                                value={financialForm.depositAmount}
+                                onChange={(event) =>
+                                  updateReservationFinancialForm(
+                                    reservation,
+                                    'depositAmount',
                                     event.target.value,
                                   )
                                 }
-                                className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
-                                placeholder="Room basis, baggage, transfer route"
+                                className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                                inputMode="decimal"
+                                placeholder="0.00"
+                              />
+                            </label>
+
+                            <label className="text-xs font-bold uppercase text-slate-500">
+                              Payment due
+                              <input
+                                value={financialForm.paymentDueAt}
+                                onChange={(event) =>
+                                  updateReservationFinancialForm(
+                                    reservation,
+                                    'paymentDueAt',
+                                    event.target.value,
+                                  )
+                                }
+                                className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                                type="datetime-local"
                               />
                             </label>
                           </div>
-
-                          <div className="mt-3 flex justify-end">
-                            <button
-                              type="submit"
-                              disabled={!itemForm.title.trim() || savingThisItem}
-                              className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300"
-                            >
-                              {savingThisItem ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <Plus className="h-4 w-4" />
-                              )}
-                              Add Line Item
-                            </button>
-                          </div>
                         </form>
-                      </div>
 
-                      <p className="mt-3 text-xs font-bold capitalize text-slate-400">
-                        Status: {formatReservationStatus(reservation.status)}
-                      </p>
-                    </div>
-                  )
-                })
-              )}
-            </div>
-          </div>
+                        {reservation.internal_notes && (
+                          <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-600">
+                            {reservation.internal_notes}
+                          </p>
+                        )}
 
-          <div
-            id="package-invoice"
-            className="scroll-mt-20 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
-          >
-            <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900 text-white">
-                    <FileText className="h-4 w-4" />
-                  </span>
-                  <h2 className="text-lg font-black text-slate-950">Internal Invoice</h2>
-                </div>
-                <p className="mt-2 text-sm leading-6 text-slate-600">
-                  Editable agent invoice workspace. Supplier costs, commission, discounts, and
-                  margin stay internal until an agent explicitly releases the invoice later.
-                </p>
-              </div>
-              {invoiceLoading && (
-                <span className="inline-flex items-center gap-2 text-xs font-bold text-slate-500">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Loading invoice
-                </span>
-              )}
-            </div>
-
-            {invoiceError && (
-              <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-900">
-                {invoiceError}
-              </div>
-            )}
-
-            {!invoice ? (
-              <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center">
-                <p className="text-sm font-black text-slate-950">No invoice workspace yet</p>
-                <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-600">
-                  Create a draft invoice from the current reservation pricing. It can still be
-                  edited as booking costs, commission, discounts, and payments change.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    void createInvoice()
-                  }}
-                  disabled={savingInvoice || invoiceLoading}
-                  className="mt-4 inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-[#8b1e2d] px-4 text-sm font-black text-white transition hover:bg-[#6f1824] disabled:cursor-not-allowed disabled:bg-slate-300"
-                >
-                  {savingInvoice ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Plus className="h-4 w-4" />
-                  )}
-                  Create Invoice
-                </button>
-              </div>
-            ) : (
-              <form
-                onSubmit={(event) => {
-                  event.preventDefault()
-                  void saveInvoice()
-                }}
-              >
-                <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                    <p className="text-xs font-bold uppercase text-slate-500">Invoice</p>
-                    <p className="mt-1 text-sm font-black text-slate-950">
-                      {invoice.invoice_number}
-                    </p>
-                    <p className="mt-1 text-xs font-bold capitalize text-slate-500">
-                      {invoice.status.replace(/_/g, ' ')} · v{invoice.version}
-                    </p>
-                  </div>
-                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                    <p className="text-xs font-bold uppercase text-slate-500">Total sold</p>
-                    <p className="mt-1 text-sm font-black text-slate-950">
-                      {formatMoney(invoiceTotalSold, invoiceCurrency)}
-                    </p>
-                    <p className="mt-1 text-xs font-bold text-slate-500">
-                      Before discount: {formatMoney(invoiceSubtotalSold, invoiceCurrency)}
-                    </p>
-                  </div>
-                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                    <p className="text-xs font-bold uppercase text-slate-500">Balance due</p>
-                    <p className="mt-1 text-sm font-black text-[#8b1e2d]">
-                      {formatMoney(invoiceBalanceDue, invoiceCurrency)}
-                    </p>
-                    <p className="mt-1 text-xs font-bold text-slate-500">
-                      Paid: {formatMoney(invoiceTotalPaid, invoiceCurrency)}
-                    </p>
-                  </div>
-                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                    <p className="text-xs font-bold uppercase text-slate-500">Booked cost</p>
-                    <p className="mt-1 text-sm font-black text-slate-950">
-                      {formatMoney(invoiceTotalBookedCost, invoiceCurrency)}
-                    </p>
-                    <p className="mt-1 text-xs font-bold text-slate-500">
-                      Discount: {formatMoney(invoiceDiscountTotal, invoiceCurrency)}
-                    </p>
-                  </div>
-                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                    <p className="text-xs font-bold uppercase text-slate-500">Projected margin</p>
-                    <p className="mt-1 text-sm font-black text-emerald-700">
-                      {formatMoney(invoiceProjectedMargin, invoiceCurrency)}
-                    </p>
-                    <p className="mt-1 text-xs font-bold text-slate-500">
-                      Includes {formatMoney(invoiceExpectedCommission, invoiceCurrency)} commission
-                    </p>
-                  </div>
-                </div>
-
-                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                  <label className="text-xs font-bold uppercase text-slate-500">
-                    Status
-                    <select
-                      value={invoiceForm.status}
-                      onChange={(event) =>
-                        updateInvoiceForm(
-                          'status',
-                          event.target.value as TravelPackageInvoiceStatus,
-                        )
-                      }
-                      className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
-                    >
-                      {invoiceStatusOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <label className="text-xs font-bold uppercase text-slate-500">
-                    Subtotal sold
-                    <input
-                      value={invoiceForm.subtotalSold}
-                      onChange={(event) => updateInvoiceForm('subtotalSold', event.target.value)}
-                      className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
-                      inputMode="decimal"
-                      placeholder="0.00"
-                    />
-                  </label>
-
-                  <label className="text-xs font-bold uppercase text-slate-500">
-                    Discount
-                    <input
-                      value={invoiceForm.discountTotal}
-                      onChange={(event) => updateInvoiceForm('discountTotal', event.target.value)}
-                      className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
-                      inputMode="decimal"
-                      placeholder="0.00"
-                    />
-                  </label>
-
-                  <label className="text-xs font-bold uppercase text-slate-500">
-                    Total paid
-                    <input
-                      value={invoiceForm.totalPaid}
-                      onChange={(event) => updateInvoiceForm('totalPaid', event.target.value)}
-                      className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
-                      inputMode="decimal"
-                      placeholder="0.00"
-                    />
-                  </label>
-
-                  <label className="text-xs font-bold uppercase text-slate-500">
-                    Booked cost
-                    <input
-                      value={invoiceForm.totalBookedCost}
-                      onChange={(event) =>
-                        updateInvoiceForm('totalBookedCost', event.target.value)
-                      }
-                      className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
-                      inputMode="decimal"
-                      placeholder="0.00"
-                    />
-                  </label>
-
-                  <label className="text-xs font-bold uppercase text-slate-500">
-                    Commission expected
-                    <input
-                      value={invoiceForm.expectedCommissionTotal}
-                      onChange={(event) =>
-                        updateInvoiceForm('expectedCommissionTotal', event.target.value)
-                      }
-                      className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
-                      inputMode="decimal"
-                      placeholder="0.00"
-                    />
-                  </label>
-
-                  <label className="text-xs font-bold uppercase text-slate-500">
-                    Commission received
-                    <input
-                      value={invoiceForm.receivedCommissionTotal}
-                      onChange={(event) =>
-                        updateInvoiceForm('receivedCommissionTotal', event.target.value)
-                      }
-                      className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
-                      inputMode="decimal"
-                      placeholder="0.00"
-                    />
-                  </label>
-
-                  <label className="text-xs font-bold uppercase text-slate-500">
-                    Payment due
-                    <input
-                      type="datetime-local"
-                      value={invoiceForm.dueAt}
-                      onChange={(event) => updateInvoiceForm('dueAt', event.target.value)}
-                      className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
-                    />
-                  </label>
-
-                  <label className="text-xs font-bold uppercase text-slate-500 xl:col-span-2">
-                    Customer terms
-                    <textarea
-                      value={invoiceForm.customerTerms}
-                      onChange={(event) => updateInvoiceForm('customerTerms', event.target.value)}
-                      className="mt-1 min-h-24 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
-                      placeholder="Customer-facing terms when invoice release is implemented"
-                    />
-                  </label>
-
-                  <label className="text-xs font-bold uppercase text-slate-500 xl:col-span-2">
-                    Internal notes
-                    <textarea
-                      value={invoiceForm.internalNotes}
-                      onChange={(event) => updateInvoiceForm('internalNotes', event.target.value)}
-                      className="mt-1 min-h-24 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
-                      placeholder="Agent-only notes, supplier cost changes, commission follow-up"
-                    />
-                  </label>
-
-                  {(invoice.released_to_customer || invoice.status === 'amended') && (
-                    <label className="text-xs font-bold uppercase text-slate-500 xl:col-span-2">
-                      Amendment / release summary
-                      <input
-                        value={invoiceForm.amendmentReason}
-                        onChange={(event) => updateInvoiceForm('amendmentReason', event.target.value)}
-                        className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
-                        placeholder="Explain what changed for the audit history"
-                      />
-                    </label>
-                  )}
-                </div>
-
-                {(invoice.lines || []).length > 0 && (
-                  <div className="mt-4 rounded-lg border border-slate-200">
-                    <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3">
-                      <p className="text-sm font-black text-slate-950">Invoice lines</p>
-                      <span className="text-xs font-bold text-slate-500">
-                        {(invoice.lines || []).length} from reservations
-                      </span>
-                    </div>
-                    <div className="divide-y divide-slate-100">
-                      {(invoice.lines || []).map((line) => (
-                        <div
-                          key={line.id}
-                          className="grid gap-2 px-4 py-3 text-xs text-slate-600 md:grid-cols-[minmax(0,1.5fr)_repeat(4,minmax(0,1fr))]"
-                        >
-                          <div>
-                            <p className="font-black text-slate-950">{line.description}</p>
-                            <p className="mt-1 capitalize text-slate-500">{line.line_type}</p>
-                          </div>
-                          <div>
-                            <p className="font-bold uppercase text-slate-400">Sold</p>
-                            <p className="font-black text-slate-800">
-                              {formatMoney(line.total_sold_price, invoiceCurrency)}
+                        <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                          <div className="mb-3 flex items-center justify-between gap-3">
+                            <p className="text-xs font-black uppercase text-slate-500">
+                              Line items
+                            </p>
+                            <p className="text-xs font-bold text-slate-400">
+                              {(reservation.items || []).length} saved
                             </p>
                           </div>
-                          <div>
-                            <p className="font-bold uppercase text-slate-400">Booked</p>
-                            <p className="font-black text-slate-800">
-                              {formatMoney(line.total_booked_cost, invoiceCurrency)}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="font-bold uppercase text-slate-400">Discount</p>
-                            <p className="font-black text-slate-800">
-                              {formatMoney(line.discount_amount, invoiceCurrency)}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="font-bold uppercase text-slate-400">Commission</p>
-                            <p className="font-black text-slate-800">
-                              {formatMoney(line.expected_commission, invoiceCurrency)}
-                            </p>
-                          </div>
+
+                          {(reservation.items || []).length > 0 && (
+                            <div className="mb-3 space-y-2">
+                              {(reservation.items || []).map((lineItem) => (
+                                <div
+                                  key={lineItem.id}
+                                  className="grid gap-2 rounded-lg border border-slate-200 bg-white p-3 text-xs text-slate-600 md:grid-cols-[minmax(0,1.5fr)_repeat(4,minmax(0,1fr))]"
+                                >
+                                  <div>
+                                    <p className="font-black text-slate-950">{lineItem.title}</p>
+                                    <p className="mt-1 capitalize text-slate-500">
+                                      {lineItem.item_type} · {lineItem.status}
+                                    </p>
+                                    {lineItem.supplier_reference && (
+                                      <p className="mt-1 text-slate-500">
+                                        Ref: {lineItem.supplier_reference}
+                                      </p>
+                                    )}
+                                  </div>
+                                  <div>
+                                    <p className="font-bold uppercase text-slate-400">Qty</p>
+                                    <p className="font-black text-slate-800">{lineItem.quantity}</p>
+                                  </div>
+                                  <div>
+                                    <p className="font-bold uppercase text-slate-400">Booked</p>
+                                    <p className="font-black text-slate-800">
+                                      {formatMoney(lineItem.total_booked_cost, lineItem.currency)}
+                                    </p>
+                                  </div>
+                                  <div>
+                                    <p className="font-bold uppercase text-slate-400">Sold</p>
+                                    <p className="font-black text-slate-800">
+                                      {formatMoney(lineItem.total_sold_price, lineItem.currency)}
+                                    </p>
+                                  </div>
+                                  <div>
+                                    <p className="font-bold uppercase text-slate-400">Commission</p>
+                                    <p className="font-black text-slate-800">
+                                      {formatMoney(
+                                        lineItem.commission_expected_amount,
+                                        lineItem.currency,
+                                      )}
+                                    </p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          <form
+                            onSubmit={(event) => {
+                              event.preventDefault()
+                              void createReservationItem(reservation)
+                            }}
+                          >
+                            <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-6">
+                              <label className="text-xs font-bold uppercase text-slate-500">
+                                Item
+                                <select
+                                  value={itemForm.itemType}
+                                  onChange={(event) =>
+                                    updateReservationItemForm(
+                                      reservation,
+                                      'itemType',
+                                      event.target.value as TravelPackageReservationItemType,
+                                    )
+                                  }
+                                  className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                                >
+                                  {reservationItemTypeOptions.map((option) => (
+                                    <option key={option.value} value={option.value}>
+                                      {option.label}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+
+                              <label className="text-xs font-bold uppercase text-slate-500 xl:col-span-2">
+                                Title
+                                <input
+                                  value={itemForm.title}
+                                  onChange={(event) =>
+                                    updateReservationItemForm(
+                                      reservation,
+                                      'title',
+                                      event.target.value,
+                                    )
+                                  }
+                                  className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                                  placeholder="Room, flight sector, visa, transfer"
+                                />
+                              </label>
+
+                              <label className="text-xs font-bold uppercase text-slate-500">
+                                Qty
+                                <input
+                                  value={itemForm.quantity}
+                                  onChange={(event) =>
+                                    updateReservationItemForm(
+                                      reservation,
+                                      'quantity',
+                                      event.target.value,
+                                    )
+                                  }
+                                  className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                                  inputMode="decimal"
+                                />
+                              </label>
+
+                              <label className="text-xs font-bold uppercase text-slate-500">
+                                Status
+                                <select
+                                  value={itemForm.status}
+                                  onChange={(event) =>
+                                    updateReservationItemForm(
+                                      reservation,
+                                      'status',
+                                      event.target.value as TravelPackageReservationItemStatus,
+                                    )
+                                  }
+                                  className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                                >
+                                  {reservationItemStatusOptions.map((option) => (
+                                    <option key={option.value} value={option.value}>
+                                      {option.label}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+
+                              <label className="text-xs font-bold uppercase text-slate-500">
+                                Supplier ref
+                                <input
+                                  value={itemForm.supplierReference}
+                                  onChange={(event) =>
+                                    updateReservationItemForm(
+                                      reservation,
+                                      'supplierReference',
+                                      event.target.value,
+                                    )
+                                  }
+                                  className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                                  placeholder="Optional"
+                                />
+                              </label>
+
+                              <label className="text-xs font-bold uppercase text-slate-500">
+                                Unit booked
+                                <input
+                                  value={itemForm.unitBookedCost}
+                                  onChange={(event) =>
+                                    updateReservationItemForm(
+                                      reservation,
+                                      'unitBookedCost',
+                                      event.target.value,
+                                    )
+                                  }
+                                  className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                                  inputMode="decimal"
+                                  placeholder="0.00"
+                                />
+                              </label>
+
+                              <label className="text-xs font-bold uppercase text-slate-500">
+                                Unit sold
+                                <input
+                                  value={itemForm.unitSoldPrice}
+                                  onChange={(event) =>
+                                    updateReservationItemForm(
+                                      reservation,
+                                      'unitSoldPrice',
+                                      event.target.value,
+                                    )
+                                  }
+                                  className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                                  inputMode="decimal"
+                                  placeholder="0.00"
+                                />
+                              </label>
+
+                              <label className="text-xs font-bold uppercase text-slate-500">
+                                Discount
+                                <input
+                                  value={itemForm.discountAmount}
+                                  onChange={(event) =>
+                                    updateReservationItemForm(
+                                      reservation,
+                                      'discountAmount',
+                                      event.target.value,
+                                    )
+                                  }
+                                  className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                                  inputMode="decimal"
+                                  placeholder="0.00"
+                                />
+                              </label>
+
+                              <label className="text-xs font-bold uppercase text-slate-500">
+                                Commission
+                                <input
+                                  value={itemForm.commissionExpectedAmount}
+                                  onChange={(event) =>
+                                    updateReservationItemForm(
+                                      reservation,
+                                      'commissionExpectedAmount',
+                                      event.target.value,
+                                    )
+                                  }
+                                  className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                                  inputMode="decimal"
+                                  placeholder="0.00"
+                                />
+                              </label>
+
+                              <label className="text-xs font-bold uppercase text-slate-500 xl:col-span-2">
+                                Notes
+                                <input
+                                  value={itemForm.description}
+                                  onChange={(event) =>
+                                    updateReservationItemForm(
+                                      reservation,
+                                      'description',
+                                      event.target.value,
+                                    )
+                                  }
+                                  className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                                  placeholder="Room basis, baggage, transfer route"
+                                />
+                              </label>
+                            </div>
+
+                            <div className="mt-3 flex justify-end">
+                              <button
+                                type="submit"
+                                disabled={!itemForm.title.trim() || savingThisItem}
+                                className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300"
+                              >
+                                {savingThisItem ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Plus className="h-4 w-4" />
+                                )}
+                                Add Line Item
+                              </button>
+                            </div>
+                          </form>
                         </div>
-                      ))}
-                    </div>
-                  </div>
+
+                        <p className="mt-3 text-xs font-bold capitalize text-slate-400">
+                          Status: {formatReservationStatus(reservation.status)}
+                        </p>
+                      </div>
+                    )
+                  })
                 )}
+              </div>
+            </div>
+          )}
 
-                <PackageInvoiceLinesEditor
-                  packageId={packageId}
-                  invoice={invoice}
-                  disabled={invoice.released_to_customer}
-                  onInvoiceChange={(updatedInvoice) => {
-                    setInvoice(updatedInvoice)
-                    setInvoiceForm(createInitialInvoiceForm(updatedInvoice))
-                  }}
-                />
+          {activePackageTab === 'invoice' && (
+            <div
+              id="package-invoice"
+              className="scroll-mt-20 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+            >
+              <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900 text-white">
+                      <FileText className="h-4 w-4" />
+                    </span>
+                    <h2 className="text-lg font-black text-slate-950">Internal Invoice</h2>
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-slate-600">
+                    Editable agent invoice workspace. Supplier costs, commission, discounts, and
+                    margin stay internal until an agent explicitly releases the invoice later.
+                  </p>
+                </div>
+                {invoiceLoading && (
+                  <span className="inline-flex items-center gap-2 text-xs font-bold text-slate-500">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Loading invoice
+                  </span>
+                )}
+              </div>
 
-                <div className="mt-4 flex flex-wrap justify-end gap-2">
-                  {invoice.released_to_customer ? (
-                    <button
-                      type="button"
-                      onClick={() => void beginInvoiceAmendment()}
-                      disabled={savingInvoice || !invoiceForm.amendmentReason.trim()}
-                      className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 text-sm font-black text-amber-900 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-40"
-                    >
-                      <Pencil className="h-4 w-4" />
-                      Start Amendment
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => void releaseInvoice()}
-                      disabled={savingInvoice || invoice.total_sold <= 0}
-                      className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-[#8b1e2d] px-4 text-sm font-black text-white transition hover:bg-[#6f1824] disabled:cursor-not-allowed disabled:bg-slate-300"
-                    >
-                      <Eye className="h-4 w-4" />
-                      Release to Customer
-                    </button>
-                  )}
+              {invoiceError && (
+                <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-900">
+                  {invoiceError}
+                </div>
+              )}
+
+              {!invoice ? (
+                <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center">
+                  <p className="text-sm font-black text-slate-950">No invoice workspace yet</p>
+                  <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-600">
+                    Create a draft invoice from the current reservation pricing. It can still be
+                    edited as booking costs, commission, discounts, and payments change.
+                  </p>
                   <button
                     type="button"
                     onClick={() => {
-                      void createInvoice(true)
+                      void createInvoice()
                     }}
-                    disabled={savingInvoice}
-                    className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300"
+                    disabled={savingInvoice || invoiceLoading}
+                    className="mt-4 inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-[#8b1e2d] px-4 text-sm font-black text-white transition hover:bg-[#6f1824] disabled:cursor-not-allowed disabled:bg-slate-300"
                   >
                     {savingInvoice ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
-                      <Pencil className="h-4 w-4" />
+                      <Plus className="h-4 w-4" />
                     )}
-                    New Draft From Reservations
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={savingInvoice || invoice.released_to_customer}
-                    className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-black text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
-                  >
-                    {savingInvoice ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <CheckCircle2 className="h-4 w-4" />
-                    )}
-                    Save Invoice
+                    Create Invoice
                   </button>
                 </div>
-              </form>
-            )}
-          </div>
+              ) : (
+                <form
+                  onSubmit={(event) => {
+                    event.preventDefault()
+                    void saveInvoice()
+                  }}
+                >
+                  <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                      <p className="text-xs font-bold uppercase text-slate-500">Invoice</p>
+                      <p className="mt-1 text-sm font-black text-slate-950">
+                        {invoice.invoice_number}
+                      </p>
+                      <p className="mt-1 text-xs font-bold capitalize text-slate-500">
+                        {invoice.status.replace(/_/g, ' ')} · v{invoice.version}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                      <p className="text-xs font-bold uppercase text-slate-500">Total sold</p>
+                      <p className="mt-1 text-sm font-black text-slate-950">
+                        {formatMoney(invoiceTotalSold, invoiceCurrency)}
+                      </p>
+                      <p className="mt-1 text-xs font-bold text-slate-500">
+                        Before discount: {formatMoney(invoiceSubtotalSold, invoiceCurrency)}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                      <p className="text-xs font-bold uppercase text-slate-500">Balance due</p>
+                      <p className="mt-1 text-sm font-black text-[#8b1e2d]">
+                        {formatMoney(invoiceBalanceDue, invoiceCurrency)}
+                      </p>
+                      <p className="mt-1 text-xs font-bold text-slate-500">
+                        Paid: {formatMoney(invoiceTotalPaid, invoiceCurrency)}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                      <p className="text-xs font-bold uppercase text-slate-500">Booked cost</p>
+                      <p className="mt-1 text-sm font-black text-slate-950">
+                        {formatMoney(invoiceTotalBookedCost, invoiceCurrency)}
+                      </p>
+                      <p className="mt-1 text-xs font-bold text-slate-500">
+                        Discount: {formatMoney(invoiceDiscountTotal, invoiceCurrency)}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                      <p className="text-xs font-bold uppercase text-slate-500">Projected margin</p>
+                      <p className="mt-1 text-sm font-black text-emerald-700">
+                        {formatMoney(invoiceProjectedMargin, invoiceCurrency)}
+                      </p>
+                      <p className="mt-1 text-xs font-bold text-slate-500">
+                        Includes {formatMoney(invoiceExpectedCommission, invoiceCurrency)}{' '}
+                        commission
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                    <label className="text-xs font-bold uppercase text-slate-500">
+                      Status
+                      <select
+                        value={invoiceForm.status}
+                        onChange={(event) =>
+                          updateInvoiceForm(
+                            'status',
+                            event.target.value as TravelPackageInvoiceStatus,
+                          )
+                        }
+                        className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                      >
+                        {invoiceStatusOptions.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label className="text-xs font-bold uppercase text-slate-500">
+                      Subtotal sold
+                      <input
+                        value={invoiceForm.subtotalSold}
+                        onChange={(event) => updateInvoiceForm('subtotalSold', event.target.value)}
+                        className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                        inputMode="decimal"
+                        placeholder="0.00"
+                      />
+                    </label>
+
+                    <label className="text-xs font-bold uppercase text-slate-500">
+                      Discount
+                      <input
+                        value={invoiceForm.discountTotal}
+                        onChange={(event) => updateInvoiceForm('discountTotal', event.target.value)}
+                        className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                        inputMode="decimal"
+                        placeholder="0.00"
+                      />
+                    </label>
+
+                    <label className="text-xs font-bold uppercase text-slate-500">
+                      Total paid
+                      <input
+                        value={invoiceForm.totalPaid}
+                        onChange={(event) => updateInvoiceForm('totalPaid', event.target.value)}
+                        className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                        inputMode="decimal"
+                        placeholder="0.00"
+                      />
+                    </label>
+
+                    <label className="text-xs font-bold uppercase text-slate-500">
+                      Booked cost
+                      <input
+                        value={invoiceForm.totalBookedCost}
+                        onChange={(event) =>
+                          updateInvoiceForm('totalBookedCost', event.target.value)
+                        }
+                        className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                        inputMode="decimal"
+                        placeholder="0.00"
+                      />
+                    </label>
+
+                    <label className="text-xs font-bold uppercase text-slate-500">
+                      Commission expected
+                      <input
+                        value={invoiceForm.expectedCommissionTotal}
+                        onChange={(event) =>
+                          updateInvoiceForm('expectedCommissionTotal', event.target.value)
+                        }
+                        className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                        inputMode="decimal"
+                        placeholder="0.00"
+                      />
+                    </label>
+
+                    <label className="text-xs font-bold uppercase text-slate-500">
+                      Commission received
+                      <input
+                        value={invoiceForm.receivedCommissionTotal}
+                        onChange={(event) =>
+                          updateInvoiceForm('receivedCommissionTotal', event.target.value)
+                        }
+                        className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                        inputMode="decimal"
+                        placeholder="0.00"
+                      />
+                    </label>
+
+                    <label className="text-xs font-bold uppercase text-slate-500">
+                      Payment due
+                      <input
+                        type="datetime-local"
+                        value={invoiceForm.dueAt}
+                        onChange={(event) => updateInvoiceForm('dueAt', event.target.value)}
+                        className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                      />
+                    </label>
+
+                    <label className="text-xs font-bold uppercase text-slate-500 xl:col-span-2">
+                      Customer terms
+                      <textarea
+                        value={invoiceForm.customerTerms}
+                        onChange={(event) => updateInvoiceForm('customerTerms', event.target.value)}
+                        className="mt-1 min-h-24 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                        placeholder="Customer-facing terms when invoice release is implemented"
+                      />
+                    </label>
+
+                    <label className="text-xs font-bold uppercase text-slate-500 xl:col-span-2">
+                      Internal notes
+                      <textarea
+                        value={invoiceForm.internalNotes}
+                        onChange={(event) => updateInvoiceForm('internalNotes', event.target.value)}
+                        className="mt-1 min-h-24 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                        placeholder="Agent-only notes, supplier cost changes, commission follow-up"
+                      />
+                    </label>
+
+                    {(invoice.released_to_customer || invoice.status === 'amended') && (
+                      <label className="text-xs font-bold uppercase text-slate-500 xl:col-span-2">
+                        Amendment / release summary
+                        <input
+                          value={invoiceForm.amendmentReason}
+                          onChange={(event) =>
+                            updateInvoiceForm('amendmentReason', event.target.value)
+                          }
+                          className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                          placeholder="Explain what changed for the audit history"
+                        />
+                      </label>
+                    )}
+                  </div>
+
+                  {(invoice.lines || []).length > 0 && (
+                    <div className="mt-4 rounded-lg border border-slate-200">
+                      <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3">
+                        <p className="text-sm font-black text-slate-950">Invoice lines</p>
+                        <span className="text-xs font-bold text-slate-500">
+                          {(invoice.lines || []).length} from reservations
+                        </span>
+                      </div>
+                      <div className="divide-y divide-slate-100">
+                        {(invoice.lines || []).map((line) => (
+                          <div
+                            key={line.id}
+                            className="grid gap-2 px-4 py-3 text-xs text-slate-600 md:grid-cols-[minmax(0,1.5fr)_repeat(4,minmax(0,1fr))]"
+                          >
+                            <div>
+                              <p className="font-black text-slate-950">{line.description}</p>
+                              <p className="mt-1 capitalize text-slate-500">{line.line_type}</p>
+                            </div>
+                            <div>
+                              <p className="font-bold uppercase text-slate-400">Sold</p>
+                              <p className="font-black text-slate-800">
+                                {formatMoney(line.total_sold_price, invoiceCurrency)}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="font-bold uppercase text-slate-400">Booked</p>
+                              <p className="font-black text-slate-800">
+                                {formatMoney(line.total_booked_cost, invoiceCurrency)}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="font-bold uppercase text-slate-400">Discount</p>
+                              <p className="font-black text-slate-800">
+                                {formatMoney(line.discount_amount, invoiceCurrency)}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="font-bold uppercase text-slate-400">Commission</p>
+                              <p className="font-black text-slate-800">
+                                {formatMoney(line.expected_commission, invoiceCurrency)}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <PackageInvoiceLinesEditor
+                    packageId={packageId}
+                    invoice={invoice}
+                    disabled={invoice.released_to_customer}
+                    onInvoiceChange={(updatedInvoice) => {
+                      setInvoice(updatedInvoice)
+                      setInvoiceForm(createInitialInvoiceForm(updatedInvoice))
+                    }}
+                  />
+
+                  <div className="mt-4 flex flex-wrap justify-end gap-2">
+                    {invoice.released_to_customer ? (
+                      <button
+                        type="button"
+                        onClick={() => void beginInvoiceAmendment()}
+                        disabled={savingInvoice || !invoiceForm.amendmentReason.trim()}
+                        className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 text-sm font-black text-amber-900 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        <Pencil className="h-4 w-4" />
+                        Start Amendment
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => void releaseInvoice()}
+                        disabled={savingInvoice || invoice.total_sold <= 0}
+                        className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-[#8b1e2d] px-4 text-sm font-black text-white transition hover:bg-[#6f1824] disabled:cursor-not-allowed disabled:bg-slate-300"
+                      >
+                        <Eye className="h-4 w-4" />
+                        Release to Customer
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void createInvoice(true)
+                      }}
+                      disabled={savingInvoice}
+                      className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300"
+                    >
+                      {savingInvoice ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Pencil className="h-4 w-4" />
+                      )}
+                      New Draft From Reservations
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={savingInvoice || invoice.released_to_customer}
+                      className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-black text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+                    >
+                      {savingInvoice ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <CheckCircle2 className="h-4 w-4" />
+                      )}
+                      Save Invoice
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
+          )}
         </div>
 
         <aside className="space-y-5">
@@ -2958,16 +3024,14 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
             </div>
             <div className="space-y-2 text-sm text-slate-700">
               <p>
-                Adults:{' '}
-                <span className="font-black">{passengerSummary?.adults ?? 0}</span>
+                Adults: <span className="font-black">{passengerSummary?.adults ?? 0}</span>
               </p>
               <p>
                 Children 5-12:{' '}
                 <span className="font-black">{passengerSummary?.childrenPaying ?? 0}</span>
               </p>
               <p>
-                Under 5:{' '}
-                <span className="font-black">{passengerSummary?.childrenFree ?? 0}</span>
+                Under 5: <span className="font-black">{passengerSummary?.childrenFree ?? 0}</span>
               </p>
               <p className="border-t border-slate-100 pt-2 text-xs font-bold text-slate-500">
                 Hotel-paying guests: {passengerSummary?.hotelPayingGuests ?? 0}
@@ -3044,10 +3108,7 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
                       : ''}
                   </p>
                   <p className="mt-1 text-xs font-bold text-[#8b1e2d]">
-                    {formatMoney(
-                      selectedCombination.perPersonPrice,
-                      selectedCombination.currency,
-                    )}{' '}
+                    {formatMoney(selectedCombination.perPersonPrice, selectedCombination.currency)}{' '}
                     per hotel-paying guest
                   </p>
                 </div>
@@ -3102,9 +3163,7 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
                 )}
                 {selectedCombination.staySelections.map((stay) => (
                   <div key={stay.groupId} className="rounded-lg border border-slate-200 p-3">
-                    <p className="text-xs font-bold uppercase text-slate-500">
-                      {stay.groupLabel}
-                    </p>
+                    <p className="text-xs font-bold uppercase text-slate-500">{stay.groupLabel}</p>
                     <p className="mt-1 text-sm font-black text-slate-950">{stay.option.title}</p>
                     {stay.option.summary && (
                       <p className="mt-1 whitespace-pre-line text-xs leading-5 text-slate-600">

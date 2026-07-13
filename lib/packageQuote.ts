@@ -5,6 +5,7 @@ import type {
   PackageLimitedTimeOffer,
   PackagePassengerPriceBreakdown,
   PackagePaymentBreakdown,
+  PackagePaymentIntent,
   PackagePaymentMethod,
   PackagePricingMode,
   PackageQuotePayload,
@@ -19,6 +20,11 @@ const VALID_PACKAGE_TYPES = new Set<TravelPackageType>(['umrah', 'ziyarat', 'hol
 const VALID_PRICING_MODES = new Set<PackagePricingMode>(['total', 'per_person'])
 const VALID_DISCOUNT_MODES = new Set<PackageDiscountMode>(['total', 'per_person'])
 const VALID_PAYMENT_METHODS = new Set<PackagePaymentMethod>(['cash', 'bank_transfer', 'card'])
+const VALID_PAYMENT_INTENTS = new Set<PackagePaymentIntent>([
+  'full_payment',
+  'deposit_only',
+  'installment_request',
+])
 
 export const DEFAULT_PACKAGE_CURRENCY = 'GBP'
 export const DEFAULT_PACKAGE_EXPIRY_HOURS = 72
@@ -83,7 +89,9 @@ function asOptionalPositiveNumber(value: unknown) {
 }
 
 function normalizePackageType(value: unknown): TravelPackageType {
-  return VALID_PACKAGE_TYPES.has(value as TravelPackageType) ? (value as TravelPackageType) : 'umrah'
+  return VALID_PACKAGE_TYPES.has(value as TravelPackageType)
+    ? (value as TravelPackageType)
+    : 'umrah'
 }
 
 function normalizeCurrency(value: unknown) {
@@ -92,17 +100,27 @@ function normalizeCurrency(value: unknown) {
 }
 
 function normalizePricingMode(value: unknown, fallback: PackagePricingMode): PackagePricingMode {
-  return VALID_PRICING_MODES.has(value as PackagePricingMode) ? (value as PackagePricingMode) : fallback
+  return VALID_PRICING_MODES.has(value as PackagePricingMode)
+    ? (value as PackagePricingMode)
+    : fallback
 }
 
 function normalizeDiscountMode(value: unknown, fallback: PackageDiscountMode): PackageDiscountMode {
-  return VALID_DISCOUNT_MODES.has(value as PackageDiscountMode) ? (value as PackageDiscountMode) : fallback
+  return VALID_DISCOUNT_MODES.has(value as PackageDiscountMode)
+    ? (value as PackageDiscountMode)
+    : fallback
 }
 
 function normalizePaymentMethod(value: unknown): PackagePaymentMethod {
   return VALID_PAYMENT_METHODS.has(value as PackagePaymentMethod)
     ? (value as PackagePaymentMethod)
     : 'bank_transfer'
+}
+
+function normalizePaymentIntent(value: unknown): PackagePaymentIntent {
+  return VALID_PAYMENT_INTENTS.has(value as PackagePaymentIntent)
+    ? (value as PackagePaymentIntent)
+    : 'full_payment'
 }
 
 function normalizeOption(
@@ -123,7 +141,14 @@ function normalizeOption(
   const isDefault = asBoolean(candidate?.isDefault)
   const quantity = asOptionalPositiveNumber(candidate?.quantity)
 
-  if (!title && !summaryText && price <= 0 && adultPrice <= 0 && childPrice <= 0 && infantPrice <= 0) {
+  if (
+    !title &&
+    !summaryText &&
+    price <= 0 &&
+    adultPrice <= 0 &&
+    childPrice <= 0 &&
+    infantPrice <= 0
+  ) {
     return null
   }
 
@@ -193,11 +218,17 @@ function normalizeStayGroups(raw: unknown): PackageStayGroup[] {
   const values = Array.isArray(raw) && raw.length > 0 ? raw : []
   const groups = values.map((value, index) => {
     const candidate = value as Partial<PackageStayGroup> | null
-    const id = asString(candidate?.id, index === 0 ? 'makkah' : index === 1 ? 'madinah' : `stay-${index + 1}`)
+    const id = asString(
+      candidate?.id,
+      index === 0 ? 'makkah' : index === 1 ? 'madinah' : `stay-${index + 1}`,
+    )
     return {
       id,
-      label: asString(candidate?.label, index === 0 ? 'Makkah' : index === 1 ? 'Madinah' : `Stay ${index + 1}`),
-      options: normalizeOptions(candidate?.options, `${id}-hotel`, 'total'),
+      label: asString(
+        candidate?.label,
+        index === 0 ? 'Makkah' : index === 1 ? 'Madinah' : `Stay ${index + 1}`,
+      ),
+      options: normalizeDefaultOption(normalizeOptions(candidate?.options, `${id}-hotel`, 'total')),
     }
   })
 
@@ -216,8 +247,12 @@ export function normalizePackageQuotePayload(input: unknown): PackageQuotePayloa
     ? candidate.itineraryOrder.map((value) => asString(value)).filter(Boolean)
     : stayGroups.map((group) => group.id)
 
-  const flightOptions = normalizeDefaultOption(normalizeOptions(candidate.flightOptions, 'flight', 'per_person'))
-  const transportOptions = normalizeDefaultOption(normalizeOptions(candidate.transportOptions, 'transport', 'total'))
+  const flightOptions = normalizeDefaultOption(
+    normalizeOptions(candidate.flightOptions, 'flight', 'per_person'),
+  )
+  const transportOptions = normalizeDefaultOption(
+    normalizeOptions(candidate.transportOptions, 'transport', 'total'),
+  )
 
   return {
     title: asString(candidate.title, 'New package quote'),
@@ -229,7 +264,8 @@ export function normalizePackageQuotePayload(input: unknown): PackageQuotePayloa
     adults: asInteger(candidate.adults),
     childrenPaying: asInteger(candidate.childrenPaying),
     childrenFree: asInteger(candidate.childrenFree),
-    itineraryOrder: itineraryOrder.length > 0 ? itineraryOrder : stayGroups.map((group) => group.id),
+    itineraryOrder:
+      itineraryOrder.length > 0 ? itineraryOrder : stayGroups.map((group) => group.id),
     departureDate: asString(candidate.departureDate),
     returnDate: asString(candidate.returnDate),
     stayGroups,
@@ -244,7 +280,9 @@ export function normalizePackageQuotePayload(input: unknown): PackageQuotePayloa
   }
 }
 
-export function getPayingGuestCount(payload: Pick<PackageQuotePayload, 'adults' | 'childrenPaying'>) {
+export function getPayingGuestCount(
+  payload: Pick<PackageQuotePayload, 'adults' | 'childrenPaying'>,
+) {
   return Math.max(0, payload.adults + payload.childrenPaying)
 }
 
@@ -269,8 +307,13 @@ export function buildPassengerSummary(payloadInput: unknown) {
   }
 }
 
-export function getDefaultPackageNextAction(selection: PackageResolvedSelection | null | undefined) {
+export function getDefaultPackageNextAction(
+  selection: PackageResolvedSelection | null | undefined,
+) {
   if (!selection) return 'Finalise customer package option'
+  if (selection.selection.paymentIntent === 'installment_request')
+    return 'Review installment request'
+  if (selection.selection.paymentIntent === 'deposit_only') return 'Send deposit payment details'
   return 'Request passport copies via WhatsApp'
 }
 
@@ -297,7 +340,9 @@ export function buildPackageSnapshot(quote: TravelPackageQuote) {
 
 function hasTieredFlightPricing(option: PackageComponentOption | null) {
   if (!option) return false
-  return Boolean((option.adultPrice || 0) > 0 || (option.childPrice || 0) > 0 || (option.infantPrice || 0) > 0)
+  return Boolean(
+    (option.adultPrice || 0) > 0 || (option.childPrice || 0) > 0 || (option.infantPrice || 0) > 0,
+  )
 }
 
 function getOptionTotal(option: PackageComponentOption | null, passengerCount: number) {
@@ -326,9 +371,9 @@ function getFlightOptionTotal(option: PackageComponentOption | null, payload: Pa
   }
 
   return (
-    (option.adultPrice || 0) * payload.adults
-    + (option.childPrice || 0) * payload.childrenPaying
-    + (option.infantPrice || 0) * payload.childrenFree
+    (option.adultPrice || 0) * payload.adults +
+    (option.childPrice || 0) * payload.childrenPaying +
+    (option.infantPrice || 0) * payload.childrenFree
   )
 }
 
@@ -336,16 +381,15 @@ function getDefaultOption<T extends PackageComponentOption>(options: T[]) {
   return options.find((option) => option.isDefault) || options[0] || null
 }
 
-function getCheapestOption<T extends PackageComponentOption>(options: T[]) {
-  if (options.length === 0) return null
-  return [...options].sort((a, b) => a.price - b.price)[0]
-}
-
 function roundMoney(value: number) {
   return Math.round(value * 100) / 100
 }
 
-function getPaymentSurchargeTotal(subtotal: number, payload: PackageQuotePayload, method: PackagePaymentMethod) {
+function getPaymentSurchargeTotal(
+  subtotal: number,
+  payload: PackageQuotePayload,
+  method: PackagePaymentMethod,
+) {
   if (method !== 'card' || payload.cardProcessingFeePercent <= 0) return 0
   return roundMoney((subtotal * payload.cardProcessingFeePercent) / 100)
 }
@@ -355,9 +399,7 @@ export function getPackagePaymentBreakdownTotal(
 ) {
   if (!breakdown) return 0
   return roundMoney(
-    asNumber(breakdown.cash)
-    + asNumber(breakdown.bankTransfer)
-    + asNumber(breakdown.card),
+    asNumber(breakdown.cash) + asNumber(breakdown.bankTransfer) + asNumber(breakdown.card),
   )
 }
 
@@ -458,7 +500,11 @@ export function buildPackageCombinations(payloadInput: unknown, limit = 250): Pa
           getOptionTotal(transportOption, servicePassengers)
         const packageSubtotalPrice = Math.max(0, grossPrice - offerDiscountTotal)
         const paymentMethod = normalizePaymentMethod(undefined)
-        const paymentSurchargeTotal = getPaymentSurchargeTotal(packageSubtotalPrice, payload, paymentMethod)
+        const paymentSurchargeTotal = getPaymentSurchargeTotal(
+          packageSubtotalPrice,
+          payload,
+          paymentMethod,
+        )
         const totalPrice = packageSubtotalPrice + paymentSurchargeTotal
 
         combinations.push({
@@ -466,7 +512,9 @@ export function buildPackageCombinations(payloadInput: unknown, limit = 250): Pa
             ...stays.map((stay) => stay.option.id),
             flightOption?.id || 'no-flight',
             payload.visaOptions.length > 0
-              ? payload.visaOptions.map((option) => `${option.id}:${option.quantity || 'all'}`).join('|')
+              ? payload.visaOptions
+                  .map((option) => `${option.id}:${option.quantity || 'all'}`)
+                  .join('|')
               : 'no-visa',
             transportOption?.id || 'no-transport',
             paymentMethod,
@@ -497,7 +545,10 @@ export function buildPackageCombinations(payloadInput: unknown, limit = 250): Pa
 }
 
 function getOrderedStaySelections(payload: PackageQuotePayload, combination: PackageCombination) {
-  const order = payload.itineraryOrder.length > 0 ? payload.itineraryOrder : payload.stayGroups.map((group) => group.id)
+  const order =
+    payload.itineraryOrder.length > 0
+      ? payload.itineraryOrder
+      : payload.stayGroups.map((group) => group.id)
   return [...combination.staySelections].sort((a, b) => {
     const aIndex = order.indexOf(a.groupId)
     const bIndex = order.indexOf(b.groupId)
@@ -535,7 +586,7 @@ export function getDefaultPackageSelection(payloadInput: unknown): PackageSelect
   const payload = normalizePackageQuotePayload(payloadInput)
   return {
     stayOptionIds: Object.fromEntries(
-      payload.stayGroups.map((group) => [group.id, getCheapestOption(group.options)?.id || '']),
+      payload.stayGroups.map((group) => [group.id, getDefaultOption(group.options)?.id || '']),
     ),
     flightOptionId: getDefaultOption(payload.flightOptions)?.id || null,
     visaOptionId: payload.visaOptions[0]?.id || null,
@@ -545,7 +596,9 @@ export function getDefaultPackageSelection(payloadInput: unknown): PackageSelect
   }
 }
 
-export function resolveDefaultPackageSelection(payloadInput: unknown): PackageResolvedSelection | null {
+export function resolveDefaultPackageSelection(
+  payloadInput: unknown,
+): PackageResolvedSelection | null {
   try {
     return resolvePackageSelection(payloadInput, getDefaultPackageSelection(payloadInput))
   } catch {
@@ -553,7 +606,10 @@ export function resolveDefaultPackageSelection(payloadInput: unknown): PackageRe
   }
 }
 
-export function buildCustomerPackageOptions(payloadInput: unknown, limit = 80): PackageResolvedSelection[] {
+export function buildCustomerPackageOptions(
+  payloadInput: unknown,
+  limit = 80,
+): PackageResolvedSelection[] {
   const payload = normalizePackageQuotePayload(payloadInput)
   const defaultSelection = getDefaultPackageSelection(payload)
   const staySelections = buildStaySelections(payload.stayGroups)
@@ -570,7 +626,16 @@ export function buildCustomerPackageOptions(payloadInput: unknown, limit = 80): 
       }
     })
     .filter((value): value is PackageResolvedSelection => Boolean(value))
-    .sort((a, b) => a.combination.totalPrice - b.combination.totalPrice)
+    .sort((a, b) => {
+      const aIsDefault = Object.entries(defaultSelection.stayOptionIds).every(
+        ([groupId, optionId]) => a.selection.stayOptionIds[groupId] === optionId,
+      )
+      const bIsDefault = Object.entries(defaultSelection.stayOptionIds).every(
+        ([groupId, optionId]) => b.selection.stayOptionIds[groupId] === optionId,
+      )
+      if (aIsDefault !== bIsDefault) return aIsDefault ? -1 : 1
+      return a.combination.totalPrice - b.combination.totalPrice
+    })
     .slice(0, limit)
 }
 
@@ -613,7 +678,10 @@ export function getFlightOptionPriceDeltas(
   baseOption?: PackageComponentOption | null,
 ) {
   const payload = normalizePackageQuotePayload(payloadInput)
-  const base = getFlightPassengerUnitPrices(baseOption || getDefaultOption(payload.flightOptions), payload)
+  const base = getFlightPassengerUnitPrices(
+    baseOption || getDefaultOption(payload.flightOptions),
+    payload,
+  )
   const next = getFlightPassengerUnitPrices(option, payload)
   return {
     adult: next.adult - base.adult,
@@ -644,12 +712,21 @@ export function getPackagePassengerPriceBreakdown(
   const flightUnits = getFlightPassengerUnitPrices(combination.flightOption, payload)
   const visaTotal = getVisaOptionsTotal(combination.visaOptions, payload)
   const visaUnit = servicePassengers > 0 ? visaTotal / servicePassengers : 0
-  const transportUnit = getComponentPassengerUnitPrice(combination.transportOption, servicePassengers)
+  const transportUnit = getComponentPassengerUnitPrice(
+    combination.transportOption,
+    servicePassengers,
+  )
   const discountUnit = payingGuests > 0 ? combination.offerDiscountTotal / payingGuests : 0
   const surchargeUnit = payingGuests > 0 ? combination.paymentSurchargeTotal / payingGuests : 0
 
-  const adult = Math.max(0, hotelUnit + flightUnits.adult + visaUnit + transportUnit - discountUnit + surchargeUnit)
-  const child = Math.max(0, hotelUnit + flightUnits.child + visaUnit + transportUnit - discountUnit + surchargeUnit)
+  const adult = Math.max(
+    0,
+    hotelUnit + flightUnits.adult + visaUnit + transportUnit - discountUnit + surchargeUnit,
+  )
+  const child = Math.max(
+    0,
+    hotelUnit + flightUnits.child + visaUnit + transportUnit - discountUnit + surchargeUnit,
+  )
   const infant = Math.max(0, flightUnits.infant + visaUnit + transportUnit)
 
   return {
@@ -770,7 +847,9 @@ export function formatPackageCombinationForCopy(
   }
 
   if (combination.offerDiscountTotal > 0) {
-    lines.push(`*Discount Applied: -${formatMoney(combination.offerDiscountTotal, combination.currency)}*`)
+    lines.push(
+      `*Discount Applied: -${formatMoney(combination.offerDiscountTotal, combination.currency)}*`,
+    )
   }
   if (combination.paymentSurchargeTotal > 0) {
     lines.push(
@@ -803,7 +882,9 @@ export function formatPackageQuoteForCopy(payloadInput: unknown, limit = 12) {
   if (defaultFlight) {
     lines.push('****Flight Included****')
     lines.push(defaultFlight.summary || defaultFlight.title)
-    const flightAlternatives = payload.flightOptions.filter((option) => option.id !== defaultFlight.id)
+    const flightAlternatives = payload.flightOptions.filter(
+      (option) => option.id !== defaultFlight.id,
+    )
     for (const option of flightAlternatives) {
       const delta = getFlightOptionTotalDelta(payload, option, defaultFlight)
       lines.push(`- ${option.title}: ${formatDelta(delta, payload.currency)} total`)
@@ -822,9 +903,13 @@ export function formatPackageQuoteForCopy(payloadInput: unknown, limit = 12) {
   if (defaultTransport) {
     lines.push('****Transport Included****')
     lines.push(...formatTransportLines(defaultTransport))
-    const transportAlternatives = payload.transportOptions.filter((option) => option.id !== defaultTransport.id)
+    const transportAlternatives = payload.transportOptions.filter(
+      (option) => option.id !== defaultTransport.id,
+    )
     for (const option of transportAlternatives) {
-      lines.push(`- ${option.title}: ${formatDelta(option.price - defaultTransport.price, payload.currency)} total`)
+      lines.push(
+        `- ${option.title}: ${formatDelta(option.price - defaultTransport.price, payload.currency)} total`,
+      )
     }
     lines.push('')
   }
@@ -852,10 +937,14 @@ export function formatPackageQuoteForCopy(payloadInput: unknown, limit = 12) {
       }
       lines.push(`Base total: ${formatMoney(combination.totalPrice, combination.currency)}`)
       if (payload.cardProcessingFeePercent > 0) {
-        lines.push(`Credit Card processing fee: ${payload.cardProcessingFeePercent}% (non-refundable)`)
+        lines.push(
+          `Credit Card processing fee: ${payload.cardProcessingFeePercent}% (non-refundable)`,
+        )
       }
       if (payload.depositRequired && (payload.depositAmount || 0) > 0) {
-        lines.push(`Deposit required to secure: ${formatMoney(payload.depositAmount || 0, payload.currency)}`)
+        lines.push(
+          `Deposit required to secure: ${formatMoney(payload.depositAmount || 0, payload.currency)}`,
+        )
       }
     }
   })
@@ -880,6 +969,7 @@ export function resolvePackageSelection(
   const payingGuests = getPayingGuestCount(payload)
   const servicePassengers = getServicePassengerCount(payload)
   const paymentMethod = normalizePaymentMethod(input.paymentMethod)
+  const paymentIntent = normalizePaymentIntent(input.paymentIntent)
 
   if (payingGuests <= 0) {
     throw new Error('At least one paying guest is required')
@@ -950,6 +1040,12 @@ export function resolvePackageSelection(
       transportOptionId: input.transportOptionId || null,
       paymentMethod,
       paymentBreakdown,
+      paymentIntent,
+      installmentRequested: Boolean(
+        input.installmentRequested || paymentIntent === 'installment_request',
+      ),
+      depositPaymentMethod: input.depositPaymentMethod === 'card' ? 'card' : null,
+      termsAccepted: Boolean(input.termsAccepted),
       customerName: asString(input.customerName),
       customerPhone: asString(input.customerPhone),
       customerEmail: asString(input.customerEmail),
@@ -960,7 +1056,9 @@ export function resolvePackageSelection(
         ...staySelections.map((stay) => stay.option.id),
         flightOption?.id || 'no-flight',
         payload.visaOptions.length > 0
-          ? payload.visaOptions.map((option) => `${option.id}:${option.quantity || 'all'}`).join('|')
+          ? payload.visaOptions
+              .map((option) => `${option.id}:${option.quantity || 'all'}`)
+              .join('|')
           : 'no-visa',
         transportOption?.id || 'no-transport',
         paymentMethod,

@@ -23,6 +23,7 @@ import type {
 import {
   formatMoney,
   getDefaultPackageSelection,
+  getFlightOptionPassengerPrices,
   getFlightOptionTotalDelta,
   getPackagePaymentBreakdownTotal,
   isLimitedTimeOfferActive,
@@ -69,6 +70,28 @@ function formatOfferDeadline(value: string) {
   })
 }
 
+function SummaryText({ value }: { value: string }) {
+  const lines = value.split('\n').filter((line) => line.trim().length > 0)
+  if (lines.length === 0) return null
+
+  return (
+    <div className="mt-1 space-y-1 text-sm leading-6 text-slate-600">
+      {lines.map((line, index) => {
+        const bulletText = line.match(/^\*\s+(.+)$/)?.[1]
+        if (bulletText) {
+          return (
+            <div key={`${line}-${index}`} className="flex gap-2">
+              <span className="mt-[0.65rem] h-1.5 w-1.5 shrink-0 rounded-full bg-slate-400" />
+              <span>{bulletText}</span>
+            </div>
+          )
+        }
+        return <p key={`${line}-${index}`}>{line}</p>
+      })}
+    </div>
+  )
+}
+
 function OptionButton({
   selected,
   title,
@@ -76,6 +99,7 @@ function OptionButton({
   price,
   pricingMode,
   priceLabel,
+  priceSubLabel,
   badges,
   currency,
   onClick,
@@ -86,6 +110,7 @@ function OptionButton({
   price: number
   pricingMode?: 'total' | 'per_person'
   priceLabel?: string
+  priceSubLabel?: string
   badges?: string[]
   currency: string
   onClick: () => void
@@ -103,7 +128,7 @@ function OptionButton({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-sm font-black text-slate-950">{title || 'Option'}</p>
-          {summary && <p className="mt-1 whitespace-pre-line text-sm leading-6 text-slate-600">{summary}</p>}
+          {summary && <SummaryText value={summary} />}
           {badges && badges.length > 0 && (
             <div className="mt-2 flex flex-wrap gap-2">
               {badges.map((badge) => (
@@ -122,7 +147,7 @@ function OptionButton({
             {priceLabel || formatMoney(price, currency)}
           </p>
           <p className="text-[11px] font-bold text-slate-500">
-            {pricingMode === 'per_person' ? 'per person' : 'total'}
+            {priceSubLabel || (pricingMode === 'per_person' ? 'per person' : 'total')}
           </p>
           {selected && <CheckCircle2 className="ml-auto mt-2 h-5 w-5 text-[#8b1e2d]" />}
         </div>
@@ -155,19 +180,32 @@ function formatDelta(value: number, currency: string) {
   return `${value > 0 ? '+' : '-'}${formatMoney(Math.abs(value), currency)} total`
 }
 
+function formatFlightPassengerPrices(
+  payload: PackageQuotePayload,
+  option: Parameters<typeof getFlightOptionPassengerPrices>[1],
+) {
+  const prices = getFlightOptionPassengerPrices(payload, option)
+  const parts = [`Adult ${formatMoney(prices.adult, payload.currency)} pp`]
+  if (payload.childrenPaying > 0)
+    parts.push(`Child ${formatMoney(prices.child, payload.currency)} pp`)
+  if (payload.childrenFree > 0)
+    parts.push(`Infant ${formatMoney(prices.infant, payload.currency)} pp`)
+  return parts.join(' / ')
+}
+
 function pickMethodFromBreakdown(breakdown: PackagePaymentBreakdown): PackagePaymentMethod {
   if (breakdown.card > 0) return 'card'
   if (breakdown.cash > 0) return 'cash'
   return 'bank_transfer'
 }
 
-function SectionTitle({
-  icon: Icon,
-  title,
-}: {
-  icon: typeof Building2
-  title: string
-}) {
+function buildSelectionNote(note: string, promoCode: string) {
+  const parts = [note.trim()]
+  if (promoCode.trim()) parts.push(`Promo code requested: ${promoCode.trim()}`)
+  return parts.filter(Boolean).join('\n')
+}
+
+function SectionTitle({ icon: Icon, title }: { icon: typeof Building2; title: string }) {
   return (
     <div className="mb-3 flex items-center gap-2">
       <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900 text-white">
@@ -188,6 +226,7 @@ export default function PackageSalesModeClient({ quoteId }: PackageSalesModeClie
     customerEmail: '',
     note: '',
   })
+  const [promoCode, setPromoCode] = useState('')
   const [savedSelection, setSavedSelection] = useState<PackageResolvedSelection | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -222,11 +261,16 @@ export default function PackageSalesModeClient({ quoteId }: PackageSalesModeClie
           customerName:
             existingSelection?.customerName || data.quote.customer_name || normalized.customerName,
           customerPhone:
-            existingSelection?.customerPhone || data.quote.customer_phone || normalized.customerPhone,
+            existingSelection?.customerPhone ||
+            data.quote.customer_phone ||
+            normalized.customerPhone,
           customerEmail:
-            existingSelection?.customerEmail || data.quote.customer_email || normalized.customerEmail,
+            existingSelection?.customerEmail ||
+            data.quote.customer_email ||
+            normalized.customerEmail,
           note: existingSelection?.note || data.quote.selection_note || '',
         })
+        setPromoCode('')
         setSavedSelection(data.quote.selected_option)
       } catch (loadError) {
         setError(loadError instanceof Error ? loadError.message : 'Unable to load quote')
@@ -262,7 +306,10 @@ export default function PackageSalesModeClient({ quoteId }: PackageSalesModeClie
 
   const orderedStayGroups = useMemo(() => {
     if (!payload) return []
-    const order = payload.itineraryOrder.length > 0 ? payload.itineraryOrder : payload.stayGroups.map((group) => group.id)
+    const order =
+      payload.itineraryOrder.length > 0
+        ? payload.itineraryOrder
+        : payload.stayGroups.map((group) => group.id)
     return [...payload.stayGroups].sort((a, b) => {
       const aIndex = order.indexOf(a.id)
       const bIndex = order.indexOf(b.id)
@@ -296,6 +343,7 @@ export default function PackageSalesModeClient({ quoteId }: PackageSalesModeClie
           paymentMethod: pickMethodFromBreakdown(paymentBreakdown),
           paymentBreakdown,
           ...customer,
+          note: buildSelectionNote(customer.note, promoCode),
         }),
       })
       const data = (await response.json()) as SelectionResponse
@@ -354,8 +402,8 @@ export default function PackageSalesModeClient({ quoteId }: PackageSalesModeClie
             <p className="mt-3 text-xs font-bold uppercase text-slate-500">Sales / Clerk Mode</p>
             <h1 className="mt-1 text-2xl font-black text-slate-950">{payload.title}</h1>
             <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">
-              Select and finalise the package privately while working with the customer in person
-              or over the phone. The customer does not see this internal screen.
+              Select and finalise the package privately while working with the customer in person or
+              over the phone. The customer does not see this internal screen.
             </p>
           </div>
           <Link
@@ -384,6 +432,7 @@ export default function PackageSalesModeClient({ quoteId }: PackageSalesModeClie
                       summary={option.summary}
                       price={option.price}
                       priceLabel={formatDelta(delta, payload.currency)}
+                      priceSubLabel={formatFlightPassengerPrices(payload, option)}
                       pricingMode={option.pricingMode}
                       currency={payload.currency}
                       onClick={() =>
@@ -412,11 +461,7 @@ export default function PackageSalesModeClient({ quoteId }: PackageSalesModeClie
                         <p className="text-sm font-black text-slate-950">
                           {option.title || 'Visa'}
                         </p>
-                        {option.summary && (
-                          <p className="mt-1 whitespace-pre-line text-sm leading-6 text-slate-600">
-                            {option.summary}
-                          </p>
-                        )}
+                        {option.summary && <SummaryText value={option.summary} />}
                       </div>
                       <p className="shrink-0 text-sm font-black text-slate-950">
                         {getVisaQuantity(option, payload)} included
@@ -469,27 +514,36 @@ export default function PackageSalesModeClient({ quoteId }: PackageSalesModeClie
                 <div key={group.id}>
                   <h3 className="mb-2 text-sm font-black text-slate-700">{group.label}</h3>
                   <div className="space-y-3">
-                    {group.options.map((option) => (
-                      <OptionButton
-                        key={option.id}
-                        selected={selection.stayOptionIds[group.id] === option.id}
-                        title={option.title}
-                        summary={option.summary}
-                        price={option.price}
-                        pricingMode={option.pricingMode}
-                        currency={payload.currency}
-                        onClick={() =>
-                          setSelection((current) =>
-                            current
-                              ? {
-                                  ...current,
-                                  stayOptionIds: { ...current.stayOptionIds, [group.id]: option.id },
-                                }
-                              : current,
-                          )
-                        }
-                      />
-                    ))}
+                    {group.options.map((option) => {
+                      const preferredHotel = getPreferredOption(group.options)
+                      const delta = option.price - (preferredHotel?.price || 0)
+                      return (
+                        <OptionButton
+                          key={option.id}
+                          selected={selection.stayOptionIds[group.id] === option.id}
+                          title={option.title}
+                          summary={option.summary}
+                          price={option.price}
+                          priceLabel={formatDelta(delta, payload.currency)}
+                          priceSubLabel="hotel option"
+                          pricingMode={option.pricingMode}
+                          currency={payload.currency}
+                          onClick={() =>
+                            setSelection((current) =>
+                              current
+                                ? {
+                                    ...current,
+                                    stayOptionIds: {
+                                      ...current.stayOptionIds,
+                                      [group.id]: option.id,
+                                    },
+                                  }
+                                : current,
+                            )
+                          }
+                        />
+                      )
+                    })}
                   </div>
                 </div>
               ))}
@@ -510,18 +564,16 @@ export default function PackageSalesModeClient({ quoteId }: PackageSalesModeClie
                       }`}
                     >
                       <p className="text-sm font-black text-slate-950">{offer.title}</p>
-                      {offer.summary && (
-                        <p className="mt-1 whitespace-pre-line text-sm leading-6 text-slate-600">
-                          {offer.summary}
-                        </p>
-                      )}
+                      {offer.summary && <SummaryText value={offer.summary} />}
                       <p className="mt-2 text-xs font-bold text-slate-500">
                         {offer.discountAmount > 0
                           ? `${formatMoney(offer.discountAmount, payload.currency)} off ${
                               offer.discountMode === 'per_person' ? 'per person' : 'total'
                             }`
                           : 'No discount amount set'}
-                        {offer.expiresAt ? ` · valid until ${formatOfferDeadline(offer.expiresAt)}` : ''}
+                        {offer.expiresAt
+                          ? ` · valid until ${formatOfferDeadline(offer.expiresAt)}`
+                          : ''}
                       </p>
                     </div>
                   )
@@ -533,38 +585,81 @@ export default function PackageSalesModeClient({ quoteId }: PackageSalesModeClie
 
         <aside className="space-y-4 lg:sticky lg:top-5 lg:self-start">
           <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <p className="text-sm font-black text-slate-950">Final package total</p>
+            <p className="text-sm font-black text-slate-950">Price summary</p>
             {resolved ? (
               <>
-                {resolved.combination.offerDiscountTotal > 0 && (
-                  <div className="mt-2 rounded-lg bg-emerald-50 p-3 text-sm font-bold text-emerald-800">
-                    Discount applied: -
-                    {formatMoney(
-                      resolved.combination.offerDiscountTotal,
-                      resolved.combination.currency,
-                    )}
-                  </div>
-                )}
-                <p className="mt-2 text-3xl font-black text-slate-950">
-                  {formatMoney(resolved.combination.totalPrice, resolved.combination.currency)}
+                <p className="mt-2 text-xs font-black uppercase text-slate-500">Per person price</p>
+                <p className="text-3xl font-black text-[#8b1e2d]">
+                  {formatMoney(resolved.combination.perPersonPrice, resolved.combination.currency)}
                 </p>
+                <p className="text-xs font-bold text-slate-500">per hotel-paying guest</p>
+
+                <div className="mt-4 space-y-2 rounded-lg bg-slate-50 p-3 text-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="font-bold text-slate-600">Package subtotal</span>
+                    <span className="font-black text-slate-950">
+                      {formatMoney(
+                        resolved.combination.packageSubtotalPrice,
+                        resolved.combination.currency,
+                      )}
+                    </span>
+                  </div>
+                  {resolved.combination.offerDiscountTotal > 0 && (
+                    <div className="flex items-center justify-between gap-3 text-emerald-700">
+                      <span className="font-bold">Discounts applied</span>
+                      <span className="font-black">
+                        -
+                        {formatMoney(
+                          resolved.combination.offerDiscountTotal,
+                          resolved.combination.currency,
+                        )}
+                      </span>
+                    </div>
+                  )}
+                  {resolved.combination.paymentSurchargeTotal > 0 ? (
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="font-bold text-slate-600">Credit Card processing fee</span>
+                      <span className="font-black text-slate-950">
+                        {formatMoney(
+                          resolved.combination.paymentSurchargeTotal,
+                          resolved.combination.currency,
+                        )}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="font-bold text-slate-600">Additional charges</span>
+                      <span className="font-black text-slate-950">None</span>
+                    </div>
+                  )}
+                  <div className="border-t border-slate-200 pt-2">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="font-black text-slate-950">Total package price</span>
+                      <span className="font-black text-slate-950">
+                        {formatMoney(
+                          resolved.combination.totalPrice,
+                          resolved.combination.currency,
+                        )}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <label className="mt-4 block">
+                  <span className="mb-1 block text-xs font-black uppercase text-slate-500">
+                    Promo code
+                  </span>
+                  <input
+                    value={promoCode}
+                    onChange={(event) => setPromoCode(event.target.value)}
+                    placeholder="Ask customer if they have a promo code"
+                    className="min-h-10 w-full rounded-lg border border-slate-200 px-3 text-sm font-bold outline-none focus:border-slate-900"
+                  />
+                </label>
                 {resolved.combination.paymentSurchargeTotal > 0 && (
-                  <p className="mt-1 text-sm font-bold text-slate-600">
-                    Includes Credit Card processing fee:{' '}
-                    {formatMoney(
-                      resolved.combination.paymentSurchargeTotal,
-                      resolved.combination.currency,
-                    )}{' '}
-                    (non-refundable)
+                  <p className="mt-2 text-xs font-semibold text-slate-500">
+                    Credit Card processing fees are non-refundable.
                   </p>
                 )}
-                <p className="text-sm font-bold text-[#8b1e2d]">
-                  {formatMoney(
-                    resolved.combination.perPersonPrice,
-                    resolved.combination.currency,
-                  )}{' '}
-                  per hotel-paying guest
-                </p>
                 <div className="mt-4 rounded-lg bg-slate-50 p-3">
                   <p className="mb-2 text-xs font-black uppercase text-slate-500">
                     Payment breakdown
@@ -624,8 +719,8 @@ export default function PackageSalesModeClient({ quoteId }: PackageSalesModeClie
                   {payload.depositRequired && (payload.depositAmount || 0) > 0 && (
                     <p className="mt-3 rounded-lg bg-amber-50 p-2 text-xs font-bold text-amber-800">
                       Deposit required to secure:{' '}
-                      {formatMoney(payload.depositAmount || 0, payload.currency)}. This should be paid first
-                      before availability or reservations are secured.
+                      {formatMoney(payload.depositAmount || 0, payload.currency)}. This should be
+                      paid first before availability or reservations are secured.
                     </p>
                   )}
                   {payload.cardProcessingFeePercent > 0 && (
@@ -641,46 +736,70 @@ export default function PackageSalesModeClient({ quoteId }: PackageSalesModeClie
           </section>
 
           <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <p className="mb-3 text-sm font-black text-slate-950">Customer information</p>
             <div className="space-y-3">
-              <input
-                value={customer.customerName}
-                onChange={(event) => updateCustomer({ customerName: event.target.value })}
-                placeholder="Customer name"
-                className="min-h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-slate-900"
-              />
-              <input
-                value={customer.customerPhone}
-                onChange={(event) => updateCustomer({ customerPhone: event.target.value })}
-                placeholder="Phone"
-                className="min-h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-slate-900"
-              />
-              <input
-                value={customer.customerEmail}
-                onChange={(event) => updateCustomer({ customerEmail: event.target.value })}
-                placeholder="Email"
-                className="min-h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-slate-900"
-              />
-              <textarea
-                value={customer.note}
-                onChange={(event) => updateCustomer({ note: event.target.value })}
-                placeholder="Internal/customer note"
-                rows={3}
-                className="w-full resize-y rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-900"
-              />
+              <label className="block">
+                <span className="mb-1 block text-xs font-bold text-slate-500">Customer name</span>
+                <input
+                  value={customer.customerName}
+                  onChange={(event) => updateCustomer({ customerName: event.target.value })}
+                  placeholder="Lead customer name"
+                  className="min-h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-slate-900"
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs font-bold text-slate-500">
+                  WhatsApp contact number
+                </span>
+                <input
+                  value={customer.customerPhone}
+                  onChange={(event) => updateCustomer({ customerPhone: event.target.value })}
+                  placeholder="Customer WhatsApp number"
+                  className="min-h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-slate-900"
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs font-bold text-slate-500">Email address</span>
+                <input
+                  value={customer.customerEmail}
+                  onChange={(event) => updateCustomer({ customerEmail: event.target.value })}
+                  placeholder="Ask customer for their email address"
+                  className="min-h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-slate-900"
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs font-bold text-slate-500">
+                  Customer requirements and notes
+                </span>
+                <textarea
+                  value={customer.note}
+                  onChange={(event) => updateCustomer({ note: event.target.value })}
+                  placeholder="Ask about wheelchair assistance, dietary requirements, room preferences, mobility needs, special assistance, or anything else we should know."
+                  rows={4}
+                  className="w-full resize-y rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-900"
+                />
+              </label>
               <button
                 type="button"
                 onClick={() => void finaliseSelection()}
                 disabled={!resolved || !paymentBreakdownBalanced || saving}
                 className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#8b1e2d] px-3 text-sm font-black text-white transition hover:bg-[#6f1422] disabled:opacity-50"
               >
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                {saving ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4" />
+                )}
                 Finalise In Sales Mode
               </button>
             </div>
             {savedSelection && (
               <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm font-bold text-emerald-800">
                 Selection finalised:{' '}
-                {formatMoney(savedSelection.combination.totalPrice, savedSelection.combination.currency)}
+                {formatMoney(
+                  savedSelection.combination.totalPrice,
+                  savedSelection.combination.currency,
+                )}
               </div>
             )}
             {error && <p className="mt-3 text-sm font-bold text-red-600">{error}</p>}
