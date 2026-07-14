@@ -1086,7 +1086,7 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                         Price summary
                       </span>
                       <span className="mt-1 block text-xs font-bold text-slate-500">
-                        Expand for passenger prices and charges
+                        Expand this window to see the full price breakdown
                       </span>
                     </span>
                     <ChevronDown
@@ -1097,14 +1097,6 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                   </button>
 
                   <div className="mt-4 space-y-2 rounded-lg bg-slate-50 p-3 text-sm">
-                    {!priceSummaryExpanded && priceBreakdown && (
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="font-bold text-slate-600">Adult 12+ from</span>
-                        <span className="font-black text-slate-950">
-                          {formatMoney(priceBreakdown.adult, priceBreakdown.currency)} each
-                        </span>
-                      </div>
-                    )}
                     <div className="flex items-center justify-between gap-3">
                       <span className="font-bold text-slate-600">
                         {priceSummaryExpanded ? 'Package subtotal' : 'Total package price'}
@@ -1118,6 +1110,12 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                         )}
                       </span>
                     </div>
+                    {!priceSummaryExpanded && (
+                      <p className="text-xs font-semibold leading-5 text-slate-500">
+                        Expand this window to see passenger prices, discounts, and any additional
+                        charges.
+                      </p>
+                    )}
                     {priceSummaryExpanded && (
                       <>
                         {resolved.combination.offerDiscountTotal > 0 && (

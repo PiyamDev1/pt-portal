@@ -16,9 +16,10 @@ import NadraPricingTab from './pricing/NadraPricingTab'
 import PKPassportPricingTab from './pricing/PKPassportPricingTab'
 import GBPassportPricingTab from './pricing/GBPassportPricingTab'
 import VisaPricingTab from './pricing/VisaPricingTab'
+import UmrahTransportPricingTab from './pricing/UmrahTransportPricingTab'
 import ManagePricingOptionsTab from './pricing/ManagePricingOptionsTab'
 
-type PricingSection = 'nadra' | 'passport' | 'gb' | 'visa'
+type PricingSection = 'nadra' | 'passport' | 'gb' | 'visa' | 'umrah_transport'
 type PricingPanel = 'pricing' | 'manage'
 
 const SECTION_LABELS: Record<PricingSection, string> = {
@@ -26,6 +27,7 @@ const SECTION_LABELS: Record<PricingSection, string> = {
   passport: 'Pakistani Passport',
   gb: 'GB Passport',
   visa: 'Visa Services',
+  umrah_transport: 'Umrah Transport',
 }
 
 function ServicePricingTabCore({
@@ -296,28 +298,30 @@ function ServicePricingTabCore({
                 Configure pricing and options for this service.
               </p>
             </div>
-            <div className="inline-flex rounded-md border bg-white p-1">
-              <button
-                onClick={() => setActivePanel('pricing')}
-                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                  activePanel === 'pricing'
-                    ? 'bg-slate-900 text-white'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                Pricing
-              </button>
-              <button
-                onClick={() => setActivePanel('manage')}
-                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                  activePanel === 'manage'
-                    ? 'bg-slate-900 text-white'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                Manage Options
-              </button>
-            </div>
+            {activeSection !== 'umrah_transport' && (
+              <div className="inline-flex rounded-md border bg-white p-1">
+                <button
+                  onClick={() => setActivePanel('pricing')}
+                  className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                    activePanel === 'pricing'
+                      ? 'bg-slate-900 text-white'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Pricing
+                </button>
+                <button
+                  onClick={() => setActivePanel('manage')}
+                  className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                    activePanel === 'manage'
+                      ? 'bg-slate-900 text-white'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Manage Options
+                </button>
+              </div>
+            )}
           </div>
 
           {activeSection === 'nadra' && activePanel === 'pricing' && (
@@ -387,7 +391,11 @@ function ServicePricingTabCore({
             />
           )}
 
-          {activePanel === 'manage' && (
+          {activeSection === 'umrah_transport' && activePanel === 'pricing' && (
+            <UmrahTransportPricingTab supabase={supabase} />
+          )}
+
+          {activePanel === 'manage' && activeSection !== 'umrah_transport' && (
             <div className="rounded-lg border bg-white p-4">
               {activeSection === 'visa' ? (
                 <div className="text-sm text-slate-500">

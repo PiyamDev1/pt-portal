@@ -47,7 +47,46 @@ export interface VisaPricing {
   notes: string | null
 }
 
-export type ActiveTab = 'nadra' | 'passport' | 'gb' | 'visa' | 'manage'
+export interface UmrahTransportSupplier {
+  id: string
+  name: string
+  contact_name: string | null
+  contact_phone: string | null
+  is_active: boolean
+  sort_order: number
+  notes: string | null
+}
+
+export interface UmrahTransportVehicleType {
+  id: string
+  label: string
+  passenger_capacity: string | null
+  is_active: boolean
+  sort_order: number
+  notes: string | null
+}
+
+export interface UmrahTransportRoute {
+  id: string
+  route_name: string
+  preferred_supplier_id: string | null
+  is_active: boolean
+  sort_order: number
+  notes: string | null
+}
+
+export interface UmrahTransportRate {
+  id: string
+  route_id: string
+  supplier_id: string
+  vehicle_type_id: string
+  currency: string
+  cost_price: number
+  is_active: boolean
+  notes: string | null
+}
+
+export type ActiveTab = 'nadra' | 'passport' | 'gb' | 'visa' | 'umrah_transport' | 'manage'
 
 export interface ServicePricingTabProps {
   supabase: SupabaseClient

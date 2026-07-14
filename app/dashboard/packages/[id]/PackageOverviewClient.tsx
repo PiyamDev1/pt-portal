@@ -1834,10 +1834,12 @@ The Piyam Travel Team`
           )}
 
           {activePackageTab === 'overview' && (
-            <div
-              id="final-quote"
-              className="scroll-mt-20 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
-            >
+            <>
+              <div className="my-6 h-2 rounded-full bg-[#8b1e2d]" aria-hidden="true" />
+              <div
+                id="final-quote"
+                className="scroll-mt-20 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+              >
               <div className="mb-3 flex items-center gap-2">
                 <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900 text-white">
                   <FolderOpen className="h-4 w-4" />
@@ -1997,7 +1999,8 @@ The Piyam Travel Team`
               ) : (
                 <p className="text-sm text-slate-500">No selected quote snapshot found.</p>
               )}
-            </div>
+              </div>
+            </>
           )}
 
           {activePackageTab === 'reservations' && (
