@@ -259,10 +259,12 @@ function ServicePricingTabCore({
   }
 
   return (
-    <div className={useFullWidthPricing ? 'p-3 lg:p-4' : 'p-6'}>
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold mb-4">Service Pricing Management</h2>
-        <p className="text-gray-600 mb-4">
+    <div className={useFullWidthPricing ? 'p-2' : 'p-6'}>
+      <div className={useFullWidthPricing ? 'mb-3' : 'mb-6'}>
+        <h2 className={useFullWidthPricing ? 'mb-2 text-xl font-bold' : 'mb-4 text-2xl font-bold'}>
+          Service Pricing Management
+        </h2>
+        <p className={useFullWidthPricing ? 'mb-2 text-sm text-gray-600' : 'mb-4 text-gray-600'}>
           Add and manage service pricing options. Configure what services you offer and their costs.
         </p>
       </div>

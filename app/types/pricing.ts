@@ -114,6 +114,12 @@ export interface UmrahTransportGuideRate {
   notes: string | null
 }
 
+export interface UmrahTransportSetting {
+  setting_key: string
+  setting_value: string
+  notes: string | null
+}
+
 export type ActiveTab = 'nadra' | 'passport' | 'gb' | 'visa' | 'umrah_transport' | 'manage'
 
 export interface ServicePricingTabProps {

@@ -91,6 +91,14 @@ CREATE TABLE IF NOT EXISTS public.umrah_transport_guide_rates (
   UNIQUE (supplier_id, guide_service)
 );
 
+CREATE TABLE IF NOT EXISTS public.umrah_transport_settings (
+  setting_key TEXT PRIMARY KEY,
+  setting_value TEXT NOT NULL DEFAULT '',
+  notes TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 CREATE INDEX IF NOT EXISTS idx_umrah_transport_routes_sort
   ON public.umrah_transport_routes (is_active DESC, sort_order, route_name);
 
@@ -148,6 +156,11 @@ CREATE TRIGGER umrah_transport_rates_updated_at
 DROP TRIGGER IF EXISTS umrah_transport_guide_rates_updated_at ON public.umrah_transport_guide_rates;
 CREATE TRIGGER umrah_transport_guide_rates_updated_at
   BEFORE UPDATE ON public.umrah_transport_guide_rates
+  FOR EACH ROW EXECUTE FUNCTION public.update_umrah_transport_pricing_updated_at();
+
+DROP TRIGGER IF EXISTS umrah_transport_settings_updated_at ON public.umrah_transport_settings;
+CREATE TRIGGER umrah_transport_settings_updated_at
+  BEFORE UPDATE ON public.umrah_transport_settings
   FOR EACH ROW EXECUTE FUNCTION public.update_umrah_transport_pricing_updated_at();
 
 INSERT INTO public.umrah_transport_suppliers (name, default_currency, sort_order)
@@ -264,6 +277,11 @@ DO UPDATE SET
   route_id = EXCLUDED.route_id,
   segment_label = EXCLUDED.segment_label;
 
+INSERT INTO public.umrah_transport_settings (setting_key, setting_value, notes)
+VALUES
+  ('sar_to_gbp_exchange_rate', '0.00', 'Global transport pricing exchange rate. Enter the GBP value of 1 SAR.')
+ON CONFLICT (setting_key) DO NOTHING;
+
 ALTER TABLE public.umrah_transport_suppliers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.umrah_transport_vehicle_types ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.umrah_transport_routes ENABLE ROW LEVEL SECURITY;
@@ -271,6 +289,7 @@ ALTER TABLE public.umrah_transport_route_plans ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.umrah_transport_route_plan_segments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.umrah_transport_rates ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.umrah_transport_guide_rates ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.umrah_transport_settings ENABLE ROW LEVEL SECURITY;
 
 DO $$ DECLARE r RECORD; BEGIN
   FOR r IN
@@ -284,7 +303,8 @@ DO $$ DECLARE r RECORD; BEGIN
         'umrah_transport_route_plans',
         'umrah_transport_route_plan_segments',
         'umrah_transport_rates',
-        'umrah_transport_guide_rates'
+        'umrah_transport_guide_rates',
+        'umrah_transport_settings'
       )
   LOOP
     EXECUTE 'DROP POLICY IF EXISTS ' || quote_ident(r.policyname) || ' ON public.' || quote_ident(r.tablename);
@@ -325,3 +345,8 @@ CREATE POLICY "Authenticated can manage Umrah transport guide rates"
   ON public.umrah_transport_guide_rates FOR ALL TO authenticated USING (TRUE) WITH CHECK (TRUE);
 CREATE POLICY "Service role can manage Umrah transport guide rates"
   ON public.umrah_transport_guide_rates FOR ALL TO service_role USING (TRUE) WITH CHECK (TRUE);
+
+CREATE POLICY "Authenticated can manage Umrah transport settings"
+  ON public.umrah_transport_settings FOR ALL TO authenticated USING (TRUE) WITH CHECK (TRUE);
+CREATE POLICY "Service role can manage Umrah transport settings"
+  ON public.umrah_transport_settings FOR ALL TO service_role USING (TRUE) WITH CHECK (TRUE);

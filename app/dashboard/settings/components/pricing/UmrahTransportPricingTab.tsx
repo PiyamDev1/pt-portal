@@ -17,6 +17,7 @@ import type {
   UmrahTransportRoute,
   UmrahTransportRoutePlan,
   UmrahTransportRoutePlanSegment,
+  UmrahTransportSetting,
   UmrahTransportSupplier,
   UmrahTransportVehicleType,
 } from '@/app/types/pricing'
@@ -44,6 +45,7 @@ type PlanDraft = {
 
 type RateDrafts = Record<string, string>
 type GuideDrafts = Record<string, string>
+type UmrahTransportSubTab = 'rates' | 'config'
 
 const GUIDE_SERVICES = [
   { key: 'umrah', label: 'Umrah' },
@@ -74,10 +76,15 @@ function guideKey(supplierId: string, guideService: string) {
 }
 
 function parseAmount(value: string | number | null | undefined) {
+  return parseDecimal(value, 2)
+}
+
+function parseDecimal(value: string | number | null | undefined, precision: number) {
   const normalized = String(value ?? '').replace(/[^0-9.]/g, '')
   const parsed = Number(normalized || 0)
   if (!Number.isFinite(parsed)) return 0
-  return Math.max(0, Math.round(parsed * 100) / 100)
+  const multiplier = 10 ** precision
+  return Math.max(0, Math.round(parsed * multiplier) / multiplier)
 }
 
 function formatAmount(amount: number, currency: string) {
@@ -111,6 +118,9 @@ function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProp
   const [dirtySupplierIds, setDirtySupplierIds] = useState<Set<string>>(new Set())
   const [dirtyVehicleIds, setDirtyVehicleIds] = useState<Set<string>>(new Set())
   const [dirtyPlanIds, setDirtyPlanIds] = useState<Set<string>>(new Set())
+  const [activeSubTab, setActiveSubTab] = useState<UmrahTransportSubTab>('rates')
+  const [sarToGbpRate, setSarToGbpRate] = useState('')
+  const [originalSarToGbpRate, setOriginalSarToGbpRate] = useState('')
   const [newSupplierName, setNewSupplierName] = useState('')
   const [newVehicleLabel, setNewVehicleLabel] = useState('')
   const [newVehicleCapacity, setNewVehicleCapacity] = useState('')
@@ -119,8 +129,16 @@ function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProp
     setLoading(true)
     setSchemaMissing(false)
     try {
-      const [supplierRes, vehicleRes, routeRes, routePlanRes, planSegmentRes, rateRes, guideRes] =
-        await Promise.all([
+      const [
+        supplierRes,
+        vehicleRes,
+        routeRes,
+        routePlanRes,
+        planSegmentRes,
+        rateRes,
+        guideRes,
+        settingRes,
+      ] = await Promise.all([
           supabase
             .from('umrah_transport_suppliers')
             .select('*')
@@ -147,6 +165,10 @@ function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProp
             .order('sort_order', { ascending: true }),
           supabase.from('umrah_transport_rates').select('*'),
           supabase.from('umrah_transport_guide_rates').select('*'),
+          supabase
+            .from('umrah_transport_settings')
+            .select('*')
+            .eq('setting_key', 'sar_to_gbp_exchange_rate'),
         ])
 
       const firstError =
@@ -156,7 +178,8 @@ function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProp
         routePlanRes.error ||
         planSegmentRes.error ||
         rateRes.error ||
-        guideRes.error
+        guideRes.error ||
+        settingRes.error
       if (firstError) {
         if (isSchemaError(firstError)) {
           setSchemaMissing(true)
@@ -172,6 +195,10 @@ function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProp
       const nextPlanSegments = (planSegmentRes.data || []) as UmrahTransportRoutePlanSegment[]
       const nextRates = (rateRes.data || []) as UmrahTransportRate[]
       const nextGuideRates = (guideRes.data || []) as UmrahTransportGuideRate[]
+      const nextSettings = (settingRes.data || []) as UmrahTransportSetting[]
+      const exchangeRateSetting = nextSettings.find(
+        (setting) => setting.setting_key === 'sar_to_gbp_exchange_rate',
+      )
 
       const nextSupplierDrafts = Object.fromEntries(
         nextSuppliers.map((supplier) => [
@@ -226,6 +253,8 @@ function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProp
       setOriginalRateDrafts(nextRateDrafts)
       setGuideDrafts(nextGuideDrafts)
       setOriginalGuideDrafts(nextGuideDrafts)
+      setSarToGbpRate(exchangeRateSetting?.setting_value || '')
+      setOriginalSarToGbpRate(exchangeRateSetting?.setting_value || '')
       setDirtySupplierIds(new Set())
       setDirtyVehicleIds(new Set())
       setDirtyPlanIds(new Set())
@@ -330,7 +359,8 @@ function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProp
     dirtyVehicleIds.size > 0 ||
     dirtyPlanIds.size > 0 ||
     dirtyRateEntries.length > 0 ||
-    dirtyGuideEntries.length > 0
+    dirtyGuideEntries.length > 0 ||
+    sarToGbpRate !== originalSarToGbpRate
 
   const updateSupplierDraft = (supplierId: string, changes: Partial<SupplierDraft>) => {
     setSupplierDrafts((current) => ({
@@ -540,6 +570,7 @@ function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProp
           }
         })
         .filter((row): row is NonNullable<typeof row> => Boolean(row))
+      const exchangeRateChanged = sarToGbpRate !== originalSarToGbpRate
 
       const updateResults = await Promise.all([
         ...supplierUpdates,
@@ -577,6 +608,18 @@ function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProp
         const { error } = await supabase
           .from('umrah_transport_guide_rates')
           .upsert(guideRows, { onConflict: 'supplier_id,guide_service' })
+        if (error) throw error
+      }
+
+      if (exchangeRateChanged) {
+        const { error } = await supabase.from('umrah_transport_settings').upsert(
+          {
+            setting_key: 'sar_to_gbp_exchange_rate',
+            setting_value: String(parseDecimal(sarToGbpRate, 6)),
+            notes: 'Global transport pricing exchange rate. Enter the GBP value of 1 SAR.',
+          },
+          { onConflict: 'setting_key' },
+        )
         if (error) throw error
       }
 
@@ -678,7 +721,32 @@ function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProp
         </div>
       </div>
 
-      <div className="space-y-4">
+      <div className="inline-flex rounded-lg border border-slate-200 bg-white p-1">
+        <button
+          type="button"
+          onClick={() => setActiveSubTab('rates')}
+          className={`rounded-md px-3 py-1.5 text-sm font-black transition ${
+            activeSubTab === 'rates'
+              ? 'bg-slate-900 text-white'
+              : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
+          }`}
+        >
+          Rates
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveSubTab('config')}
+          className={`rounded-md px-3 py-1.5 text-sm font-black transition ${
+            activeSubTab === 'config'
+              ? 'bg-slate-900 text-white'
+              : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
+          }`}
+        >
+          Config
+        </button>
+      </div>
+
+      {activeSubTab === 'rates' ? (
         <div className="space-y-5">
           {activeRoutePlans.length === 0 ? (
             <div className="rounded-lg border border-slate-200 bg-white p-6 text-sm font-semibold text-slate-500">
@@ -969,8 +1037,27 @@ function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProp
             })
           )}
         </div>
-
+      ) : (
         <aside className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_18rem]">
+          <section className="rounded-lg border border-slate-200 bg-white p-4">
+            <p className="text-sm font-black text-slate-950">Exchange Rate</p>
+            <p className="mt-1 text-xs font-semibold text-slate-500">
+              Used when SAR supplier costs need to be converted to GBP.
+            </p>
+            <label className="mt-3 block">
+              <span className="mb-1 block text-xs font-black uppercase text-slate-500">
+                1 SAR equals GBP
+              </span>
+              <input
+                value={sarToGbpRate}
+                inputMode="decimal"
+                onChange={(event) => setSarToGbpRate(event.target.value)}
+                className="min-h-10 w-full rounded-lg border border-slate-200 px-3 text-sm font-black outline-none focus:border-slate-900"
+                placeholder="0.00"
+              />
+            </label>
+          </section>
+
           <section className="rounded-lg border border-slate-200 bg-white p-4">
             <p className="text-sm font-black text-slate-950">Suppliers</p>
             <div className="mt-3 space-y-2">
@@ -1099,7 +1186,7 @@ function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProp
             </div>
           </section>
         </aside>
-      </div>
+      )}
     </div>
   )
 }
