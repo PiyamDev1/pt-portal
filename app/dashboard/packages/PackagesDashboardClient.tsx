@@ -120,12 +120,12 @@ function getPassengerLabel(quote: TravelPackageQuote) {
   const parts = [
     payload.adults ? `${payload.adults} adult${payload.adults === 1 ? '' : 's'}` : '',
     payload.childrenPaying
-      ? `${payload.childrenPaying} child${payload.childrenPaying === 1 ? '' : 'ren'} 5-12`
+      ? `${payload.childrenPaying} child${payload.childrenPaying === 1 ? '' : 'ren'} 5+`
       : '',
     payload.childrenFree
-      ? `${payload.childrenFree} child${payload.childrenFree === 1 ? '' : 'ren'} 2-4`
+      ? `${payload.childrenFree} child${payload.childrenFree === 1 ? '' : 'ren'} 2-5`
       : '',
-    payload.infants ? `${payload.infants} infant${payload.infants === 1 ? '' : 's'} 0-<2` : '',
+    payload.infants ? `${payload.infants} infant${payload.infants === 1 ? '' : 's'} under 2` : '',
   ].filter(Boolean)
   return parts.join(', ')
 }

@@ -584,12 +584,12 @@ function formatPassengerSummary(payload: PackageQuotePayload) {
   const parts = [
     payload.adults ? `${payload.adults} Adult${payload.adults === 1 ? '' : 's'}` : '',
     payload.childrenPaying
-      ? `${payload.childrenPaying} Child${payload.childrenPaying === 1 ? '' : 'ren'} 5-12`
+      ? `${payload.childrenPaying} Child${payload.childrenPaying === 1 ? '' : 'ren'} 5+`
       : '',
     payload.childrenFree
-      ? `${payload.childrenFree} Child${payload.childrenFree === 1 ? '' : 'ren'} 2-4`
+      ? `${payload.childrenFree} Child${payload.childrenFree === 1 ? '' : 'ren'} 2-5`
       : '',
-    payload.infants ? `${payload.infants} Infant${payload.infants === 1 ? '' : 's'} 0-<2` : '',
+    payload.infants ? `${payload.infants} Infant${payload.infants === 1 ? '' : 's'} under 2` : '',
   ].filter(Boolean)
 
   return parts.length > 0 ? parts.join(', ') : 'Passengers not set'
@@ -887,15 +887,13 @@ export function formatPackageCombinationForCopy(
   const breakdown = getPackagePassengerPriceBreakdown(payload, combination)
   lines.push(`Adult 12+: ${formatMoney(breakdown.adult, breakdown.currency)} p.p.`)
   if (payload.childrenPaying > 0) {
-    lines.push(`Child 5-12: ${formatMoney(breakdown.child, breakdown.currency)} p.p.`)
+    lines.push(`Child 5+: ${formatMoney(breakdown.child, breakdown.currency)} p.p.`)
   }
   if (payload.childrenFree > 0) {
-    lines.push(
-      `Child 2-4 (hotel-free): ${formatMoney(breakdown.childTwoToFour, breakdown.currency)} p.p.`,
-    )
+    lines.push(`Child 2-5: ${formatMoney(breakdown.childTwoToFour, breakdown.currency)} p.p.`)
   }
   if (payload.infants > 0) {
-    lines.push(`Infant 0-<2: ${formatMoney(breakdown.infant, breakdown.currency)} p.p.`)
+    lines.push(`Infant under 2: ${formatMoney(breakdown.infant, breakdown.currency)} p.p.`)
   }
   lines.push(`*Total Package Cost: ${formatMoney(combination.totalPrice, combination.currency)}*`)
 
@@ -967,18 +965,13 @@ export function formatPackageQuoteForCopy(payloadInput: unknown, limit = 12) {
       const breakdown = getPackagePassengerPriceBreakdown(payload, combination)
       lines.push(`Adult: ${formatMoney(breakdown.adult, breakdown.currency)} p.p.`)
       if (payload.childrenPaying > 0) {
-        lines.push(`Child 5-12: ${formatMoney(breakdown.child, breakdown.currency)} p.p.`)
+        lines.push(`Child 5+: ${formatMoney(breakdown.child, breakdown.currency)} p.p.`)
       }
       if (payload.childrenFree > 0) {
-        lines.push(
-          `Child 2-4 (hotel-free): ${formatMoney(
-            breakdown.childTwoToFour,
-            breakdown.currency,
-          )} p.p.`,
-        )
+        lines.push(`Child 2-5: ${formatMoney(breakdown.childTwoToFour, breakdown.currency)} p.p.`)
       }
       if (payload.infants > 0) {
-        lines.push(`Infant 0-<2: ${formatMoney(breakdown.infant, breakdown.currency)} p.p.`)
+        lines.push(`Infant under 2: ${formatMoney(breakdown.infant, breakdown.currency)} p.p.`)
       }
       lines.push(`Base total: ${formatMoney(combination.totalPrice, combination.currency)}`)
       if (payload.cardProcessingFeePercent > 0) {
@@ -1013,8 +1006,13 @@ export function resolvePackageSelection(
   const payload = normalizePackageQuotePayload(payloadInput)
   const payingGuests = getPayingGuestCount(payload)
   const servicePassengers = getServicePassengerCount(payload)
-  const paymentMethod = normalizePaymentMethod(input.paymentMethod)
   const paymentIntent = normalizePaymentIntent(input.paymentIntent)
+  const requestedPaymentMethod = normalizePaymentMethod(input.paymentMethod)
+  const paymentMethod = paymentIntent === 'full_payment' ? requestedPaymentMethod : 'bank_transfer'
+  const depositPaymentMethod =
+    paymentIntent === 'deposit_only'
+      ? normalizePaymentMethod(input.depositPaymentMethod || input.paymentMethod)
+      : null
 
   if (payingGuests <= 0) {
     throw new Error('At least one paying guest is required')
@@ -1089,7 +1087,7 @@ export function resolvePackageSelection(
       installmentRequested: Boolean(
         input.installmentRequested || paymentIntent === 'installment_request',
       ),
-      depositPaymentMethod: input.depositPaymentMethod === 'card' ? 'card' : null,
+      depositPaymentMethod,
       termsAccepted: Boolean(input.termsAccepted),
       customerName: asString(input.customerName),
       customerPhone: asString(input.customerPhone),

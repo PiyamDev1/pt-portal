@@ -15,7 +15,7 @@ import type {
 import {
   formatMoney,
   getDefaultPackageSelection,
-  getFlightOptionPassengerPrices,
+  getFlightOptionPriceDeltas,
   getFlightOptionTotalDelta,
   getPackagePassengerPriceBreakdown,
   getPackagePaymentBreakdownTotal,
@@ -107,6 +107,7 @@ function OptionButton({
   pricingMode,
   priceLabel,
   priceSubLabel,
+  priceSubLines,
   badges,
   currency,
   onClick,
@@ -118,6 +119,7 @@ function OptionButton({
   pricingMode?: PackageComponentOption['pricingMode']
   priceLabel?: string
   priceSubLabel?: string
+  priceSubLines?: string[]
   badges?: string[]
   currency: string
   onClick: () => void
@@ -153,9 +155,17 @@ function OptionButton({
           <p className="text-sm font-black text-slate-950">
             {priceLabel || formatMoney(price, currency)}
           </p>
-          <p className="text-[11px] font-bold text-slate-500">
-            {priceSubLabel || (pricingMode === 'per_person' ? 'per person' : 'total')}
-          </p>
+          {priceSubLines && priceSubLines.length > 0 ? (
+            <div className="mt-2 space-y-0.5 text-[11px] font-bold leading-4 text-slate-500">
+              {priceSubLines.map((line) => (
+                <p key={line}>{line}</p>
+              ))}
+            </div>
+          ) : (
+            <p className="text-[11px] font-bold text-slate-500">
+              {priceSubLabel || (pricingMode === 'per_person' ? 'per person' : 'total')}
+            </p>
+          )}
           {selected && <CheckCircle2 className="ml-auto mt-2 h-5 w-5 text-[#8b1e2d]" />}
         </div>
       </div>
@@ -177,6 +187,15 @@ const PAYMENT_BREAKDOWN_FIELDS: Array<{
   { key: 'card', label: 'Credit Card' },
 ]
 
+const DEPOSIT_PAYMENT_METHODS: Array<{
+  value: PackagePaymentMethod
+  label: string
+}> = [
+  { value: 'cash', label: 'Cash' },
+  { value: 'bank_transfer', label: 'Bank Transfer' },
+  { value: 'card', label: 'Credit Card' },
+]
+
 function getVisaQuantity(option: { quantity?: number }, payload: PackageQuotePayload) {
   return option.quantity && option.quantity > 0
     ? option.quantity
@@ -187,19 +206,25 @@ function getPreferredOption<T extends { isDefault?: boolean }>(options: T[]) {
   return options.find((option) => option.isDefault) || options[0] || null
 }
 
-function formatFlightPassengerPrices(
+function formatUnitDelta(value: number, currency: string) {
+  if (Math.abs(value) < 0.005) return 'Included'
+  return `${value > 0 ? '+' : '-'}${formatMoney(Math.abs(value), currency)} pp`
+}
+
+function formatFlightPassengerDeltas(
   payload: PackageQuotePayload,
   option: PackageComponentOption | null,
+  baseOption: PackageComponentOption | null,
 ) {
-  const prices = getFlightOptionPassengerPrices(payload, option)
-  const parts = [`Adult ${formatMoney(prices.adult, payload.currency)} pp`]
+  const deltas = getFlightOptionPriceDeltas(payload, option, baseOption)
+  const parts = [`Adult ${formatUnitDelta(deltas.adult, payload.currency)}`]
   if (payload.childrenPaying + payload.childrenFree > 0) {
-    parts.push(`Child 2-12 ${formatMoney(prices.child, payload.currency)} pp`)
+    parts.push(`Child 2-12 ${formatUnitDelta(deltas.child, payload.currency)}`)
   }
   if (payload.infants > 0) {
-    parts.push(`Infant 0-<2 ${formatMoney(prices.infant, payload.currency)} pp`)
+    parts.push(`Infant under 2 ${formatUnitDelta(deltas.infant, payload.currency)}`)
   }
-  return parts.join(' / ')
+  return parts
 }
 
 function pickMethodFromBreakdown(breakdown: PackagePaymentBreakdown): PackagePaymentMethod {
@@ -241,6 +266,8 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
   const [savedSelection, setSavedSelection] = useState<PackageResolvedSelection | null>(null)
   const [reviewingPayment, setReviewingPayment] = useState(false)
   const [paymentIntent, setPaymentIntent] = useState<PackagePaymentIntent>('full_payment')
+  const [depositPaymentMethod, setDepositPaymentMethod] =
+    useState<PackagePaymentMethod>('bank_transfer')
   const [termsAccepted, setTermsAccepted] = useState(false)
   const [promoCode, setPromoCode] = useState('')
 
@@ -266,6 +293,7 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
         setSavedSelection(data.quote.selected_option)
         setReviewingPayment(false)
         setPaymentIntent('full_payment')
+        setDepositPaymentMethod('bank_transfer')
         setTermsAccepted(false)
         setPromoCode('')
       } catch (loadError) {
@@ -362,12 +390,12 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
             paymentIntent === 'full_payment'
               ? pickMethodFromBreakdown(paymentBreakdown)
               : paymentIntent === 'deposit_only'
-                ? 'card'
+                ? depositPaymentMethod
                 : 'bank_transfer',
           paymentBreakdown: paymentIntent === 'full_payment' ? paymentBreakdown : null,
           paymentIntent,
           installmentRequested: paymentIntent === 'installment_request',
-          depositPaymentMethod: paymentIntent === 'deposit_only' ? 'card' : null,
+          depositPaymentMethod: paymentIntent === 'deposit_only' ? depositPaymentMethod : null,
           termsAccepted,
           ...customer,
           note: buildSelectionNote(customer.note, promoCode),
@@ -513,7 +541,7 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                   </div>
                   {payload.childrenPaying > 0 && (
                     <div className="flex items-center justify-between gap-3">
-                      <span className="font-bold text-slate-600">Child 5-12</span>
+                      <span className="font-bold text-slate-600">Child 5+</span>
                       <span className="font-black text-slate-950">
                         {formatMoney(priceBreakdown.child, priceBreakdown.currency)} each
                       </span>
@@ -521,7 +549,7 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                   )}
                   {payload.childrenFree > 0 && (
                     <div className="flex items-center justify-between gap-3">
-                      <span className="font-bold text-slate-600">Child 2-4 (hotel-free)</span>
+                      <span className="font-bold text-slate-600">Child 2-5</span>
                       <span className="font-black text-slate-950">
                         {formatMoney(priceBreakdown.childTwoToFour, priceBreakdown.currency)} each
                       </span>
@@ -529,7 +557,7 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                   )}
                   {payload.infants > 0 && (
                     <div className="flex items-center justify-between gap-3">
-                      <span className="font-bold text-slate-600">Infant 0-&lt;2</span>
+                      <span className="font-bold text-slate-600">Infant under 2</span>
                       <span className="font-black text-slate-950">
                         {formatMoney(priceBreakdown.infant, priceBreakdown.currency)} each
                       </span>
@@ -558,7 +586,7 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                   [
                     'deposit_only',
                     'Pay deposit only',
-                    'Credit Card only. Deposits are non-refundable.',
+                    'Choose one payment method for the full deposit amount.',
                   ],
                   [
                     'installment_request',
@@ -599,13 +627,22 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                   <div className="grid gap-2">
                     {PAYMENT_BREAKDOWN_FIELDS.map((field) => {
                       const value = paymentBreakdown?.[field.key] || ''
+                      const processingFeeAmount =
+                        field.key === 'card'
+                          ? (Number(value || 0) * payload.cardProcessingFeePercent) / 100
+                          : 0
                       return (
                         <label key={field.key} className="block">
-                          <span className="mb-1 block text-xs font-bold text-slate-500">
-                            {field.label}
-                            {field.key === 'card' && payload.cardProcessingFeePercent > 0
-                              ? ` +${payload.cardProcessingFeePercent}%`
-                              : ''}
+                          <span className="mb-1 flex items-center justify-between gap-3 text-xs font-bold text-slate-500">
+                            <span>{field.label}</span>
+                            {field.key === 'card' && payload.cardProcessingFeePercent > 0 ? (
+                              <span className="text-blue-700">
+                                Processing fee{' '}
+                                {processingFeeAmount > 0
+                                  ? `+${formatMoney(processingFeeAmount, payload.currency)}`
+                                  : `+${payload.cardProcessingFeePercent}%`}
+                              </span>
+                            ) : null}
                           </span>
                           <div className="flex min-h-10 items-center rounded-lg border border-slate-200 bg-white px-3">
                             <span className="mr-2 text-sm font-black text-slate-500">GBP</span>
@@ -660,23 +697,54 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
 
               {paymentIntent === 'deposit_only' && (
                 <div className="mt-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
-                  <p className="font-black">
-                    Deposit due: {formatMoney(payload.depositAmount || 0, payload.currency)}
-                  </p>
+                  <p className="font-black">Deposit payment method</p>
                   <p className="mt-1 text-xs font-bold">
-                    Deposits are non-refundable and can only be paid using one payment method.
+                    Choose one payment method for the full deposit amount. Deposits are
+                    non-refundable and cannot be split across multiple payment methods.
                   </p>
-                  <button
-                    type="button"
-                    className="mt-3 inline-flex min-h-10 items-center justify-center rounded-lg bg-[#8b1e2d] px-4 text-sm font-black text-white"
-                    onClick={() =>
-                      setError(
-                        'Credit Card Pay Now will be available once Revolut is integrated. Your request can still be sent for agent review.',
-                      )
-                    }
-                  >
-                    Pay now by Credit Card
-                  </button>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                    {DEPOSIT_PAYMENT_METHODS.map((method) => (
+                      <button
+                        key={method.value}
+                        type="button"
+                        onClick={() => setDepositPaymentMethod(method.value)}
+                        className={`min-h-10 rounded-lg border px-3 text-sm font-black transition ${
+                          depositPaymentMethod === method.value
+                            ? 'border-[#8b1e2d] bg-white text-[#8b1e2d]'
+                            : 'border-amber-200 bg-white/70 text-amber-950 hover:bg-white'
+                        }`}
+                      >
+                        {method.label}
+                      </button>
+                    ))}
+                  </div>
+                  <label className="mt-3 block">
+                    <span className="mb-1 flex items-center justify-between gap-3 text-xs font-bold text-amber-900">
+                      <span>Deposit amount payable</span>
+                      {depositPaymentMethod === 'card' && payload.cardProcessingFeePercent > 0 ? (
+                        <span className="text-blue-700">
+                          Processing fee +
+                          {formatMoney(
+                            ((payload.depositAmount || 0) * payload.cardProcessingFeePercent) / 100,
+                            payload.currency,
+                          )}
+                        </span>
+                      ) : null}
+                    </span>
+                    <div className="flex min-h-10 items-center rounded-lg border border-amber-200 bg-white px-3">
+                      <span className="mr-2 text-sm font-black text-slate-500">GBP</span>
+                      <input
+                        readOnly
+                        value={(payload.depositAmount || 0).toFixed(2)}
+                        className="w-full bg-transparent text-sm font-bold outline-none"
+                      />
+                    </div>
+                  </label>
+                  {depositPaymentMethod === 'card' && payload.cardProcessingFeePercent > 0 && (
+                    <p className="mt-2 text-xs font-bold text-blue-700">
+                      Credit Card processing fees are non-refundable.
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -763,7 +831,7 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                         summary={option.summary}
                         price={option.price}
                         priceLabel={formatDelta(delta, payload.currency)}
-                        priceSubLabel={formatFlightPassengerPrices(payload, option)}
+                        priceSubLines={formatFlightPassengerDeltas(payload, option, defaultFlight)}
                         pricingMode={option.pricingMode}
                         currency={payload.currency}
                         onClick={() =>
@@ -1004,7 +1072,7 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                       </div>
                       {payload.childrenPaying > 0 && (
                         <div className="flex items-center justify-between gap-3">
-                          <span className="font-bold text-slate-600">Child 5-12</span>
+                          <span className="font-bold text-slate-600">Child 5+</span>
                           <span className="font-black text-slate-950">
                             {formatMoney(priceBreakdown.child, priceBreakdown.currency)} each
                           </span>
@@ -1012,7 +1080,7 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                       )}
                       {payload.childrenFree > 0 && (
                         <div className="flex items-center justify-between gap-3">
-                          <span className="font-bold text-slate-600">Child 2-4 (hotel-free)</span>
+                          <span className="font-bold text-slate-600">Child 2-5</span>
                           <span className="font-black text-slate-950">
                             {formatMoney(priceBreakdown.childTwoToFour, priceBreakdown.currency)}{' '}
                             each
@@ -1021,7 +1089,7 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                       )}
                       {payload.infants > 0 && (
                         <div className="flex items-center justify-between gap-3">
-                          <span className="font-bold text-slate-600">Infant 0-&lt;2</span>
+                          <span className="font-bold text-slate-600">Infant under 2</span>
                           <span className="font-black text-slate-950">
                             {formatMoney(priceBreakdown.infant, priceBreakdown.currency)} each
                           </span>

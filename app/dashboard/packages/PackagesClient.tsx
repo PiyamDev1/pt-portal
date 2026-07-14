@@ -332,7 +332,7 @@ function OptionEditor({
           {[
             ['Adult 12+', 'adultPrice'],
             ['Child 2-12', 'childPrice'],
-            ['Infant 0-<2', 'infantPrice'],
+            ['Infant under 2', 'infantPrice'],
           ].map(([label, key]) => (
             <label key={key} className="block">
               <span className="block text-xs font-bold text-slate-500">{label}</span>
@@ -828,9 +828,9 @@ export default function PackagesClient({
             <div className="mt-3 grid gap-3 md:grid-cols-5">
               {[
                 ['Adults 12+', 'adults'],
-                ['Children 5-12', 'childrenPaying'],
-                ['Children 2-4 (hotel-free)', 'childrenFree'],
-                ['Infants 0-<2 (hotel-free)', 'infants'],
+                ['Children 5+', 'childrenPaying'],
+                ['Children 2-5', 'childrenFree'],
+                ['Infants under 2', 'infants'],
               ].map(([label, key]) => (
                 <label key={key} className="block">
                   <span className="mb-1 block text-xs font-bold text-slate-500">{label}</span>

@@ -23,7 +23,7 @@ import type {
 import {
   formatMoney,
   getDefaultPackageSelection,
-  getFlightOptionPassengerPrices,
+  getFlightOptionPriceDeltas,
   getFlightOptionTotalDelta,
   getPackagePassengerPriceBreakdown,
   getPackagePaymentBreakdownTotal,
@@ -101,6 +101,7 @@ function OptionButton({
   pricingMode,
   priceLabel,
   priceSubLabel,
+  priceSubLines,
   badges,
   currency,
   onClick,
@@ -112,6 +113,7 @@ function OptionButton({
   pricingMode?: 'total' | 'per_person'
   priceLabel?: string
   priceSubLabel?: string
+  priceSubLines?: string[]
   badges?: string[]
   currency: string
   onClick: () => void
@@ -147,9 +149,17 @@ function OptionButton({
           <p className="text-sm font-black text-slate-950">
             {priceLabel || formatMoney(price, currency)}
           </p>
-          <p className="text-[11px] font-bold text-slate-500">
-            {priceSubLabel || (pricingMode === 'per_person' ? 'per person' : 'total')}
-          </p>
+          {priceSubLines && priceSubLines.length > 0 ? (
+            <div className="mt-2 space-y-0.5 text-[11px] font-bold leading-4 text-slate-500">
+              {priceSubLines.map((line) => (
+                <p key={line}>{line}</p>
+              ))}
+            </div>
+          ) : (
+            <p className="text-[11px] font-bold text-slate-500">
+              {priceSubLabel || (pricingMode === 'per_person' ? 'per person' : 'total')}
+            </p>
+          )}
           {selected && <CheckCircle2 className="ml-auto mt-2 h-5 w-5 text-[#8b1e2d]" />}
         </div>
       </div>
@@ -181,19 +191,25 @@ function formatDelta(value: number, currency: string) {
   return `${value > 0 ? '+' : '-'}${formatMoney(Math.abs(value), currency)} total`
 }
 
-function formatFlightPassengerPrices(
+function formatUnitDelta(value: number, currency: string) {
+  if (Math.abs(value) < 0.005) return 'Included'
+  return `${value > 0 ? '+' : '-'}${formatMoney(Math.abs(value), currency)} pp`
+}
+
+function formatFlightPassengerDeltas(
   payload: PackageQuotePayload,
-  option: Parameters<typeof getFlightOptionPassengerPrices>[1],
+  option: Parameters<typeof getFlightOptionPriceDeltas>[1],
+  baseOption: Parameters<typeof getFlightOptionPriceDeltas>[2],
 ) {
-  const prices = getFlightOptionPassengerPrices(payload, option)
-  const parts = [`Adult ${formatMoney(prices.adult, payload.currency)} pp`]
+  const deltas = getFlightOptionPriceDeltas(payload, option, baseOption)
+  const parts = [`Adult ${formatUnitDelta(deltas.adult, payload.currency)}`]
   if (payload.childrenPaying + payload.childrenFree > 0) {
-    parts.push(`Child 2-12 ${formatMoney(prices.child, payload.currency)} pp`)
+    parts.push(`Child 2-12 ${formatUnitDelta(deltas.child, payload.currency)}`)
   }
   if (payload.infants > 0) {
-    parts.push(`Infant 0-<2 ${formatMoney(prices.infant, payload.currency)} pp`)
+    parts.push(`Infant under 2 ${formatUnitDelta(deltas.infant, payload.currency)}`)
   }
-  return parts.join(' / ')
+  return parts
 }
 
 function pickMethodFromBreakdown(breakdown: PackagePaymentBreakdown): PackagePaymentMethod {
@@ -439,7 +455,7 @@ export default function PackageSalesModeClient({ quoteId }: PackageSalesModeClie
                       summary={option.summary}
                       price={option.price}
                       priceLabel={formatDelta(delta, payload.currency)}
-                      priceSubLabel={formatFlightPassengerPrices(payload, option)}
+                      priceSubLines={formatFlightPassengerDeltas(payload, option, defaultFlight)}
                       pricingMode={option.pricingMode}
                       currency={payload.currency}
                       onClick={() =>
@@ -615,7 +631,7 @@ export default function PackageSalesModeClient({ quoteId }: PackageSalesModeClie
                       {payload.childrenPaying > 0 && (
                         <div className="flex items-center justify-between gap-3">
                           <span className="font-bold text-slate-600">
-                            Child 5-12 x {payload.childrenPaying}
+                            Child 5+ x {payload.childrenPaying}
                           </span>
                           <span className="text-right font-black text-slate-950">
                             {formatMoney(priceBreakdown.child, priceBreakdown.currency)} pp
@@ -628,7 +644,7 @@ export default function PackageSalesModeClient({ quoteId }: PackageSalesModeClie
                       {payload.childrenFree > 0 && (
                         <div className="flex items-center justify-between gap-3">
                           <span className="font-bold text-slate-600">
-                            Child 2-4 hotel-free x {payload.childrenFree}
+                            Child 2-5 x {payload.childrenFree}
                           </span>
                           <span className="text-right font-black text-slate-950">
                             {formatMoney(priceBreakdown.childTwoToFour, priceBreakdown.currency)} pp
@@ -644,7 +660,7 @@ export default function PackageSalesModeClient({ quoteId }: PackageSalesModeClie
                       {payload.infants > 0 && (
                         <div className="flex items-center justify-between gap-3">
                           <span className="font-bold text-slate-600">
-                            Infant 0-&lt;2 x {payload.infants}
+                            Infant under 2 x {payload.infants}
                           </span>
                           <span className="text-right font-black text-slate-950">
                             {formatMoney(priceBreakdown.infant, priceBreakdown.currency)} pp

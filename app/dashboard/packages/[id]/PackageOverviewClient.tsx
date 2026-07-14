@@ -1880,10 +1880,10 @@ The Piyam Travel Team`
                       <p className="mt-1 text-xs text-slate-500">
                         {passengerSummary?.adults ?? selectedPayload?.adults ?? 0} adults ·{' '}
                         {passengerSummary?.childrenPaying ?? selectedPayload?.childrenPaying ?? 0}{' '}
-                        children 5-12 ·{' '}
+                        children 5+ ·{' '}
                         {passengerSummary?.childrenFree ?? selectedPayload?.childrenFree ?? 0}{' '}
-                        children 2-4 · {passengerSummary?.infants ?? selectedPayload?.infants ?? 0}{' '}
-                        infants 0- &lt;2
+                        children 2-5 · {passengerSummary?.infants ?? selectedPayload?.infants ?? 0}{' '}
+                        infants under 2
                       </p>
                     </div>
                     <div>
@@ -3224,15 +3224,15 @@ The Piyam Travel Team`
                   Adults: <span className="font-black">{passengerSummary?.adults ?? 0}</span>
                 </p>
                 <p>
-                  Children 5-12:{' '}
+                  Children 5+:{' '}
                   <span className="font-black">{passengerSummary?.childrenPaying ?? 0}</span>
                 </p>
                 <p>
-                  Children 2-4 hotel-free:{' '}
+                  Children 2-5:{' '}
                   <span className="font-black">{passengerSummary?.childrenFree ?? 0}</span>
                 </p>
                 <p>
-                  Infants 0-&lt;2 hotel-free:{' '}
+                  Infants under 2:{' '}
                   <span className="font-black">{passengerSummary?.infants ?? 0}</span>
                 </p>
                 <p className="border-t border-slate-100 pt-2 text-xs font-bold text-slate-500">
@@ -3384,10 +3384,10 @@ The Piyam Travel Team`
                   <p className="mt-1 text-xs text-slate-500">
                     {passengerSummary?.adults ?? selectedPayload?.adults ?? 0} adults ·{' '}
                     {passengerSummary?.childrenPaying ?? selectedPayload?.childrenPaying ?? 0}{' '}
-                    children 5-12 ·{' '}
+                    children 5+ ·{' '}
                     {passengerSummary?.childrenFree ?? selectedPayload?.childrenFree ?? 0} children
-                    2-4 · {passengerSummary?.infants ?? selectedPayload?.infants ?? 0} infants
-                    0-&lt;2
+                    2-5 · {passengerSummary?.infants ?? selectedPayload?.infants ?? 0} infants under
+                    2
                   </p>
                 </div>
                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">

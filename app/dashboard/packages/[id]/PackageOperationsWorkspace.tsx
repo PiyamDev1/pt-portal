@@ -1057,7 +1057,7 @@ export default function PackageOperationsWorkspace({
                   >
                     <option value="adult">Adult</option>
                     <option value="child">Child</option>
-                    <option value="infant">Infant 0-&lt;2</option>
+                    <option value="infant">Infant under 2</option>
                   </select>
                 </label>
                 <button

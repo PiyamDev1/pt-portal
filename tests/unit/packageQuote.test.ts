@@ -373,4 +373,25 @@ describe('package quote calculator', () => {
     expect(cardSelection.combination.paymentSurchargeTotal).toBe(49.5)
     expect(cardSelection.combination.totalPrice).toBe(2029.5)
   })
+
+  it('keeps deposit-only payment method separate from full package surcharge', () => {
+    const depositSelection = resolvePackageSelection(
+      {
+        ...payload,
+        depositRequired: true,
+        depositAmount: 2000,
+      },
+      {
+        ...getDefaultPackageSelection(payload),
+        paymentIntent: 'deposit_only',
+        paymentMethod: 'card',
+        depositPaymentMethod: 'card',
+      },
+    )
+
+    expect(depositSelection.selection.depositPaymentMethod).toBe('card')
+    expect(depositSelection.combination.paymentMethod).toBe('bank_transfer')
+    expect(depositSelection.combination.paymentSurchargeTotal).toBe(0)
+    expect(depositSelection.combination.totalPrice).toBe(1980)
+  })
 })

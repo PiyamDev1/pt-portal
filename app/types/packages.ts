@@ -232,7 +232,7 @@ export interface PackageSelectionInput {
   paymentBreakdown?: Partial<PackagePaymentBreakdown> | null
   paymentIntent?: PackagePaymentIntent | null
   installmentRequested?: boolean
-  depositPaymentMethod?: 'card' | null
+  depositPaymentMethod?: PackagePaymentMethod | null
   termsAccepted?: boolean
   customerName?: string
   customerPhone?: string
