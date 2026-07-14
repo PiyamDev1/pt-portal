@@ -5,6 +5,7 @@ import {
   formatPackageQuoteForCopy,
   formatPackageCombinationForCopy,
   getDefaultPackageSelection,
+  getPackageDepositPaymentSummary,
   getPackagePassengerPriceBreakdown,
   getDefaultPackageExpiry,
   isPackageQuoteExpired,
@@ -393,5 +394,27 @@ describe('package quote calculator', () => {
     expect(depositSelection.combination.paymentMethod).toBe('bank_transfer')
     expect(depositSelection.combination.paymentSurchargeTotal).toBe(0)
     expect(depositSelection.combination.totalPrice).toBe(1980)
+  })
+
+  it('adds the configured Credit Card fee to deposit-only payable totals', () => {
+    const depositPayload = {
+      ...payload,
+      cardProcessingFeePercent: 3,
+      depositRequired: true,
+      depositAmount: 1000,
+    }
+
+    const cardDeposit = getPackageDepositPaymentSummary(depositPayload, 'card')
+    const bankDeposit = getPackageDepositPaymentSummary(depositPayload, 'bank_transfer')
+
+    expect(cardDeposit.depositAmount).toBe(1000)
+    expect(cardDeposit.processingFee).toBe(30)
+    expect(cardDeposit.total).toBe(1030)
+    expect(bankDeposit.processingFee).toBe(0)
+    expect(bankDeposit.total).toBe(1000)
+  })
+
+  it('defaults new package quotes to a 3 percent Credit Card processing fee', () => {
+    expect(normalizePackageQuotePayload({}).cardProcessingFeePercent).toBe(3)
   })
 })

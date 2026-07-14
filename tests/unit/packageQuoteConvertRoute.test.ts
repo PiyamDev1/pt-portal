@@ -80,6 +80,7 @@ const mocks = vi.hoisted(() => {
   const taskInsert = vi.fn()
   const communicationInsert = vi.fn()
   const versionInsert = vi.fn()
+  const paymentInsert = vi.fn()
 
   const from = vi.fn((table: string) => {
     if (table === 'travel_package_quotes') {
@@ -91,6 +92,7 @@ const mocks = vi.hoisted(() => {
     if (table === 'travel_package_tasks') return { insert: taskInsert }
     if (table === 'travel_package_communications') return { insert: communicationInsert }
     if (table === 'travel_package_versions') return { insert: versionInsert }
+    if (table === 'travel_package_payments') return { insert: paymentInsert }
     return {}
   })
 
@@ -115,6 +117,7 @@ const mocks = vi.hoisted(() => {
     taskInsert,
     communicationInsert,
     versionInsert,
+    paymentInsert,
     from,
     getRouteSupabaseClient,
   }
@@ -154,6 +157,7 @@ describe('POST /api/packages/[id]/convert', () => {
     mocks.taskInsert.mockResolvedValue({ error: null })
     mocks.communicationInsert.mockResolvedValue({ error: null })
     mocks.versionInsert.mockResolvedValue({ error: null })
+    mocks.paymentInsert.mockResolvedValue({ error: null })
     mocks.quoteUpdateEq.mockResolvedValue({ error: null })
   })
 
@@ -202,5 +206,46 @@ describe('POST /api/packages/[id]/convert', () => {
     expect(mocks.quoteUpdate).toHaveBeenCalledWith(
       expect.objectContaining({ converted_package_id: 'package-1' }),
     )
+  })
+
+  it('creates a card deposit payment for the deposit plus processing fee', async () => {
+    const depositPayload: PackageQuotePayload = {
+      ...payload,
+      cardProcessingFeePercent: 3,
+      depositRequired: true,
+      depositAmount: 1000,
+    }
+    const depositQuote: TravelPackageQuote = {
+      ...quote,
+      payload: depositPayload,
+      selected_option: resolvePackageSelection(depositPayload, {
+        stayOptionIds: { makkah: 'hotel-a' },
+        paymentIntent: 'deposit_only',
+        depositPaymentMethod: 'card',
+        customerName: 'A Khan',
+      }),
+    }
+    mocks.quoteSingle.mockResolvedValueOnce({ data: depositQuote, error: null })
+
+    const response = await POST(
+      new Request('http://localhost/api/packages/quote-1/convert') as never,
+      {
+        params: Promise.resolve({ id: 'quote-1' }),
+      },
+    )
+
+    expect(response.status).toBe(201)
+    expect(mocks.paymentInsert).toHaveBeenCalledWith([
+      expect.objectContaining({
+        amount: 1030,
+        payment_type: 'deposit',
+        payment_method: 'card',
+        metadata: expect.objectContaining({
+          baseDepositAmount: 1000,
+          processingFeeTotal: 30,
+          processingFeePercent: 3,
+        }),
+      }),
+    ])
   })
 })

@@ -34,6 +34,7 @@ import type {
 } from '@/app/types/packages'
 import {
   buildCustomerPackageOptions,
+  DEFAULT_CARD_PROCESSING_FEE_PERCENT,
   formatPackageQuoteForCopy,
   formatMoney,
   getDefaultPackageExpiry,
@@ -145,7 +146,7 @@ function createInitialPayload(): PackageQuotePayload {
     visaOptions: [newOption('visa')],
     transportOptions: [newOption('transport', { isDefault: true })],
     limitedTimeOffers: [],
-    cardProcessingFeePercent: 2.5,
+    cardProcessingFeePercent: DEFAULT_CARD_PROCESSING_FEE_PERCENT,
     depositRequired: false,
     depositAmount: 0,
     notes: '',

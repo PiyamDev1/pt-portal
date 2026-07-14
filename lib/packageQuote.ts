@@ -28,6 +28,7 @@ const VALID_PAYMENT_INTENTS = new Set<PackagePaymentIntent>([
 
 export const DEFAULT_PACKAGE_CURRENCY = 'GBP'
 export const DEFAULT_PACKAGE_EXPIRY_HOURS = 72
+export const DEFAULT_CARD_PROCESSING_FEE_PERCENT = 3
 
 export function getDefaultPackageExpiry(hours = DEFAULT_PACKAGE_EXPIRY_HOURS) {
   const nowToSecond = Math.floor(Date.now() / 1000) * 1000
@@ -274,7 +275,10 @@ export function normalizePackageQuotePayload(input: unknown): PackageQuotePayloa
     visaOptions: normalizeOptions(candidate.visaOptions, 'visa', 'per_person'),
     transportOptions,
     limitedTimeOffers: normalizeOffers(candidate.limitedTimeOffers),
-    cardProcessingFeePercent: asNumber(candidate.cardProcessingFeePercent),
+    cardProcessingFeePercent: asNumber(
+      candidate.cardProcessingFeePercent,
+      DEFAULT_CARD_PROCESSING_FEE_PERCENT,
+    ),
     depositRequired: asBoolean(candidate.depositRequired),
     depositAmount: asNumber(candidate.depositAmount),
     notes: asText(candidate.notes),
@@ -446,6 +450,26 @@ function getPaymentSurchargeFromBreakdown(
 ) {
   if (payload.cardProcessingFeePercent <= 0 || breakdown.card <= 0) return 0
   return roundMoney((breakdown.card * payload.cardProcessingFeePercent) / 100)
+}
+
+export function getPackageCardProcessingFeeTotal(amount: number, payload: PackageQuotePayload) {
+  if (amount <= 0 || payload.cardProcessingFeePercent <= 0) return 0
+  return roundMoney((amount * payload.cardProcessingFeePercent) / 100)
+}
+
+export function getPackageDepositPaymentSummary(
+  payload: PackageQuotePayload,
+  method: PackagePaymentMethod,
+) {
+  const depositAmount = roundMoney(payload.depositAmount || 0)
+  const processingFee =
+    method === 'card' ? getPackageCardProcessingFeeTotal(depositAmount, payload) : 0
+  return {
+    depositAmount,
+    processingFee,
+    total: roundMoney(depositAmount + processingFee),
+    currency: payload.currency,
+  }
 }
 
 export function isLimitedTimeOfferActive(offer: PackageLimitedTimeOffer, now = Date.now()) {
