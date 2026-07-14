@@ -38,6 +38,7 @@ function ServicePricingTabCore({
   const [activeSection, setActiveSection] = useState<PricingSection>('nadra')
   const [activePanel, setActivePanel] = useState<PricingPanel>('pricing')
   const [loading, setLoadingState] = useState(initialLoading)
+  const useFullWidthPricing = activeSection === 'umrah_transport'
   const {
     nadraPricing,
     pkPassPricing,
@@ -258,7 +259,7 @@ function ServicePricingTabCore({
   }
 
   return (
-    <div className="p-6">
+    <div className={useFullWidthPricing ? 'p-3 lg:p-4' : 'p-6'}>
       <div className="mb-6">
         <h2 className="text-2xl font-bold mb-4">Service Pricing Management</h2>
         <p className="text-gray-600 mb-4">
@@ -266,17 +267,23 @@ function ServicePricingTabCore({
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[240px_1fr] gap-6">
+      <div
+        className={`grid grid-cols-1 gap-6 ${
+          useFullWidthPricing ? '' : 'lg:grid-cols-[240px_1fr]'
+        }`}
+      >
         <aside className="h-fit rounded-lg border bg-white p-3 shadow-sm">
-          <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">
+          <div className="mb-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">
             Sections
           </div>
-          <nav className="space-y-1">
+          <nav className={useFullWidthPricing ? 'flex flex-wrap gap-2' : 'space-y-1'}>
             {(Object.keys(SECTION_LABELS) as PricingSection[]).map((section) => (
               <button
                 key={section}
                 onClick={() => handleSectionChange(section)}
-                className={`w-full text-left px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                className={`rounded-md px-3 py-2 text-left text-sm font-medium transition-colors ${
+                  useFullWidthPricing ? 'w-auto' : 'w-full'
+                } ${
                   activeSection === section
                     ? 'bg-slate-900 text-white'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
@@ -288,7 +295,7 @@ function ServicePricingTabCore({
           </nav>
         </aside>
 
-        <section className="space-y-4">
+        <section className="min-w-0 space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h3 className="text-lg font-semibold text-slate-900">

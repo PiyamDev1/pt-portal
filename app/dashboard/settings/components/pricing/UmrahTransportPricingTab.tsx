@@ -7,7 +7,7 @@
 
 'use client'
 
-import { memo, useCallback, useEffect, useMemo, useState } from 'react'
+import { Fragment, memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { AlertCircle, CheckCircle2, Plus, RefreshCw, Save } from 'lucide-react'
 import { toast } from 'sonner'
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -49,6 +49,15 @@ const GUIDE_SERVICES = [
   { key: 'umrah', label: 'Umrah' },
   { key: 'madinah', label: 'Madinah' },
   { key: 'makkah', label: 'Makkah' },
+] as const
+
+const SUPPLIER_DIVIDER_CLASSES = [
+  'bg-red-900',
+  'bg-emerald-600',
+  'bg-amber-500',
+  'bg-sky-600',
+  'bg-purple-600',
+  'bg-slate-500',
 ] as const
 
 function isSchemaError(error: unknown) {
@@ -263,6 +272,21 @@ function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProp
     })
     return result
   }, [planSegments])
+
+  const routeUsageCountById = useMemo(() => {
+    const result = new Map<string, number>()
+    activeRoutePlans.forEach((plan) => {
+      const segments = segmentsByPlanId.get(plan.id) || []
+      segments.forEach((segment) => {
+        result.set(segment.route_id, (result.get(segment.route_id) || 0) + 1)
+      })
+    })
+    return result
+  }, [activeRoutePlans, segmentsByPlanId])
+
+  const linkedRouteCount = useMemo(() => {
+    return Array.from(routeUsageCountById.values()).filter((usageCount) => usageCount > 1).length
+  }, [routeUsageCountById])
 
   const makkahZiyaratRoute = useMemo(() => {
     return (
@@ -575,8 +599,8 @@ function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProp
     const key = routeId ? rateKey(routeId, supplierId, vehicleTypeId) : ''
     const value = key ? rateDrafts[key] || '' : ''
     return (
-      <div className="flex min-h-9 items-center gap-1">
-        <span className="w-9 text-[11px] font-black text-slate-500">
+      <div className="flex min-h-8 items-center gap-0.5">
+        <span className="w-7 text-[10px] font-black text-slate-500">
           {getSupplierCurrency(supplierId)}
         </span>
         <input
@@ -586,7 +610,7 @@ function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProp
             updateRateDraft(routeId, supplierId, vehicleTypeId, event.target.value)
           }
           disabled={disabled || !routeId}
-          className="h-8 w-20 rounded-none border-0 bg-transparent px-1 text-right text-xs font-semibold text-slate-950 outline-none focus:bg-white focus:ring-2 focus:ring-red-900/30 disabled:text-slate-300"
+          className="h-7 w-14 rounded-none border-0 bg-transparent px-1 text-right text-[11px] font-semibold text-slate-950 outline-none focus:bg-white focus:ring-2 focus:ring-red-900/30 disabled:text-slate-300"
           placeholder="-"
         />
       </div>
@@ -627,7 +651,8 @@ function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProp
             <p className="mt-1 max-w-4xl text-sm text-slate-600">
               Enter supplier costs in route blocks. Totals are calculated per supplier and vehicle,
               cheapest totals are highlighted, and the fixed supplier per route is used later for
-              package transport net costs.
+              package transport net costs. Repeated A-to-B destinations are linked, so editing one
+              route cost updates every matching route-plan cell.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -653,7 +678,7 @@ function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProp
         </div>
       </div>
 
-      <div className="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_22rem]">
+      <div className="space-y-4">
         <div className="space-y-5">
           {activeRoutePlans.length === 0 ? (
             <div className="rounded-lg border border-slate-200 bg-white p-6 text-sm font-semibold text-slate-500">
@@ -707,66 +732,78 @@ function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProp
                     />
                   </div>
 
-                  <div className="overflow-x-auto">
-                    <table className="w-full min-w-[1180px] border-collapse text-xs">
+                  <div className="overflow-x-auto 2xl:overflow-x-visible">
+                    <table className="w-full min-w-[1080px] table-fixed border-collapse text-[11px] 2xl:min-w-0">
                       <thead>
                         <tr>
                           <th
                             colSpan={3}
-                            className="border-r border-slate-300 bg-white px-2 py-1 text-left font-semibold text-slate-500"
+                            className="border-r border-slate-300 bg-white px-1 py-1 text-left font-semibold text-slate-500"
                           />
                           <th
                             colSpan={segments.length + 1}
-                            className="border-r border-slate-400 bg-white px-2 py-1 text-center font-semibold text-slate-900"
+                            className="border-r border-slate-400 bg-white px-1 py-1 text-center font-semibold text-slate-900"
                           >
                             Transportation route / cost
                           </th>
                           <th
                             colSpan={2}
-                            className="border-r border-slate-400 bg-white px-2 py-1 text-center font-semibold text-slate-900"
+                            className="border-r border-slate-400 bg-white px-1 py-1 text-center font-semibold text-slate-900"
                           >
                             Ziyarat by Transport company
                           </th>
                           <th
                             colSpan={3}
-                            className="bg-white px-2 py-1 text-center font-semibold text-slate-900"
+                            className="bg-white px-1 py-1 text-center font-semibold text-slate-900"
                           >
                             Molana guide Cost
                           </th>
                         </tr>
                         <tr className="border-b border-slate-300 align-bottom">
-                          <th className="w-28 border-r border-slate-200 px-2 py-2 text-left font-semibold text-slate-900">
+                          <th className="w-20 border-r border-slate-200 px-1 py-2 text-left font-semibold text-slate-900">
                             Suppliers
                           </th>
-                          <th className="w-20 border-r border-slate-200 px-2 py-2 text-left font-semibold text-slate-900">
+                          <th className="w-14 border-r border-slate-200 px-1 py-2 text-left font-semibold text-slate-900">
                             Vehicle
                           </th>
-                          <th className="w-36 border-r border-slate-300 px-2 py-2 text-left font-semibold text-slate-900">
+                          <th className="w-28 border-r border-slate-300 px-1 py-2 text-left font-semibold text-slate-900">
                             PAX
                           </th>
                           {segments.map((segment) => (
-                            <th
-                              key={segment.id}
-                              className="min-w-32 border-r border-slate-200 px-2 py-2 text-left font-black text-slate-950"
-                            >
-                              {segment.segment_label ||
-                                routeById.get(segment.route_id)?.route_name ||
-                                'Route segment'}
-                            </th>
+                            (() => {
+                              const usageCount = routeUsageCountById.get(segment.route_id) || 0
+                              return (
+                                <th
+                                  key={segment.id}
+                                  className="w-24 border-r border-slate-200 px-1 py-2 text-left font-black leading-4 text-slate-950"
+                                >
+                                  <div>
+                                    {segment.segment_label ||
+                                      routeById.get(segment.route_id)?.route_name ||
+                                      'Route segment'}
+                                  </div>
+                                  {usageCount > 1 && (
+                                    <span className="mt-1 inline-flex rounded-sm bg-slate-100 px-1 py-0.5 text-[9px] font-black uppercase text-slate-500">
+                                      linked x{usageCount}
+                                    </span>
+                                  )}
+                                </th>
+                              )
+                            })()
                           ))}
-                          <th className="min-w-32 border-r border-slate-400 px-2 py-2 text-left font-black text-slate-950">
+                          <th className="w-28 border-r border-slate-400 px-1 py-2 text-left font-black text-slate-950">
                             Total per route
                           </th>
-                          <th className="min-w-28 border-r border-slate-200 px-2 py-2 text-left font-black text-slate-950">
+                          <th className="w-24 border-r border-slate-200 px-1 py-2 text-left font-black text-slate-950">
                             Makkah
                           </th>
-                          <th className="min-w-28 border-r border-slate-400 px-2 py-2 text-left font-black text-slate-950">
+                          <th className="w-24 border-r border-slate-400 px-1 py-2 text-left font-black text-slate-950">
                             Madinah
                           </th>
                           {GUIDE_SERVICES.map((service) => (
                             <th
                               key={service.key}
-                              className="min-w-24 border-r border-slate-200 px-2 py-2 text-left font-semibold text-slate-900 last:border-r-0"
+                              className="w-20 border-r border-slate-200 px-1 py-2 text-left font-semibold text-slate-900 last:border-r-0"
                             >
                               {service.label}
                             </th>
@@ -784,130 +821,144 @@ function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProp
                             </td>
                           </tr>
                         ) : (
-                          activeSuppliers.map((supplier) => {
+                          activeSuppliers.map((supplier, supplierIndex) => {
                             const supplierName = supplierDrafts[supplier.id]?.name || supplier.name
                             const supplierIsFixed = fixedSupplierId === supplier.id
-                            return activeVehicleTypes.map((vehicleType, vehicleIndex) => {
-                              const vehicleDraft = vehicleDrafts[vehicleType.id]
-                              const total = getRouteTotal(segments, supplier.id, vehicleType.id)
-                              const cheapestTotal =
-                                cheapestTotalByPlanVehicle.get(`${plan.id}:${vehicleType.id}`) || 0
-                              const isCheapestTotal = total > 0 && total === cheapestTotal
-                              return (
-                                <tr
-                                  key={`${supplier.id}:${vehicleType.id}`}
-                                  className={`border-b border-slate-100 ${
-                                    supplierIsFixed ? 'bg-red-50/40' : ''
-                                  }`}
-                                >
-                                  {vehicleIndex === 0 && (
-                                    <td
-                                      rowSpan={activeVehicleTypes.length}
-                                      className={`border-r border-slate-200 px-2 py-2 text-center align-middle text-sm font-semibold text-slate-950 ${
-                                        supplierIsFixed
-                                          ? 'shadow-[inset_4px_0_0_0_#8b1e2d]'
-                                          : ''
+                            const dividerClass =
+                              SUPPLIER_DIVIDER_CLASSES[
+                                supplierIndex % SUPPLIER_DIVIDER_CLASSES.length
+                              ]
+                            return (
+                              <Fragment key={supplier.id}>
+                                {supplierIndex > 0 && (
+                                  <tr aria-hidden="true">
+                                    <td colSpan={tableColumnCount} className={`h-1.5 p-0 ${dividerClass}`} />
+                                  </tr>
+                                )}
+                                {activeVehicleTypes.map((vehicleType, vehicleIndex) => {
+                                  const vehicleDraft = vehicleDrafts[vehicleType.id]
+                                  const total = getRouteTotal(segments, supplier.id, vehicleType.id)
+                                  const cheapestTotal =
+                                    cheapestTotalByPlanVehicle.get(`${plan.id}:${vehicleType.id}`) ||
+                                    0
+                                  const isCheapestTotal = total > 0 && total === cheapestTotal
+                                  return (
+                                    <tr
+                                      key={`${supplier.id}:${vehicleType.id}`}
+                                      className={`border-b border-slate-100 ${
+                                        supplierIsFixed ? 'bg-red-50/40' : ''
                                       }`}
                                     >
-                                      {supplierName}
-                                    </td>
-                                  )}
-                                  <td className="border-r border-slate-200 px-2 py-1">
-                                    <input
-                                      value={vehicleDraft?.label || ''}
-                                      onChange={(event) =>
-                                        updateVehicleDraft(vehicleType.id, {
-                                          label: event.target.value,
-                                        })
-                                      }
-                                      className="h-8 w-full rounded-none border-0 bg-transparent text-center text-xs font-semibold text-slate-950 outline-none focus:bg-white focus:ring-2 focus:ring-red-900/30"
-                                    />
-                                  </td>
-                                  <td className="border-r border-slate-300 px-2 py-1">
-                                    <input
-                                      value={vehicleDraft?.passenger_capacity || ''}
-                                      onChange={(event) =>
-                                        updateVehicleDraft(vehicleType.id, {
-                                          passenger_capacity: event.target.value,
-                                        })
-                                      }
-                                      className="h-8 w-full rounded-none border-0 bg-transparent text-xs font-semibold text-slate-950 outline-none focus:bg-white focus:ring-2 focus:ring-red-900/30"
-                                      placeholder="PAX"
-                                    />
-                                  </td>
-                                  {segments.map((segment) => (
-                                    <td
-                                      key={segment.id}
-                                      className="border-r border-slate-200 px-2 py-1"
-                                    >
-                                      {renderRateInput(
-                                        segment.route_id,
-                                        supplier.id,
-                                        vehicleType.id,
+                                      {vehicleIndex === 0 && (
+                                        <td
+                                          rowSpan={activeVehicleTypes.length}
+                                          className={`border-r border-slate-200 px-1 py-2 text-center align-middle text-xs font-semibold text-slate-950 ${
+                                            supplierIsFixed
+                                              ? 'shadow-[inset_4px_0_0_0_#8b1e2d]'
+                                              : ''
+                                          }`}
+                                        >
+                                          {supplierName}
+                                        </td>
                                       )}
-                                    </td>
-                                  ))}
-                                  <td
-                                    className={`border-r border-slate-400 px-2 py-1 text-right text-xs font-black ${
-                                      isCheapestTotal
-                                        ? 'bg-emerald-50 text-emerald-800'
-                                        : 'text-purple-700'
-                                    }`}
-                                  >
-                                    <div className="flex items-center justify-end gap-1">
-                                      {isCheapestTotal && (
-                                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                                      )}
-                                      {formatAmount(total, getSupplierCurrency(supplier.id))}
-                                    </div>
-                                  </td>
-                                  <td className="border-r border-slate-200 px-2 py-1">
-                                    {renderRateInput(
-                                      makkahZiyaratRoute?.id,
-                                      supplier.id,
-                                      vehicleType.id,
-                                      !makkahZiyaratRoute,
-                                    )}
-                                  </td>
-                                  <td className="border-r border-slate-400 px-2 py-1">
-                                    {renderRateInput(
-                                      madinahZiyaratRoute?.id,
-                                      supplier.id,
-                                      vehicleType.id,
-                                      !madinahZiyaratRoute,
-                                    )}
-                                  </td>
-                                  {GUIDE_SERVICES.map((service) => {
-                                    const key = guideKey(supplier.id, service.key)
-                                    return (
+                                      <td className="border-r border-slate-200 px-1 py-1">
+                                        <input
+                                          value={vehicleDraft?.label || ''}
+                                          onChange={(event) =>
+                                            updateVehicleDraft(vehicleType.id, {
+                                              label: event.target.value,
+                                            })
+                                          }
+                                          className="h-7 w-full rounded-none border-0 bg-transparent text-center text-[11px] font-semibold text-slate-950 outline-none focus:bg-white focus:ring-2 focus:ring-red-900/30"
+                                        />
+                                      </td>
+                                      <td className="border-r border-slate-300 px-1 py-1">
+                                        <input
+                                          value={vehicleDraft?.passenger_capacity || ''}
+                                          onChange={(event) =>
+                                            updateVehicleDraft(vehicleType.id, {
+                                              passenger_capacity: event.target.value,
+                                            })
+                                          }
+                                          className="h-7 w-full rounded-none border-0 bg-transparent text-[11px] font-semibold text-slate-950 outline-none focus:bg-white focus:ring-2 focus:ring-red-900/30"
+                                          placeholder="PAX"
+                                        />
+                                      </td>
+                                      {segments.map((segment) => (
+                                        <td
+                                          key={segment.id}
+                                          className="border-r border-slate-200 px-1 py-1"
+                                        >
+                                          {renderRateInput(
+                                            segment.route_id,
+                                            supplier.id,
+                                            vehicleType.id,
+                                          )}
+                                        </td>
+                                      ))}
                                       <td
-                                        key={service.key}
-                                        className="border-r border-slate-200 px-2 py-1 last:border-r-0"
+                                        className={`border-r border-slate-400 px-1 py-1 text-right text-[11px] font-black ${
+                                          isCheapestTotal
+                                            ? 'bg-emerald-50 text-emerald-800'
+                                            : 'text-purple-700'
+                                        }`}
                                       >
-                                        <div className="flex min-h-9 items-center gap-1">
-                                          <span className="w-9 text-[11px] font-black text-slate-500">
-                                            {getSupplierCurrency(supplier.id)}
-                                          </span>
-                                          <input
-                                            value={guideDrafts[key] || ''}
-                                            inputMode="decimal"
-                                            onChange={(event) =>
-                                              updateGuideDraft(
-                                                supplier.id,
-                                                service.key,
-                                                event.target.value,
-                                              )
-                                            }
-                                            className="h-8 w-20 rounded-none border-0 bg-transparent px-1 text-right text-xs font-semibold text-slate-950 outline-none focus:bg-white focus:ring-2 focus:ring-red-900/30"
-                                            placeholder="-"
-                                          />
+                                        <div className="flex items-center justify-end gap-1">
+                                          {isCheapestTotal && (
+                                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                                          )}
+                                          {formatAmount(total, getSupplierCurrency(supplier.id))}
                                         </div>
                                       </td>
-                                    )
-                                  })}
-                                </tr>
-                              )
-                            })
+                                      <td className="border-r border-slate-200 px-1 py-1">
+                                        {renderRateInput(
+                                          makkahZiyaratRoute?.id,
+                                          supplier.id,
+                                          vehicleType.id,
+                                          !makkahZiyaratRoute,
+                                        )}
+                                      </td>
+                                      <td className="border-r border-slate-400 px-1 py-1">
+                                        {renderRateInput(
+                                          madinahZiyaratRoute?.id,
+                                          supplier.id,
+                                          vehicleType.id,
+                                          !madinahZiyaratRoute,
+                                        )}
+                                      </td>
+                                      {GUIDE_SERVICES.map((service) => {
+                                        const key = guideKey(supplier.id, service.key)
+                                        return (
+                                          <td
+                                            key={service.key}
+                                            className="border-r border-slate-200 px-1 py-1 last:border-r-0"
+                                          >
+                                            <div className="flex min-h-8 items-center gap-0.5">
+                                              <span className="w-7 text-[10px] font-black text-slate-500">
+                                                {getSupplierCurrency(supplier.id)}
+                                              </span>
+                                              <input
+                                                value={guideDrafts[key] || ''}
+                                                inputMode="decimal"
+                                                onChange={(event) =>
+                                                  updateGuideDraft(
+                                                    supplier.id,
+                                                    service.key,
+                                                    event.target.value,
+                                                  )
+                                                }
+                                                className="h-7 w-14 rounded-none border-0 bg-transparent px-1 text-right text-[11px] font-semibold text-slate-950 outline-none focus:bg-white focus:ring-2 focus:ring-red-900/30"
+                                                placeholder="-"
+                                              />
+                                            </div>
+                                          </td>
+                                        )
+                                      })}
+                                    </tr>
+                                  )
+                                })}
+                              </Fragment>
+                            )
                           })
                         )}
                       </tbody>
@@ -919,7 +970,7 @@ function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProp
           )}
         </div>
 
-        <aside className="space-y-4">
+        <aside className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_18rem]">
           <section className="rounded-lg border border-slate-200 bg-white p-4">
             <p className="text-sm font-black text-slate-950">Suppliers</p>
             <div className="mt-3 space-y-2">
@@ -1036,10 +1087,14 @@ function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProp
                 <span className="font-bold text-slate-600">Edited route cells</span>
                 <span className="font-black text-slate-950">{dirtyRateEntries.length}</span>
               </div>
+              <div className="flex items-center justify-between gap-3">
+                <span className="font-bold text-slate-600">Linked route prices</span>
+                <span className="font-black text-slate-950">{linkedRouteCount}</span>
+              </div>
               <div className="rounded-lg bg-white p-3 text-xs font-semibold leading-5 text-slate-600">
                 Green totals show the cheapest positive supplier total for that route section and
-                vehicle row. A red-tinted supplier group marks the fixed supplier selected by the
-                manager.
+                vehicle row. Coloured bands divide supplier groups. Linked route cells reuse one
+                stored route price anywhere the same A-to-B destination appears.
               </div>
             </div>
           </section>
