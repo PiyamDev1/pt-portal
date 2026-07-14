@@ -52,6 +52,7 @@ export interface UmrahTransportSupplier {
   name: string
   contact_name: string | null
   contact_phone: string | null
+  default_currency: string
   is_active: boolean
   sort_order: number
   notes: string | null
@@ -75,11 +76,38 @@ export interface UmrahTransportRoute {
   notes: string | null
 }
 
+export interface UmrahTransportRoutePlan {
+  id: string
+  plan_name: string
+  preferred_supplier_id: string | null
+  is_active: boolean
+  sort_order: number
+  notes: string | null
+}
+
+export interface UmrahTransportRoutePlanSegment {
+  id: string
+  plan_id: string
+  route_id: string
+  segment_label: string | null
+  sort_order: number
+}
+
 export interface UmrahTransportRate {
   id: string
   route_id: string
   supplier_id: string
   vehicle_type_id: string
+  currency: string
+  cost_price: number
+  is_active: boolean
+  notes: string | null
+}
+
+export interface UmrahTransportGuideRate {
+  id: string
+  supplier_id: string
+  guide_service: string
   currency: string
   cost_price: number
   is_active: boolean
