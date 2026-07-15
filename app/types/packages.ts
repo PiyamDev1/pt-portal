@@ -136,6 +136,26 @@ export interface PackageComponentOption {
   quantity?: number
   includesZiyarat?: boolean
   includesTourGuide?: boolean
+  transportRoutes?: PackageTransportRouteSelection[]
+  transportMainSupplierId?: string
+  transportMainSupplierName?: string
+  transportNetCost?: number
+  transportNetCurrency?: string
+}
+
+export type PackageTransportRouteKind = 'transfer' | 'makkah_ziyarat' | 'madinah_ziyarat'
+
+export interface PackageTransportRouteSelection {
+  id: string
+  kind: PackageTransportRouteKind
+  routeId: string
+  routeName: string
+  supplierId: string
+  supplierName: string
+  vehicleTypeId: string
+  vehicleLabel: string
+  costPrice: number
+  currency: string
 }
 
 export interface PackageStayGroup {

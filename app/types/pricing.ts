@@ -114,6 +114,16 @@ export interface UmrahTransportGuideRate {
   notes: string | null
 }
 
+export interface UmrahTransportSupplierVehicleLabel {
+  id: string
+  supplier_id: string
+  vehicle_type_id: string
+  transport_label: string | null
+  passenger_capacity_label: string | null
+  is_active: boolean
+  notes: string | null
+}
+
 export interface UmrahTransportSetting {
   setting_key: string
   setting_value: string

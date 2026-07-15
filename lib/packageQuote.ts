@@ -12,6 +12,8 @@ import type {
   PackageResolvedSelection,
   PackageSelectionInput,
   PackageStayGroup,
+  PackageTransportRouteKind,
+  PackageTransportRouteSelection,
   TravelPackageQuote,
   TravelPackageType,
 } from '@/app/types/packages'
@@ -24,6 +26,11 @@ const VALID_PAYMENT_INTENTS = new Set<PackagePaymentIntent>([
   'full_payment',
   'deposit_only',
   'installment_request',
+])
+const VALID_TRANSPORT_ROUTE_KINDS = new Set<PackageTransportRouteKind>([
+  'transfer',
+  'makkah_ziyarat',
+  'madinah_ziyarat',
 ])
 
 export const DEFAULT_PACKAGE_CURRENCY = 'GBP'
@@ -124,6 +131,44 @@ function normalizePaymentIntent(value: unknown): PackagePaymentIntent {
     : 'full_payment'
 }
 
+function normalizeTransportRouteSelection(
+  raw: unknown,
+  fallbackId: string,
+): PackageTransportRouteSelection | null {
+  const candidate = raw as Partial<PackageTransportRouteSelection> | null
+  const routeId = asString(candidate?.routeId)
+  const routeName = asString(candidate?.routeName)
+  const supplierId = asString(candidate?.supplierId)
+  const supplierName = asString(candidate?.supplierName)
+  const vehicleTypeId = asString(candidate?.vehicleTypeId)
+  const vehicleLabel = asString(candidate?.vehicleLabel)
+  const kind = VALID_TRANSPORT_ROUTE_KINDS.has(candidate?.kind as PackageTransportRouteKind)
+    ? (candidate?.kind as PackageTransportRouteKind)
+    : 'transfer'
+
+  if (!routeId && !routeName) return null
+
+  return {
+    id: asString(candidate?.id, fallbackId),
+    kind,
+    routeId,
+    routeName: routeName || 'Transport route',
+    supplierId,
+    supplierName,
+    vehicleTypeId,
+    vehicleLabel,
+    costPrice: asNumber(candidate?.costPrice),
+    currency: normalizeCurrency(candidate?.currency || DEFAULT_PACKAGE_CURRENCY),
+  }
+}
+
+function normalizeTransportRoutes(raw: unknown) {
+  const values = Array.isArray(raw) ? raw : []
+  return values
+    .map((value, index) => normalizeTransportRouteSelection(value, `transport-route-${index + 1}`))
+    .filter((value): value is PackageTransportRouteSelection => Boolean(value))
+}
+
 function normalizeOption(
   raw: unknown,
   fallbackId: string,
@@ -141,6 +186,7 @@ function normalizeOption(
   const infantPrice = asNumber(candidate?.infantPrice)
   const isDefault = asBoolean(candidate?.isDefault)
   const quantity = asOptionalPositiveNumber(candidate?.quantity)
+  const transportRoutes = normalizeTransportRoutes(candidate?.transportRoutes)
 
   if (
     !title &&
@@ -148,7 +194,8 @@ function normalizeOption(
     price <= 0 &&
     adultPrice <= 0 &&
     childPrice <= 0 &&
-    infantPrice <= 0
+    infantPrice <= 0 &&
+    transportRoutes.length === 0
   ) {
     return null
   }
@@ -165,6 +212,11 @@ function normalizeOption(
     infantPrice,
     includesZiyarat: asBoolean(candidate?.includesZiyarat),
     includesTourGuide: asBoolean(candidate?.includesTourGuide),
+    transportRoutes,
+    transportMainSupplierId: asString(candidate?.transportMainSupplierId),
+    transportMainSupplierName: asString(candidate?.transportMainSupplierName),
+    transportNetCost: asNumber(candidate?.transportNetCost),
+    transportNetCurrency: normalizeCurrency(candidate?.transportNetCurrency || DEFAULT_PACKAGE_CURRENCY),
     ...(quantity ? { quantity } : {}),
   }
 }
@@ -807,8 +859,14 @@ function formatVisaLine(option: PackageComponentOption, payload: PackageQuotePay
 }
 
 function formatTransportLines(option: PackageComponentOption) {
-  const lines = [option.summary || option.title]
-  if (option.includesZiyarat) lines.push('Makkah & Madinah Ziyarat included')
+  const routeLines = option.transportRoutes?.length
+    ? option.transportRoutes.map((route) => `* ${route.routeName}`)
+    : []
+  const lines = routeLines.length > 0 ? routeLines : [option.summary || option.title]
+  const hasSpecificZiyaratRoutes = option.transportRoutes?.some((route) => route.kind !== 'transfer')
+  if (option.includesZiyarat && !hasSpecificZiyaratRoutes) {
+    lines.push('Makkah & Madinah Ziyarat included')
+  }
   if (option.includesTourGuide) lines.push('Tour guide included')
   return lines
 }

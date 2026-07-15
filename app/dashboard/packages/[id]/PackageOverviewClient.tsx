@@ -137,6 +137,7 @@ type QuoteReservationPrefill = {
   key: string
   reservationType: TravelPackageReservationType
   title: string
+  bookedCostTotal?: number
   soldPriceTotal: number
   internalNotes: string
 }
@@ -391,6 +392,21 @@ function getReservationSummary(option: PackageComponentOption | null | undefined
     option?.summary?.trim() ||
     'Pulled from the final quote. Agent to complete supplier references, booked cost, and confirmation status.'
   )
+}
+
+function getTransportReservationSummary(option: PackageComponentOption | null | undefined) {
+  if (!option?.transportRoutes?.length) return getReservationSummary(option)
+  const routeLines = option.transportRoutes.map((route) => {
+    const supplier = route.supplierName ? ` - ${route.supplierName}` : ''
+    const vehicle = route.vehicleLabel ? ` (${route.vehicleLabel})` : ''
+    const cost = route.costPrice > 0 ? ` - ${route.currency} ${route.costPrice.toFixed(2)}` : ''
+    return `* ${route.routeName}${supplier}${vehicle}${cost}`
+  })
+  const netCost =
+    option.transportNetCost && option.transportNetCost > 0
+      ? `Net transport cost: ${option.transportNetCurrency || 'GBP'} ${option.transportNetCost.toFixed(2)}`
+      : ''
+  return [option.summary?.trim(), ...routeLines, netCost].filter(Boolean).join('\n')
 }
 
 function createReservationFinancialForm(
@@ -749,12 +765,13 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
         key: `transport-${selectedCombination.transportOption.id}`,
         reservationType: 'transport',
         title: selectedCombination.transportOption.title,
+        bookedCostTotal: Number(selectedCombination.transportOption.transportNetCost || 0),
         soldPriceTotal: getOptionSoldTotal(
           selectedCombination.transportOption,
           servicePassengers,
           passengerSummary,
         ),
-        internalNotes: getReservationSummary(selectedCombination.transportOption),
+        internalNotes: getTransportReservationSummary(selectedCombination.transportOption),
       })
     }
     selectedCombination.staySelections.forEach((stay) => {
@@ -827,6 +844,10 @@ The Piyam Travel Team`
           ...current,
           reservationType: firstPrefill.reservationType,
           title: firstPrefill.title,
+          bookedCostTotal:
+            firstPrefill.bookedCostTotal && firstPrefill.bookedCostTotal > 0
+              ? String(firstPrefill.bookedCostTotal)
+              : current.bookedCostTotal,
           soldPriceTotal:
             firstPrefill.soldPriceTotal > 0 ? String(firstPrefill.soldPriceTotal) : '',
           internalNotes: firstPrefill.internalNotes,
@@ -910,7 +931,10 @@ The Piyam Travel Team`
       title: prefill.title,
       status: 'reservation_pending',
       soldPriceTotal: prefill.soldPriceTotal > 0 ? String(prefill.soldPriceTotal) : '',
-      bookedCostTotal: '',
+      bookedCostTotal:
+        prefill.bookedCostTotal && prefill.bookedCostTotal > 0
+          ? String(prefill.bookedCostTotal)
+          : '',
       supplierName: '',
       supplierReference: '',
       internalNotes: prefill.internalNotes,
@@ -2101,6 +2125,12 @@ The Piyam Travel Team`
                           Sold from quote:{' '}
                           {formatMoney(prefill.soldPriceTotal, reservationCurrency)}
                         </span>
+                        {prefill.bookedCostTotal && prefill.bookedCostTotal > 0 && (
+                          <span className="mt-1 block text-xs font-bold text-emerald-700">
+                            Net from pricing:{' '}
+                            {formatMoney(prefill.bookedCostTotal, reservationCurrency)}
+                          </span>
+                        )}
                       </button>
                     ))}
                   </div>

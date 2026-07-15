@@ -29,6 +29,8 @@ import type {
   PackageLimitedTimeOffer,
   PackageQuotePayload,
   PackageStayGroup,
+  PackageTransportRouteKind,
+  PackageTransportRouteSelection,
   TravelPackageQuote,
   TravelPackageType,
 } from '@/app/types/packages'
@@ -60,6 +62,48 @@ type SaveResponse = {
   error?: string
 }
 
+type UmrahTransportPricingRoute = {
+  id: string
+  route_name: string
+}
+
+type UmrahTransportPricingSupplier = {
+  id: string
+  name: string
+  default_currency: string
+}
+
+type UmrahTransportPricingVehicle = {
+  id: string
+  label: string
+  passenger_capacity: string | null
+}
+
+type UmrahTransportPricingRate = {
+  route_id: string
+  supplier_id: string
+  vehicle_type_id: string
+  currency: string
+  cost_price: number
+}
+
+type UmrahTransportPricingLabel = {
+  supplier_id: string
+  vehicle_type_id: string
+  transport_label: string | null
+}
+
+type UmrahTransportPricingData = {
+  routes: UmrahTransportPricingRoute[]
+  suppliers: UmrahTransportPricingSupplier[]
+  vehicles: UmrahTransportPricingVehicle[]
+  rates: UmrahTransportPricingRate[]
+  labels: UmrahTransportPricingLabel[]
+  sarToGbpExchangeRate: number
+  setupRequired?: boolean
+  message?: string
+}
+
 const PACKAGE_TYPES: Array<{ value: TravelPackageType; label: string }> = [
   { value: 'umrah', label: 'Umrah' },
   { value: 'ziyarat', label: 'Ziyarat' },
@@ -81,6 +125,144 @@ function makeId(prefix: string) {
     return `${prefix}-${crypto.randomUUID().slice(0, 8)}`
   }
   return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1000)}`
+}
+
+function normalizeSearchText(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+}
+
+function getRouteKind(routeName: string): PackageTransportRouteKind {
+  const normalized = normalizeSearchText(routeName)
+  if (normalized.includes('makkah') && normalized.includes('ziyarat')) return 'makkah_ziyarat'
+  if (
+    (normalized.includes('madinah') || normalized.includes('madina')) &&
+    normalized.includes('ziyarat')
+  ) {
+    return 'madinah_ziyarat'
+  }
+  return 'transfer'
+}
+
+function isRouteKind(route: UmrahTransportPricingRoute, kind: PackageTransportRouteKind) {
+  return getRouteKind(route.route_name) === kind
+}
+
+function getSupplierVehicleLabel(
+  pricing: UmrahTransportPricingData | null,
+  supplierId: string,
+  vehicleTypeId: string,
+) {
+  if (!pricing) return ''
+  const supplierLabel = pricing.labels.find(
+    (label) => label.supplier_id === supplierId && label.vehicle_type_id === vehicleTypeId,
+  )?.transport_label
+  return (
+    supplierLabel ||
+    pricing.vehicles.find((vehicle) => vehicle.id === vehicleTypeId)?.label ||
+    'Transport'
+  )
+}
+
+function getTransportRate(
+  pricing: UmrahTransportPricingData | null,
+  routeId: string,
+  supplierId: string,
+  vehicleTypeId: string,
+) {
+  return pricing?.rates.find(
+    (rate) =>
+      rate.route_id === routeId &&
+      rate.supplier_id === supplierId &&
+      rate.vehicle_type_id === vehicleTypeId,
+  )
+}
+
+function convertTransportCostToGbp(
+  amount: number,
+  currency: string,
+  pricing: UmrahTransportPricingData | null,
+) {
+  if (currency === 'GBP') return amount
+  if (currency === 'SAR') return amount * (pricing?.sarToGbpExchangeRate || 0)
+  return amount
+}
+
+function findCheapestTransportRate(
+  pricing: UmrahTransportPricingData | null,
+  routeId: string,
+  vehicleTypeId: string,
+) {
+  if (!pricing) return null
+  return pricing.rates
+    .filter(
+      (rate) =>
+        rate.route_id === routeId &&
+        rate.vehicle_type_id === vehicleTypeId &&
+        Number(rate.cost_price) > 0,
+    )
+    .sort((a, b) => {
+      const aGbp = convertTransportCostToGbp(Number(a.cost_price), a.currency, pricing)
+      const bGbp = convertTransportCostToGbp(Number(b.cost_price), b.currency, pricing)
+      return aGbp - bGbp
+    })[0]
+}
+
+function getMajoritySupplier(routes: PackageTransportRouteSelection[]) {
+  const counts = new Map<string, { supplierId: string; supplierName: string; count: number }>()
+  routes.forEach((route) => {
+    if (!route.supplierId) return
+    const current = counts.get(route.supplierId)
+    counts.set(route.supplierId, {
+      supplierId: route.supplierId,
+      supplierName: route.supplierName,
+      count: (current?.count || 0) + 1,
+    })
+  })
+  return Array.from(counts.values()).sort((a, b) => b.count - a.count)[0] || null
+}
+
+function getTransportRouteBullets(routes: PackageTransportRouteSelection[]) {
+  return routes.map((route) => `* ${route.routeName}`)
+}
+
+function getTransportRouteBulletText(line: string) {
+  return line.match(/^\*\s+(.+)$/)?.[1] || line
+}
+
+function buildTransportSummary(routes: PackageTransportRouteSelection[], fallback: string) {
+  if (routes.length === 0) return fallback
+  return getTransportRouteBullets(routes).join('\n')
+}
+
+function resolveTransportRouteSelection(
+  current: Partial<PackageTransportRouteSelection>,
+  pricing: UmrahTransportPricingData | null,
+): PackageTransportRouteSelection {
+  const route = pricing?.routes.find((item) => item.id === current.routeId) || pricing?.routes[0]
+  const vehicle =
+    pricing?.vehicles.find((item) => item.id === current.vehicleTypeId) || pricing?.vehicles[0]
+  const cheapestRate =
+    route && vehicle ? findCheapestTransportRate(pricing, route.id, vehicle.id) : null
+  const supplier =
+    pricing?.suppliers.find(
+      (item) => item.id === (current.supplierId || cheapestRate?.supplier_id),
+    ) ||
+    pricing?.suppliers[0]
+  const rate =
+    route && supplier && vehicle ? getTransportRate(pricing, route.id, supplier.id, vehicle.id) : null
+
+  return {
+    id: current.id || makeId('transport-route'),
+    kind: current.kind || getRouteKind(route?.route_name || ''),
+    routeId: route?.id || '',
+    routeName: route?.route_name || current.routeName || 'Transport route',
+    supplierId: supplier?.id || '',
+    supplierName: supplier?.name || '',
+    vehicleTypeId: vehicle?.id || '',
+    vehicleLabel: supplier && vehicle ? getSupplierVehicleLabel(pricing, supplier.id, vehicle.id) : '',
+    costPrice: Number(rate?.cost_price || 0),
+    currency: rate?.currency || supplier?.default_currency || 'GBP',
+  }
 }
 
 function newOption(
@@ -223,6 +405,7 @@ function OptionEditor({
   defaultLabel = 'Preferred option',
   showQuantity = false,
   showTransportExtras = false,
+  transportPricingData = null,
   quantityFallback,
   canRemove,
 }: {
@@ -238,9 +421,78 @@ function OptionEditor({
   defaultLabel?: string
   showQuantity?: boolean
   showTransportExtras?: boolean
+  transportPricingData?: UmrahTransportPricingData | null
   quantityFallback?: number
   canRemove: boolean
 }) {
+  const transportRoutes = option.transportRoutes || []
+  const routeOptions = transportPricingData?.routes || []
+  const transferRoutes = routeOptions.filter((route) => isRouteKind(route, 'transfer'))
+  const makkahZiyaratRoute = routeOptions.find((route) => isRouteKind(route, 'makkah_ziyarat'))
+  const madinahZiyaratRoute = routeOptions.find((route) => isRouteKind(route, 'madinah_ziyarat'))
+
+  const updateTransportRoutes = (routes: PackageTransportRouteSelection[]) => {
+    const mainSupplier = getMajoritySupplier(routes)
+    const netCost = routes.reduce((total, route) => {
+      return total + convertTransportCostToGbp(route.costPrice, route.currency, transportPricingData)
+    }, 0)
+    const summary = buildTransportSummary(routes, option.summary)
+
+    onChange({
+      ...option,
+      title: option.title || (mainSupplier ? `${mainSupplier.supplierName} transport` : ''),
+      summary,
+      transportRoutes: routes,
+      transportMainSupplierId: mainSupplier?.supplierId || '',
+      transportMainSupplierName: mainSupplier?.supplierName || '',
+      transportNetCost: Math.round(netCost * 100) / 100,
+      transportNetCurrency: 'GBP',
+      includesZiyarat: routes.some((route) => route.kind !== 'transfer') || option.includesZiyarat,
+    })
+  }
+
+  const addTransportRoute = (kind: PackageTransportRouteKind) => {
+    const route =
+      kind === 'makkah_ziyarat'
+        ? makkahZiyaratRoute
+        : kind === 'madinah_ziyarat'
+          ? madinahZiyaratRoute
+          : transferRoutes[0]
+    if (!route || !transportPricingData?.vehicles[0]) {
+      toast.error('No matching Umrah transport route is configured yet')
+      return
+    }
+    updateTransportRoutes([
+      ...transportRoutes,
+      resolveTransportRouteSelection(
+        {
+          id: makeId('transport-route'),
+          kind,
+          routeId: route.id,
+          vehicleTypeId: transportPricingData.vehicles[0].id,
+        },
+        transportPricingData,
+      ),
+    ])
+  }
+
+  const updateTransportRoute = (
+    routeIndex: number,
+    changes: Partial<PackageTransportRouteSelection>,
+  ) => {
+    updateTransportRoutes(
+      transportRoutes.map((route, index) =>
+        index === routeIndex
+          ? resolveTransportRouteSelection({ ...route, ...changes }, transportPricingData)
+          : route,
+      ),
+    )
+  }
+
+  const removeTransportRoute = (routeIndex: number) => {
+    updateTransportRoutes(transportRoutes.filter((_, index) => index !== routeIndex))
+  }
+
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
       <div className="mb-2 flex items-center gap-2">
@@ -274,32 +526,201 @@ function OptionEditor({
         </button>
       )}
       {showTransportExtras && (
-        <div className="mb-2 grid gap-2 sm:grid-cols-2">
-          {[
-            ['includesZiyarat', 'Ziyarat included'],
-            ['includesTourGuide', 'Tour guide included'],
-          ].map(([key, label]) => {
-            const active = Boolean(option[key as 'includesZiyarat' | 'includesTourGuide'])
-            return (
-              <button
-                key={key}
-                type="button"
-                onClick={() =>
-                  onChange({
-                    ...option,
-                    [key]: !active,
-                  })
-                }
-                className={`min-h-9 rounded-lg px-3 text-xs font-black transition ${
-                  active
-                    ? 'bg-emerald-100 text-emerald-800'
-                    : 'border border-slate-200 text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                {label}
-              </button>
-            )
-          })}
+        <div className="mb-2 space-y-2">
+          <div className="grid gap-2 sm:grid-cols-2">
+            {[
+              ['includesZiyarat', 'Ziyarat included'],
+              ['includesTourGuide', 'Tour guide included'],
+            ].map(([key, label]) => {
+              const active = Boolean(option[key as 'includesZiyarat' | 'includesTourGuide'])
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() =>
+                    onChange({
+                      ...option,
+                      [key]: !active,
+                    })
+                  }
+                  className={`min-h-9 rounded-lg px-3 text-xs font-black transition ${
+                    active
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : 'border border-slate-200 text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  {label}
+                </button>
+              )
+            })}
+          </div>
+
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="text-xs font-black uppercase text-slate-500">Routes from price list</p>
+                <p className="text-xs font-semibold text-slate-500">
+                  Cheapest supplier is selected when route or vehicle changes.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => addTransportRoute('transfer')}
+                  disabled={!transportPricingData || transferRoutes.length === 0}
+                  className="min-h-8 rounded-lg bg-slate-900 px-2 text-xs font-black text-white disabled:opacity-40"
+                >
+                  Add route
+                </button>
+                <button
+                  type="button"
+                  onClick={() => addTransportRoute('makkah_ziyarat')}
+                  disabled={!makkahZiyaratRoute}
+                  className="min-h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs font-black text-slate-700 disabled:opacity-40"
+                >
+                  Makkah Ziyarat
+                </button>
+                <button
+                  type="button"
+                  onClick={() => addTransportRoute('madinah_ziyarat')}
+                  disabled={!madinahZiyaratRoute}
+                  className="min-h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs font-black text-slate-700 disabled:opacity-40"
+                >
+                  Madinah Ziyarat
+                </button>
+              </div>
+            </div>
+
+            {transportRoutes.length > 0 && (
+              <ul className="mb-3 space-y-1 text-xs font-semibold text-slate-700">
+                {getTransportRouteBullets(transportRoutes).map((line) => (
+                  <li key={line} className="flex gap-2">
+                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-slate-400" />
+                    <span>{getTransportRouteBulletText(line)}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <div className="space-y-2">
+              {transportRoutes.map((route, routeIndex) => {
+                const cheapestRate = findCheapestTransportRate(
+                  transportPricingData,
+                  route.routeId,
+                  route.vehicleTypeId,
+                )
+                const isCheapestSupplier = route.supplierId === cheapestRate?.supplier_id
+                return (
+                  <div
+                    key={route.id}
+                    className="grid gap-2 rounded-lg border border-slate-200 bg-white p-2 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)_auto]"
+                  >
+                    <label className="block">
+                      <span className="block text-[10px] font-black uppercase text-slate-500">
+                        Route
+                      </span>
+                      <select
+                        value={route.routeId}
+                        onChange={(event) =>
+                          updateTransportRoute(routeIndex, {
+                            routeId: event.target.value,
+                            supplierId: '',
+                            kind: getRouteKind(
+                              routeOptions.find((item) => item.id === event.target.value)
+                                ?.route_name || '',
+                            ),
+                          })
+                        }
+                        className="mt-1 min-h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-bold outline-none focus:border-slate-900"
+                      >
+                        {routeOptions.map((routeOption) => (
+                          <option key={routeOption.id} value={routeOption.id}>
+                            {routeOption.route_name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="block">
+                      <span className="block text-[10px] font-black uppercase text-slate-500">
+                        Transport
+                      </span>
+                      <select
+                        value={route.vehicleTypeId}
+                        onChange={(event) =>
+                          updateTransportRoute(routeIndex, {
+                            vehicleTypeId: event.target.value,
+                            supplierId: '',
+                          })
+                        }
+                        className="mt-1 min-h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-bold outline-none focus:border-slate-900"
+                      >
+                        {(transportPricingData?.vehicles || []).map((vehicle) => (
+                          <option key={vehicle.id} value={vehicle.id}>
+                            {vehicle.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="block">
+                      <span className="block text-[10px] font-black uppercase text-slate-500">
+                        Supplier
+                      </span>
+                      <select
+                        value={route.supplierId}
+                        onChange={(event) =>
+                          updateTransportRoute(routeIndex, {
+                            supplierId: event.target.value,
+                          })
+                        }
+                        className={`mt-1 min-h-9 w-full rounded-lg border px-2 text-xs font-bold outline-none focus:border-slate-900 ${
+                          isCheapestSupplier
+                            ? 'border-emerald-300 bg-emerald-50 text-emerald-900'
+                            : 'border-slate-200 bg-white text-slate-900'
+                        }`}
+                      >
+                        {(transportPricingData?.suppliers || []).map((supplier) => {
+                          const rate = getTransportRate(
+                            transportPricingData,
+                            route.routeId,
+                            supplier.id,
+                            route.vehicleTypeId,
+                          )
+                          const isCheapest = supplier.id === cheapestRate?.supplier_id
+                          return (
+                            <option key={supplier.id} value={supplier.id}>
+                              {supplier.name}
+                              {isCheapest ? ' - cheapest' : ''}
+                              {rate ? ` (${rate.currency} ${rate.cost_price})` : ''}
+                            </option>
+                          )
+                        })}
+                      </select>
+                    </label>
+                    <div className="flex items-end gap-2">
+                      <div className="min-h-9 flex-1 rounded-lg bg-slate-100 px-2 py-2 text-xs font-black text-slate-700">
+                        {route.currency} {Number(route.costPrice || 0).toFixed(2)}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeTransportRoute(routeIndex)}
+                        className="flex h-9 w-9 items-center justify-center rounded-lg border border-red-100 text-red-600 transition hover:bg-red-50"
+                        title="Remove route"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            {option.transportMainSupplierName && (
+              <p className="mt-3 rounded-lg bg-white p-2 text-xs font-bold text-slate-600">
+                Main supplier by majority: {option.transportMainSupplierName}. Net transport cost:{' '}
+                {formatMoney(option.transportNetCost || 0, option.transportNetCurrency || 'GBP')}.
+              </p>
+            )}
+          </div>
         </div>
       )}
       {showQuantity && (
@@ -415,6 +836,8 @@ export default function PackagesClient({
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [setupMessage, setSetupMessage] = useState<string | null>(null)
+  const [transportPricingData, setTransportPricingData] =
+    useState<UmrahTransportPricingData | null>(null)
 
   const customerOptions = useMemo(() => buildCustomerPackageOptions(payload, 80), [payload])
   const baseCustomerOption = customerOptions[0]?.combination || null
@@ -476,6 +899,22 @@ export default function PackagesClient({
   useEffect(() => {
     void loadQuotes()
   }, [loadQuotes])
+
+  useEffect(() => {
+    const loadTransportPricing = async () => {
+      try {
+        const response = await fetch('/api/pricing/umrah-transport')
+        const data = (await response.json()) as UmrahTransportPricingData
+        if (!response.ok)
+          throw new Error((data as { error?: string }).error || 'Failed to load transport pricing')
+        setTransportPricingData(data.setupRequired ? null : data)
+      } catch (error) {
+        console.error('[PackagesClient] Failed to load Umrah transport pricing:', error)
+      }
+    }
+
+    void loadTransportPricing()
+  }, [])
 
   const updateStayGroup = (groupIndex: number, nextGroup: PackageStayGroup) => {
     const nextGroups = payload.stayGroups.map((group, index) =>
@@ -1070,6 +1509,7 @@ export default function PackagesClient({
                     showDefaultToggle
                     defaultLabel="Preferred transport"
                     showTransportExtras
+                    transportPricingData={transportPricingData}
                     canRemove
                     onChange={(next) => updateComponentOption('transportOptions', index, next)}
                     onRemove={() => removeComponentOption('transportOptions', index)}

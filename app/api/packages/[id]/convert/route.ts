@@ -246,11 +246,13 @@ function autoReservationRows({
 
   if (combination.transportOption) {
     const sold = optionTotal(combination.transportOption, servicePassengers)
+    const transportNetCost = Number(combination.transportOption.transportNetCost || 0)
     componentTotal += sold
     rows.push({
       ...baseRow,
       reservation_type: 'transport',
       title: `Transport - ${combination.transportOption.title || 'Selected transport'}`,
+      booked_cost_total: transportNetCost > 0 ? transportNetCost : 0,
       sold_price_total: sold,
       internal_notes: cleanSummary(combination.transportOption),
       metadata: {
@@ -259,6 +261,11 @@ function autoReservationRows({
         optionId: combination.transportOption.id,
         includesZiyarat: Boolean(combination.transportOption.includesZiyarat),
         includesTourGuide: Boolean(combination.transportOption.includesTourGuide),
+        transportRoutes: combination.transportOption.transportRoutes || [],
+        transportMainSupplierId: combination.transportOption.transportMainSupplierId || '',
+        transportMainSupplierName: combination.transportOption.transportMainSupplierName || '',
+        transportNetCost,
+        transportNetCurrency: combination.transportOption.transportNetCurrency || quote.currency,
       },
     })
   }

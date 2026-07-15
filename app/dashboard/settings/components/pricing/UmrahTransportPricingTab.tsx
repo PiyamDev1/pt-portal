@@ -8,7 +8,17 @@
 'use client'
 
 import { Fragment, memo, useCallback, useEffect, useMemo, useState } from 'react'
-import { AlertCircle, CheckCircle2, Plus, RefreshCw, Save } from 'lucide-react'
+import {
+  AlertCircle,
+  CheckCircle2,
+  ChevronDown,
+  ChevronRight,
+  GripVertical,
+  Plus,
+  RefreshCw,
+  Save,
+  Trash2,
+} from 'lucide-react'
 import { toast } from 'sonner'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type {
@@ -19,6 +29,7 @@ import type {
   UmrahTransportRoutePlanSegment,
   UmrahTransportSetting,
   UmrahTransportSupplier,
+  UmrahTransportSupplierVehicleLabel,
   UmrahTransportVehicleType,
 } from '@/app/types/pricing'
 
@@ -35,6 +46,7 @@ type SupplierDraft = {
 type VehicleDraft = {
   label: string
   passenger_capacity: string
+  sort_order: number
 }
 
 type PlanDraft = {
@@ -45,6 +57,7 @@ type PlanDraft = {
 
 type RateDrafts = Record<string, string>
 type GuideDrafts = Record<string, string>
+type SupplierVehicleLabelDrafts = Record<string, string>
 type UmrahTransportSubTab = 'rates' | 'config'
 
 const GUIDE_SERVICES = [
@@ -73,6 +86,10 @@ function rateKey(routeId: string, supplierId: string, vehicleTypeId: string) {
 
 function guideKey(supplierId: string, guideService: string) {
   return `${supplierId}:${guideService}`
+}
+
+function supplierVehicleLabelKey(supplierId: string, vehicleTypeId: string) {
+  return `${supplierId}:${vehicleTypeId}`
 }
 
 function parseAmount(value: string | number | null | undefined) {
@@ -115,10 +132,16 @@ function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProp
   const [originalRateDrafts, setOriginalRateDrafts] = useState<RateDrafts>({})
   const [guideDrafts, setGuideDrafts] = useState<GuideDrafts>({})
   const [originalGuideDrafts, setOriginalGuideDrafts] = useState<GuideDrafts>({})
+  const [supplierVehicleLabelDrafts, setSupplierVehicleLabelDrafts] =
+    useState<SupplierVehicleLabelDrafts>({})
+  const [originalSupplierVehicleLabelDrafts, setOriginalSupplierVehicleLabelDrafts] =
+    useState<SupplierVehicleLabelDrafts>({})
   const [dirtySupplierIds, setDirtySupplierIds] = useState<Set<string>>(new Set())
   const [dirtyVehicleIds, setDirtyVehicleIds] = useState<Set<string>>(new Set())
   const [dirtyPlanIds, setDirtyPlanIds] = useState<Set<string>>(new Set())
   const [activeSubTab, setActiveSubTab] = useState<UmrahTransportSubTab>('rates')
+  const [collapsedPlanIds, setCollapsedPlanIds] = useState<Set<string>>(new Set())
+  const [draggingVehicleId, setDraggingVehicleId] = useState('')
   const [sarToGbpRate, setSarToGbpRate] = useState('')
   const [originalSarToGbpRate, setOriginalSarToGbpRate] = useState('')
   const [newSupplierName, setNewSupplierName] = useState('')
@@ -137,6 +160,7 @@ function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProp
         planSegmentRes,
         rateRes,
         guideRes,
+        supplierVehicleLabelRes,
         settingRes,
       ] = await Promise.all([
           supabase
@@ -165,6 +189,7 @@ function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProp
             .order('sort_order', { ascending: true }),
           supabase.from('umrah_transport_rates').select('*'),
           supabase.from('umrah_transport_guide_rates').select('*'),
+          supabase.from('umrah_transport_supplier_vehicle_labels').select('*'),
           supabase
             .from('umrah_transport_settings')
             .select('*')
@@ -179,6 +204,7 @@ function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProp
         planSegmentRes.error ||
         rateRes.error ||
         guideRes.error ||
+        supplierVehicleLabelRes.error ||
         settingRes.error
       if (firstError) {
         if (isSchemaError(firstError)) {
@@ -195,6 +221,8 @@ function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProp
       const nextPlanSegments = (planSegmentRes.data || []) as UmrahTransportRoutePlanSegment[]
       const nextRates = (rateRes.data || []) as UmrahTransportRate[]
       const nextGuideRates = (guideRes.data || []) as UmrahTransportGuideRate[]
+      const nextSupplierVehicleLabels =
+        (supplierVehicleLabelRes.data || []) as UmrahTransportSupplierVehicleLabel[]
       const nextSettings = (settingRes.data || []) as UmrahTransportSetting[]
       const exchangeRateSetting = nextSettings.find(
         (setting) => setting.setting_key === 'sar_to_gbp_exchange_rate',
@@ -216,6 +244,7 @@ function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProp
           {
             label: vehicleType.label,
             passenger_capacity: vehicleType.passenger_capacity || '',
+            sort_order: vehicleType.sort_order,
           },
         ]),
       )
@@ -240,6 +269,12 @@ function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProp
           ? String(rate.cost_price)
           : ''
       })
+      const nextSupplierVehicleLabelDrafts: SupplierVehicleLabelDrafts = {}
+      nextSupplierVehicleLabels.forEach((label) => {
+        nextSupplierVehicleLabelDrafts[
+          supplierVehicleLabelKey(label.supplier_id, label.vehicle_type_id)
+        ] = label.transport_label ?? ''
+      })
 
       setSuppliers(nextSuppliers)
       setVehicleTypes(nextVehicleTypes)
@@ -253,6 +288,8 @@ function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProp
       setOriginalRateDrafts(nextRateDrafts)
       setGuideDrafts(nextGuideDrafts)
       setOriginalGuideDrafts(nextGuideDrafts)
+      setSupplierVehicleLabelDrafts(nextSupplierVehicleLabelDrafts)
+      setOriginalSupplierVehicleLabelDrafts(nextSupplierVehicleLabelDrafts)
       setSarToGbpRate(exchangeRateSetting?.setting_value || '')
       setOriginalSarToGbpRate(exchangeRateSetting?.setting_value || '')
       setDirtySupplierIds(new Set())
@@ -354,12 +391,20 @@ function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProp
     )
   }, [guideDrafts, originalGuideDrafts])
 
+  const dirtySupplierVehicleLabelEntries = useMemo(() => {
+    return Object.entries(supplierVehicleLabelDrafts).filter(
+      ([key, value]) =>
+        String(value || '') !== String(originalSupplierVehicleLabelDrafts[key] || ''),
+    )
+  }, [originalSupplierVehicleLabelDrafts, supplierVehicleLabelDrafts])
+
   const hasUnsavedChanges =
     dirtySupplierIds.size > 0 ||
     dirtyVehicleIds.size > 0 ||
     dirtyPlanIds.size > 0 ||
     dirtyRateEntries.length > 0 ||
     dirtyGuideEntries.length > 0 ||
+    dirtySupplierVehicleLabelEntries.length > 0 ||
     sarToGbpRate !== originalSarToGbpRate
 
   const updateSupplierDraft = (supplierId: string, changes: Partial<SupplierDraft>) => {
@@ -377,7 +422,7 @@ function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProp
     setVehicleDrafts((current) => ({
       ...current,
       [vehicleTypeId]: {
-        ...(current[vehicleTypeId] || { label: '', passenger_capacity: '' }),
+        ...(current[vehicleTypeId] || { label: '', passenger_capacity: '', sort_order: 0 }),
         ...changes,
       },
     }))
@@ -415,6 +460,68 @@ function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProp
     }))
   }
 
+  const updateSupplierVehicleLabelDraft = (
+    supplierId: string,
+    vehicleTypeId: string,
+    value: string,
+  ) => {
+    setSupplierVehicleLabelDrafts((current) => ({
+      ...current,
+      [supplierVehicleLabelKey(supplierId, vehicleTypeId)]: value,
+    }))
+  }
+
+  const togglePlanCollapse = (planId: string) => {
+    setCollapsedPlanIds((current) => {
+      const next = new Set(current)
+      if (next.has(planId)) {
+        next.delete(planId)
+      } else {
+        next.add(planId)
+      }
+      return next
+    })
+  }
+
+  const reorderVehicleTypes = (targetVehicleId: string) => {
+    if (!draggingVehicleId || draggingVehicleId === targetVehicleId) return
+    const activeVehicles = vehicleTypes.filter((vehicleType) => vehicleType.is_active)
+    const inactiveVehicles = vehicleTypes.filter((vehicleType) => !vehicleType.is_active)
+    const draggedIndex = activeVehicles.findIndex((vehicleType) => vehicleType.id === draggingVehicleId)
+    const targetIndex = activeVehicles.findIndex((vehicleType) => vehicleType.id === targetVehicleId)
+    if (draggedIndex < 0 || targetIndex < 0) return
+
+    const reordered = [...activeVehicles]
+    const [draggedVehicle] = reordered.splice(draggedIndex, 1)
+    reordered.splice(targetIndex, 0, draggedVehicle)
+    const orderedActiveVehicles = reordered.map((vehicleType, index) => ({
+      ...vehicleType,
+      sort_order: (index + 1) * 10,
+    }))
+    const changedIds = orderedActiveVehicles.map((vehicleType) => vehicleType.id)
+
+    setVehicleTypes([...orderedActiveVehicles, ...inactiveVehicles])
+    setVehicleDrafts((current) => {
+      const next = { ...current }
+      orderedActiveVehicles.forEach((vehicleType) => {
+        next[vehicleType.id] = {
+          ...(next[vehicleType.id] || {
+            label: vehicleType.label,
+            passenger_capacity: vehicleType.passenger_capacity || '',
+            sort_order: vehicleType.sort_order,
+          }),
+          sort_order: vehicleType.sort_order,
+        }
+      })
+      return next
+    })
+    setDirtyVehicleIds((current) => {
+      const next = new Set(current)
+      changedIds.forEach((id) => next.add(id))
+      return next
+    })
+  }
+
   const getSupplierCurrency = useCallback(
     (supplierId: string) => {
       return supplierDrafts[supplierId]?.default_currency || 'SAR'
@@ -435,6 +542,14 @@ function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProp
     [rateDrafts],
   )
 
+  const getRouteAmount = useCallback(
+    (routeId: string | undefined, supplierId: string, vehicleTypeId: string) => {
+      if (!routeId) return 0
+      return parseAmount(rateDrafts[rateKey(routeId, supplierId, vehicleTypeId)])
+    },
+    [rateDrafts],
+  )
+
   const cheapestTotalByPlanVehicle = useMemo(() => {
     const result = new Map<string, number>()
     activeRoutePlans.forEach((plan) => {
@@ -450,6 +565,29 @@ function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProp
     })
     return result
   }, [activeRoutePlans, activeSuppliers, activeVehicleTypes, getRouteTotal, segmentsByPlanId])
+
+  const cheapestZiyaratByRouteVehicle = useMemo(() => {
+    const result = new Map<string, number>()
+    ;[makkahZiyaratRoute?.id, madinahZiyaratRoute?.id]
+      .filter((routeId): routeId is string => Boolean(routeId))
+      .forEach((routeId) => {
+        activeVehicleTypes.forEach((vehicleType) => {
+          const amounts = activeSuppliers
+            .map((supplier) => getRouteAmount(routeId, supplier.id, vehicleType.id))
+            .filter((amount) => amount > 0)
+          if (amounts.length > 0) {
+            result.set(`${routeId}:${vehicleType.id}`, Math.min(...amounts))
+          }
+        })
+      })
+    return result
+  }, [
+    activeSuppliers,
+    activeVehicleTypes,
+    getRouteAmount,
+    madinahZiyaratRoute?.id,
+    makkahZiyaratRoute?.id,
+  ])
 
   const addSupplier = async () => {
     const name = newSupplierName.trim()
@@ -472,6 +610,26 @@ function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProp
     } catch (error) {
       console.error('[UmrahTransportPricingTab] Failed to add supplier:', error)
       toast.error('Failed to add supplier')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const removeSupplier = async (supplierId: string) => {
+    const supplierName = supplierDrafts[supplierId]?.name || 'this supplier'
+    if (!window.confirm(`Remove ${supplierName} from active transport pricing?`)) return
+    setSaving(true)
+    try {
+      const { error } = await supabase
+        .from('umrah_transport_suppliers')
+        .update({ is_active: false })
+        .eq('id', supplierId)
+      if (error) throw error
+      toast.success('Supplier removed')
+      await loadTransportPricing()
+    } catch (error) {
+      console.error('[UmrahTransportPricingTab] Failed to remove supplier:', error)
+      toast.error('Failed to remove supplier')
     } finally {
       setSaving(false)
     }
@@ -526,6 +684,7 @@ function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProp
           .update({
             label: draft?.label?.trim() || 'Unnamed vehicle',
             passenger_capacity: draft?.passenger_capacity?.trim() || null,
+            sort_order: draft?.sort_order || 0,
           })
           .eq('id', vehicleTypeId)
       })
@@ -570,6 +729,18 @@ function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProp
           }
         })
         .filter((row): row is NonNullable<typeof row> => Boolean(row))
+      const supplierVehicleLabelRows = dirtySupplierVehicleLabelEntries
+        .map(([key, value]) => {
+          const [supplierId, vehicleTypeId] = key.split(':')
+          if (!supplierId || !vehicleTypeId) return null
+          return {
+            supplier_id: supplierId,
+            vehicle_type_id: vehicleTypeId,
+            transport_label: value,
+            is_active: true,
+          }
+        })
+        .filter((row): row is NonNullable<typeof row> => Boolean(row))
       const exchangeRateChanged = sarToGbpRate !== originalSarToGbpRate
 
       const updateResults = await Promise.all([
@@ -608,6 +779,13 @@ function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProp
         const { error } = await supabase
           .from('umrah_transport_guide_rates')
           .upsert(guideRows, { onConflict: 'supplier_id,guide_service' })
+        if (error) throw error
+      }
+
+      if (supplierVehicleLabelRows.length > 0) {
+        const { error } = await supabase
+          .from('umrah_transport_supplier_vehicle_labels')
+          .upsert(supplierVehicleLabelRows, { onConflict: 'supplier_id,vehicle_type_id' })
         if (error) throw error
       }
 
@@ -758,12 +936,25 @@ function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProp
               const draft = planDrafts[plan.id]
               const fixedSupplierId = draft?.preferred_supplier_id || ''
               const tableColumnCount = segments.length + 9
+              const isCollapsed = collapsedPlanIds.has(plan.id)
               return (
                 <section
                   key={plan.id}
                   className="overflow-hidden rounded-lg border border-slate-300 bg-white shadow-sm"
                 >
-                  <div className="border-b border-slate-950 bg-slate-950 px-3 py-2">
+                  <div className="flex items-center gap-2 border-b border-slate-950 bg-slate-950 px-3 py-2">
+                    <button
+                      type="button"
+                      onClick={() => togglePlanCollapse(plan.id)}
+                      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-white transition hover:bg-white/10"
+                      title={isCollapsed ? 'Expand route table' : 'Collapse route table'}
+                    >
+                      {isCollapsed ? (
+                        <ChevronRight className="h-4 w-4" />
+                      ) : (
+                        <ChevronDown className="h-4 w-4" />
+                      )}
+                    </button>
                     <input
                       value={draft?.plan_name || ''}
                       onChange={(event) =>
@@ -772,6 +963,8 @@ function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProp
                       className="w-full bg-transparent text-center text-sm font-black uppercase tracking-wide text-white outline-none"
                     />
                   </div>
+                  {!isCollapsed && (
+                    <>
                   <div className="flex flex-col gap-2 border-b border-slate-200 bg-slate-50 px-3 py-2 lg:flex-row lg:items-center lg:justify-between">
                     <label className="flex flex-wrap items-center gap-2 text-xs font-black uppercase text-slate-500">
                       Fixed supplier
@@ -905,6 +1098,14 @@ function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProp
                                 )}
                                 {activeVehicleTypes.map((vehicleType, vehicleIndex) => {
                                   const vehicleDraft = vehicleDrafts[vehicleType.id]
+                                  const transportLabelKey = supplierVehicleLabelKey(
+                                    supplier.id,
+                                    vehicleType.id,
+                                  )
+                                  const transportLabel =
+                                    supplierVehicleLabelDrafts[transportLabelKey] ??
+                                    vehicleDraft?.label ??
+                                    ''
                                   const total = getRouteTotal(segments, supplier.id, vehicleType.id)
                                   const cheapestTotal =
                                     cheapestTotalByPlanVehicle.get(`${plan.id}:${vehicleType.id}`) ||
@@ -931,13 +1132,16 @@ function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProp
                                       )}
                                       <td className="border-r border-slate-200 px-1 py-1">
                                         <input
-                                          value={vehicleDraft?.label || ''}
+                                          value={transportLabel}
                                           onChange={(event) =>
-                                            updateVehicleDraft(vehicleType.id, {
-                                              label: event.target.value,
-                                            })
+                                            updateSupplierVehicleLabelDraft(
+                                              supplier.id,
+                                              vehicleType.id,
+                                              event.target.value,
+                                            )
                                           }
                                           className="h-7 w-full rounded-none border-0 bg-transparent text-center text-[11px] font-semibold text-slate-950 outline-none focus:bg-white focus:ring-2 focus:ring-red-900/30"
+                                          placeholder={vehicleDraft?.label || 'Label'}
                                         />
                                       </td>
                                       <td className="border-r border-slate-300 px-1 py-1">
@@ -975,25 +1179,51 @@ function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProp
                                           {isCheapestTotal && (
                                             <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
                                           )}
+                                          {isCheapestTotal && (
+                                            <span className="rounded-sm bg-emerald-100 px-1 text-[9px] font-black uppercase text-emerald-700">
+                                              selected
+                                            </span>
+                                          )}
                                           {formatAmount(total, getSupplierCurrency(supplier.id))}
                                         </div>
                                       </td>
-                                      <td className="border-r border-slate-200 px-1 py-1">
-                                        {renderRateInput(
-                                          makkahZiyaratRoute?.id,
+                                      {[
+                                        { route: makkahZiyaratRoute, border: 'border-slate-200' },
+                                        { route: madinahZiyaratRoute, border: 'border-slate-400' },
+                                      ].map(({ route, border }) => {
+                                        const amount = getRouteAmount(
+                                          route?.id,
                                           supplier.id,
                                           vehicleType.id,
-                                          !makkahZiyaratRoute,
-                                        )}
-                                      </td>
-                                      <td className="border-r border-slate-400 px-1 py-1">
-                                        {renderRateInput(
-                                          madinahZiyaratRoute?.id,
-                                          supplier.id,
-                                          vehicleType.id,
-                                          !madinahZiyaratRoute,
-                                        )}
-                                      </td>
+                                        )
+                                        const cheapestAmount = route?.id
+                                          ? cheapestZiyaratByRouteVehicle.get(
+                                              `${route.id}:${vehicleType.id}`,
+                                            ) || 0
+                                          : 0
+                                        const isSelected =
+                                          amount > 0 && cheapestAmount > 0 && amount === cheapestAmount
+                                        return (
+                                          <td
+                                            key={route?.id || border}
+                                            className={`border-r ${border} px-1 py-1 ${
+                                              isSelected ? 'bg-emerald-50' : ''
+                                            }`}
+                                          >
+                                            <div className="flex items-center justify-between gap-1">
+                                              {renderRateInput(
+                                                route?.id,
+                                                supplier.id,
+                                                vehicleType.id,
+                                                !route,
+                                              )}
+                                              {isSelected && (
+                                                <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
+                                              )}
+                                            </div>
+                                          </td>
+                                        )
+                                      })}
                                       {GUIDE_SERVICES.map((service) => {
                                         const key = guideKey(supplier.id, service.key)
                                         return (
@@ -1032,6 +1262,8 @@ function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProp
                       </tbody>
                     </table>
                   </div>
+                    </>
+                  )}
                 </section>
               )
             })
@@ -1061,8 +1293,8 @@ function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProp
           <section className="rounded-lg border border-slate-200 bg-white p-4">
             <p className="text-sm font-black text-slate-950">Suppliers</p>
             <div className="mt-3 space-y-2">
-              {suppliers.map((supplier) => (
-                <div key={supplier.id} className="grid grid-cols-[1fr_5rem] gap-2">
+              {activeSuppliers.map((supplier) => (
+                <div key={supplier.id} className="grid grid-cols-[1fr_5rem_2.5rem] gap-2">
                   <input
                     value={supplierDrafts[supplier.id]?.name || ''}
                     onChange={(event) =>
@@ -1082,6 +1314,15 @@ function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProp
                     <option value="SAR">SAR</option>
                     <option value="GBP">GBP</option>
                   </select>
+                  <button
+                    type="button"
+                    onClick={() => void removeSupplier(supplier.id)}
+                    disabled={saving}
+                    className="inline-flex min-h-10 items-center justify-center rounded-lg border border-red-200 text-red-700 transition hover:bg-red-50 disabled:opacity-50"
+                    title="Remove supplier"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
                 </div>
               ))}
             </div>
@@ -1108,25 +1349,42 @@ function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProp
             <p className="text-sm font-black text-slate-950">Vehicle / PAX Rows</p>
             <div className="mt-3 space-y-2">
               {activeVehicleTypes.map((vehicleType) => (
-                <div key={vehicleType.id} className="rounded-lg border border-slate-100 p-2">
-                  <input
-                    value={vehicleDrafts[vehicleType.id]?.label || ''}
-                    onChange={(event) =>
-                      updateVehicleDraft(vehicleType.id, { label: event.target.value })
-                    }
-                    className="min-h-9 w-full rounded-md border border-slate-200 px-2 text-sm font-bold outline-none focus:border-slate-900"
-                    placeholder="Vehicle"
-                  />
-                  <input
-                    value={vehicleDrafts[vehicleType.id]?.passenger_capacity || ''}
-                    onChange={(event) =>
-                      updateVehicleDraft(vehicleType.id, {
-                        passenger_capacity: event.target.value,
-                      })
-                    }
-                    className="mt-2 min-h-9 w-full rounded-md border border-slate-200 px-2 text-sm outline-none focus:border-slate-900"
-                    placeholder="PAX"
-                  />
+                <div
+                  key={vehicleType.id}
+                  draggable
+                  onDragStart={() => setDraggingVehicleId(vehicleType.id)}
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={() => reorderVehicleTypes(vehicleType.id)}
+                  onDragEnd={() => setDraggingVehicleId('')}
+                  className={`grid grid-cols-[2rem_1fr] gap-2 rounded-lg border p-2 ${
+                    draggingVehicleId === vehicleType.id
+                      ? 'border-slate-400 bg-slate-50'
+                      : 'border-slate-100'
+                  }`}
+                >
+                  <div className="flex items-center justify-center text-slate-400">
+                    <GripVertical className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <input
+                      value={vehicleDrafts[vehicleType.id]?.label || ''}
+                      onChange={(event) =>
+                        updateVehicleDraft(vehicleType.id, { label: event.target.value })
+                      }
+                      className="min-h-9 w-full rounded-md border border-slate-200 px-2 text-sm font-bold outline-none focus:border-slate-900"
+                      placeholder="Vehicle"
+                    />
+                    <input
+                      value={vehicleDrafts[vehicleType.id]?.passenger_capacity || ''}
+                      onChange={(event) =>
+                        updateVehicleDraft(vehicleType.id, {
+                          passenger_capacity: event.target.value,
+                        })
+                      }
+                      className="mt-2 min-h-9 w-full rounded-md border border-slate-200 px-2 text-sm outline-none focus:border-slate-900"
+                      placeholder="PAX"
+                    />
+                  </div>
                 </div>
               ))}
             </div>

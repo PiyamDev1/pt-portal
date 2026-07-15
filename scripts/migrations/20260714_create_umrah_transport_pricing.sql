@@ -91,6 +91,19 @@ CREATE TABLE IF NOT EXISTS public.umrah_transport_guide_rates (
   UNIQUE (supplier_id, guide_service)
 );
 
+CREATE TABLE IF NOT EXISTS public.umrah_transport_supplier_vehicle_labels (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  supplier_id UUID NOT NULL REFERENCES public.umrah_transport_suppliers(id) ON DELETE CASCADE,
+  vehicle_type_id UUID NOT NULL REFERENCES public.umrah_transport_vehicle_types(id) ON DELETE CASCADE,
+  transport_label TEXT,
+  passenger_capacity_label TEXT,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  notes TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (supplier_id, vehicle_type_id)
+);
+
 CREATE TABLE IF NOT EXISTS public.umrah_transport_settings (
   setting_key TEXT PRIMARY KEY,
   setting_value TEXT NOT NULL DEFAULT '',
@@ -113,6 +126,9 @@ CREATE INDEX IF NOT EXISTS idx_umrah_transport_rates_lookup
 
 CREATE INDEX IF NOT EXISTS idx_umrah_transport_guide_rates_lookup
   ON public.umrah_transport_guide_rates (supplier_id, guide_service);
+
+CREATE INDEX IF NOT EXISTS idx_umrah_transport_supplier_vehicle_labels_lookup
+  ON public.umrah_transport_supplier_vehicle_labels (supplier_id, vehicle_type_id);
 
 CREATE OR REPLACE FUNCTION public.update_umrah_transport_pricing_updated_at()
 RETURNS TRIGGER AS $$
@@ -156,6 +172,12 @@ CREATE TRIGGER umrah_transport_rates_updated_at
 DROP TRIGGER IF EXISTS umrah_transport_guide_rates_updated_at ON public.umrah_transport_guide_rates;
 CREATE TRIGGER umrah_transport_guide_rates_updated_at
   BEFORE UPDATE ON public.umrah_transport_guide_rates
+  FOR EACH ROW EXECUTE FUNCTION public.update_umrah_transport_pricing_updated_at();
+
+DROP TRIGGER IF EXISTS umrah_transport_supplier_vehicle_labels_updated_at
+  ON public.umrah_transport_supplier_vehicle_labels;
+CREATE TRIGGER umrah_transport_supplier_vehicle_labels_updated_at
+  BEFORE UPDATE ON public.umrah_transport_supplier_vehicle_labels
   FOR EACH ROW EXECUTE FUNCTION public.update_umrah_transport_pricing_updated_at();
 
 DROP TRIGGER IF EXISTS umrah_transport_settings_updated_at ON public.umrah_transport_settings;
@@ -289,6 +311,7 @@ ALTER TABLE public.umrah_transport_route_plans ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.umrah_transport_route_plan_segments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.umrah_transport_rates ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.umrah_transport_guide_rates ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.umrah_transport_supplier_vehicle_labels ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.umrah_transport_settings ENABLE ROW LEVEL SECURITY;
 
 DO $$ DECLARE r RECORD; BEGIN
@@ -304,6 +327,7 @@ DO $$ DECLARE r RECORD; BEGIN
         'umrah_transport_route_plan_segments',
         'umrah_transport_rates',
         'umrah_transport_guide_rates',
+        'umrah_transport_supplier_vehicle_labels',
         'umrah_transport_settings'
       )
   LOOP
@@ -345,6 +369,11 @@ CREATE POLICY "Authenticated can manage Umrah transport guide rates"
   ON public.umrah_transport_guide_rates FOR ALL TO authenticated USING (TRUE) WITH CHECK (TRUE);
 CREATE POLICY "Service role can manage Umrah transport guide rates"
   ON public.umrah_transport_guide_rates FOR ALL TO service_role USING (TRUE) WITH CHECK (TRUE);
+
+CREATE POLICY "Authenticated can manage Umrah transport supplier vehicle labels"
+  ON public.umrah_transport_supplier_vehicle_labels FOR ALL TO authenticated USING (TRUE) WITH CHECK (TRUE);
+CREATE POLICY "Service role can manage Umrah transport supplier vehicle labels"
+  ON public.umrah_transport_supplier_vehicle_labels FOR ALL TO service_role USING (TRUE) WITH CHECK (TRUE);
 
 CREATE POLICY "Authenticated can manage Umrah transport settings"
   ON public.umrah_transport_settings FOR ALL TO authenticated USING (TRUE) WITH CHECK (TRUE);
