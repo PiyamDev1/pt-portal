@@ -61,6 +61,13 @@ type CustomerTransportVoucher = {
     driverContact?: string
     groundManager?: string
     publicNotes?: string
+    routeAssignments?: Array<{
+      routeName?: string
+      type?: string
+      vehicleType?: string
+      date?: string
+      time?: string
+    }>
   }
 }
 
@@ -345,10 +352,27 @@ export default function PackageDocumentPortalClient({ token }: PackageDocumentPo
                 <strong className="text-slate-900">Driver:</strong>{' '}
                 {transportVoucher.voucher_data.driverContact || 'To be confirmed'}
               </p>
-              {transportVoucher.voucher_data.routes?.length ? (
+              {transportVoucher.voucher_data.routes?.length ||
+              transportVoucher.voucher_data.routeAssignments?.length ? (
                 <ul className="mt-3 list-disc space-y-1 pl-5">
-                  {transportVoucher.voucher_data.routes.map((route) => (
-                    <li key={route}>{route}</li>
+                  {(transportVoucher.voucher_data.routeAssignments?.length
+                    ? transportVoucher.voucher_data.routeAssignments.map((route) => ({
+                        route: route.routeName || 'Route to be confirmed',
+                        detail: [route.type, route.vehicleType].filter(Boolean).join(' · '),
+                      }))
+                    : (transportVoucher.voucher_data.routes || []).map((route) => ({
+                        route,
+                        detail: '',
+                      }))
+                  ).map((route) => (
+                    <li key={route.route}>
+                      <span>{route.route}</span>
+                      {route.detail && (
+                        <span className="block text-xs font-semibold text-slate-500">
+                          {route.detail}
+                        </span>
+                      )}
+                    </li>
                   ))}
                 </ul>
               ) : null}

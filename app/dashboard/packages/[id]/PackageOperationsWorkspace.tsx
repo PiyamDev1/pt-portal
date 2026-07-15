@@ -7,6 +7,7 @@ import {
   Check,
   ClipboardList,
   CreditCard,
+  Download,
   FileClock,
   History,
   Loader2,
@@ -45,7 +46,10 @@ import {
   calculatePackagePaymentSummary,
   getTravelPackageStatusTransitions,
 } from '@/lib/packageWorkflow'
-import { createDefaultTransportVoucherData } from '@/lib/packageTransportVoucher'
+import {
+  createDefaultTransportVoucherData,
+  renderTransportVoucherHtml,
+} from '@/lib/packageTransportVoucher'
 
 type Props = {
   packageFolder: TravelPackageFolder
@@ -147,6 +151,9 @@ function emptyVoucher(): TravelPackageTransportVoucherData {
     providerName: 'Barakat AlMusafar Trading',
     providerContact: '+966555049005',
     itinerary: [],
+    routeAssignments: [],
+    sourceTransportOptionId: '',
+    sourceTransportOptionTitle: '',
     arrivalAirport: '',
     arrivalAt: '',
     departureAirport: '',
@@ -194,6 +201,7 @@ export default function PackageOperationsWorkspace({
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState<string | null>(null)
   const [setupMessage, setSetupMessage] = useState<string | null>(null)
+  const [editingVoucherId, setEditingVoucherId] = useState<string | null>(null)
 
   const [customerForm, setCustomerForm] = useState({
     customerName: packageFolder.customer_name || '',
@@ -320,6 +328,7 @@ export default function PackageOperationsWorkspace({
       )
       const latestVoucher = voucherResponse.ok ? voucherData.vouchers?.[0] : null
       if (latestVoucher) {
+        setEditingVoucherId(latestVoucher.id)
         setVoucherForm(latestVoucher.voucher_data)
         setVoucherRoutesText(
           (
@@ -329,6 +338,7 @@ export default function PackageOperationsWorkspace({
           ).join('\n'),
         )
       } else {
+        setEditingVoucherId(null)
         const defaultVoucher = createDefaultTransportVoucherData(packageFolder)
         setVoucherForm(defaultVoucher)
         setVoucherRoutesText(defaultVoucher.routes.join('\n'))
@@ -359,6 +369,12 @@ export default function PackageOperationsWorkspace({
     selectedVehicle && voucherSeatPassengers > selectedVehicle.passengers
       ? `Exceeds capacity of ${selectedVehicle.passengers}. Select a larger vehicle.`
       : ''
+  const selectedVoucher = vouchers.find((voucher) => voucher.id === editingVoucherId) || null
+  const voucherPreviewHtml = useMemo(
+    () => renderTransportVoucherHtml(packageFolder, voucherForm),
+    [packageFolder, voucherForm],
+  )
+  const voucherRouteAssignments = voucherForm.routeAssignments || []
 
   const patchPackage = async (body: Record<string, unknown>) => {
     setSaving('package')
@@ -674,9 +690,21 @@ export default function PackageOperationsWorkspace({
         time: existing?.time || '',
         ...updates,
       }
+      const routeAssignments = [...(current.routeAssignments || [])]
+      const existingAssignment = routeAssignments[index]
+      routeAssignments[index] = {
+        routeName: itinerary[index].description,
+        type: itinerary[index].type,
+        supplierName: existingAssignment?.supplierName || '',
+        vehicleType:
+          existingAssignment?.vehicleType || current.vehicleType || current.vehicle || '',
+        date: itinerary[index].date,
+        time: itinerary[index].time,
+      }
       return {
         ...current,
         itinerary,
+        routeAssignments,
         routes: itinerary.map((item) => item.description.trim()).filter(Boolean),
       }
     })
@@ -686,15 +714,30 @@ export default function PackageOperationsWorkspace({
     setVoucherForm((current) => ({
       ...current,
       itinerary: [...(current.itinerary || []), { type, description: '', date: '', time: '' }],
+      routeAssignments: [
+        ...(current.routeAssignments || []),
+        {
+          routeName: '',
+          type,
+          supplierName: current.transportCompany || current.providerName || '',
+          vehicleType: current.vehicleType || current.vehicle || '',
+          date: '',
+          time: '',
+        },
+      ],
     }))
   }
 
   const removeVoucherItineraryItem = (index: number) => {
     setVoucherForm((current) => {
       const itinerary = (current.itinerary || []).filter((_, itemIndex) => itemIndex !== index)
+      const routeAssignments = (current.routeAssignments || []).filter(
+        (_, itemIndex) => itemIndex !== index,
+      )
       return {
         ...current,
         itinerary,
+        routeAssignments,
         routes: itinerary.map((item) => item.description.trim()).filter(Boolean),
       }
     })
@@ -702,40 +745,182 @@ export default function PackageOperationsWorkspace({
 
   const resetVoucherFromFinalQuote = () => {
     const defaultVoucher = createDefaultTransportVoucherData(packageFolder)
+    setEditingVoucherId(null)
     setVoucherForm(defaultVoucher)
     setVoucherRoutesText(defaultVoucher.routes.join('\n'))
-    toast.success('Voucher fields reset from final quote')
+    toast.success('New voucher started from final quote')
+  }
+
+  const editVoucher = (voucher: TravelPackageTransportVoucher) => {
+    setEditingVoucherId(voucher.id)
+    setVoucherForm(voucher.voucher_data)
+    setVoucherRoutesText(
+      (
+        voucher.voucher_data.routes ||
+        voucher.voucher_data.itinerary?.map((item) => item.description) ||
+        []
+      ).join('\n'),
+    )
+  }
+
+  const rebuildVoucherItineraryFromAssignments = () => {
+    setVoucherForm((current) => {
+      const assignments = current.routeAssignments || []
+      if (assignments.length === 0) return current
+      return {
+        ...current,
+        routes: assignments.map((route) => route.routeName).filter(Boolean),
+        itinerary: assignments.map((route) => ({
+          type: route.type || 'Transport Segment',
+          description: route.routeName,
+          date: route.date || '',
+          time: route.time || '',
+        })),
+      }
+    })
+  }
+
+  const downloadVoucherPreview = () => {
+    const blob = new Blob([voucherPreviewHtml], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `transport-voucher-${packageFolder.package_reference}${
+      selectedVoucher ? `-v${selectedVoucher.version}` : '-preview'
+    }.html`
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(url)
+  }
+
+  const buildVoucherData = () => {
+    const itinerary = (voucherForm.itinerary || []).filter(
+      (item) => item.type || item.description || item.date || item.time,
+    )
+    const routeAssignments = itinerary.map((item, index) => {
+      const existing = voucherForm.routeAssignments?.[index]
+      return {
+        routeName: item.description.trim() || existing?.routeName || '',
+        type: item.type.trim() || existing?.type || 'Transport Segment',
+        supplierName: existing?.supplierName || '',
+        vehicleType: existing?.vehicleType || voucherForm.vehicleType || voucherForm.vehicle || '',
+        date: item.date || existing?.date || '',
+        time: item.time || existing?.time || '',
+      }
+    })
+    return {
+      ...voucherForm,
+      passengers:
+        voucherForm.passengers ||
+        `${voucherForm.adults || 0} Adults, ${voucherForm.children || 0} Children${
+          voucherForm.infants ? `, ${voucherForm.infants} Infants` : ''
+        }`,
+      vehicleType: voucherForm.vehicleType || voucherForm.vehicle || '',
+      transportCompany: voucherForm.transportCompany || voucherForm.providerName || '',
+      groundManager: voucherForm.groundManager || voucherForm.providerContact || '',
+      arrivalAt:
+        voucherForm.arrivalAt ||
+        (voucherForm.landingDate && voucherForm.landingTime
+          ? `${voucherForm.landingDate}T${voucherForm.landingTime}`
+          : ''),
+      routes: itinerary.length
+        ? itinerary.map((item) => item.description.trim()).filter(Boolean)
+        : voucherRoutesText
+            .split('\n')
+            .map((route) => route.trim())
+            .filter(Boolean),
+      itinerary,
+      routeAssignments,
+    }
+  }
+
+  const saveVoucherEdits = async () => {
+    if (!editingVoucherId) return
+    setSaving('voucher')
+    try {
+      const voucherData = buildVoucherData()
+      const response = await fetch(
+        `/api/travel-packages/${packageFolder.id}/transport-vouchers/${editingVoucherId}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            voucherData,
+            customerVisible: selectedVoucher?.customer_visible || false,
+          }),
+        },
+      )
+      const data = (await response.json()) as {
+        voucher?: TravelPackageTransportVoucher
+        storageWarning?: string | null
+        error?: string
+      }
+      if (!response.ok || !data.voucher) throw new Error(data.error || 'Failed to save voucher')
+      setVouchers((current) =>
+        current.map((voucher) => (voucher.id === data.voucher!.id ? data.voucher! : voucher)),
+      )
+      setVoucherForm(data.voucher.voucher_data)
+      setVoucherRoutesText(
+        (
+          data.voucher.voucher_data.routes ||
+          data.voucher.voucher_data.itinerary?.map((item) => item.description) ||
+          []
+        ).join('\n'),
+      )
+      toast.success('Voucher edits saved')
+      if (data.storageWarning)
+        toast.warning(`Voucher saved, but document storage failed: ${data.storageWarning}`)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to save voucher')
+    } finally {
+      setSaving(null)
+    }
+  }
+
+  const setVoucherVisibility = async (
+    voucher: TravelPackageTransportVoucher,
+    customerVisible: boolean,
+  ) => {
+    setSaving('voucher')
+    try {
+      const response = await fetch(
+        `/api/travel-packages/${packageFolder.id}/transport-vouchers/${voucher.id}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ customerVisible }),
+        },
+      )
+      const data = (await response.json()) as {
+        voucher?: TravelPackageTransportVoucher
+        error?: string
+      }
+      if (!response.ok || !data.voucher) {
+        throw new Error(data.error || 'Failed to update voucher release status')
+      }
+      setVouchers((current) =>
+        current.map((item) => {
+          if (item.id === data.voucher!.id) return data.voucher!
+          if (customerVisible && item.customer_visible) {
+            return { ...item, customer_visible: false, status: 'amended' as const }
+          }
+          return item
+        }),
+      )
+      if (editingVoucherId === data.voucher.id) setVoucherForm(data.voucher.voucher_data)
+      toast.success(customerVisible ? 'Voucher released to customer' : 'Voucher revoked')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to update voucher')
+    } finally {
+      setSaving(null)
+    }
   }
 
   const generateVoucher = async (customerVisible: boolean) => {
     setSaving('voucher')
     try {
-      const itinerary = (voucherForm.itinerary || []).filter(
-        (item) => item.type || item.description || item.date || item.time,
-      )
-      const voucherData = {
-        ...voucherForm,
-        passengers:
-          voucherForm.passengers ||
-          `${voucherForm.adults || 0} Adults, ${voucherForm.children || 0} Children${
-            voucherForm.infants ? `, ${voucherForm.infants} Infants` : ''
-          }`,
-        vehicleType: voucherForm.vehicleType || voucherForm.vehicle || '',
-        transportCompany: voucherForm.transportCompany || voucherForm.providerName || '',
-        groundManager: voucherForm.groundManager || voucherForm.providerContact || '',
-        arrivalAt:
-          voucherForm.arrivalAt ||
-          (voucherForm.landingDate && voucherForm.landingTime
-            ? `${voucherForm.landingDate}T${voucherForm.landingTime}`
-            : ''),
-        routes: itinerary.length
-          ? itinerary.map((item) => item.description.trim()).filter(Boolean)
-          : voucherRoutesText
-              .split('\n')
-              .map((route) => route.trim())
-              .filter(Boolean),
-        itinerary,
-      }
+      const voucherData = buildVoucherData()
       const response = await fetch(`/api/travel-packages/${packageFolder.id}/transport-vouchers`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -743,11 +928,30 @@ export default function PackageOperationsWorkspace({
       })
       const data = (await response.json()) as {
         voucher?: TravelPackageTransportVoucher
+        storageWarning?: string | null
         error?: string
       }
       if (!response.ok || !data.voucher) throw new Error(data.error || 'Failed to generate voucher')
-      setVouchers((current) => [data.voucher!, ...current])
+      setVouchers((current) => [
+        data.voucher!,
+        ...current.map((voucher) =>
+          customerVisible && voucher.customer_visible
+            ? { ...voucher, customer_visible: false, status: 'amended' as const }
+            : voucher,
+        ),
+      ])
+      setEditingVoucherId(data.voucher.id)
+      setVoucherForm(data.voucher.voucher_data)
+      setVoucherRoutesText(
+        (
+          data.voucher.voucher_data.routes ||
+          data.voucher.voucher_data.itinerary?.map((item) => item.description) ||
+          []
+        ).join('\n'),
+      )
       toast.success(customerVisible ? 'Voucher generated and released' : 'Voucher draft generated')
+      if (data.storageWarning)
+        toast.warning(`Voucher saved, but document storage failed: ${data.storageWarning}`)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to generate voucher')
     } finally {
@@ -1759,15 +1963,57 @@ export default function PackageOperationsWorkspace({
                     Final quote details are prefilled. Complete flight, landing, provider, and route
                     timings before releasing.
                   </p>
+                  <p className="mt-1 text-xs font-bold text-slate-600">
+                    {selectedVoucher
+                      ? `Editing voucher v${selectedVoucher.version}`
+                      : 'Creating a new voucher from the final quote'}
+                  </p>
                 </div>
                 <button
                   type="button"
                   onClick={resetVoucherFromFinalQuote}
                   className="border border-slate-300 bg-white px-3 py-2 text-xs font-black text-slate-700"
                 >
-                  Use final quote details
+                  New voucher from final quote
                 </button>
               </div>
+
+              {voucherRouteAssignments.length > 0 && (
+                <div className="border border-emerald-200 bg-emerald-50 p-3">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-black uppercase text-emerald-900">
+                        Route data from final quote
+                      </p>
+                      <p className="mt-1 text-xs font-semibold text-emerald-800">
+                        Supplier and vehicle details are carried into the voucher for operations.
+                        Costs are not shown to customers.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={rebuildVoucherItineraryFromAssignments}
+                      className="border border-emerald-300 bg-white px-3 py-2 text-xs font-black text-emerald-900"
+                    >
+                      Rebuild itinerary rows
+                    </button>
+                  </div>
+                  <div className="mt-3 grid gap-2 lg:grid-cols-2">
+                    {voucherRouteAssignments.map((route, index) => (
+                      <div key={`${route.routeName}-${index}`} className="bg-white p-3 text-xs">
+                        <p className="font-black text-slate-900">
+                          {index + 1}. {route.routeName || 'Route to confirm'}
+                        </p>
+                        <p className="mt-1 font-semibold text-slate-500">
+                          {route.type || 'Transport Segment'}
+                          {route.vehicleType ? ` · ${route.vehicleType}` : ''}
+                          {route.supplierName ? ` · ${route.supplierName}` : ''}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_26rem] 2xl:grid-cols-[minmax(0,1fr)_34rem]">
                 <div className="space-y-4">
@@ -2080,13 +2326,24 @@ export default function PackageOperationsWorkspace({
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
+                {editingVoucherId && (
+                  <button
+                    type="button"
+                    onClick={() => void saveVoucherEdits()}
+                    disabled={saving === 'voucher' || Boolean(voucherPassengerError)}
+                    className="inline-flex items-center gap-2 border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-800"
+                  >
+                    <Check className="h-4 w-4" />
+                    Save edits to selected voucher
+                  </button>
+                )}
                 <button
                   onClick={() => void generateVoucher(false)}
                   disabled={saving === 'voucher' || Boolean(voucherPassengerError)}
                   className="inline-flex items-center gap-2 border border-slate-300 bg-white px-3 py-2 text-xs font-black"
                 >
                   <Save className="h-4 w-4" />
-                  Generate internal version
+                  Generate new internal voucher
                 </button>
                 <button
                   onClick={() => void generateVoucher(true)}
@@ -2094,8 +2351,31 @@ export default function PackageOperationsWorkspace({
                   className="inline-flex items-center gap-2 bg-[#8b1e2d] px-3 py-2 text-xs font-black text-white"
                 >
                   <ShieldCheck className="h-4 w-4" />
-                  Generate and release
+                  Generate new and release
                 </button>
+              </div>
+              <div className="border border-slate-200 bg-slate-50 p-3">
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <h3 className="text-sm font-black text-slate-900">Voucher preview</h3>
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs font-bold text-slate-500">
+                      {selectedVoucher ? `v${selectedVoucher.version}` : 'Unsaved preview'}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={downloadVoucherPreview}
+                      className="inline-flex items-center gap-1 border border-slate-300 bg-white px-2 py-1 text-xs font-black text-slate-700"
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                      Download HTML
+                    </button>
+                  </div>
+                </div>
+                <iframe
+                  title="Transport voucher preview"
+                  srcDoc={voucherPreviewHtml}
+                  className="h-[34rem] w-full border border-slate-200 bg-white"
+                />
               </div>
               {vouchers.length > 0 && (
                 <div className="overflow-x-auto border border-slate-200">
@@ -2106,16 +2386,45 @@ export default function PackageOperationsWorkspace({
                         <th className="px-3 py-2">Generated</th>
                         <th className="px-3 py-2">Status</th>
                         <th className="px-3 py-2">Customer</th>
+                        <th className="px-3 py-2">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-200">
                       {vouchers.map((voucher) => (
-                        <tr key={voucher.id}>
+                        <tr
+                          key={voucher.id}
+                          className={voucher.id === editingVoucherId ? 'bg-red-50/50' : ''}
+                        >
                           <td className="px-3 py-2 font-black">v{voucher.version}</td>
                           <td className="px-3 py-2">{formatDateTime(voucher.generated_at)}</td>
                           <td className="px-3 py-2">{label(voucher.status)}</td>
                           <td className="px-3 py-2">
                             {voucher.customer_visible ? 'Released' : 'Internal'}
+                          </td>
+                          <td className="px-3 py-2">
+                            <div className="flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                onClick={() => editVoucher(voucher)}
+                                className="border border-slate-300 bg-white px-2 py-1 text-xs font-black text-slate-700"
+                              >
+                                Edit / Preview
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void setVoucherVisibility(voucher, !voucher.customer_visible)
+                                }
+                                disabled={saving === 'voucher'}
+                                className={`px-2 py-1 text-xs font-black ${
+                                  voucher.customer_visible
+                                    ? 'border border-red-200 bg-red-50 text-red-700'
+                                    : 'bg-[#8b1e2d] text-white'
+                                }`}
+                              >
+                                {voucher.customer_visible ? 'Revoke' : 'Release'}
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}

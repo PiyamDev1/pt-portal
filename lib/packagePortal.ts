@@ -41,5 +41,12 @@ export function createPublicTransportVoucher<T extends Record<string, unknown>>(
     string,
     unknown
   >
+  if (Array.isArray(publicVoucherData.routeAssignments)) {
+    publicVoucherData.routeAssignments = publicVoucherData.routeAssignments.map((route) => {
+      const candidate = route && typeof route === 'object' ? (route as Record<string, unknown>) : {}
+      const { supplierName: _supplierName, ...publicRoute } = candidate
+      return publicRoute
+    })
+  }
   return { ...voucher, voucher_data: publicVoucherData }
 }

@@ -104,6 +104,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const storageKey = `${prefix.replace(/\/?$/, '/')}vouchers/transport-v${version}.html`
   const htmlBody = Buffer.from(renderedHtml, 'utf8')
   let etag = ''
+  let storageWarning: string | null = null
 
   try {
     const result = await getS3Client().send(
@@ -112,15 +113,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         Key: storageKey,
         Body: htmlBody,
         ContentType: 'text/html; charset=utf-8',
-        Metadata: { package_id: id, version: String(version), generated_by: user.id },
       }),
     )
     etag = result.ETag || ''
   } catch (error) {
-    return apiError(
-      error instanceof Error ? error.message : 'Failed to store transport voucher',
-      500,
-    )
+    storageWarning = error instanceof Error ? error.message : 'Failed to store transport voucher'
   }
 
   const backupConfig = getPackageBackupStorageConfig()
@@ -128,7 +125,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     ? 'pending'
     : 'skipped'
   let backupError: string | null = null
-  if (backupConfig) {
+  if (backupConfig && !storageWarning) {
     try {
       await getPackageBackupStorageClient().send(
         new PutObjectCommand({
@@ -136,7 +133,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           Key: storageKey,
           Body: htmlBody,
           ContentType: 'text/html; charset=utf-8',
-          Metadata: { package_id: id, primary_bucket: bucket },
         }),
       )
       backupStatus = 'copied'
@@ -144,6 +140,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       backupStatus = 'failed'
       backupError = error instanceof Error ? error.message : 'Voucher backup failed'
     }
+  } else if (storageWarning) {
+    backupStatus = 'skipped'
   }
 
   if (customerVisible) {
@@ -174,39 +172,43 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
   }
 
-  const { data: documentData, error: documentError } = await supabase
-    .from('travel_package_documents')
-    .insert({
-      package_id: id,
-      uploaded_by: user.id,
-      updated_by: user.id,
-      category: 'transport',
-      title: `Transport Voucher v${version}`,
-      file_name: `transport-voucher-${packageFolder.package_reference}-v${version}.html`,
-      file_size: htmlBody.byteLength,
-      file_type: 'text/html',
-      storage_provider: 'minio',
-      storage_bucket: bucket,
-      storage_key: storageKey,
-      storage_etag: etag,
-      backup_provider: backupConfig ? 'r3' : null,
-      backup_bucket: backupConfig?.bucketName || null,
-      backup_key: backupConfig ? storageKey : null,
-      backup_status: backupStatus,
-      backup_error: backupError,
-      status: customerVisible ? 'released' : 'ready_for_review',
-      customer_visible: customerVisible,
-      released_at: customerVisible ? generatedAt : null,
-      released_by: customerVisible ? user.id : null,
-      public_notes: voucherData.publicNotes || null,
-      internal_notes: voucherData.internalNotes || null,
-      metadata: { generated: true, voucherVersion: version },
-    })
-    .select('id')
-    .single()
-  if (documentError || !documentData) {
-    if (isSchemaError(documentError)) return apiError(SCHEMA_HINT, 503)
-    return apiError(documentError?.message || 'Failed to save transport voucher document', 500)
+  let documentId: string | null = null
+  if (!storageWarning) {
+    const { data: documentData, error: documentError } = await supabase
+      .from('travel_package_documents')
+      .insert({
+        package_id: id,
+        uploaded_by: user.id,
+        updated_by: user.id,
+        category: 'transport',
+        title: `Transport Voucher v${version}`,
+        file_name: `transport-voucher-${packageFolder.package_reference}-v${version}.html`,
+        file_size: htmlBody.byteLength,
+        file_type: 'text/html',
+        storage_provider: 'minio',
+        storage_bucket: bucket,
+        storage_key: storageKey,
+        storage_etag: etag,
+        backup_provider: backupConfig ? 'r3' : null,
+        backup_bucket: backupConfig?.bucketName || null,
+        backup_key: backupConfig ? storageKey : null,
+        backup_status: backupStatus,
+        backup_error: backupError,
+        status: customerVisible ? 'released' : 'ready_for_review',
+        customer_visible: customerVisible,
+        released_at: customerVisible ? generatedAt : null,
+        released_by: customerVisible ? user.id : null,
+        public_notes: voucherData.publicNotes || null,
+        internal_notes: voucherData.internalNotes || null,
+        metadata: { generated: true, voucherVersion: version },
+      })
+      .select('id')
+      .single()
+    if (documentError || !documentData) {
+      if (isSchemaError(documentError)) return apiError(SCHEMA_HINT, 503)
+      return apiError(documentError?.message || 'Failed to save transport voucher document', 500)
+    }
+    documentId = (documentData as unknown as { id: string }).id
   }
 
   const { data, error } = await supabase
@@ -214,7 +216,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     .insert({
       package_id: id,
       reservation_id: cleanText(body.reservationId || body.reservation_id) || null,
-      document_id: (documentData as unknown as { id: string }).id,
+      document_id: documentId,
       version,
       status: customerVisible ? 'released_to_customer' : 'generated',
       customer_visible: customerVisible,
@@ -239,8 +241,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     object_id: (data as unknown as { id: string }).id,
     version_number: version,
     visibility: customerVisible ? 'released_to_customer' : 'internal_only',
-    snapshot: { voucher: data, storage: { bucket, key: storageKey } },
-    internal_change_summary: `Transport voucher version ${version} generated.`,
+    snapshot: {
+      voucher: data,
+      storage: storageWarning ? null : { bucket, key: storageKey },
+      storageWarning,
+    },
+    internal_change_summary: storageWarning
+      ? `Transport voucher version ${version} generated without stored HTML document.`
+      : `Transport voucher version ${version} generated.`,
     created_by: user.id,
     released_at: customerVisible ? generatedAt : null,
     released_by: customerVisible ? user.id : null,
@@ -255,5 +263,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       afterData: data,
     },
   )
-  return apiOk({ voucher: data as unknown as TravelPackageTransportVoucher }, { status: 201 })
+  return apiOk(
+    { voucher: data as unknown as TravelPackageTransportVoucher, storageWarning },
+    { status: 201 },
+  )
 }

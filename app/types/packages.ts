@@ -711,6 +711,16 @@ export interface TravelPackageTransportVoucherData {
     date: string
     time: string
   }>
+  routeAssignments?: Array<{
+    routeName: string
+    type: string
+    supplierName?: string
+    vehicleType?: string
+    date?: string
+    time?: string
+  }>
+  sourceTransportOptionId?: string
+  sourceTransportOptionTitle?: string
   arrivalAirport: string
   arrivalAt: string
   departureAirport: string
