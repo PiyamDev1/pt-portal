@@ -12,6 +12,7 @@ import {
   normalizeTransportVoucherData,
   renderTransportVoucherHtml,
 } from '@/lib/packageTransportVoucher'
+import { enrichTransportVoucherPortalData } from '@/lib/packageTransportVoucherAccess'
 import { recordPackageAuditEvent } from '@/lib/packageAudit'
 import type { TravelPackageFolder, TravelPackageTransportVoucher } from '@/app/types/packages'
 
@@ -77,7 +78,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const { data: packageData, error: packageError } = await supabase
     .from('travel_packages')
-    .select('id, package_reference, customer_name, passenger_summary, minio_bucket, minio_prefix')
+    .select(
+      `
+      id, package_reference, customer_name, passenger_summary, minio_bucket, minio_prefix,
+      document_access_token, document_access_enabled, document_access_expires_at,
+      customer_access_last_name
+    `,
+    )
     .eq('id', id)
     .single()
   if (packageError || !packageData) return apiError('Travel package not found', 404)
@@ -95,7 +102,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const latestVersion = Number((latestData?.[0] as { version?: number } | undefined)?.version || 0)
   const version = latestVersion + 1
   const packageFolder = packageData as unknown as TravelPackageFolder
-  const voucherData = normalizeTransportVoucherData(body.voucherData || body.voucher_data)
+  const voucherData = await enrichTransportVoucherPortalData(
+    supabase as unknown as Parameters<typeof enrichTransportVoucherPortalData>[0],
+    packageFolder,
+    normalizeTransportVoucherData(body.voucherData || body.voucher_data),
+  )
   const renderedHtml = renderTransportVoucherHtml(packageFolder, voucherData)
   const customerVisible = Boolean(body.customerVisible || body.customer_visible)
   const generatedAt = new Date().toISOString()

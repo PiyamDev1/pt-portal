@@ -11,6 +11,7 @@ import {
   normalizeTransportVoucherData,
   renderTransportVoucherHtml,
 } from '@/lib/packageTransportVoucher'
+import { enrichTransportVoucherPortalData } from '@/lib/packageTransportVoucherAccess'
 import { getS3Client } from '@/lib/s3Client'
 import type { TravelPackageFolder, TravelPackageTransportVoucher } from '@/app/types/packages'
 import { selectTravelPackageVoucherColumns } from '../route'
@@ -43,18 +44,26 @@ export async function PATCH(
   const now = new Date().toISOString()
   const { data: packageData } = await supabase
     .from('travel_packages')
-    .select('id, package_reference, customer_name, passenger_summary')
+    .select(
+      `
+      id, package_reference, customer_name, passenger_summary,
+      document_access_token, document_access_enabled, document_access_expires_at,
+      customer_access_last_name
+    `,
+    )
     .eq('id', id)
     .single()
   if (!packageData) return apiError('Travel package not found', 404)
 
   const packageFolder = packageData as unknown as TravelPackageFolder
-  const voucherData = hasVoucherData
-    ? normalizeTransportVoucherData(body.voucherData || body.voucher_data, voucher.voucher_data)
-    : voucher.voucher_data
-  const renderedHtml = hasVoucherData
-    ? renderTransportVoucherHtml(packageFolder, voucherData)
-    : voucher.rendered_html
+  const voucherData = await enrichTransportVoucherPortalData(
+    supabase as unknown as Parameters<typeof enrichTransportVoucherPortalData>[0],
+    packageFolder,
+    hasVoucherData
+      ? normalizeTransportVoucherData(body.voucherData || body.voucher_data, voucher.voucher_data)
+      : normalizeTransportVoucherData(voucher.voucher_data),
+  )
+  const renderedHtml = renderTransportVoucherHtml(packageFolder, voucherData)
   let storageWarning: string | null = null
   const nextStatus = customerVisible
     ? 'released_to_customer'
@@ -64,7 +73,7 @@ export async function PATCH(
         : voucher.status
       : 'revoked'
 
-  if (hasVoucherData && voucher.document_id && renderedHtml) {
+  if (voucher.document_id && renderedHtml) {
     const htmlBody = Buffer.from(renderedHtml, 'utf8')
     const { data: documentData } = await supabase
       .from('travel_package_documents')

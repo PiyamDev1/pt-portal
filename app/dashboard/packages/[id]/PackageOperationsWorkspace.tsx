@@ -47,6 +47,7 @@ import {
   getTravelPackageStatusTransitions,
 } from '@/lib/packageWorkflow'
 import {
+  cleanTransportVoucherVehicleLabel,
   createDefaultTransportVoucherData,
   renderTransportVoucherHtml,
 } from '@/lib/packageTransportVoucher'
@@ -154,6 +155,24 @@ function emptyVoucher(): TravelPackageTransportVoucherData {
     routeAssignments: [],
     sourceTransportOptionId: '',
     sourceTransportOptionTitle: '',
+    digitalVoucherUrl: '',
+    qrCodeDataUrl: '',
+    quoteSnapshot: {
+      title: '',
+      packageType: '',
+      departureDate: '',
+      returnDate: '',
+      adults: 0,
+      children: 0,
+      infants: 0,
+      flightTitle: '',
+      makkahHotel: '',
+      madinahHotel: '',
+      transportOptionId: '',
+      transportOptionTitle: '',
+      transportProvider: '',
+      routes: [],
+    },
     arrivalAirport: '',
     arrivalAt: '',
     departureAirport: '',
@@ -180,6 +199,24 @@ const TRANSPORT_VEHICLES = [
 
 function getVehicleCapacity(vehicle: string | undefined) {
   return TRANSPORT_VEHICLES.find((item) => item.name === vehicle)
+}
+
+function normalizeVoucherVehicleFields(
+  voucherData: TravelPackageTransportVoucherData,
+): TravelPackageTransportVoucherData {
+  const fallbackVehicle = cleanTransportVoucherVehicleLabel(
+    voucherData.vehicleType || voucherData.vehicle,
+    voucherData.vehicle || '',
+  )
+  return {
+    ...voucherData,
+    vehicle: cleanTransportVoucherVehicleLabel(voucherData.vehicle, fallbackVehicle),
+    vehicleType: fallbackVehicle,
+    routeAssignments: (voucherData.routeAssignments || []).map((route) => ({
+      ...route,
+      vehicleType: cleanTransportVoucherVehicleLabel(route.vehicleType, fallbackVehicle),
+    })),
+  }
 }
 
 export default function PackageOperationsWorkspace({
@@ -328,12 +365,13 @@ export default function PackageOperationsWorkspace({
       )
       const latestVoucher = voucherResponse.ok ? voucherData.vouchers?.[0] : null
       if (latestVoucher) {
+        const normalizedVoucherData = normalizeVoucherVehicleFields(latestVoucher.voucher_data)
         setEditingVoucherId(latestVoucher.id)
-        setVoucherForm(latestVoucher.voucher_data)
+        setVoucherForm(normalizedVoucherData)
         setVoucherRoutesText(
           (
-            latestVoucher.voucher_data.routes ||
-            latestVoucher.voucher_data.itinerary?.map((item) => item.description) ||
+            normalizedVoucherData.routes ||
+            normalizedVoucherData.itinerary?.map((item) => item.description) ||
             []
           ).join('\n'),
         )
@@ -692,12 +730,15 @@ export default function PackageOperationsWorkspace({
       }
       const routeAssignments = [...(current.routeAssignments || [])]
       const existingAssignment = routeAssignments[index]
+      const fallbackVehicle = current.vehicleType || current.vehicle || ''
       routeAssignments[index] = {
         routeName: itinerary[index].description,
         type: itinerary[index].type,
         supplierName: existingAssignment?.supplierName || '',
-        vehicleType:
-          existingAssignment?.vehicleType || current.vehicleType || current.vehicle || '',
+        vehicleType: cleanTransportVoucherVehicleLabel(
+          existingAssignment?.vehicleType,
+          fallbackVehicle,
+        ),
         date: itinerary[index].date,
         time: itinerary[index].time,
       }
@@ -752,12 +793,13 @@ export default function PackageOperationsWorkspace({
   }
 
   const editVoucher = (voucher: TravelPackageTransportVoucher) => {
+    const normalizedVoucherData = normalizeVoucherVehicleFields(voucher.voucher_data)
     setEditingVoucherId(voucher.id)
-    setVoucherForm(voucher.voucher_data)
+    setVoucherForm(normalizedVoucherData)
     setVoucherRoutesText(
       (
-        voucher.voucher_data.routes ||
-        voucher.voucher_data.itinerary?.map((item) => item.description) ||
+        normalizedVoucherData.routes ||
+        normalizedVoucherData.itinerary?.map((item) => item.description) ||
         []
       ).join('\n'),
     )
@@ -800,11 +842,12 @@ export default function PackageOperationsWorkspace({
     )
     const routeAssignments = itinerary.map((item, index) => {
       const existing = voucherForm.routeAssignments?.[index]
+      const fallbackVehicle = voucherForm.vehicleType || voucherForm.vehicle || ''
       return {
         routeName: item.description.trim() || existing?.routeName || '',
         type: item.type.trim() || existing?.type || 'Transport Segment',
         supplierName: existing?.supplierName || '',
-        vehicleType: existing?.vehicleType || voucherForm.vehicleType || voucherForm.vehicle || '',
+        vehicleType: cleanTransportVoucherVehicleLabel(existing?.vehicleType, fallbackVehicle),
         date: item.date || existing?.date || '',
         time: item.time || existing?.time || '',
       }

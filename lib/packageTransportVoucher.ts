@@ -7,6 +7,7 @@ import type {
 const DEFAULT_TRANSPORT_PROVIDER = 'Barakat AlMusafar Trading'
 const DEFAULT_TRANSPORT_PROVIDER_CONTACT = '+966555049005'
 const DEFAULT_EXTRA_BAGGAGE_FEE = '50 SAR per bag'
+const DEFAULT_CUSTOMER_PORTAL_URL = 'https://bookings.piyamtravel.com'
 
 function escapeHtml(value: unknown) {
   return String(value ?? '')
@@ -109,6 +110,37 @@ function getVehicleName(value: string | null | undefined) {
   return text
 }
 
+function looksLikeTransportRoute(value: string | null | undefined) {
+  const text = String(value || '').trim()
+  if (!text) return false
+  return (
+    text.startsWith('*') ||
+    /\b(jeddah|makkah|mecca|madinah|medina|airport|hotel|ziyarat|mazarat)\b/i.test(text)
+  )
+}
+
+export function cleanTransportVoucherVehicleLabel(value: string | null | undefined, fallback = '') {
+  const text = String(value || '').trim()
+  if (!text || looksLikeTransportRoute(text)) return fallback
+  return getVehicleName(text)
+}
+
+export function getPackageCustomerPortalBaseUrl() {
+  return (
+    process.env.NEXT_PUBLIC_BOOKINGS_PORTAL_URL ||
+    process.env.NEXT_PUBLIC_PACKAGE_PORTAL_URL ||
+    DEFAULT_CUSTOMER_PORTAL_URL
+  ).replace(/\/+$/, '')
+}
+
+export function getPackageDocumentPortalUrl(
+  token: string,
+  baseUrl = getPackageCustomerPortalBaseUrl(),
+) {
+  const cleanToken = token.trim()
+  return cleanToken ? `${baseUrl}/package-documents/${cleanToken}` : baseUrl
+}
+
 function routeType(description: string, index: number, total: number) {
   const lower = description.toLowerCase()
   if (lower.includes('ziyar') || lower.includes('tour')) return "Ziyara'at / Tour"
@@ -163,6 +195,7 @@ function createRouteAssignments(
   returnDate: string,
 ): VoucherRouteAssignment[] {
   const structuredRoutes = getStructuredTransportRoutes(transportOption)
+  const fallbackVehicle = getTransportVehicleName(transportOption)
   return structuredRoutes.map((route, index) => {
     const date =
       index === 0 ? departureDate : index === structuredRoutes.length - 1 ? returnDate : ''
@@ -170,7 +203,7 @@ function createRouteAssignments(
       routeName: route.routeName,
       type: routeType(route.routeName, index, structuredRoutes.length),
       supplierName: route.supplierName || '',
-      vehicleType: getVehicleName(route.vehicleLabel || route.vehicleTypeId),
+      vehicleType: cleanTransportVoucherVehicleLabel(route.vehicleLabel, fallbackVehicle),
       date,
       time: '',
     }
@@ -258,6 +291,24 @@ export function createDefaultTransportVoucherData(
     routeAssignments,
     sourceTransportOptionId: transportOption?.id || '',
     sourceTransportOptionTitle: transportOption?.title || '',
+    digitalVoucherUrl: '',
+    qrCodeDataUrl: '',
+    quoteSnapshot: {
+      title: packageFolder.selected_quote_snapshot?.quote?.title || '',
+      packageType: packageFolder.selected_quote_snapshot?.quote?.package_type || '',
+      departureDate,
+      returnDate,
+      adults,
+      children,
+      infants,
+      flightTitle: selectedCombination?.flightOption?.title || '',
+      makkahHotel: makkahStay?.option.title || '',
+      madinahHotel: madinahStay?.option.title || '',
+      transportOptionId: transportOption?.id || '',
+      transportOptionTitle: transportOption?.title || '',
+      transportProvider: providerName,
+      routes: fallbackRoutes,
+    },
     arrivalAirport: '',
     arrivalAt: packageFolder.departure_date || '',
     departureAirport: '',
@@ -318,7 +369,10 @@ export function normalizeTransportVoucherData(
         routeName: String(candidate.routeName || '').trim(),
         type: String(candidate.type || '').trim(),
         supplierName: String(candidate.supplierName || '').trim(),
-        vehicleType: String(candidate.vehicleType || '').trim(),
+        vehicleType: cleanTransportVoucherVehicleLabel(
+          String(candidate.vehicleType || '').trim(),
+          String(fallback?.vehicleType || fallback?.vehicle || '').trim(),
+        ),
         date: String(candidate.date || '').trim(),
         time: String(candidate.time || '').trim(),
       }
@@ -331,6 +385,16 @@ export function normalizeTransportVoucherData(
   const vehicle = text('vehicle') || text('vehicleType')
   const providerName = text('providerName') || text('transportCompany')
   const providerContact = text('providerContact') || text('groundManager')
+  const quoteSnapshotInput =
+    input.quoteSnapshot && typeof input.quoteSnapshot === 'object'
+      ? (input.quoteSnapshot as Record<string, unknown>)
+      : fallback?.quoteSnapshot || {}
+  const quoteSnapshotRoutes = Array.isArray(quoteSnapshotInput.routes)
+    ? quoteSnapshotInput.routes
+        .map((route) => String(route).trim())
+        .filter(Boolean)
+        .slice(0, 20)
+    : fallback?.quoteSnapshot?.routes || []
 
   return {
     bookingId: text('bookingId'),
@@ -353,6 +417,24 @@ export function normalizeTransportVoucherData(
     routeAssignments,
     sourceTransportOptionId: text('sourceTransportOptionId'),
     sourceTransportOptionTitle: text('sourceTransportOptionTitle'),
+    digitalVoucherUrl: text('digitalVoucherUrl'),
+    qrCodeDataUrl: text('qrCodeDataUrl'),
+    quoteSnapshot: {
+      title: String(quoteSnapshotInput.title || '').trim(),
+      packageType: String(quoteSnapshotInput.packageType || '').trim(),
+      departureDate: String(quoteSnapshotInput.departureDate || '').trim(),
+      returnDate: String(quoteSnapshotInput.returnDate || '').trim(),
+      adults: Number(quoteSnapshotInput.adults || 0) || 0,
+      children: Number(quoteSnapshotInput.children || 0) || 0,
+      infants: Number(quoteSnapshotInput.infants || 0) || 0,
+      flightTitle: String(quoteSnapshotInput.flightTitle || '').trim(),
+      makkahHotel: String(quoteSnapshotInput.makkahHotel || '').trim(),
+      madinahHotel: String(quoteSnapshotInput.madinahHotel || '').trim(),
+      transportOptionId: String(quoteSnapshotInput.transportOptionId || '').trim(),
+      transportOptionTitle: String(quoteSnapshotInput.transportOptionTitle || '').trim(),
+      transportProvider: String(quoteSnapshotInput.transportProvider || '').trim(),
+      routes: quoteSnapshotRoutes,
+    },
     arrivalAirport: text('arrivalAirport'),
     arrivalAt: text('arrivalAt') || combineDateTime(text('landingDate'), text('landingTime')),
     departureAirport: text('departureAirport'),
@@ -418,6 +500,9 @@ export function renderTransportVoucherHtml(
         `${index + 1}. ${item.type}: ${item.description} at ${formatVoucherDateTime(item.date, item.time)}`,
     ),
   ].join('\n')
+  const qrContent = data.qrCodeDataUrl
+    ? `<img src="${escapeHtml(data.qrCodeDataUrl)}" alt="Open digital voucher" />`
+    : escapeHtml((data.digitalVoucherUrl || qrText).trim())
   const passengerLabel =
     data.passengers ||
     `${data.adults || 0} Adults, ${data.children || 0} Children${
@@ -434,7 +519,7 @@ export function renderTransportVoucherHtml(
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Transport Voucher ${escapeHtml(packageFolder.package_reference)}</title>
   <style>
-    body{font-family:Inter,Arial,sans-serif;color:#111827;margin:0;background:#f4f6f8}.voucher{width:900px;max-width:100%;margin:24px auto;background:#fff;display:flex;border-radius:16px;border:1px solid #e5e7eb;overflow:hidden}.main{flex:1;padding:24px;display:flex;flex-direction:column;font-size:14px}.header{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:12px;border-bottom:1px solid #e5e7eb}.brand{font-size:22px;font-weight:900;color:#800000}.title{text-align:right}.title h1{font-size:28px;font-weight:900;color:#800000;margin:0}.title p{font-size:12px;font-weight:700;color:#6b7280;letter-spacing:.05em;margin:0}.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px 24px;margin-top:20px;flex:1}.label{font-size:12px;color:#6b7280;margin:0;text-transform:uppercase}.value{font-weight:700;color:#1f2937;margin:0}.lead{font-size:18px;color:#111827}.itinerary{grid-column:span 2;border-top:1px solid #e5e7eb;padding-top:12px}.itinerary-list{font-size:13px;margin-top:8px;color:#374151;display:grid;grid-template-columns:1fr;gap:8px}.segment{border:1px solid #e5e7eb;border-radius:8px;padding:10px;background:#f9fafb}.segment-time{margin-top:4px;font-weight:700;color:#800000}.segment-meta{margin-top:4px;font-size:11px;color:#6b7280}.footer{border-top:1px solid #e5e7eb;padding-top:12px;margin-top:auto;font-size:12px;display:flex;justify-content:space-between;gap:24px}.stub{background:#800000;color:#fff;padding:24px;width:256px;flex-shrink:0;display:flex;flex-direction:column;justify-content:space-between}.stub-head{text-align:center;padding-bottom:12px;border-bottom:1px solid #a83333}.stub-head h2{font-weight:900;letter-spacing:.05em;margin:0}.stub-head p{font-size:12px;opacity:.8;margin:0}.stub-stack{margin-top:16px;font-size:14px;display:flex;flex-direction:column;gap:12px}.stub-label{font-size:12px;color:#fecaca;margin:0}.stub-value{font-weight:700;margin:0}.qr{background:#fff;color:#111827;padding:8px;border-radius:6px;font-size:9px;white-space:pre-wrap;word-break:break-word;max-height:132px;overflow:hidden}.notice{margin-top:16px;padding:12px;background:#fef2f2;border-left:4px solid #800000;white-space:pre-wrap;font-size:12px}@media(max-width:720px){.voucher{margin:0;border-radius:0;display:block}.stub{width:auto}.grid{grid-template-columns:1fr}.itinerary{grid-column:auto}.footer{display:block}.title{text-align:left;margin-top:10px}.header{display:block}}
+    body{font-family:Inter,Arial,sans-serif;color:#111827;margin:0;background:#f4f6f8}.voucher{width:900px;max-width:100%;margin:24px auto;background:#fff;display:flex;border-radius:16px;border:1px solid #e5e7eb;overflow:hidden}.main{flex:1;padding:24px;display:flex;flex-direction:column;font-size:14px}.header{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:12px;border-bottom:1px solid #e5e7eb}.brand{font-size:22px;font-weight:900;color:#800000}.title{text-align:right}.title h1{font-size:28px;font-weight:900;color:#800000;margin:0}.title p{font-size:12px;font-weight:700;color:#6b7280;letter-spacing:.05em;margin:0}.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px 24px;margin-top:20px;flex:1}.label{font-size:12px;color:#6b7280;margin:0;text-transform:uppercase}.value{font-weight:700;color:#1f2937;margin:0}.lead{font-size:18px;color:#111827}.itinerary{grid-column:span 2;border-top:1px solid #e5e7eb;padding-top:12px}.itinerary-list{font-size:13px;margin-top:8px;color:#374151;display:grid;grid-template-columns:1fr;gap:8px}.segment{border:1px solid #e5e7eb;border-radius:8px;padding:10px;background:#f9fafb}.segment-time{margin-top:4px;font-weight:700;color:#800000}.segment-meta{margin-top:4px;font-size:11px;color:#6b7280}.footer{border-top:1px solid #e5e7eb;padding-top:12px;margin-top:auto;font-size:12px;display:flex;justify-content:space-between;gap:24px}.stub{background:#800000;color:#fff;padding:24px;width:256px;flex-shrink:0;display:flex;flex-direction:column;justify-content:space-between}.stub-head{text-align:center;padding-bottom:12px;border-bottom:1px solid #a83333}.stub-head h2{font-weight:900;letter-spacing:.05em;margin:0}.stub-head p{font-size:12px;opacity:.8;margin:0}.stub-stack{margin-top:16px;font-size:14px;display:flex;flex-direction:column;gap:12px}.stub-label{font-size:12px;color:#fecaca;margin:0}.stub-value{font-weight:700;margin:0}.qr{background:#fff;color:#111827;padding:8px;border-radius:6px;font-size:9px;white-space:pre-wrap;word-break:break-word;overflow:hidden;min-height:132px;display:flex;align-items:center;justify-content:center}.qr img{display:block;width:132px;height:132px}.notice{margin-top:16px;padding:12px;background:#fef2f2;border-left:4px solid #800000;white-space:pre-wrap;font-size:12px}@media(max-width:720px){.voucher{margin:0;border-radius:0;display:block}.stub{width:auto}.grid{grid-template-columns:1fr}.itinerary{grid-column:auto}.footer{display:block}.title{text-align:left;margin-top:10px}.header{display:block}}
   </style>
 </head>
 <body><main class="voucher">
@@ -469,7 +554,7 @@ export function renderTransportVoucherHtml(
         <div><p class="stub-label">BAGGAGE</p><p class="stub-value" style="font-size:12px">${escapeHtml(data.maxBags || '0')} Bags Max (${escapeHtml(data.extraBaggageFee || DEFAULT_EXTRA_BAGGAGE_FEE)})</p></div>
       </div>
     </div>
-    <div class="qr">${escapeHtml(qrText.trim())}</div>
+    <div class="qr">${qrContent}</div>
   </aside>
 </main></body></html>`
 }

@@ -721,6 +721,24 @@ export interface TravelPackageTransportVoucherData {
   }>
   sourceTransportOptionId?: string
   sourceTransportOptionTitle?: string
+  digitalVoucherUrl?: string
+  qrCodeDataUrl?: string
+  quoteSnapshot?: {
+    title?: string
+    packageType?: string
+    departureDate?: string
+    returnDate?: string
+    adults?: number
+    children?: number
+    infants?: number
+    flightTitle?: string
+    makkahHotel?: string
+    madinahHotel?: string
+    transportOptionId?: string
+    transportOptionTitle?: string
+    transportProvider?: string
+    routes?: string[]
+  }
   arrivalAirport: string
   arrivalAt: string
   departureAirport: string
