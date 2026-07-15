@@ -301,7 +301,9 @@ DO UPDATE SET
 
 INSERT INTO public.umrah_transport_settings (setting_key, setting_value, notes)
 VALUES
-  ('sar_to_gbp_exchange_rate', '0.00', 'Global transport pricing exchange rate. Enter SAR per 1 GBP.')
+  ('sar_to_gbp_exchange_rate', '0.00', 'Global transport pricing exchange rate. Enter SAR per 1 GBP.'),
+  ('damage_recovery_margin_mode', 'fixed', 'Damage recovery margin mode applied to package transport net costs.'),
+  ('damage_recovery_margin_value', '0.00', 'Damage recovery margin value applied to package transport net costs.')
 ON CONFLICT (setting_key) DO NOTHING;
 
 ALTER TABLE public.umrah_transport_suppliers ENABLE ROW LEVEL SECURITY;

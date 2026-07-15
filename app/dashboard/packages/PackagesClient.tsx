@@ -100,6 +100,8 @@ type UmrahTransportPricingData = {
   rates: UmrahTransportPricingRate[]
   labels: UmrahTransportPricingLabel[]
   sarToGbpExchangeRate: number
+  damageRecoveryMarginMode: 'percent' | 'fixed'
+  damageRecoveryMarginValue: number
   setupRequired?: boolean
   message?: string
 }
@@ -197,6 +199,54 @@ function getTransportExchangeRateSnapshot(
   if (currency === 'SAR') return pricing?.sarToGbpExchangeRate || 0
   if (currency === 'GBP') return 1
   return 0
+}
+
+function getDamageRecoveryMargin(
+  baseCostGbp: number,
+  pricing: UmrahTransportPricingData | null,
+) {
+  const mode: 'percent' | 'fixed' =
+    pricing?.damageRecoveryMarginMode === 'percent' ? 'percent' : 'fixed'
+  const value = Number(pricing?.damageRecoveryMarginValue || 0)
+  const margin = mode === 'percent' ? baseCostGbp * (value / 100) : value
+  return {
+    mode,
+    value,
+    amountGbp: Math.max(0, Math.round(margin * 100) / 100),
+  }
+}
+
+function buildTransportRouteCostSnapshot({
+  routeId,
+  supplierId,
+  vehicleTypeId,
+  pricing,
+}: {
+  routeId: string
+  supplierId: string
+  vehicleTypeId: string
+  pricing: UmrahTransportPricingData | null
+}) {
+  const rate = getTransportRate(pricing, routeId, supplierId, vehicleTypeId)
+  const supplier = pricing?.suppliers.find((item) => item.id === supplierId)
+  if (!rate || !supplier) return null
+
+  const costPrice = Number(rate.cost_price || 0)
+  const currency = rate.currency || supplier.default_currency || 'GBP'
+  const exchangeRate = getTransportExchangeRateSnapshot(currency, pricing)
+  const baseCostPriceGbp = convertTransportCostToGbp(costPrice, currency, pricing)
+  const margin = getDamageRecoveryMargin(baseCostPriceGbp, pricing)
+  const costPriceGbp = baseCostPriceGbp + margin.amountGbp
+
+  return {
+    supplier,
+    costPrice,
+    currency,
+    baseCostPriceGbp: Math.round(baseCostPriceGbp * 100) / 100,
+    costPriceGbp: Math.round(costPriceGbp * 100) / 100,
+    exchangeRate,
+    margin,
+  }
 }
 
 function findCheapestTransportRate(
@@ -319,12 +369,15 @@ function resolveTransportRouteSelection(
   const cheapestRate =
     route && vehicle ? findCheapestTransportRate(pricing, route.id, vehicle.id) : null
   const supplier = pricing?.suppliers.find((item) => item.id === cheapestRate?.supplier_id)
-  const rate =
-    route && supplier && vehicle ? getTransportRate(pricing, route.id, supplier.id, vehicle.id) : null
-  const costPrice = Number(rate?.cost_price || 0)
-  const currency = rate?.currency || supplier?.default_currency || 'GBP'
-  const exchangeRate = getTransportExchangeRateSnapshot(currency, pricing)
-  const costPriceGbp = convertTransportCostToGbp(costPrice, currency, pricing)
+  const costSnapshot =
+    route && supplier && vehicle
+      ? buildTransportRouteCostSnapshot({
+          routeId: route.id,
+          supplierId: supplier.id,
+          vehicleTypeId: vehicle.id,
+          pricing,
+        })
+      : null
 
   return {
     id: current.id || makeId('transport-route'),
@@ -335,12 +388,31 @@ function resolveTransportRouteSelection(
     supplierName: supplier?.name || '',
     vehicleTypeId: vehicle?.id || '',
     vehicleLabel: supplier && vehicle ? getSupplierVehicleLabel(pricing, supplier.id, vehicle.id) : '',
-    costPrice,
-    currency,
-    costPriceGbp: Math.round(costPriceGbp * 100) / 100,
-    exchangeRate,
+    costPrice: costSnapshot?.costPrice || 0,
+    currency: costSnapshot?.currency || supplier?.default_currency || 'GBP',
+    baseCostPriceGbp: costSnapshot?.baseCostPriceGbp || 0,
+    costPriceGbp: costSnapshot?.costPriceGbp || 0,
+    exchangeRate: costSnapshot?.exchangeRate || 0,
     exchangeRateMode: 'sar_per_gbp',
+    damageRecoveryMarginMode: costSnapshot?.margin.mode || 'fixed',
+    damageRecoveryMarginValue: costSnapshot?.margin.value || 0,
+    damageRecoveryMarginAmountGbp: costSnapshot?.margin.amountGbp || 0,
   }
+}
+
+function getTransportRouteNetCostForSupplier(
+  route: PackageTransportRouteSelection,
+  supplierId: string | undefined,
+  pricing: UmrahTransportPricingData | null,
+) {
+  if (!supplierId) return route.costPriceGbp || 0
+  const supplierCost = buildTransportRouteCostSnapshot({
+    routeId: route.routeId,
+    supplierId,
+    vehicleTypeId: route.vehicleTypeId,
+    pricing,
+  })
+  return supplierCost?.costPriceGbp ?? route.costPriceGbp ?? 0
 }
 
 function newOption(
@@ -518,8 +590,11 @@ function OptionEditor({
     const netCost = routes.reduce((total, route) => {
       return (
         total +
-        (route.costPriceGbp ??
-          convertTransportCostToGbp(route.costPrice, route.currency, transportPricingData))
+        getTransportRouteNetCostForSupplier(
+          route,
+          mainSupplier?.supplierId,
+          transportPricingData,
+        )
       )
     }, 0)
     const summary = buildTransportSummary(routes, option.summary)
@@ -700,6 +775,7 @@ function OptionEditor({
                 const routeGbpCost =
                   route.costPriceGbp ??
                   convertTransportCostToGbp(route.costPrice, route.currency, transportPricingData)
+                const routeBaseGbpCost = route.baseCostPriceGbp ?? routeGbpCost
                 return (
                   <div
                     key={route.id}
@@ -766,6 +842,12 @@ function OptionEditor({
                     <div className="flex items-end gap-2">
                       <div className="min-h-9 flex-1 rounded-lg bg-slate-100 px-2 py-2 text-xs font-black text-slate-700">
                         {formatMoney(routeGbpCost || 0, 'GBP')}
+                        {Number(route.damageRecoveryMarginAmountGbp || 0) > 0 && (
+                          <span className="mt-0.5 block text-[10px] font-bold text-slate-500">
+                            Base {formatMoney(routeBaseGbpCost || 0, 'GBP')} + recovery{' '}
+                            {formatMoney(route.damageRecoveryMarginAmountGbp || 0, 'GBP')}
+                          </span>
+                        )}
                         {route.currency !== 'GBP' && (
                           <span className="mt-0.5 block text-[10px] font-bold text-slate-500">
                             {route.currency} {Number(route.costPrice || 0).toFixed(2)} at{' '}
@@ -789,7 +871,8 @@ function OptionEditor({
 
             {option.transportMainSupplierName && (
               <p className="mt-3 rounded-lg bg-white p-2 text-xs font-bold text-slate-600">
-                Main supplier by majority: {option.transportMainSupplierName}. Net transport cost:{' '}
+                Main supplier by route count: {option.transportMainSupplierName}. Net transport
+                cost priced with this supplier:{' '}
                 {formatMoney(option.transportNetCost || 0, option.transportNetCurrency || 'GBP')}.
               </p>
             )}

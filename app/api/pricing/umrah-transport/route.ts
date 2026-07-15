@@ -48,7 +48,11 @@ export async function GET() {
     supabase
       .from('umrah_transport_settings')
       .select('setting_key, setting_value')
-      .eq('setting_key', 'sar_to_gbp_exchange_rate'),
+      .in('setting_key', [
+        'sar_to_gbp_exchange_rate',
+        'damage_recovery_margin_mode',
+        'damage_recovery_margin_value',
+      ]),
   ])
 
   const firstError =
@@ -68,6 +72,8 @@ export async function GET() {
         rates: [],
         labels: [],
         sarToGbpExchangeRate: 0,
+        damageRecoveryMarginMode: 'fixed',
+        damageRecoveryMarginValue: 0,
         setupRequired: true,
         message: SCHEMA_HINT,
       })
@@ -75,7 +81,12 @@ export async function GET() {
     return apiError(firstError.message || 'Failed to load Umrah transport pricing', 500)
   }
 
-  const exchangeRate = Number(settings.data?.[0]?.setting_value || 0)
+  const settingsByKey = new Map(
+    (settings.data || []).map((setting) => [setting.setting_key, setting.setting_value]),
+  )
+  const exchangeRate = Number(settingsByKey.get('sar_to_gbp_exchange_rate') || 0)
+  const marginModeValue = settingsByKey.get('damage_recovery_margin_mode')
+  const marginValue = Number(settingsByKey.get('damage_recovery_margin_value') || 0)
 
   return apiOk({
     routes: routes.data || [],
@@ -84,6 +95,8 @@ export async function GET() {
     rates: rates.data || [],
     labels: labels.data || [],
     sarToGbpExchangeRate: Number.isFinite(exchangeRate) ? exchangeRate : 0,
+    damageRecoveryMarginMode: marginModeValue === 'percent' ? 'percent' : 'fixed',
+    damageRecoveryMarginValue: Number.isFinite(marginValue) ? marginValue : 0,
     setupRequired: false,
   })
 }

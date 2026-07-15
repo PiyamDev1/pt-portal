@@ -144,6 +144,13 @@ function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProp
   const [draggingVehicleId, setDraggingVehicleId] = useState('')
   const [sarToGbpRate, setSarToGbpRate] = useState('')
   const [originalSarToGbpRate, setOriginalSarToGbpRate] = useState('')
+  const [damageRecoveryMarginMode, setDamageRecoveryMarginMode] = useState<'percent' | 'fixed'>(
+    'fixed',
+  )
+  const [originalDamageRecoveryMarginMode, setOriginalDamageRecoveryMarginMode] =
+    useState<'percent' | 'fixed'>('fixed')
+  const [damageRecoveryMarginValue, setDamageRecoveryMarginValue] = useState('')
+  const [originalDamageRecoveryMarginValue, setOriginalDamageRecoveryMarginValue] = useState('')
   const [newSupplierName, setNewSupplierName] = useState('')
   const [newVehicleLabel, setNewVehicleLabel] = useState('')
   const [newVehicleCapacity, setNewVehicleCapacity] = useState('')
@@ -193,7 +200,11 @@ function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProp
           supabase
             .from('umrah_transport_settings')
             .select('*')
-            .eq('setting_key', 'sar_to_gbp_exchange_rate'),
+            .in('setting_key', [
+              'sar_to_gbp_exchange_rate',
+              'damage_recovery_margin_mode',
+              'damage_recovery_margin_value',
+            ]),
         ])
 
       const firstError =
@@ -227,6 +238,14 @@ function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProp
       const exchangeRateSetting = nextSettings.find(
         (setting) => setting.setting_key === 'sar_to_gbp_exchange_rate',
       )
+      const damageRecoveryMarginModeSetting = nextSettings.find(
+        (setting) => setting.setting_key === 'damage_recovery_margin_mode',
+      )
+      const damageRecoveryMarginValueSetting = nextSettings.find(
+        (setting) => setting.setting_key === 'damage_recovery_margin_value',
+      )
+      const nextDamageRecoveryMarginMode =
+        damageRecoveryMarginModeSetting?.setting_value === 'percent' ? 'percent' : 'fixed'
 
       const nextSupplierDrafts = Object.fromEntries(
         nextSuppliers.map((supplier) => [
@@ -292,6 +311,10 @@ function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProp
       setOriginalSupplierVehicleLabelDrafts(nextSupplierVehicleLabelDrafts)
       setSarToGbpRate(exchangeRateSetting?.setting_value || '')
       setOriginalSarToGbpRate(exchangeRateSetting?.setting_value || '')
+      setDamageRecoveryMarginMode(nextDamageRecoveryMarginMode)
+      setOriginalDamageRecoveryMarginMode(nextDamageRecoveryMarginMode)
+      setDamageRecoveryMarginValue(damageRecoveryMarginValueSetting?.setting_value || '')
+      setOriginalDamageRecoveryMarginValue(damageRecoveryMarginValueSetting?.setting_value || '')
       setDirtySupplierIds(new Set())
       setDirtyVehicleIds(new Set())
       setDirtyPlanIds(new Set())
@@ -405,7 +428,9 @@ function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProp
     dirtyRateEntries.length > 0 ||
     dirtyGuideEntries.length > 0 ||
     dirtySupplierVehicleLabelEntries.length > 0 ||
-    sarToGbpRate !== originalSarToGbpRate
+    sarToGbpRate !== originalSarToGbpRate ||
+    damageRecoveryMarginMode !== originalDamageRecoveryMarginMode ||
+    damageRecoveryMarginValue !== originalDamageRecoveryMarginValue
 
   const updateSupplierDraft = (supplierId: string, changes: Partial<SupplierDraft>) => {
     setSupplierDrafts((current) => ({
@@ -742,6 +767,9 @@ function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProp
         })
         .filter((row): row is NonNullable<typeof row> => Boolean(row))
       const exchangeRateChanged = sarToGbpRate !== originalSarToGbpRate
+      const damageRecoveryMarginChanged =
+        damageRecoveryMarginMode !== originalDamageRecoveryMarginMode ||
+        damageRecoveryMarginValue !== originalDamageRecoveryMarginValue
 
       const updateResults = await Promise.all([
         ...supplierUpdates,
@@ -796,6 +824,25 @@ function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProp
             setting_value: String(parseDecimal(sarToGbpRate, 6)),
             notes: 'Global transport pricing exchange rate. Enter SAR per 1 GBP.',
           },
+          { onConflict: 'setting_key' },
+        )
+        if (error) throw error
+      }
+
+      if (damageRecoveryMarginChanged) {
+        const { error } = await supabase.from('umrah_transport_settings').upsert(
+          [
+            {
+              setting_key: 'damage_recovery_margin_mode',
+              setting_value: damageRecoveryMarginMode,
+              notes: 'Damage recovery margin mode applied to package transport net costs.',
+            },
+            {
+              setting_key: 'damage_recovery_margin_value',
+              setting_value: String(parseDecimal(damageRecoveryMarginValue, 2)),
+              notes: 'Damage recovery margin value applied to package transport net costs.',
+            },
+          ],
           { onConflict: 'setting_key' },
         )
         if (error) throw error
@@ -1288,6 +1335,47 @@ function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProp
                 placeholder="0.00"
               />
             </label>
+            <div className="mt-4 border-t border-slate-200 pt-4">
+              <p className="text-sm font-black text-slate-950">Damage Recovery Margin</p>
+              <p className="mt-1 text-xs font-semibold text-slate-500">
+                Added to package transport net costs to absorb supplier cost movement. This is not
+                treated as profit.
+              </p>
+              <div className="mt-3 grid gap-2 sm:grid-cols-[8rem_minmax(0,1fr)]">
+                <label className="block">
+                  <span className="mb-1 block text-xs font-black uppercase text-slate-500">
+                    Mode
+                  </span>
+                  <select
+                    value={damageRecoveryMarginMode}
+                    onChange={(event) =>
+                      setDamageRecoveryMarginMode(event.target.value === 'percent' ? 'percent' : 'fixed')
+                    }
+                    className="min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-black outline-none focus:border-slate-900"
+                  >
+                    <option value="fixed">Fixed GBP</option>
+                    <option value="percent">Percent</option>
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-xs font-black uppercase text-slate-500">
+                    Value
+                  </span>
+                  <div className="flex min-h-10 items-center rounded-lg border border-slate-200 bg-white px-3">
+                    <span className="mr-2 text-xs font-black text-slate-500">
+                      {damageRecoveryMarginMode === 'percent' ? '%' : 'GBP'}
+                    </span>
+                    <input
+                      value={damageRecoveryMarginValue}
+                      inputMode="decimal"
+                      onChange={(event) => setDamageRecoveryMarginValue(event.target.value)}
+                      className="w-full bg-transparent text-sm font-black outline-none"
+                      placeholder="0.00"
+                    />
+                  </div>
+                </label>
+              </div>
+            </div>
           </section>
 
           <section className="rounded-lg border border-slate-200 bg-white p-4">

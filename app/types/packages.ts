@@ -156,9 +156,13 @@ export interface PackageTransportRouteSelection {
   vehicleLabel: string
   costPrice: number
   currency: string
+  baseCostPriceGbp?: number
   costPriceGbp?: number
   exchangeRate?: number
   exchangeRateMode?: 'sar_per_gbp'
+  damageRecoveryMarginMode?: 'percent' | 'fixed'
+  damageRecoveryMarginValue?: number
+  damageRecoveryMarginAmountGbp?: number
 }
 
 export interface PackageStayGroup {
