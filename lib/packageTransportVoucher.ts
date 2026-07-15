@@ -8,6 +8,7 @@ const DEFAULT_TRANSPORT_PROVIDER = 'Barakat AlMusafar Trading'
 const DEFAULT_TRANSPORT_PROVIDER_CONTACT = '+966555049005'
 const DEFAULT_EXTRA_BAGGAGE_FEE = '50 SAR per bag'
 const DEFAULT_CUSTOMER_PORTAL_URL = 'https://bookings.piyamtravel.com'
+const PIYAM_LOGO_URL = `${DEFAULT_CUSTOMER_PORTAL_URL}/logo.png`
 
 function escapeHtml(value: unknown) {
   return String(value ?? '')
@@ -110,6 +111,12 @@ function getVehicleName(value: string | null | undefined) {
   return text
 }
 
+function looksLikeUuid(value: string | null | undefined) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    String(value || '').trim(),
+  )
+}
+
 function looksLikeTransportRoute(value: string | null | undefined) {
   const text = String(value || '').trim()
   if (!text) return false
@@ -121,7 +128,7 @@ function looksLikeTransportRoute(value: string | null | undefined) {
 
 export function cleanTransportVoucherVehicleLabel(value: string | null | undefined, fallback = '') {
   const text = String(value || '').trim()
-  if (!text || looksLikeTransportRoute(text)) return fallback
+  if (!text || looksLikeTransportRoute(text) || looksLikeUuid(text)) return fallback
   return getVehicleName(text)
 }
 
@@ -179,8 +186,9 @@ function getTransportVehicleName(transportOption: VoucherTransportOption) {
   const vehicleLabels = Array.from(
     new Set(
       routes
-        .map((route) => route.vehicleLabel || route.vehicleTypeId)
-        .map((value) => getVehicleName(value))
+        .map((route) =>
+          cleanTransportVoucherVehicleLabel(route.vehicleLabel || route.vehicleTypeId),
+        )
         .filter(Boolean),
     ),
   )
@@ -203,11 +211,32 @@ function createRouteAssignments(
       routeName: route.routeName,
       type: routeType(route.routeName, index, structuredRoutes.length),
       supplierName: route.supplierName || '',
-      vehicleType: cleanTransportVoucherVehicleLabel(route.vehicleLabel, fallbackVehicle),
+      vehicleType: cleanTransportVoucherVehicleLabel(
+        route.vehicleLabel || route.vehicleTypeId,
+        fallbackVehicle,
+      ),
       date,
       time: '',
     }
   })
+}
+
+function formatPassengerLabel({
+  adults,
+  children,
+  infants,
+}: {
+  adults: number
+  children: number
+  infants: number
+}) {
+  const total = Math.max(0, adults + children + infants)
+  const parts = [
+    `${adults} Adult${adults === 1 ? '' : 's'}`,
+    `${children} Child${children === 1 ? '' : 'ren'}`,
+  ]
+  if (infants > 0) parts.push(`${infants} Infant${infants === 1 ? '' : 's'}`)
+  return `${total} Passenger${total === 1 ? '' : 's'} (${parts.join(', ')})`
 }
 
 function createItinerary(
@@ -270,7 +299,7 @@ export function createDefaultTransportVoucherData(
     adults,
     children,
     infants,
-    passengers: `${adults} Adults, ${children} Children${infants > 0 ? `, ${infants} Infants` : ''}`,
+    passengers: formatPassengerLabel({ adults, children, infants }),
     flightNumber: '',
     airports: selectedCombination?.flightOption?.title || '',
     landingDate: departureDate,
@@ -401,9 +430,7 @@ export function normalizeTransportVoucherData(
     adults,
     children,
     infants,
-    passengers:
-      text('passengers') ||
-      `${adults} Adults, ${children} Children${infants > 0 ? `, ${infants} Infants` : ''}`,
+    passengers: text('passengers') || formatPassengerLabel({ adults, children, infants }),
     flightNumber: text('flightNumber'),
     airports: text('airports'),
     landingDate: text('landingDate') || dateOnly(text('arrivalAt')),
@@ -505,9 +532,11 @@ export function renderTransportVoucherHtml(
     : escapeHtml((data.digitalVoucherUrl || qrText).trim())
   const passengerLabel =
     data.passengers ||
-    `${data.adults || 0} Adults, ${data.children || 0} Children${
-      data.infants ? `, ${data.infants} Infants` : ''
-    }`
+    formatPassengerLabel({
+      adults: data.adults || 0,
+      children: data.children || 0,
+      infants: data.infants || 0,
+    })
   const vehicle = data.vehicle || data.vehicleType || 'To be confirmed'
   const providerName = data.providerName || data.transportCompany || 'To be confirmed'
   const providerContact = data.providerContact || data.groundManager || 'To be confirmed'
@@ -519,7 +548,7 @@ export function renderTransportVoucherHtml(
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Transport Voucher ${escapeHtml(packageFolder.package_reference)}</title>
   <style>
-    body{font-family:Inter,Arial,sans-serif;color:#111827;margin:0;background:#f4f6f8}.voucher{width:900px;max-width:100%;margin:24px auto;background:#fff;display:flex;border-radius:16px;border:1px solid #e5e7eb;overflow:hidden}.main{flex:1;padding:24px;display:flex;flex-direction:column;font-size:14px}.header{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:12px;border-bottom:1px solid #e5e7eb}.brand{font-size:22px;font-weight:900;color:#800000}.title{text-align:right}.title h1{font-size:28px;font-weight:900;color:#800000;margin:0}.title p{font-size:12px;font-weight:700;color:#6b7280;letter-spacing:.05em;margin:0}.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px 24px;margin-top:20px;flex:1}.label{font-size:12px;color:#6b7280;margin:0;text-transform:uppercase}.value{font-weight:700;color:#1f2937;margin:0}.lead{font-size:18px;color:#111827}.itinerary{grid-column:span 2;border-top:1px solid #e5e7eb;padding-top:12px}.itinerary-list{font-size:13px;margin-top:8px;color:#374151;display:grid;grid-template-columns:1fr;gap:8px}.segment{border:1px solid #e5e7eb;border-radius:8px;padding:10px;background:#f9fafb}.segment-time{margin-top:4px;font-weight:700;color:#800000}.segment-meta{margin-top:4px;font-size:11px;color:#6b7280}.footer{border-top:1px solid #e5e7eb;padding-top:12px;margin-top:auto;font-size:12px;display:flex;justify-content:space-between;gap:24px}.stub{background:#800000;color:#fff;padding:24px;width:256px;flex-shrink:0;display:flex;flex-direction:column;justify-content:space-between}.stub-head{text-align:center;padding-bottom:12px;border-bottom:1px solid #a83333}.stub-head h2{font-weight:900;letter-spacing:.05em;margin:0}.stub-head p{font-size:12px;opacity:.8;margin:0}.stub-stack{margin-top:16px;font-size:14px;display:flex;flex-direction:column;gap:12px}.stub-label{font-size:12px;color:#fecaca;margin:0}.stub-value{font-weight:700;margin:0}.qr{background:#fff;color:#111827;padding:8px;border-radius:6px;font-size:9px;white-space:pre-wrap;word-break:break-word;overflow:hidden;min-height:132px;display:flex;align-items:center;justify-content:center}.qr img{display:block;width:132px;height:132px}.notice{margin-top:16px;padding:12px;background:#fef2f2;border-left:4px solid #800000;white-space:pre-wrap;font-size:12px}@media(max-width:720px){.voucher{margin:0;border-radius:0;display:block}.stub{width:auto}.grid{grid-template-columns:1fr}.itinerary{grid-column:auto}.footer{display:block}.title{text-align:left;margin-top:10px}.header{display:block}}
+    @page{size:220mm 110mm;margin:0}*{box-sizing:border-box}body{font-family:Inter,Arial,sans-serif;color:#111827;margin:0;background:#f4f6f8}.voucher{width:220mm;min-height:110mm;max-width:100%;margin:24px auto;background:#fff;display:flex;border-radius:12px;border:1px dashed #cbd5e1;overflow:hidden}.main{flex:1;padding:7mm;display:flex;flex-direction:column;font-size:11px}.header{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:4mm;border-bottom:1px solid #e5e7eb}.brand{font-size:19px;font-weight:900;color:#800000}.title{text-align:right}.title h1{font-size:22px;font-weight:900;color:#800000;margin:0;line-height:1}.title p{font-size:9px;font-weight:800;color:#6b7280;letter-spacing:.05em;margin:2px 0 0}.grid{display:grid;grid-template-columns:1fr 1fr;gap:3mm 7mm;margin-top:4mm;flex:1}.label{font-size:8px;color:#6b7280;margin:0;text-transform:uppercase;font-weight:800;letter-spacing:.03em}.value{font-weight:800;color:#1f2937;margin:0}.lead{font-size:15px;color:#111827}.itinerary{grid-column:span 2;border-top:1px solid #e5e7eb;padding-top:3mm}.itinerary-list{font-size:10px;margin-top:2mm;color:#374151;display:grid;grid-template-columns:1fr;gap:1.5mm}.segment{border:1px solid #e5e7eb;border-radius:5px;padding:2mm 2.5mm;background:#f9fafb;break-inside:avoid}.segment-time{margin-top:1mm;font-weight:900;color:#800000}.segment-meta{margin-top:1mm;font-size:8px;color:#6b7280}.footer{border-top:1px solid #e5e7eb;padding-top:2.5mm;margin-top:auto;font-size:9px;display:flex;justify-content:space-between;gap:6mm}.stub{background:#800000;color:#fff;padding:6mm;width:62mm;flex-shrink:0;display:flex;flex-direction:column;justify-content:space-between}.stub-head{text-align:center;padding-bottom:4mm;border-bottom:1px solid #a83333}.stub-logo{display:block;margin:0 auto;max-width:42mm;max-height:19mm;background:#fff;border-radius:6px;padding:3mm}.stub-head p{font-size:9px;opacity:.85;margin:2mm 0 0;font-weight:800;letter-spacing:.08em}.stub-stack{margin-top:4mm;font-size:11px;display:flex;flex-direction:column;gap:3mm}.stub-label{font-size:8px;color:#fecaca;margin:0;font-weight:800;letter-spacing:.04em}.stub-value{font-weight:800;margin:0}.qr{background:#fff;color:#111827;padding:2mm;border-radius:6px;font-size:7px;white-space:pre-wrap;word-break:break-word;overflow:hidden;min-height:32mm;display:flex;align-items:center;justify-content:center}.qr img{display:block;width:30mm;height:30mm}.notice{margin-top:3mm;padding:2.5mm;background:#fef2f2;border-left:3px solid #800000;white-space:pre-wrap;font-size:9px}@media print{html,body{width:220mm;height:110mm;background:#fff}.voucher{width:220mm;height:110mm;margin:0;border-radius:0;border:1px dashed #94a3b8;box-shadow:none}.main{padding:6mm}.stub{padding:6mm}.segment{padding:1.8mm 2.3mm}.itinerary-list{gap:1.2mm}.no-print{display:none}}@media(max-width:720px){.voucher{margin:0;border-radius:0;display:block;width:100%;min-height:auto}.stub{width:auto}.grid{grid-template-columns:1fr}.itinerary{grid-column:auto}.footer{display:block}.title{text-align:left;margin-top:10px}.header{display:block}}
   </style>
 </head>
 <body><main class="voucher">
@@ -545,7 +574,7 @@ export function renderTransportVoucherHtml(
   </section>
   <aside class="stub">
     <div>
-      <div class="stub-head"><h2>Piyam Travel</h2><p>CUSTOMER COPY</p></div>
+      <div class="stub-head"><img class="stub-logo" src="${escapeHtml(PIYAM_LOGO_URL)}" alt="Piyam Travel"><p>CUSTOMER COPY</p></div>
       <div class="stub-stack">
         <div><p class="stub-label">PASSENGER</p><p class="stub-value">${escapeHtml(packageFolder.customer_name || 'Customer')}</p></div>
         <div><p class="stub-label">REFERENCE</p><p class="stub-value">${escapeHtml(packageFolder.package_reference)}</p></div>

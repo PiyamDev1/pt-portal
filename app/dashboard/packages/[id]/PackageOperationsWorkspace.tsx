@@ -201,6 +201,16 @@ function getVehicleCapacity(vehicle: string | undefined) {
   return TRANSPORT_VEHICLES.find((item) => item.name === vehicle)
 }
 
+function formatVoucherPassengers(adults = 0, children = 0, infants = 0) {
+  const total = Math.max(0, adults + children + infants)
+  const parts = [
+    `${adults} Adult${adults === 1 ? '' : 's'}`,
+    `${children} Child${children === 1 ? '' : 'ren'}`,
+  ]
+  if (infants > 0) parts.push(`${infants} Infant${infants === 1 ? '' : 's'}`)
+  return `${total} Passenger${total === 1 ? '' : 's'} (${parts.join(', ')})`
+}
+
 function normalizeVoucherVehicleFields(
   voucherData: TravelPackageTransportVoucherData,
 ): TravelPackageTransportVoucherData {
@@ -854,11 +864,11 @@ export default function PackageOperationsWorkspace({
     })
     return {
       ...voucherForm,
-      passengers:
-        voucherForm.passengers ||
-        `${voucherForm.adults || 0} Adults, ${voucherForm.children || 0} Children${
-          voucherForm.infants ? `, ${voucherForm.infants} Infants` : ''
-        }`,
+      passengers: formatVoucherPassengers(
+        Number(voucherForm.adults || 0),
+        Number(voucherForm.children || 0),
+        Number(voucherForm.infants || 0),
+      ),
       vehicleType: voucherForm.vehicleType || voucherForm.vehicle || '',
       transportCompany: voucherForm.transportCompany || voucherForm.providerName || '',
       groundManager: voucherForm.groundManager || voucherForm.providerContact || '',
