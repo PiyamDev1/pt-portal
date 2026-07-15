@@ -39,7 +39,8 @@ export async function GET() {
     supabase
       .from('umrah_transport_rates')
       .select('route_id, supplier_id, vehicle_type_id, currency, cost_price, is_active')
-      .eq('is_active', true),
+      .eq('is_active', true)
+      .gt('cost_price', 0),
     supabase
       .from('umrah_transport_supplier_vehicle_labels')
       .select('supplier_id, vehicle_type_id, transport_label, is_active')
