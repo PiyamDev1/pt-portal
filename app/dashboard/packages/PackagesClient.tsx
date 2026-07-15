@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowLeft,
   Building2,
@@ -130,7 +130,10 @@ function makeId(prefix: string) {
 }
 
 function normalizeSearchText(value: string) {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
 }
 
 function getRouteKind(routeName: string): PackageTransportRouteKind {
@@ -201,10 +204,7 @@ function getTransportExchangeRateSnapshot(
   return 0
 }
 
-function getDamageRecoveryMargin(
-  baseCostGbp: number,
-  pricing: UmrahTransportPricingData | null,
-) {
+function getDamageRecoveryMargin(baseCostGbp: number, pricing: UmrahTransportPricingData | null) {
   const mode: 'percent' | 'fixed' =
     pricing?.damageRecoveryMarginMode === 'percent' ? 'percent' : 'fixed'
   const value = Number(pricing?.damageRecoveryMarginValue || 0)
@@ -358,6 +358,47 @@ function buildTransportSummary(routes: PackageTransportRouteSelection[], fallbac
   return getTransportRouteBullets(routes).join('\n')
 }
 
+function restoreTransportRoutesFromSummary(
+  summary: string,
+  pricing: UmrahTransportPricingData | null,
+) {
+  if (!pricing) return []
+  const routeLookup = new Map(
+    pricing.routes.map((route) => [normalizeSearchText(route.route_name), route]),
+  )
+
+  return summary
+    .split('\n')
+    .map((line) => line.match(/^\*\s+(.+)$/)?.[1]?.trim() || '')
+    .filter(Boolean)
+    .map((routeName) => {
+      const route =
+        routeLookup.get(normalizeSearchText(routeName)) ||
+        pricing.routes.find(
+          (item) =>
+            normalizeSearchText(item.route_name).includes(normalizeSearchText(routeName)) ||
+            normalizeSearchText(routeName).includes(normalizeSearchText(item.route_name)),
+        )
+      if (!route) return null
+
+      const vehicle =
+        pricing.vehicles.find((item) => hasTransportRateForVehicle(pricing, route.id, item.id)) ||
+        pricing.vehicles[0]
+      if (!vehicle) return null
+
+      return resolveTransportRouteSelection(
+        {
+          id: makeId('transport-route'),
+          kind: getRouteKind(route.route_name),
+          routeId: route.id,
+          vehicleTypeId: vehicle.id,
+        },
+        pricing,
+      )
+    })
+    .filter((route): route is PackageTransportRouteSelection => Boolean(route))
+}
+
 function resolveTransportRouteSelection(
   current: Partial<PackageTransportRouteSelection>,
   pricing: UmrahTransportPricingData | null,
@@ -387,7 +428,8 @@ function resolveTransportRouteSelection(
     supplierId: supplier?.id || '',
     supplierName: supplier?.name || '',
     vehicleTypeId: vehicle?.id || '',
-    vehicleLabel: supplier && vehicle ? getSupplierVehicleLabel(pricing, supplier.id, vehicle.id) : '',
+    vehicleLabel:
+      supplier && vehicle ? getSupplierVehicleLabel(pricing, supplier.id, vehicle.id) : '',
     costPrice: costSnapshot?.costPrice || 0,
     currency: costSnapshot?.currency || supplier?.default_currency || 'GBP',
     baseCostPriceGbp: costSnapshot?.baseCostPriceGbp || 0,
@@ -575,6 +617,7 @@ function OptionEditor({
   quantityFallback?: number
   canRemove: boolean
 }) {
+  const restoredTransportSummaryRef = useRef('')
   const transportRoutes = option.transportRoutes || []
   const hasSavedTransportRates = Boolean(transportPricingData?.rates.length)
   const transferAvailable = Boolean(findDefaultTransportSelection(transportPricingData, 'transfer'))
@@ -585,32 +628,50 @@ function OptionEditor({
     findDefaultTransportSelection(transportPricingData, 'madinah_ziyarat'),
   )
 
-  const updateTransportRoutes = (routes: PackageTransportRouteSelection[]) => {
-    const mainSupplier = getMajoritySupplier(routes)
-    const netCost = routes.reduce((total, route) => {
-      return (
-        total +
-        getTransportRouteNetCostForSupplier(
-          route,
-          mainSupplier?.supplierId,
-          transportPricingData,
+  const updateTransportRoutes = useCallback(
+    (routes: PackageTransportRouteSelection[], summaryOverride?: string) => {
+      const mainSupplier = getMajoritySupplier(routes)
+      const netCost = routes.reduce((total, route) => {
+        return (
+          total +
+          getTransportRouteNetCostForSupplier(route, mainSupplier?.supplierId, transportPricingData)
         )
-      )
-    }, 0)
-    const summary = buildTransportSummary(routes, option.summary)
+      }, 0)
+      const summary = summaryOverride ?? buildTransportSummary(routes, option.summary)
 
-    onChange({
-      ...option,
-      title: option.title || (mainSupplier ? `${mainSupplier.supplierName} transport` : ''),
-      summary,
-      transportRoutes: routes,
-      transportMainSupplierId: mainSupplier?.supplierId || '',
-      transportMainSupplierName: mainSupplier?.supplierName || '',
-      transportNetCost: Math.round(netCost * 100) / 100,
-      transportNetCurrency: 'GBP',
-      includesZiyarat: routes.some((route) => route.kind !== 'transfer') || option.includesZiyarat,
-    })
-  }
+      onChange({
+        ...option,
+        title: option.title || (mainSupplier ? `${mainSupplier.supplierName} transport` : ''),
+        summary,
+        transportRoutes: routes,
+        transportMainSupplierId: mainSupplier?.supplierId || '',
+        transportMainSupplierName: mainSupplier?.supplierName || '',
+        transportNetCost: Math.round(netCost * 100) / 100,
+        transportNetCurrency: 'GBP',
+        includesZiyarat:
+          routes.some((route) => route.kind !== 'transfer') || option.includesZiyarat,
+      })
+    },
+    [onChange, option, transportPricingData],
+  )
+
+  useEffect(() => {
+    if (!showTransportExtras || !transportPricingData || transportRoutes.length > 0) return
+    const summaryKey = option.summary.trim()
+    if (!summaryKey || restoredTransportSummaryRef.current === summaryKey) return
+
+    const restoredRoutes = restoreTransportRoutesFromSummary(summaryKey, transportPricingData)
+    if (restoredRoutes.length === 0) return
+
+    restoredTransportSummaryRef.current = summaryKey
+    updateTransportRoutes(restoredRoutes, option.summary)
+  }, [
+    option.summary,
+    showTransportExtras,
+    transportPricingData,
+    transportRoutes.length,
+    updateTransportRoutes,
+  ])
 
   const addTransportRoute = (kind: PackageTransportRouteKind) => {
     const selection = findDefaultTransportSelection(transportPricingData, kind)
@@ -714,7 +775,9 @@ function OptionEditor({
           <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
               <div>
-                <p className="text-xs font-black uppercase text-slate-500">Routes from price list</p>
+                <p className="text-xs font-black uppercase text-slate-500">
+                  Routes from price list
+                </p>
                 <p className="text-xs font-semibold text-slate-500">
                   Cheapest supplier is selected when route or vehicle changes.
                 </p>
@@ -793,8 +856,7 @@ function OptionEditor({
                             kind: getRouteKind(
                               transportPricingData?.routes.find(
                                 (item) => item.id === event.target.value,
-                              )
-                                ?.route_name || '',
+                              )?.route_name || '',
                             ),
                           })
                         }
@@ -871,8 +933,8 @@ function OptionEditor({
 
             {option.transportMainSupplierName && (
               <p className="mt-3 rounded-lg bg-white p-2 text-xs font-bold text-slate-600">
-                Main supplier by route count: {option.transportMainSupplierName}. Net transport
-                cost priced with this supplier:{' '}
+                Main supplier by route count: {option.transportMainSupplierName}. Net transport cost
+                priced with this supplier:{' '}
                 {formatMoney(option.transportNetCost || 0, option.transportNetCurrency || 'GBP')}.
               </p>
             )}

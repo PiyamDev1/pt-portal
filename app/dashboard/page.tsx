@@ -17,8 +17,6 @@ import type { ComponentType } from 'react'
 import {
   BadgePoundSterling,
   BriefcaseBusiness,
-  Building2,
-  Bus,
   CalendarDays,
   Clock3,
   FileText,
@@ -32,6 +30,7 @@ import {
   Ticket,
 } from 'lucide-react'
 import PageHeader from '@/app/components/PageHeader.client'
+import { PackageTravelIcon } from '@/app/components/icons/PackageTravelIcon'
 import DashboardClientWrapper from './client-wrapper'
 import { BackupCodesReminder } from './lms/components/BackupCodesReminder'
 import { DashboardModulesClient } from './DashboardModulesClient'
@@ -43,19 +42,6 @@ import {
 } from '@/lib/dashboardModules'
 
 type IconProps = { className?: string }
-
-function PackageTravelIcon({ className = 'h-5 w-5' }: IconProps) {
-  return (
-    <span className={`relative inline-block ${className}`} aria-hidden="true">
-      <Plane className="absolute left-0 top-0 h-[52%] w-[52%]" strokeWidth={2.7} />
-      <Building2
-        className="absolute right-0 top-[12%] h-[50%] w-[50%]"
-        strokeWidth={2.7}
-      />
-      <Bus className="absolute bottom-0 left-[21%] h-[52%] w-[58%]" strokeWidth={2.7} />
-    </span>
-  )
-}
 
 const ICONS: Record<DashboardModule['iconKey'], ComponentType<IconProps>> = {
   'badge-pound': BadgePoundSterling,
