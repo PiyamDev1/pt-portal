@@ -794,7 +794,7 @@ function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProp
           {
             setting_key: 'sar_to_gbp_exchange_rate',
             setting_value: String(parseDecimal(sarToGbpRate, 6)),
-            notes: 'Global transport pricing exchange rate. Enter the GBP value of 1 SAR.',
+            notes: 'Global transport pricing exchange rate. Enter SAR per 1 GBP.',
           },
           { onConflict: 'setting_key' },
         )
@@ -1274,11 +1274,11 @@ function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProp
           <section className="rounded-lg border border-slate-200 bg-white p-4">
             <p className="text-sm font-black text-slate-950">Exchange Rate</p>
             <p className="mt-1 text-xs font-semibold text-slate-500">
-              Used when SAR supplier costs need to be converted to GBP.
+              Used to divide SAR supplier costs into GBP package net costs.
             </p>
             <label className="mt-3 block">
               <span className="mb-1 block text-xs font-black uppercase text-slate-500">
-                1 SAR equals GBP
+                SAR per 1 GBP
               </span>
               <input
                 value={sarToGbpRate}

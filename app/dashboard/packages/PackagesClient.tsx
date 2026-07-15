@@ -185,9 +185,18 @@ function convertTransportCostToGbp(
   if (currency === 'GBP') return amount
   if (currency === 'SAR') {
     const exchangeRate = pricing?.sarToGbpExchangeRate || 0
-    return exchangeRate > 0 ? amount * exchangeRate : amount
+    return exchangeRate > 0 ? amount / exchangeRate : amount
   }
   return amount
+}
+
+function getTransportExchangeRateSnapshot(
+  currency: string,
+  pricing: UmrahTransportPricingData | null,
+) {
+  if (currency === 'SAR') return pricing?.sarToGbpExchangeRate || 0
+  if (currency === 'GBP') return 1
+  return 0
 }
 
 function findCheapestTransportRate(
@@ -312,6 +321,10 @@ function resolveTransportRouteSelection(
   const supplier = pricing?.suppliers.find((item) => item.id === cheapestRate?.supplier_id)
   const rate =
     route && supplier && vehicle ? getTransportRate(pricing, route.id, supplier.id, vehicle.id) : null
+  const costPrice = Number(rate?.cost_price || 0)
+  const currency = rate?.currency || supplier?.default_currency || 'GBP'
+  const exchangeRate = getTransportExchangeRateSnapshot(currency, pricing)
+  const costPriceGbp = convertTransportCostToGbp(costPrice, currency, pricing)
 
   return {
     id: current.id || makeId('transport-route'),
@@ -322,8 +335,11 @@ function resolveTransportRouteSelection(
     supplierName: supplier?.name || '',
     vehicleTypeId: vehicle?.id || '',
     vehicleLabel: supplier && vehicle ? getSupplierVehicleLabel(pricing, supplier.id, vehicle.id) : '',
-    costPrice: Number(rate?.cost_price || 0),
-    currency: rate?.currency || supplier?.default_currency || 'GBP',
+    costPrice,
+    currency,
+    costPriceGbp: Math.round(costPriceGbp * 100) / 100,
+    exchangeRate,
+    exchangeRateMode: 'sar_per_gbp',
   }
 }
 
@@ -500,7 +516,11 @@ function OptionEditor({
   const updateTransportRoutes = (routes: PackageTransportRouteSelection[]) => {
     const mainSupplier = getMajoritySupplier(routes)
     const netCost = routes.reduce((total, route) => {
-      return total + convertTransportCostToGbp(route.costPrice, route.currency, transportPricingData)
+      return (
+        total +
+        (route.costPriceGbp ??
+          convertTransportCostToGbp(route.costPrice, route.currency, transportPricingData))
+      )
     }, 0)
     const summary = buildTransportSummary(routes, option.summary)
 
@@ -677,6 +697,9 @@ function OptionEditor({
                   route.kind,
                 )
                 const groupedRouteOptions = getGroupedRouteOptions(routeOptions)
+                const routeGbpCost =
+                  route.costPriceGbp ??
+                  convertTransportCostToGbp(route.costPrice, route.currency, transportPricingData)
                 return (
                   <div
                     key={route.id}
@@ -742,7 +765,13 @@ function OptionEditor({
                     </div>
                     <div className="flex items-end gap-2">
                       <div className="min-h-9 flex-1 rounded-lg bg-slate-100 px-2 py-2 text-xs font-black text-slate-700">
-                        {route.currency} {Number(route.costPrice || 0).toFixed(2)}
+                        {formatMoney(routeGbpCost || 0, 'GBP')}
+                        {route.currency !== 'GBP' && (
+                          <span className="mt-0.5 block text-[10px] font-bold text-slate-500">
+                            {route.currency} {Number(route.costPrice || 0).toFixed(2)} at{' '}
+                            {Number(route.exchangeRate || 0).toFixed(4)} SAR/GBP
+                          </span>
+                        )}
                       </div>
                       <button
                         type="button"
@@ -1442,7 +1471,7 @@ export default function PackagesClient({
             </div>
           </section>
 
-          <section className="grid gap-5 lg:grid-cols-2 2xl:grid-cols-3">
+          <section className="grid gap-5 lg:grid-cols-2">
             <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
               <SectionHeader
                 icon={Plane}
@@ -1521,7 +1550,7 @@ export default function PackagesClient({
               </div>
             </div>
 
-            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm lg:col-span-2">
               <SectionHeader
                 icon={Bus}
                 title="Transport options"

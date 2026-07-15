@@ -159,6 +159,9 @@ function normalizeTransportRouteSelection(
     vehicleLabel,
     costPrice: asNumber(candidate?.costPrice),
     currency: normalizeCurrency(candidate?.currency || DEFAULT_PACKAGE_CURRENCY),
+    costPriceGbp: asNumber(candidate?.costPriceGbp),
+    exchangeRate: asNumber(candidate?.exchangeRate),
+    exchangeRateMode: candidate?.exchangeRateMode === 'sar_per_gbp' ? 'sar_per_gbp' : undefined,
   }
 }
 

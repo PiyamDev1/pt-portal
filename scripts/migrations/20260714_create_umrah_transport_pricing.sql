@@ -301,7 +301,7 @@ DO UPDATE SET
 
 INSERT INTO public.umrah_transport_settings (setting_key, setting_value, notes)
 VALUES
-  ('sar_to_gbp_exchange_rate', '0.00', 'Global transport pricing exchange rate. Enter the GBP value of 1 SAR.')
+  ('sar_to_gbp_exchange_rate', '0.00', 'Global transport pricing exchange rate. Enter SAR per 1 GBP.')
 ON CONFLICT (setting_key) DO NOTHING;
 
 ALTER TABLE public.umrah_transport_suppliers ENABLE ROW LEVEL SECURITY;

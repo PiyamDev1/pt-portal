@@ -25,6 +25,7 @@ export type DashboardModule = {
     | 'fingerprint'
     | 'graduation'
     | 'heart'
+    | 'package-travel'
     | 'plane'
     | 'settings'
     | 'ticket'
@@ -109,7 +110,7 @@ export const DASHBOARD_MODULES: DashboardModule[] = [
     accent: 'from-[#991b1b] to-[#dc2626] text-white',
     iconTone: 'from-[#991b1b] via-[#dc2626] to-[#f97316] text-white shadow-orange-900/25',
     tileTone: 'from-orange-50 via-white to-red-100',
-    iconKey: 'plane',
+    iconKey: 'package-travel',
   },
   {
     id: 'packages',

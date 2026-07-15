@@ -399,8 +399,13 @@ function getTransportReservationSummary(option: PackageComponentOption | null | 
   const routeLines = option.transportRoutes.map((route) => {
     const supplier = route.supplierName ? ` - ${route.supplierName}` : ''
     const vehicle = route.vehicleLabel ? ` (${route.vehicleLabel})` : ''
-    const cost = route.costPrice > 0 ? ` - ${route.currency} ${route.costPrice.toFixed(2)}` : ''
-    return `* ${route.routeName}${supplier}${vehicle}${cost}`
+    const gbpCost =
+      route.costPriceGbp && route.costPriceGbp > 0 ? ` - GBP ${route.costPriceGbp.toFixed(2)}` : ''
+    const sourceCost =
+      route.currency !== 'GBP' && route.costPrice > 0
+        ? ` (${route.currency} ${route.costPrice.toFixed(2)} at ${Number(route.exchangeRate || 0).toFixed(4)} SAR/GBP)`
+        : ''
+    return `* ${route.routeName}${supplier}${vehicle}${gbpCost}${sourceCost}`
   })
   const netCost =
     option.transportNetCost && option.transportNetCost > 0
