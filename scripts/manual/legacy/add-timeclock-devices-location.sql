@@ -34,7 +34,9 @@ BEGIN
 END $$;
 
 -- Ensure RLS is disabled
-ALTER TABLE timeclock_devices DISABLE ROW LEVEL SECURITY;
+ALTER TABLE timeclock_devices ENABLE ROW LEVEL SECURITY;
+REVOKE ALL PRIVILEGES ON TABLE timeclock_devices FROM anon, authenticated;
+GRANT ALL PRIVILEGES ON TABLE timeclock_devices TO service_role;
 
 -- Verify columns
 SELECT column_name, data_type, is_nullable

@@ -146,6 +146,7 @@ export async function POST(request: Request) {
           id: deviceId,
           name: manualDeviceName,
           secret: deviceSecret,
+          device_type: 'virtual',
           location: 'Virtual - Manual Entry',
           is_active: true,
         })

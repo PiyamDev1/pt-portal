@@ -1,3 +1,4 @@
+import crypto from 'node:crypto'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => {
@@ -12,7 +13,15 @@ const mocks = vi.hoisted(() => {
   const adminFrom = vi.fn()
   const createClient = vi.fn(() => ({ from: adminFrom }))
   const cookies = vi.fn(async () => ({ getAll: () => [] }))
-  return { getSession, createServerClient, adminFrom, createClient, cookies }
+  const queueAttendanceSyncForEmployeeDay = vi.fn(async () => undefined)
+  return {
+    getSession,
+    createServerClient,
+    adminFrom,
+    createClient,
+    cookies,
+    queueAttendanceSyncForEmployeeDay,
+  }
 })
 
 vi.mock('@supabase/auth-helpers-nextjs', () => ({
@@ -26,6 +35,10 @@ vi.mock('@supabase/supabase-js', () => ({
 vi.mock('next/headers', () => ({
   cookies: mocks.cookies,
   headers: vi.fn(async () => ({ get: () => null })),
+}))
+
+vi.mock('@/lib/integrations/frappe/syncEngine', () => ({
+  queueAttendanceSyncForEmployeeDay: mocks.queueAttendanceSyncForEmployeeDay,
 }))
 
 import { POST } from '@/app/api/timeclock/scan/route'
@@ -46,6 +59,96 @@ const makeRequest = (body: string) =>
     headers: { 'Content-Type': 'application/json' },
     body,
   })
+
+const device = {
+  id: 'cb9008f8-0098-4b46-b77b-b82029aff3f2',
+  secret: 'device-secret',
+  is_active: true,
+}
+
+function makeQueryChain(methods: string[], result: unknown): Record<string, unknown> {
+  let next: unknown = Promise.resolve(result)
+  for (const method of [...methods].reverse()) {
+    const current = next
+    next = { [method]: vi.fn(() => current) }
+  }
+  return next as Record<string, unknown>
+}
+
+function buildQrText({
+  timestamp = Math.floor(Date.now() / 1000),
+  nonce = 'nonce-1',
+  secret = device.secret,
+}: {
+  timestamp?: number
+  nonce?: string
+  secret?: string
+} = {}) {
+  const signature = crypto
+    .createHmac('sha256', secret)
+    .update(`${device.id}.${timestamp}.${nonce}`)
+    .digest('base64url')
+  const payload = { v: 1, device_id: device.id, ts: timestamp, nonce, sig: signature }
+  return `ptc1:${Buffer.from(JSON.stringify(payload)).toString('base64url')}`
+}
+
+function configureScanDatabase({
+  deviceRow = device,
+  nonceError = null,
+}: {
+  deviceRow?: typeof device
+  nonceError?: { code: string } | null
+} = {}) {
+  mocks.adminFrom.mockImplementation((table: string) => {
+    if (table === 'timeclock_devices') {
+      return {
+        select: vi.fn(() => makeQueryChain(['eq', 'single'], { data: deviceRow, error: null })),
+      }
+    }
+
+    if (table === 'timeclock_qr_nonces') {
+      return {
+        delete: vi.fn(() => makeQueryChain(['eq', 'lt'], { data: null, error: null })),
+        insert: vi.fn(async () => ({ data: null, error: nonceError })),
+      }
+    }
+
+    if (table === 'timeclock_events') {
+      return {
+        select: vi.fn((columns: string) => {
+          if (columns === 'hash') {
+            return makeQueryChain(['eq', 'order', 'limit', 'maybeSingle'], {
+              data: null,
+              error: null,
+            })
+          }
+          if (columns === 'punch_type') {
+            return makeQueryChain(['eq', 'gte', 'lte', 'order', 'limit', 'maybeSingle'], {
+              data: null,
+              error: null,
+            })
+          }
+          return makeQueryChain(['eq', 'eq', 'gte', 'order', 'limit', 'maybeSingle'], {
+            data: null,
+            error: null,
+          })
+        }),
+        insert: vi.fn(() =>
+          makeQueryChain(['select', 'single'], {
+            data: {
+              id: 'event-1',
+              event_type: 'PUNCH',
+              scanned_at: '2026-07-20T12:00:00.000Z',
+            },
+            error: null,
+          }),
+        ),
+      }
+    }
+
+    throw new Error(`Unexpected table: ${table}`)
+  })
+}
 
 describe('/api/timeclock/scan route', () => {
   beforeEach(() => {
@@ -124,5 +227,75 @@ describe('/api/timeclock/scan route', () => {
 
     expect(response.status).toBe(404)
     expect(payload).toEqual({ error: 'Device not found' })
+  })
+
+  it('accepts a valid ptc1 payload and records the punch', async () => {
+    mocks.getSession.mockResolvedValue({
+      data: { session: { user: { id: 'u-1' } } },
+    })
+    configureScanDatabase()
+
+    const response = await POST(makeRequest(JSON.stringify({ qrText: buildQrText() })))
+    const payload = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(payload).toEqual({
+      eventId: 'event-1',
+      eventType: 'PUNCH',
+      punchType: 'IN',
+      scannedAt: '2026-07-20T12:00:00.000Z',
+    })
+    expect(mocks.queueAttendanceSyncForEmployeeDay).toHaveBeenCalledWith('u-1', '2026-07-20')
+  })
+
+  it('rejects an inactive device', async () => {
+    mocks.getSession.mockResolvedValue({
+      data: { session: { user: { id: 'u-1' } } },
+    })
+    configureScanDatabase({ deviceRow: { ...device, is_active: false } })
+
+    const response = await POST(makeRequest(JSON.stringify({ qrText: buildQrText() })))
+
+    expect(response.status).toBe(403)
+    expect(await response.json()).toEqual({ error: 'Device inactive' })
+  })
+
+  it('rejects an expired QR timestamp', async () => {
+    mocks.getSession.mockResolvedValue({
+      data: { session: { user: { id: 'u-1' } } },
+    })
+    configureScanDatabase()
+
+    const qrText = buildQrText({ timestamp: Math.floor(Date.now() / 1000) - 121 })
+    const response = await POST(makeRequest(JSON.stringify({ qrText })))
+
+    expect(response.status).toBe(400)
+    expect(await response.json()).toEqual({ error: 'QR expired' })
+  })
+
+  it('rejects an invalid QR signature', async () => {
+    mocks.getSession.mockResolvedValue({
+      data: { session: { user: { id: 'u-1' } } },
+    })
+    configureScanDatabase()
+
+    const response = await POST(
+      makeRequest(JSON.stringify({ qrText: buildQrText({ secret: 'wrong-secret' }) })),
+    )
+
+    expect(response.status).toBe(400)
+    expect(await response.json()).toEqual({ error: 'Invalid signature' })
+  })
+
+  it('rejects a QR nonce that has already been used', async () => {
+    mocks.getSession.mockResolvedValue({
+      data: { session: { user: { id: 'u-1' } } },
+    })
+    configureScanDatabase({ nonceError: { code: '23505' } })
+
+    const response = await POST(makeRequest(JSON.stringify({ qrText: buildQrText() })))
+
+    expect(response.status).toBe(409)
+    expect(await response.json()).toEqual({ error: 'QR already used' })
   })
 })

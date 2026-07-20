@@ -15,8 +15,10 @@ CREATE INDEX IF NOT EXISTS idx_timeclock_manual_codes_code ON timeclock_manual_c
 CREATE INDEX IF NOT EXISTS idx_timeclock_manual_codes_user_id ON timeclock_manual_codes(user_id);
 CREATE INDEX IF NOT EXISTS idx_timeclock_manual_codes_expires_at ON timeclock_manual_codes(expires_at);
 
--- No RLS needed - access is controlled through API endpoints with proper authentication
-ALTER TABLE timeclock_manual_codes DISABLE ROW LEVEL SECURITY;
+-- Manual codes are available only to service-role API routes.
+ALTER TABLE timeclock_manual_codes ENABLE ROW LEVEL SECURITY;
+REVOKE ALL PRIVILEGES ON TABLE timeclock_manual_codes FROM anon, authenticated;
+GRANT ALL PRIVILEGES ON TABLE timeclock_manual_codes TO service_role;
 
 -- Cleanup: Delete expired codes older than 1 minute (automatic via trigger or manual cleanup)
 -- Note: Consider adding a periodic cleanup job or trigger to remove expired codes

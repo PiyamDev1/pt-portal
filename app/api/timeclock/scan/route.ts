@@ -1,18 +1,18 @@
 /**
  * POST /api/timeclock/scan
- * 
+ *
  * Timeclock QR Code Scan Handler
  * Processes QR code scans from timeclock devices for employee punch-in/out
  * Handles signature verification, device authentication, and event recording
- * 
+ *
  * Authentication: Session cookie (user must be logged in)
- * 
+ *
  * Request Body:
  * {
  *   qrText: string         // QR code payload (JSON or base64url encoded)
  *   geo?: GeoPoint         // Optional geolocation {lat, lng, accuracy}
  * }
- * 
+ *
  * QR Payload Format:
  * {
  *   v: 1                   // Protocol version
@@ -21,21 +21,21 @@
  *   nonce: string          // Random nonce for signature
  *   sig: string            // HMAC-SHA256 signature of payload
  * }
- * 
+ *
  * Response Success (200):
  * {
  *   event_id: string       // Created timeclock event ID
  *   punch_type: string     // 'in' or 'out'
  *   timestamp: string      // ISO timestamp of the punch
  * }
- * 
+ *
  * Response Errors:
  * 400 - Invalid QR payload, invalid timestamp, device not found
  * 401 - User not authenticated
  * 403 - Device inactive or signature verification failed
  * 409 - Duplicate scan (within 8 second window)
  * 500 - Database error
- * 
+ *
  * @module app/api/timeclock/scan
  */
 
@@ -186,7 +186,16 @@ export async function POST(request: Request) {
       return apiError('Invalid QR payload', 400)
     }
 
-    if (!payload.device_id || !payload.nonce || !payload.sig || payload.v !== 1) {
+    if (
+      typeof payload.device_id !== 'string' ||
+      typeof payload.nonce !== 'string' ||
+      typeof payload.sig !== 'string' ||
+      !payload.device_id ||
+      !payload.nonce ||
+      payload.nonce.length > 128 ||
+      !payload.sig ||
+      payload.v !== 1
+    ) {
       return apiError('QR payload missing required fields', 400)
     }
 
@@ -223,6 +232,23 @@ export async function POST(request: Request) {
 
     if (!safeEqual(expectedSig, payload.sig)) {
       return apiError('Invalid signature', 400)
+    }
+
+    await adminSupabase
+      .from('timeclock_qr_nonces')
+      .delete()
+      .eq('device_id', payload.device_id)
+      .lt('expires_at', new Date().toISOString())
+
+    const { error: nonceError } = await adminSupabase.from('timeclock_qr_nonces').insert({
+      device_id: payload.device_id,
+      nonce: payload.nonce,
+      expires_at: new Date(Date.now() + 5 * 60_000).toISOString(),
+    })
+
+    if (nonceError) {
+      if (nonceError.code === '23505') return apiError('QR already used', 409)
+      return apiError('Unable to reserve QR nonce', 500)
     }
 
     const { data: lastEvent } = await adminSupabase
@@ -307,13 +333,22 @@ export async function POST(request: Request) {
       .single()
 
     if (insertError) {
+      await adminSupabase
+        .from('timeclock_qr_nonces')
+        .delete()
+        .eq('device_id', payload.device_id)
+        .eq('nonce', payload.nonce)
+
       if (insertError.code === '23505') {
         return apiError('QR already used', 409)
       }
       throw new Error(insertError.message || 'Failed to insert scan event')
     }
 
-    await queueAttendanceSyncForEmployeeDay(session.user.id, inserted?.scanned_at?.slice(0, 10) || new Date().toISOString().slice(0, 10))
+    await queueAttendanceSyncForEmployeeDay(
+      session.user.id,
+      inserted?.scanned_at?.slice(0, 10) || new Date().toISOString().slice(0, 10),
+    )
 
     return apiOk({
       eventId: inserted?.id,

@@ -14,19 +14,22 @@
  * Intended for developers and maintenance staff to debug device pairing
  * and code generation issues.
  *
- * Authentication: Service role key (no user session required)
+ * Authentication: Super Admin session
  * Response Success (200): { diagnostics: { checks: CheckResult[] } }
  * Response Errors: 500 Unexpected failure
  */
 import { createClient } from '@supabase/supabase-js'
-import crypto from 'crypto'
 import { apiOk, apiError } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
+import { requireSuperAdminSession } from '@/lib/adminSessionAuth'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 
-export async function GET(request: Request) {
+export async function GET() {
+  const access = await requireSuperAdminSession()
+  if (!access.authorized) return access.response
+
   try {
     const adminSupabase = createClient(supabaseUrl, serviceKey)
     const diagnostics: any = {
@@ -76,41 +79,7 @@ export async function GET(request: Request) {
       })
     }
 
-    // Check 3: Test insert into timeclock_devices
-    try {
-      const testDeviceId = crypto.randomUUID()
-      const { data: insertResult, error: insertError } = await adminSupabase
-        .from('timeclock_devices')
-        .insert({
-          id: testDeviceId,
-          name: `Test Device ${Date.now()}`,
-          secret: 'test-secret-' + Date.now(),
-          location: 'Test',
-          is_active: true,
-        })
-        .select()
-
-      diagnostics.checks.push({
-        name: 'Insert test device',
-        status: insertError ? 'FAIL' : 'PASS',
-        error: insertError?.message,
-        errorCode: insertError?.code,
-        errorHint: insertError?.hint,
-      })
-
-      // Clean up test device
-      if (!insertError && testDeviceId) {
-        await adminSupabase.from('timeclock_devices').delete().eq('id', testDeviceId)
-      }
-    } catch (e: any) {
-      diagnostics.checks.push({
-        name: 'Insert test device',
-        status: 'ERROR',
-        error: e.message,
-      })
-    }
-
-    // Check 4: Environment variables
+    // Check 3: Environment variables
     diagnostics.checks.push({
       name: 'Environment variables',
       status: 'INFO',
