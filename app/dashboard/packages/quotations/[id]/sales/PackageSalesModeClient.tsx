@@ -767,10 +767,7 @@ export default function PackageSalesModeClient({ quoteId }: PackageSalesModeClie
                   <div className="flex items-center justify-between gap-3">
                     <span className="font-bold text-slate-600">Package subtotal</span>
                     <span className="font-black text-slate-950">
-                      {formatMoney(
-                        resolved.combination.packageSubtotalPrice,
-                        resolved.combination.currency,
-                      )}
+                      {formatMoney(resolved.combination.grossPrice, resolved.combination.currency)}
                     </span>
                   </div>
                   <div className="flex items-center justify-between gap-3 text-emerald-700">

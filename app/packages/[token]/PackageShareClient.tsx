@@ -1191,7 +1191,7 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                         <span className="font-bold text-slate-600">Package subtotal</span>
                         <span className="font-black text-slate-950">
                           {formatMoney(
-                            resolved.combination.packageSubtotalPrice,
+                            resolved.combination.grossPrice,
                             resolved.combination.currency,
                           )}
                         </span>
