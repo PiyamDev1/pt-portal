@@ -181,6 +181,24 @@ export interface PackageLimitedTimeOffer {
   active: boolean
 }
 
+export interface PackageLinkedFlightOption {
+  id: string
+  airlineName: string
+  summary: string
+  adultDelta: number
+  childDelta: number
+  infantDelta: number
+  isDefault?: boolean
+}
+
+export interface PackageLinkedFlightGroup {
+  id: string
+  baseFlightOptionId?: string | null
+  routeLabel: string
+  defaultOptionId?: string | null
+  options: PackageLinkedFlightOption[]
+}
+
 export interface PackageQuotePayload {
   title: string
   packageType: TravelPackageType
@@ -197,6 +215,7 @@ export interface PackageQuotePayload {
   returnDate: string
   stayGroups: PackageStayGroup[]
   flightOptions: PackageComponentOption[]
+  linkedFlightGroups: PackageLinkedFlightGroup[]
   visaOptions: PackageComponentOption[]
   transportOptions: PackageComponentOption[]
   limitedTimeOffers: PackageLimitedTimeOffer[]
@@ -214,6 +233,10 @@ export interface PackageCombination {
     option: PackageComponentOption
   }>
   flightOption: PackageComponentOption | null
+  linkedFlightSelections: Array<{
+    group: PackageLinkedFlightGroup
+    option: PackageLinkedFlightOption
+  }>
   visaOption: PackageComponentOption | null
   visaOptions: PackageComponentOption[]
   transportOption: PackageComponentOption | null
@@ -253,6 +276,7 @@ export interface PackagePaymentBreakdown {
 export interface PackageSelectionInput {
   stayOptionIds: Record<string, string>
   flightOptionId?: string | null
+  linkedFlightOptionIds?: Record<string, string>
   visaOptionId?: string | null
   transportOptionId?: string | null
   paymentMethod?: PackagePaymentMethod | null

@@ -26,6 +26,8 @@ import {
 import { toast } from 'sonner'
 import type {
   PackageComponentOption,
+  PackageLinkedFlightGroup,
+  PackageLinkedFlightOption,
   PackageLimitedTimeOffer,
   PackageQuotePayload,
   PackageStayGroup,
@@ -477,6 +479,33 @@ function newOption(
   }
 }
 
+function newLinkedFlightOption(overrides: Partial<PackageLinkedFlightOption> = {}) {
+  return {
+    id: makeId('linked-flight-option'),
+    airlineName: '',
+    summary: '',
+    adultDelta: 0,
+    childDelta: 0,
+    infantDelta: 0,
+    isDefault: false,
+    ...overrides,
+  }
+}
+
+function newLinkedFlightGroup(baseFlightOptionId: string): PackageLinkedFlightGroup {
+  const included = newLinkedFlightOption({
+    airlineName: 'Included airline',
+    isDefault: true,
+  })
+  return {
+    id: makeId('linked-flight'),
+    baseFlightOptionId,
+    routeLabel: '',
+    defaultOptionId: included.id,
+    options: [included, newLinkedFlightOption({ airlineName: 'Alternative airline' })],
+  }
+}
+
 function newLimitedTimeOffer(): PackageLimitedTimeOffer {
   return {
     id: makeId('offer'),
@@ -517,6 +546,7 @@ function createInitialPayload(): PackageQuotePayload {
       },
     ],
     flightOptions: [newOption('flight', { isDefault: true })],
+    linkedFlightGroups: [],
     visaOptions: [newOption('visa')],
     transportOptions: [newOption('transport', { isDefault: true })],
     limitedTimeOffers: [],
@@ -580,6 +610,165 @@ function SectionHeader({
         <h2 className="text-base font-black text-slate-950">{title}</h2>
       </div>
       {action}
+    </div>
+  )
+}
+
+function LinkedFlightGroupEditor({
+  group,
+  onChange,
+  onRemove,
+}: {
+  group: PackageLinkedFlightGroup
+  onChange: (next: PackageLinkedFlightGroup) => void
+  onRemove: () => void
+}) {
+  const updateOption = (optionIndex: number, option: PackageLinkedFlightOption) => {
+    const nextOptions = group.options.map((current, index) =>
+      index === optionIndex ? option : current,
+    )
+    onChange({
+      ...group,
+      defaultOptionId: option.isDefault ? option.id : group.defaultOptionId,
+      options: option.isDefault
+        ? nextOptions.map((current) => ({ ...current, isDefault: current.id === option.id }))
+        : nextOptions,
+    })
+  }
+
+  const addOption = () => {
+    onChange({
+      ...group,
+      options: [...group.options, newLinkedFlightOption({ airlineName: 'Alternative airline' })],
+    })
+  }
+
+  const removeOption = (optionId: string) => {
+    const nextOptions = group.options.filter((option) => option.id !== optionId)
+    const fallbackDefault = nextOptions.find((option) => option.isDefault) || nextOptions[0]
+    onChange({
+      ...group,
+      defaultOptionId: fallbackDefault?.id || null,
+      options: nextOptions.map((option) => ({
+        ...option,
+        isDefault: option.id === fallbackDefault?.id,
+      })),
+    })
+  }
+
+  return (
+    <div className="mt-3 rounded-lg border border-blue-100 bg-blue-50 p-3">
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <label className="block flex-1">
+          <span className="block text-xs font-black uppercase text-blue-900">
+            Linked flight leg
+          </span>
+          <input
+            value={group.routeLabel}
+            onChange={(event) => onChange({ ...group, routeLabel: event.target.value })}
+            placeholder="Madinah to London"
+            className="mt-1 min-h-10 w-full rounded-lg border border-blue-100 bg-white px-3 text-sm font-bold outline-none focus:border-blue-700"
+          />
+        </label>
+        <button
+          type="button"
+          onClick={onRemove}
+          className="mt-5 flex h-10 w-10 items-center justify-center rounded-lg border border-red-100 bg-white text-red-600 transition hover:bg-red-50"
+          title="Remove linked flight"
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
+      </div>
+
+      <div className="space-y-3">
+        {group.options.map((option, optionIndex) => (
+          <div key={option.id} className="rounded-lg border border-blue-100 bg-white p-3">
+            <div className="mb-2 flex items-center gap-2">
+              <input
+                value={option.airlineName}
+                onChange={(event) =>
+                  updateOption(optionIndex, { ...option, airlineName: event.target.value })
+                }
+                placeholder="Airline"
+                className="min-h-10 flex-1 rounded-lg border border-slate-200 px-3 text-sm font-bold outline-none focus:border-blue-700"
+              />
+              <button
+                type="button"
+                onClick={() =>
+                  updateOption(optionIndex, {
+                    ...option,
+                    isDefault: true,
+                    adultDelta: 0,
+                    childDelta: 0,
+                    infantDelta: 0,
+                  })
+                }
+                className={`min-h-10 rounded-lg px-3 text-xs font-black transition ${
+                  option.isDefault
+                    ? 'bg-emerald-100 text-emerald-800'
+                    : 'border border-slate-200 text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                {option.isDefault ? 'Included' : 'Mark included'}
+              </button>
+              <button
+                type="button"
+                onClick={() => removeOption(option.id)}
+                disabled={group.options.length <= 1}
+                className="flex h-10 w-10 items-center justify-center rounded-lg border border-red-100 text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-30"
+                title="Remove airline"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </div>
+            <textarea
+              value={option.summary}
+              onChange={(event) =>
+                updateOption(optionIndex, { ...option, summary: event.target.value })
+              }
+              placeholder="Connection, baggage, airport notes"
+              rows={2}
+              className="w-full resize-y rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-700"
+            />
+            <div className="mt-2 grid gap-2 sm:grid-cols-3">
+              {[
+                ['Adult delta', 'adultDelta'],
+                ['Child delta', 'childDelta'],
+                ['Infant delta', 'infantDelta'],
+              ].map(([label, key]) => (
+                <label key={key} className="block">
+                  <span className="block text-xs font-bold text-slate-500">{label}</span>
+                  <div className="mt-1 flex min-h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-3">
+                    <span className="mr-2 text-sm font-black text-slate-500">GBP</span>
+                    <input
+                      value={option[key as 'adultDelta' | 'childDelta' | 'infantDelta'] || ''}
+                      onChange={(event) =>
+                        updateOption(optionIndex, {
+                          ...option,
+                          [key]: Number(event.target.value || 0),
+                        })
+                      }
+                      type="number"
+                      step="0.01"
+                      placeholder="0.00"
+                      disabled={option.isDefault}
+                      className="w-full bg-transparent text-sm font-bold outline-none disabled:text-slate-400"
+                    />
+                  </div>
+                </label>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+      <button
+        type="button"
+        onClick={addOption}
+        className="mt-3 inline-flex min-h-9 items-center gap-2 rounded-lg border border-blue-200 bg-white px-3 text-xs font-black text-blue-900 transition hover:bg-blue-100"
+      >
+        <Plus className="h-4 w-4" />
+        Add airline for this leg
+      </button>
     </div>
   )
 }
@@ -1061,6 +1250,7 @@ export default function PackagesClient({
   const baseCustomerOption = customerOptions[0]?.combination || null
   const servicePassengerCount =
     payload.adults + payload.childrenPaying + payload.childrenFree + payload.infants
+  const payingGuestCount = payload.adults + payload.childrenPaying
   const shareUrl = buildShareUrl(activeQuote?.share_token)
   const filteredQuotes = useMemo(() => {
     if (quoteFilter === 'live') {
@@ -1153,11 +1343,20 @@ export default function PackagesClient({
       index === optionIndex ? nextOption : option,
     )
     const supportsDefault = key === 'flightOptions' || key === 'transportOptions'
+    const linkedFlightGroups =
+      key === 'flightOptions'
+        ? payload.linkedFlightGroups.map((group) =>
+            group.baseFlightOptionId === payload.flightOptions[optionIndex]?.id
+              ? { ...group, baseFlightOptionId: nextOption.id }
+              : group,
+          )
+        : payload.linkedFlightGroups
     updatePayload({
       [key]:
         supportsDefault && nextOption.isDefault
           ? nextOptions.map((option, index) => ({ ...option, isDefault: index === optionIndex }))
           : nextOptions,
+      linkedFlightGroups,
     } as Partial<PackageQuotePayload>)
   }
 
@@ -1166,8 +1365,13 @@ export default function PackagesClient({
     optionIndex: number,
   ) => {
     const current = payload[key]
+    const removedId = current[optionIndex]?.id
     updatePayload({
       [key]: current.filter((_, index) => index !== optionIndex),
+      linkedFlightGroups:
+        key === 'flightOptions'
+          ? payload.linkedFlightGroups.filter((group) => group.baseFlightOptionId !== removedId)
+          : payload.linkedFlightGroups,
     } as Partial<PackageQuotePayload>)
   }
 
@@ -1187,6 +1391,26 @@ export default function PackagesClient({
         }),
       ],
     } as Partial<PackageQuotePayload>)
+  }
+
+  const addLinkedFlightGroup = (baseFlightOptionId: string) => {
+    updatePayload({
+      linkedFlightGroups: [...payload.linkedFlightGroups, newLinkedFlightGroup(baseFlightOptionId)],
+    })
+  }
+
+  const updateLinkedFlightGroup = (groupId: string, nextGroup: PackageLinkedFlightGroup) => {
+    updatePayload({
+      linkedFlightGroups: payload.linkedFlightGroups.map((group) =>
+        group.id === groupId ? nextGroup : group,
+      ),
+    })
+  }
+
+  const removeLinkedFlightGroup = (groupId: string) => {
+    updatePayload({
+      linkedFlightGroups: payload.linkedFlightGroups.filter((group) => group.id !== groupId),
+    })
   }
 
   const updateLimitedTimeOffer = (offerIndex: number, nextOffer: PackageLimitedTimeOffer) => {
@@ -1639,19 +1863,40 @@ export default function PackagesClient({
                   </p>
                 )}
                 {payload.flightOptions.map((option, index) => (
-                  <OptionEditor
-                    key={option.id}
-                    option={option}
-                    titlePlaceholder="Flight option"
-                    summaryPlaceholder="Airline, route, connection time, baggage"
-                    priceLabel="Flight cost"
-                    showFlightPricing
-                    showDefaultToggle
-                    defaultLabel="Preferred flight"
-                    canRemove
-                    onChange={(next) => updateComponentOption('flightOptions', index, next)}
-                    onRemove={() => removeComponentOption('flightOptions', index)}
-                  />
+                  <div key={option.id}>
+                    <OptionEditor
+                      option={option}
+                      titlePlaceholder="Flight option"
+                      summaryPlaceholder="Airline, route, connection time, baggage"
+                      priceLabel="Flight cost"
+                      showFlightPricing
+                      showDefaultToggle
+                      defaultLabel="Preferred flight"
+                      canRemove
+                      onChange={(next) => updateComponentOption('flightOptions', index, next)}
+                      onRemove={() => removeComponentOption('flightOptions', index)}
+                    />
+                    <div className="mt-3 space-y-3">
+                      {payload.linkedFlightGroups
+                        .filter((group) => group.baseFlightOptionId === option.id)
+                        .map((group) => (
+                          <LinkedFlightGroupEditor
+                            key={group.id}
+                            group={group}
+                            onChange={(next) => updateLinkedFlightGroup(group.id, next)}
+                            onRemove={() => removeLinkedFlightGroup(group.id)}
+                          />
+                        ))}
+                      <button
+                        type="button"
+                        onClick={() => addLinkedFlightGroup(option.id)}
+                        className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 text-xs font-black text-blue-900 transition hover:bg-blue-100"
+                      >
+                        <Link2 className="h-4 w-4" />
+                        Add linked flight leg
+                      </button>
+                    </div>
+                  </div>
                 ))}
               </div>
             </div>
@@ -1980,6 +2225,7 @@ export default function PackagesClient({
                   const delta = baseCustomerOption
                     ? combination.totalPrice - baseCustomerOption.totalPrice
                     : 0
+                  const perPersonDelta = payingGuestCount > 0 ? delta / payingGuestCount : delta
                   return (
                     <div key={combination.id} className="rounded-lg border border-slate-200 p-3">
                       <div className="mb-2 flex items-start justify-between gap-3">
@@ -1988,7 +2234,10 @@ export default function PackagesClient({
                           <p className="text-xs text-slate-500">
                             {index === 0
                               ? 'Included base hotel combination'
-                              : `${delta >= 0 ? '+' : '-'}${formatMoney(Math.abs(delta), combination.currency)} total`}
+                              : `${perPersonDelta >= 0 ? '+' : '-'}${formatMoney(
+                                  Math.abs(perPersonDelta),
+                                  combination.currency,
+                                )} pp`}
                           </p>
                         </div>
                         <div className="text-right">

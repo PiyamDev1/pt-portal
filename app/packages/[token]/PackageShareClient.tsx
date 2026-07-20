@@ -26,7 +26,9 @@ import {
   formatMoney,
   getDefaultPackageSelection,
   getFlightOptionPriceDeltas,
-  getFlightOptionTotalDelta,
+  getLinkedFlightGroupsForFlight,
+  getLinkedFlightOptionForSelection,
+  getLinkedFlightOptionPriceDeltas,
   getPackageDepositPaymentSummary,
   getPackagePassengerPriceBreakdown,
   getPackagePaymentBreakdownTotal,
@@ -186,7 +188,7 @@ function OptionButton({
 
 function formatDelta(value: number, currency: string) {
   if (Math.abs(value) < 0.005) return 'Included'
-  return `${value > 0 ? '+' : '-'}${formatMoney(Math.abs(value), currency)} total`
+  return `${value > 0 ? '+' : '-'}${formatMoney(Math.abs(value), currency)} pp`
 }
 
 const PAYMENT_BREAKDOWN_FIELDS: Array<{
@@ -228,6 +230,21 @@ function formatFlightPassengerDeltas(
   baseOption: PackageComponentOption | null,
 ) {
   const deltas = getFlightOptionPriceDeltas(payload, option, baseOption)
+  const parts = [`Adult ${formatUnitDelta(deltas.adult, payload.currency)}`]
+  if (payload.childrenPaying + payload.childrenFree > 0) {
+    parts.push(`Child 2-12 ${formatUnitDelta(deltas.child, payload.currency)}`)
+  }
+  if (payload.infants > 0) {
+    parts.push(`Infant under 2 ${formatUnitDelta(deltas.infant, payload.currency)}`)
+  }
+  return parts
+}
+
+function formatLinkedFlightPassengerDeltas(
+  payload: PackageQuotePayload,
+  option: Parameters<typeof getLinkedFlightOptionPriceDeltas>[0],
+) {
+  const deltas = getLinkedFlightOptionPriceDeltas(option)
   const parts = [`Adult ${formatUnitDelta(deltas.adult, payload.currency)}`]
   if (payload.childrenPaying + payload.childrenFree > 0) {
     parts.push(`Child 2-12 ${formatUnitDelta(deltas.child, payload.currency)}`)
@@ -677,204 +694,205 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                   })}
                 </div>
 
-              {paymentIntent === 'full_payment' && (
-                <div className="mt-4 rounded-lg bg-slate-50 p-3">
-                  <p className="mb-2 text-xs font-black uppercase text-slate-500">
-                    Payment breakdown
-                  </p>
-                  <p className="mb-3 text-xs font-semibold text-slate-500">
-                    Split the package subtotal. Any Credit Card processing fee is added separately.
-                  </p>
-                  <div className="grid gap-2">
-                    {PAYMENT_BREAKDOWN_FIELDS.map((field) => {
-                      const value = paymentBreakdown?.[field.key] || ''
-                      const processingFeeAmount =
-                        field.key === 'card'
-                          ? (Number(value || 0) * payload.cardProcessingFeePercent) / 100
-                          : 0
-                      return (
-                        <label key={field.key} className="block">
-                          <span className="mb-1 flex items-center justify-between gap-3 text-xs font-bold text-slate-500">
-                            <span>{field.label}</span>
-                            {field.key === 'card' && payload.cardProcessingFeePercent > 0 ? (
-                              <span className="text-blue-700">
-                                Processing fee{' '}
-                                {processingFeeAmount > 0
-                                  ? `+${formatMoney(processingFeeAmount, payload.currency)}`
-                                  : `+${payload.cardProcessingFeePercent}%`}
-                              </span>
-                            ) : null}
-                          </span>
-                          <div className="flex min-h-10 items-center rounded-lg border border-slate-200 bg-white px-3">
-                            <span className="mr-2 text-sm font-black text-slate-500">GBP</span>
-                            <input
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              value={value}
-                              onChange={(event) => {
-                                const nextBreakdown = {
-                                  ...(paymentBreakdown || { cash: 0, bankTransfer: 0, card: 0 }),
-                                  [field.key]: Number(event.target.value || 0),
-                                }
-                                setSelection((current) =>
-                                  current
-                                    ? {
-                                        ...current,
-                                        paymentMethod: pickMethodFromBreakdown(nextBreakdown),
-                                        paymentBreakdown: nextBreakdown,
-                                      }
-                                    : current,
-                                )
-                              }}
-                              className="w-full bg-transparent text-sm font-bold outline-none"
-                              placeholder="0.00"
-                            />
-                          </div>
-                        </label>
-                      )
-                    })}
-                  </div>
-                  <div
-                    className={`mt-3 rounded-lg p-2 text-xs font-bold ${
-                      paymentBreakdownBalanced
-                        ? 'bg-emerald-50 text-emerald-800'
-                        : 'bg-amber-50 text-amber-800'
-                    }`}
-                  >
-                    {paymentBreakdownBalanced
-                      ? 'Payment split matches the package subtotal.'
-                      : `Remaining to allocate: ${formatMoney(paymentBreakdownRemaining, resolved.combination.currency)}`}
-                  </div>
-                  {(paymentBreakdown?.cash || 0) > 0 ||
-                  (paymentBreakdown?.bankTransfer || 0) > 0 ? (
-                    <p className="mt-3 rounded-lg bg-amber-50 p-2 text-xs font-bold text-amber-800">
-                      Cash or bank transfer must be paid before the office closes. The agent will
-                      confirm the deadline and payment details.
+                {paymentIntent === 'full_payment' && (
+                  <div className="mt-4 rounded-lg bg-slate-50 p-3">
+                    <p className="mb-2 text-xs font-black uppercase text-slate-500">
+                      Payment breakdown
                     </p>
-                  ) : null}
-                </div>
-              )}
-
-              {paymentIntent === 'deposit_only' && (
-                <div className="mt-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
-                  <p className="font-black">Deposit payment method</p>
-                  <p className="mt-1 text-xs font-bold">
-                    Choose one payment method for the full deposit amount. Deposits are
-                    non-refundable and cannot be split across multiple payment methods.
-                  </p>
-                  <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                    {DEPOSIT_PAYMENT_METHODS.map((method) => (
-                      <button
-                        key={method.value}
-                        type="button"
-                        onClick={() => setDepositPaymentMethod(method.value)}
-                        className={`min-h-10 rounded-lg border px-3 text-sm font-black transition ${
-                          depositPaymentMethod === method.value
-                            ? 'border-[#8b1e2d] bg-white text-[#8b1e2d]'
-                            : 'border-amber-200 bg-white/70 text-amber-950 hover:bg-white'
-                        }`}
-                      >
-                        {method.label}
-                      </button>
-                    ))}
-                  </div>
-                  <label className="mt-3 block">
-                    <span className="mb-1 flex items-center justify-between gap-3 text-xs font-bold text-amber-900">
-                      <span>Deposit amount payable</span>
-                      {depositPaymentMethod === 'card' &&
-                      depositPaymentSummary &&
-                      depositPaymentSummary.processingFee > 0 ? (
-                        <span className="text-blue-700">
-                          Processing fee +
-                          {formatMoney(depositPaymentSummary.processingFee, payload.currency)} (
-                          {payload.cardProcessingFeePercent}%)
-                        </span>
-                      ) : null}
-                    </span>
-                    <div className="flex min-h-10 items-center rounded-lg border border-amber-200 bg-white px-3">
-                      <span className="mr-2 text-sm font-black text-slate-500">GBP</span>
-                      <input
-                        readOnly
-                        value={(depositPaymentSummary?.total || 0).toFixed(2)}
-                        className="w-full bg-transparent text-sm font-bold outline-none"
-                      />
+                    <p className="mb-3 text-xs font-semibold text-slate-500">
+                      Split the package subtotal. Any Credit Card processing fee is added
+                      separately.
+                    </p>
+                    <div className="grid gap-2">
+                      {PAYMENT_BREAKDOWN_FIELDS.map((field) => {
+                        const value = paymentBreakdown?.[field.key] || ''
+                        const processingFeeAmount =
+                          field.key === 'card'
+                            ? (Number(value || 0) * payload.cardProcessingFeePercent) / 100
+                            : 0
+                        return (
+                          <label key={field.key} className="block">
+                            <span className="mb-1 flex items-center justify-between gap-3 text-xs font-bold text-slate-500">
+                              <span>{field.label}</span>
+                              {field.key === 'card' && payload.cardProcessingFeePercent > 0 ? (
+                                <span className="text-blue-700">
+                                  Processing fee{' '}
+                                  {processingFeeAmount > 0
+                                    ? `+${formatMoney(processingFeeAmount, payload.currency)}`
+                                    : `+${payload.cardProcessingFeePercent}%`}
+                                </span>
+                              ) : null}
+                            </span>
+                            <div className="flex min-h-10 items-center rounded-lg border border-slate-200 bg-white px-3">
+                              <span className="mr-2 text-sm font-black text-slate-500">GBP</span>
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={value}
+                                onChange={(event) => {
+                                  const nextBreakdown = {
+                                    ...(paymentBreakdown || { cash: 0, bankTransfer: 0, card: 0 }),
+                                    [field.key]: Number(event.target.value || 0),
+                                  }
+                                  setSelection((current) =>
+                                    current
+                                      ? {
+                                          ...current,
+                                          paymentMethod: pickMethodFromBreakdown(nextBreakdown),
+                                          paymentBreakdown: nextBreakdown,
+                                        }
+                                      : current,
+                                  )
+                                }}
+                                className="w-full bg-transparent text-sm font-bold outline-none"
+                                placeholder="0.00"
+                              />
+                            </div>
+                          </label>
+                        )
+                      })}
                     </div>
-                  </label>
-                  {depositPaymentSummary && depositPaymentSummary.depositAmount > 0 && (
-                    <p className="mt-2 text-xs font-bold text-amber-900">
-                      Base deposit:{' '}
-                      {formatMoney(depositPaymentSummary.depositAmount, payload.currency)}
-                      {depositPaymentSummary.processingFee > 0
-                        ? ` + ${formatMoney(depositPaymentSummary.processingFee, payload.currency)} non-refundable Credit Card processing fee`
-                        : ''}
-                    </p>
-                  )}
-                </div>
-              )}
+                    <div
+                      className={`mt-3 rounded-lg p-2 text-xs font-bold ${
+                        paymentBreakdownBalanced
+                          ? 'bg-emerald-50 text-emerald-800'
+                          : 'bg-amber-50 text-amber-800'
+                      }`}
+                    >
+                      {paymentBreakdownBalanced
+                        ? 'Payment split matches the package subtotal.'
+                        : `Remaining to allocate: ${formatMoney(paymentBreakdownRemaining, resolved.combination.currency)}`}
+                    </div>
+                    {(paymentBreakdown?.cash || 0) > 0 ||
+                    (paymentBreakdown?.bankTransfer || 0) > 0 ? (
+                      <p className="mt-3 rounded-lg bg-amber-50 p-2 text-xs font-bold text-amber-800">
+                        Cash or bank transfer must be paid before the office closes. The agent will
+                        confirm the deadline and payment details.
+                      </p>
+                    ) : null}
+                  </div>
+                )}
 
-              {paymentIntent === 'installment_request' && (
-                <div className="mt-4 rounded-lg bg-slate-50 p-3 text-sm leading-6 text-slate-600">
-                  Your installment request will be sent to an agent. Installments are not guaranteed
-                  because only 5 customer installment slots are available.
-                </div>
-              )}
+                {paymentIntent === 'deposit_only' && (
+                  <div className="mt-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
+                    <p className="font-black">Deposit payment method</p>
+                    <p className="mt-1 text-xs font-bold">
+                      Choose one payment method for the full deposit amount. Deposits are
+                      non-refundable and cannot be split across multiple payment methods.
+                    </p>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                      {DEPOSIT_PAYMENT_METHODS.map((method) => (
+                        <button
+                          key={method.value}
+                          type="button"
+                          onClick={() => setDepositPaymentMethod(method.value)}
+                          className={`min-h-10 rounded-lg border px-3 text-sm font-black transition ${
+                            depositPaymentMethod === method.value
+                              ? 'border-[#8b1e2d] bg-white text-[#8b1e2d]'
+                              : 'border-amber-200 bg-white/70 text-amber-950 hover:bg-white'
+                          }`}
+                        >
+                          {method.label}
+                        </button>
+                      ))}
+                    </div>
+                    <label className="mt-3 block">
+                      <span className="mb-1 flex items-center justify-between gap-3 text-xs font-bold text-amber-900">
+                        <span>Deposit amount payable</span>
+                        {depositPaymentMethod === 'card' &&
+                        depositPaymentSummary &&
+                        depositPaymentSummary.processingFee > 0 ? (
+                          <span className="text-blue-700">
+                            Processing fee +
+                            {formatMoney(depositPaymentSummary.processingFee, payload.currency)} (
+                            {payload.cardProcessingFeePercent}%)
+                          </span>
+                        ) : null}
+                      </span>
+                      <div className="flex min-h-10 items-center rounded-lg border border-amber-200 bg-white px-3">
+                        <span className="mr-2 text-sm font-black text-slate-500">GBP</span>
+                        <input
+                          readOnly
+                          value={(depositPaymentSummary?.total || 0).toFixed(2)}
+                          className="w-full bg-transparent text-sm font-bold outline-none"
+                        />
+                      </div>
+                    </label>
+                    {depositPaymentSummary && depositPaymentSummary.depositAmount > 0 && (
+                      <p className="mt-2 text-xs font-bold text-amber-900">
+                        Base deposit:{' '}
+                        {formatMoney(depositPaymentSummary.depositAmount, payload.currency)}
+                        {depositPaymentSummary.processingFee > 0
+                          ? ` + ${formatMoney(depositPaymentSummary.processingFee, payload.currency)} non-refundable Credit Card processing fee`
+                          : ''}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {paymentIntent === 'installment_request' && (
+                  <div className="mt-4 rounded-lg bg-slate-50 p-3 text-sm leading-6 text-slate-600">
+                    Your installment request will be sent to an agent. Installments are not
+                    guaranteed because only 5 customer installment slots are available.
+                  </div>
+                )}
               </section>
 
-            <label className="flex items-start gap-3 rounded-lg border border-slate-200 bg-white p-3 text-sm shadow-sm">
-              <input
-                type="checkbox"
-                checked={termsAccepted}
-                onChange={(event) => setTermsAccepted(event.target.checked)}
-                className="mt-1 h-4 w-4 rounded border-slate-300 text-[#8b1e2d] focus:ring-[#8b1e2d]"
-              />
-              <span className="leading-6 text-slate-700">
-                I have read and agree to the{' '}
-                <a
-                  href={TERMS_URL}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="font-black text-[#8b1e2d] underline"
+              <label className="flex items-start gap-3 rounded-lg border border-slate-200 bg-white p-3 text-sm shadow-sm">
+                <input
+                  type="checkbox"
+                  checked={termsAccepted}
+                  onChange={(event) => setTermsAccepted(event.target.checked)}
+                  className="mt-1 h-4 w-4 rounded border-slate-300 text-[#8b1e2d] focus:ring-[#8b1e2d]"
+                />
+                <span className="leading-6 text-slate-700">
+                  I have read and agree to the{' '}
+                  <a
+                    href={TERMS_URL}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="font-black text-[#8b1e2d] underline"
+                  >
+                    terms and conditions
+                  </a>
+                  .
+                </span>
+              </label>
+
+              <div className="flex flex-col gap-2">
+                <button
+                  type="button"
+                  onClick={() => setReviewingPayment(false)}
+                  className="inline-flex min-h-11 items-center justify-center rounded-lg border border-slate-200 px-4 text-sm font-black text-slate-700"
                 >
-                  terms and conditions
-                </a>
-                .
-              </span>
-            </label>
-
-            <div className="flex flex-col gap-2">
-              <button
-                type="button"
-                onClick={() => setReviewingPayment(false)}
-                className="inline-flex min-h-11 items-center justify-center rounded-lg border border-slate-200 px-4 text-sm font-black text-slate-700"
-              >
-                Edit package
-              </button>
-              <button
-                type="button"
-                onClick={() => void submitSelection()}
-                disabled={
-                  saving ||
-                  !termsAccepted ||
-                  (paymentIntent === 'full_payment' && !paymentBreakdownBalanced)
-                }
-                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#8b1e2d] px-4 text-sm font-black text-white transition hover:bg-[#6f1422] disabled:opacity-50"
-              >
-                {saving ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Send className="h-4 w-4" />
-                )}
-                Send to Agent for Review
-              </button>
-            </div>
-
-            {savedSelection && (
-              <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm font-bold text-emerald-800">
-                Your selection and payment preference have been sent to Piyam Travel. An agent will
-                review it and confirm your bookings and reservation within the next hour.
+                  Edit package
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void submitSelection()}
+                  disabled={
+                    saving ||
+                    !termsAccepted ||
+                    (paymentIntent === 'full_payment' && !paymentBreakdownBalanced)
+                  }
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#8b1e2d] px-4 text-sm font-black text-white transition hover:bg-[#6f1422] disabled:opacity-50"
+                >
+                  {saving ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Send className="h-4 w-4" />
+                  )}
+                  Send to Agent for Review
+                </button>
               </div>
-            )}
+
+              {savedSelection && (
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm font-bold text-emerald-800">
+                  Your selection and payment preference have been sent to Piyam Travel. An agent
+                  will review it and confirm your bookings and reservation within the next hour.
+                </div>
+              )}
               {error && <p className="mt-3 text-sm font-bold text-red-600">{error}</p>}
               <div className="rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm font-semibold leading-6 text-blue-900">
                 The agent will confirm your bookings and reservation within the next hour. The
@@ -891,434 +909,502 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
           </div>
           <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]">
             <div className="space-y-5">
-            {payload.flightOptions.length > 0 && (
-              <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                <SectionTitle icon={Plane} title="Flights" />
-                <div className="space-y-3">
-                  {payload.flightOptions.map((option) => {
-                    const defaultFlight = getPreferredOption(payload.flightOptions)
-                    const delta = getFlightOptionTotalDelta(payload, option, defaultFlight)
-                    return (
-                      <OptionButton
-                        key={option.id}
-                        selected={selection.flightOptionId === option.id}
-                        title={option.title}
-                        summary={option.summary}
-                        price={option.price}
-                        priceLabel={formatDelta(delta, payload.currency)}
-                        priceSubLines={formatFlightPassengerDeltas(payload, option, defaultFlight)}
-                        pricingMode={option.pricingMode}
-                        currency={payload.currency}
-                        onClick={() =>
-                          setSelection((current) =>
-                            current ? { ...current, flightOptionId: option.id } : current,
-                          )
-                        }
-                      />
-                    )
-                  })}
-                </div>
-              </section>
-            )}
-
-            {payload.visaOptions.length > 0 && (
-              <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                <SectionTitle icon={FileText} title="Visa" />
-                <div className="space-y-3">
-                  {payload.visaOptions.map((option) => (
-                    <div
-                      key={option.id}
-                      className="rounded-xl border border-emerald-200 bg-emerald-50 p-4"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-black text-slate-950">
-                            {option.title || 'Visa'}
+              {payload.flightOptions.length > 0 && (
+                <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <SectionTitle icon={Plane} title="Flights" />
+                  <div className="space-y-3">
+                    {payload.flightOptions.map((option) => {
+                      const defaultFlight = getPreferredOption(payload.flightOptions)
+                      const deltas = getFlightOptionPriceDeltas(payload, option, defaultFlight)
+                      return (
+                        <OptionButton
+                          key={option.id}
+                          selected={selection.flightOptionId === option.id}
+                          title={option.title}
+                          summary={option.summary}
+                          price={option.price}
+                          priceLabel={formatDelta(deltas.adult, payload.currency)}
+                          priceSubLines={formatFlightPassengerDeltas(
+                            payload,
+                            option,
+                            defaultFlight,
+                          )}
+                          pricingMode={option.pricingMode}
+                          currency={payload.currency}
+                          onClick={() =>
+                            setSelection((current) =>
+                              current ? { ...current, flightOptionId: option.id } : current,
+                            )
+                          }
+                        />
+                      )
+                    })}
+                  </div>
+                  {getLinkedFlightGroupsForFlight(
+                    payload,
+                    payload.flightOptions.find(
+                      (option) => option.id === selection.flightOptionId,
+                    ) || null,
+                  ).length > 0 && (
+                    <div className="mt-4 space-y-3 border-t border-slate-200 pt-4">
+                      {getLinkedFlightGroupsForFlight(
+                        payload,
+                        payload.flightOptions.find(
+                          (option) => option.id === selection.flightOptionId,
+                        ) || null,
+                      ).map((group) => (
+                        <div key={group.id}>
+                          <p className="mb-2 text-xs font-black uppercase text-slate-500">
+                            {group.routeLabel}
                           </p>
-                          {option.summary && <SummaryText value={option.summary} />}
+                          <div className="space-y-2">
+                            {group.options.map((option) => {
+                              const selectedOption = getLinkedFlightOptionForSelection(
+                                group,
+                                selection.linkedFlightOptionIds,
+                              )
+                              return (
+                                <OptionButton
+                                  key={option.id}
+                                  selected={selectedOption?.id === option.id}
+                                  title={option.airlineName}
+                                  summary={option.summary}
+                                  price={option.adultDelta}
+                                  priceLabel={
+                                    option.isDefault
+                                      ? 'Included'
+                                      : formatDelta(option.adultDelta, payload.currency)
+                                  }
+                                  priceSubLines={formatLinkedFlightPassengerDeltas(payload, option)}
+                                  pricingMode="per_person"
+                                  currency={payload.currency}
+                                  onClick={() =>
+                                    setSelection((current) =>
+                                      current
+                                        ? {
+                                            ...current,
+                                            linkedFlightOptionIds: {
+                                              ...(current.linkedFlightOptionIds || {}),
+                                              [group.id]: option.id,
+                                            },
+                                          }
+                                        : current,
+                                    )
+                                  }
+                                />
+                              )
+                            })}
+                          </div>
                         </div>
-                        <p className="shrink-0 text-sm font-black text-slate-950">
-                          {getVisaQuantity(option, payload)} included
-                        </p>
+                      ))}
+                    </div>
+                  )}
+                </section>
+              )}
+
+              {payload.visaOptions.length > 0 && (
+                <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <SectionTitle icon={FileText} title="Visa" />
+                  <div className="space-y-3">
+                    {payload.visaOptions.map((option) => (
+                      <div
+                        key={option.id}
+                        className="rounded-xl border border-emerald-200 bg-emerald-50 p-4"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-black text-slate-950">
+                              {option.title || 'Visa'}
+                            </p>
+                            {option.summary && <SummaryText value={option.summary} />}
+                          </div>
+                          <p className="shrink-0 text-sm font-black text-slate-950">
+                            {getVisaQuantity(option, payload)} included
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              {payload.transportOptions.length > 0 && (
+                <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <SectionTitle icon={Bus} title="Transport" />
+                  <div className="space-y-3">
+                    {payload.transportOptions.map((option) => {
+                      const defaultTransport = getPreferredOption(payload.transportOptions)
+                      const delta = option.price - (defaultTransport?.price || 0)
+                      const servicePassengers =
+                        payload.adults +
+                        payload.childrenPaying +
+                        payload.childrenFree +
+                        payload.infants
+                      const perPassengerDelta =
+                        servicePassengers > 0 ? delta / servicePassengers : delta
+                      const badges = [
+                        option.includesZiyarat ? 'Ziyarat included' : '',
+                        option.includesTourGuide ? 'Tour guide included' : '',
+                      ].filter((badge): badge is string => Boolean(badge))
+                      return (
+                        <OptionButton
+                          key={option.id}
+                          selected={selection.transportOptionId === option.id}
+                          title={option.title}
+                          summary={option.summary}
+                          price={option.price}
+                          priceLabel={formatDelta(perPassengerDelta, payload.currency)}
+                          pricingMode={option.pricingMode}
+                          badges={badges}
+                          currency={payload.currency}
+                          onClick={() =>
+                            setSelection((current) =>
+                              current ? { ...current, transportOptionId: option.id } : current,
+                            )
+                          }
+                        />
+                      )
+                    })}
+                  </div>
+                </section>
+              )}
+
+              <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                <SectionTitle icon={Building2} title="Hotels" />
+                <div className="space-y-4">
+                  {orderedStayGroups.map((group) => (
+                    <div key={group.id}>
+                      <h3 className="mb-2 text-sm font-black text-slate-700">{group.label}</h3>
+                      <div className="space-y-3">
+                        {group.options.map((option) => {
+                          const preferredHotel = getPreferredOption(group.options)
+                          const delta = option.price - (preferredHotel?.price || 0)
+                          const payingGuests = payload.adults + payload.childrenPaying
+                          const perPersonDelta = payingGuests > 0 ? delta / payingGuests : delta
+                          return (
+                            <OptionButton
+                              key={option.id}
+                              selected={selection.stayOptionIds[group.id] === option.id}
+                              title={option.title}
+                              summary={option.summary}
+                              price={option.price}
+                              priceLabel={formatDelta(perPersonDelta, payload.currency)}
+                              priceSubLabel="hotel option"
+                              pricingMode={option.pricingMode}
+                              currency={payload.currency}
+                              onClick={() =>
+                                setSelection((current) =>
+                                  current
+                                    ? {
+                                        ...current,
+                                        stayOptionIds: {
+                                          ...current.stayOptionIds,
+                                          [group.id]: option.id,
+                                        },
+                                      }
+                                    : current,
+                                )
+                              }
+                            />
+                          )
+                        })}
                       </div>
                     </div>
                   ))}
                 </div>
               </section>
-            )}
 
-            {payload.transportOptions.length > 0 && (
-              <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                <SectionTitle icon={Bus} title="Transport" />
-                <div className="space-y-3">
-                  {payload.transportOptions.map((option) => {
-                    const defaultTransport = getPreferredOption(payload.transportOptions)
-                    const delta = option.price - (defaultTransport?.price || 0)
-                    const badges = [
-                      option.includesZiyarat ? 'Ziyarat included' : '',
-                      option.includesTourGuide ? 'Tour guide included' : '',
-                    ].filter((badge): badge is string => Boolean(badge))
-                    return (
-                      <OptionButton
-                        key={option.id}
-                        selected={selection.transportOptionId === option.id}
-                        title={option.title}
-                        summary={option.summary}
-                        price={option.price}
-                        priceLabel={formatDelta(delta, payload.currency)}
-                        pricingMode={option.pricingMode}
-                        badges={badges}
-                        currency={payload.currency}
-                        onClick={() =>
-                          setSelection((current) =>
-                            current ? { ...current, transportOptionId: option.id } : current,
-                          )
-                        }
-                      />
-                    )
-                  })}
-                </div>
-              </section>
-            )}
-
-            <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-              <SectionTitle icon={Building2} title="Hotels" />
-              <div className="space-y-4">
-                {orderedStayGroups.map((group) => (
-                  <div key={group.id}>
-                    <h3 className="mb-2 text-sm font-black text-slate-700">{group.label}</h3>
-                    <div className="space-y-3">
-                      {group.options.map((option) => {
-                        const preferredHotel = getPreferredOption(group.options)
-                        const delta = option.price - (preferredHotel?.price || 0)
-                        return (
-                          <OptionButton
-                            key={option.id}
-                            selected={selection.stayOptionIds[group.id] === option.id}
-                            title={option.title}
-                            summary={option.summary}
-                            price={option.price}
-                            priceLabel={formatDelta(delta, payload.currency)}
-                            priceSubLabel="hotel option"
-                            pricingMode={option.pricingMode}
-                            currency={payload.currency}
-                            onClick={() =>
-                              setSelection((current) =>
-                                current
-                                  ? {
-                                      ...current,
-                                      stayOptionIds: {
-                                        ...current.stayOptionIds,
-                                        [group.id]: option.id,
-                                      },
-                                    }
-                                  : current,
-                              )
-                            }
-                          />
-                        )
-                      })}
-                    </div>
+              {visibleOffers.length > 0 && (
+                <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <div className="mb-3 flex items-center gap-2">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900 text-white">
+                      <Tag className="h-4 w-4" />
+                    </span>
+                    <h2 className="text-lg font-black">Limited Time Offers</h2>
                   </div>
-                ))}
-              </div>
-            </section>
-
-            {visibleOffers.length > 0 && (
-              <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                <div className="mb-3 flex items-center gap-2">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900 text-white">
-                    <Tag className="h-4 w-4" />
-                  </span>
-                  <h2 className="text-lg font-black">Limited Time Offers</h2>
-                </div>
-                <div className="space-y-3">
-                  {visibleOffers.map((offer) => {
-                    const active = isLimitedTimeOfferActive(offer)
-                    return (
-                      <div
-                        key={offer.id}
-                        className={`rounded-xl border p-4 ${
-                          active
-                            ? 'border-emerald-200 bg-emerald-50'
-                            : 'border-slate-200 bg-slate-50'
-                        }`}
-                      >
-                        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                          <div>
-                            <p className="text-sm font-black text-slate-950">{offer.title}</p>
-                            {offer.summary && <SummaryText value={offer.summary} />}
-                            {offer.expiresAt && (
-                              <p className="mt-2 text-xs font-bold text-slate-500">
-                                Valid until {formatOfferDeadline(offer.expiresAt)}
+                  <div className="space-y-3">
+                    {visibleOffers.map((offer) => {
+                      const active = isLimitedTimeOfferActive(offer)
+                      return (
+                        <div
+                          key={offer.id}
+                          className={`rounded-xl border p-4 ${
+                            active
+                              ? 'border-emerald-200 bg-emerald-50'
+                              : 'border-slate-200 bg-slate-50'
+                          }`}
+                        >
+                          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                            <div>
+                              <p className="text-sm font-black text-slate-950">{offer.title}</p>
+                              {offer.summary && <SummaryText value={offer.summary} />}
+                              {offer.expiresAt && (
+                                <p className="mt-2 text-xs font-bold text-slate-500">
+                                  Valid until {formatOfferDeadline(offer.expiresAt)}
+                                </p>
+                              )}
+                            </div>
+                            <div className="shrink-0 rounded-lg bg-white px-3 py-2 text-right shadow-sm">
+                              <p className="text-sm font-black text-emerald-700">
+                                {formatMoney(offer.discountAmount, payload.currency)} off
                               </p>
-                            )}
-                          </div>
-                          <div className="shrink-0 rounded-lg bg-white px-3 py-2 text-right shadow-sm">
-                            <p className="text-sm font-black text-emerald-700">
-                              {formatMoney(offer.discountAmount, payload.currency)} off
-                            </p>
-                            <p className="text-[11px] font-bold text-slate-500">
-                              {offer.discountMode === 'per_person' ? 'per person' : 'total'}
-                            </p>
+                              <p className="text-[11px] font-bold text-slate-500">
+                                {offer.discountMode === 'per_person' ? 'per person' : 'total'}
+                              </p>
+                            </div>
                           </div>
                         </div>
+                      )
+                    })}
+                  </div>
+                </section>
+              )}
+            </div>
+
+            <aside className="space-y-4 lg:sticky lg:top-5 lg:self-start">
+              <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                {resolved ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setPriceSummaryExpanded((current) => !current)}
+                      aria-expanded={priceSummaryExpanded}
+                      className="flex w-full items-start justify-between gap-3 text-left"
+                    >
+                      <span>
+                        <span className="block text-sm font-black text-slate-950">
+                          Price summary
+                        </span>
+                        <span className="mt-1 block text-xs font-bold text-slate-500">
+                          Expand this window to see the full price breakdown
+                        </span>
+                      </span>
+                      <ChevronDown
+                        className={`mt-0.5 h-5 w-5 shrink-0 text-slate-500 transition ${
+                          priceSummaryExpanded ? 'rotate-180' : ''
+                        }`}
+                      />
+                    </button>
+
+                    <div className="mt-4 space-y-2 rounded-lg bg-slate-50 p-3 text-sm">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="font-bold text-slate-600">Package subtotal</span>
+                        <span className="font-black text-slate-950">
+                          {formatMoney(
+                            resolved.combination.packageSubtotalPrice,
+                            resolved.combination.currency,
+                          )}
+                        </span>
                       </div>
-                    )
-                  })}
-                </div>
-              </section>
-            )}
-          </div>
-
-          <aside className="space-y-4 lg:sticky lg:top-5 lg:self-start">
-            <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-              {resolved ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => setPriceSummaryExpanded((current) => !current)}
-                    aria-expanded={priceSummaryExpanded}
-                    className="flex w-full items-start justify-between gap-3 text-left"
-                  >
-                    <span>
-                      <span className="block text-sm font-black text-slate-950">
-                        Price summary
-                      </span>
-                      <span className="mt-1 block text-xs font-bold text-slate-500">
-                        Expand this window to see the full price breakdown
-                      </span>
-                    </span>
-                    <ChevronDown
-                      className={`mt-0.5 h-5 w-5 shrink-0 text-slate-500 transition ${
-                        priceSummaryExpanded ? 'rotate-180' : ''
-                      }`}
-                    />
-                  </button>
-
-                  <div className="mt-4 space-y-2 rounded-lg bg-slate-50 p-3 text-sm">
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="font-bold text-slate-600">
-                        {priceSummaryExpanded ? 'Package subtotal' : 'Total package price'}
-                      </span>
-                      <span className="font-black text-slate-950">
-                        {formatMoney(
-                          priceSummaryExpanded
-                            ? resolved.combination.packageSubtotalPrice
-                            : resolved.combination.totalPrice,
-                          resolved.combination.currency,
-                        )}
-                      </span>
-                    </div>
-                    {!priceSummaryExpanded && (
-                      <p className="text-xs font-semibold leading-5 text-slate-500">
-                        Expand this window to see passenger prices, discounts, and any additional
-                        charges.
-                      </p>
-                    )}
-                    {priceSummaryExpanded && (
-                      <>
-                        {resolved.combination.offerDiscountTotal > 0 && (
-                          <div className="flex items-center justify-between gap-3 text-emerald-700">
-                            <span className="font-bold">Discounts applied</span>
-                            <span className="font-black">
-                              -
-                              {formatMoney(
+                      <div className="flex items-center justify-between gap-3 text-emerald-700">
+                        <span className="font-bold">Discounts applied</span>
+                        <span className="font-black">
+                          {resolved.combination.offerDiscountTotal > 0
+                            ? `-${formatMoney(
                                 resolved.combination.offerDiscountTotal,
                                 resolved.combination.currency,
-                              )}
-                            </span>
-                          </div>
-                        )}
-                        {resolved.combination.paymentSurchargeTotal > 0 ? (
-                          <div className="flex items-center justify-between gap-3">
-                            <span className="font-bold text-slate-600">
-                              Credit Card processing fee
-                            </span>
-                            <span className="font-black text-slate-950">
-                              {formatMoney(
-                                resolved.combination.paymentSurchargeTotal,
-                                resolved.combination.currency,
-                              )}
-                            </span>
-                          </div>
-                        ) : (
-                          <div className="flex items-center justify-between gap-3">
-                            <span className="font-bold text-slate-600">Additional charges</span>
-                            <span className="font-black text-slate-950">None</span>
-                          </div>
-                        )}
-                        <div className="border-t border-slate-200 pt-2">
-                          <div className="flex items-center justify-between gap-3">
-                            <span className="font-black text-slate-950">Total package price</span>
-                            <span className="font-black text-slate-950">
-                              {formatMoney(
-                                resolved.combination.totalPrice,
-                                resolved.combination.currency,
-                              )}
-                            </span>
-                          </div>
+                              )}`
+                            : 'None'}
+                        </span>
+                      </div>
+                      <div className="border-t border-slate-200 pt-2">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="font-black text-slate-950">Total package price</span>
+                          <span className="font-black text-slate-950">
+                            {formatMoney(
+                              resolved.combination.totalPrice,
+                              resolved.combination.currency,
+                            )}
+                          </span>
                         </div>
-                      </>
-                    )}
-                  </div>
-
-                  {priceSummaryExpanded && (
-                    <>
-                      <p className="mt-3 text-xs font-black uppercase text-slate-500">
-                        Passenger prices
-                      </p>
-                      <p className="mt-1 text-sm font-bold text-slate-600">
-                        Adult, child, and infant prices are listed below.
-                      </p>
-
-                      {priceBreakdown && (
-                        <div className="mt-3 space-y-2 rounded-lg bg-slate-50 p-3 text-sm">
-                          <p className="text-xs font-black uppercase text-slate-500">
-                            Passenger pricing
-                          </p>
-                          <div className="flex items-center justify-between gap-3">
-                            <span className="font-bold text-slate-600">Adult 12+</span>
-                            <span className="font-black text-slate-950">
-                              {formatMoney(priceBreakdown.adult, priceBreakdown.currency)} each
-                            </span>
-                          </div>
-                          {payload.childrenPaying > 0 && (
+                      </div>
+                      {!priceSummaryExpanded && (
+                        <p className="text-xs font-semibold leading-5 text-slate-500">
+                          Expand this window to see passenger prices and additional payment charges.
+                        </p>
+                      )}
+                      {priceSummaryExpanded && (
+                        <>
+                          {resolved.combination.paymentSurchargeTotal > 0 ? (
                             <div className="flex items-center justify-between gap-3">
-                              <span className="font-bold text-slate-600">Child 5+</span>
-                              <span className="font-black text-slate-950">
-                                {formatMoney(priceBreakdown.child, priceBreakdown.currency)} each
+                              <span className="font-bold text-slate-600">
+                                Credit Card processing fee
                               </span>
-                            </div>
-                          )}
-                          {payload.childrenFree > 0 && (
-                            <div className="flex items-center justify-between gap-3">
-                              <span className="font-bold text-slate-600">Child 2-5</span>
                               <span className="font-black text-slate-950">
                                 {formatMoney(
-                                  priceBreakdown.childTwoToFour,
-                                  priceBreakdown.currency,
-                                )}{' '}
-                                each
+                                  resolved.combination.paymentSurchargeTotal,
+                                  resolved.combination.currency,
+                                )}
                               </span>
                             </div>
-                          )}
-                          {payload.infants > 0 && (
+                          ) : (
                             <div className="flex items-center justify-between gap-3">
-                              <span className="font-bold text-slate-600">Infant under 2</span>
-                              <span className="font-black text-slate-950">
-                                {formatMoney(priceBreakdown.infant, priceBreakdown.currency)} each
-                              </span>
+                              <span className="font-bold text-slate-600">Additional charges</span>
+                              <span className="font-black text-slate-950">None</span>
                             </div>
                           )}
-                        </div>
+                        </>
                       )}
-                      {resolved.combination.paymentSurchargeTotal > 0 && (
-                        <p className="mt-2 text-xs font-semibold text-slate-500">
-                          Credit Card processing fees are non-refundable.
-                        </p>
-                      )}
-                      {resolved.combination.servicePassengers !==
-                        resolved.combination.payingGuests && (
-                        <p className="mt-1 text-xs font-semibold text-slate-500">
-                          Services calculated for {resolved.combination.servicePassengers}{' '}
-                          passengers.
-                        </p>
-                      )}
-                      <p className="mt-4 rounded-lg bg-slate-50 p-3 text-xs font-semibold leading-5 text-slate-600">
-                        Payment options, deposits, installment requests, and terms are reviewed on
-                        the next step.
-                      </p>
-                    </>
-                  )}
+                    </div>
 
-                  <label className="mt-4 block">
-                    <span className="mb-1 block text-xs font-black uppercase text-slate-500">
-                      Promo code
-                    </span>
+                    {priceSummaryExpanded && (
+                      <>
+                        <p className="mt-3 text-xs font-black uppercase text-slate-500">
+                          Passenger prices
+                        </p>
+                        <p className="mt-1 text-sm font-bold text-slate-600">
+                          Adult, child, and infant prices are listed below.
+                        </p>
+
+                        {priceBreakdown && (
+                          <div className="mt-3 space-y-2 rounded-lg bg-slate-50 p-3 text-sm">
+                            <p className="text-xs font-black uppercase text-slate-500">
+                              Passenger pricing
+                            </p>
+                            <div className="flex items-center justify-between gap-3">
+                              <span className="font-bold text-slate-600">Adult 12+</span>
+                              <span className="font-black text-slate-950">
+                                {formatMoney(priceBreakdown.adult, priceBreakdown.currency)} each
+                              </span>
+                            </div>
+                            {payload.childrenPaying > 0 && (
+                              <div className="flex items-center justify-between gap-3">
+                                <span className="font-bold text-slate-600">Child 5+</span>
+                                <span className="font-black text-slate-950">
+                                  {formatMoney(priceBreakdown.child, priceBreakdown.currency)} each
+                                </span>
+                              </div>
+                            )}
+                            {payload.childrenFree > 0 && (
+                              <div className="flex items-center justify-between gap-3">
+                                <span className="font-bold text-slate-600">Child 2-5</span>
+                                <span className="font-black text-slate-950">
+                                  {formatMoney(
+                                    priceBreakdown.childTwoToFour,
+                                    priceBreakdown.currency,
+                                  )}{' '}
+                                  each
+                                </span>
+                              </div>
+                            )}
+                            {payload.infants > 0 && (
+                              <div className="flex items-center justify-between gap-3">
+                                <span className="font-bold text-slate-600">Infant under 2</span>
+                                <span className="font-black text-slate-950">
+                                  {formatMoney(priceBreakdown.infant, priceBreakdown.currency)} each
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        {resolved.combination.paymentSurchargeTotal > 0 && (
+                          <p className="mt-2 text-xs font-semibold text-slate-500">
+                            Credit Card processing fees are non-refundable.
+                          </p>
+                        )}
+                        {resolved.combination.servicePassengers !==
+                          resolved.combination.payingGuests && (
+                          <p className="mt-1 text-xs font-semibold text-slate-500">
+                            Services calculated for {resolved.combination.servicePassengers}{' '}
+                            passengers.
+                          </p>
+                        )}
+                        <p className="mt-4 rounded-lg bg-slate-50 p-3 text-xs font-semibold leading-5 text-slate-600">
+                          Payment options, deposits, installment requests, and terms are reviewed on
+                          the next step.
+                        </p>
+                      </>
+                    )}
+
+                    <label className="mt-4 block">
+                      <span className="mb-1 block text-xs font-black uppercase text-slate-500">
+                        Promo code
+                      </span>
+                      <input
+                        value={promoCode}
+                        onChange={(event) => setPromoCode(event.target.value)}
+                        placeholder="Enter promo code if you have one"
+                        className="min-h-10 w-full rounded-lg border border-slate-200 px-3 text-sm font-bold outline-none focus:border-slate-900"
+                      />
+                    </label>
+                  </>
+                ) : (
+                  <p className="mt-2 text-sm text-red-600">Selection is incomplete.</p>
+                )}
+              </section>
+
+              <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                <p className="mb-3 text-sm font-black text-slate-950">Your contact details</p>
+                <div className="space-y-3">
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-bold text-slate-500">Lead name</span>
                     <input
-                      value={promoCode}
-                      onChange={(event) => setPromoCode(event.target.value)}
-                      placeholder="Enter promo code if you have one"
-                      className="min-h-10 w-full rounded-lg border border-slate-200 px-3 text-sm font-bold outline-none focus:border-slate-900"
+                      value={customer.customerName}
+                      onChange={(event) => updateCustomer({ customerName: event.target.value })}
+                      placeholder="Your full name"
+                      className="min-h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-slate-900"
                     />
                   </label>
-                </>
-              ) : (
-                <p className="mt-2 text-sm text-red-600">Selection is incomplete.</p>
-              )}
-            </section>
-
-            <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-              <p className="mb-3 text-sm font-black text-slate-950">Your contact details</p>
-              <div className="space-y-3">
-                <label className="block">
-                  <span className="mb-1 block text-xs font-bold text-slate-500">Lead name</span>
-                  <input
-                    value={customer.customerName}
-                    onChange={(event) => updateCustomer({ customerName: event.target.value })}
-                    placeholder="Your full name"
-                    className="min-h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-slate-900"
-                  />
-                </label>
-                <label className="block">
-                  <span className="mb-1 block text-xs font-bold text-slate-500">
-                    WhatsApp contact number
-                  </span>
-                  <input
-                    value={customer.customerPhone}
-                    onChange={(event) => updateCustomer({ customerPhone: event.target.value })}
-                    placeholder="Your WhatsApp number"
-                    className="min-h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-slate-900"
-                  />
-                </label>
-                <label className="block">
-                  <span className="mb-1 block text-xs font-bold text-slate-500">Email address</span>
-                  <input
-                    value={customer.customerEmail}
-                    onChange={(event) => updateCustomer({ customerEmail: event.target.value })}
-                    placeholder="Your email address"
-                    className="min-h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-slate-900"
-                  />
-                </label>
-                <label className="block">
-                  <span className="mb-1 block text-xs font-bold text-slate-500">
-                    Requirements and notes
-                  </span>
-                  <textarea
-                    value={customer.note}
-                    onChange={(event) => updateCustomer({ note: event.target.value })}
-                    placeholder="Tell us about wheelchair assistance, dietary requirements, room preferences, mobility needs, special assistance, or anything else we should know."
-                    rows={4}
-                    className="w-full resize-y rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-900"
-                  />
-                </label>
-                <p className="rounded-lg bg-slate-50 p-3 text-xs font-semibold leading-5 text-slate-600">
-                  Continue to review your payment preference before sending this to Piyam Travel.
-                  This is not a confirmed booking until availability is checked and reservations are
-                  completed by an agent. Passport copies should be sent via WhatsApp.
-                </p>
-                <button
-                  type="button"
-                  onClick={continueToPaymentReview}
-                  disabled={!resolved}
-                  className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#8b1e2d] px-3 text-sm font-black text-white transition hover:bg-[#6f1422] disabled:opacity-50"
-                >
-                  Review Payment
-                </button>
-              </div>
-              {savedSelection && (
-                <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm font-bold text-emerald-800">
-                  Selection sent to Piyam Travel:{' '}
-                  {formatMoney(
-                    savedSelection.combination.totalPrice,
-                    savedSelection.combination.currency,
-                  )}
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-bold text-slate-500">
+                      WhatsApp contact number
+                    </span>
+                    <input
+                      value={customer.customerPhone}
+                      onChange={(event) => updateCustomer({ customerPhone: event.target.value })}
+                      placeholder="Your WhatsApp number"
+                      className="min-h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-slate-900"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-bold text-slate-500">
+                      Email address
+                    </span>
+                    <input
+                      value={customer.customerEmail}
+                      onChange={(event) => updateCustomer({ customerEmail: event.target.value })}
+                      placeholder="Your email address"
+                      className="min-h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-slate-900"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-bold text-slate-500">
+                      Requirements and notes
+                    </span>
+                    <textarea
+                      value={customer.note}
+                      onChange={(event) => updateCustomer({ note: event.target.value })}
+                      placeholder="Tell us about wheelchair assistance, dietary requirements, room preferences, mobility needs, special assistance, or anything else we should know."
+                      rows={4}
+                      className="w-full resize-y rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-900"
+                    />
+                  </label>
+                  <p className="rounded-lg bg-slate-50 p-3 text-xs font-semibold leading-5 text-slate-600">
+                    Continue to review your payment preference before sending this to Piyam Travel.
+                    This is not a confirmed booking until availability is checked and reservations
+                    are completed by an agent. Passport copies should be sent via WhatsApp.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={continueToPaymentReview}
+                    disabled={!resolved}
+                    className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#8b1e2d] px-3 text-sm font-black text-white transition hover:bg-[#6f1422] disabled:opacity-50"
+                  >
+                    Review Payment
+                  </button>
                 </div>
-              )}
-              {error && <p className="mt-3 text-sm font-bold text-red-600">{error}</p>}
-            </section>
-          </aside>
+                {savedSelection && (
+                  <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm font-bold text-emerald-800">
+                    Selection sent to Piyam Travel:{' '}
+                    {formatMoney(
+                      savedSelection.combination.totalPrice,
+                      savedSelection.combination.currency,
+                    )}
+                  </div>
+                )}
+                {error && <p className="mt-3 text-sm font-bold text-red-600">{error}</p>}
+              </section>
+            </aside>
           </div>
         </div>
       )}

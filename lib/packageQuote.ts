@@ -2,6 +2,8 @@ import type {
   PackageCombination,
   PackageComponentOption,
   PackageDiscountMode,
+  PackageLinkedFlightGroup,
+  PackageLinkedFlightOption,
   PackageLimitedTimeOffer,
   PackagePassengerPriceBreakdown,
   PackagePaymentBreakdown,
@@ -177,6 +179,77 @@ function normalizeTransportRoutes(raw: unknown) {
     .filter((value): value is PackageTransportRouteSelection => Boolean(value))
 }
 
+function normalizeLinkedFlightOption(
+  raw: unknown,
+  fallbackId: string,
+): PackageLinkedFlightOption | null {
+  const candidate = raw as Partial<PackageLinkedFlightOption> | null
+  const airlineName = asString(candidate?.airlineName)
+  const summary = asText(candidate?.summary)
+  const adultDelta = asNumber(candidate?.adultDelta)
+  const childDelta = asNumber(candidate?.childDelta)
+  const infantDelta = asNumber(candidate?.infantDelta)
+
+  if (
+    !airlineName &&
+    !summary.trim() &&
+    adultDelta === 0 &&
+    childDelta === 0 &&
+    infantDelta === 0
+  ) {
+    return null
+  }
+
+  return {
+    id: asString(candidate?.id, fallbackId),
+    airlineName: airlineName || summary.trim().split('\n')[0] || 'Flight option',
+    summary,
+    adultDelta,
+    childDelta,
+    infantDelta,
+    isDefault: asBoolean(candidate?.isDefault),
+  }
+}
+
+function normalizeLinkedFlightOptions(raw: unknown, groupId: string) {
+  const values = Array.isArray(raw) ? raw : []
+  return values
+    .map((value, index) =>
+      normalizeLinkedFlightOption(value, `${groupId}-linked-flight-${index + 1}`),
+    )
+    .filter((value): value is PackageLinkedFlightOption => Boolean(value))
+}
+
+function normalizeLinkedFlightGroup(
+  raw: unknown,
+  fallbackId: string,
+): PackageLinkedFlightGroup | null {
+  const candidate = raw as Partial<PackageLinkedFlightGroup> | null
+  const id = asString(candidate?.id, fallbackId)
+  const routeLabel = asString(candidate?.routeLabel)
+  const options = normalizeLinkedFlightOptions(candidate?.options, id)
+
+  if (!routeLabel && options.length === 0) return null
+
+  const normalizedOptions = normalizeDefaultLinkedFlightOptions(options)
+  const defaultOption = getDefaultLinkedFlightOption(normalizedOptions)
+
+  return {
+    id,
+    baseFlightOptionId: asString(candidate?.baseFlightOptionId) || null,
+    routeLabel: routeLabel || 'Flight leg',
+    defaultOptionId: asString(candidate?.defaultOptionId) || defaultOption?.id || null,
+    options: normalizedOptions,
+  }
+}
+
+function normalizeLinkedFlightGroups(raw: unknown) {
+  const values = Array.isArray(raw) ? raw : []
+  return values
+    .map((value, index) => normalizeLinkedFlightGroup(value, `linked-flight-${index + 1}`))
+    .filter((value): value is PackageLinkedFlightGroup => Boolean(value))
+}
+
 function normalizeOption(
   raw: unknown,
   fallbackId: string,
@@ -224,7 +297,9 @@ function normalizeOption(
     transportMainSupplierId: asString(candidate?.transportMainSupplierId),
     transportMainSupplierName: asString(candidate?.transportMainSupplierName),
     transportNetCost: asNumber(candidate?.transportNetCost),
-    transportNetCurrency: normalizeCurrency(candidate?.transportNetCurrency || DEFAULT_PACKAGE_CURRENCY),
+    transportNetCurrency: normalizeCurrency(
+      candidate?.transportNetCurrency || DEFAULT_PACKAGE_CURRENCY,
+    ),
     ...(quantity ? { quantity } : {}),
   }
 }
@@ -332,6 +407,7 @@ export function normalizePackageQuotePayload(input: unknown): PackageQuotePayloa
     returnDate: asString(candidate.returnDate),
     stayGroups,
     flightOptions,
+    linkedFlightGroups: normalizeLinkedFlightGroups(candidate.linkedFlightGroups),
     visaOptions: normalizeOptions(candidate.visaOptions, 'visa', 'per_person'),
     transportOptions,
     limitedTimeOffers: normalizeOffers(candidate.limitedTimeOffers),
@@ -456,8 +532,82 @@ function getFlightOptionTotal(option: PackageComponentOption | null, payload: Pa
   )
 }
 
+function getDefaultLinkedFlightOption<T extends PackageLinkedFlightOption>(options: T[]) {
+  return options.find((option) => option.isDefault) || options[0] || null
+}
+
+function normalizeDefaultLinkedFlightOptions<T extends PackageLinkedFlightOption>(options: T[]) {
+  if (options.length === 0) return []
+  const defaultOption = getDefaultLinkedFlightOption(options)
+  return options.map((option) => ({ ...option, isDefault: option.id === defaultOption?.id }))
+}
+
 function getDefaultOption<T extends PackageComponentOption>(options: T[]) {
   return options.find((option) => option.isDefault) || options[0] || null
+}
+
+export function getLinkedFlightGroupsForFlight(
+  payload: PackageQuotePayload,
+  flightOption: PackageComponentOption | null,
+) {
+  return payload.linkedFlightGroups.filter(
+    (group) => !group.baseFlightOptionId || group.baseFlightOptionId === flightOption?.id,
+  )
+}
+
+export function getLinkedFlightOptionForSelection(
+  group: PackageLinkedFlightGroup,
+  linkedFlightOptionIds: Record<string, string> | null | undefined,
+) {
+  const requestedId = linkedFlightOptionIds?.[group.id]
+  return (
+    group.options.find((option) => option.id === requestedId) ||
+    group.options.find((option) => option.id === group.defaultOptionId) ||
+    getDefaultLinkedFlightOption(group.options)
+  )
+}
+
+export function getLinkedFlightOptionTotal(
+  option: PackageLinkedFlightOption | null,
+  payload: PackageQuotePayload,
+) {
+  if (!option) return 0
+  return (
+    option.adultDelta * payload.adults +
+    option.childDelta * getFlightChildPassengerCount(payload) +
+    option.infantDelta * getInfantPassengerCount(payload)
+  )
+}
+
+function getLinkedFlightSelections(
+  payload: PackageQuotePayload,
+  flightOption: PackageComponentOption | null,
+  linkedFlightOptionIds?: Record<string, string> | null,
+) {
+  return getLinkedFlightGroupsForFlight(payload, flightOption)
+    .map((group) => {
+      const option = getLinkedFlightOptionForSelection(group, linkedFlightOptionIds)
+      return option ? { group, option } : null
+    })
+    .filter(
+      (
+        selection,
+      ): selection is { group: PackageLinkedFlightGroup; option: PackageLinkedFlightOption } =>
+        Boolean(selection),
+    )
+}
+
+function getLinkedFlightSelectionsTotal(
+  payload: PackageQuotePayload,
+  linkedFlightSelections: Array<{
+    group: PackageLinkedFlightGroup
+    option: PackageLinkedFlightOption
+  }>,
+) {
+  return linkedFlightSelections.reduce(
+    (sum, selection) => sum + getLinkedFlightOptionTotal(selection.option, payload),
+    0,
+  )
 }
 
 function roundMoney(value: number) {
@@ -591,10 +741,13 @@ export function buildPackageCombinations(payloadInput: unknown, limit = 250): Pa
 
   for (const stays of staySelections) {
     for (const flightOption of flightOptions) {
+      const linkedFlightSelections = getLinkedFlightSelections(payload, flightOption)
+      const linkedFlightTotal = getLinkedFlightSelectionsTotal(payload, linkedFlightSelections)
       for (const transportOption of transportOptions) {
         const grossPrice =
           stays.reduce((sum, stay) => sum + stay.option.price, 0) +
           getFlightOptionTotal(flightOption, payload) +
+          linkedFlightTotal +
           getVisaOptionsTotal(payload.visaOptions, payload) +
           getOptionTotal(transportOption, servicePassengers)
         const packageSubtotalPrice = Math.max(0, grossPrice - offerDiscountTotal)
@@ -610,6 +763,11 @@ export function buildPackageCombinations(payloadInput: unknown, limit = 250): Pa
           id: [
             ...stays.map((stay) => stay.option.id),
             flightOption?.id || 'no-flight',
+            linkedFlightSelections.length > 0
+              ? linkedFlightSelections
+                  .map((selection) => `${selection.group.id}:${selection.option.id}`)
+                  .join('|')
+              : 'no-linked-flight',
             payload.visaOptions.length > 0
               ? payload.visaOptions
                   .map((option) => `${option.id}:${option.quantity || 'all'}`)
@@ -620,6 +778,7 @@ export function buildPackageCombinations(payloadInput: unknown, limit = 250): Pa
           ].join('__'),
           staySelections: stays,
           flightOption,
+          linkedFlightSelections,
           visaOption: payload.visaOptions[0] || null,
           visaOptions: payload.visaOptions,
           transportOption,
@@ -681,7 +840,16 @@ function formatPassengerSummary(payload: PackageQuotePayload) {
 
 function formatDateRange(payload: PackageQuotePayload) {
   if (!payload.departureDate && !payload.returnDate) return ''
-  return [payload.departureDate, payload.returnDate].filter(Boolean).join(' to ')
+  const formatDate = (value: string) => {
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) return value
+    return date.toLocaleDateString('en-GB', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    })
+  }
+  return [payload.departureDate, payload.returnDate].filter(Boolean).map(formatDate).join(' to ')
 }
 
 export function getDefaultPackageSelection(payloadInput: unknown): PackageSelectionInput {
@@ -691,6 +859,12 @@ export function getDefaultPackageSelection(payloadInput: unknown): PackageSelect
       payload.stayGroups.map((group) => [group.id, getDefaultOption(group.options)?.id || '']),
     ),
     flightOptionId: getDefaultOption(payload.flightOptions)?.id || null,
+    linkedFlightOptionIds: Object.fromEntries(
+      payload.linkedFlightGroups.map((group) => [
+        group.id,
+        getLinkedFlightOptionForSelection(group, null)?.id || '',
+      ]),
+    ),
     visaOptionId: payload.visaOptions[0]?.id || null,
     transportOptionId: getDefaultOption(payload.transportOptions)?.id || null,
     paymentMethod: 'bank_transfer',
@@ -792,6 +966,14 @@ export function getFlightOptionPriceDeltas(
   }
 }
 
+export function getLinkedFlightOptionPriceDeltas(option: PackageLinkedFlightOption | null) {
+  return {
+    adult: option?.adultDelta || 0,
+    child: option?.childDelta || 0,
+    infant: option?.infantDelta || 0,
+  }
+}
+
 export function getFlightOptionTotalDelta(
   payloadInput: unknown,
   option: PackageComponentOption | null,
@@ -812,6 +994,15 @@ export function getPackagePassengerPriceBreakdown(
   const hotelTotal = combination.staySelections.reduce((sum, stay) => sum + stay.option.price, 0)
   const hotelUnit = payingGuests > 0 ? hotelTotal / payingGuests : 0
   const flightUnits = getFlightPassengerUnitPrices(combination.flightOption, payload)
+  const linkedFlightUnits = combination.linkedFlightSelections.reduce(
+    (units, selection) => {
+      units.adult += selection.option.adultDelta || 0
+      units.child += selection.option.childDelta || 0
+      units.infant += selection.option.infantDelta || 0
+      return units
+    },
+    { adult: 0, child: 0, infant: 0 },
+  )
   const visaTotal = getVisaOptionsTotal(combination.visaOptions, payload)
   const visaUnit = servicePassengers > 0 ? visaTotal / servicePassengers : 0
   const transportUnit = getComponentPassengerUnitPrice(
@@ -823,14 +1014,32 @@ export function getPackagePassengerPriceBreakdown(
 
   const adult = Math.max(
     0,
-    hotelUnit + flightUnits.adult + visaUnit + transportUnit - discountUnit + surchargeUnit,
+    hotelUnit +
+      flightUnits.adult +
+      linkedFlightUnits.adult +
+      visaUnit +
+      transportUnit -
+      discountUnit +
+      surchargeUnit,
   )
   const child = Math.max(
     0,
-    hotelUnit + flightUnits.child + visaUnit + transportUnit - discountUnit + surchargeUnit,
+    hotelUnit +
+      flightUnits.child +
+      linkedFlightUnits.child +
+      visaUnit +
+      transportUnit -
+      discountUnit +
+      surchargeUnit,
   )
-  const childTwoToFour = Math.max(0, flightUnits.child + visaUnit + transportUnit)
-  const infant = Math.max(0, flightUnits.infant + visaUnit + transportUnit)
+  const childTwoToFour = Math.max(
+    0,
+    flightUnits.child + linkedFlightUnits.child + visaUnit + transportUnit,
+  )
+  const infant = Math.max(
+    0,
+    flightUnits.infant + linkedFlightUnits.infant + visaUnit + transportUnit,
+  )
 
   return {
     adult,
@@ -871,16 +1080,14 @@ function formatTransportLines(option: PackageComponentOption) {
     ? option.transportRoutes.map((route) => `* ${route.routeName}`)
     : []
   const lines = routeLines.length > 0 ? routeLines : [option.summary || option.title]
-  const hasSpecificZiyaratRoutes = option.transportRoutes?.some((route) => route.kind !== 'transfer')
+  const hasSpecificZiyaratRoutes = option.transportRoutes?.some(
+    (route) => route.kind !== 'transfer',
+  )
   if (option.includesZiyarat && !hasSpecificZiyaratRoutes) {
     lines.push('Makkah & Madinah Ziyarat included')
   }
   if (option.includesTourGuide) lines.push('Tour guide included')
   return lines
-}
-
-function getCombinationDelta(combination: PackageCombination, baseTotal: number) {
-  return combination.totalPrice - baseTotal
 }
 
 function formatOfferDeadline(value: string) {
@@ -917,6 +1124,11 @@ export function formatPackageCombinationForCopy(
   if (combination.flightOption) {
     lines.push('***Flights***')
     lines.push(combination.flightOption.summary || combination.flightOption.title)
+    combination.linkedFlightSelections.forEach((selection) => {
+      lines.push('')
+      lines.push(`*${selection.group.routeLabel}*`)
+      lines.push(selection.option.summary || selection.option.airlineName)
+    })
     lines.push('')
   }
 
@@ -966,14 +1178,6 @@ export function formatPackageCombinationForCopy(
       `*Discount Applied: -${formatMoney(combination.offerDiscountTotal, combination.currency)}*`,
     )
   }
-  if (combination.paymentSurchargeTotal > 0) {
-    lines.push(
-      `*${formatPaymentMethodLabel(combination.paymentMethod)} processing fee: ${formatMoney(
-        combination.paymentSurchargeTotal,
-        combination.currency,
-      )} (non-refundable)*`,
-    )
-  }
   const breakdown = getPackagePassengerPriceBreakdown(payload, combination)
   lines.push(`Adult 12+: ${formatMoney(breakdown.adult, breakdown.currency)} p.p.`)
   if (payload.childrenPaying > 0) {
@@ -993,7 +1197,6 @@ export function formatPackageCombinationForCopy(
 export function formatPackageQuoteForCopy(payloadInput: unknown, limit = 12) {
   const payload = normalizePackageQuotePayload(payloadInput)
   const customerOptions = buildCustomerPackageOptions(payload, 250)
-  const baseTotal = customerOptions[0]?.combination.totalPrice ?? 0
   const defaultFlight = getDefaultOption(payload.flightOptions)
   const defaultTransport = getDefaultOption(payload.transportOptions)
   const dateRange = formatDateRange(payload)
@@ -1011,9 +1214,22 @@ export function formatPackageQuoteForCopy(payloadInput: unknown, limit = 12) {
       (option) => option.id !== defaultFlight.id,
     )
     for (const option of flightAlternatives) {
-      const delta = getFlightOptionTotalDelta(payload, option, defaultFlight)
-      lines.push(`- ${option.title}: ${formatDelta(delta, payload.currency)} total`)
+      const delta = getFlightOptionPriceDeltas(payload, option, defaultFlight).adult
+      lines.push(`- ${option.title}: ${formatDelta(delta, payload.currency)} p.p.`)
     }
+    const linkedFlightGroups = getLinkedFlightGroupsForFlight(payload, defaultFlight)
+    linkedFlightGroups.forEach((group) => {
+      lines.push(`*${group.routeLabel}*`)
+      group.options.forEach((option) => {
+        lines.push(
+          `- ${option.airlineName}: ${
+            option.isDefault
+              ? 'Included'
+              : `${formatDelta(option.adultDelta, payload.currency)} p.p.`
+          }`,
+        )
+      })
+    })
     lines.push('')
   }
 
@@ -1032,9 +1248,12 @@ export function formatPackageQuoteForCopy(payloadInput: unknown, limit = 12) {
       (option) => option.id !== defaultTransport.id,
     )
     for (const option of transportAlternatives) {
-      lines.push(
-        `- ${option.title}: ${formatDelta(option.price - defaultTransport.price, payload.currency)} total`,
-      )
+      const servicePassengers = getServicePassengerCount(payload)
+      const delta =
+        servicePassengers > 0
+          ? (option.price - defaultTransport.price) / servicePassengers
+          : option.price - defaultTransport.price
+      lines.push(`- ${option.title}: ${formatDelta(delta, payload.currency)} p.p.`)
     }
     lines.push('')
   }
@@ -1043,37 +1262,28 @@ export function formatPackageQuoteForCopy(payloadInput: unknown, limit = 12) {
   lines.push('****Package Options****')
 
   customerOptions.slice(0, limit).forEach(({ combination }, index) => {
-    const delta = getCombinationDelta(combination, baseTotal)
-    const label = index === 0 ? 'Included' : formatDelta(delta, combination.currency)
     lines.push('')
-    lines.push(`*Option ${index + 1}: ${label}*`)
+    lines.push(`*Option ${index + 1}*`)
     for (const stay of getOrderedStaySelections(payload, combination)) {
       lines.push(`*${stay.groupLabel}*`)
       lines.push(stay.option.summary || stay.option.title)
     }
-    if (index === 0) {
-      const breakdown = getPackagePassengerPriceBreakdown(payload, combination)
-      lines.push(`Adult: ${formatMoney(breakdown.adult, breakdown.currency)} p.p.`)
-      if (payload.childrenPaying > 0) {
-        lines.push(`Child 5+: ${formatMoney(breakdown.child, breakdown.currency)} p.p.`)
-      }
-      if (payload.childrenFree > 0) {
-        lines.push(`Child 2-5: ${formatMoney(breakdown.childTwoToFour, breakdown.currency)} p.p.`)
-      }
-      if (payload.infants > 0) {
-        lines.push(`Infant under 2: ${formatMoney(breakdown.infant, breakdown.currency)} p.p.`)
-      }
-      lines.push(`Base total: ${formatMoney(combination.totalPrice, combination.currency)}`)
-      if (payload.cardProcessingFeePercent > 0) {
-        lines.push(
-          `Credit Card processing fee: ${payload.cardProcessingFeePercent}% (non-refundable)`,
-        )
-      }
-      if (payload.depositRequired && (payload.depositAmount || 0) > 0) {
-        lines.push(
-          `Deposit required to secure: ${formatMoney(payload.depositAmount || 0, payload.currency)}`,
-        )
-      }
+    const breakdown = getPackagePassengerPriceBreakdown(payload, combination)
+    lines.push(`Adult: ${formatMoney(breakdown.adult, breakdown.currency)} p.p.`)
+    if (payload.childrenPaying > 0) {
+      lines.push(`Child 5+: ${formatMoney(breakdown.child, breakdown.currency)} p.p.`)
+    }
+    if (payload.childrenFree > 0) {
+      lines.push(`Child 2-5: ${formatMoney(breakdown.childTwoToFour, breakdown.currency)} p.p.`)
+    }
+    if (payload.infants > 0) {
+      lines.push(`Infant under 2: ${formatMoney(breakdown.infant, breakdown.currency)} p.p.`)
+    }
+    lines.push(`Total Package Cost: ${formatMoney(combination.totalPrice, combination.currency)}`)
+    if (index === 0 && payload.depositRequired && (payload.depositAmount || 0) > 0) {
+      lines.push(
+        `Deposit required to secure: ${formatMoney(payload.depositAmount || 0, payload.currency)}`,
+      )
     }
   })
 
@@ -1128,6 +1338,28 @@ export function resolvePackageSelection(
     throw new Error('Select a valid flight option')
   }
 
+  const linkedFlightSelections = getLinkedFlightSelections(
+    payload,
+    flightOption,
+    input.linkedFlightOptionIds,
+  )
+  const validLinkedFlightGroupIds = new Set(
+    getLinkedFlightGroupsForFlight(payload, flightOption).map((group) => group.id),
+  )
+  const selectedLinkedFlightOptionIds = Object.entries(input.linkedFlightOptionIds || {})
+    .filter(([groupId]) => validLinkedFlightGroupIds.has(groupId))
+    .reduce<Record<string, string>>((selected, [groupId, optionId]) => {
+      selected[groupId] = optionId
+      return selected
+    }, {})
+
+  for (const [groupId, optionId] of Object.entries(selectedLinkedFlightOptionIds)) {
+    const group = payload.linkedFlightGroups.find((candidate) => candidate.id === groupId)
+    if (group && !group.options.some((option) => option.id === optionId)) {
+      throw new Error('Select a valid linked flight option')
+    }
+  }
+
   const visaOption =
     input.visaOptionId && payload.visaOptions.length > 0
       ? payload.visaOptions.find((option) => option.id === input.visaOptionId) || null
@@ -1149,6 +1381,7 @@ export function resolvePackageSelection(
   const grossPrice =
     staySelections.reduce((sum, stay) => sum + stay.option.price, 0) +
     getFlightOptionTotal(flightOption, payload) +
+    getLinkedFlightSelectionsTotal(payload, linkedFlightSelections) +
     getVisaOptionsTotal(payload.visaOptions, payload) +
     getOptionTotal(transportOption, servicePassengers)
   const activeOffers = getActiveOffers(payload)
@@ -1169,6 +1402,7 @@ export function resolvePackageSelection(
     selection: {
       stayOptionIds: input.stayOptionIds || {},
       flightOptionId: input.flightOptionId || null,
+      linkedFlightOptionIds: selectedLinkedFlightOptionIds,
       visaOptionId: input.visaOptionId || null,
       transportOptionId: input.transportOptionId || null,
       paymentMethod,
@@ -1188,6 +1422,11 @@ export function resolvePackageSelection(
       id: [
         ...staySelections.map((stay) => stay.option.id),
         flightOption?.id || 'no-flight',
+        linkedFlightSelections.length > 0
+          ? linkedFlightSelections
+              .map((selection) => `${selection.group.id}:${selection.option.id}`)
+              .join('|')
+          : 'no-linked-flight',
         payload.visaOptions.length > 0
           ? payload.visaOptions
               .map((option) => `${option.id}:${option.quantity || 'all'}`)
@@ -1201,6 +1440,7 @@ export function resolvePackageSelection(
       ].join('__'),
       staySelections,
       flightOption,
+      linkedFlightSelections,
       visaOption,
       visaOptions: payload.visaOptions,
       transportOption,
