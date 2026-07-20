@@ -228,18 +228,20 @@ export default function SettingsClient({
                   >
                     Data Maintenance
                   </button>
+                  {isOrgAdmin && (
+                    <button
+                      onClick={() => setActiveTab('timeclock-devices')}
+                      className={`shrink-0 rounded-xl border px-4 py-3 text-left text-sm transition-colors md:w-full md:rounded-none md:border-0 md:border-l-4 ${
+                        activeTab === 'timeclock-devices'
+                          ? 'border-[#8b1e2d] bg-red-50 font-medium text-[#8b1e2d]'
+                          : 'border-slate-200 text-slate-600 hover:bg-slate-50 md:border-transparent'
+                      }`}
+                    >
+                      Timeclock Devices
+                    </button>
+                  )}
                   {isSuperAdmin && (
                     <>
-                      <button
-                        onClick={() => setActiveTab('timeclock-devices')}
-                        className={`shrink-0 rounded-xl border px-4 py-3 text-left text-sm transition-colors md:w-full md:rounded-none md:border-0 md:border-l-4 ${
-                          activeTab === 'timeclock-devices'
-                            ? 'border-[#8b1e2d] bg-red-50 font-medium text-[#8b1e2d]'
-                            : 'border-slate-200 text-slate-600 hover:bg-slate-50 md:border-transparent'
-                        }`}
-                      >
-                        Timeclock Devices
-                      </button>
                       <button
                         onClick={() => setActiveTab('server-control')}
                         className={`shrink-0 rounded-xl border px-4 py-3 text-left text-sm transition-colors md:w-full md:rounded-none md:border-0 md:border-l-4 ${
@@ -378,7 +380,7 @@ export default function SettingsClient({
 
         {activeTab === 'maintenance' && canAccessMaintenance && <MaintenanceTab />}
 
-        {activeTab === 'timeclock-devices' && isSuperAdmin && (
+        {activeTab === 'timeclock-devices' && isOrgAdmin && (
           <TimeclockDevicesTab locations={initialLocations as { id: string; name: string }[]} />
         )}
 

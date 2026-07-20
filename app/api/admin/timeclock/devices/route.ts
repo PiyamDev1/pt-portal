@@ -1,5 +1,5 @@
 import crypto from 'node:crypto'
-import { requireSuperAdminSession } from '@/lib/adminSessionAuth'
+import { requireAdminSession } from '@/lib/adminSessionAuth'
 import { apiError, apiOk } from '@/lib/api/http'
 import { getSupabaseClient } from '@/lib/supabaseClient'
 
@@ -60,7 +60,7 @@ function presentDevice(device: Record<string, unknown>) {
 }
 
 export async function GET() {
-  const access = await requireSuperAdminSession()
+  const access = await requireAdminSession()
   if (!access.authorized) return access.response
 
   const { data, error } = await getSupabaseClient()
@@ -76,7 +76,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const access = await requireSuperAdminSession()
+  const access = await requireAdminSession()
   if (!access.authorized) return access.response
 
   const body = (await request.json().catch(() => ({}))) as DeviceMutationBody
@@ -122,7 +122,7 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const access = await requireSuperAdminSession()
+  const access = await requireAdminSession()
   if (!access.authorized) return access.response
 
   const body = (await request.json().catch(() => ({}))) as DeviceMutationBody

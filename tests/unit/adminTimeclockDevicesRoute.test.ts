@@ -1,17 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => {
-  const requireSuperAdminSession = vi.fn()
+  const requireAdminSession = vi.fn()
   const order = vi.fn()
   const eq = vi.fn(() => ({ order }))
   const select = vi.fn(() => ({ eq }))
   const from = vi.fn(() => ({ select }))
   const getSupabaseClient = vi.fn(() => ({ from }))
-  return { requireSuperAdminSession, order, eq, select, from, getSupabaseClient }
+  return { requireAdminSession, order, eq, select, from, getSupabaseClient }
 })
 
 vi.mock('@/lib/adminSessionAuth', () => ({
-  requireSuperAdminSession: mocks.requireSuperAdminSession,
+  requireAdminSession: mocks.requireAdminSession,
 }))
 
 vi.mock('@/lib/supabaseClient', () => ({
@@ -23,7 +23,7 @@ import { GET } from '@/app/api/admin/timeclock/devices/route'
 describe('admin timeclock devices route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.requireSuperAdminSession.mockResolvedValue({
+    mocks.requireAdminSession.mockResolvedValue({
       authorized: true,
       user: { id: 'super-1' },
     })
@@ -50,7 +50,7 @@ describe('admin timeclock devices route', () => {
   })
 
   it('passes through the Super Admin authorization response', async () => {
-    mocks.requireSuperAdminSession.mockResolvedValueOnce({
+    mocks.requireAdminSession.mockResolvedValueOnce({
       authorized: false,
       response: Response.json({ error: 'Forbidden' }, { status: 403 }),
     })
@@ -61,7 +61,7 @@ describe('admin timeclock devices route', () => {
     expect(mocks.from).not.toHaveBeenCalled()
   })
 
-  it('lists only physical devices without selecting their secret', async () => {
+  it('lists only physical devices for organization admins without selecting their secret', async () => {
     const response = await GET()
     const payload = await response.json()
 
