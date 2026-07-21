@@ -37,6 +37,7 @@ import type {
   TravelPackageQuote,
   TravelPackageType,
 } from '@/app/types/packages'
+import type { TravelPackageGroup } from '@/app/types/packages'
 import {
   buildCustomerPackageOptions,
   DEFAULT_CARD_PROCESSING_FEE_PERCENT,
@@ -46,6 +47,7 @@ import {
   isPackageQuoteExpired,
   normalizePackageQuotePayload,
 } from '@/lib/packageQuote'
+import { buildLinkedPackageGroupSnapshot, type TravelPackageGroupDetail } from '@/lib/packageGroups'
 
 type PackagesClientProps = {
   currentUserId: string
@@ -60,6 +62,20 @@ type PackagesResponse = {
 
 type SaveResponse = {
   quote: TravelPackageQuote | null
+  setupRequired?: boolean
+  message?: string
+  error?: string
+}
+
+type PackageGroupsResponse = {
+  groups: TravelPackageGroup[]
+  setupRequired?: boolean
+  message?: string
+  error?: string
+}
+
+type PackageGroupResponse = {
+  group: TravelPackageGroupDetail | TravelPackageGroup | null
   setupRequired?: boolean
   message?: string
   error?: string
@@ -1292,6 +1308,18 @@ export default function PackagesClient({
   const [setupMessage, setSetupMessage] = useState<string | null>(null)
   const [transportPricingData, setTransportPricingData] =
     useState<UmrahTransportPricingData | null>(null)
+  const [packageGroups, setPackageGroups] = useState<TravelPackageGroup[]>([])
+  const [activePackageGroup, setActivePackageGroup] = useState<TravelPackageGroupDetail | null>(
+    null,
+  )
+  const [packageGroupLoading, setPackageGroupLoading] = useState(false)
+  const [packageGroupSaving, setPackageGroupSaving] = useState(false)
+  const [packageGroupSetupMessage, setPackageGroupSetupMessage] = useState<string | null>(null)
+  const [newGroupTitle, setNewGroupTitle] = useState('')
+  const [linkedFamilyLabel, setLinkedFamilyLabel] = useState('Family 1')
+  const [selectedGroupId, setSelectedGroupId] = useState('')
+  const [packageGroupSearch, setPackageGroupSearch] = useState('')
+  const [sharedTransportNote, setSharedTransportNote] = useState('')
 
   const customerOptions = useMemo(() => buildCustomerPackageOptions(payload, 80), [payload])
   const systematicQuoteTitle = useMemo(() => buildSystematicQuoteTitle(payload), [payload])
@@ -1320,6 +1348,13 @@ export default function PackagesClient({
     }
     return quotes
   }, [quoteFilter, quotes])
+  const filteredPackageGroups = useMemo(() => {
+    const search = packageGroupSearch.trim().toLowerCase()
+    if (!search) return packageGroups
+    return packageGroups.filter((group) =>
+      `${group.group_reference} ${group.title}`.toLowerCase().includes(search),
+    )
+  }, [packageGroupSearch, packageGroups])
 
   const updatePayload = (changes: Partial<PackageQuotePayload>) => {
     setPayload((current) => ({ ...current, ...changes }))
@@ -1371,6 +1406,105 @@ export default function PackagesClient({
 
     void loadTransportPricing()
   }, [])
+
+  const applyPackageGroupSnapshot = useCallback(
+    (group: TravelPackageGroupDetail | null) => {
+      if (!group || !activeQuote) return
+      const snapshot = buildLinkedPackageGroupSnapshot(group, { quoteId: activeQuote.id })
+      updatePayload({ linkedPackageGroup: snapshot })
+      const transportNote =
+        snapshot.sharedServices.find(
+          (service) => service.serviceType === 'transport' && service.customerVisible,
+        )?.customerNote || ''
+      setSharedTransportNote(transportNote)
+    },
+    [activeQuote],
+  )
+
+  const loadPackageGroupDetail = useCallback(
+    async (groupId: string, applySnapshot = true) => {
+      if (!groupId) return null
+      const response = await fetch(`/api/travel-package-groups/${groupId}`)
+      const data = (await response.json()) as PackageGroupResponse
+      if (!response.ok || data.setupRequired || !data.group) {
+        if (data.setupRequired) {
+          setPackageGroupSetupMessage(data.message || 'Linked package group schema is required.')
+          return null
+        }
+        throw new Error(data.error || 'Failed to load linked package group')
+      }
+      const detail = data.group as TravelPackageGroupDetail
+      setActivePackageGroup(detail)
+      setSelectedGroupId(detail.id)
+      setNewGroupTitle(detail.title)
+      const currentMember = detail.members.find((member) => member.quote_id === activeQuote?.id)
+      if (currentMember?.family_label) setLinkedFamilyLabel(currentMember.family_label)
+      const transportNote =
+        detail.sharedServices.find(
+          (service) => service.service_type === 'transport' && service.customer_visible,
+        )?.customer_note || ''
+      setSharedTransportNote(transportNote)
+      if (applySnapshot) applyPackageGroupSnapshot(detail)
+      return detail
+    },
+    [activeQuote?.id, applyPackageGroupSnapshot],
+  )
+
+  const loadPackageGroups = useCallback(async () => {
+    setPackageGroupLoading(true)
+    try {
+      const [allResponse, linkedResponse] = await Promise.all([
+        fetch('/api/travel-package-groups'),
+        activeQuote?.id
+          ? fetch(`/api/travel-package-groups?quoteId=${activeQuote.id}`)
+          : Promise.resolve(null),
+      ])
+      const allData = (await allResponse.json()) as PackageGroupsResponse
+      if (!allResponse.ok || allData.setupRequired) {
+        if (allData.setupRequired) {
+          setPackageGroupSetupMessage(allData.message || 'Linked package group schema is required.')
+          setPackageGroups([])
+          return
+        }
+        throw new Error(allData.error || 'Failed to load package groups')
+      }
+      setPackageGroups(allData.groups || [])
+      setPackageGroupSetupMessage(null)
+
+      if (!linkedResponse) {
+        setActivePackageGroup(null)
+        setSelectedGroupId('')
+        return
+      }
+
+      const linkedData = (await linkedResponse.json()) as PackageGroupsResponse
+      if (!linkedResponse.ok || linkedData.setupRequired) return
+      const linkedGroup = linkedData.groups?.[0]
+      if (linkedGroup) {
+        await loadPackageGroupDetail(linkedGroup.id)
+      } else {
+        setActivePackageGroup(null)
+        setSelectedGroupId('')
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to load linked package groups')
+    } finally {
+      setPackageGroupLoading(false)
+    }
+  }, [activeQuote?.id, loadPackageGroupDetail])
+
+  useEffect(() => {
+    void loadPackageGroups()
+  }, [loadPackageGroups])
+
+  useEffect(() => {
+    if (!activeQuote) {
+      setActivePackageGroup(null)
+      setSelectedGroupId('')
+      setLinkedFamilyLabel('Family 1')
+      setSharedTransportNote(payload.linkedPackageGroup?.sharedServices[0]?.customerNote || '')
+    }
+  }, [activeQuote, payload.linkedPackageGroup?.sharedServices])
 
   const updateStayGroup = (groupIndex: number, nextGroup: PackageStayGroup) => {
     const nextGroups = payload.stayGroups.map((group, index) =>
@@ -1479,6 +1613,175 @@ export default function PackagesClient({
     updatePayload({ limitedTimeOffers: [...payload.limitedTimeOffers, newLimitedTimeOffer()] })
   }
 
+  const upsertSharedTransportNote = async (group: TravelPackageGroupDetail, note: string) => {
+    const existingService = group.sharedServices.find(
+      (service) => service.service_type === 'transport',
+    )
+    const endpoint = `/api/travel-package-groups/${group.id}/shared-services`
+    const response = await fetch(endpoint, {
+      method: existingService ? 'PATCH' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(
+        existingService
+          ? {
+              sharedServiceId: existingService.id,
+              customerNote: note,
+              customerVisible: Boolean(note.trim()),
+            }
+          : {
+              serviceType: 'transport',
+              title: 'Shared transport',
+              customerNote: note,
+              customerVisible: Boolean(note.trim()),
+              allocationMode: 'no_split_note_only',
+            },
+      ),
+    })
+    const data = (await response.json()) as {
+      error?: string
+      setupRequired?: boolean
+      message?: string
+    }
+    if (!response.ok || data.setupRequired) {
+      throw new Error(data.message || data.error || 'Failed to save shared transport note')
+    }
+  }
+
+  const createPackageGroup = async () => {
+    if (!activeQuote) {
+      toast.error('Save the quote before creating a linked package group')
+      return
+    }
+    const title =
+      newGroupTitle.trim() || `${payload.customerName || 'Linked families'} package group`
+    setPackageGroupSaving(true)
+    try {
+      const response = await fetch('/api/travel-package-groups', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title,
+          leadQuoteId: activeQuote.id,
+          familyLabel: linkedFamilyLabel || 'Family 1',
+          customerVisible: true,
+        }),
+      })
+      const data = (await response.json()) as PackageGroupResponse
+      if (!response.ok || data.setupRequired || !data.group) {
+        throw new Error(data.message || data.error || 'Failed to create linked package group')
+      }
+      const createdGroup = data.group as TravelPackageGroup
+      let detail = await loadPackageGroupDetail(createdGroup.id, false)
+      if (detail && sharedTransportNote.trim()) {
+        await upsertSharedTransportNote(detail, sharedTransportNote)
+        detail = await loadPackageGroupDetail(createdGroup.id, false)
+      }
+      if (detail) applyPackageGroupSnapshot(detail)
+      await loadPackageGroups()
+      toast.success('Linked package group created. Save the quote to persist the snapshot.')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to create linked package group')
+    } finally {
+      setPackageGroupSaving(false)
+    }
+  }
+
+  const linkSelectedPackageGroup = async () => {
+    if (!activeQuote) {
+      toast.error('Save the quote before linking it to a package group')
+      return
+    }
+    if (!selectedGroupId) {
+      toast.error('Select a package group to link')
+      return
+    }
+    setPackageGroupSaving(true)
+    try {
+      const response = await fetch(`/api/travel-package-groups/${selectedGroupId}/members`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          quoteId: activeQuote.id,
+          familyLabel: linkedFamilyLabel || 'Family',
+          customerVisible: true,
+        }),
+      })
+      const data = (await response.json()) as {
+        error?: string
+        setupRequired?: boolean
+        message?: string
+      }
+      if (!response.ok || data.setupRequired) {
+        throw new Error(data.message || data.error || 'Failed to link quote to package group')
+      }
+      let detail = await loadPackageGroupDetail(selectedGroupId, false)
+      if (detail && sharedTransportNote.trim()) {
+        await upsertSharedTransportNote(detail, sharedTransportNote)
+        detail = await loadPackageGroupDetail(selectedGroupId, false)
+      }
+      if (detail) applyPackageGroupSnapshot(detail)
+      await loadPackageGroups()
+      toast.success('Quote linked to package group. Save the quote to persist the snapshot.')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to link package group')
+    } finally {
+      setPackageGroupSaving(false)
+    }
+  }
+
+  const saveSharedTransportNote = async () => {
+    if (!activePackageGroup) {
+      toast.error('Create or link a package group first')
+      return
+    }
+    setPackageGroupSaving(true)
+    try {
+      await upsertSharedTransportNote(activePackageGroup, sharedTransportNote)
+      const detail = await loadPackageGroupDetail(activePackageGroup.id, false)
+      if (detail) applyPackageGroupSnapshot(detail)
+      toast.success('Shared transport note updated. Save the quote to persist the snapshot.')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to save shared transport note')
+    } finally {
+      setPackageGroupSaving(false)
+    }
+  }
+
+  const unlinkCurrentQuoteFromGroup = async () => {
+    const member = activePackageGroup?.members.find(
+      (candidate) => candidate.quote_id === activeQuote?.id,
+    )
+    if (!activePackageGroup || !member) {
+      toast.error('This quote is not linked to the active package group')
+      return
+    }
+    setPackageGroupSaving(true)
+    try {
+      const response = await fetch(
+        `/api/travel-package-groups/${activePackageGroup.id}/members?memberId=${member.id}`,
+        { method: 'DELETE' },
+      )
+      const data = (await response.json()) as {
+        error?: string
+        message?: string
+        setupRequired?: boolean
+      }
+      if (!response.ok || data.setupRequired) {
+        throw new Error(data.message || data.error || 'Failed to unlink package group')
+      }
+      setActivePackageGroup(null)
+      setSelectedGroupId('')
+      updatePayload({ linkedPackageGroup: null })
+      setSharedTransportNote('')
+      await loadPackageGroups()
+      toast.success('Quote unlinked from package group. Save the quote to persist the snapshot.')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to unlink package group')
+    } finally {
+      setPackageGroupSaving(false)
+    }
+  }
+
   const saveQuote = async (shareEnabled: boolean) => {
     setSaving(true)
     try {
@@ -1573,16 +1876,29 @@ export default function PackagesClient({
   }
 
   const openQuoteForEdit = (quote: TravelPackageQuote) => {
+    const normalizedPayload = withSystematicQuoteTitle(normalizePackageQuotePayload(quote.payload))
     setActiveQuote(quote)
-    setPayload(withSystematicQuoteTitle(normalizePackageQuotePayload(quote.payload)))
+    setPayload(normalizedPayload)
     setExpiresAtInput(toDateTimeLocalValue(quote.expires_at))
+    setSharedTransportNote(
+      normalizedPayload.linkedPackageGroup?.sharedServices.find(
+        (service) => service.serviceType === 'transport' && service.customerVisible,
+      )?.customerNote || '',
+    )
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   const duplicateQuote = (quote: TravelPackageQuote) => {
     const sourcePayload = normalizePackageQuotePayload(quote.payload)
-    const duplicatedPayload = withSystematicQuoteTitle(sourcePayload, makeQuoteShortRef())
+    const duplicatedPayload = withSystematicQuoteTitle(
+      { ...sourcePayload, linkedPackageGroup: null },
+      makeQuoteShortRef(),
+    )
     setActiveQuote(null)
+    setActivePackageGroup(null)
+    setSelectedGroupId('')
+    setPackageGroupSearch('')
+    setSharedTransportNote('')
     setPayload(duplicatedPayload)
     setExpiresAtInput(toDateTimeLocalValue(getDefaultPackageExpiry()))
     window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -1591,6 +1907,12 @@ export default function PackagesClient({
 
   const startNew = () => {
     setActiveQuote(null)
+    setActivePackageGroup(null)
+    setSelectedGroupId('')
+    setPackageGroupSearch('')
+    setNewGroupTitle('')
+    setLinkedFamilyLabel('Family 1')
+    setSharedTransportNote('')
     setPayload(createInitialPayload())
     setExpiresAtInput(toDateTimeLocalValue(getDefaultPackageExpiry()))
   }
@@ -1919,6 +2241,191 @@ export default function PackagesClient({
                 })}
               </div>
             </div>
+          </section>
+
+          <section className="rounded-xl border border-cyan-200 bg-cyan-50/50 p-4 shadow-sm">
+            <SectionHeader icon={Link2} title="Linked package group" />
+            {packageGroupSetupMessage && (
+              <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs font-semibold text-amber-800">
+                {packageGroupSetupMessage}
+              </div>
+            )}
+            {!activeQuote ? (
+              <div className="rounded-lg border border-dashed border-cyan-300 bg-white/80 p-4 text-sm font-semibold text-cyan-900">
+                Save this quote first, then link it with another family package for shared
+                transport.
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                  <div className="rounded-lg border border-cyan-200 bg-white p-3">
+                    <p className="text-sm font-black text-slate-950">Create new group</p>
+                    <div className="mt-3 grid gap-3 md:grid-cols-2">
+                      <label className="block md:col-span-2">
+                        <span className="mb-1 block text-xs font-bold text-slate-500">
+                          Group name
+                        </span>
+                        <input
+                          value={newGroupTitle}
+                          onChange={(event) => setNewGroupTitle(event.target.value)}
+                          placeholder={`${payload.customerName || 'Linked families'} package group`}
+                          className="min-h-11 w-full rounded-lg border border-slate-200 px-3 text-sm font-bold outline-none focus:border-cyan-700"
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="mb-1 block text-xs font-bold text-slate-500">
+                          This family label
+                        </span>
+                        <input
+                          value={linkedFamilyLabel}
+                          onChange={(event) => setLinkedFamilyLabel(event.target.value)}
+                          placeholder="Family Ali"
+                          className="min-h-11 w-full rounded-lg border border-slate-200 px-3 text-sm font-bold outline-none focus:border-cyan-700"
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => void createPackageGroup()}
+                        disabled={packageGroupSaving}
+                        className="self-end min-h-11 rounded-lg bg-cyan-900 px-3 text-sm font-black text-white transition hover:bg-cyan-950 disabled:opacity-50"
+                      >
+                        Create & Link
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg border border-cyan-200 bg-white p-3">
+                    <p className="text-sm font-black text-slate-950">Link existing group</p>
+                    <div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_9rem]">
+                      <label className="block md:col-span-2">
+                        <span className="mb-1 block text-xs font-bold text-slate-500">
+                          Search groups
+                        </span>
+                        <input
+                          value={packageGroupSearch}
+                          onChange={(event) => setPackageGroupSearch(event.target.value)}
+                          placeholder="Search by group ref or name"
+                          className="min-h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-cyan-700"
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="mb-1 block text-xs font-bold text-slate-500">
+                          Package group
+                        </span>
+                        <select
+                          value={selectedGroupId}
+                          onChange={(event) => setSelectedGroupId(event.target.value)}
+                          disabled={packageGroupLoading}
+                          className="min-h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold outline-none focus:border-cyan-700 disabled:text-slate-400"
+                        >
+                          <option value="">
+                            {packageGroupLoading ? 'Loading groups...' : 'Select group'}
+                          </option>
+                          {filteredPackageGroups.map((group) => (
+                            <option key={group.id} value={group.id}>
+                              {group.group_reference} - {group.title}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => void linkSelectedPackageGroup()}
+                        disabled={packageGroupSaving || !selectedGroupId}
+                        className="self-end min-h-11 rounded-lg border border-cyan-200 bg-cyan-50 px-3 text-sm font-black text-cyan-900 transition hover:bg-cyan-100 disabled:opacity-50"
+                      >
+                        Link
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-cyan-200 bg-white p-3">
+                  <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                    <div>
+                      <p className="text-sm font-black text-slate-950">
+                        {activePackageGroup
+                          ? `${activePackageGroup.group_reference} - ${activePackageGroup.title}`
+                          : 'No linked group active'}
+                      </p>
+                      <p className="mt-1 text-xs font-semibold text-slate-500">
+                        Customer output will only show the note. Internal shared transport costs
+                        stay hidden.
+                      </p>
+                    </div>
+                    {activePackageGroup && (
+                      <div className="flex flex-wrap gap-2">
+                        <span className="rounded-lg bg-cyan-100 px-3 py-1 text-xs font-black text-cyan-900">
+                          {activePackageGroup.members.length} linked quote
+                          {activePackageGroup.members.length === 1 ? '' : 's'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => void unlinkCurrentQuoteFromGroup()}
+                          disabled={packageGroupSaving}
+                          className="min-h-7 rounded-lg border border-red-200 px-3 text-xs font-black text-red-700 transition hover:bg-red-50 disabled:opacity-50"
+                        >
+                          Unlink
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  {activePackageGroup && activePackageGroup.members.length > 0 && (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {activePackageGroup.members.map((member) => (
+                        <span
+                          key={member.id}
+                          className={`rounded-lg px-2 py-1 text-xs font-bold ${
+                            member.quote_id === activeQuote.id
+                              ? 'bg-slate-900 text-white'
+                              : 'bg-slate-100 text-slate-700'
+                          }`}
+                        >
+                          {member.family_label}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <label className="mt-3 block">
+                    <span className="mb-1 block text-xs font-bold text-slate-500">
+                      Shared transport customer note
+                    </span>
+                    <textarea
+                      value={sharedTransportNote}
+                      onChange={(event) => setSharedTransportNote(event.target.value)}
+                      placeholder="Transport is shared with Family Hussain / PT-ABC123."
+                      rows={3}
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-cyan-700"
+                    />
+                  </label>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void saveSharedTransportNote()}
+                      disabled={packageGroupSaving || !activePackageGroup}
+                      className="min-h-10 rounded-lg bg-slate-900 px-3 text-sm font-black text-white transition hover:bg-black disabled:opacity-50"
+                    >
+                      Save Transport Note
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        activePackageGroup && applyPackageGroupSnapshot(activePackageGroup)
+                      }
+                      disabled={!activePackageGroup}
+                      className="min-h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 transition hover:bg-slate-100 disabled:opacity-50"
+                    >
+                      Refresh Snapshot
+                    </button>
+                  </div>
+                  {payload.linkedPackageGroup && (
+                    <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800">
+                      Snapshot ready on this quote. Press Save to persist it.
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
           </section>
 
           <section className="grid gap-5 lg:grid-cols-2">

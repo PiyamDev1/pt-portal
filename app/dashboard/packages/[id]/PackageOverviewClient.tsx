@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import Image from 'next/image'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import QRCode from 'qrcode'
 import {
   ArrowLeft,
@@ -39,6 +39,7 @@ import type {
   TravelPackageDocument,
   TravelPackageDocumentCategory,
   TravelPackageFolder,
+  TravelPackageGroup,
   TravelPackageInvoice,
   TravelPackageInvoiceStatus,
   TravelPackageReservation,
@@ -49,6 +50,7 @@ import type {
   TravelPackageReservationType,
 } from '@/app/types/packages'
 import { formatMoney } from '@/lib/packageQuote'
+import type { TravelPackageGroupDetail } from '@/lib/packageGroups'
 import {
   PACKAGE_DOCUMENT_CATEGORIES,
   groupPackageDocumentsByCategory,
@@ -89,6 +91,20 @@ type DocumentsResponse = {
 
 type InvoiceResponse = {
   invoice?: TravelPackageInvoice | null
+  setupRequired?: boolean
+  message?: string
+  error?: string
+}
+
+type PackageGroupsResponse = {
+  groups?: TravelPackageGroup[]
+  setupRequired?: boolean
+  message?: string
+  error?: string
+}
+
+type PackageGroupResponse = {
+  group?: TravelPackageGroupDetail | TravelPackageGroup | null
   setupRequired?: boolean
   message?: string
   error?: string
@@ -498,6 +514,18 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
   const [accessVoucherCopyMessage, setAccessVoucherCopyMessage] = useState('')
   const [activePackageTab, setActivePackageTab] = useState<PackageWorkspaceTab>('overview')
   const [expandedReservationIds, setExpandedReservationIds] = useState<Record<string, boolean>>({})
+  const [packageGroups, setPackageGroups] = useState<TravelPackageGroup[]>([])
+  const [activePackageGroup, setActivePackageGroup] = useState<TravelPackageGroupDetail | null>(
+    null,
+  )
+  const [packageGroupLoading, setPackageGroupLoading] = useState(false)
+  const [packageGroupSaving, setPackageGroupSaving] = useState(false)
+  const [packageGroupError, setPackageGroupError] = useState<string | null>(null)
+  const [packageGroupTitle, setPackageGroupTitle] = useState('')
+  const [packageGroupFamilyLabel, setPackageGroupFamilyLabel] = useState('Family')
+  const [packageGroupSelectedId, setPackageGroupSelectedId] = useState('')
+  const [packageGroupSearch, setPackageGroupSearch] = useState('')
+  const [packageGroupTransportNote, setPackageGroupTransportNote] = useState('')
 
   useEffect(() => {
     const loadPackageFolder = async () => {
@@ -647,6 +675,232 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
     void loadInvoice()
   }, [packageId])
 
+  const loadPackageGroupDetail = useCallback(
+    async (groupId: string) => {
+      if (!groupId) return null
+      const response = await fetch(`/api/travel-package-groups/${encodeURIComponent(groupId)}`)
+      const data = (await response.json()) as PackageGroupResponse
+      if (!response.ok || data.setupRequired || !data.group) {
+        if (data.setupRequired) {
+          setPackageGroupError(data.message || 'Linked package group schema is required')
+          return null
+        }
+        throw new Error(data.error || 'Unable to load linked package group')
+      }
+      const group = data.group as TravelPackageGroupDetail
+      setActivePackageGroup(group)
+      setPackageGroupSelectedId(group.id)
+      setPackageGroupTitle(group.title)
+      const currentMember = group.members.find((member) => member.package_id === packageId)
+      setPackageGroupFamilyLabel(currentMember?.family_label || 'Family')
+      setPackageGroupTransportNote(
+        group.sharedServices.find(
+          (service) => service.service_type === 'transport' && service.customer_visible,
+        )?.customer_note || '',
+      )
+      return group
+    },
+    [packageId],
+  )
+
+  const loadPackageGroups = useCallback(async () => {
+    setPackageGroupLoading(true)
+    setPackageGroupError(null)
+    try {
+      const [allResponse, linkedResponse] = await Promise.all([
+        fetch('/api/travel-package-groups'),
+        fetch(`/api/travel-package-groups?packageId=${encodeURIComponent(packageId)}`),
+      ])
+      const allData = (await allResponse.json()) as PackageGroupsResponse
+      if (!allResponse.ok || allData.setupRequired) {
+        throw new Error(allData.message || allData.error || 'Unable to load package groups')
+      }
+      setPackageGroups(allData.groups || [])
+
+      const linkedData = (await linkedResponse.json()) as PackageGroupsResponse
+      if (!linkedResponse.ok || linkedData.setupRequired) return
+      const linkedGroup = linkedData.groups?.[0]
+      if (linkedGroup) {
+        await loadPackageGroupDetail(linkedGroup.id)
+      } else {
+        setActivePackageGroup(null)
+        setPackageGroupSelectedId('')
+        setPackageGroupTransportNote('')
+      }
+    } catch (loadError) {
+      setPackageGroupError(
+        loadError instanceof Error ? loadError.message : 'Unable to load package groups',
+      )
+    } finally {
+      setPackageGroupLoading(false)
+    }
+  }, [loadPackageGroupDetail, packageId])
+
+  useEffect(() => {
+    void loadPackageGroups()
+  }, [loadPackageGroups])
+
+  const savePackageGroupTransportNote = async (group: TravelPackageGroupDetail, note: string) => {
+    const existingService = group.sharedServices.find(
+      (service) => service.service_type === 'transport',
+    )
+    const response = await fetch(`/api/travel-package-groups/${group.id}/shared-services`, {
+      method: existingService ? 'PATCH' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(
+        existingService
+          ? {
+              sharedServiceId: existingService.id,
+              customerNote: note,
+              customerVisible: Boolean(note.trim()),
+            }
+          : {
+              serviceType: 'transport',
+              title: 'Shared transport',
+              customerNote: note,
+              customerVisible: Boolean(note.trim()),
+              allocationMode: 'no_split_note_only',
+            },
+      ),
+    })
+    const data = (await response.json()) as {
+      error?: string
+      message?: string
+      setupRequired?: boolean
+    }
+    if (!response.ok || data.setupRequired) {
+      throw new Error(data.message || data.error || 'Unable to save shared transport note')
+    }
+  }
+
+  const createPackageGroup = async () => {
+    if (!packageFolder) return
+    setPackageGroupSaving(true)
+    setPackageGroupError(null)
+    try {
+      const response = await fetch('/api/travel-package-groups', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title:
+            packageGroupTitle.trim() ||
+            `${packageFolder.customer_name || packageFolder.package_reference} linked group`,
+          leadPackageId: packageFolder.id,
+          familyLabel: packageGroupFamilyLabel || 'Family',
+          customerVisible: true,
+        }),
+      })
+      const data = (await response.json()) as PackageGroupResponse
+      if (!response.ok || data.setupRequired || !data.group) {
+        throw new Error(data.message || data.error || 'Unable to create package group')
+      }
+      const createdGroup = data.group as TravelPackageGroup
+      let detail = await loadPackageGroupDetail(createdGroup.id)
+      if (detail && packageGroupTransportNote.trim()) {
+        await savePackageGroupTransportNote(detail, packageGroupTransportNote)
+        detail = await loadPackageGroupDetail(createdGroup.id)
+      }
+      await loadPackageGroups()
+    } catch (saveError) {
+      setPackageGroupError(
+        saveError instanceof Error ? saveError.message : 'Unable to create package group',
+      )
+    } finally {
+      setPackageGroupSaving(false)
+    }
+  }
+
+  const linkPackageToGroup = async () => {
+    if (!packageFolder || !packageGroupSelectedId) return
+    setPackageGroupSaving(true)
+    setPackageGroupError(null)
+    try {
+      const response = await fetch(
+        `/api/travel-package-groups/${encodeURIComponent(packageGroupSelectedId)}/members`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            packageId: packageFolder.id,
+            familyLabel: packageGroupFamilyLabel || 'Family',
+            customerVisible: true,
+          }),
+        },
+      )
+      const data = (await response.json()) as {
+        error?: string
+        message?: string
+        setupRequired?: boolean
+      }
+      if (!response.ok || data.setupRequired) {
+        throw new Error(data.message || data.error || 'Unable to link package group')
+      }
+      let detail = await loadPackageGroupDetail(packageGroupSelectedId)
+      if (detail && packageGroupTransportNote.trim()) {
+        await savePackageGroupTransportNote(detail, packageGroupTransportNote)
+        detail = await loadPackageGroupDetail(packageGroupSelectedId)
+      }
+      await loadPackageGroups()
+    } catch (saveError) {
+      setPackageGroupError(
+        saveError instanceof Error ? saveError.message : 'Unable to link package group',
+      )
+    } finally {
+      setPackageGroupSaving(false)
+    }
+  }
+
+  const updatePackageGroupTransportNote = async () => {
+    if (!activePackageGroup) return
+    setPackageGroupSaving(true)
+    setPackageGroupError(null)
+    try {
+      await savePackageGroupTransportNote(activePackageGroup, packageGroupTransportNote)
+      await loadPackageGroupDetail(activePackageGroup.id)
+    } catch (saveError) {
+      setPackageGroupError(
+        saveError instanceof Error ? saveError.message : 'Unable to update transport note',
+      )
+    } finally {
+      setPackageGroupSaving(false)
+    }
+  }
+
+  const unlinkPackageFromGroup = async () => {
+    const member = activePackageGroup?.members.find(
+      (candidate) => candidate.package_id === packageId,
+    )
+    if (!activePackageGroup || !member) return
+    setPackageGroupSaving(true)
+    setPackageGroupError(null)
+    try {
+      const response = await fetch(
+        `/api/travel-package-groups/${encodeURIComponent(
+          activePackageGroup.id,
+        )}/members?memberId=${encodeURIComponent(member.id)}`,
+        { method: 'DELETE' },
+      )
+      const data = (await response.json()) as {
+        error?: string
+        message?: string
+        setupRequired?: boolean
+      }
+      if (!response.ok || data.setupRequired) {
+        throw new Error(data.message || data.error || 'Unable to unlink package group')
+      }
+      setActivePackageGroup(null)
+      setPackageGroupSelectedId('')
+      setPackageGroupTransportNote('')
+      await loadPackageGroups()
+    } catch (saveError) {
+      setPackageGroupError(
+        saveError instanceof Error ? saveError.message : 'Unable to unlink package group',
+      )
+    } finally {
+      setPackageGroupSaving(false)
+    }
+  }
+
   const selectedCombination = normalizeSelectedCombination(
     packageFolder?.selected_quote_snapshot?.selection?.combination,
   )
@@ -669,6 +923,13 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
     () => new Map(reservations.map((reservation) => [reservation.id, reservation.title])),
     [reservations],
   )
+  const filteredPackageGroups = useMemo(() => {
+    const search = packageGroupSearch.trim().toLowerCase()
+    if (!search) return packageGroups
+    return packageGroups.filter((group) =>
+      `${group.group_reference} ${group.title}`.toLowerCase().includes(search),
+    )
+  }, [packageGroupSearch, packageGroups])
   const visibleDocumentCount = documents.filter(
     (document) => document.customer_visible && document.status === 'released',
   ).length
@@ -1543,6 +1804,157 @@ The Piyam Travel Team`
         <StatusCard icon={FileText} label="Invoice" value={packageFolder.invoice_status} />
       </section>
 
+      <section className="rounded-xl border border-cyan-200 bg-cyan-50/50 p-4 shadow-sm">
+        <div className="mb-3 flex items-center gap-2">
+          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-cyan-900 text-white">
+            <Link2 className="h-4 w-4" />
+          </span>
+          <div>
+            <h2 className="text-lg font-black text-slate-950">Linked package group</h2>
+            <p className="text-xs font-semibold text-cyan-900">
+              Link family package folders for shared transport without showing internal transport
+              cost to customers.
+            </p>
+          </div>
+        </div>
+        {packageGroupError && (
+          <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm font-bold text-amber-900">
+            {packageGroupError}
+          </div>
+        )}
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+          <div className="rounded-lg border border-cyan-200 bg-white p-3">
+            <p className="text-sm font-black text-slate-950">Create or link group</p>
+            <div className="mt-3 grid gap-3 md:grid-cols-2">
+              <label className="block md:col-span-2">
+                <span className="mb-1 block text-xs font-bold text-slate-500">Group name</span>
+                <input
+                  value={packageGroupTitle}
+                  onChange={(event) => setPackageGroupTitle(event.target.value)}
+                  placeholder={`${packageFolder.customer_name || packageFolder.package_reference} linked group`}
+                  className="min-h-11 w-full rounded-lg border border-slate-200 px-3 text-sm font-bold outline-none focus:border-cyan-700"
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs font-bold text-slate-500">
+                  This family label
+                </span>
+                <input
+                  value={packageGroupFamilyLabel}
+                  onChange={(event) => setPackageGroupFamilyLabel(event.target.value)}
+                  placeholder="Family Ali"
+                  className="min-h-11 w-full rounded-lg border border-slate-200 px-3 text-sm font-bold outline-none focus:border-cyan-700"
+                />
+              </label>
+              <button
+                type="button"
+                onClick={() => void createPackageGroup()}
+                disabled={packageGroupSaving}
+                className="self-end min-h-11 rounded-lg bg-cyan-900 px-3 text-sm font-black text-white transition hover:bg-cyan-950 disabled:opacity-50"
+              >
+                Create Group
+              </button>
+              <label className="block md:col-span-2">
+                <span className="mb-1 block text-xs font-bold text-slate-500">Find group</span>
+                <input
+                  value={packageGroupSearch}
+                  onChange={(event) => setPackageGroupSearch(event.target.value)}
+                  placeholder="Search by group ref or name"
+                  className="min-h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-cyan-700"
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs font-bold text-slate-500">Existing group</span>
+                <select
+                  value={packageGroupSelectedId}
+                  onChange={(event) => setPackageGroupSelectedId(event.target.value)}
+                  disabled={packageGroupLoading}
+                  className="min-h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold outline-none focus:border-cyan-700 disabled:text-slate-400"
+                >
+                  <option value="">
+                    {packageGroupLoading ? 'Loading groups...' : 'Select group'}
+                  </option>
+                  {filteredPackageGroups.map((group) => (
+                    <option key={group.id} value={group.id}>
+                      {group.group_reference} - {group.title}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button
+                type="button"
+                onClick={() => void linkPackageToGroup()}
+                disabled={packageGroupSaving || !packageGroupSelectedId}
+                className="self-end min-h-11 rounded-lg border border-cyan-200 bg-cyan-50 px-3 text-sm font-black text-cyan-900 transition hover:bg-cyan-100 disabled:opacity-50"
+              >
+                Link Package
+              </button>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-cyan-200 bg-white p-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-sm font-black text-slate-950">
+                  {activePackageGroup
+                    ? `${activePackageGroup.group_reference} - ${activePackageGroup.title}`
+                    : 'No linked group active'}
+                </p>
+                <p className="mt-1 text-xs font-semibold text-slate-500">
+                  Customer output uses note-only wording. Internal allocation stays private.
+                </p>
+              </div>
+              {activePackageGroup && (
+                <button
+                  type="button"
+                  onClick={() => void unlinkPackageFromGroup()}
+                  disabled={packageGroupSaving}
+                  className="min-h-9 rounded-lg border border-red-200 px-3 text-xs font-black text-red-700 transition hover:bg-red-50 disabled:opacity-50"
+                >
+                  Unlink
+                </button>
+              )}
+            </div>
+            {activePackageGroup && activePackageGroup.members.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {activePackageGroup.members.map((member) => (
+                  <span
+                    key={member.id}
+                    className={`rounded-lg px-2 py-1 text-xs font-bold ${
+                      member.package_id === packageId
+                        ? 'bg-slate-900 text-white'
+                        : 'bg-slate-100 text-slate-700'
+                    }`}
+                  >
+                    {member.family_label}
+                  </span>
+                ))}
+              </div>
+            )}
+            <label className="mt-3 block">
+              <span className="mb-1 block text-xs font-bold text-slate-500">
+                Shared transport customer note
+              </span>
+              <textarea
+                value={packageGroupTransportNote}
+                onChange={(event) => setPackageGroupTransportNote(event.target.value)}
+                placeholder="Transport is shared with Family Hussain / PT-ABC123."
+                rows={4}
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-cyan-700"
+              />
+            </label>
+            <button
+              type="button"
+              onClick={() => void updatePackageGroupTransportNote()}
+              disabled={packageGroupSaving || !activePackageGroup}
+              className="mt-3 min-h-10 rounded-lg bg-slate-900 px-3 text-sm font-black text-white transition hover:bg-black disabled:opacity-50"
+            >
+              Save Transport Note
+            </button>
+          </div>
+        </div>
+      </section>
+
       <nav
         aria-label="Package workspace"
         className="sticky top-0 z-20 -mx-1 overflow-x-auto border-y border-slate-200 bg-slate-50/95 px-1 py-2 backdrop-blur"
@@ -1869,165 +2281,174 @@ The Piyam Travel Team`
                 id="final-quote"
                 className="scroll-mt-20 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
               >
-              <div className="mb-3 flex items-center gap-2">
-                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900 text-white">
-                  <FolderOpen className="h-4 w-4" />
-                </span>
-                <h2 className="text-lg font-black text-slate-950">Final quote snapshot</h2>
-              </div>
-              {selectedCombination ? (
-                <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                    <div>
-                      <p className="text-xs font-bold uppercase text-slate-500">Selected quote</p>
-                      <p className="mt-1 text-base font-black text-slate-950">{quoteTitle}</p>
-                      <p className="mt-1 text-xs font-bold text-slate-500">
-                        {quoteCustomerName} · {quoteDateRange}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setShowQuoteSnapshot(true)}
-                      className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:bg-slate-100"
-                    >
-                      <FileText className="h-4 w-4" />
-                      Open Snapshot
-                    </button>
-                  </div>
-
-                  <div className="mt-4 grid gap-3 md:grid-cols-3">
-                    <div>
-                      <p className="text-xs font-bold uppercase text-slate-500">Customer</p>
-                      <p className="mt-1 text-sm font-black text-slate-950">{quoteCustomerName}</p>
-                      <p className="mt-1 text-xs text-slate-500">{quoteCustomerPhone}</p>
-                      <p className="mt-1 break-all text-xs text-slate-500">{quoteCustomerEmail}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold uppercase text-slate-500">Passengers</p>
-                      <p className="mt-1 text-sm font-black text-slate-950">
-                        {passengerSummary?.totalPassengers ?? selectedCombination.servicePassengers}{' '}
-                        total
-                      </p>
-                      <p className="mt-1 text-xs text-slate-500">
-                        {passengerSummary?.adults ?? selectedPayload?.adults ?? 0} adults ·{' '}
-                        {passengerSummary?.childrenPaying ?? selectedPayload?.childrenPaying ?? 0}{' '}
-                        children 5+ ·{' '}
-                        {passengerSummary?.childrenFree ?? selectedPayload?.childrenFree ?? 0}{' '}
-                        children 2-5 · {passengerSummary?.infants ?? selectedPayload?.infants ?? 0}{' '}
-                        infants under 2
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold uppercase text-slate-500">Sold total</p>
-                      <p className="mt-1 text-sm font-black text-slate-950">
-                        {formatMoney(selectedCombination.totalPrice, selectedCombination.currency)}
-                      </p>
-                      <p className="mt-1 text-xs font-bold text-slate-500">
-                        {formatPaymentMethod(selectedCombination.paymentMethod)}
-                        {selectedCombination.paymentSurchargeTotal > 0
-                          ? ` · ${formatMoney(
-                              selectedCombination.paymentSurchargeTotal,
-                              selectedCombination.currency,
-                            )} processing fee`
-                          : ''}
-                      </p>
-                      <p className="mt-1 text-xs font-bold text-[#8b1e2d]">
-                        {formatMoney(
-                          selectedCombination.perPersonPrice,
-                          selectedCombination.currency,
-                        )}{' '}
-                        avg hotel payer
-                      </p>
-                    </div>
-                  </div>
-
-                  {selectedCombination.offerDiscountTotal > 0 && (
-                    <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700">
-                      Discount applied:{' '}
-                      {formatMoney(
-                        selectedCombination.offerDiscountTotal,
-                        selectedCombination.currency,
-                      )}
-                    </p>
-                  )}
-
-                  <div className="mt-4 grid gap-3 md:grid-cols-2">
-                    {selectedCombination.flightOption && (
-                      <div className="rounded-lg border border-slate-200 bg-white p-3">
-                        <p className="text-xs font-bold uppercase text-slate-500">Flight</p>
-                        <p className="mt-1 text-sm font-black text-slate-950">
-                          {selectedCombination.flightOption.title}
-                        </p>
-                        {selectedCombination.flightOption.summary && (
-                          <p className="mt-1 whitespace-pre-line text-xs leading-5 text-slate-600">
-                            {selectedCombination.flightOption.summary}
-                          </p>
-                        )}
-                      </div>
-                    )}
-                    {selectedCombination.visaOptions.length > 0 && (
-                      <div className="rounded-lg border border-slate-200 bg-white p-3">
-                        <p className="text-xs font-bold uppercase text-slate-500">Visa</p>
-                        <div className="mt-1 space-y-2">
-                          {selectedCombination.visaOptions.map((option) => (
-                            <div key={option.id}>
-                              <p className="text-sm font-black text-slate-950">
-                                {getVisaQuantity(option, selectedCombination.servicePassengers)} x{' '}
-                                {option.title}
-                              </p>
-                              {option.summary && (
-                                <p className="mt-1 whitespace-pre-line text-xs leading-5 text-slate-600">
-                                  {option.summary}
-                                </p>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {selectedCombination.transportOption && (
-                      <div className="rounded-lg border border-slate-200 bg-white p-3">
-                        <p className="text-xs font-bold uppercase text-slate-500">Transport</p>
-                        <p className="mt-1 text-sm font-black text-slate-950">
-                          {selectedCombination.transportOption.title}
-                        </p>
-                        {selectedCombination.transportOption.summary && (
-                          <p className="mt-1 whitespace-pre-line text-xs leading-5 text-slate-600">
-                            {selectedCombination.transportOption.summary}
-                          </p>
-                        )}
-                      </div>
-                    )}
-                    {selectedCombination.staySelections.map((stay) => (
-                      <div
-                        key={stay.groupId}
-                        className="rounded-lg border border-slate-200 bg-white p-3"
-                      >
-                        <p className="text-xs font-bold uppercase text-slate-500">
-                          {stay.groupLabel}
-                        </p>
-                        <p className="mt-1 text-sm font-black text-slate-950">
-                          {stay.option.title}
-                        </p>
-                        {stay.option.summary && (
-                          <p className="mt-1 whitespace-pre-line text-xs leading-5 text-slate-600">
-                            {stay.option.summary}
-                          </p>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-
-                  {quoteSelectionNote && (
-                    <p className="mt-4 rounded-lg bg-white px-3 py-2 text-xs leading-5 text-slate-600">
-                      <span className="font-black text-slate-800">Selection note:</span>{' '}
-                      {quoteSelectionNote}
-                    </p>
-                  )}
+                <div className="mb-3 flex items-center gap-2">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900 text-white">
+                    <FolderOpen className="h-4 w-4" />
+                  </span>
+                  <h2 className="text-lg font-black text-slate-950">Final quote snapshot</h2>
                 </div>
-              ) : (
-                <p className="text-sm text-slate-500">No selected quote snapshot found.</p>
-              )}
+                {selectedCombination ? (
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                      <div>
+                        <p className="text-xs font-bold uppercase text-slate-500">Selected quote</p>
+                        <p className="mt-1 text-base font-black text-slate-950">{quoteTitle}</p>
+                        <p className="mt-1 text-xs font-bold text-slate-500">
+                          {quoteCustomerName} · {quoteDateRange}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowQuoteSnapshot(true)}
+                        className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:bg-slate-100"
+                      >
+                        <FileText className="h-4 w-4" />
+                        Open Snapshot
+                      </button>
+                    </div>
+
+                    <div className="mt-4 grid gap-3 md:grid-cols-3">
+                      <div>
+                        <p className="text-xs font-bold uppercase text-slate-500">Customer</p>
+                        <p className="mt-1 text-sm font-black text-slate-950">
+                          {quoteCustomerName}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-500">{quoteCustomerPhone}</p>
+                        <p className="mt-1 break-all text-xs text-slate-500">
+                          {quoteCustomerEmail}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold uppercase text-slate-500">Passengers</p>
+                        <p className="mt-1 text-sm font-black text-slate-950">
+                          {passengerSummary?.totalPassengers ??
+                            selectedCombination.servicePassengers}{' '}
+                          total
+                        </p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          {passengerSummary?.adults ?? selectedPayload?.adults ?? 0} adults ·{' '}
+                          {passengerSummary?.childrenPaying ?? selectedPayload?.childrenPaying ?? 0}{' '}
+                          children 5+ ·{' '}
+                          {passengerSummary?.childrenFree ?? selectedPayload?.childrenFree ?? 0}{' '}
+                          children 2-5 ·{' '}
+                          {passengerSummary?.infants ?? selectedPayload?.infants ?? 0} infants under
+                          2
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold uppercase text-slate-500">Sold total</p>
+                        <p className="mt-1 text-sm font-black text-slate-950">
+                          {formatMoney(
+                            selectedCombination.totalPrice,
+                            selectedCombination.currency,
+                          )}
+                        </p>
+                        <p className="mt-1 text-xs font-bold text-slate-500">
+                          {formatPaymentMethod(selectedCombination.paymentMethod)}
+                          {selectedCombination.paymentSurchargeTotal > 0
+                            ? ` · ${formatMoney(
+                                selectedCombination.paymentSurchargeTotal,
+                                selectedCombination.currency,
+                              )} processing fee`
+                            : ''}
+                        </p>
+                        <p className="mt-1 text-xs font-bold text-[#8b1e2d]">
+                          {formatMoney(
+                            selectedCombination.perPersonPrice,
+                            selectedCombination.currency,
+                          )}{' '}
+                          avg hotel payer
+                        </p>
+                      </div>
+                    </div>
+
+                    {selectedCombination.offerDiscountTotal > 0 && (
+                      <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700">
+                        Discount applied:{' '}
+                        {formatMoney(
+                          selectedCombination.offerDiscountTotal,
+                          selectedCombination.currency,
+                        )}
+                      </p>
+                    )}
+
+                    <div className="mt-4 grid gap-3 md:grid-cols-2">
+                      {selectedCombination.flightOption && (
+                        <div className="rounded-lg border border-slate-200 bg-white p-3">
+                          <p className="text-xs font-bold uppercase text-slate-500">Flight</p>
+                          <p className="mt-1 text-sm font-black text-slate-950">
+                            {selectedCombination.flightOption.title}
+                          </p>
+                          {selectedCombination.flightOption.summary && (
+                            <p className="mt-1 whitespace-pre-line text-xs leading-5 text-slate-600">
+                              {selectedCombination.flightOption.summary}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                      {selectedCombination.visaOptions.length > 0 && (
+                        <div className="rounded-lg border border-slate-200 bg-white p-3">
+                          <p className="text-xs font-bold uppercase text-slate-500">Visa</p>
+                          <div className="mt-1 space-y-2">
+                            {selectedCombination.visaOptions.map((option) => (
+                              <div key={option.id}>
+                                <p className="text-sm font-black text-slate-950">
+                                  {getVisaQuantity(option, selectedCombination.servicePassengers)} x{' '}
+                                  {option.title}
+                                </p>
+                                {option.summary && (
+                                  <p className="mt-1 whitespace-pre-line text-xs leading-5 text-slate-600">
+                                    {option.summary}
+                                  </p>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {selectedCombination.transportOption && (
+                        <div className="rounded-lg border border-slate-200 bg-white p-3">
+                          <p className="text-xs font-bold uppercase text-slate-500">Transport</p>
+                          <p className="mt-1 text-sm font-black text-slate-950">
+                            {selectedCombination.transportOption.title}
+                          </p>
+                          {selectedCombination.transportOption.summary && (
+                            <p className="mt-1 whitespace-pre-line text-xs leading-5 text-slate-600">
+                              {selectedCombination.transportOption.summary}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                      {selectedCombination.staySelections.map((stay) => (
+                        <div
+                          key={stay.groupId}
+                          className="rounded-lg border border-slate-200 bg-white p-3"
+                        >
+                          <p className="text-xs font-bold uppercase text-slate-500">
+                            {stay.groupLabel}
+                          </p>
+                          <p className="mt-1 text-sm font-black text-slate-950">
+                            {stay.option.title}
+                          </p>
+                          {stay.option.summary && (
+                            <p className="mt-1 whitespace-pre-line text-xs leading-5 text-slate-600">
+                              {stay.option.summary}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    {quoteSelectionNote && (
+                      <p className="mt-4 rounded-lg bg-white px-3 py-2 text-xs leading-5 text-slate-600">
+                        <span className="font-black text-slate-800">Selection note:</span>{' '}
+                        {quoteSelectionNote}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-sm text-slate-500">No selected quote snapshot found.</p>
+                )}
               </div>
             </>
           )}

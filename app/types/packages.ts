@@ -122,6 +122,32 @@ export type TravelPackageVoucherStatus =
   | 'released_to_customer'
   | 'amended'
   | 'revoked'
+export type TravelPackageGroupStatus =
+  | 'draft'
+  | 'active'
+  | 'partially_finalised'
+  | 'finalised'
+  | 'cancelled'
+  | 'completed'
+  | 'archived'
+export type TravelPackageGroupVisibilityMode =
+  | 'private'
+  | 'linked_notice_only'
+  | 'shared_group_view'
+export type TravelPackageGroupSharedServiceType = 'transport' | 'guide' | 'ziyarat' | 'other'
+export type TravelPackageGroupSharedServiceStatus =
+  | 'draft'
+  | 'quoted'
+  | 'reserved'
+  | 'confirmed'
+  | 'changed'
+  | 'cancelled'
+export type TravelPackageGroupAllocationMode =
+  | 'per_passenger'
+  | 'equal_per_package'
+  | 'manual'
+  | 'one_package_pays'
+  | 'no_split_note_only'
 
 export interface PackageComponentOption {
   id: string
@@ -199,6 +225,28 @@ export interface PackageLinkedFlightGroup {
   options: PackageLinkedFlightOption[]
 }
 
+export interface PackageLinkedPackageGroupSnapshot {
+  groupId: string
+  groupReference: string
+  title: string
+  visibilityMode: TravelPackageGroupVisibilityMode
+  currentFamilyLabel: string
+  linkedFamilies: Array<{
+    packageId?: string | null
+    quoteId?: string | null
+    familyLabel: string
+    packageReference?: string | null
+    quoteTitle?: string | null
+    customerVisible: boolean
+  }>
+  sharedServices: Array<{
+    serviceType: TravelPackageGroupSharedServiceType
+    title: string
+    customerNote: string
+    customerVisible: boolean
+  }>
+}
+
 export interface PackageQuotePayload {
   title: string
   packageType: TravelPackageType
@@ -216,6 +264,7 @@ export interface PackageQuotePayload {
   stayGroups: PackageStayGroup[]
   flightOptions: PackageComponentOption[]
   linkedFlightGroups: PackageLinkedFlightGroup[]
+  linkedPackageGroup?: PackageLinkedPackageGroupSnapshot | null
   visaOptions: PackageComponentOption[]
   transportOptions: PackageComponentOption[]
   limitedTimeOffers: PackageLimitedTimeOffer[]
@@ -323,6 +372,77 @@ export interface TravelPackageQuote {
   last_shared_by?: string | null
   archived_at?: string | null
   created_by: string | null
+  created_at: string
+  updated_at: string | null
+}
+
+export interface TravelPackageGroup {
+  id: string
+  group_reference: string
+  title: string
+  lead_package_id: string | null
+  lead_quote_id: string | null
+  status: TravelPackageGroupStatus
+  customer_visibility_mode: TravelPackageGroupVisibilityMode
+  internal_notes: string | null
+  metadata: Record<string, unknown>
+  created_by: string | null
+  updated_by: string | null
+  created_at: string
+  updated_at: string | null
+  archived_at: string | null
+}
+
+export interface TravelPackageGroupMember {
+  id: string
+  group_id: string
+  package_id: string | null
+  quote_id: string | null
+  family_label: string
+  customer_display_name: string | null
+  is_lead_family: boolean
+  customer_visible: boolean
+  sort_order: number
+  metadata: Record<string, unknown>
+  created_at: string
+  updated_at: string | null
+}
+
+export interface TravelPackageGroupSharedService {
+  id: string
+  group_id: string
+  service_type: TravelPackageGroupSharedServiceType
+  title: string
+  description: string | null
+  status: TravelPackageGroupSharedServiceStatus
+  supplier_name: string | null
+  supplier_reference: string | null
+  currency: string
+  internal_total_cost: number
+  customer_note: string
+  allocation_mode: TravelPackageGroupAllocationMode
+  allocation_payload: Record<string, unknown>
+  customer_visible: boolean
+  metadata: Record<string, unknown>
+  created_by: string | null
+  updated_by: string | null
+  created_at: string
+  updated_at: string | null
+  archived_at: string | null
+}
+
+export interface TravelPackageGroupServiceAllocation {
+  id: string
+  shared_service_id: string
+  group_id: string
+  package_id: string | null
+  quote_id: string | null
+  allocation_mode: TravelPackageGroupAllocationMode
+  passenger_count: number
+  allocated_cost: number
+  allocated_sale_value: number
+  internal_notes: string | null
+  metadata: Record<string, unknown>
   created_at: string
   updated_at: string | null
 }

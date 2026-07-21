@@ -8,6 +8,7 @@ import {
   Bus,
   CheckCircle2,
   FileText,
+  Link2,
   Loader2,
   Plane,
   Send,
@@ -454,6 +455,53 @@ export default function PackageSalesModeClient({ quoteId }: PackageSalesModeClie
           </Link>
         </div>
       </section>
+
+      {payload.linkedPackageGroup && (
+        <section className="rounded-xl border border-cyan-200 bg-cyan-50/60 p-4 shadow-sm">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex gap-3">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-cyan-900 text-white">
+                <Link2 className="h-4 w-4" />
+              </span>
+              <div>
+                <p className="text-sm font-black text-slate-950">
+                  {payload.linkedPackageGroup.groupReference} - {payload.linkedPackageGroup.title}
+                </p>
+                <p className="mt-1 text-xs font-bold text-cyan-900">
+                  This quote: {payload.linkedPackageGroup.currentFamilyLabel}
+                </p>
+                {payload.linkedPackageGroup.sharedServices
+                  .filter(
+                    (service) =>
+                      service.serviceType === 'transport' &&
+                      service.customerVisible &&
+                      service.customerNote,
+                  )
+                  .map((service) => (
+                    <p
+                      key={`${service.serviceType}-${service.title}`}
+                      className="mt-2 rounded-lg bg-white px-3 py-2 text-xs font-semibold text-slate-700"
+                    >
+                      {service.customerNote}
+                    </p>
+                  ))}
+              </div>
+            </div>
+            {payload.linkedPackageGroup.linkedFamilies.length > 0 && (
+              <div className="flex flex-wrap gap-2 lg:justify-end">
+                {payload.linkedPackageGroup.linkedFamilies.map((family) => (
+                  <span
+                    key={`${family.packageId || family.quoteId || family.familyLabel}`}
+                    className="rounded-lg bg-white px-2 py-1 text-xs font-bold text-slate-700"
+                  >
+                    {family.familyLabel}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
+      )}
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="space-y-5">

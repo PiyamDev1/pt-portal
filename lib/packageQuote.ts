@@ -2,6 +2,7 @@ import type {
   PackageCombination,
   PackageComponentOption,
   PackageDiscountMode,
+  PackageLinkedPackageGroupSnapshot,
   PackageLinkedFlightGroup,
   PackageLinkedFlightOption,
   PackageLimitedTimeOffer,
@@ -250,6 +251,77 @@ function normalizeLinkedFlightGroups(raw: unknown) {
     .filter((value): value is PackageLinkedFlightGroup => Boolean(value))
 }
 
+function normalizeLinkedPackageGroup(raw: unknown): PackageLinkedPackageGroupSnapshot | null {
+  if (!raw || typeof raw !== 'object') return null
+  const candidate = raw as Partial<PackageLinkedPackageGroupSnapshot>
+  const groupId = asString(candidate.groupId)
+  const groupReference = asString(candidate.groupReference)
+  if (!groupId && !groupReference) return null
+
+  const visibilityMode =
+    candidate.visibilityMode === 'private' || candidate.visibilityMode === 'shared_group_view'
+      ? candidate.visibilityMode
+      : 'linked_notice_only'
+
+  const linkedFamilies: PackageLinkedPackageGroupSnapshot['linkedFamilies'] = Array.isArray(
+    candidate.linkedFamilies,
+  )
+    ? (candidate.linkedFamilies
+        .map((family) => {
+          const value = family as PackageLinkedPackageGroupSnapshot['linkedFamilies'][number]
+          const familyLabel = asString(value?.familyLabel)
+          if (!familyLabel) return null
+          return {
+            packageId: asString(value?.packageId) || null,
+            quoteId: asString(value?.quoteId) || null,
+            familyLabel,
+            packageReference: asString(value?.packageReference) || null,
+            quoteTitle: asString(value?.quoteTitle) || null,
+            customerVisible: asBoolean(value?.customerVisible),
+          }
+        })
+        .filter(Boolean) as PackageLinkedPackageGroupSnapshot['linkedFamilies'])
+    : []
+
+  const sharedServices: PackageLinkedPackageGroupSnapshot['sharedServices'] = Array.isArray(
+    candidate.sharedServices,
+  )
+    ? (candidate.sharedServices
+        .map((service) => {
+          const value = service as PackageLinkedPackageGroupSnapshot['sharedServices'][number]
+          const serviceType =
+            value?.serviceType === 'guide' ||
+            value?.serviceType === 'ziyarat' ||
+            value?.serviceType === 'other'
+              ? value.serviceType
+              : 'transport'
+          const title = asString(
+            value?.title,
+            serviceType === 'transport' ? 'Transport' : 'Service',
+          )
+          const customerNote = asText(value?.customerNote)
+          if (!title && !customerNote.trim()) return null
+          return {
+            serviceType,
+            title,
+            customerNote,
+            customerVisible: asBoolean(value?.customerVisible, true),
+          }
+        })
+        .filter(Boolean) as PackageLinkedPackageGroupSnapshot['sharedServices'])
+    : []
+
+  return {
+    groupId,
+    groupReference,
+    title: asString(candidate.title, groupReference || 'Linked package group'),
+    visibilityMode,
+    currentFamilyLabel: asString(candidate.currentFamilyLabel, 'This family'),
+    linkedFamilies,
+    sharedServices,
+  }
+}
+
 function normalizeOption(
   raw: unknown,
   fallbackId: string,
@@ -408,6 +480,7 @@ export function normalizePackageQuotePayload(input: unknown): PackageQuotePayloa
     stayGroups,
     flightOptions,
     linkedFlightGroups: normalizeLinkedFlightGroups(candidate.linkedFlightGroups),
+    linkedPackageGroup: normalizeLinkedPackageGroup(candidate.linkedPackageGroup),
     visaOptions: normalizeOptions(candidate.visaOptions, 'visa', 'per_person'),
     transportOptions,
     limitedTimeOffers: normalizeOffers(candidate.limitedTimeOffers),
@@ -1092,6 +1165,18 @@ function formatTransportLines(option: PackageComponentOption) {
   return lines
 }
 
+function getLinkedTransportNotes(payload: PackageQuotePayload) {
+  return (
+    payload.linkedPackageGroup?.sharedServices
+      .filter(
+        (service) =>
+          service.customerVisible && service.serviceType === 'transport' && service.customerNote,
+      )
+      .map((service) => service.customerNote.trim())
+      .filter(Boolean) || []
+  )
+}
+
 function formatFlightIncludedLines(option: PackageComponentOption) {
   const lines = [`*Airline:* ${option.title || 'Included flight'}`]
   if (option.summary.trim()) lines.push(option.summary.trim())
@@ -1173,6 +1258,9 @@ export function formatPackageCombinationForCopy(
   if (combination.transportOption) {
     lines.push('****Transport****')
     lines.push(...formatTransportLines(combination.transportOption))
+    getLinkedTransportNotes(payload).forEach((note) => {
+      lines.push(`* ${note}`)
+    })
     lines.push('')
   }
 
@@ -1312,6 +1400,9 @@ export function formatPackageQuoteForCopy(payloadInput: unknown, limit = 12, pac
   if (defaultTransport) {
     lines.push('****Transport Included****')
     lines.push(...formatTransportLines(defaultTransport))
+    getLinkedTransportNotes(payload).forEach((note) => {
+      lines.push(`* ${note}`)
+    })
     const transportAlternatives = payload.transportOptions.filter(
       (option) => option.id !== defaultTransport.id,
     )

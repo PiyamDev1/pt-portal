@@ -1,9 +1,9 @@
 # Linked Travel Package Groups Plan
 
-**Status:** Future enhancement  
+**Status:** Phase 2 agent linking UI complete; Phase 3 customer and sales presentation pending
 **Created:** July 21, 2026  
 **Target Module:** Packages / Quotation Maker / Sales Mode / Package Folder  
-**Related Plan:** `TRAVEL_PACKAGE_QUOTATION_RESERVATION_WORKFLOW_PLAN.md`  
+**Related Plan:** `TRAVEL_PACKAGE_QUOTATION_RESERVATION_WORKFLOW_PLAN.md`
 
 ---
 
@@ -483,19 +483,23 @@ Customer may see:
 
 ### Phase 1: Data Foundation
 
-- Add package group tables.
-- Add group members table.
-- Add shared services table.
-- Add shared service allocations table.
-- Add quote payload snapshot support.
+- Add package group tables. Complete in `scripts/migrations/20260721_create_travel_package_groups.sql`.
+- Add group members table. Complete in `scripts/migrations/20260721_create_travel_package_groups.sql`.
+- Add shared services table. Complete in `scripts/migrations/20260721_create_travel_package_groups.sql`.
+- Add shared service allocations table. Complete in `scripts/migrations/20260721_create_travel_package_groups.sql`.
+- Add quote payload snapshot support. Complete in `PackageQuotePayload.linkedPackageGroup`.
+- Add backend API routes for group, member, shared service, and allocation management. Complete in `/api/travel-package-groups`.
+- Add customer-safe snapshot builder and tests. Complete in `lib/packageGroups.ts`, `lib/packageQuote.ts`, `tests/unit/packageGroups.test.ts`, and `tests/unit/packageQuote.test.ts`.
 
 ### Phase 2: Agent Linking UI
 
-- Add Link Package button in quotation maker.
-- Add linked package banner.
-- Add family label field.
-- Add shared transport note field.
-- Allow linking existing quotes/packages.
+- Add Link Package button in quotation maker. Complete with the Linked Package Group panel in `/dashboard/packages`.
+- Add linked package banner. Complete in Quotation Maker, Sales Mode, and Package Folder.
+- Add family label field. Complete in Quotation Maker and Package Folder.
+- Add shared transport note field. Complete in Quotation Maker and Package Folder.
+- Allow linking existing quotes/packages. Complete for saved quotes and package folders through `/api/travel-package-groups`.
+- Add unlink controls. Complete in Quotation Maker and Package Folder.
+- Add existing group search/filter controls. Complete in Quotation Maker and Package Folder.
 
 ### Phase 3: Customer and Sales Presentation
 

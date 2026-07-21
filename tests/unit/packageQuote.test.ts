@@ -153,6 +153,43 @@ describe('package quote calculator', () => {
     )
   })
 
+  it('preserves linked package group notes without exposing shared transport cost in copy', () => {
+    const normalized = normalizePackageQuotePayload({
+      ...payload,
+      linkedPackageGroup: {
+        groupId: 'group-1',
+        groupReference: 'PTG-ABC123',
+        title: 'Ali / Hussain Umrah',
+        visibilityMode: 'linked_notice_only',
+        currentFamilyLabel: 'Family Ali',
+        linkedFamilies: [
+          {
+            packageId: 'package-2',
+            familyLabel: 'Family Hussain',
+            packageReference: 'PT-HUS123',
+            customerVisible: true,
+          },
+        ],
+        sharedServices: [
+          {
+            serviceType: 'transport',
+            title: 'Shared transport',
+            customerNote: 'Transport is shared with Family Hussain / PT-HUS123.',
+            customerVisible: true,
+          },
+        ],
+      },
+    })
+
+    const copy = formatPackageQuoteForCopy(normalized, 1, 'https://example.test/packages/token')
+
+    expect(normalized.linkedPackageGroup?.groupReference).toBe('PTG-ABC123')
+    expect(copy).toContain('Package URL: https://example.test/packages/token')
+    expect(copy).toContain('* Transport is shared with Family Hussain / PT-HUS123.')
+    expect(copy).not.toContain('allocated')
+    expect(copy).not.toContain('internal')
+  })
+
   it('charges under-5 passengers for per-person services but not hotel payer count', () => {
     const servicePayload: PackageQuotePayload = {
       ...payload,
@@ -317,10 +354,16 @@ describe('package quote calculator', () => {
 
     expect(copy).toContain('****September Umrah Package****')
     expect(copy).toContain('****Flight Included****')
-    expect(copy).toContain('- Direct flights: +£305.00 total')
+    expect(copy).toContain('*Airline:* Standard flights')
+    expect(copy).toContain('****Alternative Flights****')
+    expect(copy).toContain('*Option 1 - Main Flight*')
+    expect(copy).toContain('*Airline:* Direct flights')
+    expect(copy).toContain('Difference: +£100.00 p.p.')
     expect(copy).toContain('----------------------------')
-    expect(copy).toContain('*Option 1: Included*')
-    expect(copy).toContain('*Option 2: -£75.00*')
+    expect(copy).toContain('Adult 12+:')
+    expect(copy).toContain('Child 5+:')
+    expect(copy).toContain('Infant 0-2:')
+    expect(copy).not.toContain('Total Package Cost')
   })
 
   it('prices multiple visa types by quantity', () => {
