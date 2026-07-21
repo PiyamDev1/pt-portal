@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS timeclock_manual_codes (
   code TEXT NOT NULL UNIQUE, -- 8-digit numeric code
   device_id UUID NOT NULL REFERENCES timeclock_devices(id),
   qr_payload TEXT NOT NULL, -- Full QR payload for reference
-  user_id UUID NOT NULL REFERENCES auth.users(id),
+  user_id UUID REFERENCES auth.users(id),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
   used_at TIMESTAMP WITH TIME ZONE

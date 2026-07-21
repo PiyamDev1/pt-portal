@@ -17,6 +17,7 @@ vi.mock('@/lib/supabaseClient', () => ({
 
 import { GET as getConfig } from '@/app/api/timeclock/devices/config/route'
 import { POST as postHeartbeat } from '@/app/api/timeclock/devices/heartbeat/route'
+import { GET as getNotices } from '@/app/api/timeclock/notices/route'
 
 const device = {
   id: 'cb9008f8-0098-4b46-b77b-b82029aff3f2',
@@ -79,6 +80,7 @@ describe('timeclock firmware routes', () => {
 
     expect(response.status).toBe(200)
     expect(payload.ok).toBe(true)
+    expect(payload.server_time).toEqual(expect.any(Number))
     expect(mocks.authenticateTimeclockDevice).toHaveBeenCalledWith(request, {
       bodyText: body,
       expectedDeviceId: device.id,
@@ -91,6 +93,35 @@ describe('timeclock firmware routes', () => {
         free_heap: null,
         uptime_sec: null,
       }),
+    )
+  })
+
+  it('returns location-visible notices as the firmware JSON array contract', async () => {
+    const notices = [
+      {
+        id: 'notice-1',
+        title: 'Office notice',
+        body: 'Notice text',
+        created_at: '2026-07-21T00:00:00.000Z',
+      },
+    ]
+    const or = vi.fn(async () => ({ data: notices, error: null }))
+    const secondOrder = vi.fn(() => ({ or }))
+    const firstOrder = vi.fn(() => ({ order: secondOrder }))
+    const secondIs = vi.fn(() => ({ order: firstOrder }))
+    const firstIs = vi.fn(() => ({ is: secondIs }))
+    const eq = vi.fn(() => ({ is: firstIs }))
+    const select = vi.fn(() => ({ eq }))
+    mocks.from.mockReturnValue({ select })
+
+    const request = new Request(`https://portal.test/api/timeclock/notices?device_id=${device.id}`)
+    const response = await getNotices(request)
+    const payload = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(payload).toEqual(notices)
+    expect(or).toHaveBeenCalledWith(
+      `target_location_id.is.null,target_location_id.eq.${device.location_id}`,
     )
   })
 })

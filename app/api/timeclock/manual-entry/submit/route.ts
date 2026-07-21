@@ -76,14 +76,21 @@ export async function POST(request: Request) {
       return apiError('Invalid code format', 400)
     }
 
-    // Look up the code
+    // Atomically claim the code before creating an event so concurrent
+    // submissions cannot consume the same code twice.
+    const claimedAt = new Date().toISOString()
     const { data: codeRecord, error: codeError } = await adminSupabase
       .from('timeclock_manual_codes')
-      .select('device_id, qr_payload, expires_at')
+      .update({ used_at: claimedAt })
       .eq('code', code)
+      .is('used_at', null)
+      .select('device_id, qr_payload, expires_at')
       .maybeSingle()
 
-    if (codeError || !codeRecord) {
+    if (codeError) {
+      return apiError('Failed to claim manual code', 500)
+    }
+    if (!codeRecord) {
       return apiError('Invalid code', 404)
     }
 
@@ -182,6 +189,11 @@ export async function POST(request: Request) {
       .single()
 
     if (insertError) {
+      await adminSupabase
+        .from('timeclock_manual_codes')
+        .update({ used_at: null })
+        .eq('code', code)
+        .eq('used_at', claimedAt)
       throw new Error(insertError.message || 'Failed to record punch')
     }
 

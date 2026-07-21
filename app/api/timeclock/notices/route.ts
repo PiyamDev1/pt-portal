@@ -21,7 +21,9 @@ export async function GET(request: Request) {
 
   let query = getSupabaseClient()
     .from('notice_board_slides')
-    .select('id, title, body, image_url, hyperlink_url, display_seconds, sort_order, updated_at')
+    .select(
+      'id, title, body, image_url, hyperlink_url, display_seconds, sort_order, created_at, updated_at',
+    )
     .eq('is_active', true)
     .is('target_role', null)
     .is('target_department_id', null)
@@ -39,5 +41,5 @@ export async function GET(request: Request) {
   const { data, error } = await query
   if (error) return apiError('Failed to load notices', 500)
 
-  return apiOk({ notices: data || [] })
+  return apiOk(data || [])
 }

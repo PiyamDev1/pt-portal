@@ -61,5 +61,5 @@ export async function POST(request: Request) {
 
   if (error) return apiError('Failed to record heartbeat', 500)
 
-  return apiOk({ ok: true, server_time: now })
+  return apiOk({ ok: true, server_time: Math.floor(Date.now() / 1000) })
 }

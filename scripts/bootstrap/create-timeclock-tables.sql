@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS timeclock_manual_codes (
   code TEXT NOT NULL UNIQUE, -- 8-digit numeric code
   device_id UUID NOT NULL REFERENCES timeclock_devices(id) ON DELETE CASCADE,
   qr_payload TEXT NOT NULL, -- Full QR payload for reference
-  user_id UUID NOT NULL, -- References auth.users(id) but no FK to avoid issues
+  user_id UUID, -- Null for physical-device generated codes
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
   used_at TIMESTAMP WITH TIME ZONE
@@ -67,12 +67,21 @@ CREATE TABLE IF NOT EXISTS timeclock_qr_nonces (
   PRIMARY KEY (device_id, nonce)
 );
 
+CREATE TABLE IF NOT EXISTS timeclock_device_manual_code_limits (
+  device_id UUID PRIMARY KEY REFERENCES timeclock_devices(id) ON DELETE CASCADE,
+  next_allowed_at TIMESTAMP WITH TIME ZONE NOT NULL,
+  updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
 ALTER TABLE timeclock_device_request_nonces ENABLE ROW LEVEL SECURITY;
 ALTER TABLE timeclock_qr_nonces ENABLE ROW LEVEL SECURITY;
+ALTER TABLE timeclock_device_manual_code_limits ENABLE ROW LEVEL SECURITY;
 REVOKE ALL PRIVILEGES ON TABLE timeclock_device_request_nonces FROM anon, authenticated;
 REVOKE ALL PRIVILEGES ON TABLE timeclock_qr_nonces FROM anon, authenticated;
+REVOKE ALL PRIVILEGES ON TABLE timeclock_device_manual_code_limits FROM anon, authenticated;
 GRANT ALL PRIVILEGES ON TABLE timeclock_device_request_nonces TO service_role;
 GRANT ALL PRIVILEGES ON TABLE timeclock_qr_nonces TO service_role;
+GRANT ALL PRIVILEGES ON TABLE timeclock_device_manual_code_limits TO service_role;
 
 -- 3. Drop any existing restrictive policies
 DROP POLICY IF EXISTS "Users can view their own codes" ON timeclock_manual_codes;

@@ -93,7 +93,13 @@ describe('POST /api/timeclock/manual-entry/submit', () => {
     mocks.adminFrom.mockImplementation(((table: string) => {
       if (table === 'timeclock_manual_codes') {
         return {
-          select: mocks.adminSelectCodeFn,
+          update: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              is: vi.fn(() => ({
+                select: vi.fn(() => ({ maybeSingle: mocks.adminSelectCode })),
+              })),
+            })),
+          })),
           delete: vi.fn(() => ({ eq: vi.fn(async () => ({})) })),
         }
       }
@@ -102,8 +108,6 @@ describe('POST /api/timeclock/manual-entry/submit', () => {
       }
       return {}
     }) as any)
-    mocks.adminSelectCodeFn.mockReturnValue({ eq: mocks.adminEqCode })
-    mocks.adminEqCode.mockReturnValue({ maybeSingle: mocks.adminSelectCode })
   })
 
   it('returns 401 when not authenticated', async () => {
