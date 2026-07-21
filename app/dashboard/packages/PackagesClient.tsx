@@ -519,9 +519,55 @@ function newLimitedTimeOffer(): PackageLimitedTimeOffer {
   }
 }
 
+function makeQuoteShortRef() {
+  const characters = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+  if (typeof crypto !== 'undefined' && 'getRandomValues' in crypto) {
+    const values = crypto.getRandomValues(new Uint8Array(6))
+    return Array.from(values, (value) => characters[value % characters.length]).join('')
+  }
+  return Array.from(
+    { length: 6 },
+    () => characters[Math.floor(Math.random() * characters.length)],
+  ).join('')
+}
+
+function formatQuoteNameDate(value: Date) {
+  return value.toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  })
+}
+
+function formatQuoteTypeName(type: TravelPackageType) {
+  const match = PACKAGE_TYPES.find((candidate) => candidate.value === type)
+  return match?.label || 'Package'
+}
+
+function getQuoteTitleRef(title: string) {
+  return title.match(/\b([A-Z0-9]{6})$/i)?.[1]?.toUpperCase() || ''
+}
+
+function getQuoteTitleDate(title: string) {
+  return title.match(/Quotation\s+(.+?)\s+-\s+[A-Z0-9]{6}$/i)?.[1] || ''
+}
+
+function buildSystematicQuoteTitle(payload: PackageQuotePayload, ref?: string) {
+  const quoteRef = (ref || getQuoteTitleRef(payload.title) || makeQuoteShortRef()).toUpperCase()
+  const quoteDate = getQuoteTitleDate(payload.title) || formatQuoteNameDate(new Date())
+  return `${formatQuoteTypeName(payload.packageType)} Quotation ${quoteDate} - ${quoteRef}`
+}
+
+function withSystematicQuoteTitle(payload: PackageQuotePayload, ref?: string) {
+  return normalizePackageQuotePayload({
+    ...payload,
+    title: buildSystematicQuoteTitle(payload, ref),
+  })
+}
+
 function createInitialPayload(): PackageQuotePayload {
-  return {
-    title: 'UMRAH - Dates TBC - 2A - Makkah First',
+  return withSystematicQuoteTitle({
+    title: '',
     packageType: 'umrah',
     currency: 'GBP',
     customerName: '',
@@ -555,36 +601,7 @@ function createInitialPayload(): PackageQuotePayload {
     depositRequired: false,
     depositAmount: 0,
     notes: '',
-  }
-}
-
-function formatQuoteTitleDate(value: string) {
-  if (!value) return ''
-  const date = new Date(`${value}T00:00:00`)
-  if (Number.isNaN(date.getTime())) return ''
-  return date.toLocaleDateString('en-GB', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
   })
-}
-
-function buildSystematicQuoteTitle(payload: PackageQuotePayload) {
-  const packageType = payload.packageType.toUpperCase()
-  const departure = formatQuoteTitleDate(payload.departureDate)
-  const returning = formatQuoteTitleDate(payload.returnDate)
-  const dateRange = departure && returning ? `${departure} to ${returning}` : 'Dates TBC'
-  const passengerParts = [
-    payload.adults > 0 ? `${payload.adults}A` : '',
-    payload.childrenPaying > 0 ? `${payload.childrenPaying}C5+` : '',
-    payload.childrenFree > 0 ? `${payload.childrenFree}C2-5` : '',
-    payload.infants > 0 ? `${payload.infants}INF` : '',
-  ].filter(Boolean)
-  const passengers = passengerParts.length > 0 ? passengerParts.join(' ') : 'No pax'
-  const firstStay = payload.itineraryOrder[0] === 'madinah' ? 'Madinah First' : 'Makkah First'
-  const customer = payload.customerName.trim()
-
-  return [packageType, dateRange, passengers, firstStay, customer].filter(Boolean).join(' - ')
 }
 
 function buildShareUrl(token?: string) {
@@ -1321,7 +1338,7 @@ export default function PackagesClient({
         const initialQuote = loadedQuotes.find((quote) => quote.id === initialQuoteId)
         if (initialQuote) {
           setActiveQuote(initialQuote)
-          setPayload(normalizePackageQuotePayload(initialQuote.payload))
+          setPayload(withSystematicQuoteTitle(normalizePackageQuotePayload(initialQuote.payload)))
           setExpiresAtInput(toDateTimeLocalValue(initialQuote.expires_at))
         }
       }
@@ -1533,7 +1550,11 @@ export default function PackagesClient({
 
   const copyAllOptions = async () => {
     if (customerOptions.length === 0) return
-    const text = formatPackageQuoteForCopy({ ...payload, title: systematicQuoteTitle })
+    const text = formatPackageQuoteForCopy(
+      { ...payload, title: systematicQuoteTitle },
+      12,
+      activeQuote?.share_enabled ? shareUrl : '',
+    )
     await navigator.clipboard.writeText(text)
     toast.success('Package options copied')
   }
@@ -1553,17 +1574,14 @@ export default function PackagesClient({
 
   const openQuoteForEdit = (quote: TravelPackageQuote) => {
     setActiveQuote(quote)
-    setPayload(normalizePackageQuotePayload(quote.payload))
+    setPayload(withSystematicQuoteTitle(normalizePackageQuotePayload(quote.payload)))
     setExpiresAtInput(toDateTimeLocalValue(quote.expires_at))
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   const duplicateQuote = (quote: TravelPackageQuote) => {
     const sourcePayload = normalizePackageQuotePayload(quote.payload)
-    const duplicatedPayload = normalizePackageQuotePayload({
-      ...sourcePayload,
-      title: buildSystematicQuoteTitle(sourcePayload),
-    })
+    const duplicatedPayload = withSystematicQuoteTitle(sourcePayload, makeQuoteShortRef())
     setActiveQuote(null)
     setPayload(duplicatedPayload)
     setExpiresAtInput(toDateTimeLocalValue(getDefaultPackageExpiry()))
@@ -1710,7 +1728,7 @@ export default function PackagesClient({
                   className="min-h-11 w-full rounded-lg border border-blue-200 bg-white px-3 text-sm font-bold text-slate-900 outline-none"
                 />
                 <p className="mt-1 text-xs font-semibold text-blue-700">
-                  Generated from type, dates, passengers, itinerary order and customer name.
+                  Generated from package type, quote date, and a unique six-character reference.
                 </p>
               </label>
               <label className="block">

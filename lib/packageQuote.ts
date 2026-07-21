@@ -1077,7 +1077,9 @@ function formatVisaLine(option: PackageComponentOption, payload: PackageQuotePay
 
 function formatTransportLines(option: PackageComponentOption) {
   const routeLines = option.transportRoutes?.length
-    ? option.transportRoutes.map((route) => `* ${route.routeName}`)
+    ? option.transportRoutes.map(
+        (route) => `* ${route.routeName}${route.vehicleLabel ? ` (${route.vehicleLabel})` : ''}`,
+      )
     : []
   const lines = routeLines.length > 0 ? routeLines : [option.summary || option.title]
   const hasSpecificZiyaratRoutes = option.transportRoutes?.some(
@@ -1087,6 +1089,34 @@ function formatTransportLines(option: PackageComponentOption) {
     lines.push('Makkah & Madinah Ziyarat included')
   }
   if (option.includesTourGuide) lines.push('Tour guide included')
+  return lines
+}
+
+function formatFlightIncludedLines(option: PackageComponentOption) {
+  const lines = [`*Airline:* ${option.title || 'Included flight'}`]
+  if (option.summary.trim()) lines.push(option.summary.trim())
+  return lines
+}
+
+function formatLinkedFlightIncludedLines(
+  group: PackageLinkedFlightGroup,
+  option: PackageLinkedFlightOption,
+) {
+  const lines = [`*Linked Flight - ${group.routeLabel || 'Flight leg'}*`]
+  lines.push(`*Airline:* ${option.airlineName || 'Included airline'}`)
+  if (option.summary.trim()) lines.push(option.summary.trim())
+  return lines
+}
+
+function formatAlternativeFlightLines(
+  title: string,
+  summary: string,
+  delta: number,
+  currency: string,
+) {
+  const lines = [title]
+  if (summary.trim()) lines.push(summary.trim())
+  lines.push(`Difference: ${formatDelta(delta, currency)} p.p.`)
   return lines
 }
 
@@ -1194,7 +1224,7 @@ export function formatPackageCombinationForCopy(
   return lines.join('\n').trim()
 }
 
-export function formatPackageQuoteForCopy(payloadInput: unknown, limit = 12) {
+export function formatPackageQuoteForCopy(payloadInput: unknown, limit = 12, packageUrl = '') {
   const payload = normalizePackageQuotePayload(payloadInput)
   const customerOptions = buildCustomerPackageOptions(payload, 250)
   const defaultFlight = getDefaultOption(payload.flightOptions)
@@ -1205,31 +1235,69 @@ export function formatPackageQuoteForCopy(payloadInput: unknown, limit = 12) {
   lines.push(`****${payload.title}****`)
   lines.push(formatPassengerSummary(payload))
   if (dateRange) lines.push(dateRange)
+  if (packageUrl) lines.push(`Package URL: ${packageUrl}`)
   lines.push('')
 
   if (defaultFlight) {
     lines.push('****Flight Included****')
-    lines.push(defaultFlight.summary || defaultFlight.title)
+    lines.push(...formatFlightIncludedLines(defaultFlight))
+    const linkedFlightGroups = getLinkedFlightGroupsForFlight(payload, defaultFlight)
+    linkedFlightGroups.forEach((group) => {
+      const includedOption = getLinkedFlightOptionForSelection(group, null)
+      if (!includedOption) return
+      lines.push('')
+      lines.push(...formatLinkedFlightIncludedLines(group, includedOption))
+    })
+    lines.push('')
+  }
+
+  const alternativeFlightLines: string[] = []
+  if (defaultFlight) {
     const flightAlternatives = payload.flightOptions.filter(
       (option) => option.id !== defaultFlight.id,
     )
-    for (const option of flightAlternatives) {
+    flightAlternatives.forEach((option) => {
+      const optionNumber = alternativeFlightLines.filter((line) =>
+        line.startsWith('*Option '),
+      ).length
       const delta = getFlightOptionPriceDeltas(payload, option, defaultFlight).adult
-      lines.push(`- ${option.title}: ${formatDelta(delta, payload.currency)} p.p.`)
-    }
-    const linkedFlightGroups = getLinkedFlightGroupsForFlight(payload, defaultFlight)
-    linkedFlightGroups.forEach((group) => {
-      lines.push(`*${group.routeLabel}*`)
-      group.options.forEach((option) => {
-        lines.push(
-          `- ${option.airlineName}: ${
-            option.isDefault
-              ? 'Included'
-              : `${formatDelta(option.adultDelta, payload.currency)} p.p.`
+      alternativeFlightLines.push('')
+      alternativeFlightLines.push(
+        ...formatAlternativeFlightLines(
+          `*Option ${optionNumber + 1} - Main Flight*`,
+          `*Airline:* ${option.title || 'Alternative flight'}${
+            option.summary.trim() ? `\n${option.summary.trim()}` : ''
           }`,
-        )
-      })
+          delta,
+          payload.currency,
+        ),
+      )
     })
+    getLinkedFlightGroupsForFlight(payload, defaultFlight).forEach((group) => {
+      const defaultLinkedOption = getLinkedFlightOptionForSelection(group, null)
+      group.options
+        .filter((option) => option.id !== defaultLinkedOption?.id)
+        .forEach((option) => {
+          const optionNumber = alternativeFlightLines.filter((line) =>
+            line.startsWith('*Option '),
+          ).length
+          alternativeFlightLines.push('')
+          alternativeFlightLines.push(
+            ...formatAlternativeFlightLines(
+              `*Option ${optionNumber + 1} - Linked Flight ${group.routeLabel || group.id}*`,
+              `*Airline:* ${option.airlineName || 'Alternative airline'}${
+                option.summary.trim() ? `\n${option.summary.trim()}` : ''
+              }`,
+              option.adultDelta - (defaultLinkedOption?.adultDelta || 0),
+              payload.currency,
+            ),
+          )
+        })
+    })
+  }
+  if (alternativeFlightLines.length > 0) {
+    lines.push('****Alternative Flights****')
+    lines.push(...alternativeFlightLines)
     lines.push('')
   }
 
@@ -1264,28 +1332,32 @@ export function formatPackageQuoteForCopy(payloadInput: unknown, limit = 12) {
   customerOptions.slice(0, limit).forEach(({ combination }, index) => {
     lines.push('')
     lines.push(`*Option ${index + 1}*`)
+    lines.push('')
     for (const stay of getOrderedStaySelections(payload, combination)) {
       lines.push(`*${stay.groupLabel}*`)
       lines.push(stay.option.summary || stay.option.title)
+      lines.push('')
     }
     const breakdown = getPackagePassengerPriceBreakdown(payload, combination)
-    lines.push(`Adult: ${formatMoney(breakdown.adult, breakdown.currency)} p.p.`)
+    lines.push(`Adult 12+: ${formatMoney(breakdown.adult, breakdown.currency)} p.p.`)
     if (payload.childrenPaying > 0) {
       lines.push(`Child 5+: ${formatMoney(breakdown.child, breakdown.currency)} p.p.`)
     }
     if (payload.childrenFree > 0) {
-      lines.push(`Child 2-5: ${formatMoney(breakdown.childTwoToFour, breakdown.currency)} p.p.`)
+      lines.push(`Child 2-4: ${formatMoney(breakdown.childTwoToFour, breakdown.currency)} p.p.`)
     }
     if (payload.infants > 0) {
-      lines.push(`Infant under 2: ${formatMoney(breakdown.infant, breakdown.currency)} p.p.`)
+      lines.push(`Infant 0-2: ${formatMoney(breakdown.infant, breakdown.currency)} p.p.`)
     }
-    lines.push(`Total Package Cost: ${formatMoney(combination.totalPrice, combination.currency)}`)
     if (index === 0 && payload.depositRequired && (payload.depositAmount || 0) > 0) {
       lines.push(
         `Deposit required to secure: ${formatMoney(payload.depositAmount || 0, payload.currency)}`,
       )
     }
   })
+
+  lines.push('')
+  lines.push('--------')
 
   if (payload.limitedTimeOffers.length > 0) {
     lines.push('')
@@ -1295,6 +1367,12 @@ export function formatPackageQuoteForCopy(payloadInput: unknown, limit = 12) {
       if (offer.expiresAt) lines.push(`Valid until ${formatOfferDeadline(offer.expiresAt)}`)
     }
   }
+
+  lines.push('')
+  lines.push('****Terms & Conditions****')
+  lines.push('Terms and conditions apply and can be found at:')
+  lines.push('https://www.piyamtravel.com/terms-and-conditions')
+  lines.push('Offer is valid subject to availability.')
 
   return lines.join('\n').trim()
 }
