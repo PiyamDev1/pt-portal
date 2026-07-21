@@ -9,6 +9,7 @@ import {
   Calculator,
   Clock3,
   Copy,
+  CopyPlus,
   CreditCard,
   ExternalLink,
   FileText,
@@ -520,7 +521,7 @@ function newLimitedTimeOffer(): PackageLimitedTimeOffer {
 
 function createInitialPayload(): PackageQuotePayload {
   return {
-    title: 'New Umrah package quote',
+    title: 'UMRAH - Dates TBC - 2A - Makkah First',
     packageType: 'umrah',
     currency: 'GBP',
     customerName: '',
@@ -555,6 +556,35 @@ function createInitialPayload(): PackageQuotePayload {
     depositAmount: 0,
     notes: '',
   }
+}
+
+function formatQuoteTitleDate(value: string) {
+  if (!value) return ''
+  const date = new Date(`${value}T00:00:00`)
+  if (Number.isNaN(date.getTime())) return ''
+  return date.toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  })
+}
+
+function buildSystematicQuoteTitle(payload: PackageQuotePayload) {
+  const packageType = payload.packageType.toUpperCase()
+  const departure = formatQuoteTitleDate(payload.departureDate)
+  const returning = formatQuoteTitleDate(payload.returnDate)
+  const dateRange = departure && returning ? `${departure} to ${returning}` : 'Dates TBC'
+  const passengerParts = [
+    payload.adults > 0 ? `${payload.adults}A` : '',
+    payload.childrenPaying > 0 ? `${payload.childrenPaying}C5+` : '',
+    payload.childrenFree > 0 ? `${payload.childrenFree}C2-5` : '',
+    payload.infants > 0 ? `${payload.infants}INF` : '',
+  ].filter(Boolean)
+  const passengers = passengerParts.length > 0 ? passengerParts.join(' ') : 'No pax'
+  const firstStay = payload.itineraryOrder[0] === 'madinah' ? 'Madinah First' : 'Makkah First'
+  const customer = payload.customerName.trim()
+
+  return [packageType, dateRange, passengers, firstStay, customer].filter(Boolean).join(' - ')
 }
 
 function buildShareUrl(token?: string) {
@@ -1247,6 +1277,7 @@ export default function PackagesClient({
     useState<UmrahTransportPricingData | null>(null)
 
   const customerOptions = useMemo(() => buildCustomerPackageOptions(payload, 80), [payload])
+  const systematicQuoteTitle = useMemo(() => buildSystematicQuoteTitle(payload), [payload])
   const baseCustomerOption = customerOptions[0]?.combination || null
   const servicePassengerCount =
     payload.adults + payload.childrenPaying + payload.childrenFree + payload.infants
@@ -1434,13 +1465,17 @@ export default function PackagesClient({
   const saveQuote = async (shareEnabled: boolean) => {
     setSaving(true)
     try {
+      const payloadToSave = normalizePackageQuotePayload({
+        ...payload,
+        title: systematicQuoteTitle,
+      })
       const response = await fetch(
         activeQuote ? `/api/packages/${activeQuote.id}` : '/api/packages',
         {
           method: activeQuote ? 'PATCH' : 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            payload,
+            payload: payloadToSave,
             expiresAt: fromDateTimeLocalValue(expiresAtInput),
             shareEnabled,
           }),
@@ -1498,7 +1533,7 @@ export default function PackagesClient({
 
   const copyAllOptions = async () => {
     if (customerOptions.length === 0) return
-    const text = formatPackageQuoteForCopy(payload)
+    const text = formatPackageQuoteForCopy({ ...payload, title: systematicQuoteTitle })
     await navigator.clipboard.writeText(text)
     toast.success('Package options copied')
   }
@@ -1521,6 +1556,19 @@ export default function PackagesClient({
     setPayload(normalizePackageQuotePayload(quote.payload))
     setExpiresAtInput(toDateTimeLocalValue(quote.expires_at))
     window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const duplicateQuote = (quote: TravelPackageQuote) => {
+    const sourcePayload = normalizePackageQuotePayload(quote.payload)
+    const duplicatedPayload = normalizePackageQuotePayload({
+      ...sourcePayload,
+      title: buildSystematicQuoteTitle(sourcePayload),
+    })
+    setActiveQuote(null)
+    setPayload(duplicatedPayload)
+    setExpiresAtInput(toDateTimeLocalValue(getDefaultPackageExpiry()))
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+    toast.success('Quote duplicated as a new draft. Review it, then save.')
   }
 
   const startNew = () => {
@@ -1556,6 +1604,16 @@ export default function PackagesClient({
             <RefreshCw className="h-4 w-4" />
             New
           </button>
+          {activeQuote && (
+            <button
+              type="button"
+              onClick={() => duplicateQuote(activeQuote)}
+              className="flex min-h-10 items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 text-sm font-bold text-blue-900 transition hover:bg-blue-100"
+            >
+              <CopyPlus className="h-4 w-4" />
+              Duplicate
+            </button>
+          )}
           {activeQuote && (
             <a
               href={`/dashboard/packages/quotations/${activeQuote.id}/sales`}
@@ -1639,16 +1697,21 @@ export default function PackagesClient({
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,3fr)_minmax(18rem,1fr)] 2xl:grid-cols-[minmax(0,3fr)_minmax(20rem,1fr)]">
         <div className="space-y-5">
-          <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <section className="rounded-xl border border-blue-200 bg-blue-50/40 p-4 shadow-sm">
             <SectionHeader icon={PackageCheck} title="Quote details" />
             <div className="grid gap-3 md:grid-cols-3">
               <label className="block md:col-span-2">
-                <span className="mb-1 block text-xs font-bold text-slate-500">Title</span>
+                <span className="mb-1 block text-xs font-bold text-blue-800">
+                  System quote name
+                </span>
                 <input
-                  value={payload.title}
-                  onChange={(event) => updatePayload({ title: event.target.value })}
-                  className="min-h-11 w-full rounded-lg border border-slate-200 px-3 text-sm font-bold outline-none focus:border-slate-900"
+                  value={systematicQuoteTitle}
+                  readOnly
+                  className="min-h-11 w-full rounded-lg border border-blue-200 bg-white px-3 text-sm font-bold text-slate-900 outline-none"
                 />
+                <p className="mt-1 text-xs font-semibold text-blue-700">
+                  Generated from type, dates, passengers, itinerary order and customer name.
+                </p>
               </label>
               <label className="block">
                 <span className="mb-1 block text-xs font-bold text-slate-500">Type</span>
@@ -1841,7 +1904,7 @@ export default function PackagesClient({
           </section>
 
           <section className="grid gap-5 lg:grid-cols-2">
-            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="rounded-xl border border-sky-200 bg-sky-50/50 p-4 shadow-sm">
               <SectionHeader
                 icon={Plane}
                 title="Flight options"
@@ -1901,7 +1964,7 @@ export default function PackagesClient({
               </div>
             </div>
 
-            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50/40 p-4 shadow-sm">
               <SectionHeader
                 icon={FileText}
                 title="Visa options"
@@ -1940,7 +2003,7 @@ export default function PackagesClient({
               </div>
             </div>
 
-            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm lg:col-span-2">
+            <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-4 shadow-sm lg:col-span-2">
               <SectionHeader
                 icon={Bus}
                 title="Transport options"
@@ -1982,11 +2045,11 @@ export default function PackagesClient({
             </div>
           </section>
 
-          <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <section className="rounded-xl border border-violet-200 bg-violet-50/40 p-4 shadow-sm">
             <SectionHeader icon={Building2} title="Hotel and stay options" />
             <div className="grid gap-4 lg:grid-cols-2">
               {payload.stayGroups.map((group, groupIndex) => (
-                <div key={group.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <div key={group.id} className="rounded-lg border border-violet-200 bg-white p-3">
                   <div className="mb-3 flex items-center gap-2">
                     <input
                       value={group.label}
@@ -2051,7 +2114,7 @@ export default function PackagesClient({
             </div>
           </section>
 
-          <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <section className="rounded-xl border border-orange-200 bg-orange-50/40 p-4 shadow-sm">
             <SectionHeader
               icon={Tag}
               title="Limited time offers"
@@ -2472,6 +2535,14 @@ export default function PackagesClient({
                             title="Open quote for editing"
                           >
                             <Pencil className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => duplicateQuote(quote)}
+                            className="flex h-9 w-9 items-center justify-center rounded-lg border border-blue-200 bg-blue-50 text-blue-900 transition hover:bg-blue-100"
+                            title="Duplicate quote as new draft"
+                          >
+                            <CopyPlus className="h-4 w-4" />
                           </button>
                           <button
                             type="button"
