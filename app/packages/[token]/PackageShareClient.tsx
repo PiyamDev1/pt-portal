@@ -553,6 +553,23 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
     [linkedGroup, matchLinkedHotelOptions, payload, selection],
   )
   const canMatchLinkedHotelOptions = linkedFamilyTotals.length > 0
+  const superGroupTotals = useMemo(() => {
+    if (!resolved) return null
+    return linkedFamilyTotals.reduce(
+      (totals, item) => ({
+        grossPrice: totals.grossPrice + item.pricing.grossPrice,
+        discountTotal: totals.discountTotal + item.pricing.discountTotal,
+        totalPrice: totals.totalPrice + item.pricing.totalPrice,
+        currency: totals.currency,
+      }),
+      {
+        grossPrice: resolved.combination.grossPrice,
+        discountTotal: resolved.combination.offerDiscountTotal,
+        totalPrice: resolved.combination.totalPrice,
+        currency: resolved.combination.currency,
+      },
+    )
+  }, [linkedFamilyTotals, resolved])
 
   const depositPaymentSummary = useMemo(() => {
     if (!payload) return null
@@ -1296,7 +1313,38 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
               )}
 
               <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                <SectionTitle icon={Building2} title="Hotels" />
+                <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <SectionTitle icon={Building2} title="Hotels" />
+                  {canMatchLinkedHotelOptions && (
+                    <div className="rounded-lg border border-cyan-200 bg-cyan-50 p-3 sm:max-w-md">
+                      <p className="text-xs font-black uppercase text-cyan-900">
+                        Match linked group hotels?
+                      </p>
+                      <p className="mt-1 text-xs font-semibold leading-5 text-slate-600">
+                        Apply the same hotel option names to the other linked group where available.
+                      </p>
+                      <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                        {[
+                          { value: true, label: 'Yes, match hotels' },
+                          { value: false, label: 'No, keep separate' },
+                        ].map((option) => (
+                          <button
+                            key={option.label}
+                            type="button"
+                            onClick={() => setMatchLinkedHotelOptions(option.value)}
+                            className={`min-h-9 rounded-lg px-3 text-xs font-black transition ${
+                              matchLinkedHotelOptions === option.value
+                                ? 'bg-cyan-900 text-white'
+                                : 'border border-cyan-200 bg-white text-cyan-900 hover:bg-cyan-100'
+                            }`}
+                          >
+                            {option.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
                 <div className="space-y-4">
                   {orderedStayGroups.map((group) => (
                     <div key={group.id}>
@@ -1449,42 +1497,6 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                           </span>
                         </div>
                       </div>
-                      {canMatchLinkedHotelOptions && (
-                        <div className="rounded-lg border border-cyan-200 bg-cyan-50 p-3">
-                          <p className="text-xs font-black uppercase text-cyan-900">
-                            Linked family hotels
-                          </p>
-                          <p className="mt-1 text-xs font-semibold leading-5 text-slate-600">
-                            Would you like to select the same hotel options for your other linked
-                            group?
-                          </p>
-                          <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                            {[
-                              { value: true, label: 'Yes, match hotels' },
-                              { value: false, label: 'No, keep separate' },
-                            ].map((option) => (
-                              <button
-                                key={option.label}
-                                type="button"
-                                onClick={() => setMatchLinkedHotelOptions(option.value)}
-                                className={`min-h-9 rounded-lg px-3 text-xs font-black transition ${
-                                  matchLinkedHotelOptions === option.value
-                                    ? 'bg-cyan-900 text-white'
-                                    : 'border border-cyan-200 bg-white text-cyan-900 hover:bg-cyan-100'
-                                }`}
-                              >
-                                {option.label}
-                              </button>
-                            ))}
-                          </div>
-                          {matchLinkedHotelOptions && (
-                            <p className="mt-2 text-xs font-semibold leading-5 text-cyan-900">
-                              Linked group prices below now use matching hotel names where
-                              available.
-                            </p>
-                          )}
-                        </div>
-                      )}
                       {linkedFamilyTotals.map(({ family, index, pricing }) => (
                         <div
                           key={`${family.quoteId || family.familyLabel}-${index}-summary`}
@@ -1508,6 +1520,48 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                           )}
                         </div>
                       ))}
+                      {superGroupTotals && linkedFamilyTotals.length > 0 && (
+                        <div className="rounded-lg border border-[#8b1e2d]/30 bg-white p-3 shadow-sm">
+                          <p className="text-xs font-black uppercase text-[#8b1e2d]">Super total</p>
+                          <div className="mt-2 space-y-2">
+                            <div className="flex items-center justify-between gap-3">
+                              <span className="font-bold text-slate-600">
+                                Before group discounts
+                              </span>
+                              <span className="font-black text-slate-950">
+                                {formatMoney(
+                                  superGroupTotals.grossPrice,
+                                  superGroupTotals.currency,
+                                )}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between gap-3 text-emerald-700">
+                              <span className="font-bold">Group discounts applied</span>
+                              <span className="font-black">
+                                {superGroupTotals.discountTotal > 0
+                                  ? `-${formatMoney(
+                                      superGroupTotals.discountTotal,
+                                      superGroupTotals.currency,
+                                    )}`
+                                  : 'None'}
+                              </span>
+                            </div>
+                            <div className="border-t border-slate-200 pt-2">
+                              <div className="flex items-center justify-between gap-3">
+                                <span className="font-black text-slate-950">
+                                  After group discounts
+                                </span>
+                                <span className="font-black text-slate-950">
+                                  {formatMoney(
+                                    superGroupTotals.totalPrice,
+                                    superGroupTotals.currency,
+                                  )}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                       {!priceSummaryExpanded && (
                         <p className="text-xs font-semibold leading-5 text-slate-500">
                           Expand this window to see passenger prices and additional payment charges.
@@ -1538,7 +1592,10 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                     </div>
 
                     {priceSummaryExpanded && (
-                      <>
+                      <div className="mt-4 border-t-4 border-[#8b1e2d] pt-4">
+                        <p className="text-xs font-black uppercase text-[#8b1e2d]">
+                          Additional details
+                        </p>
                         <p className="mt-3 text-xs font-black uppercase text-slate-500">
                           Passenger prices
                         </p>
@@ -1604,7 +1661,7 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                           Payment options, deposits, installment requests, and terms are reviewed on
                           the next step.
                         </p>
-                      </>
+                      </div>
                     )}
 
                     <label className="mt-4 block">
