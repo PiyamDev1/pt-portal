@@ -21,6 +21,7 @@ import type {
   PackagePassengerPriceBreakdown,
   PackageQuotePayload,
   PackageResolvedSelection,
+  PackageSelectionInput,
   TravelPackageQuote,
 } from '@/app/types/packages'
 import {
@@ -56,6 +57,8 @@ type PublicLinkedFamily = {
   customerName?: string | null
   sharePath?: string | null
   isCurrent: boolean
+  payload?: PackageQuotePayload | null
+  baseSelection?: PackageSelectionInput | null
   pricing: {
     grossPrice: number
     discountTotal: number
@@ -293,9 +296,10 @@ function pickMethodFromBreakdown(breakdown: PackagePaymentBreakdown): PackagePay
   return 'bank_transfer'
 }
 
-function buildSelectionNote(note: string, promoCode: string) {
+function buildSelectionNote(note: string, promoCode: string, linkedHotelPreference = '') {
   const parts = [note.trim()]
   if (promoCode.trim()) parts.push(`Promo code requested: ${promoCode.trim()}`)
+  if (linkedHotelPreference.trim()) parts.push(linkedHotelPreference.trim())
   return parts.filter(Boolean).join('\n')
 }
 
@@ -310,6 +314,63 @@ function formatTransportSummary(option: PackageComponentOption) {
 
 function getLinkedFamilyLabel(family: PublicLinkedFamily, index: number) {
   return `Family / group ${index + 1}${family.familyLabel ? `: ${family.familyLabel}` : ''}`
+}
+
+function normalizeMatchValue(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+}
+
+function getLinkedFamilyPricing(
+  family: PublicLinkedFamily,
+  currentPayload: PackageQuotePayload,
+  currentSelection: PackageSelectionInput,
+  matchHotels: boolean,
+) {
+  if (!matchHotels || !family.payload || !family.baseSelection) return family.pricing
+
+  try {
+    const targetPayload = normalizePackageQuotePayload(family.payload)
+    const sourceGroups = currentPayload.stayGroups
+    const targetStayOptionIds = Object.fromEntries(
+      targetPayload.stayGroups.map((targetGroup, groupIndex) => {
+        const sourceGroup = sourceGroups[groupIndex]
+        const sourceOptionId = sourceGroup ? currentSelection.stayOptionIds[sourceGroup.id] : ''
+        const sourceOption = sourceGroup?.options.find((option) => option.id === sourceOptionId)
+        const sourceTitle = normalizeMatchValue(sourceOption?.title || '')
+        const matchedByTitle = sourceTitle
+          ? targetGroup.options.find((option) => normalizeMatchValue(option.title) === sourceTitle)
+          : null
+        const fallbackOption =
+          targetGroup.options.find(
+            (option) => option.id === family.baseSelection?.stayOptionIds[targetGroup.id],
+          ) ||
+          targetGroup.options.find((option) => option.isDefault) ||
+          targetGroup.options[0]
+
+        return [targetGroup.id, (matchedByTitle || fallbackOption)?.id || '']
+      }),
+    )
+    const resolved = resolvePackageSelection(targetPayload, {
+      ...family.baseSelection,
+      stayOptionIds: targetStayOptionIds,
+      paymentBreakdown: null,
+      paymentMethod: 'bank_transfer',
+    })
+    const breakdown = getPackagePassengerPriceBreakdown(targetPayload, resolved.combination)
+
+    return {
+      grossPrice: resolved.combination.grossPrice,
+      discountTotal: resolved.combination.offerDiscountTotal,
+      totalPrice: resolved.combination.totalPrice,
+      currency: resolved.combination.currency,
+      breakdown,
+    }
+  } catch {
+    return family.pricing
+  }
 }
 
 function PassengerPricingRows({
@@ -390,6 +451,7 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
   const [termsAccepted, setTermsAccepted] = useState(false)
   const [promoCode, setPromoCode] = useState('')
   const [priceSummaryExpanded, setPriceSummaryExpanded] = useState(false)
+  const [matchLinkedHotelOptions, setMatchLinkedHotelOptions] = useState(false)
 
   useEffect(() => {
     const loadQuote = async () => {
@@ -418,6 +480,7 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
         setTermsAccepted(false)
         setPromoCode('')
         setPriceSummaryExpanded(false)
+        setMatchLinkedHotelOptions(false)
       } catch (loadError) {
         setError(loadError instanceof Error ? loadError.message : 'Unable to load package quote')
       } finally {
@@ -473,13 +536,23 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
     currentLinkedFamilyIndex >= 0 ? linkedGroup?.families[currentLinkedFamilyIndex] : null
   const linkedFamilyTotals = useMemo(
     () =>
-      linkedGroup
+      linkedGroup && payload && selection
         ? linkedGroup.families
             .map((family, index) => ({ family, index }))
-            .filter(({ family }) => !family.isCurrent && Boolean(family.pricing))
+            .filter(({ family }) => !family.isCurrent)
+            .flatMap(({ family, index }) => {
+              const pricing = getLinkedFamilyPricing(
+                family,
+                payload,
+                selection,
+                matchLinkedHotelOptions,
+              )
+              return pricing ? [{ family, index, pricing }] : []
+            })
         : [],
-    [linkedGroup],
+    [linkedGroup, matchLinkedHotelOptions, payload, selection],
   )
+  const canMatchLinkedHotelOptions = linkedFamilyTotals.length > 0
 
   const depositPaymentSummary = useMemo(() => {
     if (!payload) return null
@@ -538,7 +611,17 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
           depositPaymentMethod: paymentIntent === 'deposit_only' ? depositPaymentMethod : null,
           termsAccepted,
           ...customer,
-          note: buildSelectionNote(customer.note, promoCode),
+          note: buildSelectionNote(
+            customer.note,
+            promoCode,
+            canMatchLinkedHotelOptions
+              ? `Linked family hotel preference: ${
+                  matchLinkedHotelOptions
+                    ? 'Customer requested the same hotel options for linked groups.'
+                    : 'Customer kept linked group hotel options separate.'
+                }`
+              : '',
+          ),
         }),
       })
       const data = (await response.json()) as SelectionResponse
@@ -1366,35 +1449,65 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                           </span>
                         </div>
                       </div>
-                      {linkedFamilyTotals.map(({ family, index }) =>
-                        family.pricing ? (
-                          <div
-                            key={`${family.quoteId || family.familyLabel}-${index}-summary`}
-                            className="border-t border-slate-200 pt-2"
-                          >
-                            <div className="flex items-center justify-between gap-3">
-                              <span className="font-bold text-slate-600">
-                                {getLinkedFamilyLabel(family, index)} total
-                              </span>
-                              <span className="font-black text-slate-950">
-                                {formatMoney(family.pricing.totalPrice, family.pricing.currency)}
+                      {canMatchLinkedHotelOptions && (
+                        <div className="rounded-lg border border-cyan-200 bg-cyan-50 p-3">
+                          <p className="text-xs font-black uppercase text-cyan-900">
+                            Linked family hotels
+                          </p>
+                          <p className="mt-1 text-xs font-semibold leading-5 text-slate-600">
+                            Would you like to select the same hotel options for your other linked
+                            group?
+                          </p>
+                          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                            {[
+                              { value: true, label: 'Yes, match hotels' },
+                              { value: false, label: 'No, keep separate' },
+                            ].map((option) => (
+                              <button
+                                key={option.label}
+                                type="button"
+                                onClick={() => setMatchLinkedHotelOptions(option.value)}
+                                className={`min-h-9 rounded-lg px-3 text-xs font-black transition ${
+                                  matchLinkedHotelOptions === option.value
+                                    ? 'bg-cyan-900 text-white'
+                                    : 'border border-cyan-200 bg-white text-cyan-900 hover:bg-cyan-100'
+                                }`}
+                              >
+                                {option.label}
+                              </button>
+                            ))}
+                          </div>
+                          {matchLinkedHotelOptions && (
+                            <p className="mt-2 text-xs font-semibold leading-5 text-cyan-900">
+                              Linked group prices below now use matching hotel names where
+                              available.
+                            </p>
+                          )}
+                        </div>
+                      )}
+                      {linkedFamilyTotals.map(({ family, index, pricing }) => (
+                        <div
+                          key={`${family.quoteId || family.familyLabel}-${index}-summary`}
+                          className="border-t border-slate-200 pt-2"
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="font-bold text-slate-600">
+                              {getLinkedFamilyLabel(family, index)} total
+                            </span>
+                            <span className="font-black text-slate-950">
+                              {formatMoney(pricing.totalPrice, pricing.currency)}
+                            </span>
+                          </div>
+                          {pricing.discountTotal > 0 && (
+                            <div className="mt-1 flex items-center justify-between gap-3 text-xs text-emerald-700">
+                              <span className="font-bold">Discount applied</span>
+                              <span className="font-black">
+                                -{formatMoney(pricing.discountTotal, pricing.currency)}
                               </span>
                             </div>
-                            {family.pricing.discountTotal > 0 && (
-                              <div className="mt-1 flex items-center justify-between gap-3 text-xs text-emerald-700">
-                                <span className="font-bold">Discount applied</span>
-                                <span className="font-black">
-                                  -
-                                  {formatMoney(
-                                    family.pricing.discountTotal,
-                                    family.pricing.currency,
-                                  )}
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                        ) : null,
-                      )}
+                          )}
+                        </div>
+                      ))}
                       {!priceSummaryExpanded && (
                         <p className="text-xs font-semibold leading-5 text-slate-500">
                           Expand this window to see passenger prices and additional payment charges.
@@ -1449,34 +1562,32 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                             />
                           </div>
                         )}
-                        {linkedFamilyTotals.map(({ family, index }) =>
-                          family.pricing ? (
-                            <div
-                              key={`${family.quoteId || family.familyLabel}-${index}-breakdown`}
-                              className="mt-3 space-y-2 rounded-lg bg-slate-50 p-3 text-sm"
-                            >
-                              <div className="flex items-start justify-between gap-3">
-                                <div>
-                                  <p className="text-xs font-black uppercase text-slate-500">
-                                    {getLinkedFamilyLabel(family, index)} passenger pricing
+                        {linkedFamilyTotals.map(({ family, index, pricing }) => (
+                          <div
+                            key={`${family.quoteId || family.familyLabel}-${index}-breakdown`}
+                            className="mt-3 space-y-2 rounded-lg bg-slate-50 p-3 text-sm"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <p className="text-xs font-black uppercase text-slate-500">
+                                  {getLinkedFamilyLabel(family, index)} passenger pricing
+                                </p>
+                                {family.quoteTitle && (
+                                  <p className="mt-1 text-xs font-semibold text-slate-500">
+                                    {family.quoteTitle}
                                   </p>
-                                  {family.quoteTitle && (
-                                    <p className="mt-1 text-xs font-semibold text-slate-500">
-                                      {family.quoteTitle}
-                                    </p>
-                                  )}
-                                </div>
-                                <span className="shrink-0 text-sm font-black text-slate-950">
-                                  {formatMoney(family.pricing.totalPrice, family.pricing.currency)}
-                                </span>
+                                )}
                               </div>
-                              <PassengerPricingRows
-                                breakdown={family.pricing.breakdown}
-                                currency={family.pricing.currency}
-                              />
+                              <span className="shrink-0 text-sm font-black text-slate-950">
+                                {formatMoney(pricing.totalPrice, pricing.currency)}
+                              </span>
                             </div>
-                          ) : null,
-                        )}
+                            <PassengerPricingRows
+                              breakdown={pricing.breakdown}
+                              currency={pricing.currency}
+                            />
+                          </div>
+                        ))}
                         {resolved.combination.paymentSurchargeTotal > 0 && (
                           <p className="mt-2 text-xs font-semibold text-slate-500">
                             Credit Card processing fees are non-refundable.

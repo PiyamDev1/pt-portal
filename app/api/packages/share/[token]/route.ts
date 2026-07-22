@@ -8,7 +8,11 @@ import {
   normalizePackageQuotePayload,
   resolvePackageSelection,
 } from '@/lib/packageQuote'
-import type { TravelPackageQuote } from '@/app/types/packages'
+import type {
+  PackageQuotePayload,
+  PackageSelectionInput,
+  TravelPackageQuote,
+} from '@/app/types/packages'
 
 type PublicGroupRow = {
   id: string
@@ -95,8 +99,8 @@ function buildPublicFamilySummary(
   isCurrent: boolean,
 ) {
   const payload = normalizePackageQuotePayload(quote.payload)
-  const resolved =
-    quote.selected_option || resolvePackageSelection(payload, getDefaultPackageSelection(payload))
+  const baseSelection = buildPublicBaseSelection(quote, payload)
+  const resolved = quote.selected_option || resolvePackageSelection(payload, baseSelection)
   const breakdown = getPackagePassengerPriceBreakdown(payload, resolved.combination)
 
   return {
@@ -106,6 +110,8 @@ function buildPublicFamilySummary(
     customerName: quote.customer_name || payload.customerName || null,
     sharePath: getSharePath(quote),
     isCurrent,
+    payload,
+    baseSelection,
     pricing: {
       grossPrice: resolved.combination.grossPrice,
       discountTotal: resolved.combination.offerDiscountTotal,
@@ -113,6 +119,25 @@ function buildPublicFamilySummary(
       currency: resolved.combination.currency,
       breakdown,
     },
+  }
+}
+
+function buildPublicBaseSelection(
+  quote: TravelPackageQuote,
+  payload: PackageQuotePayload,
+): PackageSelectionInput {
+  const defaultSelection = getDefaultPackageSelection(payload)
+  const selected = quote.selected_option?.selection
+
+  return {
+    stayOptionIds: selected?.stayOptionIds || defaultSelection.stayOptionIds,
+    flightOptionId: selected?.flightOptionId ?? defaultSelection.flightOptionId,
+    linkedFlightOptionIds:
+      selected?.linkedFlightOptionIds || defaultSelection.linkedFlightOptionIds,
+    visaOptionId: selected?.visaOptionId ?? defaultSelection.visaOptionId,
+    transportOptionId: selected?.transportOptionId ?? defaultSelection.transportOptionId,
+    paymentMethod: 'bank_transfer',
+    paymentBreakdown: null,
   }
 }
 
