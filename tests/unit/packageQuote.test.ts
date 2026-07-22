@@ -117,6 +117,102 @@ describe('package quote calculator', () => {
     ).toThrow('Select a valid Makkah option')
   })
 
+  it('uses adjusted hotel cost for totals while preserving search cost', () => {
+    const normalized = normalizePackageQuotePayload({
+      ...payload,
+      stayGroups: [
+        {
+          id: 'makkah',
+          label: 'Makkah',
+          options: [
+            {
+              id: 'mk-adjusted',
+              title: 'Makkah adjusted',
+              summary: 'Makkah adjusted',
+              price: 1000,
+              searchPrice: 1100,
+              adjustedPrice: 900,
+            },
+          ],
+        },
+      ],
+      flightOptions: [],
+      visaOptions: [],
+      transportOptions: [],
+    })
+    const [combination] = buildPackageCombinations(normalized)
+
+    expect(normalized.stayGroups[0].options[0].searchPrice).toBe(1100)
+    expect(normalized.stayGroups[0].options[0].adjustedPrice).toBe(900)
+    expect(normalized.stayGroups[0].options[0].price).toBe(900)
+    expect(combination.totalPrice).toBe(900)
+  })
+
+  it('calculates linked flight option differences from actual leg costs', () => {
+    const linkedPayload = normalizePackageQuotePayload({
+      ...payload,
+      adults: 1,
+      childrenPaying: 1,
+      childrenFree: 0,
+      infants: 1,
+      stayGroups: [
+        {
+          id: 'makkah',
+          label: 'Makkah',
+          options: [{ id: 'mk-only', title: 'Makkah', summary: 'Makkah', price: 1000 }],
+        },
+      ],
+      flightOptions: [{ id: 'flt-a', title: 'Main flight', summary: 'Main flight', price: 0 }],
+      linkedFlightGroups: [
+        {
+          id: 'leg-home',
+          baseFlightOptionId: 'flt-a',
+          routeLabel: 'Madinah to London',
+          defaultOptionId: 'saudia',
+          options: [
+            {
+              id: 'saudia',
+              airlineName: 'Saudia',
+              summary: 'Included leg',
+              adultPrice: 200,
+              childPrice: 150,
+              infantPrice: 50,
+              adultDelta: 0,
+              childDelta: 0,
+              infantDelta: 0,
+              isDefault: true,
+            },
+            {
+              id: 'egyptair',
+              airlineName: 'EgyptAir',
+              summary: 'Alternative leg',
+              adultPrice: 260,
+              childPrice: 180,
+              infantPrice: 70,
+              adultDelta: 0,
+              childDelta: 0,
+              infantDelta: 0,
+            },
+          ],
+        },
+      ],
+      visaOptions: [],
+      transportOptions: [],
+    })
+
+    const defaultSelection = resolvePackageSelection(linkedPayload, {
+      ...getDefaultPackageSelection(linkedPayload),
+      linkedFlightOptionIds: { 'leg-home': 'saudia' },
+    })
+    const alternativeSelection = resolvePackageSelection(linkedPayload, {
+      ...getDefaultPackageSelection(linkedPayload),
+      linkedFlightOptionIds: { 'leg-home': 'egyptair' },
+    })
+
+    expect(defaultSelection.combination.totalPrice).toBe(1000)
+    expect(alternativeSelection.combination.totalPrice).toBe(1110)
+  })
+
   it('defaults quote expiry to 72 hours from now', () => {
     const now = Date.now()
     const expiresAt = getDefaultPackageExpiry()

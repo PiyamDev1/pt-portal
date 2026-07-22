@@ -240,8 +240,9 @@ function formatFlightPassengerDeltas(
 function formatLinkedFlightPassengerDeltas(
   payload: PackageQuotePayload,
   option: Parameters<typeof getLinkedFlightOptionPriceDeltas>[0],
+  baseOption?: Parameters<typeof getLinkedFlightOptionPriceDeltas>[1],
 ) {
-  const deltas = getLinkedFlightOptionPriceDeltas(option)
+  const deltas = getLinkedFlightOptionPriceDeltas(option, baseOption)
   const parts = [`Adult ${formatUnitDelta(deltas.adult, payload.currency)}`]
   if (payload.childrenPaying + payload.childrenFree > 0) {
     parts.push(`Child 2-12 ${formatUnitDelta(deltas.child, payload.currency)}`)
@@ -663,19 +664,25 @@ export default function PackageSalesModeClient({ quoteId }: PackageSalesModeClie
                             group,
                             selection.linkedFlightOptionIds,
                           )
+                          const defaultOption = getLinkedFlightOptionForSelection(group, null)
+                          const deltas = getLinkedFlightOptionPriceDeltas(option, defaultOption)
                           return (
                             <OptionButton
                               key={option.id}
                               selected={selectedOption?.id === option.id}
                               title={option.airlineName}
                               summary={option.summary}
-                              price={option.adultDelta}
+                              price={deltas.adult}
                               priceLabel={
                                 option.isDefault
                                   ? 'Included'
-                                  : formatDelta(option.adultDelta, payload.currency)
+                                  : formatDelta(deltas.adult, payload.currency)
                               }
-                              priceSubLines={formatLinkedFlightPassengerDeltas(payload, option)}
+                              priceSubLines={formatLinkedFlightPassengerDeltas(
+                                payload,
+                                option,
+                                defaultOption,
+                              )}
                               pricingMode="per_person"
                               currency={payload.currency}
                               onClick={() =>

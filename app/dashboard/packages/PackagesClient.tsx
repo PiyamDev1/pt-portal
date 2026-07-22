@@ -796,9 +796,6 @@ function LinkedFlightGroupEditor({
                   updateOption(optionIndex, {
                     ...option,
                     isDefault: true,
-                    adultDelta: 0,
-                    childDelta: 0,
-                    infantDelta: 0,
                   })
                 }
                 className={`min-h-10 rounded-lg px-3 text-xs font-black transition ${
@@ -830,16 +827,16 @@ function LinkedFlightGroupEditor({
             />
             <div className="mt-2 grid gap-2 sm:grid-cols-3">
               {[
-                ['Adult delta', 'adultDelta'],
-                ['Child delta', 'childDelta'],
-                ['Infant delta', 'infantDelta'],
+                ['Adult leg cost', 'adultPrice'],
+                ['Child leg cost', 'childPrice'],
+                ['Infant leg cost', 'infantPrice'],
               ].map(([label, key]) => (
                 <label key={key} className="block">
                   <span className="block text-xs font-bold text-slate-500">{label}</span>
                   <div className="mt-1 flex min-h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-3">
                     <span className="mr-2 text-sm font-black text-slate-500">GBP</span>
                     <input
-                      value={option[key as 'adultDelta' | 'childDelta' | 'infantDelta'] || ''}
+                      value={option[key as 'adultPrice' | 'childPrice' | 'infantPrice'] ?? ''}
                       onChange={(event) =>
                         updateOption(optionIndex, {
                           ...option,
@@ -849,13 +846,16 @@ function LinkedFlightGroupEditor({
                       type="number"
                       step="0.01"
                       placeholder="0.00"
-                      disabled={option.isDefault}
-                      className="w-full bg-transparent text-sm font-bold outline-none disabled:text-slate-400"
+                      className="w-full bg-transparent text-sm font-bold outline-none"
                     />
                   </div>
                 </label>
               ))}
             </div>
+            <p className="mt-2 text-xs font-semibold text-blue-900">
+              Enter the actual cost for this leg. Customers see only the difference from the
+              included airline for this leg.
+            </p>
           </div>
         ))}
       </div>
@@ -880,6 +880,7 @@ function OptionEditor({
   priceLabel = 'Total price',
   showPricingMode = false,
   showFlightPricing = false,
+  showHotelCostAudit = false,
   showDefaultToggle = false,
   defaultLabel = 'Preferred option',
   showQuantity = false,
@@ -897,6 +898,7 @@ function OptionEditor({
   priceLabel?: string
   showPricingMode?: boolean
   showFlightPricing?: boolean
+  showHotelCostAudit?: boolean
   showDefaultToggle?: boolean
   defaultLabel?: string
   showQuantity?: boolean
@@ -1290,15 +1292,50 @@ function OptionEditor({
           ))}
         </div>
       ) : (
-        <div className="mt-2 grid gap-2 sm:grid-cols-[minmax(0,1fr)_9.5rem]">
+        <div
+          className={`mt-2 grid gap-2 ${
+            showHotelCostAudit
+              ? 'sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_9.5rem]'
+              : 'sm:grid-cols-[minmax(0,1fr)_9.5rem]'
+          }`}
+        >
+          {showHotelCostAudit && (
+            <label className="block">
+              <span className="block text-xs font-bold text-slate-500">Search cost</span>
+              <div className="mt-1 flex min-h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-3">
+                <span className="mr-2 text-sm font-black text-slate-500">GBP</span>
+                <input
+                  value={option.searchPrice || ''}
+                  onChange={(event) =>
+                    onChange({ ...option, searchPrice: Number(event.target.value || 0) })
+                  }
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="0.00"
+                  className="w-full bg-transparent text-sm font-bold outline-none"
+                />
+              </div>
+            </label>
+          )}
           <label className="block">
-            <span className="block text-xs font-bold text-slate-500">{priceLabel}</span>
+            <span className="block text-xs font-bold text-slate-500">
+              {showHotelCostAudit ? 'Adj cost' : priceLabel}
+            </span>
             <div className="mt-1 flex min-h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-3">
               <span className="mr-2 text-sm font-black text-slate-500">GBP</span>
               <input
-                value={option.price || ''}
+                value={
+                  (showHotelCostAudit ? (option.adjustedPrice ?? option.price) : option.price) || ''
+                }
                 onChange={(event) =>
-                  onChange({ ...option, price: Number(event.target.value || 0) })
+                  onChange({
+                    ...option,
+                    price: Number(event.target.value || 0),
+                    ...(showHotelCostAudit
+                      ? { adjustedPrice: Number(event.target.value || 0) }
+                      : {}),
+                  })
                 }
                 type="number"
                 min="0"
@@ -3016,6 +3053,7 @@ export default function PackagesClient({
                         option={option}
                         titlePlaceholder={`${group.label} hotel`}
                         summaryPlaceholder={`${group.label} hotel summary, nights, board basis, distance`}
+                        showHotelCostAudit
                         showDefaultToggle
                         defaultLabel="Preferred hotel"
                         canRemove={group.options.length > 1}

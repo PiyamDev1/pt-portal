@@ -154,6 +154,8 @@ export interface PackageComponentOption {
   title: string
   summary: string
   price: number
+  searchPrice?: number
+  adjustedPrice?: number
   pricingMode?: PackagePricingMode
   isDefault?: boolean
   adultPrice?: number
@@ -211,6 +213,9 @@ export interface PackageLinkedFlightOption {
   id: string
   airlineName: string
   summary: string
+  adultPrice?: number
+  childPrice?: number
+  infantPrice?: number
   adultDelta: number
   childDelta: number
   infantDelta: number

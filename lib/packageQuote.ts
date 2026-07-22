@@ -187,6 +187,12 @@ function normalizeLinkedFlightOption(
   const candidate = raw as Partial<PackageLinkedFlightOption> | null
   const airlineName = asString(candidate?.airlineName)
   const summary = asText(candidate?.summary)
+  const hasAdultPrice = Object.prototype.hasOwnProperty.call(candidate || {}, 'adultPrice')
+  const hasChildPrice = Object.prototype.hasOwnProperty.call(candidate || {}, 'childPrice')
+  const hasInfantPrice = Object.prototype.hasOwnProperty.call(candidate || {}, 'infantPrice')
+  const adultPrice = hasAdultPrice ? asNumber(candidate?.adultPrice) : undefined
+  const childPrice = hasChildPrice ? asNumber(candidate?.childPrice) : undefined
+  const infantPrice = hasInfantPrice ? asNumber(candidate?.infantPrice) : undefined
   const adultDelta = asNumber(candidate?.adultDelta)
   const childDelta = asNumber(candidate?.childDelta)
   const infantDelta = asNumber(candidate?.infantDelta)
@@ -194,6 +200,9 @@ function normalizeLinkedFlightOption(
   if (
     !airlineName &&
     !summary.trim() &&
+    !hasAdultPrice &&
+    !hasChildPrice &&
+    !hasInfantPrice &&
     adultDelta === 0 &&
     childDelta === 0 &&
     infantDelta === 0
@@ -205,6 +214,9 @@ function normalizeLinkedFlightOption(
     id: asString(candidate?.id, fallbackId),
     airlineName: airlineName || summary.trim().split('\n')[0] || 'Flight option',
     summary,
+    ...(hasAdultPrice ? { adultPrice } : {}),
+    ...(hasChildPrice ? { childPrice } : {}),
+    ...(hasInfantPrice ? { infantPrice } : {}),
     adultDelta,
     childDelta,
     infantDelta,
@@ -332,6 +344,9 @@ function normalizeOption(
   const summary = asText(candidate?.summary)
   const summaryText = summary.trim()
   const price = asNumber(candidate?.price)
+  const hasAdjustedPrice = Object.prototype.hasOwnProperty.call(candidate || {}, 'adjustedPrice')
+  const adjustedPrice = hasAdjustedPrice ? asNumber(candidate?.adjustedPrice) : price
+  const searchPrice = asNumber(candidate?.searchPrice)
   const id = asString(candidate?.id, fallbackId)
   const pricingMode = normalizePricingMode(candidate?.pricingMode, defaultPricingMode)
   const adultPrice = asNumber(candidate?.adultPrice)
@@ -344,7 +359,8 @@ function normalizeOption(
   if (
     !title &&
     !summaryText &&
-    price <= 0 &&
+    adjustedPrice <= 0 &&
+    searchPrice <= 0 &&
     adultPrice <= 0 &&
     childPrice <= 0 &&
     infantPrice <= 0 &&
@@ -357,7 +373,9 @@ function normalizeOption(
     id,
     title: title || summaryText.split('\n')[0] || 'Option',
     summary,
-    price,
+    price: adjustedPrice,
+    searchPrice,
+    adjustedPrice,
     pricingMode,
     isDefault,
     adultPrice,
@@ -667,15 +685,56 @@ export function getLinkedFlightOptionForSelection(
   )
 }
 
+function hasLinkedFlightActualPrices(option: PackageLinkedFlightOption | null | undefined) {
+  return Boolean(
+    option &&
+    (Object.prototype.hasOwnProperty.call(option, 'adultPrice') ||
+      Object.prototype.hasOwnProperty.call(option, 'childPrice') ||
+      Object.prototype.hasOwnProperty.call(option, 'infantPrice')),
+  )
+}
+
+function getLinkedFlightOptionPassengerPrices(option: PackageLinkedFlightOption | null) {
+  return {
+    adult: option?.adultPrice || 0,
+    child: option?.childPrice || 0,
+    infant: option?.infantPrice || 0,
+  }
+}
+
+export function getLinkedFlightOptionPriceDeltas(
+  option: PackageLinkedFlightOption | null,
+  baseOption?: PackageLinkedFlightOption | null,
+) {
+  if (hasLinkedFlightActualPrices(option) || hasLinkedFlightActualPrices(baseOption)) {
+    const next = getLinkedFlightOptionPassengerPrices(option)
+    const base = getLinkedFlightOptionPassengerPrices(baseOption || null)
+    return {
+      adult: next.adult - base.adult,
+      child: next.child - base.child,
+      infant: next.infant - base.infant,
+    }
+  }
+
+  return {
+    adult: option?.adultDelta || 0,
+    child: option?.childDelta || 0,
+    infant: option?.infantDelta || 0,
+  }
+}
+
 export function getLinkedFlightOptionTotal(
+  group: PackageLinkedFlightGroup,
   option: PackageLinkedFlightOption | null,
   payload: PackageQuotePayload,
 ) {
   if (!option) return 0
+  const defaultOption = getLinkedFlightOptionForSelection(group, null)
+  const deltas = getLinkedFlightOptionPriceDeltas(option, defaultOption)
   return (
-    option.adultDelta * payload.adults +
-    option.childDelta * getFlightChildPassengerCount(payload) +
-    option.infantDelta * getInfantPassengerCount(payload)
+    deltas.adult * payload.adults +
+    deltas.child * getFlightChildPassengerCount(payload) +
+    deltas.infant * getInfantPassengerCount(payload)
   )
 }
 
@@ -705,7 +764,8 @@ function getLinkedFlightSelectionsTotal(
   }>,
 ) {
   return linkedFlightSelections.reduce(
-    (sum, selection) => sum + getLinkedFlightOptionTotal(selection.option, payload),
+    (sum, selection) =>
+      sum + getLinkedFlightOptionTotal(selection.group, selection.option, payload),
     0,
   )
 }
@@ -1066,14 +1126,6 @@ export function getFlightOptionPriceDeltas(
   }
 }
 
-export function getLinkedFlightOptionPriceDeltas(option: PackageLinkedFlightOption | null) {
-  return {
-    adult: option?.adultDelta || 0,
-    child: option?.childDelta || 0,
-    infant: option?.infantDelta || 0,
-  }
-}
-
 export function getFlightOptionTotalDelta(
   payloadInput: unknown,
   option: PackageComponentOption | null,
@@ -1096,9 +1148,13 @@ export function getPackagePassengerPriceBreakdown(
   const flightUnits = getFlightPassengerUnitPrices(combination.flightOption, payload)
   const linkedFlightUnits = combination.linkedFlightSelections.reduce(
     (units, selection) => {
-      units.adult += selection.option.adultDelta || 0
-      units.child += selection.option.childDelta || 0
-      units.infant += selection.option.infantDelta || 0
+      const deltas = getLinkedFlightOptionPriceDeltas(
+        selection.option,
+        getLinkedFlightOptionForSelection(selection.group, null),
+      )
+      units.adult += deltas.adult
+      units.child += deltas.child
+      units.infant += deltas.infant
       return units
     },
     { adult: 0, child: 0, infant: 0 },
@@ -1403,7 +1459,7 @@ export function formatPackageQuoteForCopy(payloadInput: unknown, limit = 12, pac
               `*Airline:* ${option.airlineName || 'Alternative airline'}${
                 option.summary.trim() ? `\n${option.summary.trim()}` : ''
               }`,
-              option.adultDelta - (defaultLinkedOption?.adultDelta || 0),
+              getLinkedFlightOptionPriceDeltas(option, defaultLinkedOption).adult,
               payload.currency,
             ),
           )
