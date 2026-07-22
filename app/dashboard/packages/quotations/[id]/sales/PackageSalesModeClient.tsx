@@ -210,6 +210,12 @@ function formatDelta(value: number, currency: string) {
   return `${value > 0 ? '+' : '-'}${formatMoney(Math.abs(value), currency)} pp`
 }
 
+function formatHotelDelta(value: number, currency: string, isPreferred: boolean) {
+  if (isPreferred) return 'Included'
+  if (Math.abs(value) < 0.005) return `+${formatMoney(0, currency)} pp`
+  return formatDelta(value, currency)
+}
+
 function formatUnitDelta(value: number, currency: string) {
   if (Math.abs(value) < 0.005) return 'Included'
   return `${value > 0 ? '+' : '-'}${formatMoney(Math.abs(value), currency)} pp`
@@ -772,6 +778,7 @@ export default function PackageSalesModeClient({ quoteId }: PackageSalesModeClie
                       const delta = option.price - (preferredHotel?.price || 0)
                       const payingGuests = payload.adults + payload.childrenPaying
                       const perPersonDelta = payingGuests > 0 ? delta / payingGuests : delta
+                      const isPreferredHotel = preferredHotel?.id === option.id
                       return (
                         <OptionButton
                           key={option.id}
@@ -779,7 +786,11 @@ export default function PackageSalesModeClient({ quoteId }: PackageSalesModeClie
                           title={option.title}
                           summary={option.summary}
                           price={option.price}
-                          priceLabel={formatDelta(perPersonDelta, payload.currency)}
+                          priceLabel={formatHotelDelta(
+                            perPersonDelta,
+                            payload.currency,
+                            isPreferredHotel,
+                          )}
                           priceSubLabel="hotel option"
                           pricingMode={option.pricingMode}
                           currency={payload.currency}

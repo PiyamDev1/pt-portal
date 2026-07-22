@@ -561,6 +561,41 @@ function formatQuoteTypeName(type: TravelPackageType) {
   return match?.label || 'Package'
 }
 
+function createDefaultStaySetup(packageType: TravelPackageType) {
+  if (packageType === 'holiday') {
+    const stayGroups = [1, 2, 3].map((position) => {
+      const id = `location-${position}`
+      return {
+        id,
+        label: `Location ${position}`,
+        options: [newOption(`${id}-hotel`, { isDefault: true })],
+      }
+    })
+    return {
+      itineraryOrder: stayGroups.map((group) => group.id),
+      stayGroups,
+    }
+  }
+
+  const stayGroups = [
+    {
+      id: 'makkah',
+      label: 'Makkah',
+      options: [newOption('makkah-hotel', { isDefault: true })],
+    },
+    {
+      id: 'madinah',
+      label: 'Madinah',
+      options: [newOption('madinah-hotel', { isDefault: true })],
+    },
+  ]
+
+  return {
+    itineraryOrder: stayGroups.map((group) => group.id),
+    stayGroups,
+  }
+}
+
 function getQuoteTitleRef(title: string) {
   return (
     title.match(/^([A-Z0-9]{6})\s+-\s+/i)?.[1]?.toUpperCase() ||
@@ -591,6 +626,8 @@ function withSystematicQuoteTitle(payload: PackageQuotePayload, ref?: string) {
 }
 
 function createInitialPayload(): PackageQuotePayload {
+  const defaultStaySetup = createDefaultStaySetup('umrah')
+
   return withSystematicQuoteTitle({
     title: '',
     packageType: 'umrah',
@@ -602,21 +639,10 @@ function createInitialPayload(): PackageQuotePayload {
     childrenPaying: 0,
     childrenFree: 0,
     infants: 0,
-    itineraryOrder: ['makkah', 'madinah'],
+    itineraryOrder: defaultStaySetup.itineraryOrder,
     departureDate: '',
     returnDate: '',
-    stayGroups: [
-      {
-        id: 'makkah',
-        label: 'Makkah',
-        options: [newOption('makkah-hotel', { isDefault: true })],
-      },
-      {
-        id: 'madinah',
-        label: 'Madinah',
-        options: [newOption('madinah-hotel', { isDefault: true })],
-      },
-    ],
+    stayGroups: defaultStaySetup.stayGroups,
     flightOptions: [newOption('flight', { isDefault: true })],
     linkedFlightGroups: [],
     visaOptions: [newOption('visa')],
@@ -858,6 +884,7 @@ function OptionEditor({
   defaultLabel = 'Preferred option',
   showQuantity = false,
   showTransportExtras = false,
+  showTransportPriceList = true,
   transportPricingData = null,
   quantityFallback,
   canRemove,
@@ -874,12 +901,14 @@ function OptionEditor({
   defaultLabel?: string
   showQuantity?: boolean
   showTransportExtras?: boolean
+  showTransportPriceList?: boolean
   transportPricingData?: UmrahTransportPricingData | null
   quantityFallback?: number
   canRemove: boolean
 }) {
   const restoredTransportSummaryRef = useRef('')
   const transportRoutes = option.transportRoutes || []
+  const canUseTransportPriceList = showTransportExtras && showTransportPriceList
   const hasSavedTransportRates = Boolean(transportPricingData?.rates.length)
   const transferAvailable = Boolean(findDefaultTransportSelection(transportPricingData, 'transfer'))
   const makkahZiyaratAvailable = Boolean(
@@ -917,7 +946,7 @@ function OptionEditor({
   )
 
   useEffect(() => {
-    if (!showTransportExtras || !transportPricingData || transportRoutes.length > 0) return
+    if (!canUseTransportPriceList || !transportPricingData || transportRoutes.length > 0) return
     const summaryKey = option.summary.trim()
     if (!summaryKey || restoredTransportSummaryRef.current === summaryKey) return
 
@@ -928,7 +957,7 @@ function OptionEditor({
     updateTransportRoutes(restoredRoutes, option.summary)
   }, [
     option.summary,
-    showTransportExtras,
+    canUseTransportPriceList,
     transportPricingData,
     transportRoutes.length,
     updateTransportRoutes,
@@ -1033,173 +1062,175 @@ function OptionEditor({
             })}
           </div>
 
-          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <p className="text-xs font-black uppercase text-slate-500">
-                  Routes from price list
-                </p>
-                <p className="text-xs font-semibold text-slate-500">
-                  Cheapest supplier is selected when route or vehicle changes.
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => addTransportRoute('transfer')}
-                  disabled={!transportPricingData || !transferAvailable}
-                  className="min-h-8 rounded-lg bg-slate-900 px-2 text-xs font-black text-white disabled:opacity-40"
-                >
-                  Add route
-                </button>
-                <button
-                  type="button"
-                  onClick={() => addTransportRoute('makkah_ziyarat')}
-                  disabled={!makkahZiyaratAvailable}
-                  className="min-h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs font-black text-slate-700 disabled:opacity-40"
-                >
-                  Makkah Ziyarat
-                </button>
-                <button
-                  type="button"
-                  onClick={() => addTransportRoute('madinah_ziyarat')}
-                  disabled={!madinahZiyaratAvailable}
-                  className="min-h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs font-black text-slate-700 disabled:opacity-40"
-                >
-                  Madinah Ziyarat
-                </button>
-              </div>
-            </div>
-
-            {transportRoutes.length > 0 && (
-              <ul className="mb-3 space-y-1 text-xs font-semibold text-slate-700">
-                {getTransportRouteBullets(transportRoutes).map((line) => (
-                  <li key={line} className="flex gap-2">
-                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-slate-400" />
-                    <span>{getTransportRouteBulletText(line)}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {transportPricingData && !hasSavedTransportRates && (
-              <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs font-bold text-amber-900">
-                No saved Umrah transport rates found. Save route prices in Pricing first, then
-                return here to select Route and Transport Type.
-              </p>
-            )}
-
-            <div className="space-y-2">
-              {transportRoutes.map((route, routeIndex) => {
-                const routeOptions = getPricedRouteOptions(
-                  transportPricingData,
-                  route.vehicleTypeId,
-                  route.kind,
-                )
-                const groupedRouteOptions = getGroupedRouteOptions(routeOptions)
-                const routeGbpCost =
-                  route.costPriceGbp ??
-                  convertTransportCostToGbp(route.costPrice, route.currency, transportPricingData)
-                const routeBaseGbpCost = route.baseCostPriceGbp ?? routeGbpCost
-                return (
-                  <div
-                    key={route.id}
-                    className="grid gap-2 rounded-lg border border-slate-200 bg-white p-2 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,1fr)_auto]"
+          {canUseTransportPriceList && (
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="text-xs font-black uppercase text-slate-500">
+                    Routes from price list
+                  </p>
+                  <p className="text-xs font-semibold text-slate-500">
+                    Cheapest supplier is selected when route or vehicle changes.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => addTransportRoute('transfer')}
+                    disabled={!transportPricingData || !transferAvailable}
+                    className="min-h-8 rounded-lg bg-slate-900 px-2 text-xs font-black text-white disabled:opacity-40"
                   >
-                    <label className="block">
-                      <span className="block text-[10px] font-black uppercase text-slate-500">
-                        Route
-                      </span>
-                      <select
-                        value={route.routeId}
-                        onChange={(event) =>
-                          updateTransportRoute(routeIndex, {
-                            routeId: event.target.value,
-                            kind: getRouteKind(
-                              transportPricingData?.routes.find(
-                                (item) => item.id === event.target.value,
-                              )?.route_name || '',
-                            ),
-                          })
-                        }
-                        className="mt-1 min-h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-bold outline-none focus:border-slate-900"
-                      >
-                        {groupedRouteOptions.map((group) => (
-                          <optgroup key={group.category} label={group.category}>
-                            {group.routes.map((routeOption) => (
-                              <option key={routeOption.id} value={routeOption.id}>
-                                {routeOption.route_name}
-                              </option>
-                            ))}
-                          </optgroup>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="block">
-                      <span className="block text-[10px] font-black uppercase text-slate-500">
-                        Transport type
-                      </span>
-                      <select
-                        value={route.vehicleTypeId}
-                        onChange={(event) =>
-                          updateTransportRoute(routeIndex, {
-                            vehicleTypeId: event.target.value,
-                          })
-                        }
-                        className="mt-1 min-h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-bold outline-none focus:border-slate-900"
-                      >
-                        {(transportPricingData?.vehicles || []).map((vehicle) => (
-                          <option key={vehicle.id} value={vehicle.id}>
-                            {vehicle.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <div className="block">
-                      <span className="block text-[10px] font-black uppercase text-slate-500">
-                        Auto supplier
-                      </span>
-                      <div className="mt-1 min-h-9 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-2 text-xs font-black text-emerald-900">
-                        {route.supplierName || 'No saved rate'}
-                      </div>
-                    </div>
-                    <div className="flex items-end gap-2">
-                      <div className="min-h-9 flex-1 rounded-lg bg-slate-100 px-2 py-2 text-xs font-black text-slate-700">
-                        {formatMoney(routeGbpCost || 0, 'GBP')}
-                        {Number(route.damageRecoveryMarginAmountGbp || 0) > 0 && (
-                          <span className="mt-0.5 block text-[10px] font-bold text-slate-500">
-                            Base {formatMoney(routeBaseGbpCost || 0, 'GBP')} + recovery{' '}
-                            {formatMoney(route.damageRecoveryMarginAmountGbp || 0, 'GBP')}
-                          </span>
-                        )}
-                        {route.currency !== 'GBP' && (
-                          <span className="mt-0.5 block text-[10px] font-bold text-slate-500">
-                            {route.currency} {Number(route.costPrice || 0).toFixed(2)} at{' '}
-                            {Number(route.exchangeRate || 0).toFixed(4)} SAR/GBP
-                          </span>
-                        )}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => removeTransportRoute(routeIndex)}
-                        className="flex h-9 w-9 items-center justify-center rounded-lg border border-red-100 text-red-600 transition hover:bg-red-50"
-                        title="Remove route"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
+                    Add route
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => addTransportRoute('makkah_ziyarat')}
+                    disabled={!makkahZiyaratAvailable}
+                    className="min-h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs font-black text-slate-700 disabled:opacity-40"
+                  >
+                    Makkah Ziyarat
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => addTransportRoute('madinah_ziyarat')}
+                    disabled={!madinahZiyaratAvailable}
+                    className="min-h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs font-black text-slate-700 disabled:opacity-40"
+                  >
+                    Madinah Ziyarat
+                  </button>
+                </div>
+              </div>
 
-            {option.transportMainSupplierName && (
-              <p className="mt-3 rounded-lg bg-white p-2 text-xs font-bold text-slate-600">
-                Main supplier by route count: {option.transportMainSupplierName}. Net transport cost
-                priced with this supplier:{' '}
-                {formatMoney(option.transportNetCost || 0, option.transportNetCurrency || 'GBP')}.
-              </p>
-            )}
-          </div>
+              {transportRoutes.length > 0 && (
+                <ul className="mb-3 space-y-1 text-xs font-semibold text-slate-700">
+                  {getTransportRouteBullets(transportRoutes).map((line) => (
+                    <li key={line} className="flex gap-2">
+                      <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-slate-400" />
+                      <span>{getTransportRouteBulletText(line)}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {transportPricingData && !hasSavedTransportRates && (
+                <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs font-bold text-amber-900">
+                  No saved Umrah transport rates found. Save route prices in Pricing first, then
+                  return here to select Route and Transport Type.
+                </p>
+              )}
+
+              <div className="space-y-2">
+                {transportRoutes.map((route, routeIndex) => {
+                  const routeOptions = getPricedRouteOptions(
+                    transportPricingData,
+                    route.vehicleTypeId,
+                    route.kind,
+                  )
+                  const groupedRouteOptions = getGroupedRouteOptions(routeOptions)
+                  const routeGbpCost =
+                    route.costPriceGbp ??
+                    convertTransportCostToGbp(route.costPrice, route.currency, transportPricingData)
+                  const routeBaseGbpCost = route.baseCostPriceGbp ?? routeGbpCost
+                  return (
+                    <div
+                      key={route.id}
+                      className="grid gap-2 rounded-lg border border-slate-200 bg-white p-2 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,1fr)_auto]"
+                    >
+                      <label className="block">
+                        <span className="block text-[10px] font-black uppercase text-slate-500">
+                          Route
+                        </span>
+                        <select
+                          value={route.routeId}
+                          onChange={(event) =>
+                            updateTransportRoute(routeIndex, {
+                              routeId: event.target.value,
+                              kind: getRouteKind(
+                                transportPricingData?.routes.find(
+                                  (item) => item.id === event.target.value,
+                                )?.route_name || '',
+                              ),
+                            })
+                          }
+                          className="mt-1 min-h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-bold outline-none focus:border-slate-900"
+                        >
+                          {groupedRouteOptions.map((group) => (
+                            <optgroup key={group.category} label={group.category}>
+                              {group.routes.map((routeOption) => (
+                                <option key={routeOption.id} value={routeOption.id}>
+                                  {routeOption.route_name}
+                                </option>
+                              ))}
+                            </optgroup>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="block">
+                        <span className="block text-[10px] font-black uppercase text-slate-500">
+                          Transport type
+                        </span>
+                        <select
+                          value={route.vehicleTypeId}
+                          onChange={(event) =>
+                            updateTransportRoute(routeIndex, {
+                              vehicleTypeId: event.target.value,
+                            })
+                          }
+                          className="mt-1 min-h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-bold outline-none focus:border-slate-900"
+                        >
+                          {(transportPricingData?.vehicles || []).map((vehicle) => (
+                            <option key={vehicle.id} value={vehicle.id}>
+                              {vehicle.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <div className="block">
+                        <span className="block text-[10px] font-black uppercase text-slate-500">
+                          Auto supplier
+                        </span>
+                        <div className="mt-1 min-h-9 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-2 text-xs font-black text-emerald-900">
+                          {route.supplierName || 'No saved rate'}
+                        </div>
+                      </div>
+                      <div className="flex items-end gap-2">
+                        <div className="min-h-9 flex-1 rounded-lg bg-slate-100 px-2 py-2 text-xs font-black text-slate-700">
+                          {formatMoney(routeGbpCost || 0, 'GBP')}
+                          {Number(route.damageRecoveryMarginAmountGbp || 0) > 0 && (
+                            <span className="mt-0.5 block text-[10px] font-bold text-slate-500">
+                              Base {formatMoney(routeBaseGbpCost || 0, 'GBP')} + recovery{' '}
+                              {formatMoney(route.damageRecoveryMarginAmountGbp || 0, 'GBP')}
+                            </span>
+                          )}
+                          {route.currency !== 'GBP' && (
+                            <span className="mt-0.5 block text-[10px] font-bold text-slate-500">
+                              {route.currency} {Number(route.costPrice || 0).toFixed(2)} at{' '}
+                              {Number(route.exchangeRate || 0).toFixed(4)} SAR/GBP
+                            </span>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeTransportRoute(routeIndex)}
+                          className="flex h-9 w-9 items-center justify-center rounded-lg border border-red-100 text-red-600 transition hover:bg-red-50"
+                          title="Remove route"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {option.transportMainSupplierName && (
+                <p className="mt-3 rounded-lg bg-white p-2 text-xs font-bold text-slate-600">
+                  Main supplier by route count: {option.transportMainSupplierName}. Net transport
+                  cost priced with this supplier:{' '}
+                  {formatMoney(option.transportNetCost || 0, option.transportNetCurrency || 'GBP')}.
+                </p>
+              )}
+            </div>
+          )}
         </div>
       )}
       {showQuantity && (
@@ -1386,6 +1417,27 @@ export default function PackagesClient({
 
   const updatePayload = (changes: Partial<PackageQuotePayload>) => {
     setPayload((current) => ({ ...current, ...changes }))
+  }
+
+  const applyPackageType = (packageType: TravelPackageType) => {
+    const defaultStaySetup = createDefaultStaySetup(packageType)
+    setPayload((current) => {
+      const nextPayload = normalizePackageQuotePayload({
+        ...current,
+        packageType,
+        itineraryOrder: defaultStaySetup.itineraryOrder,
+        stayGroups: defaultStaySetup.stayGroups,
+        transportOptions:
+          packageType === 'holiday'
+            ? [newOption('transport', { isDefault: true })]
+            : current.transportOptions,
+      })
+
+      return {
+        ...nextPayload,
+        title: buildSystematicQuoteTitle(nextPayload),
+      }
+    })
   }
 
   const persistActiveQuotePayload = useCallback(
@@ -2248,9 +2300,7 @@ export default function PackagesClient({
                 <span className="mb-1 block text-xs font-bold text-slate-500">Type</span>
                 <select
                   value={payload.packageType}
-                  onChange={(event) =>
-                    updatePayload({ packageType: event.target.value as TravelPackageType })
-                  }
+                  onChange={(event) => applyPackageType(event.target.value as TravelPackageType)}
                   className="min-h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold outline-none focus:border-slate-900"
                 >
                   {PACKAGE_TYPES.map((type) => (
@@ -2419,36 +2469,56 @@ export default function PackagesClient({
               </div>
             </div>
             <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
-              <span className="mb-2 block text-xs font-bold text-slate-500">Itinerary order</span>
-              <div className="grid gap-2 sm:grid-cols-2">
-                {[
-                  {
-                    label: 'Makkah first',
-                    order: ['makkah', 'madinah'],
-                  },
-                  {
-                    label: 'Madinah first',
-                    order: ['madinah', 'makkah'],
-                  },
-                ].map((item) => {
-                  const active =
-                    item.order.join('|') === payload.itineraryOrder.slice(0, 2).join('|')
-                  return (
-                    <button
-                      key={item.label}
-                      type="button"
-                      onClick={() => updatePayload({ itineraryOrder: item.order })}
-                      className={`min-h-10 rounded-lg px-3 text-sm font-black transition ${
-                        active
-                          ? 'bg-slate-900 text-white'
-                          : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-100'
-                      }`}
-                    >
-                      {item.label}
-                    </button>
-                  )
-                })}
-              </div>
+              {payload.packageType === 'holiday' ? (
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <span className="block text-xs font-bold text-slate-500">
+                      Holiday starting point
+                    </span>
+                    <p className="mt-1 text-sm font-black text-slate-900">
+                      {payload.stayGroups[0]?.label || 'Location 1'}
+                    </p>
+                  </div>
+                  <span className="rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-bold text-blue-800">
+                    Location 1 is automatically first
+                  </span>
+                </div>
+              ) : (
+                <>
+                  <span className="mb-2 block text-xs font-bold text-slate-500">
+                    Itinerary order
+                  </span>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {[
+                      {
+                        label: 'Makkah first',
+                        order: ['makkah', 'madinah'],
+                      },
+                      {
+                        label: 'Madinah first',
+                        order: ['madinah', 'makkah'],
+                      },
+                    ].map((item) => {
+                      const active =
+                        item.order.join('|') === payload.itineraryOrder.slice(0, 2).join('|')
+                      return (
+                        <button
+                          key={item.label}
+                          type="button"
+                          onClick={() => updatePayload({ itineraryOrder: item.order })}
+                          className={`min-h-10 rounded-lg px-3 text-sm font-black transition ${
+                            active
+                              ? 'bg-slate-900 text-white'
+                              : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-100'
+                          }`}
+                        >
+                          {item.label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </>
+              )}
             </div>
           </section>
 
@@ -2890,6 +2960,7 @@ export default function PackagesClient({
                     showDefaultToggle
                     defaultLabel="Preferred transport"
                     showTransportExtras
+                    showTransportPriceList={payload.packageType !== 'holiday'}
                     transportPricingData={transportPricingData}
                     canRemove
                     onChange={(next) => updateComponentOption('transportOptions', index, next)}
@@ -2911,8 +2982,14 @@ export default function PackagesClient({
                       onChange={(event) =>
                         updateStayGroup(groupIndex, { ...group, label: event.target.value })
                       }
+                      placeholder={payload.packageType === 'holiday' ? 'Enter location' : 'Stay'}
                       className="min-h-10 flex-1 rounded-lg border border-slate-200 px-3 text-sm font-black outline-none focus:border-slate-900"
                     />
+                    {payload.packageType === 'holiday' && groupIndex === 0 && (
+                      <span className="rounded-lg bg-blue-100 px-2 py-2 text-[11px] font-black text-blue-800">
+                        Start
+                      </span>
+                    )}
                     <button
                       type="button"
                       onClick={() =>

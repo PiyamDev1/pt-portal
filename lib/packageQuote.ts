@@ -422,25 +422,14 @@ function normalizeDefaultOption(options: PackageComponentOption[]) {
   return options.map((option, index) => ({ ...option, isDefault: index === defaultIndex }))
 }
 
-function normalizeStayGroups(raw: unknown): PackageStayGroup[] {
-  const values = Array.isArray(raw) && raw.length > 0 ? raw : []
-  const groups = values.map((value, index) => {
-    const candidate = value as Partial<PackageStayGroup> | null
-    const id = asString(
-      candidate?.id,
-      index === 0 ? 'makkah' : index === 1 ? 'madinah' : `stay-${index + 1}`,
-    )
-    return {
-      id,
-      label: asString(
-        candidate?.label,
-        index === 0 ? 'Makkah' : index === 1 ? 'Madinah' : `Stay ${index + 1}`,
-      ),
-      options: normalizeDefaultOption(normalizeOptions(candidate?.options, `${id}-hotel`, 'total')),
-    }
-  })
-
-  if (groups.length > 0) return groups
+function getDefaultStayGroups(packageType: TravelPackageType): PackageStayGroup[] {
+  if (packageType === 'holiday') {
+    return [
+      { id: 'location-1', label: 'Location 1', options: [] },
+      { id: 'location-2', label: 'Location 2', options: [] },
+      { id: 'location-3', label: 'Location 3', options: [] },
+    ]
+  }
 
   return [
     { id: 'makkah', label: 'Makkah', options: [] },
@@ -448,12 +437,51 @@ function normalizeStayGroups(raw: unknown): PackageStayGroup[] {
   ]
 }
 
+function getDefaultStayGroupId(packageType: TravelPackageType, index: number) {
+  if (packageType === 'holiday') return `location-${index + 1}`
+  return index === 0 ? 'makkah' : index === 1 ? 'madinah' : `stay-${index + 1}`
+}
+
+function getDefaultStayGroupLabel(packageType: TravelPackageType, index: number) {
+  if (packageType === 'holiday') return `Location ${index + 1}`
+  return index === 0 ? 'Makkah' : index === 1 ? 'Madinah' : `Stay ${index + 1}`
+}
+
+function normalizeStayGroups(raw: unknown, packageType: TravelPackageType): PackageStayGroup[] {
+  const values = Array.isArray(raw) && raw.length > 0 ? raw : []
+  const groups = values.map((value, index) => {
+    const candidate = value as Partial<PackageStayGroup> | null
+    const id = asString(candidate?.id, getDefaultStayGroupId(packageType, index))
+    return {
+      id,
+      label: asString(candidate?.label, getDefaultStayGroupLabel(packageType, index)),
+      options: normalizeDefaultOption(normalizeOptions(candidate?.options, `${id}-hotel`, 'total')),
+    }
+  })
+
+  if (groups.length > 0) return groups
+
+  return getDefaultStayGroups(packageType)
+}
+
 export function normalizePackageQuotePayload(input: unknown): PackageQuotePayload {
   const candidate = (input || {}) as Partial<PackageQuotePayload>
-  const stayGroups = normalizeStayGroups(candidate.stayGroups)
-  const itineraryOrder = Array.isArray(candidate.itineraryOrder)
+  const packageType = normalizePackageType(candidate.packageType)
+  const stayGroups = normalizeStayGroups(candidate.stayGroups, packageType)
+  const rawItineraryOrder = Array.isArray(candidate.itineraryOrder)
     ? candidate.itineraryOrder.map((value) => asString(value)).filter(Boolean)
     : stayGroups.map((group) => group.id)
+  const defaultItineraryOrder = stayGroups.map((group) => group.id)
+  const normalizedItineraryOrder =
+    rawItineraryOrder.length > 0 ? rawItineraryOrder : defaultItineraryOrder
+  const holidayStartId = packageType === 'holiday' ? stayGroups[0]?.id : ''
+  const itineraryOrder =
+    packageType === 'holiday' && holidayStartId
+      ? [
+          holidayStartId,
+          ...normalizedItineraryOrder.filter((groupId) => groupId !== holidayStartId),
+        ]
+      : normalizedItineraryOrder
 
   const flightOptions = normalizeDefaultOption(
     normalizeOptions(candidate.flightOptions, 'flight', 'per_person'),
@@ -464,7 +492,7 @@ export function normalizePackageQuotePayload(input: unknown): PackageQuotePayloa
 
   return {
     title: asString(candidate.title, 'New package quote'),
-    packageType: normalizePackageType(candidate.packageType),
+    packageType,
     currency: normalizeCurrency(candidate.currency),
     customerName: asString(candidate.customerName),
     customerPhone: asString(candidate.customerPhone),
@@ -473,8 +501,7 @@ export function normalizePackageQuotePayload(input: unknown): PackageQuotePayloa
     childrenPaying: asInteger(candidate.childrenPaying),
     childrenFree: asInteger(candidate.childrenFree),
     infants: asInteger(candidate.infants),
-    itineraryOrder:
-      itineraryOrder.length > 0 ? itineraryOrder : stayGroups.map((group) => group.id),
+    itineraryOrder,
     departureDate: asString(candidate.departureDate),
     returnDate: asString(candidate.returnDate),
     stayGroups,

@@ -153,6 +153,21 @@ describe('package quote calculator', () => {
     )
   })
 
+  it('uses generic location stays for holiday quotes and keeps Location 1 first', () => {
+    const normalized = normalizePackageQuotePayload({
+      packageType: 'holiday',
+      itineraryOrder: ['location-2', 'location-1', 'location-3'],
+    })
+
+    expect(normalized.packageType).toBe('holiday')
+    expect(normalized.stayGroups.map((group) => group.label)).toEqual([
+      'Location 1',
+      'Location 2',
+      'Location 3',
+    ])
+    expect(normalized.itineraryOrder[0]).toBe('location-1')
+  })
+
   it('preserves linked package group notes without exposing shared transport cost in copy', () => {
     const normalized = normalizePackageQuotePayload({
       ...payload,

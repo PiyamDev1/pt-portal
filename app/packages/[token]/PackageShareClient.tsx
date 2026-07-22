@@ -217,6 +217,12 @@ function formatDelta(value: number, currency: string) {
   return `${value > 0 ? '+' : '-'}${formatMoney(Math.abs(value), currency)} pp`
 }
 
+function formatHotelDelta(value: number, currency: string, isPreferred: boolean) {
+  if (isPreferred) return 'Included'
+  if (Math.abs(value) < 0.005) return `+${formatMoney(0, currency)} pp`
+  return formatDelta(value, currency)
+}
+
 const PAYMENT_BREAKDOWN_FIELDS: Array<{
   key: keyof PackagePaymentBreakdown
   label: string
@@ -302,107 +308,50 @@ function formatTransportSummary(option: PackageComponentOption) {
   return routeLines.length > 0 ? routeLines.join('\n') : option.summary
 }
 
-function LinkedFamilyPriceCard({ family, index }: { family: PublicLinkedFamily; index: number }) {
-  return (
-    <div className="rounded-xl border border-cyan-200 bg-white p-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <p className="text-xs font-black uppercase text-cyan-900">Family / group {index + 1}:</p>
-          <p className="mt-1 text-base font-black text-slate-950">{family.familyLabel}</p>
-          {family.customerName && (
-            <p className="mt-1 text-xs font-bold text-slate-500">{family.customerName}</p>
-          )}
-          {family.quoteTitle && (
-            <p className="mt-1 truncate text-xs font-semibold text-slate-500">
-              {family.quoteTitle}
-            </p>
-          )}
-        </div>
-        {family.sharePath && !family.isCurrent ? (
-          <a
-            href={family.sharePath}
-            className="inline-flex min-h-9 items-center justify-center rounded-lg border border-cyan-200 bg-cyan-50 px-3 text-xs font-black text-cyan-900 transition hover:bg-cyan-100"
-          >
-            View quote
-          </a>
-        ) : family.isCurrent ? (
-          <span className="inline-flex min-h-9 items-center rounded-lg bg-cyan-900 px-3 text-xs font-black text-white">
-            Current quote
-          </span>
-        ) : (
-          <span className="inline-flex min-h-9 items-center rounded-lg bg-slate-100 px-3 text-xs font-bold text-slate-500">
-            Link unavailable
-          </span>
-        )}
-      </div>
+function getLinkedFamilyLabel(family: PublicLinkedFamily, index: number) {
+  return `Family / group ${index + 1}${family.familyLabel ? `: ${family.familyLabel}` : ''}`
+}
 
-      {family.pricing ? (
-        <div className="mt-4 space-y-3">
-          <div className="grid gap-2 text-sm sm:grid-cols-3">
-            <div className="rounded-lg bg-slate-50 p-3">
-              <p className="text-xs font-black uppercase text-slate-500">Subtotal</p>
-              <p className="mt-1 font-black text-slate-950">
-                {formatMoney(family.pricing.grossPrice, family.pricing.currency)}
-              </p>
-            </div>
-            <div className="rounded-lg bg-emerald-50 p-3">
-              <p className="text-xs font-black uppercase text-emerald-700">Discount applied</p>
-              <p className="mt-1 font-black text-emerald-800">
-                {family.pricing.discountTotal > 0
-                  ? `-${formatMoney(family.pricing.discountTotal, family.pricing.currency)}`
-                  : 'None'}
-              </p>
-            </div>
-            <div className="rounded-lg bg-slate-900 p-3 text-white">
-              <p className="text-xs font-black uppercase text-slate-300">Total</p>
-              <p className="mt-1 font-black">
-                {formatMoney(family.pricing.totalPrice, family.pricing.currency)}
-              </p>
-            </div>
-          </div>
-          <div className="rounded-lg bg-slate-50 p-3 text-sm">
-            <p className="mb-2 text-xs font-black uppercase text-slate-500">Breakdown</p>
-            <div className="space-y-2">
-              {family.pricing.breakdown.adultTotal > 0 && (
-                <div className="flex justify-between gap-3">
-                  <span className="font-bold text-slate-600">Adult 12+</span>
-                  <span className="font-black text-slate-950">
-                    {formatMoney(family.pricing.breakdown.adult, family.pricing.currency)} pp
-                  </span>
-                </div>
-              )}
-              {family.pricing.breakdown.childTotal > 0 && (
-                <div className="flex justify-between gap-3">
-                  <span className="font-bold text-slate-600">Child 5+</span>
-                  <span className="font-black text-slate-950">
-                    {formatMoney(family.pricing.breakdown.child, family.pricing.currency)} pp
-                  </span>
-                </div>
-              )}
-              {family.pricing.breakdown.childTwoToFourTotal > 0 && (
-                <div className="flex justify-between gap-3">
-                  <span className="font-bold text-slate-600">Child 2-4</span>
-                  <span className="font-black text-slate-950">
-                    {formatMoney(family.pricing.breakdown.childTwoToFour, family.pricing.currency)}{' '}
-                    pp
-                  </span>
-                </div>
-              )}
-              {family.pricing.breakdown.infantTotal > 0 && (
-                <div className="flex justify-between gap-3">
-                  <span className="font-bold text-slate-600">Infant under 2</span>
-                  <span className="font-black text-slate-950">
-                    {formatMoney(family.pricing.breakdown.infant, family.pricing.currency)} pp
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
+function PassengerPricingRows({
+  breakdown,
+  currency,
+}: {
+  breakdown: PackagePassengerPriceBreakdown
+  currency: string
+}) {
+  return (
+    <div className="space-y-2">
+      {breakdown.adultTotal > 0 && (
+        <div className="flex items-center justify-between gap-3">
+          <span className="font-bold text-slate-600">Adult 12+</span>
+          <span className="font-black text-slate-950">
+            {formatMoney(breakdown.adult, currency)} each
+          </span>
         </div>
-      ) : (
-        <p className="mt-4 rounded-lg bg-slate-50 p-3 text-sm font-semibold text-slate-600">
-          This linked quote is not currently available through a customer link.
-        </p>
+      )}
+      {breakdown.childTotal > 0 && (
+        <div className="flex items-center justify-between gap-3">
+          <span className="font-bold text-slate-600">Child 5+</span>
+          <span className="font-black text-slate-950">
+            {formatMoney(breakdown.child, currency)} each
+          </span>
+        </div>
+      )}
+      {breakdown.childTwoToFourTotal > 0 && (
+        <div className="flex items-center justify-between gap-3">
+          <span className="font-bold text-slate-600">Child 2-5</span>
+          <span className="font-black text-slate-950">
+            {formatMoney(breakdown.childTwoToFour, currency)} each
+          </span>
+        </div>
+      )}
+      {breakdown.infantTotal > 0 && (
+        <div className="flex items-center justify-between gap-3">
+          <span className="font-bold text-slate-600">Infant under 2</span>
+          <span className="font-black text-slate-950">
+            {formatMoney(breakdown.infant, currency)} each
+          </span>
+        </div>
       )}
     </div>
   )
@@ -518,6 +467,19 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
     if (!payload || !resolved) return null
     return getPackagePassengerPriceBreakdown(payload, resolved.combination)
   }, [payload, resolved])
+  const currentLinkedFamilyIndex =
+    linkedGroup?.families.findIndex((family) => family.isCurrent) ?? -1
+  const currentLinkedFamily =
+    currentLinkedFamilyIndex >= 0 ? linkedGroup?.families[currentLinkedFamilyIndex] : null
+  const linkedFamilyTotals = useMemo(
+    () =>
+      linkedGroup
+        ? linkedGroup.families
+            .map((family, index) => ({ family, index }))
+            .filter(({ family }) => !family.isCurrent && Boolean(family.pricing))
+        : [],
+    [linkedGroup],
+  )
 
   const depositPaymentSummary = useMemo(() => {
     if (!payload) return null
@@ -687,15 +649,6 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                   ),
                 )}
               </div>
-            </div>
-            <div className="mt-4 grid gap-3 lg:grid-cols-2">
-              {linkedGroup.families.map((family, index) => (
-                <LinkedFamilyPriceCard
-                  key={`${family.quoteId || family.familyLabel}-${index}`}
-                  family={family}
-                  index={index}
-                />
-              ))}
             </div>
           </div>
         </section>
@@ -1271,6 +1224,7 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                           const delta = option.price - (preferredHotel?.price || 0)
                           const payingGuests = payload.adults + payload.childrenPaying
                           const perPersonDelta = payingGuests > 0 ? delta / payingGuests : delta
+                          const isPreferredHotel = preferredHotel?.id === option.id
                           return (
                             <OptionButton
                               key={option.id}
@@ -1278,7 +1232,11 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                               title={option.title}
                               summary={option.summary}
                               price={option.price}
-                              priceLabel={formatDelta(perPersonDelta, payload.currency)}
+                              priceLabel={formatHotelDelta(
+                                perPersonDelta,
+                                payload.currency,
+                                isPreferredHotel,
+                              )}
                               priceSubLabel="hotel option"
                               pricingMode={option.pricingMode}
                               currency={payload.currency}
@@ -1408,6 +1366,35 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                           </span>
                         </div>
                       </div>
+                      {linkedFamilyTotals.map(({ family, index }) =>
+                        family.pricing ? (
+                          <div
+                            key={`${family.quoteId || family.familyLabel}-${index}-summary`}
+                            className="border-t border-slate-200 pt-2"
+                          >
+                            <div className="flex items-center justify-between gap-3">
+                              <span className="font-bold text-slate-600">
+                                {getLinkedFamilyLabel(family, index)} total
+                              </span>
+                              <span className="font-black text-slate-950">
+                                {formatMoney(family.pricing.totalPrice, family.pricing.currency)}
+                              </span>
+                            </div>
+                            {family.pricing.discountTotal > 0 && (
+                              <div className="mt-1 flex items-center justify-between gap-3 text-xs text-emerald-700">
+                                <span className="font-bold">Discount applied</span>
+                                <span className="font-black">
+                                  -
+                                  {formatMoney(
+                                    family.pricing.discountTotal,
+                                    family.pricing.currency,
+                                  )}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        ) : null,
+                      )}
                       {!priceSummaryExpanded && (
                         <p className="text-xs font-semibold leading-5 text-slate-500">
                           Expand this window to see passenger prices and additional payment charges.
@@ -1449,43 +1436,46 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                         {priceBreakdown && (
                           <div className="mt-3 space-y-2 rounded-lg bg-slate-50 p-3 text-sm">
                             <p className="text-xs font-black uppercase text-slate-500">
-                              Passenger pricing
+                              {currentLinkedFamily
+                                ? `${getLinkedFamilyLabel(
+                                    currentLinkedFamily,
+                                    currentLinkedFamilyIndex,
+                                  )} passenger pricing`
+                                : 'Passenger pricing'}
                             </p>
-                            <div className="flex items-center justify-between gap-3">
-                              <span className="font-bold text-slate-600">Adult 12+</span>
-                              <span className="font-black text-slate-950">
-                                {formatMoney(priceBreakdown.adult, priceBreakdown.currency)} each
-                              </span>
-                            </div>
-                            {payload.childrenPaying > 0 && (
-                              <div className="flex items-center justify-between gap-3">
-                                <span className="font-bold text-slate-600">Child 5+</span>
-                                <span className="font-black text-slate-950">
-                                  {formatMoney(priceBreakdown.child, priceBreakdown.currency)} each
-                                </span>
-                              </div>
-                            )}
-                            {payload.childrenFree > 0 && (
-                              <div className="flex items-center justify-between gap-3">
-                                <span className="font-bold text-slate-600">Child 2-5</span>
-                                <span className="font-black text-slate-950">
-                                  {formatMoney(
-                                    priceBreakdown.childTwoToFour,
-                                    priceBreakdown.currency,
-                                  )}{' '}
-                                  each
-                                </span>
-                              </div>
-                            )}
-                            {payload.infants > 0 && (
-                              <div className="flex items-center justify-between gap-3">
-                                <span className="font-bold text-slate-600">Infant under 2</span>
-                                <span className="font-black text-slate-950">
-                                  {formatMoney(priceBreakdown.infant, priceBreakdown.currency)} each
-                                </span>
-                              </div>
-                            )}
+                            <PassengerPricingRows
+                              breakdown={priceBreakdown}
+                              currency={priceBreakdown.currency}
+                            />
                           </div>
+                        )}
+                        {linkedFamilyTotals.map(({ family, index }) =>
+                          family.pricing ? (
+                            <div
+                              key={`${family.quoteId || family.familyLabel}-${index}-breakdown`}
+                              className="mt-3 space-y-2 rounded-lg bg-slate-50 p-3 text-sm"
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <p className="text-xs font-black uppercase text-slate-500">
+                                    {getLinkedFamilyLabel(family, index)} passenger pricing
+                                  </p>
+                                  {family.quoteTitle && (
+                                    <p className="mt-1 text-xs font-semibold text-slate-500">
+                                      {family.quoteTitle}
+                                    </p>
+                                  )}
+                                </div>
+                                <span className="shrink-0 text-sm font-black text-slate-950">
+                                  {formatMoney(family.pricing.totalPrice, family.pricing.currency)}
+                                </span>
+                              </div>
+                              <PassengerPricingRows
+                                breakdown={family.pricing.breakdown}
+                                currency={family.pricing.currency}
+                              />
+                            </div>
+                          ) : null,
                         )}
                         {resolved.combination.paymentSurchargeTotal > 0 && (
                           <p className="mt-2 text-xs font-semibold text-slate-500">
