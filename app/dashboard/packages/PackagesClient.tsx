@@ -45,6 +45,7 @@ import {
   formatPackageQuoteForCopy,
   formatMoney,
   getDefaultPackageExpiry,
+  getOrderedStaySelections,
   isPackageQuoteExpired,
   normalizePackageQuotePayload,
 } from '@/lib/packageQuote'
@@ -1295,7 +1296,7 @@ function OptionEditor({
         <div
           className={`mt-2 grid gap-2 ${
             showHotelCostAudit
-              ? 'sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_9.5rem]'
+              ? 'sm:grid-cols-[minmax(13rem,1fr)_minmax(13rem,1fr)_9.5rem]'
               : 'sm:grid-cols-[minmax(0,1fr)_9.5rem]'
           }`}
         >
@@ -3290,7 +3291,7 @@ export default function PackagesClient({
                         </div>
                       </div>
                       <div className="space-y-1 text-xs text-slate-600">
-                        {combination.staySelections.map((stay) => (
+                        {getOrderedStaySelections(payload, combination).map((stay) => (
                           <p key={`${combination.id}-${stay.groupId}`}>
                             <span className="font-bold text-slate-800">{stay.groupLabel}:</span>{' '}
                             {stay.option.title || 'Hotel option'}

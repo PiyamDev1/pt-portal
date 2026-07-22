@@ -962,7 +962,10 @@ export function buildPackageCombinations(payloadInput: unknown, limit = 250): Pa
   return combinations.sort((a, b) => a.totalPrice - b.totalPrice).slice(0, limit)
 }
 
-function getOrderedStaySelections(payload: PackageQuotePayload, combination: PackageCombination) {
+export function getOrderedStaySelections(
+  payload: PackageQuotePayload,
+  combination: PackageCombination,
+) {
   const order =
     payload.itineraryOrder.length > 0
       ? payload.itineraryOrder
