@@ -15,12 +15,14 @@ import {
   Tag,
 } from 'lucide-react'
 import type {
+  PackageLinkedPackageGroupSnapshot,
   PackagePaymentBreakdown,
   PackagePaymentMethod,
   PackageQuotePayload,
   PackageResolvedSelection,
   TravelPackageQuote,
 } from '@/app/types/packages'
+import { buildLinkedPackageGroupSnapshot, type TravelPackageGroupDetail } from '@/lib/packageGroups'
 import {
   formatMoney,
   getDefaultPackageSelection,
@@ -42,6 +44,20 @@ type PackageSalesModeClientProps = {
 
 type QuoteResponse = {
   quote?: TravelPackageQuote
+  error?: string
+}
+
+type PackageGroupsResponse = {
+  groups?: Array<{ id: string }>
+  setupRequired?: boolean
+  message?: string
+  error?: string
+}
+
+type PackageGroupResponse = {
+  group?: TravelPackageGroupDetail | null
+  setupRequired?: boolean
+  message?: string
   error?: string
 }
 
@@ -242,6 +258,36 @@ function buildSelectionNote(note: string, promoCode: string) {
   return parts.filter(Boolean).join('\n')
 }
 
+async function fetchPackageGroupDetail(groupId: string) {
+  const response = await fetch(`/api/travel-package-groups/${encodeURIComponent(groupId)}`)
+  const data = (await response.json()) as PackageGroupResponse
+  if (!response.ok || data.setupRequired || !data.group) return null
+  return data.group
+}
+
+async function resolveSalesLinkedPackageGroup(
+  quoteId: string,
+  payload: PackageQuotePayload,
+): Promise<PackageLinkedPackageGroupSnapshot | null> {
+  const savedGroupId = payload.linkedPackageGroup?.groupId
+  const savedGroup = savedGroupId ? await fetchPackageGroupDetail(savedGroupId) : null
+  if (savedGroup) return buildLinkedPackageGroupSnapshot(savedGroup, { quoteId })
+
+  const lookupResponse = await fetch(
+    `/api/travel-package-groups?quoteId=${encodeURIComponent(quoteId)}`,
+  )
+  const lookupData = (await lookupResponse.json()) as PackageGroupsResponse
+  if (!lookupResponse.ok || lookupData.setupRequired) return payload.linkedPackageGroup || null
+
+  const groupId = lookupData.groups?.[0]?.id
+  if (!groupId) return payload.linkedPackageGroup || null
+
+  const group = await fetchPackageGroupDetail(groupId)
+  return group
+    ? buildLinkedPackageGroupSnapshot(group, { quoteId })
+    : payload.linkedPackageGroup || null
+}
+
 function SectionTitle({ icon: Icon, title }: { icon: typeof Building2; title: string }) {
   return (
     <div className="mb-3 flex items-center gap-2">
@@ -279,9 +325,14 @@ export default function PackageSalesModeClient({ quoteId }: PackageSalesModeClie
         if (!response.ok || !data.quote) throw new Error(data.error || 'Package quote not found')
 
         const normalized = normalizePackageQuotePayload(data.quote.payload)
+        const linkedPackageGroup = await resolveSalesLinkedPackageGroup(data.quote.id, normalized)
+        const normalizedWithGroup = normalizePackageQuotePayload({
+          ...normalized,
+          linkedPackageGroup,
+        })
         const existingSelection = data.quote.selected_option?.selection
         setQuote(data.quote)
-        setPayload(normalized)
+        setPayload(normalizedWithGroup)
         setSelection(
           existingSelection
             ? {
@@ -292,19 +343,21 @@ export default function PackageSalesModeClient({ quoteId }: PackageSalesModeClie
                 paymentMethod: existingSelection.paymentMethod || 'bank_transfer',
                 paymentBreakdown: existingSelection.paymentBreakdown || null,
               }
-            : firstSelections(normalized),
+            : firstSelections(normalizedWithGroup),
         )
         setCustomer({
           customerName:
-            existingSelection?.customerName || data.quote.customer_name || normalized.customerName,
+            existingSelection?.customerName ||
+            data.quote.customer_name ||
+            normalizedWithGroup.customerName,
           customerPhone:
             existingSelection?.customerPhone ||
             data.quote.customer_phone ||
-            normalized.customerPhone,
+            normalizedWithGroup.customerPhone,
           customerEmail:
             existingSelection?.customerEmail ||
             data.quote.customer_email ||
-            normalized.customerEmail,
+            normalizedWithGroup.customerEmail,
           note: existingSelection?.note || data.quote.selection_note || '',
         })
         setPromoCode('')
@@ -470,6 +523,17 @@ export default function PackageSalesModeClient({ quoteId }: PackageSalesModeClie
                 <p className="mt-1 text-xs font-bold text-cyan-900">
                   This quote: {payload.linkedPackageGroup.currentFamilyLabel}
                 </p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <span className="rounded-lg bg-cyan-900 px-2 py-1 text-xs font-black text-white">
+                    Current family
+                  </span>
+                  <span className="rounded-lg bg-white px-2 py-1 text-xs font-bold text-slate-700">
+                    {payload.linkedPackageGroup.linkedFamilies.length + 1} linked{' '}
+                    {payload.linkedPackageGroup.linkedFamilies.length + 1 === 1
+                      ? 'family'
+                      : 'families'}
+                  </span>
+                </div>
                 {payload.linkedPackageGroup.sharedServices
                   .filter(
                     (service) =>
@@ -487,18 +551,57 @@ export default function PackageSalesModeClient({ quoteId }: PackageSalesModeClie
                   ))}
               </div>
             </div>
-            {payload.linkedPackageGroup.linkedFamilies.length > 0 && (
-              <div className="flex flex-wrap gap-2 lg:justify-end">
-                {payload.linkedPackageGroup.linkedFamilies.map((family) => (
-                  <span
-                    key={`${family.packageId || family.quoteId || family.familyLabel}`}
-                    className="rounded-lg bg-white px-2 py-1 text-xs font-bold text-slate-700"
-                  >
-                    {family.familyLabel}
-                  </span>
-                ))}
-              </div>
-            )}
+            <div className="lg:min-w-[18rem]">
+              {payload.linkedPackageGroup.linkedFamilies.length > 0 ? (
+                <>
+                  <p className="mb-2 text-xs font-black uppercase text-cyan-900">
+                    Switch linked family
+                  </p>
+                  <div className="flex flex-wrap gap-2 lg:justify-end">
+                    {payload.linkedPackageGroup.linkedFamilies.map((family) =>
+                      family.quoteId ? (
+                        <Link
+                          key={`${family.packageId || family.quoteId || family.familyLabel}`}
+                          href={`/dashboard/packages/quotations/${family.quoteId}/sales`}
+                          className="rounded-lg border border-cyan-200 bg-white px-3 py-2 text-xs font-black text-cyan-900 transition hover:bg-cyan-50"
+                        >
+                          {family.familyLabel}
+                          {family.quoteTitle && (
+                            <span className="mt-0.5 block max-w-40 truncate text-[10px] font-bold text-slate-500">
+                              {family.quoteTitle}
+                            </span>
+                          )}
+                        </Link>
+                      ) : family.packageId ? (
+                        <Link
+                          key={`${family.packageId || family.quoteId || family.familyLabel}`}
+                          href={`/dashboard/packages/${family.packageId}`}
+                          className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 transition hover:bg-slate-50"
+                        >
+                          {family.familyLabel}
+                          {family.packageReference && (
+                            <span className="mt-0.5 block text-[10px] font-bold text-slate-500">
+                              {family.packageReference}
+                            </span>
+                          )}
+                        </Link>
+                      ) : (
+                        <span
+                          key={`${family.packageId || family.quoteId || family.familyLabel}`}
+                          className="rounded-lg bg-white px-3 py-2 text-xs font-bold text-slate-500"
+                        >
+                          {family.familyLabel}
+                        </span>
+                      ),
+                    )}
+                  </div>
+                </>
+              ) : (
+                <p className="rounded-lg bg-white px-3 py-2 text-xs font-bold text-slate-500">
+                  No other linked families yet.
+                </p>
+              )}
+            </div>
           </div>
         </section>
       )}

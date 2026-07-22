@@ -1315,6 +1315,7 @@ export default function PackagesClient({
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [setupMessage, setSetupMessage] = useState<string | null>(null)
+  const [cardProcessingExpanded, setCardProcessingExpanded] = useState(false)
   const [transportPricingData, setTransportPricingData] =
     useState<UmrahTransportPricingData | null>(null)
   const [packageGroups, setPackageGroups] = useState<TravelPackageGroup[]>([])
@@ -2342,31 +2343,49 @@ export default function PackagesClient({
               </label>
             </div>
             <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
-              <label className="block">
-                <span className="mb-1 flex items-center gap-1 text-xs font-bold text-slate-500">
+              <button
+                type="button"
+                onClick={() => setCardProcessingExpanded((current) => !current)}
+                className="flex min-h-10 w-full items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 text-left transition hover:bg-slate-50"
+                aria-expanded={cardProcessingExpanded}
+              >
+                <span className="flex min-w-0 items-center gap-2 text-xs font-black text-slate-700">
                   <CreditCard className="h-3.5 w-3.5" />
-                  Credit Card processing fee
+                  <span>Credit Card processing fee</span>
                 </span>
-                <div className="flex min-h-11 items-center rounded-lg border border-slate-200 bg-white px-3">
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={payload.cardProcessingFeePercent || ''}
-                    onChange={(event) =>
-                      updatePayload({
-                        cardProcessingFeePercent: Number(event.target.value || 0),
-                      })
-                    }
-                    className="w-full bg-transparent text-sm font-bold outline-none"
-                    placeholder="0.00"
+                <span className="flex shrink-0 items-center gap-2 text-xs font-black text-slate-500">
+                  {(payload.cardProcessingFeePercent || 0).toFixed(2)}%
+                  <ChevronDown
+                    className={`h-4 w-4 transition ${cardProcessingExpanded ? 'rotate-180' : ''}`}
                   />
-                  <span className="ml-2 text-sm font-black text-slate-500">%</span>
-                </div>
-                <p className="mt-1 text-xs text-slate-500">
-                  Applied only to the Credit Card amount. Processing fees are non-refundable.
-                </p>
-              </label>
+                </span>
+              </button>
+              {cardProcessingExpanded && (
+                <label className="mt-3 block">
+                  <span className="mb-1 block text-xs font-bold text-slate-500">
+                    Processing fee percentage
+                  </span>
+                  <div className="flex min-h-11 items-center rounded-lg border border-slate-200 bg-white px-3">
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={payload.cardProcessingFeePercent || ''}
+                      onChange={(event) =>
+                        updatePayload({
+                          cardProcessingFeePercent: Number(event.target.value || 0),
+                        })
+                      }
+                      className="w-full bg-transparent text-sm font-bold outline-none"
+                      placeholder="0.00"
+                    />
+                    <span className="ml-2 text-sm font-black text-slate-500">%</span>
+                  </div>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Applied only to the Credit Card amount. Processing fees are non-refundable.
+                  </p>
+                </label>
+              )}
               <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_12rem]">
                 <button
                   type="button"
