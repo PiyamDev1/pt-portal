@@ -16,6 +16,16 @@ type GroupsResponse = {
   message?: string
 }
 
+function cleanBoolean(value: unknown) {
+  return value === true || value === 'true'
+}
+
+function cleanMetadata(value: unknown) {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {}
+}
+
 async function getGroupIdsForMemberFilter(
   supabase: Awaited<ReturnType<typeof getRouteSupabaseClient>>,
   field: 'package_id' | 'quote_id',
@@ -135,8 +145,9 @@ export async function POST(request: NextRequest) {
         customer_display_name:
           cleanPackageGroupText(body.customerDisplayName || body.customer_display_name) || null,
         is_lead_family: true,
-        customer_visible: Boolean(body.customerVisible || body.customer_visible),
+        customer_visible: cleanBoolean(body.customerVisible ?? body.customer_visible),
         sort_order: 10,
+        metadata: cleanMetadata(body.metadata),
       })
 
       if (memberError) throw memberError

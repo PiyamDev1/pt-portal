@@ -1360,6 +1360,62 @@ export default function PackagesClient({
     setPayload((current) => ({ ...current, ...changes }))
   }
 
+  const persistActiveQuotePayload = useCallback(
+    async (nextPayload: PackageQuotePayload) => {
+      if (!activeQuote) return null
+      const payloadToSave = normalizePackageQuotePayload({
+        ...nextPayload,
+        title: buildSystematicQuoteTitle(nextPayload),
+      })
+      const response = await fetch(`/api/packages/${activeQuote.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ payload: payloadToSave }),
+      })
+      const data = (await response.json()) as SaveResponse
+      if (data.setupRequired || !response.ok || !data.quote) {
+        throw new Error(data.message || data.error || 'Failed to save linked package group')
+      }
+      setActiveQuote(data.quote)
+      setPayload(normalizePackageQuotePayload(data.quote.payload))
+      setQuotes((current) => {
+        const next = current.filter((quote) => quote.id !== data.quote!.id)
+        return [data.quote!, ...next]
+      })
+      return data.quote
+    },
+    [activeQuote],
+  )
+
+  const persistPackageGroupSnapshot = useCallback(
+    async (group: TravelPackageGroupDetail) => {
+      if (!activeQuote) return
+      const snapshot = buildLinkedPackageGroupSnapshot(group, { quoteId: activeQuote.id })
+      const nextPayload = normalizePackageQuotePayload({
+        ...payload,
+        linkedPackageGroup: snapshot,
+      })
+      setPayload(nextPayload)
+      const transportNote =
+        snapshot.sharedServices.find(
+          (service) => service.serviceType === 'transport' && service.customerVisible,
+        )?.customerNote || ''
+      setSharedTransportNote(transportNote)
+      await persistActiveQuotePayload(nextPayload)
+    },
+    [activeQuote, payload, persistActiveQuotePayload],
+  )
+
+  const persistUnlinkedPackageGroupSnapshot = useCallback(async () => {
+    if (!activeQuote) return
+    const nextPayload = normalizePackageQuotePayload({
+      ...payload,
+      linkedPackageGroup: null,
+    })
+    setPayload(nextPayload)
+    await persistActiveQuotePayload(nextPayload)
+  }, [activeQuote, payload, persistActiveQuotePayload])
+
   const loadQuotes = useCallback(async () => {
     setLoading(true)
     try {
@@ -1664,6 +1720,12 @@ export default function PackagesClient({
           leadQuoteId: activeQuote.id,
           familyLabel: linkedFamilyLabel || 'Family 1',
           customerVisible: true,
+          metadata: {
+            quoteTitle: payload.title,
+            customerName: payload.customerName,
+            customerPhone: payload.customerPhone,
+            customerEmail: payload.customerEmail,
+          },
         }),
       })
       const data = (await response.json()) as PackageGroupResponse
@@ -1676,9 +1738,9 @@ export default function PackagesClient({
         await upsertSharedTransportNote(detail, sharedTransportNote)
         detail = await loadPackageGroupDetail(createdGroup.id, false)
       }
-      if (detail) applyPackageGroupSnapshot(detail)
+      if (detail) await persistPackageGroupSnapshot(detail)
       await loadPackageGroups()
-      toast.success('Linked package group created. Save the quote to persist the snapshot.')
+      toast.success('Linked package group created')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to create linked package group')
     } finally {
@@ -1704,6 +1766,12 @@ export default function PackagesClient({
           quoteId: activeQuote.id,
           familyLabel: linkedFamilyLabel || 'Family',
           customerVisible: true,
+          metadata: {
+            quoteTitle: payload.title,
+            customerName: payload.customerName,
+            customerPhone: payload.customerPhone,
+            customerEmail: payload.customerEmail,
+          },
         }),
       })
       const data = (await response.json()) as {
@@ -1719,9 +1787,9 @@ export default function PackagesClient({
         await upsertSharedTransportNote(detail, sharedTransportNote)
         detail = await loadPackageGroupDetail(selectedGroupId, false)
       }
-      if (detail) applyPackageGroupSnapshot(detail)
+      if (detail) await persistPackageGroupSnapshot(detail)
       await loadPackageGroups()
-      toast.success('Quote linked to package group. Save the quote to persist the snapshot.')
+      toast.success('Quote linked to package group')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to link package group')
     } finally {
@@ -1738,8 +1806,8 @@ export default function PackagesClient({
     try {
       await upsertSharedTransportNote(activePackageGroup, sharedTransportNote)
       const detail = await loadPackageGroupDetail(activePackageGroup.id, false)
-      if (detail) applyPackageGroupSnapshot(detail)
-      toast.success('Shared transport note updated. Save the quote to persist the snapshot.')
+      if (detail) await persistPackageGroupSnapshot(detail)
+      toast.success('Shared transport note updated')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to save shared transport note')
     } finally {
@@ -1771,10 +1839,10 @@ export default function PackagesClient({
       }
       setActivePackageGroup(null)
       setSelectedGroupId('')
-      updatePayload({ linkedPackageGroup: null })
       setSharedTransportNote('')
+      await persistUnlinkedPackageGroupSnapshot()
       await loadPackageGroups()
-      toast.success('Quote unlinked from package group. Save the quote to persist the snapshot.')
+      toast.success('Quote unlinked from package group')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to unlink package group')
     } finally {

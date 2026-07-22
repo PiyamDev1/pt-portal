@@ -788,6 +788,10 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
           leadPackageId: packageFolder.id,
           familyLabel: packageGroupFamilyLabel || 'Family',
           customerVisible: true,
+          metadata: {
+            packageReference: packageFolder.package_reference,
+            customerName: packageFolder.customer_name,
+          },
         }),
       })
       const data = (await response.json()) as PackageGroupResponse
@@ -824,6 +828,10 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
             packageId: packageFolder.id,
             familyLabel: packageGroupFamilyLabel || 'Family',
             customerVisible: true,
+            metadata: {
+              packageReference: packageFolder.package_reference,
+              customerName: packageFolder.customer_name,
+            },
           }),
         },
       )

@@ -13,6 +13,16 @@ function cleanSortOrder(value: unknown) {
   return Number.isFinite(number) ? Math.trunc(number) : 0
 }
 
+function cleanBoolean(value: unknown) {
+  return value === true || value === 'true'
+}
+
+function cleanMetadata(value: unknown) {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {}
+}
+
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const supabase = await getRouteSupabaseClient()
@@ -30,18 +40,55 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!packageId && !quoteId) return apiError('Package ID or quote ID is required', 400)
 
   try {
+    const memberLookup = packageId
+      ? await supabase
+          .from('travel_package_group_members')
+          .select(selectTravelPackageGroupMemberColumns())
+          .eq('group_id', id)
+          .eq('package_id', packageId)
+          .maybeSingle()
+      : await supabase
+          .from('travel_package_group_members')
+          .select(selectTravelPackageGroupMemberColumns())
+          .eq('group_id', id)
+          .eq('quote_id', quoteId)
+          .maybeSingle()
+
+    if (memberLookup.error) throw memberLookup.error
+
+    const memberValues = {
+      family_label: cleanPackageGroupText(body.familyLabel || body.family_label) || 'Family',
+      customer_display_name:
+        cleanPackageGroupText(body.customerDisplayName || body.customer_display_name) || null,
+      is_lead_family: cleanBoolean(body.isLeadFamily ?? body.is_lead_family),
+      customer_visible: cleanBoolean(body.customerVisible ?? body.customer_visible),
+      sort_order: cleanSortOrder(body.sortOrder ?? body.sort_order),
+      metadata: cleanMetadata(body.metadata),
+    }
+
+    const existingMember = memberLookup.data as { id: string } | null
+
+    if (existingMember) {
+      const { data, error } = await supabase
+        .from('travel_package_group_members')
+        .update(memberValues)
+        .eq('id', existingMember.id)
+        .eq('group_id', id)
+        .select(selectTravelPackageGroupMemberColumns())
+        .single()
+
+      if (error || !data) throw error || new Error('Failed to update package group member')
+
+      return apiOk({ member: data, setupRequired: false, linkedExisting: true })
+    }
+
     const { data, error } = await supabase
       .from('travel_package_group_members')
       .insert({
         group_id: id,
         package_id: packageId || null,
         quote_id: quoteId || null,
-        family_label: cleanPackageGroupText(body.familyLabel || body.family_label) || 'Family',
-        customer_display_name:
-          cleanPackageGroupText(body.customerDisplayName || body.customer_display_name) || null,
-        is_lead_family: Boolean(body.isLeadFamily || body.is_lead_family),
-        customer_visible: Boolean(body.customerVisible || body.customer_visible),
-        sort_order: cleanSortOrder(body.sortOrder || body.sort_order),
+        ...memberValues,
       })
       .select(selectTravelPackageGroupMemberColumns())
       .single()

@@ -58,10 +58,7 @@ async function requireUser() {
   return { supabase, user }
 }
 
-export async function GET(
-  _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const { supabase, user } = await requireUser()
   if (!user) return apiError('Unauthorized', 401)
@@ -82,10 +79,7 @@ export async function GET(
   return apiOk({ quote: data as unknown as TravelPackageQuote, setupRequired: false })
 }
 
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const { supabase, user } = await requireUser()
   if (!user) return apiError('Unauthorized', 401)
@@ -118,7 +112,9 @@ export async function PATCH(
     updates.finalised_source = null
     updates.customer_selection_note = null
     updates.agent_selection_note = null
-    updates.status = body.shareEnabled === true ? 'shared' : 'draft'
+    if (body.shareEnabled !== undefined) {
+      updates.status = body.shareEnabled === true ? 'shared' : 'draft'
+    }
   }
 
   if (body.expiresAt !== undefined) {
@@ -130,7 +126,18 @@ export async function PATCH(
   }
 
   if (body.status !== undefined) {
-    if (!['draft', 'shared', 'expired', 'customer_selected', 'agent_selected', 'finalised', 'converted', 'archived'].includes(body.status)) {
+    if (
+      ![
+        'draft',
+        'shared',
+        'expired',
+        'customer_selected',
+        'agent_selected',
+        'finalised',
+        'converted',
+        'archived',
+      ].includes(body.status)
+    ) {
       return apiError('Invalid package quote status', 400)
     }
     updates.status = body.status
