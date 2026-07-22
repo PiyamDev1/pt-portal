@@ -1319,6 +1319,9 @@ export default function PackagesClient({
   const [linkedFamilyLabel, setLinkedFamilyLabel] = useState('Family 1')
   const [selectedGroupId, setSelectedGroupId] = useState('')
   const [packageGroupSearch, setPackageGroupSearch] = useState('')
+  const [quoteGroupSearch, setQuoteGroupSearch] = useState('')
+  const [selectedQuoteForGroupId, setSelectedQuoteForGroupId] = useState('')
+  const [selectedQuoteFamilyLabel, setSelectedQuoteFamilyLabel] = useState('Family 2')
   const [sharedTransportNote, setSharedTransportNote] = useState('')
 
   const customerOptions = useMemo(() => buildCustomerPackageOptions(payload, 80), [payload])
@@ -1355,6 +1358,20 @@ export default function PackagesClient({
       `${group.group_reference} ${group.title}`.toLowerCase().includes(search),
     )
   }, [packageGroupSearch, packageGroups])
+  const filteredLinkableQuotes = useMemo(() => {
+    const search = quoteGroupSearch.trim().toLowerCase()
+    return quotes
+      .filter((quote) => quote.id !== activeQuote?.id && quote.status !== 'archived')
+      .filter((quote) => {
+        if (!search) return true
+        const quotePayload = normalizePackageQuotePayload(quote.payload)
+        return `${quote.title} ${quote.customer_name || ''} ${quote.customer_phone || ''} ${
+          quote.customer_email || ''
+        } ${quotePayload.customerName} ${quotePayload.customerPhone} ${quotePayload.customerEmail}`
+          .toLowerCase()
+          .includes(search)
+      })
+  }, [activeQuote?.id, quoteGroupSearch, quotes])
 
   const updatePayload = (changes: Partial<PackageQuotePayload>) => {
     setPayload((current) => ({ ...current, ...changes }))
@@ -1703,6 +1720,23 @@ export default function PackagesClient({
     }
   }
 
+  const buildQuoteGroupMemberMetadata = (quote: TravelPackageQuote) => {
+    const quotePayload = normalizePackageQuotePayload(quote.payload)
+    return {
+      quoteTitle: quote.title,
+      customerName: quote.customer_name || quotePayload.customerName,
+      customerPhone: quote.customer_phone || quotePayload.customerPhone,
+      customerEmail: quote.customer_email || quotePayload.customerEmail,
+    }
+  }
+
+  const formatQuoteGroupOptionLabel = (quote: TravelPackageQuote) => {
+    const quotePayload = normalizePackageQuotePayload(quote.payload)
+    const customerName = quote.customer_name || quotePayload.customerName || 'No customer'
+    const createdDate = new Date(quote.created_at).toLocaleDateString('en-GB')
+    return `${quote.title} - ${customerName} - ${createdDate}`
+  }
+
   const createPackageGroup = async () => {
     if (!activeQuote) {
       toast.error('Save the quote before creating a linked package group')
@@ -1720,12 +1754,7 @@ export default function PackagesClient({
           leadQuoteId: activeQuote.id,
           familyLabel: linkedFamilyLabel || 'Family 1',
           customerVisible: true,
-          metadata: {
-            quoteTitle: payload.title,
-            customerName: payload.customerName,
-            customerPhone: payload.customerPhone,
-            customerEmail: payload.customerEmail,
-          },
+          metadata: buildQuoteGroupMemberMetadata(activeQuote),
         }),
       })
       const data = (await response.json()) as PackageGroupResponse
@@ -1766,12 +1795,7 @@ export default function PackagesClient({
           quoteId: activeQuote.id,
           familyLabel: linkedFamilyLabel || 'Family',
           customerVisible: true,
-          metadata: {
-            quoteTitle: payload.title,
-            customerName: payload.customerName,
-            customerPhone: payload.customerPhone,
-            customerEmail: payload.customerEmail,
-          },
+          metadata: buildQuoteGroupMemberMetadata(activeQuote),
         }),
       })
       const data = (await response.json()) as {
@@ -1792,6 +1816,85 @@ export default function PackagesClient({
       toast.success('Quote linked to package group')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to link package group')
+    } finally {
+      setPackageGroupSaving(false)
+    }
+  }
+
+  const linkSelectedQuoteToPackageGroup = async () => {
+    if (!activeQuote) {
+      toast.error('Save this quote before linking another quotation')
+      return
+    }
+    const selectedQuote = quotes.find((quote) => quote.id === selectedQuoteForGroupId)
+    if (!selectedQuote) {
+      toast.error('Select an existing quotation to link')
+      return
+    }
+    setPackageGroupSaving(true)
+    try {
+      let groupId = activePackageGroup?.id || ''
+
+      if (!groupId) {
+        const groupTitle =
+          newGroupTitle.trim() ||
+          `${payload.customerName || activeQuote.customer_name || 'Linked families'} group`
+        const createResponse = await fetch('/api/travel-package-groups', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: groupTitle,
+            leadQuoteId: activeQuote.id,
+            familyLabel: linkedFamilyLabel || 'Family 1',
+            customerVisible: true,
+            metadata: buildQuoteGroupMemberMetadata(activeQuote),
+          }),
+        })
+        const createData = (await createResponse.json()) as PackageGroupResponse
+        if (!createResponse.ok || createData.setupRequired || !createData.group) {
+          throw new Error(
+            createData.message || createData.error || 'Failed to create linked package group',
+          )
+        }
+        groupId = createData.group.id
+      }
+
+      const linkResponse = await fetch(`/api/travel-package-groups/${groupId}/members`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          quoteId: selectedQuote.id,
+          familyLabel:
+            selectedQuoteFamilyLabel ||
+            selectedQuote.customer_name ||
+            normalizePackageQuotePayload(selectedQuote.payload).customerName ||
+            'Family 2',
+          customerVisible: true,
+          metadata: buildQuoteGroupMemberMetadata(selectedQuote),
+        }),
+      })
+      const linkData = (await linkResponse.json()) as {
+        error?: string
+        setupRequired?: boolean
+        message?: string
+      }
+      if (!linkResponse.ok || linkData.setupRequired) {
+        throw new Error(linkData.message || linkData.error || 'Failed to link selected quotation')
+      }
+
+      let detail = await loadPackageGroupDetail(groupId, false)
+      if (detail && sharedTransportNote.trim()) {
+        await upsertSharedTransportNote(detail, sharedTransportNote)
+        detail = await loadPackageGroupDetail(groupId, false)
+      }
+      if (detail) await persistPackageGroupSnapshot(detail)
+      setSelectedQuoteForGroupId('')
+      setQuoteGroupSearch('')
+      setSelectedQuoteFamilyLabel('Family 2')
+      await loadPackageGroups()
+      toast.success('Quotation linked to package group')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to link selected quotation')
     } finally {
       setPackageGroupSaving(false)
     }
@@ -1948,6 +2051,9 @@ export default function PackagesClient({
     setActiveQuote(quote)
     setPayload(normalizedPayload)
     setExpiresAtInput(toDateTimeLocalValue(quote.expires_at))
+    setSelectedQuoteForGroupId('')
+    setQuoteGroupSearch('')
+    setSelectedQuoteFamilyLabel('Family 2')
     setSharedTransportNote(
       normalizedPayload.linkedPackageGroup?.sharedServices.find(
         (service) => service.serviceType === 'transport' && service.customerVisible,
@@ -1966,6 +2072,9 @@ export default function PackagesClient({
     setActivePackageGroup(null)
     setSelectedGroupId('')
     setPackageGroupSearch('')
+    setSelectedQuoteForGroupId('')
+    setQuoteGroupSearch('')
+    setSelectedQuoteFamilyLabel('Family 2')
     setSharedTransportNote('')
     setPayload(duplicatedPayload)
     setExpiresAtInput(toDateTimeLocalValue(getDefaultPackageExpiry()))
@@ -1978,6 +2087,9 @@ export default function PackagesClient({
     setActivePackageGroup(null)
     setSelectedGroupId('')
     setPackageGroupSearch('')
+    setSelectedQuoteForGroupId('')
+    setQuoteGroupSearch('')
+    setSelectedQuoteFamilyLabel('Family 2')
     setNewGroupTitle('')
     setLinkedFamilyLabel('Family 1')
     setSharedTransportNote('')
@@ -2404,6 +2516,71 @@ export default function PackagesClient({
                       >
                         Link
                       </button>
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg border border-blue-200 bg-blue-50/60 p-3 lg:col-span-2">
+                    <p className="text-sm font-black text-slate-950">Link existing quotation</p>
+                    <p className="mt-1 text-xs font-semibold text-blue-900">
+                      Use this when both families already have separate quotations and no linked
+                      group has been created yet.
+                    </p>
+                    <div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_10rem]">
+                      <label className="block">
+                        <span className="mb-1 block text-xs font-bold text-slate-500">
+                          Search quotations
+                        </span>
+                        <input
+                          value={quoteGroupSearch}
+                          onChange={(event) => setQuoteGroupSearch(event.target.value)}
+                          placeholder="Search by quote, customer, phone or email"
+                          className="min-h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-700"
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="mb-1 block text-xs font-bold text-slate-500">
+                          Existing quotation
+                        </span>
+                        <select
+                          value={selectedQuoteForGroupId}
+                          onChange={(event) => setSelectedQuoteForGroupId(event.target.value)}
+                          disabled={loading}
+                          className="min-h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold outline-none focus:border-blue-700 disabled:text-slate-400"
+                        >
+                          <option value="">
+                            {loading ? 'Loading quotes...' : 'Select quotation'}
+                          </option>
+                          {filteredLinkableQuotes.map((quote) => (
+                            <option key={quote.id} value={quote.id}>
+                              {formatQuoteGroupOptionLabel(quote)}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="block">
+                        <span className="mb-1 block text-xs font-bold text-slate-500">
+                          Their family label
+                        </span>
+                        <input
+                          value={selectedQuoteFamilyLabel}
+                          onChange={(event) => setSelectedQuoteFamilyLabel(event.target.value)}
+                          placeholder="Family Hussain"
+                          className="min-h-11 w-full rounded-lg border border-slate-200 px-3 text-sm font-bold outline-none focus:border-blue-700"
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => void linkSelectedQuoteToPackageGroup()}
+                        disabled={packageGroupSaving || !selectedQuoteForGroupId}
+                        className="min-h-11 rounded-lg bg-blue-900 px-3 text-sm font-black text-white transition hover:bg-blue-950 disabled:opacity-50 md:col-start-3"
+                      >
+                        {activePackageGroup ? 'Add Quote' : 'Create Group'}
+                      </button>
+                      {!loading && filteredLinkableQuotes.length === 0 && (
+                        <p className="text-xs font-semibold text-slate-500 md:col-span-3">
+                          No matching saved quotations found.
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>
