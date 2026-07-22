@@ -866,16 +866,18 @@ function buildStaySelections(
   if (!group) return [current]
   if (group.options.length === 0) return []
 
-  return group.options.flatMap((option) =>
-    buildStaySelections(groups, index + 1, [
-      ...current,
-      {
-        groupId: group.id,
-        groupLabel: group.label,
-        option,
-      },
-    ]),
-  )
+  return [...group.options]
+    .sort((a, b) => a.price - b.price)
+    .flatMap((option) =>
+      buildStaySelections(groups, index + 1, [
+        ...current,
+        {
+          groupId: group.id,
+          groupLabel: group.label,
+          option,
+        },
+      ]),
+    )
 }
 
 export function buildPackageCombinations(payloadInput: unknown, limit = 250): PackageCombination[] {
@@ -1065,16 +1067,7 @@ export function buildCustomerPackageOptions(
       }
     })
     .filter((value): value is PackageResolvedSelection => Boolean(value))
-    .sort((a, b) => {
-      const aIsDefault = Object.entries(defaultSelection.stayOptionIds).every(
-        ([groupId, optionId]) => a.selection.stayOptionIds[groupId] === optionId,
-      )
-      const bIsDefault = Object.entries(defaultSelection.stayOptionIds).every(
-        ([groupId, optionId]) => b.selection.stayOptionIds[groupId] === optionId,
-      )
-      if (aIsDefault !== bIsDefault) return aIsDefault ? -1 : 1
-      return a.combination.totalPrice - b.combination.totalPrice
-    })
+    .sort((a, b) => a.combination.totalPrice - b.combination.totalPrice)
     .slice(0, limit)
 }
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildPackageCombinations,
+  buildCustomerPackageOptions,
   createTravelPackageReference,
   formatPackageQuoteForCopy,
   formatPackageCombinationForCopy,
@@ -86,6 +87,13 @@ describe('package quote calculator', () => {
     expect(combinations[0].perPersonPrice).toBeCloseTo(635, 3)
     expect(combinations[0].servicePassengers).toBe(4)
     expect(combinations.at(-1)?.totalPrice).toBe(1980)
+  })
+
+  it('generates customer options from lower to higher total cost', () => {
+    const options = buildCustomerPackageOptions(payload)
+
+    expect(options.map((option) => option.combination.totalPrice)).toEqual([1905, 1930, 1955, 1980])
+    expect(options[0].selection.stayOptionIds).toEqual({ makkah: 'mk-b', madinah: 'md-b' })
   })
 
   it('formats WhatsApp-friendly copy for an option', () => {
