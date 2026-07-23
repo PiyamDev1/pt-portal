@@ -273,13 +273,23 @@ describe('package quote calculator', () => {
       ...getDefaultPackageSelection(linkedPayload),
       linkedFlightOptionIds: { 'leg-home': 'saudia' },
     })
+    const implicitSelection = resolvePackageSelection(linkedPayload, {
+      stayOptionIds: { makkah: 'mk-only' },
+    })
     const alternativeSelection = resolvePackageSelection(linkedPayload, {
       ...getDefaultPackageSelection(linkedPayload),
       linkedFlightOptionIds: { 'leg-home': 'egyptair' },
     })
 
     expect(defaultSelection.combination.totalPrice).toBe(1400)
+    expect(defaultSelection.selection.linkedFlightOptionIds).toEqual({ 'leg-home': 'saudia' })
+    expect(implicitSelection.selection.flightOptionId).toBe('flt-a')
+    expect(implicitSelection.selection.linkedFlightOptionIds).toEqual({ 'leg-home': 'saudia' })
+    expect(implicitSelection.combination.totalPrice).toBe(1400)
     expect(alternativeSelection.combination.totalPrice).toBe(1510)
+    expect(alternativeSelection.selection.linkedFlightOptionIds).toEqual({
+      'leg-home': 'egyptair',
+    })
   })
 
   it('defaults quote expiry to 72 hours from now', () => {
@@ -419,6 +429,68 @@ describe('package quote calculator', () => {
     expect(combination.servicePassengers).toBe(3)
     expect(combination.totalPrice).toBe(2250)
     expect(combination.perPersonPrice).toBe(1125)
+  })
+
+  it('preserves total transport mode and includes preferred transport in selections', () => {
+    const transportPayload = normalizePackageQuotePayload({
+      ...payload,
+      adults: 2,
+      childrenPaying: 0,
+      childrenFree: 0,
+      infants: 0,
+      flightOptions: [],
+      visaOptions: [],
+      transportOptions: [
+        {
+          id: 'transport-total',
+          title: 'Private transfer',
+          summary: 'Private transfer',
+          price: 300,
+          pricingMode: 'total',
+          isDefault: true,
+        },
+      ],
+    })
+
+    const resolved = resolvePackageSelection(transportPayload, {
+      stayOptionIds: { makkah: 'mk-b', madinah: 'md-b' },
+      paymentMethod: 'bank_transfer',
+    })
+
+    expect(transportPayload.transportOptions[0].pricingMode).toBe('total')
+    expect(resolved.selection.transportOptionId).toBe('transport-total')
+    expect(resolved.combination.transportOption?.pricingMode).toBe('total')
+    expect(resolved.combination.totalPrice).toBe(925)
+  })
+
+  it('calculates per-person transport mode for every passenger', () => {
+    const transportPayload = normalizePackageQuotePayload({
+      ...payload,
+      adults: 2,
+      childrenPaying: 0,
+      childrenFree: 1,
+      infants: 1,
+      flightOptions: [],
+      visaOptions: [],
+      transportOptions: [
+        {
+          id: 'transport-pp',
+          title: 'Shared transfer',
+          summary: 'Shared transfer',
+          price: 25,
+          pricingMode: 'per_person',
+          isDefault: true,
+        },
+      ],
+    })
+
+    const resolved = resolvePackageSelection(transportPayload, {
+      stayOptionIds: { makkah: 'mk-b', madinah: 'md-b' },
+      paymentMethod: 'bank_transfer',
+    })
+
+    expect(resolved.selection.transportOptionId).toBe('transport-pp')
+    expect(resolved.combination.totalPrice).toBe(725)
   })
 
   it('applies active limited-time offers to the final package total', () => {

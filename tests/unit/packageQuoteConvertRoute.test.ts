@@ -81,6 +81,8 @@ const mocks = vi.hoisted(() => {
   const communicationInsert = vi.fn()
   const versionInsert = vi.fn()
   const paymentInsert = vi.fn()
+  const passengerInsert = vi.fn()
+  const reservationInsert = vi.fn()
 
   const from = vi.fn((table: string) => {
     if (table === 'travel_package_quotes') {
@@ -93,6 +95,8 @@ const mocks = vi.hoisted(() => {
     if (table === 'travel_package_communications') return { insert: communicationInsert }
     if (table === 'travel_package_versions') return { insert: versionInsert }
     if (table === 'travel_package_payments') return { insert: paymentInsert }
+    if (table === 'travel_package_passengers') return { insert: passengerInsert }
+    if (table === 'travel_package_reservations') return { insert: reservationInsert }
     return {}
   })
 
@@ -118,6 +122,8 @@ const mocks = vi.hoisted(() => {
     communicationInsert,
     versionInsert,
     paymentInsert,
+    passengerInsert,
+    reservationInsert,
     from,
     getRouteSupabaseClient,
   }
@@ -158,6 +164,8 @@ describe('POST /api/packages/[id]/convert', () => {
     mocks.communicationInsert.mockResolvedValue({ error: null })
     mocks.versionInsert.mockResolvedValue({ error: null })
     mocks.paymentInsert.mockResolvedValue({ error: null })
+    mocks.passengerInsert.mockResolvedValue({ error: null })
+    mocks.reservationInsert.mockResolvedValue({ error: null })
     mocks.quoteUpdateEq.mockResolvedValue({ error: null })
   })
 
@@ -206,6 +214,116 @@ describe('POST /api/packages/[id]/convert', () => {
     expect(mocks.quoteUpdate).toHaveBeenCalledWith(
       expect.objectContaining({ converted_package_id: 'package-1' }),
     )
+  })
+
+  it('adds selected linked flight leg costs to the flight reservation row', async () => {
+    const linkedPayload: PackageQuotePayload = {
+      ...payload,
+      flightOptions: [
+        {
+          id: 'flight-main',
+          title: 'Main flight',
+          summary: 'Outbound flight',
+          price: 100,
+          pricingMode: 'per_person',
+        },
+      ],
+      linkedFlightGroups: [
+        {
+          id: 'return-leg',
+          baseFlightOptionId: 'flight-main',
+          routeLabel: 'Madinah to London',
+          defaultOptionId: 'included-return',
+          options: [
+            {
+              id: 'included-return',
+              airlineName: 'Included return',
+              summary: 'Return flight',
+              adultPrice: 50,
+              childPrice: 50,
+              infantPrice: 0,
+              adultDelta: 0,
+              childDelta: 0,
+              infantDelta: 0,
+              isDefault: true,
+            },
+          ],
+        },
+      ],
+    }
+    const linkedQuote: TravelPackageQuote = {
+      ...quote,
+      payload: linkedPayload,
+      selected_option: resolvePackageSelection(linkedPayload, {
+        stayOptionIds: { makkah: 'hotel-a' },
+      }),
+    }
+    mocks.quoteSingle.mockResolvedValueOnce({ data: linkedQuote, error: null })
+
+    const response = await POST(
+      new Request('http://localhost/api/packages/quote-1/convert') as never,
+      {
+        params: Promise.resolve({ id: 'quote-1' }),
+      },
+    )
+
+    expect(response.status).toBe(201)
+    const reservationRows = mocks.reservationInsert.mock.calls[0]?.[0] as Array<
+      Record<string, unknown>
+    >
+    const flightRow = reservationRows.find((row) => row.reservation_type === 'flight')
+    expect(flightRow).toEqual(
+      expect.objectContaining({
+        sold_price_total: 300,
+        metadata: expect.objectContaining({
+          linkedFlightSelections: [
+            expect.objectContaining({
+              groupId: 'return-leg',
+              optionId: 'included-return',
+            }),
+          ],
+        }),
+      }),
+    )
+    expect(reservationRows.some((row) => row.title === 'Package pricing adjustment')).toBe(false)
+  })
+
+  it('adds card processing fee to full-payment card payment rows', async () => {
+    const cardPayload: PackageQuotePayload = {
+      ...payload,
+      cardProcessingFeePercent: 3,
+    }
+    const cardQuote: TravelPackageQuote = {
+      ...quote,
+      payload: cardPayload,
+      selected_option: resolvePackageSelection(cardPayload, {
+        stayOptionIds: { makkah: 'hotel-a' },
+        paymentMethod: 'card',
+        customerName: 'A Khan',
+      }),
+    }
+    mocks.quoteSingle.mockResolvedValueOnce({ data: cardQuote, error: null })
+
+    const response = await POST(
+      new Request('http://localhost/api/packages/quote-1/convert') as never,
+      {
+        params: Promise.resolve({ id: 'quote-1' }),
+      },
+    )
+
+    expect(response.status).toBe(201)
+    expect(mocks.paymentInsert).toHaveBeenCalledWith([
+      expect.objectContaining({
+        amount: 1030,
+        payment_type: 'payment',
+        payment_method: 'card',
+        metadata: expect.objectContaining({
+          baseAmount: 1000,
+          processingFeeTotal: 30,
+          processingFeePercent: 3,
+        }),
+      }),
+    ])
   })
 
   it('creates a card deposit payment for the deposit plus processing fee', async () => {

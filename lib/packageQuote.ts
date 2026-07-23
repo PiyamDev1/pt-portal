@@ -1628,7 +1628,7 @@ export function resolvePackageSelection(
   const flightOption =
     input.flightOptionId && payload.flightOptions.length > 0
       ? payload.flightOptions.find((option) => option.id === input.flightOptionId) || null
-      : null
+      : getDefaultOption(payload.flightOptions)
 
   if (input.flightOptionId && payload.flightOptions.length > 0 && !flightOption) {
     throw new Error('Select a valid flight option')
@@ -1642,19 +1642,20 @@ export function resolvePackageSelection(
   const validLinkedFlightGroupIds = new Set(
     getLinkedFlightGroupsForFlight(payload, flightOption).map((group) => group.id),
   )
-  const selectedLinkedFlightOptionIds = Object.entries(input.linkedFlightOptionIds || {})
-    .filter(([groupId]) => validLinkedFlightGroupIds.has(groupId))
-    .reduce<Record<string, string>>((selected, [groupId, optionId]) => {
-      selected[groupId] = optionId
-      return selected
-    }, {})
+  const requestedLinkedFlightOptionIds = Object.entries(input.linkedFlightOptionIds || {}).filter(
+    ([groupId]) => validLinkedFlightGroupIds.has(groupId),
+  )
 
-  for (const [groupId, optionId] of Object.entries(selectedLinkedFlightOptionIds)) {
+  for (const [groupId, optionId] of requestedLinkedFlightOptionIds) {
     const group = payload.linkedFlightGroups.find((candidate) => candidate.id === groupId)
     if (group && !group.options.some((option) => option.id === optionId)) {
       throw new Error('Select a valid linked flight option')
     }
   }
+
+  const selectedLinkedFlightOptionIds = Object.fromEntries(
+    linkedFlightSelections.map((selection) => [selection.group.id, selection.option.id]),
+  )
 
   const visaOption =
     input.visaOptionId && payload.visaOptions.length > 0
@@ -1668,7 +1669,7 @@ export function resolvePackageSelection(
   const transportOption =
     input.transportOptionId && payload.transportOptions.length > 0
       ? payload.transportOptions.find((option) => option.id === input.transportOptionId) || null
-      : null
+      : getDefaultOption(payload.transportOptions)
 
   if (input.transportOptionId && payload.transportOptions.length > 0 && !transportOption) {
     throw new Error('Select a valid transport option')
@@ -1697,10 +1698,10 @@ export function resolvePackageSelection(
   return {
     selection: {
       stayOptionIds: input.stayOptionIds || {},
-      flightOptionId: input.flightOptionId || null,
+      flightOptionId: flightOption?.id || null,
       linkedFlightOptionIds: selectedLinkedFlightOptionIds,
       visaOptionId: input.visaOptionId || null,
-      transportOptionId: input.transportOptionId || null,
+      transportOptionId: transportOption?.id || null,
       paymentMethod,
       paymentBreakdown,
       paymentIntent,
