@@ -217,8 +217,8 @@ describe('package quote calculator', () => {
       linkedFlightOptionIds: { 'leg-home': 'egyptair' },
     })
 
-    expect(defaultSelection.combination.totalPrice).toBe(1000)
-    expect(alternativeSelection.combination.totalPrice).toBe(1110)
+    expect(defaultSelection.combination.totalPrice).toBe(1400)
+    expect(alternativeSelection.combination.totalPrice).toBe(1510)
   })
 
   it('defaults quote expiry to 72 hours from now', () => {
@@ -516,6 +516,7 @@ describe('package quote calculator', () => {
     const copy = formatPackageQuoteForCopy(mixedVisaPayload)
 
     expect(combination.visaOptions).toHaveLength(2)
+    expect(combination.grossPrice).toBe(2105)
     expect(combination.totalPrice).toBe(2105)
     expect(copy).toContain('4 x GB ETA visa')
     expect(copy).toContain('2 x Multiple entry visa with insurance')

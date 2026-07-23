@@ -723,18 +723,30 @@ export function getLinkedFlightOptionPriceDeltas(
   }
 }
 
+function getLinkedFlightOptionPassengerUnitPricesForTotal(
+  group: PackageLinkedFlightGroup,
+  option: PackageLinkedFlightOption | null,
+) {
+  if (!option) return { adult: 0, child: 0, infant: 0 }
+  if (group.options.some((candidate) => hasLinkedFlightActualPrices(candidate))) {
+    return getLinkedFlightOptionPassengerPrices(option)
+  }
+
+  const defaultOption = getLinkedFlightOptionForSelection(group, null)
+  return getLinkedFlightOptionPriceDeltas(option, defaultOption)
+}
+
 export function getLinkedFlightOptionTotal(
   group: PackageLinkedFlightGroup,
   option: PackageLinkedFlightOption | null,
   payload: PackageQuotePayload,
 ) {
   if (!option) return 0
-  const defaultOption = getLinkedFlightOptionForSelection(group, null)
-  const deltas = getLinkedFlightOptionPriceDeltas(option, defaultOption)
+  const units = getLinkedFlightOptionPassengerUnitPricesForTotal(group, option)
   return (
-    deltas.adult * payload.adults +
-    deltas.child * getFlightChildPassengerCount(payload) +
-    deltas.infant * getInfantPassengerCount(payload)
+    units.adult * payload.adults +
+    units.child * getFlightChildPassengerCount(payload) +
+    units.infant * getInfantPassengerCount(payload)
   )
 }
 
@@ -1144,13 +1156,13 @@ export function getPackagePassengerPriceBreakdown(
   const flightUnits = getFlightPassengerUnitPrices(combination.flightOption, payload)
   const linkedFlightUnits = combination.linkedFlightSelections.reduce(
     (units, selection) => {
-      const deltas = getLinkedFlightOptionPriceDeltas(
+      const linkedUnits = getLinkedFlightOptionPassengerUnitPricesForTotal(
+        selection.group,
         selection.option,
-        getLinkedFlightOptionForSelection(selection.group, null),
       )
-      units.adult += deltas.adult
-      units.child += deltas.child
-      units.infant += deltas.infant
+      units.adult += linkedUnits.adult
+      units.child += linkedUnits.child
+      units.infant += linkedUnits.infant
       return units
     },
     { adult: 0, child: 0, infant: 0 },
