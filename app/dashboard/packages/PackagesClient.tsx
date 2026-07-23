@@ -1296,15 +1296,15 @@ function OptionEditor({
         <div
           className={`mt-2 grid gap-2 ${
             showHotelCostAudit
-              ? 'sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_9.5rem]'
+              ? 'grid-cols-[repeat(auto-fit,minmax(8.75rem,1fr))]'
               : 'sm:grid-cols-[minmax(0,1fr)_9.5rem]'
           }`}
         >
           {showHotelCostAudit && (
             <label className="block min-w-0">
               <span className="block text-xs font-bold text-slate-500">Search cost</span>
-              <div className="mt-1 flex min-h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-3">
-                <span className="mr-2 text-sm font-black text-slate-500">GBP</span>
+              <div className="mt-1 flex min-h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-2.5">
+                <span className="mr-2 shrink-0 text-sm font-black text-slate-500">GBP</span>
                 <input
                   value={option.searchPrice || ''}
                   onChange={(event) =>
@@ -1314,7 +1314,7 @@ function OptionEditor({
                   min="0"
                   step="0.01"
                   placeholder="0.00"
-                  className="w-full bg-transparent text-sm font-bold outline-none"
+                  className="min-w-0 w-full bg-transparent text-sm font-bold outline-none"
                 />
               </div>
             </label>
@@ -1323,8 +1323,8 @@ function OptionEditor({
             <span className="block text-xs font-bold text-slate-500">
               {showHotelCostAudit ? 'Adj cost' : priceLabel}
             </span>
-            <div className="mt-1 flex min-h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-3">
-              <span className="mr-2 text-sm font-black text-slate-500">GBP</span>
+            <div className="mt-1 flex min-h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-2.5">
+              <span className="mr-2 shrink-0 text-sm font-black text-slate-500">GBP</span>
               <input
                 value={
                   (showHotelCostAudit ? (option.adjustedPrice ?? option.price) : option.price) || ''
@@ -1342,7 +1342,7 @@ function OptionEditor({
                 min="0"
                 step="0.01"
                 placeholder="0.00"
-                className="w-full bg-transparent text-sm font-bold outline-none"
+                className="min-w-0 w-full bg-transparent text-sm font-bold outline-none"
               />
             </div>
           </label>
