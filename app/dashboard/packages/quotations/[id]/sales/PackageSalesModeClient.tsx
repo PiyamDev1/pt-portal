@@ -20,10 +20,12 @@ import type {
   PackagePaymentMethod,
   PackageQuotePayload,
   PackageResolvedSelection,
+  PackageSelectionInput,
   TravelPackageQuote,
 } from '@/app/types/packages'
 import { buildLinkedPackageGroupSnapshot, type TravelPackageGroupDetail } from '@/lib/packageGroups'
 import {
+  buildPackagePresetSelections,
   formatMoney,
   getDefaultPackageSelection,
   getFlightOptionPriceDeltas,
@@ -36,6 +38,7 @@ import {
   normalizePackagePaymentBreakdown,
   normalizePackageQuotePayload,
   resolvePackageSelection,
+  sortPackageOptionsLowToHigh,
 } from '@/lib/packageQuote'
 
 type PackageSalesModeClientProps = {
@@ -411,17 +414,42 @@ export default function PackageSalesModeClient({ quoteId }: PackageSalesModeClie
       payload.itineraryOrder.length > 0
         ? payload.itineraryOrder
         : payload.stayGroups.map((group) => group.id)
-    return [...payload.stayGroups].sort((a, b) => {
-      const aIndex = order.indexOf(a.id)
-      const bIndex = order.indexOf(b.id)
-      return (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex)
-    })
+    return [...payload.stayGroups]
+      .sort((a, b) => {
+        const aIndex = order.indexOf(a.id)
+        const bIndex = order.indexOf(b.id)
+        return (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex)
+      })
+      .map((group) => ({
+        ...group,
+        options: sortPackageOptionsLowToHigh(group.options),
+      }))
   }, [payload])
 
   const visibleOffers = useMemo(() => {
     if (!payload) return []
     return payload.limitedTimeOffers.filter((offer) => offer.active)
   }, [payload])
+  const packagePresets = useMemo(
+    () => (payload ? buildPackagePresetSelections(payload) : []),
+    [payload],
+  )
+
+  const applyPackagePreset = (nextSelection: PackageSelectionInput) => {
+    setSelection((current) => ({
+      ...nextSelection,
+      paymentMethod: current?.paymentMethod || nextSelection.paymentMethod || 'bank_transfer',
+      paymentBreakdown: current?.paymentBreakdown || null,
+      paymentIntent: current?.paymentIntent,
+      installmentRequested: current?.installmentRequested,
+      depositPaymentMethod: current?.depositPaymentMethod,
+      termsAccepted: current?.termsAccepted,
+      customerName: current?.customerName,
+      customerPhone: current?.customerPhone,
+      customerEmail: current?.customerEmail,
+      note: current?.note,
+    }))
+  }
 
   const updateCustomer = (changes: Partial<CustomerFields>) => {
     setCustomer((current) => ({ ...current, ...changes }))
@@ -615,6 +643,31 @@ export default function PackageSalesModeClient({ quoteId }: PackageSalesModeClie
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="space-y-5">
+          {packagePresets.length > 0 && (
+            <section className="rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+              <div className="grid gap-2 sm:grid-cols-3">
+                {packagePresets.map((preset) => {
+                  const isActive = resolved?.combination.id === preset.resolved?.combination.id
+                  return (
+                    <button
+                      key={preset.key}
+                      type="button"
+                      onClick={() =>
+                        preset.resolved ? applyPackagePreset(preset.resolved.selection) : null
+                      }
+                      className={`min-h-10 rounded-lg px-3 text-xs font-black transition ${
+                        isActive
+                          ? 'bg-slate-950 text-white'
+                          : 'border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100'
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  )
+                })}
+              </div>
+            </section>
+          )}
           {payload.flightOptions.length > 0 && (
             <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
               <SectionTitle icon={Plane} title="Flights" />

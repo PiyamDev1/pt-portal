@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildPackageCombinations,
   buildCustomerPackageOptions,
+  buildPackagePresetSelections,
   createTravelPackageReference,
   formatPackageQuoteForCopy,
   formatPackageCombinationForCopy,
@@ -12,6 +13,7 @@ import {
   isPackageQuoteExpired,
   normalizePackageQuotePayload,
   resolvePackageSelection,
+  sortPackageOptionsLowToHigh,
 } from '@/lib/packageQuote'
 import type { PackageQuotePayload } from '@/app/types/packages'
 
@@ -154,6 +156,65 @@ describe('package quote calculator', () => {
     expect(normalized.stayGroups[0].options[0].adjustedPrice).toBe(900)
     expect(normalized.stayGroups[0].options[0].price).toBe(900)
     expect(combination.totalPrice).toBe(900)
+  })
+
+  it('sorts hotel options from low to high by adjusted cost', () => {
+    const sorted = sortPackageOptionsLowToHigh([
+      {
+        id: 'expensive',
+        title: 'Expensive hotel',
+        summary: '',
+        price: 1400,
+        searchPrice: 1300,
+        adjustedPrice: 1400,
+      },
+      {
+        id: 'better',
+        title: 'Better hotel',
+        summary: '',
+        price: 950,
+        searchPrice: 1100,
+        adjustedPrice: 950,
+      },
+      {
+        id: 'middle',
+        title: 'Middle hotel',
+        summary: '',
+        price: 1100,
+        searchPrice: 1000,
+        adjustedPrice: 1100,
+      },
+    ])
+
+    expect(sorted.map((option) => option.id)).toEqual(['better', 'middle', 'expensive'])
+  })
+
+  it('builds quick-select presets for cheapest, preferred, and luxury options', () => {
+    const presetPayload = normalizePackageQuotePayload({
+      ...payload,
+      stayGroups: [
+        {
+          id: 'makkah',
+          label: 'Makkah',
+          options: [
+            { id: 'mk-cheap', title: 'Cheap', summary: '', price: 500 },
+            { id: 'mk-preferred', title: 'Preferred', summary: '', price: 700, isDefault: true },
+            { id: 'mk-luxury', title: 'Luxury', summary: '', price: 900 },
+          ],
+        },
+      ],
+    })
+
+    const presets = buildPackagePresetSelections(presetPayload)
+
+    expect(presets.map((preset) => preset.label)).toEqual([
+      'Cheapest Option',
+      'Preffered Option',
+      'Luxury Option',
+    ])
+    expect(presets[0].resolved?.selection.stayOptionIds).toEqual({ makkah: 'mk-cheap' })
+    expect(presets[1].resolved?.selection.stayOptionIds).toEqual({ makkah: 'mk-preferred' })
+    expect(presets[2].resolved?.selection.stayOptionIds).toEqual({ makkah: 'mk-luxury' })
   })
 
   it('calculates linked flight option differences from actual leg costs', () => {

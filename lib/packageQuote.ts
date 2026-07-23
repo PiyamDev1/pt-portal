@@ -869,6 +869,18 @@ function getActiveOffers(payload: PackageQuotePayload) {
   return payload.limitedTimeOffers.filter((offer) => isLimitedTimeOfferActive(offer))
 }
 
+function getPackageOptionSortPrice(option: PackageComponentOption) {
+  return option.adjustedPrice ?? option.price
+}
+
+export function sortPackageOptionsLowToHigh<T extends PackageComponentOption>(options: T[]) {
+  return [...options].sort((a, b) => {
+    const priceDifference = getPackageOptionSortPrice(a) - getPackageOptionSortPrice(b)
+    if (Math.abs(priceDifference) >= 0.005) return priceDifference
+    return (a.title || a.summary || a.id).localeCompare(b.title || b.summary || b.id)
+  })
+}
+
 function buildStaySelections(
   groups: PackageStayGroup[],
   index = 0,
@@ -878,18 +890,16 @@ function buildStaySelections(
   if (!group) return [current]
   if (group.options.length === 0) return []
 
-  return [...group.options]
-    .sort((a, b) => a.price - b.price)
-    .flatMap((option) =>
-      buildStaySelections(groups, index + 1, [
-        ...current,
-        {
-          groupId: group.id,
-          groupLabel: group.label,
-          option,
-        },
-      ]),
-    )
+  return sortPackageOptionsLowToHigh(group.options).flatMap((option) =>
+    buildStaySelections(groups, index + 1, [
+      ...current,
+      {
+        groupId: group.id,
+        groupLabel: group.label,
+        option,
+      },
+    ]),
+  )
 }
 
 export function buildPackageCombinations(payloadInput: unknown, limit = 250): PackageCombination[] {
@@ -1081,6 +1091,32 @@ export function buildCustomerPackageOptions(
     .filter((value): value is PackageResolvedSelection => Boolean(value))
     .sort((a, b) => a.combination.totalPrice - b.combination.totalPrice)
     .slice(0, limit)
+}
+
+export function buildPackagePresetSelections(payloadInput: unknown) {
+  const payload = normalizePackageQuotePayload(payloadInput)
+  const customerOptions = buildCustomerPackageOptions(payload, 250)
+  const cheapest = customerOptions[0] || null
+  const luxury = customerOptions.at(-1) || null
+  const preferred = resolveDefaultPackageSelection(payload)
+
+  return [
+    {
+      key: 'cheapest',
+      label: 'Cheapest Option',
+      resolved: cheapest,
+    },
+    {
+      key: 'preferred',
+      label: 'Preffered Option',
+      resolved: preferred || cheapest,
+    },
+    {
+      key: 'luxury',
+      label: 'Luxury Option',
+      resolved: luxury || preferred || cheapest,
+    },
+  ].filter((preset) => Boolean(preset.resolved))
 }
 
 function getComponentPassengerUnitPrice(

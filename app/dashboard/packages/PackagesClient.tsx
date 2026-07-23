@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowLeft,
+  ArrowDownWideNarrow,
   Building2,
   Bus,
   Calculator,
@@ -48,6 +49,7 @@ import {
   getOrderedStaySelections,
   isPackageQuoteExpired,
   normalizePackageQuotePayload,
+  sortPackageOptionsLowToHigh,
 } from '@/lib/packageQuote'
 import { buildLinkedPackageGroupSnapshot, type TravelPackageGroupDetail } from '@/lib/packageGroups'
 
@@ -1690,6 +1692,16 @@ export default function PackagesClient({
     })
   }
 
+  const sortStayGroupsByAdjustedCost = () => {
+    updatePayload({
+      stayGroups: payload.stayGroups.map((group) => ({
+        ...group,
+        options: sortPackageOptionsLowToHigh(group.options),
+      })),
+    })
+    toast.success('Hotel options sorted low to high')
+  }
+
   const updateComponentOption = (
     key: 'flightOptions' | 'visaOptions' | 'transportOptions',
     optionIndex: number,
@@ -3010,7 +3022,21 @@ export default function PackagesClient({
           </section>
 
           <section className="rounded-xl border border-violet-200 bg-violet-50/40 p-4 shadow-sm">
-            <SectionHeader icon={Building2} title="Hotel and stay options" />
+            <SectionHeader
+              icon={Building2}
+              title="Hotel and stay options"
+              action={
+                <button
+                  type="button"
+                  onClick={sortStayGroupsByAdjustedCost}
+                  className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-violet-200 bg-white px-3 text-xs font-black text-violet-900 transition hover:bg-violet-100"
+                  title="Sort hotel options by adjusted cost"
+                >
+                  <ArrowDownWideNarrow className="h-4 w-4" />
+                  Sort low-high
+                </button>
+              }
+            />
             <div className="grid gap-4 lg:grid-cols-2">
               {payload.stayGroups.map((group, groupIndex) => (
                 <div key={group.id} className="rounded-lg border border-violet-200 bg-white p-3">
