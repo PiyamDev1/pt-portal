@@ -1198,7 +1198,19 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                               : 'border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100'
                           }`}
                         >
-                          {preset.label}
+                          <span className="block">{preset.label}</span>
+                          {preset.key !== 'luxury' && preset.resolved && (
+                            <span
+                              className={`mt-0.5 block text-[11px] ${
+                                isActive ? 'text-white/80' : 'text-slate-500'
+                              }`}
+                            >
+                              {formatMoney(
+                                preset.resolved.combination.totalPrice,
+                                preset.resolved.combination.currency,
+                              )}
+                            </span>
+                          )}
                         </button>
                       )
                     })}

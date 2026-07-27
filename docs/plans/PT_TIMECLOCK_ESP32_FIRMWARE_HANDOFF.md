@@ -56,6 +56,9 @@ The remaining service integration is not active yet:
 5. `ui_qr.cpp` creates a manual-code label but leaves it set to `Unavailable`.
 6. `WiFiClientSecure::setInsecure()` disables TLS certificate validation.
 7. Existing HTTP helpers run synchronously and can stall the LVGL loop.
+8. No client exists for `GET /api/timeclock/devices/activity`; poll it every 30
+   seconds, deduplicate by event `id`, append accepted records to the SD card,
+   and treat `404` as optional for five minutes.
 
 ## Files expected to change
 
@@ -400,6 +403,7 @@ Handle statuses consistently:
 | `400`     | Log a short redacted protocol error; do not tight-loop retry.                 |
 | `401`     | Discard nonce, resync time, then retry later with a new nonce.                |
 | `403`     | Mark device inactive and stop QR/manual-code display.                         |
+| `404`     | Retry optional activity support after five minutes; keep the main API online. |
 | `429`     | Respect `retry_after` when present; do not request another manual code early. |
 | `500-599` | Keep cached config/notices and use capped exponential backoff.                |
 

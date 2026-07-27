@@ -48,6 +48,20 @@ describe('package group helpers', () => {
           created_at: '2026-07-21T00:00:00.000Z',
           updated_at: null,
         },
+        {
+          id: 'member-3',
+          group_id: 'group-1',
+          package_id: 'package-3',
+          quote_id: null,
+          family_label: 'Family Khan',
+          customer_display_name: 'Khan family',
+          is_lead_family: false,
+          customer_visible: true,
+          sort_order: 30,
+          metadata: { packageReference: 'PT-KHN123' },
+          created_at: '2026-07-21T00:00:00.000Z',
+          updated_at: null,
+        },
       ],
       sharedServices: [
         {
@@ -99,6 +113,11 @@ describe('package group helpers', () => {
       expect.objectContaining({
         familyLabel: 'Family Hussain',
         packageReference: 'PT-HUS123',
+        customerVisible: true,
+      }),
+      expect.objectContaining({
+        familyLabel: 'Family Khan',
+        packageReference: 'PT-KHN123',
         customerVisible: true,
       }),
     ])

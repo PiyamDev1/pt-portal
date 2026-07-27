@@ -628,6 +628,14 @@ function withSystematicQuoteTitle(payload: PackageQuotePayload, ref?: string) {
   })
 }
 
+function getNextPackageGroupFamilyLabel(group: TravelPackageGroupDetail | null) {
+  return `Family ${Math.max(1, (group?.members.length || 0) + 1)}`
+}
+
+function isAutomaticPackageGroupFamilyLabel(value: string) {
+  return /^family\s+\d+$/i.test(value.trim())
+}
+
 function createInitialPayload(): PackageQuotePayload {
   const defaultStaySetup = createDefaultStaySetup('umrah')
 
@@ -1440,10 +1448,24 @@ export default function PackagesClient({
       `${group.group_reference} ${group.title}`.toLowerCase().includes(search),
     )
   }, [packageGroupSearch, packageGroups])
+  const activePackageGroupQuoteIds = useMemo(
+    () =>
+      new Set(
+        (activePackageGroup?.members || [])
+          .map((member) => member.quote_id)
+          .filter((quoteId): quoteId is string => Boolean(quoteId)),
+      ),
+    [activePackageGroup?.members],
+  )
   const filteredLinkableQuotes = useMemo(() => {
     const search = quoteGroupSearch.trim().toLowerCase()
     return quotes
-      .filter((quote) => quote.id !== activeQuote?.id && quote.status !== 'archived')
+      .filter(
+        (quote) =>
+          quote.id !== activeQuote?.id &&
+          quote.status !== 'archived' &&
+          !activePackageGroupQuoteIds.has(quote.id),
+      )
       .filter((quote) => {
         if (!search) return true
         const quotePayload = normalizePackageQuotePayload(quote.payload)
@@ -1453,7 +1475,7 @@ export default function PackagesClient({
           .toLowerCase()
           .includes(search)
       })
-  }, [activeQuote?.id, quoteGroupSearch, quotes])
+  }, [activePackageGroupQuoteIds, activeQuote?.id, quoteGroupSearch, quotes])
 
   const updatePayload = (changes: Partial<PackageQuotePayload>) => {
     setPayload((current) => ({ ...current, ...changes }))
@@ -1614,7 +1636,10 @@ export default function PackagesClient({
       setSelectedGroupId(detail.id)
       setNewGroupTitle(detail.title)
       const currentMember = detail.members.find((member) => member.quote_id === activeQuote?.id)
-      if (currentMember?.family_label) setLinkedFamilyLabel(currentMember.family_label)
+      setLinkedFamilyLabel(
+        currentMember?.family_label || getNextPackageGroupFamilyLabel(detail),
+      )
+      setSelectedQuoteFamilyLabel(getNextPackageGroupFamilyLabel(detail))
       const transportNote =
         detail.sharedServices.find(
           (service) => service.service_type === 'transport' && service.customer_visible,
@@ -1901,13 +1926,24 @@ export default function PackagesClient({
     }
     setPackageGroupSaving(true)
     try {
+      const detailBeforeLink =
+        activePackageGroup?.id === selectedGroupId
+          ? activePackageGroup
+          : await loadPackageGroupDetail(selectedGroupId, false)
+      const nextFamilyLabel = getNextPackageGroupFamilyLabel(detailBeforeLink)
+      const familyLabel =
+        linkedFamilyLabel.trim() && !isAutomaticPackageGroupFamilyLabel(linkedFamilyLabel)
+          ? linkedFamilyLabel.trim()
+          : nextFamilyLabel
+
       const response = await fetch(`/api/travel-package-groups/${selectedGroupId}/members`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           quoteId: activeQuote.id,
-          familyLabel: linkedFamilyLabel || 'Family',
+          familyLabel,
           customerVisible: true,
+          sortOrder: (detailBeforeLink?.members.length || 0) * 10 + 10,
           metadata: buildQuoteGroupMemberMetadata(activeQuote),
         }),
       })
@@ -1944,9 +1980,14 @@ export default function PackagesClient({
       toast.error('Select an existing quotation to link')
       return
     }
+    if (activePackageGroupQuoteIds.has(selectedQuote.id)) {
+      toast.error('This quotation is already linked to the active package group')
+      return
+    }
     setPackageGroupSaving(true)
     try {
       let groupId = activePackageGroup?.id || ''
+      let nextMemberNumber = (activePackageGroup?.members.length || 0) + 1
 
       if (!groupId) {
         const groupTitle =
@@ -1970,7 +2011,13 @@ export default function PackagesClient({
           )
         }
         groupId = createData.group.id
+        nextMemberNumber = 2
       }
+      const selectedFamilyLabel =
+        selectedQuoteFamilyLabel.trim() &&
+        !isAutomaticPackageGroupFamilyLabel(selectedQuoteFamilyLabel)
+          ? selectedQuoteFamilyLabel.trim()
+          : `Family ${nextMemberNumber}`
 
       const linkResponse = await fetch(`/api/travel-package-groups/${groupId}/members`, {
         method: 'POST',
@@ -1978,11 +2025,12 @@ export default function PackagesClient({
         body: JSON.stringify({
           quoteId: selectedQuote.id,
           familyLabel:
-            selectedQuoteFamilyLabel ||
+            selectedFamilyLabel ||
             selectedQuote.customer_name ||
             normalizePackageQuotePayload(selectedQuote.payload).customerName ||
-            'Family 2',
+            `Family ${nextMemberNumber}`,
           customerVisible: true,
+          sortOrder: nextMemberNumber * 10,
           metadata: buildQuoteGroupMemberMetadata(selectedQuote),
         }),
       })
@@ -2003,7 +2051,7 @@ export default function PackagesClient({
       if (detail) await persistPackageGroupSnapshot(detail)
       setSelectedQuoteForGroupId('')
       setQuoteGroupSearch('')
-      setSelectedQuoteFamilyLabel('Family 2')
+      setSelectedQuoteFamilyLabel(getNextPackageGroupFamilyLabel(detail || activePackageGroup))
       await loadPackageGroups()
       toast.success('Quotation linked to package group')
     } catch (error) {
@@ -2056,6 +2104,7 @@ export default function PackagesClient({
       setActivePackageGroup(null)
       setSelectedGroupId('')
       setSharedTransportNote('')
+      setSelectedQuoteFamilyLabel('Family 2')
       await persistUnlinkedPackageGroupSnapshot()
       await loadPackageGroups()
       toast.success('Quote unlinked from package group')
@@ -2175,24 +2224,57 @@ export default function PackagesClient({
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
-  const duplicateQuote = (quote: TravelPackageQuote) => {
+  const duplicateQuote = async (quote: TravelPackageQuote) => {
     const sourcePayload = normalizePackageQuotePayload(quote.payload)
     const duplicatedPayload = withSystematicQuoteTitle(
       { ...sourcePayload, linkedPackageGroup: null },
       makeQuoteShortRef(),
     )
-    setActiveQuote(null)
-    setActivePackageGroup(null)
-    setSelectedGroupId('')
-    setPackageGroupSearch('')
-    setSelectedQuoteForGroupId('')
-    setQuoteGroupSearch('')
-    setSelectedQuoteFamilyLabel('Family 2')
-    setSharedTransportNote('')
-    setPayload(duplicatedPayload)
-    setExpiresAtInput(toDateTimeLocalValue(getDefaultPackageExpiry()))
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-    toast.success('Quote duplicated as a new draft. Review it, then save.')
+    const expiresAt = getDefaultPackageExpiry()
+    setSaving(true)
+    try {
+      const response = await fetch('/api/packages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          payload: duplicatedPayload,
+          expiresAt,
+          shareEnabled: false,
+        }),
+      })
+      const data = (await response.json()) as SaveResponse
+
+      if (data.setupRequired) {
+        setSetupMessage(data.message || 'Package quote schema is required.')
+        toast.error('Package schema is not installed yet')
+        return
+      }
+
+      if (!response.ok || !data.quote) {
+        throw new Error(data.error || 'Failed to duplicate package quote')
+      }
+
+      setActiveQuote(data.quote)
+      setActivePackageGroup(null)
+      setSelectedGroupId('')
+      setPackageGroupSearch('')
+      setSelectedQuoteForGroupId('')
+      setQuoteGroupSearch('')
+      setSelectedQuoteFamilyLabel('Family 2')
+      setSharedTransportNote('')
+      setPayload(normalizePackageQuotePayload(data.quote.payload))
+      setExpiresAtInput(toDateTimeLocalValue(data.quote.expires_at))
+      setQuotes((current) => [
+        data.quote!,
+        ...current.filter((item) => item.id !== data.quote!.id),
+      ])
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+      toast.success('Quote duplicated and saved as a new draft')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to duplicate package quote')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const startNew = () => {
@@ -2240,7 +2322,8 @@ export default function PackagesClient({
           {activeQuote && (
             <button
               type="button"
-              onClick={() => duplicateQuote(activeQuote)}
+              onClick={() => void duplicateQuote(activeQuote)}
+              disabled={saving}
               className="flex min-h-10 items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 text-sm font-bold text-blue-900 transition hover:bg-blue-100"
             >
               <CopyPlus className="h-4 w-4" />
@@ -3535,7 +3618,8 @@ export default function PackagesClient({
                           </button>
                           <button
                             type="button"
-                            onClick={() => duplicateQuote(quote)}
+                            onClick={() => void duplicateQuote(quote)}
+                            disabled={saving}
                             className="flex h-9 w-9 items-center justify-center rounded-lg border border-blue-200 bg-blue-50 text-blue-900 transition hover:bg-blue-100"
                             title="Duplicate quote as new draft"
                           >
