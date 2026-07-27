@@ -80,6 +80,7 @@ type PublicLinkedPackageGroup = {
 
 type SelectionResponse = {
   selected?: PackageResolvedSelection
+  saveOnly?: boolean
   error?: string
 }
 
@@ -455,6 +456,7 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
   const [promoCode, setPromoCode] = useState('')
   const [priceSummaryExpanded, setPriceSummaryExpanded] = useState(false)
   const [matchLinkedHotelOptions, setMatchLinkedHotelOptions] = useState(false)
+  const [selectionSaveMessage, setSelectionSaveMessage] = useState('')
 
   useEffect(() => {
     const loadQuote = async () => {
@@ -484,6 +486,7 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
         setPromoCode('')
         setPriceSummaryExpanded(false)
         setMatchLinkedHotelOptions(false)
+        setSelectionSaveMessage('')
       } catch (loadError) {
         setError(loadError instanceof Error ? loadError.message : 'Unable to load package quote')
       } finally {
@@ -561,6 +564,7 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
     [linkedGroup, matchLinkedHotelOptions, payload, selection],
   )
   const canMatchLinkedHotelOptions = linkedFamilyTotals.length > 0
+  const canSaveLinkedFamilySelection = Boolean(linkedGroup && linkedGroup.families.length > 1)
   const superGroupTotals = useMemo(() => {
     if (!resolved) return null
     return linkedFamilyTotals.reduce(
@@ -617,6 +621,74 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
     if (!resolved) return
     setError(null)
     setReviewingPayment(true)
+  }
+
+  const saveLinkedPackageSelection = async () => {
+    if (!payload || !selection || !resolved || !canSaveLinkedFamilySelection) return
+    setSaving(true)
+    setError(null)
+    setSelectionSaveMessage('')
+    try {
+      const response = await fetch(`/api/packages/share/${encodeURIComponent(token)}/selection`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...selection,
+          paymentMethod: 'bank_transfer',
+          paymentBreakdown: null,
+          paymentIntent: null,
+          installmentRequested: false,
+          depositPaymentMethod: null,
+          saveOnly: true,
+          ...customer,
+          note: buildSelectionNote(
+            customer.note,
+            promoCode,
+            canMatchLinkedHotelOptions
+              ? `Linked family hotel preference: ${
+                  matchLinkedHotelOptions
+                    ? 'Customer requested the same hotel options for linked groups.'
+                    : 'Customer kept linked group hotel options separate.'
+                }`
+              : '',
+          ),
+        }),
+      })
+      const data = (await response.json()) as SelectionResponse
+      if (!response.ok || !data.selected) throw new Error(data.error || 'Unable to save selection')
+      const saved = data.selected
+      const breakdown = getPackagePassengerPriceBreakdown(payload, saved.combination)
+      setSavedSelection(saved)
+      setLinkedGroup((current) =>
+        current
+          ? {
+              ...current,
+              families: current.families.map((family) =>
+                family.isCurrent
+                  ? {
+                      ...family,
+                      baseSelection: saved.selection,
+                      pricing: {
+                        grossPrice: saved.combination.grossPrice,
+                        discountTotal: saved.combination.offerDiscountTotal,
+                        totalPrice: saved.combination.totalPrice,
+                        currency: saved.combination.currency,
+                        breakdown,
+                      },
+                    }
+                  : family,
+              ),
+            }
+          : current,
+      )
+      setSelectionSaveMessage(
+        'Selection saved for this family. You can now open another linked package and save that family separately.',
+      )
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'Unable to save selection')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const submitSelection = async () => {
@@ -778,6 +850,34 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                 )}
               </div>
             </div>
+            {canSaveLinkedFamilySelection && (
+              <div className="mt-4 rounded-xl border border-cyan-200 bg-white p-4 text-sm shadow-sm">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="min-w-0">
+                    <p className="font-black text-slate-950">Save this family selection</p>
+                    <p className="mt-1 leading-6 text-slate-600">
+                      Save this linked package before opening another family quote. Flight options
+                      may differ between families, so flights need to be manually selected and saved
+                      on each linked quote to show an accurate total balance.
+                    </p>
+                    {selectionSaveMessage && (
+                      <p className="mt-2 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800">
+                        {selectionSaveMessage}
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void saveLinkedPackageSelection()}
+                    disabled={saving || !resolved}
+                    className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-lg bg-cyan-900 px-4 text-sm font-black text-white transition hover:bg-cyan-950 disabled:opacity-50"
+                  >
+                    {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                    Save This Selection
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </section>
       )}

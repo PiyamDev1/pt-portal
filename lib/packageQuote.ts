@@ -1304,6 +1304,21 @@ function getLinkedTransportNotes(payload: PackageQuotePayload) {
   )
 }
 
+function normalizeCopyComparison(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+}
+
+function pushHotelCopyLines(lines: string[], option: PackageComponentOption) {
+  if (option.title.trim()) lines.push(`*${option.title.trim()}*`)
+  const summary = option.summary.trim()
+  if (summary && normalizeCopyComparison(summary) !== normalizeCopyComparison(option.title)) {
+    lines.push(summary)
+  }
+}
+
 function formatFlightIncludedLines(option: PackageComponentOption) {
   const lines = [`*Airline:* ${option.title || 'Included flight'}`]
   if (option.summary.trim()) lines.push(option.summary.trim())
@@ -1394,7 +1409,7 @@ export function formatPackageCombinationForCopy(
   lines.push('*********HOTELS**********')
   for (const stay of getOrderedStaySelections(payload, combination)) {
     lines.push(`*(${stay.groupLabel})*`)
-    lines.push(stay.option.summary || stay.option.title)
+    pushHotelCopyLines(lines, stay.option)
     lines.push('')
   }
 
@@ -1439,7 +1454,11 @@ export function formatPackageCombinationForCopy(
   return lines.join('\n').trim()
 }
 
-export function formatPackageQuoteForCopy(payloadInput: unknown, limit = 12, packageUrl = '') {
+export function formatPackageQuoteForCopy(
+  payloadInput: unknown,
+  limit = Number.POSITIVE_INFINITY,
+  packageUrl = '',
+) {
   const payload = normalizePackageQuotePayload(payloadInput)
   const customerOptions = buildCustomerPackageOptions(payload, 250)
   const defaultFlight = getDefaultOption(payload.flightOptions)
@@ -1547,13 +1566,16 @@ export function formatPackageQuoteForCopy(payloadInput: unknown, limit = 12, pac
   lines.push('----------------------------')
   lines.push('****Package Options****')
 
-  customerOptions.slice(0, limit).forEach(({ combination }, index) => {
+  const visibleCustomerOptions =
+    Number.isFinite(limit) && limit > 0 ? customerOptions.slice(0, limit) : customerOptions
+
+  visibleCustomerOptions.forEach(({ combination }, index) => {
     lines.push('')
     lines.push(`*Option ${index + 1}*`)
     lines.push('')
     for (const stay of getOrderedStaySelections(payload, combination)) {
       lines.push(`*${stay.groupLabel}*`)
-      lines.push(stay.option.summary || stay.option.title)
+      pushHotelCopyLines(lines, stay.option)
       lines.push('')
     }
     const breakdown = getPackagePassengerPriceBreakdown(payload, combination)

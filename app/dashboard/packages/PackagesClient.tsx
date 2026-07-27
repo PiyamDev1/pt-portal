@@ -2188,7 +2188,7 @@ export default function PackagesClient({
     if (customerOptions.length === 0) return
     const text = formatPackageQuoteForCopy(
       { ...payload, title: systematicQuoteTitle },
-      12,
+      Number.POSITIVE_INFINITY,
       activeQuote?.share_enabled ? shareUrl : '',
     )
     await navigator.clipboard.writeText(text)

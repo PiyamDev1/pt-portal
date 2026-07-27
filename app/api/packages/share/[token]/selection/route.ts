@@ -15,7 +15,10 @@ export async function POST(
 
   const body = (await request.json().catch(() => null)) as PackageSelectionInput | null
   if (!body || !body.stayOptionIds) return apiError('Missing package selection', 400)
-  if (!body.termsAccepted) {
+  const saveOnly = body.saveOnly === true
+  const selectionInput = { ...body }
+  delete selectionInput.saveOnly
+  if (!saveOnly && !body.termsAccepted) {
     return apiError('Please confirm that you have read the terms and conditions.', 400)
   }
 
@@ -41,7 +44,7 @@ export async function POST(
 
   let resolved
   try {
-    resolved = resolvePackageSelection(quote.payload, body)
+    resolved = resolvePackageSelection(quote.payload, selectionInput)
   } catch (selectionError) {
     return apiError(
       selectionError instanceof Error ? selectionError.message : 'Invalid package selection',
@@ -49,20 +52,33 @@ export async function POST(
     )
   }
 
+  const now = new Date().toISOString()
+  const updatePayload: Record<string, unknown> = saveOnly
+    ? {
+        selected_option: resolved,
+        selected_at: now,
+        selection_note: resolved.selection.note || null,
+        customer_name: resolved.selection.customerName || null,
+        customer_phone: resolved.selection.customerPhone || null,
+        customer_email: resolved.selection.customerEmail || null,
+        customer_selection_note: resolved.selection.note || null,
+      }
+    : {
+        selected_option: resolved,
+        selected_at: now,
+        selection_note: resolved.selection.note || null,
+        customer_name: resolved.selection.customerName || null,
+        customer_phone: resolved.selection.customerPhone || null,
+        customer_email: resolved.selection.customerEmail || null,
+        status: 'customer_selected',
+        finalised_at: now,
+        finalised_source: 'customer',
+        customer_selection_note: resolved.selection.note || null,
+      }
+
   const { error: updateError } = await supabase
     .from('travel_package_quotes')
-    .update({
-      selected_option: resolved,
-      selected_at: new Date().toISOString(),
-      selection_note: resolved.selection.note || null,
-      customer_name: resolved.selection.customerName || null,
-      customer_phone: resolved.selection.customerPhone || null,
-      customer_email: resolved.selection.customerEmail || null,
-      status: 'customer_selected',
-      finalised_at: new Date().toISOString(),
-      finalised_source: 'customer',
-      customer_selection_note: resolved.selection.note || null,
-    })
+    .update(updatePayload)
     .eq('id', quote.id)
 
   if (updateError) {
@@ -73,12 +89,14 @@ export async function POST(
     supabase as unknown as Parameters<typeof recordPackageAuditEvent>[0],
     {
       quoteId: quote.id,
-      eventType: 'customer_quote_finalised',
-      eventSummary: 'Customer finalised a package selection.',
+      eventType: saveOnly ? 'customer_quote_selection_saved' : 'customer_quote_finalised',
+      eventSummary: saveOnly
+        ? 'Customer saved a linked package selection.'
+        : 'Customer finalised a package selection.',
       afterData: resolved,
-      metadata: { source: 'customer' },
+      metadata: { source: 'customer', saveOnly },
     },
   )
 
-  return apiOk({ selected: resolved })
+  return apiOk({ selected: resolved, saveOnly })
 }

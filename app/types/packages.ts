@@ -339,6 +339,7 @@ export interface PackageSelectionInput {
   installmentRequested?: boolean
   depositPaymentMethod?: PackagePaymentMethod | null
   termsAccepted?: boolean
+  saveOnly?: boolean
   customerName?: string
   customerPhone?: string
   customerEmail?: string

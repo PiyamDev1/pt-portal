@@ -618,6 +618,33 @@ describe('package quote calculator', () => {
     expect(copy).not.toContain('Total Package Cost')
   })
 
+  it('formats all WhatsApp package options and shows hotel names before details', () => {
+    const manyHotelPayload = normalizePackageQuotePayload({
+      ...payload,
+      flightOptions: [],
+      visaOptions: [],
+      transportOptions: [],
+      stayGroups: [
+        {
+          id: 'makkah',
+          label: 'Makkah',
+          options: Array.from({ length: 13 }, (_, index) => ({
+            id: `mk-${index + 1}`,
+            title: `Hotel ${index + 1}`,
+            summary: `29 Aug to 2 Sep\nRoom option ${index + 1}`,
+            price: 500 + index,
+          })),
+        },
+      ],
+    })
+
+    const copy = formatPackageQuoteForCopy(manyHotelPayload)
+
+    expect(copy.match(/\*Option \d+\*/g)).toHaveLength(13)
+    expect(copy).toContain('*Hotel 13*')
+    expect(copy).toContain('Room option 13')
+  })
+
   it('prices multiple visa types by quantity', () => {
     const mixedVisaPayload: PackageQuotePayload = {
       ...payload,

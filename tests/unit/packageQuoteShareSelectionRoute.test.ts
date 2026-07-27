@@ -111,4 +111,36 @@ describe('POST /api/packages/share/[token]/selection', () => {
     )
     expect(mocks.updateEq).toHaveBeenCalledWith('id', 'quote-share')
   })
+
+  it('saves linked package selections without finalising the quote', async () => {
+    const response = await POST(
+      makeRequest({
+        stayOptionIds: { makkah: 'hotel-a' },
+        customerName: 'Linked Customer',
+        customerPhone: '+447222222222',
+        customerEmail: 'linked@example.com',
+        note: 'Save before switching family',
+        saveOnly: true,
+      }) as never,
+      { params: Promise.resolve({ token: 'share-token' }) },
+    )
+
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.saveOnly).toBe(true)
+    expect(body.selected.combination.totalPrice).toBe(1200)
+    expect(mocks.update).toHaveBeenCalledWith(
+      expect.not.objectContaining({
+        status: 'customer_selected',
+        finalised_source: 'customer',
+      }),
+    )
+    expect(mocks.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        customer_name: 'Linked Customer',
+        selection_note: 'Save before switching family',
+      }),
+    )
+  })
 })
