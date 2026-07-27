@@ -360,6 +360,7 @@ function getLinkedFamilyPricing(
     const resolved = resolvePackageSelection(targetPayload, {
       ...family.baseSelection,
       stayOptionIds: targetStayOptionIds,
+      hotelAddonOptionIds: {},
       paymentBreakdown: null,
       paymentMethod: 'bank_transfer',
     })
@@ -978,6 +979,15 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                               {stay.groupLabel}: {stay.option.title || 'Selected hotel'}
                             </p>
                             {stay.option.summary && <SummaryText value={stay.option.summary} />}
+                            {(stay.addonOptions || []).length > 0 && (
+                              <div className="mt-2 space-y-1 rounded-lg bg-violet-50 p-2 text-xs font-bold text-violet-900">
+                                {(stay.addonOptions || []).map((addon) => (
+                                  <p key={addon.id}>
+                                    {addon.label}: {formatMoney(addon.price, payload.currency)}
+                                  </p>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -1551,6 +1561,10 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                                           ...current.stayOptionIds,
                                           [group.id]: option.id,
                                         },
+                                        hotelAddonOptionIds: {
+                                          ...(current.hotelAddonOptionIds || {}),
+                                          [group.id]: [],
+                                        },
                                       }
                                     : current,
                                 )
@@ -1559,6 +1573,61 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                           )
                         })}
                       </div>
+                      {(() => {
+                        const selectedHotel = group.options.find(
+                          (option) => option.id === selection.stayOptionIds[group.id],
+                        )
+                        const addonOptions = selectedHotel?.hotelAddonOptions || []
+                        if (addonOptions.length === 0) return null
+                        const selectedAddonIds = selection.hotelAddonOptionIds?.[group.id] || []
+                        return (
+                          <div className="mt-3 rounded-xl border border-violet-100 bg-violet-50 p-3">
+                            <p className="text-xs font-black uppercase text-violet-900">
+                              Optional hotel extras
+                            </p>
+                            <div className="mt-2 grid gap-2">
+                              {addonOptions.map((addon) => {
+                                const selected = selectedAddonIds.includes(addon.id)
+                                return (
+                                  <button
+                                    key={addon.id}
+                                    type="button"
+                                    onClick={() =>
+                                      setSelection((current) => {
+                                        if (!current) return current
+                                        const currentIds =
+                                          current.hotelAddonOptionIds?.[group.id] || []
+                                        const nextIds = selected
+                                          ? currentIds.filter((id) => id !== addon.id)
+                                          : [...currentIds, addon.id]
+                                        return {
+                                          ...current,
+                                          hotelAddonOptionIds: {
+                                            ...(current.hotelAddonOptionIds || {}),
+                                            [group.id]: nextIds,
+                                          },
+                                        }
+                                      })
+                                    }
+                                    className={`flex min-h-11 items-center justify-between gap-3 rounded-lg border px-3 text-left text-sm transition ${
+                                      selected
+                                        ? 'border-violet-300 bg-white text-violet-950 shadow-sm'
+                                        : 'border-violet-100 bg-white/70 text-slate-700 hover:bg-white'
+                                    }`}
+                                  >
+                                    <span className="font-black">
+                                      {addon.label || 'Hotel extra'}
+                                    </span>
+                                    <span className="shrink-0 font-black">
+                                      +{formatMoney(addon.price, payload.currency)}
+                                    </span>
+                                  </button>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        )
+                      })()}
                     </div>
                   ))}
                 </div>

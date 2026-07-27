@@ -131,6 +131,7 @@ function buildPublicBaseSelection(
 
   return {
     stayOptionIds: selected?.stayOptionIds || defaultSelection.stayOptionIds,
+    hotelAddonOptionIds: selected?.hotelAddonOptionIds || defaultSelection.hotelAddonOptionIds,
     flightOptionId: selected?.flightOptionId ?? defaultSelection.flightOptionId,
     linkedFlightOptionIds:
       selected?.linkedFlightOptionIds || defaultSelection.linkedFlightOptionIds,

@@ -2,6 +2,7 @@ import type {
   PackageCombination,
   PackageComponentOption,
   PackageDiscountMode,
+  PackageHotelAddonOption,
   PackageLinkedPackageGroupSnapshot,
   PackageLinkedFlightGroup,
   PackageLinkedFlightOption,
@@ -180,6 +181,35 @@ function normalizeTransportRoutes(raw: unknown) {
     .filter((value): value is PackageTransportRouteSelection => Boolean(value))
 }
 
+function normalizeHotelAddonOption(
+  raw: unknown,
+  fallbackId: string,
+): PackageHotelAddonOption | null {
+  const candidate = raw as Partial<PackageHotelAddonOption> | null
+  const label = asString(candidate?.label)
+  const searchPrice = asNumber(candidate?.searchPrice)
+  const hasAdjustedPrice = Object.prototype.hasOwnProperty.call(candidate || {}, 'adjustedPrice')
+  const rawPrice = asNumber(candidate?.price)
+  const adjustedPrice = hasAdjustedPrice ? asNumber(candidate?.adjustedPrice) : rawPrice
+
+  if (!label && searchPrice <= 0 && adjustedPrice <= 0) return null
+
+  return {
+    id: asString(candidate?.id, fallbackId),
+    label: label || 'Hotel extra',
+    searchPrice,
+    adjustedPrice,
+    price: adjustedPrice,
+  }
+}
+
+function normalizeHotelAddonOptions(raw: unknown, optionId: string) {
+  const values = Array.isArray(raw) ? raw : []
+  return values
+    .map((value, index) => normalizeHotelAddonOption(value, `${optionId}-addon-${index + 1}`))
+    .filter((value): value is PackageHotelAddonOption => Boolean(value))
+}
+
 function normalizeLinkedFlightOption(
   raw: unknown,
   fallbackId: string,
@@ -355,6 +385,7 @@ function normalizeOption(
   const isDefault = asBoolean(candidate?.isDefault)
   const quantity = asOptionalPositiveNumber(candidate?.quantity)
   const transportRoutes = normalizeTransportRoutes(candidate?.transportRoutes)
+  const hotelAddonOptions = normalizeHotelAddonOptions(candidate?.hotelAddonOptions, id)
 
   if (
     !title &&
@@ -364,7 +395,8 @@ function normalizeOption(
     adultPrice <= 0 &&
     childPrice <= 0 &&
     infantPrice <= 0 &&
-    transportRoutes.length === 0
+    transportRoutes.length === 0 &&
+    hotelAddonOptions.length === 0
   ) {
     return null
   }
@@ -376,6 +408,7 @@ function normalizeOption(
     price: adjustedPrice,
     searchPrice,
     adjustedPrice,
+    hotelAddonOptions,
     pricingMode,
     isDefault,
     adultPrice,
@@ -902,6 +935,33 @@ function buildStaySelections(
   )
 }
 
+function getSelectedHotelAddonOptions(
+  staySelections: PackageCombination['staySelections'],
+  selectedAddonIds: Record<string, string[]> | undefined,
+) {
+  return staySelections.map((stay) => {
+    const requestedIds = selectedAddonIds?.[stay.groupId] || []
+    const addonOptions = requestedIds.map((addonId) => {
+      const addon = stay.option.hotelAddonOptions?.find((candidate) => candidate.id === addonId)
+      if (!addon) throw new Error(`Select a valid ${stay.groupLabel} hotel extra`)
+      return addon
+    })
+
+    return {
+      ...stay,
+      addonOptions,
+    }
+  })
+}
+
+function getHotelAddonTotal(staySelections: PackageCombination['staySelections']) {
+  return staySelections.reduce(
+    (total, stay) =>
+      total + (stay.addonOptions || []).reduce((sum, addon) => sum + addon.price, 0),
+    0,
+  )
+}
+
 export function buildPackageCombinations(payloadInput: unknown, limit = 250): PackageCombination[] {
   const payload = normalizePackageQuotePayload(payloadInput)
   const payingGuests = getPayingGuestCount(payload)
@@ -1410,6 +1470,9 @@ export function formatPackageCombinationForCopy(
   for (const stay of getOrderedStaySelections(payload, combination)) {
     lines.push(`*(${stay.groupLabel})*`)
     pushHotelCopyLines(lines, stay.option)
+    for (const addon of stay.addonOptions || []) {
+      lines.push(`+ ${addon.label}: ${formatMoney(addon.price, payload.currency)}`)
+    }
     lines.push('')
   }
 
@@ -1576,6 +1639,9 @@ export function formatPackageQuoteForCopy(
     for (const stay of getOrderedStaySelections(payload, combination)) {
       lines.push(`*${stay.groupLabel}*`)
       pushHotelCopyLines(lines, stay.option)
+      for (const addon of stay.addonOptions || []) {
+        lines.push(`+ ${addon.label}: ${formatMoney(addon.price, payload.currency)}`)
+      }
       lines.push('')
     }
     const breakdown = getPackagePassengerPriceBreakdown(payload, combination)
@@ -1636,7 +1702,7 @@ export function resolvePackageSelection(
     throw new Error('At least one paying guest is required')
   }
 
-  const staySelections = payload.stayGroups.map((group) => {
+  const baseStaySelections = payload.stayGroups.map((group) => {
     const selectedId = input.stayOptionIds?.[group.id]
     const option = group.options.find((candidate) => candidate.id === selectedId)
     if (!option) throw new Error(`Select a valid ${group.label} option`)
@@ -1646,6 +1712,15 @@ export function resolvePackageSelection(
       option,
     }
   })
+  const staySelections = getSelectedHotelAddonOptions(
+    baseStaySelections,
+    input.hotelAddonOptionIds,
+  )
+  const selectedHotelAddonOptionIds = Object.fromEntries(
+    staySelections
+      .filter((stay) => (stay.addonOptions || []).length > 0)
+      .map((stay) => [stay.groupId, (stay.addonOptions || []).map((addon) => addon.id)]),
+  )
 
   const flightOption =
     input.flightOptionId && payload.flightOptions.length > 0
@@ -1699,6 +1774,7 @@ export function resolvePackageSelection(
 
   const grossPrice =
     staySelections.reduce((sum, stay) => sum + stay.option.price, 0) +
+    getHotelAddonTotal(staySelections) +
     getFlightOptionTotal(flightOption, payload) +
     getLinkedFlightSelectionsTotal(payload, linkedFlightSelections) +
     getVisaOptionsTotal(payload.visaOptions, payload) +
@@ -1720,6 +1796,7 @@ export function resolvePackageSelection(
   return {
     selection: {
       stayOptionIds: input.stayOptionIds || {},
+      hotelAddonOptionIds: selectedHotelAddonOptionIds,
       flightOptionId: flightOption?.id || null,
       linkedFlightOptionIds: selectedLinkedFlightOptionIds,
       visaOptionId: input.visaOptionId || null,
@@ -1740,6 +1817,9 @@ export function resolvePackageSelection(
     combination: {
       id: [
         ...staySelections.map((stay) => stay.option.id),
+        ...staySelections.flatMap((stay) =>
+          (stay.addonOptions || []).map((addon) => `${stay.groupId}:${addon.id}`),
+        ),
         flightOption?.id || 'no-flight',
         linkedFlightSelections.length > 0
           ? linkedFlightSelections

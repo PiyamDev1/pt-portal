@@ -156,6 +156,7 @@ export interface PackageComponentOption {
   price: number
   searchPrice?: number
   adjustedPrice?: number
+  hotelAddonOptions?: PackageHotelAddonOption[]
   pricingMode?: PackagePricingMode
   isDefault?: boolean
   adultPrice?: number
@@ -169,6 +170,14 @@ export interface PackageComponentOption {
   transportMainSupplierName?: string
   transportNetCost?: number
   transportNetCurrency?: string
+}
+
+export interface PackageHotelAddonOption {
+  id: string
+  label: string
+  searchPrice: number
+  adjustedPrice: number
+  price: number
 }
 
 export type PackageTransportRouteKind = 'transfer' | 'makkah_ziyarat' | 'madinah_ziyarat'
@@ -285,6 +294,7 @@ export interface PackageCombination {
     groupId: string
     groupLabel: string
     option: PackageComponentOption
+    addonOptions?: PackageHotelAddonOption[]
   }>
   flightOption: PackageComponentOption | null
   linkedFlightSelections: Array<{
@@ -329,6 +339,7 @@ export interface PackagePaymentBreakdown {
 
 export interface PackageSelectionInput {
   stayOptionIds: Record<string, string>
+  hotelAddonOptionIds?: Record<string, string[]>
   flightOptionId?: string | null
   linkedFlightOptionIds?: Record<string, string>
   visaOptionId?: string | null

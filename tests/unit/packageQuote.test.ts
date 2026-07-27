@@ -158,6 +158,49 @@ describe('package quote calculator', () => {
     expect(combination.totalPrice).toBe(900)
   })
 
+  it('adds selected hotel extras to the resolved package total', () => {
+    const addonPayload = normalizePackageQuotePayload({
+      ...payload,
+      flightOptions: [],
+      visaOptions: [],
+      transportOptions: [],
+      stayGroups: [
+        {
+          id: 'makkah',
+          label: 'Makkah',
+          options: [
+            {
+              id: 'mk-hotel',
+              title: 'Makkah hotel',
+              summary: 'Makkah hotel',
+              price: 1000,
+              hotelAddonOptions: [
+                {
+                  id: 'breakfast',
+                  label: 'Breakfast',
+                  searchPrice: 250,
+                  adjustedPrice: 200,
+                  price: 200,
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    })
+
+    const resolved = resolvePackageSelection(addonPayload, {
+      stayOptionIds: { makkah: 'mk-hotel' },
+      hotelAddonOptionIds: { makkah: ['breakfast'] },
+      paymentMethod: 'bank_transfer',
+    })
+
+    expect(addonPayload.stayGroups[0].options[0].hotelAddonOptions?.[0].searchPrice).toBe(250)
+    expect(resolved.selection.hotelAddonOptionIds).toEqual({ makkah: ['breakfast'] })
+    expect(resolved.combination.staySelections[0].addonOptions?.[0].price).toBe(200)
+    expect(resolved.combination.totalPrice).toBe(1200)
+  })
+
   it('sorts hotel options from low to high by adjusted cost', () => {
     const sorted = sortPackageOptionsLowToHigh([
       {
