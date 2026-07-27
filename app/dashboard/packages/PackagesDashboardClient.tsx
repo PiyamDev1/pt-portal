@@ -21,8 +21,9 @@ import {
   Users,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import type { TravelPackageQuote } from '@/app/types/packages'
+import type { TravelPackageGroup, TravelPackageQuote } from '@/app/types/packages'
 import type { TravelPackageFolder } from '@/app/types/packages'
+import type { TravelPackageGroupDetail } from '@/lib/packageGroups'
 import {
   buildCustomerPackageOptions,
   formatMoney,
@@ -52,6 +53,31 @@ type ConvertResponse = {
   alreadyConverted?: boolean
   error?: string
 }
+
+type PackageGroupsResponse = {
+  groups?: TravelPackageGroup[]
+  setupRequired?: boolean
+  message?: string
+  error?: string
+}
+
+type PackageGroupResponse = {
+  group?: TravelPackageGroupDetail | null
+  setupRequired?: boolean
+  message?: string
+  error?: string
+}
+
+type QuotationRow =
+  | {
+      type: 'quote'
+      quote: TravelPackageQuote
+    }
+  | {
+      type: 'group'
+      group: TravelPackageGroupDetail
+      quotes: TravelPackageQuote[]
+    }
 
 type MainTab =
   | 'upcoming'
@@ -224,6 +250,7 @@ export default function PackagesDashboardClient({
   const [searchTerm, setSearchTerm] = useState('')
   const [quotes, setQuotes] = useState<TravelPackageQuote[]>([])
   const [packages, setPackages] = useState<TravelPackageFolder[]>([])
+  const [packageGroups, setPackageGroups] = useState<TravelPackageGroupDetail[]>([])
   const [loading, setLoading] = useState(true)
   const [loadingPackages, setLoadingPackages] = useState(true)
   const [convertingQuoteId, setConvertingQuoteId] = useState<string | null>(null)
@@ -235,12 +262,14 @@ export default function PackagesDashboardClient({
       setLoading(true)
       setLoadingPackages(true)
       try {
-        const [quoteResponse, packageResponse] = await Promise.all([
+        const [quoteResponse, packageResponse, groupResponse] = await Promise.all([
           fetch('/api/packages'),
           fetch('/api/travel-packages'),
+          fetch('/api/travel-package-groups'),
         ])
         const quoteData = (await quoteResponse.json()) as PackagesResponse
         const packageData = (await packageResponse.json()) as TravelPackagesResponse
+        const groupData = (await groupResponse.json()) as PackageGroupsResponse
 
         if (!quoteResponse.ok) {
           throw new Error(
@@ -255,6 +284,20 @@ export default function PackagesDashboardClient({
 
         setQuotes(quoteData.packages || [])
         setPackages(packageData.packages || [])
+        if (groupResponse.ok && !groupData.setupRequired && groupData.groups?.length) {
+          const detailResults = await Promise.all(
+            groupData.groups.map(async (group) => {
+              const response = await fetch(`/api/travel-package-groups/${group.id}`)
+              const data = (await response.json()) as PackageGroupResponse
+              return response.ok && !data.setupRequired && data.group ? data.group : null
+            }),
+          )
+          setPackageGroups(
+            detailResults.filter((group): group is TravelPackageGroupDetail => Boolean(group)),
+          )
+        } else {
+          setPackageGroups([])
+        }
         setSetupMessage(
           quoteData.setupRequired ? quoteData.message || 'Package quote schema is required.' : null,
         )
@@ -289,32 +332,73 @@ export default function PackagesDashboardClient({
     }
   }, [quotes])
 
-  const filteredQuotes = useMemo(() => {
+  const quoteMatchesView = (quote: TravelPackageQuote) => {
+    const expired = isPackageQuoteExpired(quote.expires_at)
+    const live = quote.share_enabled && quote.status === 'shared' && !expired
+    return (
+      quoteView === 'all' ||
+      (quoteView === 'live' && live) ||
+      (quoteView === 'draft' && (quote.status === 'draft' || !quote.share_enabled)) ||
+      (quoteView === 'selected' && Boolean(quote.selected_at)) ||
+      (quoteView === 'expired' && expired)
+    )
+  }
+
+  const quoteMatchesSearch = (quote: TravelPackageQuote, query: string) => {
+    if (!query) return true
+    return [
+      quote.title,
+      quote.customer_name,
+      quote.customer_phone,
+      quote.customer_email,
+      quote.package_type,
+    ]
+      .filter(Boolean)
+      .some((value) => String(value).toLowerCase().includes(query))
+  }
+
+  const quotationRows = useMemo<QuotationRow[]>(() => {
     const query = searchTerm.trim().toLowerCase()
-    return quotes.filter((quote) => {
-      const expired = isPackageQuoteExpired(quote.expires_at)
-      const live = quote.share_enabled && quote.status === 'shared' && !expired
-      const matchesView =
-        quoteView === 'all' ||
-        (quoteView === 'live' && live) ||
-        (quoteView === 'draft' && (quote.status === 'draft' || !quote.share_enabled)) ||
-        (quoteView === 'selected' && Boolean(quote.selected_at)) ||
-        (quoteView === 'expired' && expired)
+    const quoteMap = new Map(quotes.map((quote) => [quote.id, quote]))
+    const groupedQuoteIds = new Set<string>()
+    const groupRows = packageGroups.flatMap((group) => {
+      const groupQuotes = group.members
+        .map((member) => (member.quote_id ? quoteMap.get(member.quote_id) : null))
+        .filter((quote): quote is TravelPackageQuote => Boolean(quote))
 
-      if (!matchesView) return false
-      if (!query) return true
+      groupQuotes.forEach((quote) => groupedQuoteIds.add(quote.id))
+      const visibleQuotes = groupQuotes.filter(
+        (quote) => quoteMatchesView(quote) && quoteMatchesSearch(quote, query),
+      )
+      const groupMatchesSearch =
+        !query ||
+        [
+          group.title,
+          group.group_reference,
+          ...group.members.flatMap((member) => [
+            member.family_label,
+            member.customer_display_name,
+            member.metadata?.quoteTitle,
+            member.metadata?.customerName,
+            member.metadata?.packageReference,
+          ]),
+        ]
+          .filter(Boolean)
+          .some((value) => String(value).toLowerCase().includes(query))
 
-      return [
-        quote.title,
-        quote.customer_name,
-        quote.customer_phone,
-        quote.customer_email,
-        quote.package_type,
-      ]
-        .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(query))
+      if (visibleQuotes.length === 0 && !groupMatchesSearch) return []
+      if (quoteView !== 'all' && visibleQuotes.length === 0) return []
+
+      return [{ type: 'group' as const, group, quotes: groupQuotes }]
     })
-  }, [quoteView, quotes, searchTerm])
+
+    const quoteRows = quotes
+      .filter((quote) => !groupedQuoteIds.has(quote.id))
+      .filter((quote) => quoteMatchesView(quote) && quoteMatchesSearch(quote, query))
+      .map((quote) => ({ type: 'quote' as const, quote }))
+
+    return [...groupRows, ...quoteRows]
+  }, [packageGroups, quoteView, quotes, searchTerm])
 
   const filteredPackages = useMemo(() => {
     const query = searchTerm.trim().toLowerCase()
@@ -656,7 +740,7 @@ export default function PackagesDashboardClient({
               <Loader2 className="h-4 w-4 animate-spin" />
               Loading package quotes...
             </div>
-          ) : filteredQuotes.length === 0 ? (
+          ) : quotationRows.length === 0 ? (
             <div className="mt-5 rounded-lg border border-dashed border-slate-300 p-8 text-center">
               <p className="text-sm font-bold text-slate-700">No quotations match this view.</p>
               <Link
@@ -684,7 +768,117 @@ export default function PackagesDashboardClient({
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredQuotes.map((quote) => {
+                  {quotationRows.map((row) => {
+                    if (row.type === 'group') {
+                      const groupQuotes = row.quotes
+                      const selectedCount = groupQuotes.filter((quote) => quote.selected_at).length
+                      const liveCount = groupQuotes.filter(
+                        (quote) =>
+                          quote.share_enabled &&
+                          quote.status === 'shared' &&
+                          !isPackageQuoteExpired(quote.expires_at),
+                      ).length
+                      const expiredCount = groupQuotes.filter((quote) =>
+                        isPackageQuoteExpired(quote.expires_at),
+                      ).length
+                      const convertedCount = groupQuotes.filter(
+                        (quote) => quote.converted_package_id,
+                      ).length
+                      const earliestExpiry = groupQuotes
+                        .map((quote) => Date.parse(quote.expires_at))
+                        .filter(Number.isFinite)
+                        .sort((a, b) => a - b)[0]
+                      const startingPrices = groupQuotes
+                        .map(getQuoteStartingPrice)
+                        .filter((price): price is NonNullable<typeof price> => Boolean(price))
+                      const totalFrom = startingPrices.reduce(
+                        (sum, combination) => sum + combination.totalPrice,
+                        0,
+                      )
+                      const currency = startingPrices[0]?.currency || 'GBP'
+
+                      return (
+                        <tr key={`group-${row.group.id}`} className="align-top hover:bg-cyan-50/50">
+                          <td className="border-b border-slate-100 px-3 py-3">
+                            <Link
+                              href={`/dashboard/packages/groups/${row.group.id}`}
+                              className="max-w-[18rem] truncate font-black text-cyan-950 underline-offset-2 hover:underline"
+                            >
+                              {row.group.title}
+                            </Link>
+                            <p className="text-xs text-slate-500">
+                              {row.group.group_reference} · linked package group
+                            </p>
+                          </td>
+                          <td className="border-b border-slate-100 px-3 py-3">
+                            <p className="font-bold text-slate-800">
+                              {row.group.members.length} linked family
+                              {row.group.members.length === 1 ? '' : 'ies'}
+                            </p>
+                            <p className="max-w-[18rem] truncate text-xs text-slate-500">
+                              {row.group.members
+                                .map((member) => member.family_label)
+                                .filter(Boolean)
+                                .join(', ') || 'No family labels'}
+                            </p>
+                          </td>
+                          <td className="border-b border-slate-100 px-3 py-3">
+                            <div className="flex items-start gap-2 text-xs font-bold text-slate-600">
+                              <Users className="mt-0.5 h-4 w-4 text-slate-400" />
+                              <span>{groupQuotes.length} quotation records</span>
+                            </div>
+                          </td>
+                          <td className="border-b border-slate-100 px-3 py-3">
+                            <span className="inline-flex rounded-lg bg-cyan-50 px-2 py-1 text-xs font-black text-cyan-800">
+                              Grouped
+                            </span>
+                          </td>
+                          <td className="border-b border-slate-100 px-3 py-3">
+                            <p className="text-xs font-black text-slate-800">
+                              Open group to manage linked quotes
+                            </p>
+                            <p className="mt-1 text-[11px] text-slate-500">
+                              {selectedCount} selected · {convertedCount} converted
+                            </p>
+                          </td>
+                          <td className="border-b border-slate-100 px-3 py-3">
+                            <span className="inline-flex rounded-lg border border-cyan-200 bg-cyan-50 px-2 py-1 text-xs font-black text-cyan-800">
+                              {expiredCount > 0 ? `${expiredCount} expired` : `${liveCount} live`}
+                            </span>
+                          </td>
+                          <td className="border-b border-slate-100 px-3 py-3">
+                            {startingPrices.length > 0 ? (
+                              <div>
+                                <p className="font-black text-slate-950">
+                                  {formatMoney(totalFrom, currency)}
+                                </p>
+                                <p className="text-xs font-bold text-[#8b1e2d]">group total from</p>
+                              </div>
+                            ) : (
+                              <span className="text-xs font-bold text-slate-400">Incomplete</span>
+                            )}
+                          </td>
+                          <td className="border-b border-slate-100 px-3 py-3">
+                            <p className="text-xs font-bold text-slate-700">
+                              {earliestExpiry
+                                ? formatExpiry(new Date(earliestExpiry).toISOString())
+                                : 'No expiry'}
+                            </p>
+                          </td>
+                          <td className="border-b border-slate-100 px-3 py-3">
+                            <div className="flex justify-end">
+                              <Link
+                                href={`/dashboard/packages/groups/${row.group.id}`}
+                                className="flex h-9 items-center justify-center rounded-lg bg-cyan-900 px-3 text-xs font-black text-white transition hover:bg-cyan-950"
+                              >
+                                Open Group
+                              </Link>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    }
+                    const quote = row.quote
                     const expired = isPackageQuoteExpired(quote.expires_at)
                     const live = quote.share_enabled && quote.status === 'shared' && !expired
                     const selected = Boolean(quote.selected_at)
