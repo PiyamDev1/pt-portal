@@ -1443,10 +1443,7 @@ function OptionEditor({
           {hotelAddonOptions.length > 0 && (
             <div className="mt-3 space-y-2">
               {hotelAddonOptions.map((addon, addonIndex) => (
-                <div
-                  key={addon.id}
-                  className="grid gap-2 rounded-lg border border-violet-100 bg-white p-2 md:grid-cols-[minmax(0,1fr)_8.5rem_8.5rem_auto]"
-                >
+                <div key={addon.id} className="rounded-lg border border-violet-100 bg-white p-2">
                   <label className="block min-w-0">
                     <span className="block text-[10px] font-black uppercase text-slate-500">
                       Option
@@ -1460,56 +1457,62 @@ function OptionEditor({
                       className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 px-3 text-sm font-bold outline-none focus:border-violet-800"
                     />
                   </label>
-                  <label className="block min-w-0">
-                    <span className="block text-[10px] font-black uppercase text-slate-500">
-                      Search cost
-                    </span>
-                    <div className="mt-1 flex min-h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-2">
-                      <span className="mr-1 shrink-0 text-xs font-black text-slate-500">GBP</span>
-                      <input
-                        value={addon.searchPrice || ''}
-                        onChange={(event) =>
-                          updateHotelAddonOption(addonIndex, {
-                            searchPrice: Number(event.target.value || 0),
-                          })
-                        }
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        placeholder="0.00"
-                        className="min-w-0 w-full bg-transparent text-sm font-bold outline-none"
-                      />
-                    </div>
-                  </label>
-                  <label className="block min-w-0">
-                    <span className="block text-[10px] font-black uppercase text-slate-500">
-                      Adjustment cost
-                    </span>
-                    <div className="mt-1 flex min-h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-2">
-                      <span className="mr-1 shrink-0 text-xs font-black text-slate-500">GBP</span>
-                      <input
-                        value={addon.adjustedPrice || ''}
-                        onChange={(event) =>
-                          updateHotelAddonOption(addonIndex, {
-                            adjustedPrice: Number(event.target.value || 0),
-                          })
-                        }
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        placeholder="0.00"
-                        className="min-w-0 w-full bg-transparent text-sm font-bold outline-none"
-                      />
-                    </div>
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => removeHotelAddonOption(addonIndex)}
-                    className="flex h-10 w-10 items-center justify-center self-end rounded-lg border border-red-100 text-red-600 transition hover:bg-red-50"
-                    title="Remove extra"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+                  <div className="mt-2 grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+                    <label className="block min-w-0">
+                      <span className="block text-[10px] font-black uppercase text-slate-500">
+                        Search cost
+                      </span>
+                      <div className="mt-1 flex min-h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-2">
+                        <span className="mr-1 shrink-0 text-xs font-black text-slate-500">
+                          GBP
+                        </span>
+                        <input
+                          value={addon.searchPrice || ''}
+                          onChange={(event) =>
+                            updateHotelAddonOption(addonIndex, {
+                              searchPrice: Number(event.target.value || 0),
+                            })
+                          }
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          placeholder="0.00"
+                          className="min-w-0 w-full bg-transparent text-sm font-bold outline-none"
+                        />
+                      </div>
+                    </label>
+                    <label className="block min-w-0">
+                      <span className="block text-[10px] font-black uppercase text-slate-500">
+                        Adjustment cost
+                      </span>
+                      <div className="mt-1 flex min-h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-2">
+                        <span className="mr-1 shrink-0 text-xs font-black text-slate-500">
+                          GBP
+                        </span>
+                        <input
+                          value={addon.adjustedPrice || ''}
+                          onChange={(event) =>
+                            updateHotelAddonOption(addonIndex, {
+                              adjustedPrice: Number(event.target.value || 0),
+                            })
+                          }
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          placeholder="0.00"
+                          className="min-w-0 w-full bg-transparent text-sm font-bold outline-none"
+                        />
+                      </div>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => removeHotelAddonOption(addonIndex)}
+                      className="flex h-10 w-10 items-center justify-center self-end rounded-lg border border-red-100 text-red-600 transition hover:bg-red-50"
+                      title="Remove extra"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -1558,11 +1561,20 @@ export default function PackagesClient({
   const systematicQuoteTitle = useMemo(() => buildSystematicQuoteTitle(payload), [payload])
   const stayGroupsForEditor = useMemo(() => {
     const groups = payload.stayGroups.map((group, groupIndex) => ({ group, groupIndex }))
-    if (payload.packageType !== 'umrah' || payload.itineraryOrder[0] !== 'madinah') return groups
+    if (payload.packageType !== 'umrah') return groups
+    if (payload.itineraryOrder[0] === 'madinah') {
+      return [...groups].sort((a, b) => {
+        const aIsMadinah = a.group.id.startsWith('madinah')
+        const bIsMadinah = b.group.id.startsWith('madinah')
+        if (aIsMadinah && !bIsMadinah) return 1
+        if (!aIsMadinah && bIsMadinah) return -1
+        return a.groupIndex - b.groupIndex
+      })
+    }
     return [...groups].sort((a, b) => {
-      if (a.group.id === 'madinah') return 1
-      if (b.group.id === 'madinah') return -1
-      return a.groupIndex - b.groupIndex
+      const aIndex = payload.itineraryOrder.findIndex((item) => a.group.id.startsWith(item))
+      const bIndex = payload.itineraryOrder.findIndex((item) => b.group.id.startsWith(item))
+      return (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex)
     })
   }, [payload.itineraryOrder, payload.packageType, payload.stayGroups])
   const baseCustomerOption = customerOptions[0]?.combination || null
