@@ -1562,19 +1562,12 @@ export default function PackagesClient({
   const stayGroupsForEditor = useMemo(() => {
     const groups = payload.stayGroups.map((group, groupIndex) => ({ group, groupIndex }))
     if (payload.packageType !== 'umrah') return groups
-    if (payload.itineraryOrder[0] === 'madinah') {
-      return [...groups].sort((a, b) => {
-        const aIsMadinah = a.group.id.startsWith('madinah')
-        const bIsMadinah = b.group.id.startsWith('madinah')
-        if (aIsMadinah && !bIsMadinah) return 1
-        if (!aIsMadinah && bIsMadinah) return -1
-        return a.groupIndex - b.groupIndex
-      })
-    }
     return [...groups].sort((a, b) => {
       const aIndex = payload.itineraryOrder.findIndex((item) => a.group.id.startsWith(item))
       const bIndex = payload.itineraryOrder.findIndex((item) => b.group.id.startsWith(item))
-      return (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex)
+      const aPosition = aIndex === -1 ? 999 : aIndex === 0 ? 1 : aIndex === 1 ? 0 : aIndex
+      const bPosition = bIndex === -1 ? 999 : bIndex === 0 ? 1 : bIndex === 1 ? 0 : bIndex
+      return aPosition - bPosition
     })
   }, [payload.itineraryOrder, payload.packageType, payload.stayGroups])
   const baseCustomerOption = customerOptions[0]?.combination || null
