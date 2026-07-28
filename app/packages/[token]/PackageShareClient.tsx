@@ -1539,98 +1539,97 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                           const isPreferredHotel = preferredHotel?.id === option.id
                           const badges =
                             (option.hotelAddonOptions || []).length > 0 ? ['Extras available'] : []
+                          const selected = selection.stayOptionIds[group.id] === option.id
+                          const addonOptions = option.hotelAddonOptions || []
+                          const selectedAddonIds = selection.hotelAddonOptionIds?.[group.id] || []
                           return (
-                            <OptionButton
-                              key={option.id}
-                              selected={selection.stayOptionIds[group.id] === option.id}
-                              title={option.title}
-                              summary={option.summary}
-                              price={option.price}
-                              priceLabel={formatHotelDelta(
-                                perPersonDelta,
-                                payload.currency,
-                                isPreferredHotel,
+                            <div key={option.id} className="space-y-2">
+                              <OptionButton
+                                selected={selected}
+                                title={option.title}
+                                summary={option.summary}
+                                price={option.price}
+                                priceLabel={formatHotelDelta(
+                                  perPersonDelta,
+                                  payload.currency,
+                                  isPreferredHotel,
+                                )}
+                                priceSubLabel="hotel option"
+                                pricingMode={option.pricingMode}
+                                badges={badges}
+                                currency={payload.currency}
+                                onClick={() =>
+                                  setSelection((current) =>
+                                    current
+                                      ? {
+                                          ...current,
+                                          stayOptionIds: {
+                                            ...current.stayOptionIds,
+                                            [group.id]: option.id,
+                                          },
+                                          hotelAddonOptionIds: {
+                                            ...(current.hotelAddonOptionIds || {}),
+                                            [group.id]:
+                                              current.stayOptionIds[group.id] === option.id
+                                                ? current.hotelAddonOptionIds?.[group.id] || []
+                                                : [],
+                                          },
+                                        }
+                                      : current,
+                                  )
+                                }
+                              />
+                              {selected && addonOptions.length > 0 && (
+                                <div className="ml-4 rounded-xl border border-violet-100 bg-violet-50 p-3">
+                                  <p className="text-xs font-black uppercase text-violet-900">
+                                    Optional hotel extras
+                                  </p>
+                                  <div className="mt-2 grid gap-2">
+                                    {addonOptions.map((addon) => {
+                                      const addonSelected = selectedAddonIds.includes(addon.id)
+                                      return (
+                                        <button
+                                          key={addon.id}
+                                          type="button"
+                                          onClick={() =>
+                                            setSelection((current) => {
+                                              if (!current) return current
+                                              const currentIds =
+                                                current.hotelAddonOptionIds?.[group.id] || []
+                                              const nextIds = addonSelected
+                                                ? currentIds.filter((id) => id !== addon.id)
+                                                : [...currentIds, addon.id]
+                                              return {
+                                                ...current,
+                                                hotelAddonOptionIds: {
+                                                  ...(current.hotelAddonOptionIds || {}),
+                                                  [group.id]: nextIds,
+                                                },
+                                              }
+                                            })
+                                          }
+                                          className={`flex min-h-11 items-center justify-between gap-3 rounded-lg border px-3 text-left text-sm transition ${
+                                            addonSelected
+                                              ? 'border-violet-300 bg-white text-violet-950 shadow-sm'
+                                              : 'border-violet-100 bg-white/70 text-slate-700 hover:bg-white'
+                                          }`}
+                                        >
+                                          <span className="font-black">
+                                            {addon.label || 'Hotel extra'}
+                                          </span>
+                                          <span className="shrink-0 font-black">
+                                            +{formatMoney(addon.price, payload.currency)}
+                                          </span>
+                                        </button>
+                                      )
+                                    })}
+                                  </div>
+                                </div>
                               )}
-                              priceSubLabel="hotel option"
-                              pricingMode={option.pricingMode}
-                              badges={badges}
-                              currency={payload.currency}
-                              onClick={() =>
-                                setSelection((current) =>
-                                  current
-                                    ? {
-                                        ...current,
-                                        stayOptionIds: {
-                                          ...current.stayOptionIds,
-                                          [group.id]: option.id,
-                                        },
-                                        hotelAddonOptionIds: {
-                                          ...(current.hotelAddonOptionIds || {}),
-                                          [group.id]: [],
-                                        },
-                                      }
-                                    : current,
-                                )
-                              }
-                            />
+                            </div>
                           )
                         })}
                       </div>
-                      {(() => {
-                        const selectedHotel = group.options.find(
-                          (option) => option.id === selection.stayOptionIds[group.id],
-                        )
-                        const addonOptions = selectedHotel?.hotelAddonOptions || []
-                        if (addonOptions.length === 0) return null
-                        const selectedAddonIds = selection.hotelAddonOptionIds?.[group.id] || []
-                        return (
-                          <div className="mt-3 rounded-xl border border-violet-100 bg-violet-50 p-3">
-                            <p className="text-xs font-black uppercase text-violet-900">
-                              Optional hotel extras
-                            </p>
-                            <div className="mt-2 grid gap-2">
-                              {addonOptions.map((addon) => {
-                                const selected = selectedAddonIds.includes(addon.id)
-                                return (
-                                  <button
-                                    key={addon.id}
-                                    type="button"
-                                    onClick={() =>
-                                      setSelection((current) => {
-                                        if (!current) return current
-                                        const currentIds =
-                                          current.hotelAddonOptionIds?.[group.id] || []
-                                        const nextIds = selected
-                                          ? currentIds.filter((id) => id !== addon.id)
-                                          : [...currentIds, addon.id]
-                                        return {
-                                          ...current,
-                                          hotelAddonOptionIds: {
-                                            ...(current.hotelAddonOptionIds || {}),
-                                            [group.id]: nextIds,
-                                          },
-                                        }
-                                      })
-                                    }
-                                    className={`flex min-h-11 items-center justify-between gap-3 rounded-lg border px-3 text-left text-sm transition ${
-                                      selected
-                                        ? 'border-violet-300 bg-white text-violet-950 shadow-sm'
-                                        : 'border-violet-100 bg-white/70 text-slate-700 hover:bg-white'
-                                    }`}
-                                  >
-                                    <span className="font-black">
-                                      {addon.label || 'Hotel extra'}
-                                    </span>
-                                    <span className="shrink-0 font-black">
-                                      +{formatMoney(addon.price, payload.currency)}
-                                    </span>
-                                  </button>
-                                )
-                              })}
-                            </div>
-                          </div>
-                        )
-                      })()}
                     </div>
                   ))}
                 </div>
