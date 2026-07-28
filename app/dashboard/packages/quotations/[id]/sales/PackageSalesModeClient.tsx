@@ -941,8 +941,15 @@ export default function PackageSalesModeClient({ quoteId }: PackageSalesModeClie
                                       <span className="font-black">
                                         {addon.label || 'Hotel extra'}
                                       </span>
-                                      <span className="shrink-0 font-black">
-                                        +{formatMoney(addon.price, payload.currency)}
+                                      <span className="flex shrink-0 items-center gap-2">
+                                        {addonSelected && (
+                                          <span className="rounded-full bg-violet-900 px-2 py-1 text-[11px] font-black uppercase text-white">
+                                            Selected
+                                          </span>
+                                        )}
+                                        <span className="font-black">
+                                          +{formatMoney(addon.price, payload.currency)}
+                                        </span>
                                       </span>
                                     </button>
                                   )
