@@ -213,15 +213,13 @@ function formatDelta(value: number, currency: string) {
   return `${value > 0 ? '+' : '-'}${formatMoney(Math.abs(value), currency)} pp`
 }
 
-function formatHotelDelta(value: number, currency: string, isPreferred: boolean) {
-  if (isPreferred) return 'Included'
+function formatSelectionDelta(value: number, currency: string) {
   if (Math.abs(value) < 0.005) return `+${formatMoney(0, currency)} pp`
   return formatDelta(value, currency)
 }
 
 function formatUnitDelta(value: number, currency: string) {
-  if (Math.abs(value) < 0.005) return 'Included'
-  return `${value > 0 ? '+' : '-'}${formatMoney(Math.abs(value), currency)} pp`
+  return formatSelectionDelta(value, currency)
 }
 
 function formatFlightPassengerDeltas(
@@ -675,17 +673,26 @@ export default function PackageSalesModeClient({ quoteId }: PackageSalesModeClie
               <SectionTitle icon={Plane} title="Flights" />
               <div className="space-y-3">
                 {payload.flightOptions.map((option) => {
-                  const defaultFlight = getPreferredOption(payload.flightOptions)
-                  const deltas = getFlightOptionPriceDeltas(payload, option, defaultFlight)
+                  const selectedFlight =
+                    payload.flightOptions.find(
+                      (candidate) => candidate.id === selection.flightOptionId,
+                    ) || getPreferredOption(payload.flightOptions)
+                  const selected = selection.flightOptionId === option.id
+                  const deltas = getFlightOptionPriceDeltas(payload, option, selectedFlight)
                   return (
                     <OptionButton
                       key={option.id}
-                      selected={selection.flightOptionId === option.id}
+                      selected={selected}
                       title={option.title}
                       summary={option.summary}
                       price={option.price}
-                      priceLabel={formatDelta(deltas.adult, payload.currency)}
-                      priceSubLines={formatFlightPassengerDeltas(payload, option, defaultFlight)}
+                      priceLabel={selected ? 'Selected' : formatSelectionDelta(deltas.adult, payload.currency)}
+                      priceSubLabel={selected ? 'current option' : undefined}
+                      priceSubLines={
+                        selected
+                          ? undefined
+                          : formatFlightPassengerDeltas(payload, option, selectedFlight)
+                      }
                       pricingMode={option.pricingMode}
                       currency={payload.currency}
                       onClick={() =>
@@ -719,25 +726,24 @@ export default function PackageSalesModeClient({ quoteId }: PackageSalesModeClie
                             group,
                             selection.linkedFlightOptionIds,
                           )
-                          const defaultOption = getLinkedFlightOptionForSelection(group, null)
-                          const deltas = getLinkedFlightOptionPriceDeltas(option, defaultOption)
+                          const selected = selectedOption?.id === option.id
+                          const deltas = getLinkedFlightOptionPriceDeltas(option, selectedOption)
                           return (
                             <OptionButton
                               key={option.id}
-                              selected={selectedOption?.id === option.id}
+                              selected={selected}
                               title={option.airlineName}
                               summary={option.summary}
                               price={deltas.adult}
                               priceLabel={
-                                option.isDefault
-                                  ? 'Included'
-                                  : formatDelta(deltas.adult, payload.currency)
+                                selected ? 'Selected' : formatSelectionDelta(deltas.adult, payload.currency)
                               }
-                              priceSubLines={formatLinkedFlightPassengerDeltas(
-                                payload,
-                                option,
-                                defaultOption,
-                              )}
+                              priceSubLabel={selected ? 'current option' : undefined}
+                              priceSubLines={
+                                selected
+                                  ? undefined
+                                  : formatLinkedFlightPassengerDeltas(payload, option, selectedOption)
+                              }
                               pricingMode="per_person"
                               currency={payload.currency}
                               onClick={() =>
@@ -795,8 +801,12 @@ export default function PackageSalesModeClient({ quoteId }: PackageSalesModeClie
               <SectionTitle icon={Bus} title="Transport" />
               <div className="space-y-3">
                 {payload.transportOptions.map((option) => {
-                  const defaultTransport = getPreferredOption(payload.transportOptions)
-                  const delta = option.price - (defaultTransport?.price || 0)
+                  const selectedTransport =
+                    payload.transportOptions.find(
+                      (candidate) => candidate.id === selection.transportOptionId,
+                    ) || getPreferredOption(payload.transportOptions)
+                  const selected = selection.transportOptionId === option.id
+                  const delta = option.price - (selectedTransport?.price || 0)
                   const servicePassengers =
                     payload.adults + payload.childrenPaying + payload.childrenFree + payload.infants
                   const perPassengerDelta =
@@ -808,11 +818,14 @@ export default function PackageSalesModeClient({ quoteId }: PackageSalesModeClie
                   return (
                     <OptionButton
                       key={option.id}
-                      selected={selection.transportOptionId === option.id}
+                      selected={selected}
                       title={option.title}
                       summary={option.summary}
                       price={option.price}
-                      priceLabel={formatDelta(perPassengerDelta, payload.currency)}
+                      priceLabel={
+                        selected ? 'Selected' : formatSelectionDelta(perPassengerDelta, payload.currency)
+                      }
+                      priceSubLabel={selected ? 'current option' : undefined}
                       pricingMode={option.pricingMode}
                       badges={badges}
                       currency={payload.currency}
@@ -837,13 +850,17 @@ export default function PackageSalesModeClient({ quoteId }: PackageSalesModeClie
                   <div className="space-y-3">
                     {group.options.map((option) => {
                       const preferredHotel = getPreferredOption(group.options)
-                      const delta = option.price - (preferredHotel?.price || 0)
                       const payingGuests = payload.adults + payload.childrenPaying
-                      const perPersonDelta = payingGuests > 0 ? delta / payingGuests : delta
-                      const isPreferredHotel = preferredHotel?.id === option.id
                       const badges =
                         (option.hotelAddonOptions || []).length > 0 ? ['Extras available'] : []
                       const selected = selection.stayOptionIds[group.id] === option.id
+                      const selectedHotel =
+                        group.options.find(
+                          (candidate) => candidate.id === selection.stayOptionIds[group.id],
+                        ) || preferredHotel
+                      const selectedDelta = option.price - (selectedHotel?.price || 0)
+                      const selectedPerPersonDelta =
+                        payingGuests > 0 ? selectedDelta / payingGuests : selectedDelta
                       const addonOptions = option.hotelAddonOptions || []
                       const selectedAddonIds = selection.hotelAddonOptionIds?.[group.id] || []
                       return (
@@ -853,12 +870,12 @@ export default function PackageSalesModeClient({ quoteId }: PackageSalesModeClie
                             title={option.title}
                             summary={option.summary}
                             price={option.price}
-                            priceLabel={formatHotelDelta(
-                              perPersonDelta,
-                              payload.currency,
-                              isPreferredHotel,
-                            )}
-                            priceSubLabel="hotel option"
+                            priceLabel={
+                              selected
+                                ? 'Selected'
+                                : formatSelectionDelta(selectedPerPersonDelta, payload.currency)
+                            }
+                            priceSubLabel={selected ? 'current option' : 'hotel option'}
                             pricingMode={option.pricingMode}
                             badges={badges}
                             currency={payload.currency}
