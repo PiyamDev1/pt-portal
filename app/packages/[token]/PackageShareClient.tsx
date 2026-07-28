@@ -332,6 +332,60 @@ function normalizeMatchValue(value: string) {
     .trim()
 }
 
+function resolveLinkedFamilySelection(
+  family: PublicLinkedFamily,
+  currentPayload: PackageQuotePayload,
+  currentSelection: PackageSelectionInput,
+  matchHotels: boolean,
+) {
+  if (!family.payload) return null
+
+  try {
+    const targetPayload = normalizePackageQuotePayload(family.payload)
+    const baseSelection = family.baseSelection || getDefaultPackageSelection(targetPayload)
+    const sourceGroups = currentPayload.stayGroups
+    const targetStayOptionIds = matchHotels
+      ? Object.fromEntries(
+          targetPayload.stayGroups.map((targetGroup, groupIndex) => {
+            const sourceGroup = sourceGroups[groupIndex]
+            const sourceOptionId = sourceGroup
+              ? currentSelection.stayOptionIds[sourceGroup.id]
+              : ''
+            const sourceOption = sourceGroup?.options.find(
+              (option) => option.id === sourceOptionId,
+            )
+            const sourceTitle = normalizeMatchValue(sourceOption?.title || '')
+            const matchedByTitle = sourceTitle
+              ? targetGroup.options.find(
+                  (option) => normalizeMatchValue(option.title) === sourceTitle,
+                )
+              : null
+            const fallbackOption =
+              targetGroup.options.find(
+                (option) => option.id === baseSelection.stayOptionIds?.[targetGroup.id],
+              ) ||
+              targetGroup.options.find((option) => option.isDefault) ||
+              targetGroup.options[0]
+
+            return [targetGroup.id, (matchedByTitle || fallbackOption)?.id || '']
+          }),
+        )
+      : baseSelection.stayOptionIds
+
+    const resolved = resolvePackageSelection(targetPayload, {
+      ...baseSelection,
+      stayOptionIds: targetStayOptionIds,
+      hotelAddonOptionIds: matchHotels ? {} : baseSelection.hotelAddonOptionIds || {},
+      paymentBreakdown: null,
+      paymentMethod: 'bank_transfer',
+    })
+
+    return { payload: targetPayload, resolved }
+  } catch {
+    return null
+  }
+}
+
 function getLinkedFamilyPricing(
   family: PublicLinkedFamily,
   currentPayload: PackageQuotePayload,
@@ -340,46 +394,24 @@ function getLinkedFamilyPricing(
 ) {
   if (!matchHotels || !family.payload || !family.baseSelection) return family.pricing
 
-  try {
-    const targetPayload = normalizePackageQuotePayload(family.payload)
-    const sourceGroups = currentPayload.stayGroups
-    const targetStayOptionIds = Object.fromEntries(
-      targetPayload.stayGroups.map((targetGroup, groupIndex) => {
-        const sourceGroup = sourceGroups[groupIndex]
-        const sourceOptionId = sourceGroup ? currentSelection.stayOptionIds[sourceGroup.id] : ''
-        const sourceOption = sourceGroup?.options.find((option) => option.id === sourceOptionId)
-        const sourceTitle = normalizeMatchValue(sourceOption?.title || '')
-        const matchedByTitle = sourceTitle
-          ? targetGroup.options.find((option) => normalizeMatchValue(option.title) === sourceTitle)
-          : null
-        const fallbackOption =
-          targetGroup.options.find(
-            (option) => option.id === family.baseSelection?.stayOptionIds[targetGroup.id],
-          ) ||
-          targetGroup.options.find((option) => option.isDefault) ||
-          targetGroup.options[0]
-
-        return [targetGroup.id, (matchedByTitle || fallbackOption)?.id || '']
-      }),
-    )
-    const resolved = resolvePackageSelection(targetPayload, {
-      ...family.baseSelection,
-      stayOptionIds: targetStayOptionIds,
-      hotelAddonOptionIds: {},
-      paymentBreakdown: null,
-      paymentMethod: 'bank_transfer',
-    })
-    const breakdown = getPackagePassengerPriceBreakdown(targetPayload, resolved.combination)
-
-    return {
-      grossPrice: resolved.combination.grossPrice,
-      discountTotal: resolved.combination.offerDiscountTotal,
-      totalPrice: resolved.combination.totalPrice,
-      currency: resolved.combination.currency,
-      breakdown,
-    }
-  } catch {
+  const result = resolveLinkedFamilySelection(
+    family,
+    currentPayload,
+    currentSelection,
+    matchHotels,
+  )
+  if (!result) {
     return family.pricing
+  }
+
+  const breakdown = getPackagePassengerPriceBreakdown(result.payload, result.resolved.combination)
+
+  return {
+    grossPrice: result.resolved.combination.grossPrice,
+    discountTotal: result.resolved.combination.offerDiscountTotal,
+    totalPrice: result.resolved.combination.totalPrice,
+    currency: result.resolved.combination.currency,
+    breakdown,
   }
 }
 
@@ -565,6 +597,24 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                 matchLinkedHotelOptions,
               )
               return pricing ? [{ family, index, pricing }] : []
+            })
+        : [],
+    [linkedGroup, matchLinkedHotelOptions, payload, selection],
+  )
+  const linkedFamilyReviewSelections = useMemo(
+    () =>
+      linkedGroup && payload && selection
+        ? linkedGroup.families
+            .map((family, index) => ({ family, index }))
+            .filter(({ family }) => !family.isCurrent)
+            .flatMap(({ family, index }) => {
+              const result = resolveLinkedFamilySelection(
+                family,
+                payload,
+                selection,
+                matchLinkedHotelOptions,
+              )
+              return result ? [{ family, index, ...result }] : []
             })
         : [],
     [linkedGroup, matchLinkedHotelOptions, payload, selection],
@@ -1008,9 +1058,13 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
             <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
               <div className="border-b border-slate-200 pb-4">
                 <p className="text-xs font-black uppercase text-slate-500">Your selection</p>
-                <h2 className="mt-1 text-2xl font-black text-slate-950">{payload.title}</h2>
+                <h2 className="mt-1 text-2xl font-black text-slate-950">
+                  {effectivePaymentScope === 'group' ? 'Linked group selection' : payload.title}
+                </h2>
                 <p className="mt-2 text-sm leading-6 text-slate-600">
-                  Review the package options you selected before sending this to an agent.
+                  {effectivePaymentScope === 'group'
+                    ? 'Review this package and the linked family selections before sending this to an agent.'
+                    : 'Review the package options you selected before sending this to an agent.'}
                 </p>
               </div>
 
@@ -1105,6 +1159,118 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                     </div>
                   </div>
                 </div>
+
+                {effectivePaymentScope === 'group' && linkedFamilyReviewSelections.length > 0 && (
+                  <div className="rounded-lg border border-cyan-200 bg-cyan-50 p-3">
+                    <p className="text-xs font-black uppercase text-cyan-900">
+                      Linked package selections included
+                    </p>
+                    <div className="mt-3 space-y-3">
+                      {linkedFamilyReviewSelections.map(({ family, index, payload, resolved }) => (
+                        <div
+                          key={`${family.quoteId || family.familyLabel}-${index}-selection`}
+                          className="rounded-lg border border-cyan-100 bg-white p-3"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-black text-slate-950">
+                                {getLinkedFamilyLabel(family, index)}
+                              </p>
+                              {family.quoteTitle && (
+                                <p className="mt-1 text-xs font-semibold text-slate-500">
+                                  {family.quoteTitle}
+                                </p>
+                              )}
+                            </div>
+                            <span className="shrink-0 text-sm font-black text-slate-950">
+                              {formatMoney(
+                                resolved.combination.packageSubtotalPrice,
+                                resolved.combination.currency,
+                              )}
+                            </span>
+                          </div>
+
+                          <div className="mt-3 grid gap-3 text-sm">
+                            {resolved.combination.flightOption && (
+                              <div>
+                                <p className="text-xs font-black uppercase text-slate-500">
+                                  Flight
+                                </p>
+                                <p className="mt-1 font-black text-slate-950">
+                                  {resolved.combination.flightOption.title || 'Selected flight'}
+                                </p>
+                                {resolved.combination.flightOption.summary && (
+                                  <SummaryText value={resolved.combination.flightOption.summary} />
+                                )}
+                              </div>
+                            )}
+
+                            {resolved.combination.transportOption && (
+                              <div>
+                                <p className="text-xs font-black uppercase text-slate-500">
+                                  Transport
+                                </p>
+                                <p className="mt-1 font-black text-slate-950">
+                                  {resolved.combination.transportOption.title ||
+                                    'Selected transport'}
+                                </p>
+                                <SummaryText
+                                  value={formatTransportSummary(
+                                    resolved.combination.transportOption,
+                                  )}
+                                />
+                              </div>
+                            )}
+
+                            {resolved.combination.visaOptions.length > 0 && (
+                              <div>
+                                <p className="text-xs font-black uppercase text-emerald-700">
+                                  Visa
+                                </p>
+                                <div className="mt-1 space-y-1">
+                                  {resolved.combination.visaOptions.map((option) => (
+                                    <p key={option.id} className="font-black text-slate-950">
+                                      {getVisaQuantity(option, payload)} x{' '}
+                                      {option.title || 'Visa'}
+                                    </p>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            <div>
+                              <p className="text-xs font-black uppercase text-slate-500">
+                                Hotels
+                              </p>
+                              <div className="mt-1 space-y-2">
+                                {resolved.combination.staySelections.map((stay) => (
+                                  <div key={stay.groupId}>
+                                    <p className="font-black text-slate-950">
+                                      {stay.groupLabel}: {stay.option.title || 'Selected hotel'}
+                                    </p>
+                                    {stay.option.summary && (
+                                      <SummaryText value={stay.option.summary} />
+                                    )}
+                                    {(stay.addonOptions || []).length > 0 && (
+                                      <div className="mt-1 space-y-1 rounded-lg bg-violet-50 p-2 text-xs font-bold text-violet-900">
+                                        {(stay.addonOptions || []).map((addon) => (
+                                          <p key={addon.id}>
+                                            {addon.label}:{' '}
+                                            {formatMoney(addon.price, payload.currency)}
+                                          </p>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {promoCode.trim() && (
                   <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
