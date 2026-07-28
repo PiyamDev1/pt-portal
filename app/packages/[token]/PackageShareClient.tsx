@@ -371,11 +371,48 @@ function resolveLinkedFamilySelection(
           }),
         )
       : baseSelection.stayOptionIds
+    const targetHotelAddonOptionIds = matchHotels
+      ? Object.fromEntries(
+          targetPayload.stayGroups
+            .map((targetGroup, groupIndex) => {
+              const sourceGroup = sourceGroups[groupIndex]
+              if (!sourceGroup) return null
+              const sourceOptionId = currentSelection.stayOptionIds[sourceGroup.id]
+              const sourceOption = sourceGroup.options.find(
+                (option) => option.id === sourceOptionId,
+              )
+              const sourceAddonIds = currentSelection.hotelAddonOptionIds?.[sourceGroup.id] || []
+              if (!sourceOption || sourceAddonIds.length === 0) return null
+
+              const targetOptionId = targetStayOptionIds[targetGroup.id]
+              const targetOption = targetGroup.options.find((option) => option.id === targetOptionId)
+              if (!targetOption) return null
+
+              const matchedAddonIds = sourceAddonIds
+                .map((sourceAddonId) => {
+                  const sourceAddon = sourceOption.hotelAddonOptions?.find(
+                    (addon) => addon.id === sourceAddonId,
+                  )
+                  const sourceAddonLabel = normalizeMatchValue(sourceAddon?.label || '')
+                  if (!sourceAddonLabel) return ''
+                  return (
+                    targetOption.hotelAddonOptions?.find(
+                      (addon) => normalizeMatchValue(addon.label) === sourceAddonLabel,
+                    )?.id || ''
+                  )
+                })
+                .filter(Boolean)
+
+              return matchedAddonIds.length > 0 ? [targetGroup.id, matchedAddonIds] : null
+            })
+            .filter((value): value is [string, string[]] => Boolean(value)),
+        )
+      : baseSelection.hotelAddonOptionIds || {}
 
     const resolved = resolvePackageSelection(targetPayload, {
       ...baseSelection,
       stayOptionIds: targetStayOptionIds,
-      hotelAddonOptionIds: matchHotels ? {} : baseSelection.hotelAddonOptionIds || {},
+      hotelAddonOptionIds: targetHotelAddonOptionIds,
       paymentBreakdown: null,
       paymentMethod: 'bank_transfer',
     })
