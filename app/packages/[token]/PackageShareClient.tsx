@@ -1537,6 +1537,8 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                           const payingGuests = payload.adults + payload.childrenPaying
                           const perPersonDelta = payingGuests > 0 ? delta / payingGuests : delta
                           const isPreferredHotel = preferredHotel?.id === option.id
+                          const badges =
+                            (option.hotelAddonOptions || []).length > 0 ? ['Extras available'] : []
                           return (
                             <OptionButton
                               key={option.id}
@@ -1551,6 +1553,7 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                               )}
                               priceSubLabel="hotel option"
                               pricingMode={option.pricingMode}
+                              badges={badges}
                               currency={payload.currency}
                               onClick={() =>
                                 setSelection((current) =>
