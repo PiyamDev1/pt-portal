@@ -78,6 +78,8 @@ type PublicLinkedPackageGroup = {
   families: PublicLinkedFamily[]
 }
 
+type PaymentReviewScope = 'current' | 'group'
+
 type SelectionResponse = {
   selected?: PackageResolvedSelection
   saveOnly?: boolean
@@ -298,10 +300,10 @@ function pickMethodFromBreakdown(breakdown: PackagePaymentBreakdown): PackagePay
   return 'bank_transfer'
 }
 
-function buildSelectionNote(note: string, promoCode: string, linkedHotelPreference = '') {
+function buildSelectionNote(note: string, promoCode: string, ...extraNotes: string[]) {
   const parts = [note.trim()]
   if (promoCode.trim()) parts.push(`Promo code requested: ${promoCode.trim()}`)
-  if (linkedHotelPreference.trim()) parts.push(linkedHotelPreference.trim())
+  parts.push(...extraNotes.map((extraNote) => extraNote.trim()).filter(Boolean))
   return parts.filter(Boolean).join('\n')
 }
 
@@ -316,6 +318,11 @@ function formatTransportSummary(option: PackageComponentOption) {
 
 function getLinkedFamilyLabel(family: PublicLinkedFamily, index: number) {
   return `Family / group ${index + 1}${family.familyLabel ? `: ${family.familyLabel}` : ''}`
+}
+
+function getPricingSubtotal(pricing: PublicLinkedFamily['pricing']) {
+  if (!pricing) return 0
+  return Math.max(0, pricing.grossPrice - pricing.discountTotal)
 }
 
 function normalizeMatchValue(value: string) {
@@ -448,6 +455,9 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
   const [savedSelection, setSavedSelection] = useState<PackageResolvedSelection | null>(null)
   const [linkedGroup, setLinkedGroup] = useState<PublicLinkedPackageGroup | null>(null)
   const [reviewingPayment, setReviewingPayment] = useState(false)
+  const [paymentScope, setPaymentScope] = useState<PaymentReviewScope>('current')
+  const [groupPaymentBreakdown, setGroupPaymentBreakdown] =
+    useState<PackagePaymentBreakdown | null>(null)
   const [paymentIntent, setPaymentIntent] = useState<PackagePaymentIntent>('full_payment')
   const [depositPaymentMethod, setDepositPaymentMethod] =
     useState<PackagePaymentMethod>('bank_transfer')
@@ -479,6 +489,8 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
         })
         setSavedSelection(data.quote.selected_option)
         setReviewingPayment(false)
+        setPaymentScope('current')
+        setGroupPaymentBreakdown(null)
         setPaymentIntent('full_payment')
         setDepositPaymentMethod('bank_transfer')
         setTermsAccepted(false)
@@ -512,11 +524,6 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
       selection.paymentMethod || 'bank_transfer',
     )
   }, [payload, resolved, selection])
-  const paymentBreakdownTotal = getPackagePaymentBreakdownTotal(paymentBreakdown)
-  const paymentBreakdownRemaining = resolved
-    ? resolved.combination.packageSubtotalPrice - paymentBreakdownTotal
-    : 0
-  const paymentBreakdownBalanced = !resolved || Math.abs(paymentBreakdownRemaining) < 0.01
 
   const orderedStayGroups = useMemo(() => {
     if (!payload) return []
@@ -586,6 +593,77 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
     if (!payload) return null
     return getPackageDepositPaymentSummary(payload, depositPaymentMethod)
   }, [depositPaymentMethod, payload])
+  const canPayForLinkedGroup = Boolean(superGroupTotals && linkedFamilyTotals.length > 0)
+  const effectivePaymentScope: PaymentReviewScope =
+    canPayForLinkedGroup && paymentScope === 'group' ? 'group' : 'current'
+  const groupPaymentSubtotal = superGroupTotals
+    ? Math.max(0, superGroupTotals.grossPrice - superGroupTotals.discountTotal)
+    : 0
+  const paymentTargetSubtotal =
+    effectivePaymentScope === 'group'
+      ? groupPaymentSubtotal
+      : resolved?.combination.packageSubtotalPrice || 0
+  const groupPaymentBreakdownForReview = useMemo(
+    () =>
+      normalizePackagePaymentBreakdown(
+        groupPaymentBreakdown,
+        paymentTargetSubtotal,
+        'bank_transfer',
+      ),
+    [groupPaymentBreakdown, paymentTargetSubtotal],
+  )
+  const activePaymentBreakdown =
+    effectivePaymentScope === 'group' ? groupPaymentBreakdownForReview : paymentBreakdown
+  const activePaymentBreakdownTotal = getPackagePaymentBreakdownTotal(activePaymentBreakdown)
+  const activePaymentBreakdownRemaining = paymentTargetSubtotal - activePaymentBreakdownTotal
+  const activePaymentBreakdownBalanced =
+    !resolved || Math.abs(activePaymentBreakdownRemaining) < 0.01
+  const paymentProcessingFeeTotal =
+    payload && activePaymentBreakdown
+      ? (activePaymentBreakdown.card * payload.cardProcessingFeePercent) / 100
+      : 0
+  const paymentTargetTotal = paymentTargetSubtotal + paymentProcessingFeeTotal
+  const groupDepositPaymentSummary = useMemo(() => {
+    if (!payload) return null
+    if (effectivePaymentScope !== 'group') return depositPaymentSummary
+    const summaries = [
+      getPackageDepositPaymentSummary(payload, depositPaymentMethod),
+      ...linkedFamilyTotals
+        .map(({ family }) =>
+          family.payload
+            ? getPackageDepositPaymentSummary(family.payload, depositPaymentMethod)
+            : null,
+        )
+        .filter((summary): summary is NonNullable<typeof depositPaymentSummary> =>
+          Boolean(summary),
+        ),
+    ]
+    return summaries.reduce(
+      (total, summary) => ({
+        depositAmount: total.depositAmount + summary.depositAmount,
+        processingFee: total.processingFee + summary.processingFee,
+        total: total.total + summary.total,
+        currency: total.currency,
+      }),
+      {
+        depositAmount: 0,
+        processingFee: 0,
+        total: 0,
+        currency: payload.currency,
+      },
+    )
+  }, [
+    depositPaymentMethod,
+    depositPaymentSummary,
+    effectivePaymentScope,
+    linkedFamilyTotals,
+    payload,
+  ])
+  const activeDepositPaymentSummary =
+    effectivePaymentScope === 'group' ? groupDepositPaymentSummary : depositPaymentSummary
+  const depositPaymentAvailable = Boolean(
+    activeDepositPaymentSummary && activeDepositPaymentSummary.depositAmount > 0,
+  )
 
   const visibleOffers = useMemo(() => {
     if (!payload) return []
@@ -696,13 +774,13 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
       setError('Please confirm that you have read the terms and conditions.')
       return
     }
-    if (paymentIntent === 'full_payment' && !paymentBreakdownBalanced) {
-      setError('Payment breakdown must match the package subtotal before finalising.')
+    if (paymentIntent === 'full_payment' && !activePaymentBreakdownBalanced) {
+      setError('Payment breakdown must match the selected payment amount before finalising.')
       return
     }
     if (
       paymentIntent === 'deposit_only' &&
-      (!payload.depositRequired || (payload.depositAmount || 0) <= 0)
+      !depositPaymentAvailable
     ) {
       setError('Deposit-only payment is not available for this quote.')
       return
@@ -717,11 +795,14 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
           ...selection,
           paymentMethod:
             paymentIntent === 'full_payment'
-              ? pickMethodFromBreakdown(paymentBreakdown)
+              ? pickMethodFromBreakdown(activePaymentBreakdown || paymentBreakdown)
               : paymentIntent === 'deposit_only'
                 ? depositPaymentMethod
                 : 'bank_transfer',
-          paymentBreakdown: paymentIntent === 'full_payment' ? paymentBreakdown : null,
+          paymentBreakdown:
+            paymentIntent === 'full_payment' && effectivePaymentScope === 'current'
+              ? paymentBreakdown
+              : null,
           paymentIntent,
           installmentRequested: paymentIntent === 'installment_request',
           depositPaymentMethod: paymentIntent === 'deposit_only' ? depositPaymentMethod : null,
@@ -736,6 +817,38 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                     ? 'Customer requested the same hotel options for linked groups.'
                     : 'Customer kept linked group hotel options separate.'
                 }`
+              : '',
+            canPayForLinkedGroup
+              ? [
+                  `Payment scope: ${
+                    effectivePaymentScope === 'group'
+                      ? 'Customer wants to pay for everyone in the linked package group.'
+                      : 'Customer wants to pay for this family only.'
+                  }`,
+                  effectivePaymentScope === 'group' && superGroupTotals
+                    ? `Linked group payment total: ${formatMoney(
+                        paymentTargetTotal,
+                        superGroupTotals.currency,
+                      )}`
+                    : `Current family payment total: ${formatMoney(
+                        paymentTargetTotal,
+                        resolved.combination.currency,
+                      )}`,
+                  paymentIntent === 'full_payment' && activePaymentBreakdown
+                    ? `Payment split requested: Cash ${formatMoney(
+                        activePaymentBreakdown.cash,
+                        resolved.combination.currency,
+                      )}, Bank Transfer ${formatMoney(
+                        activePaymentBreakdown.bankTransfer,
+                        resolved.combination.currency,
+                      )}, Credit Card ${formatMoney(
+                        activePaymentBreakdown.card,
+                        resolved.combination.currency,
+                      )}`
+                    : '',
+                ]
+                  .filter(Boolean)
+                  .join('\n')
               : '',
           ),
         }),
@@ -1016,18 +1129,103 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
             <aside className="space-y-4 lg:sticky lg:top-5 lg:self-start">
               <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                 <p className="text-xs font-black uppercase text-slate-500">Payment option</p>
+                {canPayForLinkedGroup && (
+                  <div className="mt-3 rounded-lg border border-cyan-200 bg-cyan-50 p-3">
+                    <p className="text-xs font-black uppercase text-cyan-900">
+                      Who are you paying for?
+                    </p>
+                    <div className="mt-2 grid gap-2">
+                      {[
+                        {
+                          value: 'current' as const,
+                          title: currentLinkedFamily
+                            ? getLinkedFamilyLabel(currentLinkedFamily, currentLinkedFamilyIndex)
+                            : 'This family only',
+                          description: 'Only send the payment preference for this package.',
+                        },
+                        {
+                          value: 'group' as const,
+                          title: 'Everyone in this linked group',
+                          description: 'Send one payment preference for all linked families.',
+                        },
+                      ].map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => setPaymentScope(option.value)}
+                          className={`rounded-lg border p-3 text-left transition ${
+                            effectivePaymentScope === option.value
+                              ? 'border-cyan-900 bg-white text-cyan-950 shadow-sm'
+                              : 'border-cyan-200 bg-white/70 text-slate-700 hover:bg-white'
+                          }`}
+                        >
+                          <p className="text-sm font-black">{option.title}</p>
+                          <p className="mt-1 text-xs font-semibold leading-5">
+                            {option.description}
+                          </p>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <div className="mt-2 rounded-lg bg-slate-50 p-3">
                   <div className="flex items-center justify-between gap-3">
-                    <span className="text-sm font-bold text-slate-600">Total package</span>
+                    <span className="text-sm font-bold text-slate-600">
+                      {effectivePaymentScope === 'group' ? 'Linked group total' : 'Total package'}
+                    </span>
                     <span className="text-lg font-black text-slate-950">
-                      {formatMoney(resolved.combination.totalPrice, resolved.combination.currency)}
+                      {formatMoney(paymentTargetTotal, resolved.combination.currency)}
                     </span>
                   </div>
-                  {payload.depositRequired && (payload.depositAmount || 0) > 0 && (
+                  {effectivePaymentScope === 'group' && (
+                    <div className="mt-3 space-y-2 border-t border-slate-200 pt-3">
+                      <div className="flex items-center justify-between gap-3 text-sm">
+                        <span className="font-bold text-slate-600">
+                          {currentLinkedFamily
+                            ? getLinkedFamilyLabel(currentLinkedFamily, currentLinkedFamilyIndex)
+                            : 'Current family'}
+                        </span>
+                        <span className="font-black text-slate-950">
+                          {formatMoney(
+                            resolved.combination.packageSubtotalPrice,
+                            resolved.combination.currency,
+                          )}
+                        </span>
+                      </div>
+                      {linkedFamilyTotals.map(({ family, index, pricing }) => (
+                        <div
+                          key={`${family.quoteId || family.familyLabel}-${index}-payment-scope`}
+                          className="flex items-center justify-between gap-3 text-sm"
+                        >
+                          <span className="font-bold text-slate-600">
+                            {getLinkedFamilyLabel(family, index)}
+                          </span>
+                          <span className="font-black text-slate-950">
+                            {formatMoney(getPricingSubtotal(pricing), pricing.currency)}
+                          </span>
+                        </div>
+                      ))}
+                      {paymentProcessingFeeTotal > 0 && (
+                        <div className="flex items-center justify-between gap-3 border-t border-slate-200 pt-2 text-sm text-blue-700">
+                          <span className="font-bold">Credit Card processing fee</span>
+                          <span className="font-black">
+                            +{formatMoney(
+                              paymentProcessingFeeTotal,
+                              resolved.combination.currency,
+                            )}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {depositPaymentAvailable && (
                     <div className="mt-2 flex items-center justify-between gap-3">
                       <span className="text-sm font-bold text-slate-600">Minimum deposit</span>
                       <span className="text-sm font-black text-slate-950">
-                        {formatMoney(payload.depositAmount || 0, payload.currency)}
+                        {formatMoney(
+                          activeDepositPaymentSummary?.depositAmount || 0,
+                          payload.currency,
+                        )}
                       </span>
                     </div>
                   )}
@@ -1052,8 +1250,7 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                     ],
                   ].map(([value, title, description]) => {
                     const disabled =
-                      value === 'deposit_only' &&
-                      (!payload.depositRequired || (payload.depositAmount || 0) <= 0)
+                      value === 'deposit_only' && !depositPaymentAvailable
                     return (
                       <button
                         key={value}
@@ -1079,12 +1276,12 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                       Payment breakdown
                     </p>
                     <p className="mb-3 text-xs font-semibold text-slate-500">
-                      Split the package subtotal. Any Credit Card processing fee is added
+                      Split the selected payment amount. Any Credit Card processing fee is added
                       separately.
                     </p>
                     <div className="grid gap-2">
                       {PAYMENT_BREAKDOWN_FIELDS.map((field) => {
-                        const value = paymentBreakdown?.[field.key] || ''
+                        const value = activePaymentBreakdown?.[field.key] || ''
                         const processingFeeAmount =
                           field.key === 'card'
                             ? (Number(value || 0) * payload.cardProcessingFeePercent) / 100
@@ -1111,18 +1308,26 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                                 value={value}
                                 onChange={(event) => {
                                   const nextBreakdown = {
-                                    ...(paymentBreakdown || { cash: 0, bankTransfer: 0, card: 0 }),
+                                    ...(activePaymentBreakdown || {
+                                      cash: 0,
+                                      bankTransfer: 0,
+                                      card: 0,
+                                    }),
                                     [field.key]: Number(event.target.value || 0),
                                   }
-                                  setSelection((current) =>
-                                    current
-                                      ? {
-                                          ...current,
-                                          paymentMethod: pickMethodFromBreakdown(nextBreakdown),
-                                          paymentBreakdown: nextBreakdown,
-                                        }
-                                      : current,
-                                  )
+                                  if (effectivePaymentScope === 'group') {
+                                    setGroupPaymentBreakdown(nextBreakdown)
+                                  } else {
+                                    setSelection((current) =>
+                                      current
+                                        ? {
+                                            ...current,
+                                            paymentMethod: pickMethodFromBreakdown(nextBreakdown),
+                                            paymentBreakdown: nextBreakdown,
+                                          }
+                                        : current,
+                                    )
+                                  }
                                 }}
                                 className="w-full bg-transparent text-sm font-bold outline-none"
                                 placeholder="0.00"
@@ -1134,17 +1339,20 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                     </div>
                     <div
                       className={`mt-3 rounded-lg p-2 text-xs font-bold ${
-                        paymentBreakdownBalanced
+                        activePaymentBreakdownBalanced
                           ? 'bg-emerald-50 text-emerald-800'
                           : 'bg-amber-50 text-amber-800'
                       }`}
                     >
-                      {paymentBreakdownBalanced
-                        ? 'Payment split matches the package subtotal.'
-                        : `Remaining to allocate: ${formatMoney(paymentBreakdownRemaining, resolved.combination.currency)}`}
+                      {activePaymentBreakdownBalanced
+                        ? 'Payment split matches the selected payment amount.'
+                        : `Remaining to allocate: ${formatMoney(
+                            activePaymentBreakdownRemaining,
+                            resolved.combination.currency,
+                          )}`}
                     </div>
-                    {(paymentBreakdown?.cash || 0) > 0 ||
-                    (paymentBreakdown?.bankTransfer || 0) > 0 ? (
+                    {(activePaymentBreakdown?.cash || 0) > 0 ||
+                    (activePaymentBreakdown?.bankTransfer || 0) > 0 ? (
                       <p className="mt-3 rounded-lg bg-amber-50 p-2 text-xs font-bold text-amber-800">
                         Cash or bank transfer must be paid before the office closes. The agent will
                         confirm the deadline and payment details.
@@ -1180,11 +1388,14 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                       <span className="mb-1 flex items-center justify-between gap-3 text-xs font-bold text-amber-900">
                         <span>Deposit amount payable</span>
                         {depositPaymentMethod === 'card' &&
-                        depositPaymentSummary &&
-                        depositPaymentSummary.processingFee > 0 ? (
+                        activeDepositPaymentSummary &&
+                        activeDepositPaymentSummary.processingFee > 0 ? (
                           <span className="text-blue-700">
                             Processing fee +
-                            {formatMoney(depositPaymentSummary.processingFee, payload.currency)} (
+                            {formatMoney(
+                              activeDepositPaymentSummary.processingFee,
+                              payload.currency,
+                            )} (
                             {payload.cardProcessingFeePercent}%)
                           </span>
                         ) : null}
@@ -1193,17 +1404,21 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                         <span className="mr-2 text-sm font-black text-slate-500">GBP</span>
                         <input
                           readOnly
-                          value={(depositPaymentSummary?.total || 0).toFixed(2)}
+                          value={(activeDepositPaymentSummary?.total || 0).toFixed(2)}
                           className="w-full bg-transparent text-sm font-bold outline-none"
                         />
                       </div>
                     </label>
-                    {depositPaymentSummary && depositPaymentSummary.depositAmount > 0 && (
+                    {activeDepositPaymentSummary &&
+                      activeDepositPaymentSummary.depositAmount > 0 && (
                       <p className="mt-2 text-xs font-bold text-amber-900">
                         Base deposit:{' '}
-                        {formatMoney(depositPaymentSummary.depositAmount, payload.currency)}
-                        {depositPaymentSummary.processingFee > 0
-                          ? ` + ${formatMoney(depositPaymentSummary.processingFee, payload.currency)} non-refundable Credit Card processing fee`
+                        {formatMoney(activeDepositPaymentSummary.depositAmount, payload.currency)}
+                        {activeDepositPaymentSummary.processingFee > 0
+                          ? ` + ${formatMoney(
+                              activeDepositPaymentSummary.processingFee,
+                              payload.currency,
+                            )} non-refundable Credit Card processing fee`
                           : ''}
                       </p>
                     )}
@@ -1253,7 +1468,7 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                   disabled={
                     saving ||
                     !termsAccepted ||
-                    (paymentIntent === 'full_payment' && !paymentBreakdownBalanced)
+                    (paymentIntent === 'full_payment' && !activePaymentBreakdownBalanced)
                   }
                   className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#8b1e2d] px-4 text-sm font-black text-white transition hover:bg-[#6f1422] disabled:opacity-50"
                 >
@@ -1545,8 +1760,10 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                         {group.options.map((option) => {
                           const preferredHotel = getPreferredOption(group.options)
                           const payingGuests = payload.adults + payload.childrenPaying
-                          const badges =
-                            (option.hotelAddonOptions || []).length > 0 ? ['Extras available'] : []
+                          const badges = [
+                            preferredHotel?.id === option.id ? 'Agent recommended' : '',
+                            (option.hotelAddonOptions || []).length > 0 ? 'Extras available' : '',
+                          ].filter((badge): badge is string => Boolean(badge))
                           const selected = selection.stayOptionIds[group.id] === option.id
                           const selectedHotel =
                             group.options.find(

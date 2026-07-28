@@ -851,8 +851,10 @@ export default function PackageSalesModeClient({ quoteId }: PackageSalesModeClie
                     {group.options.map((option) => {
                       const preferredHotel = getPreferredOption(group.options)
                       const payingGuests = payload.adults + payload.childrenPaying
-                      const badges =
-                        (option.hotelAddonOptions || []).length > 0 ? ['Extras available'] : []
+                      const badges = [
+                        preferredHotel?.id === option.id ? 'Agent recommended' : '',
+                        (option.hotelAddonOptions || []).length > 0 ? 'Extras available' : '',
+                      ].filter((badge): badge is string => Boolean(badge))
                       const selected = selection.stayOptionIds[group.id] === option.id
                       const selectedHotel =
                         group.options.find(
