@@ -29,6 +29,7 @@ import { EditCustomerModal } from './components/EditCustomerModal'
 import { AdvancedSearchModal, SearchFilters } from './components/AdvancedSearchModal'
 import { AccountNotesModal } from './components/AccountNotesModal'
 import { AuditLogsModal } from './components/AuditLogsModal'
+import { ApplicationReportsPanel } from './components/ApplicationReportsPanel'
 import { ErrorBoundary } from './ErrorBoundary'
 import { TableHeaderSkeleton, StatCardSkeleton } from './components/Skeletons'
 
@@ -197,6 +198,8 @@ function LMSClientInner({ currentUserId }: LMSClientProps) {
             <span className="text-xs font-bold">{dataLoading ? 'Loading...' : 'New Account'}</span>
           </button>
         </div>
+
+        <ApplicationReportsPanel />
 
         {/* Filters & Search */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex flex-col md:flex-row gap-3 items-center justify-between">
