@@ -34,19 +34,19 @@ type MenuItem = {
 
 const MOBILE_ACCOUNT_ITEMS: MenuItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: Home },
-  { href: '/dashboard/lms', label: 'Accounts', icon: BadgePoundSterling },
+  { href: '/dashboard/accounting', label: 'Accounting', icon: BadgePoundSterling },
   { href: '/dashboard/account', label: 'My Account', icon: UserRound },
 ]
 
 const PAGE_MENU_ITEMS: Array<{ match: string; title: string; items: MenuItem[] }> = [
   {
-    match: '/dashboard/lms',
-    title: 'Accounts menu',
+    match: '/dashboard/accounting',
+    title: 'Accounting menu',
     items: [
-      { href: '/dashboard/lms', label: 'Accounts Home', icon: BadgePoundSterling },
+      { href: '/dashboard/accounting', label: 'Accounting Home', icon: BadgePoundSterling },
       {
-        href: '/dashboard/lms#application-reports',
-        label: 'Reports',
+        href: '/dashboard/accounting/applications',
+        label: 'Applications',
         icon: FileText,
       },
     ],

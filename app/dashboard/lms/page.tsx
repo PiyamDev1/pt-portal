@@ -66,9 +66,9 @@ export default async function LMSPage() {
         />
         <main className="max-w-7xl mx-auto p-6 w-full flex-grow">
           <div className="mb-6">
-            <h1 className="text-3xl font-black text-slate-800 tracking-tight">Accounts</h1>
+            <h1 className="text-3xl font-black text-slate-800 tracking-tight">Loan Management</h1>
             <p className="text-slate-500 text-sm mt-1">
-              Track balances, instalments, services, payments, and application reports
+              Track customer accounts, services, and payments
             </p>
           </div>
 

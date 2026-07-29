@@ -20,6 +20,7 @@ export type DashboardModule = {
     | 'badge-pound'
     | 'briefcase'
     | 'calendar'
+    | 'chart-column'
     | 'clock'
     | 'file-text'
     | 'fingerprint'
@@ -136,14 +137,25 @@ export const DASHBOARD_MODULES: DashboardModule[] = [
   },
   {
     id: 'lms',
-    title: 'Accounts',
-    desc: 'Balances, instalments and application reports',
+    title: 'LMS',
+    desc: 'Customer balances and instalments',
     href: '/dashboard/lms',
     group: 'finance',
     accent: 'from-[#f3f4f6] to-[#d1d5db] text-slate-950',
     iconTone: 'from-[#f8fafc] via-[#e5e7eb] to-[#9ca3af] text-slate-950 shadow-slate-500/20',
     tileTone: 'from-white via-slate-50 to-zinc-200',
     iconKey: 'badge-pound',
+  },
+  {
+    id: 'accounting',
+    title: 'Accounting',
+    desc: 'Application volumes and monthly reports',
+    href: '/dashboard/accounting',
+    group: 'finance',
+    accent: 'from-emerald-700 to-cyan-700 text-white',
+    iconTone: 'from-emerald-600 via-teal-700 to-cyan-800 text-white shadow-emerald-950/25',
+    tileTone: 'from-emerald-50 via-white to-cyan-100',
+    iconKey: 'chart-column',
   },
   {
     id: 'commissions',

@@ -18,6 +18,7 @@ import {
   BadgePoundSterling,
   BriefcaseBusiness,
   CalendarDays,
+  ChartNoAxesColumnIncreasing,
   Clock3,
   FileText,
   FingerprintPattern,
@@ -47,6 +48,7 @@ const ICONS: Record<DashboardModule['iconKey'], ComponentType<IconProps>> = {
   'badge-pound': BadgePoundSterling,
   briefcase: BriefcaseBusiness,
   calendar: CalendarDays,
+  'chart-column': ChartNoAxesColumnIncreasing,
   clock: Clock3,
   'file-text': FileText,
   fingerprint: FingerprintPattern,
@@ -59,7 +61,7 @@ const ICONS: Record<DashboardModule['iconKey'], ComponentType<IconProps>> = {
 }
 
 const MOBILE_PRIMARY_IDS = new Set(['timeclock', 'hrms-transfer'])
-const MOBILE_QUICK_IDS = new Set(['account', 'applications', 'lms', 'bookings', 'packages'])
+const MOBILE_QUICK_IDS = new Set(['account', 'applications', 'accounting', 'bookings', 'packages'])
 
 function ModuleIcon({
   moduleItem,
