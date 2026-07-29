@@ -151,6 +151,7 @@ describe('GET /api/accounting/applications', () => {
     expect(response.status).toBe(200)
     expect(payload.totals.applications).toBe(8)
     expect(payload.totals.recordedApplications).toBe(8)
+    expect(payload.totals.netApplications).toBe(8)
     expect(payload.totals.cancelledOrRefunded).toBe(0)
     expect(payload.months[0]).toMatchObject({ label: 'January', total: 6 })
     expect(payload.months[1]).toMatchObject({ label: 'February', total: 2 })
@@ -281,9 +282,11 @@ describe('GET /api/accounting/applications', () => {
 
     expect(response.status).toBe(200)
     expect(payload.totals).toMatchObject({
-      applications: 1,
+      applications: 3,
       recordedApplications: 3,
+      netApplications: 1,
       cancelledOrRefunded: 2,
+      averagePerMonth: 0.3,
     })
     expect(payload.months[0]).toMatchObject({
       total: 1,

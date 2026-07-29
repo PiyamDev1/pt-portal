@@ -94,10 +94,14 @@ function Metric({
 function ApplicationDetailsWindow({
   selected,
   year,
+  selectedMonthIndex,
+  selectedMonthLabel,
   onClose,
 }: {
   selected: SelectedDetails | null
   year: number
+  selectedMonthIndex: number
+  selectedMonthLabel: string
   onClose: () => void
 }) {
   useEffect(() => {
@@ -114,6 +118,16 @@ function ApplicationDetailsWindow({
   if (!selected) return null
 
   const { row, sectionLabel } = selected
+  const applications = row.applications.filter((application) => {
+    const appliedAt = new Date(application.appliedAt)
+    return (
+      !Number.isNaN(appliedAt.getTime()) &&
+      appliedAt.getUTCFullYear() === year &&
+      appliedAt.getUTCMonth() === selectedMonthIndex
+    )
+  })
+  const cancelledOrRefunded = row.monthlyCancelledOrRefunded[selectedMonthIndex] || 0
+  const netApplied = row.monthlyCounts[selectedMonthIndex] || 0
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6">
@@ -139,7 +153,7 @@ function ApplicationDetailsWindow({
               {row.application}
             </h2>
             <p className="mt-1 text-sm text-slate-500">
-              {row.category} - {year} applicant list
+              {row.category} - {selectedMonthLabel} {year} applicant list
             </p>
           </div>
           <button
@@ -156,15 +170,17 @@ function ApplicationDetailsWindow({
         <div className="grid grid-cols-3 border-b border-slate-200 bg-slate-50">
           <div className="px-3 py-3 text-center sm:px-5">
             <p className="text-[10px] font-black uppercase text-slate-500">Recorded</p>
-            <p className="mt-1 text-lg font-black text-slate-950">{row.recorded}</p>
+            <p className="mt-1 text-lg font-black text-slate-950">{applications.length}</p>
           </div>
           <div className="border-x border-slate-200 px-3 py-3 text-center sm:px-5">
-            <p className="text-[10px] font-black uppercase text-red-600">Cancelled/refunded</p>
-            <p className="mt-1 text-lg font-black text-red-700">{row.cancelledOrRefunded}</p>
+            <p className="text-[10px] font-black uppercase leading-tight text-red-600">
+              Cancelled/<span className="block sm:inline">refunded</span>
+            </p>
+            <p className="mt-1 text-lg font-black text-red-700">{cancelledOrRefunded}</p>
           </div>
           <div className="px-3 py-3 text-center sm:px-5">
             <p className="text-[10px] font-black uppercase text-emerald-700">Net applied</p>
-            <p className="mt-1 text-lg font-black text-emerald-800">{row.total}</p>
+            <p className="mt-1 text-lg font-black text-emerald-800">{netApplied}</p>
           </div>
         </div>
 
@@ -176,40 +192,46 @@ function ApplicationDetailsWindow({
             <span>Status</span>
           </div>
           <div className="divide-y divide-slate-100">
-            {row.applications.map((application) => (
-              <div
-                key={`${application.id}-${application.trackingNumber}`}
-                className={`grid gap-3 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_minmax(12rem,0.8fr)_8rem_8rem] sm:items-center sm:px-5 ${
-                  application.deductionReason ? 'bg-red-50/60' : 'bg-white'
-                }`}
-              >
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-bold text-slate-900">
-                    {application.applicantName}
+            {applications.length === 0 ? (
+              <p className="px-4 py-10 text-center text-sm text-slate-500">
+                No applications recorded in {selectedMonthLabel} {year}.
+              </p>
+            ) : (
+              applications.map((application) => (
+                <div
+                  key={`${application.id}-${application.trackingNumber}`}
+                  className={`grid gap-3 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_minmax(12rem,0.8fr)_8rem_8rem] sm:items-center sm:px-5 ${
+                    application.deductionReason ? 'bg-red-50/60' : 'bg-white'
+                  }`}
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-bold text-slate-900">
+                      {application.applicantName}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500 sm:hidden">
+                      {formatAppliedDate(application.appliedAt)}
+                    </p>
+                  </div>
+                  <p className="break-all font-mono text-xs font-semibold text-slate-700">
+                    {application.trackingNumber}
                   </p>
-                  <p className="mt-1 text-xs text-slate-500 sm:hidden">
+                  <p className="hidden text-xs text-slate-600 sm:block">
                     {formatAppliedDate(application.appliedAt)}
                   </p>
+                  <div>
+                    <span
+                      className={`inline-flex rounded-md border px-2 py-1 text-[10px] font-black ${
+                        application.deductionReason
+                          ? 'border-red-200 bg-red-100 text-red-800'
+                          : 'border-slate-200 bg-slate-50 text-slate-700'
+                      }`}
+                    >
+                      {application.deductionReason || application.status}
+                    </span>
+                  </div>
                 </div>
-                <p className="break-all font-mono text-xs font-semibold text-slate-700">
-                  {application.trackingNumber}
-                </p>
-                <p className="hidden text-xs text-slate-600 sm:block">
-                  {formatAppliedDate(application.appliedAt)}
-                </p>
-                <div>
-                  <span
-                    className={`inline-flex rounded-md border px-2 py-1 text-[10px] font-black ${
-                      application.deductionReason
-                        ? 'border-red-200 bg-red-100 text-red-800'
-                        : 'border-slate-200 bg-slate-50 text-slate-700'
-                    }`}
-                  >
-                    {application.deductionReason || application.status}
-                  </span>
-                </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
       </section>
@@ -257,8 +279,7 @@ function SectionTable({
           <div>
             <h2 className="text-base font-black text-slate-900">{section.label}</h2>
             <p className="text-xs text-slate-500">
-              {section.total.toLocaleString()} net applied from {section.recorded.toLocaleString()}{' '}
-              recorded in {year}
+              {section.recorded.toLocaleString()} applied in {year}
             </p>
           </div>
         </div>
@@ -284,6 +305,7 @@ function SectionTable({
             {rows.map((row) => {
               const monthCount = row.monthlyCounts[selectedMonthIndex]
               const monthCancelledOrRefunded = row.monthlyCancelledOrRefunded[selectedMonthIndex]
+              const monthRecorded = monthCount + monthCancelledOrRefunded
               return (
                 <div key={`${row.application}-${row.category}`} className="px-4 py-3">
                   <div className="flex items-start justify-between gap-4">
@@ -306,12 +328,17 @@ function SectionTable({
                       <button
                         type="button"
                         onClick={() => onOpenDetails({ sectionLabel: section.label, row })}
-                        className="flex h-9 min-w-9 items-center justify-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2 text-slate-700 hover:bg-slate-100"
+                        disabled={monthRecorded === 0}
+                        className="flex h-9 min-w-9 items-center justify-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2 text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
                         aria-label={`Expand ${row.application} applicant list`}
-                        title={`View ${row.recorded} recorded applications`}
+                        title={
+                          monthRecorded
+                            ? `View ${monthRecorded} applications from ${selectedMonthLabel}`
+                            : `No applications in ${selectedMonthLabel}`
+                        }
                       >
                         <Maximize2 className="h-4 w-4" />
-                        <span className="text-[10px] font-black">{row.recorded}</span>
+                        <span className="text-[10px] font-black">{monthRecorded}</span>
                       </button>
                     </div>
                   </div>
@@ -323,14 +350,9 @@ function SectionTable({
                       />
                     </div>
                     <span className="text-xs font-bold text-slate-500">
-                      {row.total.toLocaleString()} net in {year}
+                      {row.recorded.toLocaleString()} in {year}
                     </span>
                   </div>
-                  {row.cancelledOrRefunded > 0 && (
-                    <p className="mt-2 text-right text-[10px] font-black text-red-700">
-                      {row.recorded} recorded - {row.cancelledOrRefunded} cancelled/refunded
-                    </p>
-                  )}
                 </div>
               )
             })}
@@ -352,6 +374,7 @@ function SectionTable({
                   const monthCount = row.monthlyCounts[selectedMonthIndex]
                   const monthCancelledOrRefunded =
                     row.monthlyCancelledOrRefunded[selectedMonthIndex]
+                  const monthRecorded = monthCount + monthCancelledOrRefunded
                   return (
                     <tr key={`${row.application}-${row.category}`} className="text-sm">
                       <td className="px-4 py-3 font-bold text-slate-900">{row.application}</td>
@@ -375,23 +398,23 @@ function SectionTable({
                         )}
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <p className="font-bold text-slate-700">{row.total.toLocaleString()} net</p>
-                        {row.cancelledOrRefunded > 0 && (
-                          <p className="mt-1 text-[10px] font-black text-red-700">
-                            {row.recorded} - {row.cancelledOrRefunded}
-                          </p>
-                        )}
+                        <p className="font-bold text-slate-700">{row.recorded.toLocaleString()}</p>
                       </td>
                       <td className="px-4 py-3 text-right">
                         <button
                           type="button"
                           onClick={() => onOpenDetails({ sectionLabel: section.label, row })}
-                          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 text-slate-700 hover:bg-slate-100"
+                          disabled={monthRecorded === 0}
+                          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
                           aria-label={`Expand ${row.application} applicant list`}
-                          title={`View ${row.recorded} recorded applications`}
+                          title={
+                            monthRecorded
+                              ? `View ${monthRecorded} applications from ${selectedMonthLabel}`
+                              : `No applications in ${selectedMonthLabel}`
+                          }
                         >
                           <Maximize2 className="h-4 w-4" />
-                          <span className="text-xs font-black">{row.recorded}</span>
+                          <span className="text-xs font-black">{monthRecorded}</span>
                         </button>
                       </td>
                     </tr>
@@ -567,9 +590,9 @@ export default function ApplicationsAccountingClient() {
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
               <Metric
                 icon={FileText}
-                label="Net applied"
+                label="Applied"
                 value={report.totals.applications.toLocaleString()}
-                detail={`${report.totals.recordedApplications.toLocaleString()} recorded during ${report.year}`}
+                detail={`During ${report.year}`}
               />
               <Metric
                 icon={CalendarDays}
@@ -577,15 +600,15 @@ export default function ApplicationsAccountingClient() {
                 value={(selectedMonth?.total || 0).toLocaleString()}
                 detail={
                   selectedMonth
-                    ? `${selectedMonth.recorded} recorded - ${selectedMonth.cancelledOrRefunded} deducted`
+                    ? `${selectedMonth.recorded} recorded - ${selectedMonth.cancelledOrRefunded} cancelled/refunded`
                     : 'Applications applied'
                 }
               />
               <Metric
                 icon={Ban}
                 label="Cancelled/refunded"
-                value={report.totals.cancelledOrRefunded.toLocaleString()}
-                detail="Deducted from totals"
+                value={(selectedMonth?.cancelledOrRefunded || 0).toLocaleString()}
+                detail={`In ${selectedMonth?.label || 'selected month'}`}
               />
               <Metric
                 icon={TrendingUp}
@@ -637,11 +660,6 @@ export default function ApplicationsAccountingClient() {
                         <span className="mb-1 text-xs font-black text-slate-800">
                           {month.total.toLocaleString()}
                         </span>
-                        <span className="mb-1 h-3 text-[9px] font-black text-red-700">
-                          {month.cancelledOrRefunded > 0
-                            ? `-${month.cancelledOrRefunded} deducted`
-                            : ''}
-                        </span>
                         <span
                           className={`w-full max-w-7 rounded-t ${
                             selected ? 'bg-emerald-600' : 'bg-slate-400'
@@ -674,6 +692,8 @@ export default function ApplicationsAccountingClient() {
             <ApplicationDetailsWindow
               selected={selectedDetails}
               year={report.year}
+              selectedMonthIndex={selectedMonthIndex}
+              selectedMonthLabel={selectedMonth?.label || 'Selected month'}
               onClose={() => setSelectedDetails(null)}
             />
           </>

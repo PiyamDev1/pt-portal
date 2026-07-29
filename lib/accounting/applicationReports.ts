@@ -81,6 +81,7 @@ export type AccountingApplicationsReport = {
   totals: {
     applications: number
     recordedApplications: number
+    netApplications: number
     cancelledOrRefunded: number
     combinations: number
     averagePerMonth: number
@@ -228,11 +229,12 @@ export function buildAccountingApplicationsReport({
     year,
     service,
     totals: {
-      applications: countedApplications,
+      applications: recordedApplications,
       recordedApplications,
+      netApplications: countedApplications,
       cancelledOrRefunded,
       combinations: groupedRows.size,
-      averagePerMonth: Number((countedApplications / 12).toFixed(1)),
+      averagePerMonth: Number((recordedApplications / 12).toFixed(1)),
       busiestMonth: busiestMonth?.total ? busiestMonth : null,
     },
     months,
