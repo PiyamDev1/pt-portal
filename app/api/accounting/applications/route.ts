@@ -21,6 +21,8 @@ type RawApplication = {
   created_at?: string | null
   service_type?: string | null
   speed?: string | null
+  category?: string | null
+  age_group?: string | null
   nicop_cnic_details?:
     | { service_option?: string | null }
     | Array<{ service_option?: string | null }>
@@ -59,17 +61,19 @@ function normalizeApplication(source: ApplicationSourceKey, row: RawApplication)
   }
 
   if (source === 'pak_passport') {
+    const passportCategory = cleanLabel(row.category, '')
     return {
       ...common,
-      application: 'PK Passport',
+      application: passportCategory ? `PK Passport - ${passportCategory}` : 'PK Passport',
       category: cleanLabel(row.speed, 'Unspecified'),
     }
   }
 
   if (source === 'gb_passport') {
+    const ageGroup = cleanLabel(row.age_group, '')
     return {
       ...common,
-      application: 'GB Passport',
+      application: ageGroup ? `GB Passport - ${ageGroup}` : 'GB Passport',
       category: cleanLabel(row.service_type, 'Unspecified'),
     }
   }
@@ -103,7 +107,7 @@ function createSourceQuery(
   if (source === 'pak_passport') {
     return supabase
       .from('pakistani_passport_applications')
-      .select('id, created_at, speed')
+      .select('id, created_at, category, speed')
       .gte('created_at', fromIso)
       .lt('created_at', toIso)
       .order('created_at', { ascending: true })
@@ -112,7 +116,7 @@ function createSourceQuery(
   if (source === 'gb_passport') {
     return supabase
       .from('british_passport_applications')
-      .select('id, created_at, service_type')
+      .select('id, created_at, age_group, service_type')
       .gte('created_at', fromIso)
       .lt('created_at', toIso)
       .order('created_at', { ascending: true })

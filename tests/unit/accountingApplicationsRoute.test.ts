@@ -90,11 +90,13 @@ describe('GET /api/accounting/applications', () => {
         {
           id: 'p-1',
           created_at: '2026-01-10T09:00:00.000Z',
+          category: 'Adult 10 Year',
           speed: 'Urgent',
         },
         {
           id: 'p-2',
           created_at: '2026-02-10T09:00:00.000Z',
+          category: 'Adult 5 Year',
           speed: 'Normal',
         },
       ],
@@ -105,6 +107,13 @@ describe('GET /api/accounting/applications', () => {
         {
           id: 'g-1',
           created_at: '2026-01-12T09:00:00.000Z',
+          age_group: 'Adult',
+          service_type: 'Express',
+        },
+        {
+          id: 'g-2',
+          created_at: '2026-01-20T09:00:00.000Z',
+          age_group: 'Child',
           service_type: 'Express',
         },
       ],
@@ -128,8 +137,8 @@ describe('GET /api/accounting/applications', () => {
     const payload = await response.json()
 
     expect(response.status).toBe(200)
-    expect(payload.totals.applications).toBe(7)
-    expect(payload.months[0]).toMatchObject({ label: 'January', total: 5 })
+    expect(payload.totals.applications).toBe(8)
+    expect(payload.months[0]).toMatchObject({ label: 'January', total: 6 })
     expect(payload.months[1]).toMatchObject({ label: 'February', total: 2 })
 
     expect(section(payload, 'nadra').rows).toEqual(
@@ -151,16 +160,29 @@ describe('GET /api/accounting/applications', () => {
     expect(section(payload, 'pak_passport').rows).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          application: 'PK Passport',
+          application: 'PK Passport - Adult 10 Year',
           category: 'Urgent',
           monthlyCounts: [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         }),
+        expect.objectContaining({
+          application: 'PK Passport - Adult 5 Year',
+          category: 'Normal',
+          monthlyCounts: [0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        }),
       ]),
     )
-    expect(section(payload, 'gb_passport').rows[0]).toMatchObject({
-      application: 'GB Passport',
-      category: 'Express',
-    })
+    expect(section(payload, 'gb_passport').rows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          application: 'GB Passport - Adult',
+          category: 'Express',
+        }),
+        expect.objectContaining({
+          application: 'GB Passport - Child',
+          category: 'Express',
+        }),
+      ]),
+    )
     expect(section(payload, 'visa').rows[0]).toMatchObject({
       application: 'Saudi Arabia Visa',
       category: 'Umrah',
@@ -170,6 +192,16 @@ describe('GET /api/accounting/applications', () => {
       op: 'select',
       args: ['id, created_at, service_type, nicop_cnic_details(service_option)'],
     })
+    expect(mocks.queryCalls).toContainEqual({
+      table: 'pakistani_passport_applications',
+      op: 'select',
+      args: ['id, created_at, category, speed'],
+    })
+    expect(mocks.queryCalls).toContainEqual({
+      table: 'british_passport_applications',
+      op: 'select',
+      args: ['id, created_at, age_group, service_type'],
+    })
   })
 
   it('queries only the selected application section', async () => {
@@ -178,6 +210,7 @@ describe('GET /api/accounting/applications', () => {
         {
           id: 'p-1',
           created_at: '2026-01-10T09:00:00.000Z',
+          category: 'Child 5 Year',
           speed: 'Urgent',
         },
       ],
