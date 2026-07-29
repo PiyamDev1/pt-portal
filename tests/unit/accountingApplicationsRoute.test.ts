@@ -67,7 +67,10 @@ describe('GET /api/accounting/applications', () => {
         {
           id: 'n-1',
           created_at: '2026-01-04T09:00:00.000Z',
+          status: 'Pending Submission',
+          tracking_number: 'NADRA-001',
           service_type: 'NICOP',
+          applicants: { first_name: 'Ali', last_name: 'Khan' },
           nicop_cnic_details: { service_option: 'Normal' },
         },
         {
@@ -90,8 +93,11 @@ describe('GET /api/accounting/applications', () => {
         {
           id: 'p-1',
           created_at: '2026-01-10T09:00:00.000Z',
+          status: 'Processing',
           category: 'Adult 10 Year',
           speed: 'Urgent',
+          applicants: { first_name: 'Sara', last_name: 'Ahmed' },
+          applications: { tracking_number: 'PK-001' },
         },
         {
           id: 'p-2',
@@ -107,8 +113,11 @@ describe('GET /api/accounting/applications', () => {
         {
           id: 'g-1',
           created_at: '2026-01-12T09:00:00.000Z',
+          status: 'In Progress',
           age_group: 'Adult',
           service_type: 'Express',
+          applicants: { first_name: 'Adam', last_name: 'Smith' },
+          applications: { tracking_number: 'GB-001' },
         },
         {
           id: 'g-2',
@@ -124,6 +133,9 @@ describe('GET /api/accounting/applications', () => {
         {
           id: 'v-1',
           created_at: '2026-01-14T09:00:00.000Z',
+          status: 'Pending',
+          internal_tracking_number: 'VISA-001',
+          applicants: { first_name: 'Maryam', last_name: 'Iqbal' },
           visa_countries: { name: 'Saudi Arabia' },
           visa_types: { name: 'Umrah' },
         },
@@ -138,6 +150,8 @@ describe('GET /api/accounting/applications', () => {
 
     expect(response.status).toBe(200)
     expect(payload.totals.applications).toBe(8)
+    expect(payload.totals.recordedApplications).toBe(8)
+    expect(payload.totals.cancelledOrRefunded).toBe(0)
     expect(payload.months[0]).toMatchObject({ label: 'January', total: 6 })
     expect(payload.months[1]).toMatchObject({ label: 'February', total: 2 })
 
@@ -147,6 +161,8 @@ describe('GET /api/accounting/applications', () => {
           application: 'NICOP',
           category: 'Normal',
           total: 2,
+          recorded: 2,
+          cancelledOrRefunded: 0,
           monthlyCounts: [2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         }),
         expect.objectContaining({
@@ -187,21 +203,119 @@ describe('GET /api/accounting/applications', () => {
       application: 'Saudi Arabia Visa',
       category: 'Umrah',
     })
+    expect(section(payload, 'pak_passport').rows[0].applications).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          applicantName: 'Sara Ahmed',
+          trackingNumber: 'PK-001',
+          status: 'Processing',
+          deductionReason: null,
+        }),
+      ]),
+    )
     expect(mocks.queryCalls).toContainEqual({
       table: 'nadra_services',
       op: 'select',
-      args: ['id, created_at, service_type, nicop_cnic_details(service_option)'],
+      args: [
+        'id, created_at, status, is_refunded, tracking_number, service_type, applicants(first_name, last_name), nicop_cnic_details(service_option)',
+      ],
     })
     expect(mocks.queryCalls).toContainEqual({
       table: 'pakistani_passport_applications',
       op: 'select',
-      args: ['id, created_at, category, speed'],
+      args: [
+        'id, created_at, status, is_refunded, category, speed, applicants(first_name, last_name), applications(tracking_number)',
+      ],
     })
     expect(mocks.queryCalls).toContainEqual({
       table: 'british_passport_applications',
       op: 'select',
-      args: ['id, created_at, age_group, service_type'],
+      args: [
+        'id, created_at, status, age_group, service_type, applicants(first_name, last_name), applications(tracking_number)',
+      ],
     })
+  })
+
+  it('subtracts cancelled and refunded records while retaining their applicant details', async () => {
+    mocks.tableData.pakistani_passport_applications = {
+      data: [
+        {
+          id: 'p-active',
+          created_at: '2026-01-05T09:00:00.000Z',
+          status: 'Processing',
+          is_refunded: false,
+          category: 'Adult 10 Year',
+          speed: 'Urgent',
+          applicants: { first_name: 'Active', last_name: 'Applicant' },
+          applications: { tracking_number: 'PK-ACTIVE' },
+        },
+        {
+          id: 'p-cancelled',
+          created_at: '2026-01-06T09:00:00.000Z',
+          status: 'Cancelled',
+          is_refunded: false,
+          category: 'Adult 10 Year',
+          speed: 'Urgent',
+          applicants: { first_name: 'Cancelled', last_name: 'Applicant' },
+          applications: { tracking_number: 'PK-CANCELLED' },
+        },
+        {
+          id: 'p-refunded',
+          created_at: '2026-01-07T09:00:00.000Z',
+          status: 'Processing',
+          is_refunded: true,
+          category: 'Adult 10 Year',
+          speed: 'Urgent',
+          applicants: { first_name: 'Refunded', last_name: 'Applicant' },
+          applications: { tracking_number: 'PK-REFUNDED' },
+        },
+      ],
+      error: null,
+    }
+
+    const response = await GET(
+      new Request('http://localhost/api/accounting/applications?year=2026&service=pak_passport'),
+    )
+    const payload = await response.json()
+    const row = section(payload, 'pak_passport').rows[0]
+
+    expect(response.status).toBe(200)
+    expect(payload.totals).toMatchObject({
+      applications: 1,
+      recordedApplications: 3,
+      cancelledOrRefunded: 2,
+    })
+    expect(payload.months[0]).toMatchObject({
+      total: 1,
+      recorded: 3,
+      cancelledOrRefunded: 2,
+    })
+    expect(row).toMatchObject({
+      total: 1,
+      recorded: 3,
+      cancelledOrRefunded: 2,
+      monthlyCounts: [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      monthlyCancelledOrRefunded: [2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    })
+    expect(row.applications).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          applicantName: 'Active Applicant',
+          trackingNumber: 'PK-ACTIVE',
+          deductionReason: null,
+        }),
+        expect.objectContaining({
+          applicantName: 'Cancelled Applicant',
+          trackingNumber: 'PK-CANCELLED',
+          deductionReason: 'Cancelled',
+        }),
+        expect.objectContaining({
+          applicantName: 'Refunded Applicant',
+          trackingNumber: 'PK-REFUNDED',
+          deductionReason: 'Refunded',
+        }),
+      ]),
+    )
   })
 
   it('queries only the selected application section', async () => {

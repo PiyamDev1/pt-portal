@@ -30,6 +30,10 @@ export type NormalizedApplication = {
   application: string
   category: string
   appliedAt: string
+  applicantName: string
+  trackingNumber: string
+  status: string
+  deductionReason: 'Cancelled' | 'Refunded' | null
 }
 
 export type MonthlyApplicationCount = {
@@ -38,19 +42,36 @@ export type MonthlyApplicationCount = {
   label: string
   shortLabel: string
   total: number
+  recorded: number
+  cancelledOrRefunded: number
+}
+
+export type ApplicationReportDetail = {
+  id: string
+  applicantName: string
+  trackingNumber: string
+  status: string
+  appliedAt: string
+  deductionReason: 'Cancelled' | 'Refunded' | null
 }
 
 export type ApplicationReportRow = {
   application: string
   category: string
   total: number
+  recorded: number
+  cancelledOrRefunded: number
   monthlyCounts: number[]
+  monthlyCancelledOrRefunded: number[]
+  applications: ApplicationReportDetail[]
 }
 
 export type ApplicationReportSection = {
   source: ApplicationSourceKey
   label: string
   total: number
+  recorded: number
+  cancelledOrRefunded: number
   rows: ApplicationReportRow[]
 }
 
@@ -59,6 +80,8 @@ export type AccountingApplicationsReport = {
   service: ApplicationSourceKey | 'all'
   totals: {
     applications: number
+    recordedApplications: number
+    cancelledOrRefunded: number
     combinations: number
     averagePerMonth: number
     busiestMonth: MonthlyApplicationCount | null
@@ -94,15 +117,28 @@ export function buildAccountingApplicationsReport({
   warnings?: Array<{ label: string; message: string }>
 }): AccountingApplicationsReport {
   const monthlyTotals = Array.from({ length: 12 }, () => 0)
+  const monthlyRecorded = Array.from({ length: 12 }, () => 0)
+  const monthlyCancelledOrRefunded = Array.from({ length: 12 }, () => 0)
   const groupedRows = new Map<string, MutableApplicationReportRow>()
   let countedApplications = 0
+  let recordedApplications = 0
+  let cancelledOrRefunded = 0
 
   for (const application of applications) {
     const month = monthIndex(application.appliedAt, year)
     if (month === null) continue
 
-    countedApplications += 1
-    monthlyTotals[month] += 1
+    const isDeducted = application.deductionReason !== null
+    recordedApplications += 1
+    monthlyRecorded[month] += 1
+
+    if (isDeducted) {
+      cancelledOrRefunded += 1
+      monthlyCancelledOrRefunded[month] += 1
+    } else {
+      countedApplications += 1
+      monthlyTotals[month] += 1
+    }
 
     const key = rowKey(application)
     const row = groupedRows.get(key) || {
@@ -110,11 +146,31 @@ export function buildAccountingApplicationsReport({
       application: application.application,
       category: application.category,
       total: 0,
+      recorded: 0,
+      cancelledOrRefunded: 0,
       monthlyCounts: Array.from({ length: 12 }, () => 0),
+      monthlyCancelledOrRefunded: Array.from({ length: 12 }, () => 0),
+      applications: [],
     }
 
-    row.total += 1
-    row.monthlyCounts[month] += 1
+    row.recorded += 1
+    row.applications.push({
+      id: application.id,
+      applicantName: application.applicantName,
+      trackingNumber: application.trackingNumber,
+      status: application.status,
+      appliedAt: application.appliedAt,
+      deductionReason: application.deductionReason,
+    })
+
+    if (isDeducted) {
+      row.cancelledOrRefunded += 1
+      row.monthlyCancelledOrRefunded[month] += 1
+    } else {
+      row.total += 1
+      row.monthlyCounts[month] += 1
+    }
+
     groupedRows.set(key, row)
   }
 
@@ -124,6 +180,8 @@ export function buildAccountingApplicationsReport({
     label: month.label,
     shortLabel: month.shortLabel,
     total: monthlyTotals[index],
+    recorded: monthlyRecorded[index],
+    cancelledOrRefunded: monthlyCancelledOrRefunded[index],
   }))
 
   const visibleSources =
@@ -135,9 +193,18 @@ export function buildAccountingApplicationsReport({
     const rows = Array.from(groupedRows.values())
       .filter((row) => row.source === source)
       .map(({ source: _source, ...row }) => row)
+      .map((row) => ({
+        ...row,
+        applications: [...row.applications].sort(
+          (left, right) =>
+            new Date(right.appliedAt || 0).getTime() - new Date(left.appliedAt || 0).getTime() ||
+            left.applicantName.localeCompare(right.applicantName),
+        ),
+      }))
       .sort(
         (left, right) =>
           right.total - left.total ||
+          right.recorded - left.recorded ||
           left.application.localeCompare(right.application) ||
           left.category.localeCompare(right.category),
       )
@@ -146,6 +213,8 @@ export function buildAccountingApplicationsReport({
       source,
       label: APPLICATION_SOURCE_LABELS[source],
       total: rows.reduce((sum, row) => sum + row.total, 0),
+      recorded: rows.reduce((sum, row) => sum + row.recorded, 0),
+      cancelledOrRefunded: rows.reduce((sum, row) => sum + row.cancelledOrRefunded, 0),
       rows,
     }
   })
@@ -160,6 +229,8 @@ export function buildAccountingApplicationsReport({
     service,
     totals: {
       applications: countedApplications,
+      recordedApplications,
+      cancelledOrRefunded,
       combinations: groupedRows.size,
       averagePerMonth: Number((countedApplications / 12).toFixed(1)),
       busiestMonth: busiestMonth?.total ? busiestMonth : null,

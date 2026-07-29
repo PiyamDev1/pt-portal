@@ -19,10 +19,22 @@ const MAX_PAGES_PER_SOURCE = 100
 type RawApplication = {
   id: string
   created_at?: string | null
+  status?: string | null
+  is_refunded?: boolean | null
+  tracking_number?: string | null
+  internal_tracking_number?: string | null
   service_type?: string | null
   speed?: string | null
   category?: string | null
   age_group?: string | null
+  applicants?:
+    | { first_name?: string | null; last_name?: string | null }
+    | Array<{ first_name?: string | null; last_name?: string | null }>
+    | null
+  applications?:
+    | { tracking_number?: string | null }
+    | Array<{ tracking_number?: string | null }>
+    | null
   nicop_cnic_details?:
     | { service_option?: string | null }
     | Array<{ service_option?: string | null }>
@@ -44,11 +56,34 @@ function cleanLabel(value: string | null | undefined, fallback: string) {
   )
 }
 
+function deductionReason(row: RawApplication) {
+  const status = cleanLabel(row.status, 'Unknown').toLowerCase()
+  if (row.is_refunded || status.includes('refund')) return 'Refunded' as const
+  if (status.includes('cancel')) return 'Cancelled' as const
+  return null
+}
+
 function normalizeApplication(source: ApplicationSourceKey, row: RawApplication) {
+  const applicant = pickOne(row.applicants)
+  const parentApplication = pickOne(row.applications)
+  const applicantName = cleanLabel(
+    [applicant?.first_name, applicant?.last_name].filter(Boolean).join(' '),
+    'Unknown applicant',
+  )
+  const trackingNumber =
+    source === 'visa'
+      ? cleanLabel(row.internal_tracking_number, 'Not recorded')
+      : source === 'nadra'
+        ? cleanLabel(row.tracking_number, 'Not recorded')
+        : cleanLabel(parentApplication?.tracking_number, 'Not recorded')
   const common = {
     id: row.id,
     source,
     appliedAt: row.created_at || '',
+    applicantName,
+    trackingNumber,
+    status: cleanLabel(row.status, 'Unknown'),
+    deductionReason: deductionReason(row),
   }
 
   if (source === 'nadra') {
@@ -98,7 +133,9 @@ function createSourceQuery(
   if (source === 'nadra') {
     return supabase
       .from('nadra_services')
-      .select('id, created_at, service_type, nicop_cnic_details(service_option)')
+      .select(
+        'id, created_at, status, is_refunded, tracking_number, service_type, applicants(first_name, last_name), nicop_cnic_details(service_option)',
+      )
       .gte('created_at', fromIso)
       .lt('created_at', toIso)
       .order('created_at', { ascending: true })
@@ -107,7 +144,9 @@ function createSourceQuery(
   if (source === 'pak_passport') {
     return supabase
       .from('pakistani_passport_applications')
-      .select('id, created_at, category, speed')
+      .select(
+        'id, created_at, status, is_refunded, category, speed, applicants(first_name, last_name), applications(tracking_number)',
+      )
       .gte('created_at', fromIso)
       .lt('created_at', toIso)
       .order('created_at', { ascending: true })
@@ -116,7 +155,9 @@ function createSourceQuery(
   if (source === 'gb_passport') {
     return supabase
       .from('british_passport_applications')
-      .select('id, created_at, age_group, service_type')
+      .select(
+        'id, created_at, status, age_group, service_type, applicants(first_name, last_name), applications(tracking_number)',
+      )
       .gte('created_at', fromIso)
       .lt('created_at', toIso)
       .order('created_at', { ascending: true })
@@ -124,7 +165,9 @@ function createSourceQuery(
 
   return supabase
     .from('visa_applications')
-    .select('id, created_at, visa_countries(name), visa_types(name)')
+    .select(
+      'id, created_at, status, internal_tracking_number, applicants(first_name, last_name), visa_countries(name), visa_types(name)',
+    )
     .gte('created_at', fromIso)
     .lt('created_at', toIso)
     .order('created_at', { ascending: true })
