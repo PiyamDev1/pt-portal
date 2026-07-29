@@ -59,7 +59,7 @@ const ICONS: Record<DashboardModule['iconKey'], ComponentType<IconProps>> = {
 }
 
 const MOBILE_PRIMARY_IDS = new Set(['timeclock', 'hrms-transfer'])
-const MOBILE_QUICK_IDS = new Set(['account', 'applications', 'bookings', 'packages'])
+const MOBILE_QUICK_IDS = new Set(['account', 'applications', 'lms', 'bookings', 'packages'])
 
 function ModuleIcon({
   moduleItem,

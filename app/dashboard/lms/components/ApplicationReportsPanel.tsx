@@ -262,7 +262,10 @@ export function ApplicationReportsPanel() {
   const rangeIsInvalid = !!from && !!to && from > to
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
+    <section
+      id="application-reports"
+      className="scroll-mt-24 rounded-xl border border-slate-200 bg-white shadow-sm"
+    >
       <div className="border-b border-slate-100 p-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>

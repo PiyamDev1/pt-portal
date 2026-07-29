@@ -11,6 +11,7 @@ import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import { useState } from 'react'
 import {
+  BadgePoundSterling,
   Building2,
   Database,
   FileText,
@@ -33,10 +34,23 @@ type MenuItem = {
 
 const MOBILE_ACCOUNT_ITEMS: MenuItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: Home },
+  { href: '/dashboard/lms', label: 'Accounts', icon: BadgePoundSterling },
   { href: '/dashboard/account', label: 'My Account', icon: UserRound },
 ]
 
 const PAGE_MENU_ITEMS: Array<{ match: string; title: string; items: MenuItem[] }> = [
+  {
+    match: '/dashboard/lms',
+    title: 'Accounts menu',
+    items: [
+      { href: '/dashboard/lms', label: 'Accounts Home', icon: BadgePoundSterling },
+      {
+        href: '/dashboard/lms#application-reports',
+        label: 'Reports',
+        icon: FileText,
+      },
+    ],
+  },
   {
     match: '/dashboard/settings',
     title: 'Settings menu',

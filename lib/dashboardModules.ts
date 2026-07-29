@@ -136,8 +136,8 @@ export const DASHBOARD_MODULES: DashboardModule[] = [
   },
   {
     id: 'lms',
-    title: 'LMS',
-    desc: 'Customer balances and instalments',
+    title: 'Accounts',
+    desc: 'Balances, instalments and application reports',
     href: '/dashboard/lms',
     group: 'finance',
     accent: 'from-[#f3f4f6] to-[#d1d5db] text-slate-950',
