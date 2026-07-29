@@ -260,6 +260,34 @@ describe('package quote calculator', () => {
     expect(presets[2].resolved?.selection.stayOptionIds).toEqual({ makkah: 'mk-luxury' })
   })
 
+  it('includes the cheapest flight when building the cheapest preset', () => {
+    const presetPayload = normalizePackageQuotePayload({
+      ...payload,
+      flightOptions: [
+        {
+          id: 'flight-agent',
+          title: 'Agent preferred flight',
+          summary: '',
+          price: 900,
+          pricingMode: 'total',
+          isDefault: true,
+        },
+        {
+          id: 'flight-cheapest',
+          title: 'Cheapest flight',
+          summary: '',
+          price: 700,
+          pricingMode: 'total',
+        },
+      ],
+    })
+
+    const [cheapest] = buildPackagePresetSelections(presetPayload)
+
+    expect(cheapest.label).toBe('Cheapest Option')
+    expect(cheapest.resolved?.selection.flightOptionId).toBe('flight-cheapest')
+  })
+
   it('calculates linked flight option differences from actual leg costs', () => {
     const linkedPayload = normalizePackageQuotePayload({
       ...payload,

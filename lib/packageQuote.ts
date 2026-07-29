@@ -1155,9 +1155,33 @@ export function buildCustomerPackageOptions(
 
 export function buildPackagePresetSelections(payloadInput: unknown) {
   const payload = normalizePackageQuotePayload(payloadInput)
-  const customerOptions = buildCustomerPackageOptions(payload, 250)
-  const cheapest = customerOptions[0] || null
-  const luxury = customerOptions.at(-1) || null
+  const fullPackageOptions = buildPackageCombinations(payload, 250)
+    .map((combination) => {
+      try {
+        return resolvePackageSelection(payload, {
+          ...getDefaultPackageSelection(payload),
+          stayOptionIds: Object.fromEntries(
+            combination.staySelections.map((stay) => [stay.groupId, stay.option.id]),
+          ),
+          flightOptionId: combination.flightOption?.id || null,
+          linkedFlightOptionIds: Object.fromEntries(
+            (combination.linkedFlightSelections || []).map((selection) => [
+              selection.group.id,
+              selection.option.id,
+            ]),
+          ),
+          transportOptionId: combination.transportOption?.id || null,
+          paymentMethod: 'bank_transfer',
+          paymentBreakdown: null,
+        })
+      } catch {
+        return null
+      }
+    })
+    .filter((value): value is PackageResolvedSelection => Boolean(value))
+    .sort((a, b) => a.combination.totalPrice - b.combination.totalPrice)
+  const cheapest = fullPackageOptions[0] || null
+  const luxury = fullPackageOptions.at(-1) || null
   const preferred = resolveDefaultPackageSelection(payload)
 
   return [
