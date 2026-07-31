@@ -10,6 +10,7 @@ import {
 } from '@/lib/packageIntegrations'
 import {
   buildPackageDocumentStorageKey,
+  isAgentOnlyPackageDocumentCategory,
   normalizePackageDocumentCategory,
 } from '@/lib/packageDocuments'
 import { getS3Client } from '@/lib/s3Client'
@@ -164,7 +165,8 @@ export async function POST(
 
   const category = normalizePackageDocumentCategory(formData.get('category'))
   const title = cleanText(formData.get('title')) || file.name
-  const customerVisible = formData.get('customerVisible') === 'true'
+  const customerVisible =
+    formData.get('customerVisible') === 'true' && !isAgentOnlyPackageDocumentCategory(category)
   const publicNotes = cleanText(formData.get('publicNotes')) || null
   const internalNotes = cleanText(formData.get('internalNotes')) || null
   const reservationId = cleanText(formData.get('reservationId')) || null
@@ -189,10 +191,6 @@ export async function POST(
         Key: storageKey,
         Body: body,
         ContentType: file.type || 'application/octet-stream',
-        Metadata: {
-          package_id: id,
-          uploaded_by: user.id,
-        },
       }),
     )
     etag = putResult.ETag || ''
@@ -214,11 +212,6 @@ export async function POST(
           Key: storageKey,
           Body: body,
           ContentType: file.type || 'application/octet-stream',
-          Metadata: {
-            package_id: id,
-            primary_bucket: bucket,
-            uploaded_by: user.id,
-          },
         }),
       )
       metadata.backupStorage = {

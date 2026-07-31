@@ -3,9 +3,16 @@ import { apiError, apiOk } from '@/lib/api/http'
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
 import { recordPackageAuditEvent } from '@/lib/packageAudit'
 import { syncPackagePaymentFinancials } from '@/lib/packagePaymentsServer'
-import type { TravelPackagePayment } from '@/app/types/packages'
+import type { TravelPackagePayment, TravelPackagePaymentType } from '@/app/types/packages'
 import { selectTravelPackagePaymentColumns } from '../route'
 
+const TYPES = new Set<TravelPackagePaymentType>([
+  'deposit',
+  'payment',
+  'refund',
+  'chargeback',
+  'commission',
+])
 const STATUSES = new Set(['pending', 'completed', 'failed', 'cancelled', 'refunded'])
 const METHODS = new Set(['cash', 'bank_transfer', 'card', 'other'])
 
@@ -41,6 +48,11 @@ export async function PATCH(
     if (!Number.isFinite(amount) || amount <= 0)
       return apiError('Payment amount must be greater than zero', 400)
     update.amount = Math.round(amount * 100) / 100
+  }
+  if ('paymentType' in body || 'payment_type' in body) {
+    const paymentType = cleanText(body.paymentType ?? body.payment_type) as TravelPackagePaymentType
+    if (!TYPES.has(paymentType)) return apiError('Invalid payment type', 400)
+    update.payment_type = paymentType
   }
   if ('paymentStatus' in body || 'payment_status' in body) {
     const status = cleanText(body.paymentStatus ?? body.payment_status)

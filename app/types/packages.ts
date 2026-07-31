@@ -42,6 +42,7 @@ export type TravelPackageDocumentCategory =
   | 'e_sim'
   | 'insurance'
   | 'invoice'
+  | 'travel_documents'
   | 'other'
 export type TravelPackageDocumentStatus =
   | 'draft'

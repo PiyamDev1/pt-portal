@@ -5,6 +5,7 @@ import {
   createPackageDocumentAccessToken,
   getPackageDocumentCategoryLabel,
   groupPackageDocumentsByCategory,
+  isAgentOnlyPackageDocumentCategory,
   normalizePackageDocumentCategory,
   sanitizePackageDocumentFileName,
 } from '@/lib/packageDocuments'
@@ -16,8 +17,12 @@ describe('package document helpers', () => {
 
   it('normalizes document categories and labels', () => {
     expect(normalizePackageDocumentCategory('flight')).toBe('flight')
+    expect(normalizePackageDocumentCategory('travel_documents')).toBe('travel_documents')
     expect(normalizePackageDocumentCategory('unknown')).toBe('other')
     expect(getPackageDocumentCategoryLabel('e_sim')).toBe('E-Sim')
+    expect(getPackageDocumentCategoryLabel('travel_documents')).toBe('Travel Documents')
+    expect(isAgentOnlyPackageDocumentCategory('travel_documents')).toBe(true)
+    expect(isAgentOnlyPackageDocumentCategory('flight')).toBe(false)
   })
 
   it('sanitizes storage file names and builds package-scoped keys', () => {

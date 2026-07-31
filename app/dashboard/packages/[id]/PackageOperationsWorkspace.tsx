@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import QRCode from 'qrcode'
 import {
   AlertTriangle,
   CalendarClock,
@@ -12,6 +13,7 @@ import {
   History,
   Loader2,
   MessageSquarePlus,
+  Pencil,
   Plus,
   ReceiptText,
   Route,
@@ -20,6 +22,7 @@ import {
   Trash2,
   UserPlus,
   Users,
+  X,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import type {
@@ -49,6 +52,7 @@ import {
 import {
   cleanTransportVoucherVehicleLabel,
   createDefaultTransportVoucherData,
+  getPackageDocumentPortalUrl,
   renderTransportVoucherHtml,
 } from '@/lib/packageTransportVoucher'
 
@@ -249,6 +253,9 @@ export default function PackageOperationsWorkspace({
   const [saving, setSaving] = useState<string | null>(null)
   const [setupMessage, setSetupMessage] = useState<string | null>(null)
   const [editingVoucherId, setEditingVoucherId] = useState<string | null>(null)
+  const [editingPassengerId, setEditingPassengerId] = useState<string | null>(null)
+  const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null)
+  const [voucherPreviewQrCodeDataUrl, setVoucherPreviewQrCodeDataUrl] = useState('')
 
   const [customerForm, setCustomerForm] = useState({
     customerName: packageFolder.customer_name || '',
@@ -264,6 +271,14 @@ export default function PackageOperationsWorkspace({
     dateOfBirth: '',
     passengerType: 'adult' as TravelPackagePassengerType,
   })
+  const [passengerEditForm, setPassengerEditForm] = useState({
+    firstName: '',
+    lastName: '',
+    dateOfBirth: '',
+    passengerType: 'adult' as TravelPackagePassengerType,
+    roomAllocation: '',
+    internalNotes: '',
+  })
   const [paymentForm, setPaymentForm] = useState({
     amount: '',
     paymentType: 'deposit' as TravelPackagePaymentType,
@@ -271,6 +286,16 @@ export default function PackageOperationsWorkspace({
     paymentStatus: 'completed' as TravelPackagePaymentStatus,
     dueAt: '',
     installmentId: '',
+    receiptReference: '',
+    notes: '',
+  })
+  const [paymentEditForm, setPaymentEditForm] = useState({
+    amount: '',
+    paymentType: 'payment' as TravelPackagePaymentType,
+    paymentMethod: 'bank_transfer' as TravelPackagePaymentMethod,
+    paymentStatus: 'completed' as TravelPackagePaymentStatus,
+    dueAt: '',
+    receivedAt: '',
     receiptReference: '',
     notes: '',
   })
@@ -418,11 +443,48 @@ export default function PackageOperationsWorkspace({
       ? `Exceeds capacity of ${selectedVehicle.passengers}. Select a larger vehicle.`
       : ''
   const selectedVoucher = vouchers.find((voucher) => voucher.id === editingVoucherId) || null
+  const voucherDigitalUrl =
+    voucherForm.digitalVoucherUrl ||
+    (packageFolder.document_access_token
+      ? getPackageDocumentPortalUrl(packageFolder.document_access_token)
+      : getPackageDocumentPortalUrl(''))
+  const voucherPreviewData = useMemo(
+    () => ({
+      ...voucherForm,
+      digitalVoucherUrl: voucherDigitalUrl,
+      qrCodeDataUrl: voucherForm.qrCodeDataUrl || voucherPreviewQrCodeDataUrl,
+    }),
+    [voucherDigitalUrl, voucherForm, voucherPreviewQrCodeDataUrl],
+  )
   const voucherPreviewHtml = useMemo(
-    () => renderTransportVoucherHtml(packageFolder, voucherForm),
-    [packageFolder, voucherForm],
+    () => renderTransportVoucherHtml(packageFolder, voucherPreviewData),
+    [packageFolder, voucherPreviewData],
   )
   const voucherRouteAssignments = voucherForm.routeAssignments || []
+
+  useEffect(() => {
+    if (voucherForm.qrCodeDataUrl) {
+      setVoucherPreviewQrCodeDataUrl(voucherForm.qrCodeDataUrl)
+      return
+    }
+
+    let cancelled = false
+    QRCode.toDataURL(voucherDigitalUrl, {
+      width: 180,
+      margin: 1,
+      color: { dark: '#111827', light: '#ffffff' },
+    })
+      .then((value) => {
+        if (!cancelled) setVoucherPreviewQrCodeDataUrl(value)
+      })
+      .catch(() => {
+        if (!cancelled) setVoucherPreviewQrCodeDataUrl('')
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [voucherDigitalUrl, voucherForm.qrCodeDataUrl])
 
   const patchPackage = async (body: Record<string, unknown>) => {
     setSaving('package')
@@ -525,10 +587,32 @@ export default function PackageOperationsWorkspace({
       setPassengers((current) =>
         current.map((item) => (item.id === passenger.id ? data.passenger! : item)),
       )
+      return true
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to update passenger')
+      return false
     } finally {
       setSaving(null)
+    }
+  }
+
+  const startPassengerEdit = (passenger: TravelPackagePassenger) => {
+    setEditingPassengerId(passenger.id)
+    setPassengerEditForm({
+      firstName: passenger.first_name || '',
+      lastName: passenger.last_name || '',
+      dateOfBirth: dateInput(passenger.date_of_birth),
+      passengerType: passenger.passenger_type,
+      roomAllocation: passenger.room_allocation || '',
+      internalNotes: passenger.internal_notes || '',
+    })
+  }
+
+  const savePassengerEdit = async (passenger: TravelPackagePassenger) => {
+    const updated = await updatePassenger(passenger, passengerEditForm)
+    if (updated) {
+      setEditingPassengerId(null)
+      toast.success('Passenger updated')
     }
   }
 
@@ -608,6 +692,74 @@ export default function PackageOperationsWorkspace({
       await refreshPaymentPlan()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to update payment')
+    } finally {
+      setSaving(null)
+    }
+  }
+
+  const startPaymentEdit = (payment: TravelPackagePayment) => {
+    setEditingPaymentId(payment.id)
+    setPaymentEditForm({
+      amount: String(payment.amount || ''),
+      paymentType: payment.payment_type,
+      paymentMethod: payment.payment_method,
+      paymentStatus: payment.payment_status,
+      dueAt: dateTimeInput(payment.due_at),
+      receivedAt: dateTimeInput(payment.received_at),
+      receiptReference: payment.receipt_reference || '',
+      notes: payment.notes || '',
+    })
+  }
+
+  const savePaymentEdit = async (payment: TravelPackagePayment) => {
+    setSaving(payment.id)
+    try {
+      const paymentPayload = {
+        ...paymentEditForm,
+        amount: Number(paymentEditForm.amount || 0),
+        receivedAt: paymentEditForm.receivedAt || undefined,
+      }
+      const response = await fetch(
+        `/api/travel-packages/${packageFolder.id}/payments/${payment.id}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(paymentPayload),
+        },
+      )
+      const data = (await response.json()) as { payment?: TravelPackagePayment; error?: string }
+      if (!response.ok || !data.payment) throw new Error(data.error || 'Failed to update payment')
+      setPayments((current) =>
+        current.map((item) => (item.id === payment.id ? data.payment! : item)),
+      )
+      setEditingPaymentId(null)
+      await refreshInvoice()
+      await refreshPaymentPlan()
+      toast.success('Payment updated')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to update payment')
+    } finally {
+      setSaving(null)
+    }
+  }
+
+  const deletePayment = async (payment: TravelPackagePayment) => {
+    if (!window.confirm('Delete this payment record?')) return
+    setSaving(payment.id)
+    try {
+      const response = await fetch(
+        `/api/travel-packages/${packageFolder.id}/payments/${payment.id}`,
+        { method: 'DELETE' },
+      )
+      const data = (await response.json()) as { error?: string }
+      if (!response.ok) throw new Error(data.error || 'Failed to delete payment')
+      setPayments((current) => current.filter((item) => item.id !== payment.id))
+      if (editingPaymentId === payment.id) setEditingPaymentId(null)
+      await refreshInvoice()
+      await refreshPaymentPlan()
+      toast.success('Payment deleted')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to delete payment')
     } finally {
       setSaving(null)
     }
@@ -1330,86 +1482,224 @@ export default function PackageOperationsWorkspace({
                   <thead className="bg-slate-50 text-xs uppercase text-slate-500">
                     <tr>
                       <th className="px-3 py-2">Passenger</th>
+                      <th className="px-3 py-2">Date of birth</th>
                       <th className="px-3 py-2">Type</th>
                       <th className="px-3 py-2">Passport received</th>
                       <th className="px-3 py-2">Checked</th>
                       <th className="px-3 py-2">Visa</th>
                       <th className="px-3 py-2">Ticket</th>
-                      <th className="w-12 px-3 py-2" />
+                      <th className="px-3 py-2">Room / Notes</th>
+                      <th className="w-24 px-3 py-2" />
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200">
-                    {passengers.map((passenger) => (
-                      <tr key={passenger.id}>
-                        <td className="px-3 py-2 font-bold">
-                          {[passenger.first_name, passenger.last_name].filter(Boolean).join(' ') ||
-                            'Name pending'}
-                        </td>
-                        <td className="px-3 py-2">{label(passenger.passenger_type)}</td>
-                        <td className="px-3 py-2">
-                          <input
-                            type="checkbox"
-                            checked={passenger.passport_received}
-                            onChange={(event) =>
-                              void updatePassenger(passenger, {
-                                passportReceived: event.target.checked,
-                              })
-                            }
-                          />
-                        </td>
-                        <td className="px-3 py-2">
-                          <input
-                            type="checkbox"
-                            checked={passenger.passport_checked}
-                            onChange={(event) =>
-                              void updatePassenger(passenger, {
-                                passportChecked: event.target.checked,
-                              })
-                            }
-                          />
-                        </td>
-                        <td className="px-3 py-2">
-                          <select
-                            value={passenger.visa_status}
-                            onChange={(event) =>
-                              void updatePassenger(passenger, { visaStatus: event.target.value })
-                            }
-                            className="border border-slate-300 px-2 py-1 text-xs"
-                          >
-                            <option value="not_started">Not started</option>
-                            <option value="details_required">Details required</option>
-                            <option value="submitted">Submitted</option>
-                            <option value="approved">Approved</option>
-                            <option value="rejected">Rejected</option>
-                            <option value="not_required">Not required</option>
-                          </select>
-                        </td>
-                        <td className="px-3 py-2">
-                          <select
-                            value={passenger.ticket_status}
-                            onChange={(event) =>
-                              void updatePassenger(passenger, { ticketStatus: event.target.value })
-                            }
-                            className="border border-slate-300 px-2 py-1 text-xs"
-                          >
-                            <option value="not_started">Not started</option>
-                            <option value="held">Held</option>
-                            <option value="ticketed">Ticketed</option>
-                            <option value="changed">Changed</option>
-                            <option value="cancelled">Cancelled</option>
-                          </select>
-                        </td>
-                        <td className="px-3 py-2">
-                          <button
-                            title="Delete passenger"
-                            onClick={() => void deletePassenger(passenger)}
-                            className="p-1.5 text-red-600 hover:bg-red-50"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
+                    {passengers.map((passenger) => {
+                      const editingThisPassenger = editingPassengerId === passenger.id
+                      return (
+                        <tr key={passenger.id}>
+                          <td className="min-w-56 px-3 py-2 font-bold">
+                            {editingThisPassenger ? (
+                              <div className="grid gap-2 sm:grid-cols-2">
+                                <input
+                                  value={passengerEditForm.firstName}
+                                  onChange={(event) =>
+                                    setPassengerEditForm((current) => ({
+                                      ...current,
+                                      firstName: event.target.value,
+                                    }))
+                                  }
+                                  placeholder="First name"
+                                  className="w-full border border-slate-300 px-2 py-1 text-xs"
+                                />
+                                <input
+                                  value={passengerEditForm.lastName}
+                                  onChange={(event) =>
+                                    setPassengerEditForm((current) => ({
+                                      ...current,
+                                      lastName: event.target.value,
+                                    }))
+                                  }
+                                  placeholder="Last name"
+                                  className="w-full border border-slate-300 px-2 py-1 text-xs"
+                                />
+                              </div>
+                            ) : (
+                              [passenger.first_name, passenger.last_name]
+                                .filter(Boolean)
+                                .join(' ') || 'Name pending'
+                            )}
+                          </td>
+                          <td className="min-w-36 px-3 py-2">
+                            {editingThisPassenger ? (
+                              <input
+                                type="date"
+                                value={passengerEditForm.dateOfBirth}
+                                onChange={(event) =>
+                                  setPassengerEditForm((current) => ({
+                                    ...current,
+                                    dateOfBirth: event.target.value,
+                                  }))
+                                }
+                                className="w-full border border-slate-300 px-2 py-1 text-xs"
+                              />
+                            ) : (
+                              dateInput(passenger.date_of_birth) || 'Not set'
+                            )}
+                          </td>
+                          <td className="min-w-32 px-3 py-2">
+                            {editingThisPassenger ? (
+                              <select
+                                value={passengerEditForm.passengerType}
+                                onChange={(event) =>
+                                  setPassengerEditForm((current) => ({
+                                    ...current,
+                                    passengerType: event.target.value as TravelPackagePassengerType,
+                                  }))
+                                }
+                                className="w-full border border-slate-300 px-2 py-1 text-xs"
+                              >
+                                <option value="adult">Adult</option>
+                                <option value="child">Child</option>
+                                <option value="infant">Infant under 2</option>
+                              </select>
+                            ) : (
+                              label(passenger.passenger_type)
+                            )}
+                          </td>
+                          <td className="px-3 py-2">
+                            <input
+                              type="checkbox"
+                              checked={passenger.passport_received}
+                              onChange={(event) =>
+                                void updatePassenger(passenger, {
+                                  passportReceived: event.target.checked,
+                                })
+                              }
+                            />
+                          </td>
+                          <td className="px-3 py-2">
+                            <input
+                              type="checkbox"
+                              checked={passenger.passport_checked}
+                              onChange={(event) =>
+                                void updatePassenger(passenger, {
+                                  passportChecked: event.target.checked,
+                                })
+                              }
+                            />
+                          </td>
+                          <td className="px-3 py-2">
+                            <select
+                              value={passenger.visa_status}
+                              onChange={(event) =>
+                                void updatePassenger(passenger, { visaStatus: event.target.value })
+                              }
+                              className="border border-slate-300 px-2 py-1 text-xs"
+                            >
+                              <option value="not_started">Not started</option>
+                              <option value="details_required">Details required</option>
+                              <option value="submitted">Submitted</option>
+                              <option value="approved">Approved</option>
+                              <option value="rejected">Rejected</option>
+                              <option value="not_required">Not required</option>
+                            </select>
+                          </td>
+                          <td className="px-3 py-2">
+                            <select
+                              value={passenger.ticket_status}
+                              onChange={(event) =>
+                                void updatePassenger(passenger, { ticketStatus: event.target.value })
+                              }
+                              className="border border-slate-300 px-2 py-1 text-xs"
+                            >
+                              <option value="not_started">Not started</option>
+                              <option value="held">Held</option>
+                              <option value="ticketed">Ticketed</option>
+                              <option value="changed">Changed</option>
+                              <option value="cancelled">Cancelled</option>
+                            </select>
+                          </td>
+                          <td className="min-w-64 px-3 py-2">
+                            {editingThisPassenger ? (
+                              <div className="space-y-2">
+                                <input
+                                  value={passengerEditForm.roomAllocation}
+                                  onChange={(event) =>
+                                    setPassengerEditForm((current) => ({
+                                      ...current,
+                                      roomAllocation: event.target.value,
+                                    }))
+                                  }
+                                  placeholder="Room allocation"
+                                  className="w-full border border-slate-300 px-2 py-1 text-xs"
+                                />
+                                <textarea
+                                  value={passengerEditForm.internalNotes}
+                                  onChange={(event) =>
+                                    setPassengerEditForm((current) => ({
+                                      ...current,
+                                      internalNotes: event.target.value,
+                                    }))
+                                  }
+                                  placeholder="Internal notes"
+                                  rows={2}
+                                  className="w-full border border-slate-300 px-2 py-1 text-xs"
+                                />
+                              </div>
+                            ) : (
+                              <div className="space-y-1 text-xs text-slate-600">
+                                <p className="font-bold">
+                                  {passenger.room_allocation || 'Room not allocated'}
+                                </p>
+                                {passenger.internal_notes && (
+                                  <p className="whitespace-pre-line">{passenger.internal_notes}</p>
+                                )}
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-3 py-2">
+                            <div className="flex items-center gap-1">
+                              {editingThisPassenger ? (
+                                <>
+                                  <button
+                                    title="Save passenger"
+                                    onClick={() => void savePassengerEdit(passenger)}
+                                    disabled={saving === passenger.id}
+                                    className="p-1.5 text-emerald-700 hover:bg-emerald-50 disabled:text-slate-300"
+                                  >
+                                    <Save className="h-4 w-4" />
+                                  </button>
+                                  <button
+                                    title="Cancel edit"
+                                    onClick={() => setEditingPassengerId(null)}
+                                    disabled={saving === passenger.id}
+                                    className="p-1.5 text-slate-600 hover:bg-slate-100 disabled:text-slate-300"
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </button>
+                                </>
+                              ) : (
+                                <button
+                                  title="Edit passenger"
+                                  onClick={() => startPassengerEdit(passenger)}
+                                  className="p-1.5 text-slate-700 hover:bg-slate-100"
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </button>
+                              )}
+                              <button
+                                title="Delete passenger"
+                                onClick={() => void deletePassenger(passenger)}
+                                disabled={saving === passenger.id}
+                                className="p-1.5 text-red-600 hover:bg-red-50 disabled:text-slate-300"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
                 {passengers.length === 0 && (
@@ -1592,40 +1882,226 @@ export default function PackageOperationsWorkspace({
                       <th className="px-3 py-2">Reference</th>
                       <th className="px-3 py-2 text-right">Amount</th>
                       <th className="px-3 py-2">Status</th>
+                      <th className="px-3 py-2">Notes</th>
+                      <th className="w-24 px-3 py-2" />
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200">
-                    {payments.map((payment) => (
-                      <tr key={payment.id}>
-                        <td className="px-3 py-2 text-xs text-slate-500">
-                          {formatDateTime(payment.received_at || payment.created_at)}
-                        </td>
-                        <td className="px-3 py-2 font-bold">{label(payment.payment_type)}</td>
-                        <td className="px-3 py-2">{label(payment.payment_method)}</td>
-                        <td className="px-3 py-2">{payment.receipt_reference || '-'}</td>
-                        <td className="px-3 py-2 text-right font-black">
-                          {formatMoney(payment.amount, payment.currency)}
-                        </td>
-                        <td className="px-3 py-2">
-                          <select
-                            value={payment.payment_status}
-                            onChange={(event) =>
-                              void updatePaymentStatus(
-                                payment,
-                                event.target.value as TravelPackagePaymentStatus,
-                              )
-                            }
-                            className="border border-slate-300 px-2 py-1 text-xs"
-                          >
-                            <option value="pending">Pending</option>
-                            <option value="completed">Completed</option>
-                            <option value="failed">Failed</option>
-                            <option value="cancelled">Cancelled</option>
-                            <option value="refunded">Refunded</option>
-                          </select>
-                        </td>
-                      </tr>
-                    ))}
+                    {payments.map((payment) => {
+                      const editingThisPayment = editingPaymentId === payment.id
+                      return (
+                        <tr key={payment.id}>
+                          <td className="min-w-48 px-3 py-2 text-xs text-slate-500">
+                            {editingThisPayment ? (
+                              <div className="space-y-2">
+                                <label className="block text-[11px] font-bold uppercase text-slate-500">
+                                  Received
+                                  <input
+                                    type="datetime-local"
+                                    value={paymentEditForm.receivedAt}
+                                    onChange={(event) =>
+                                      setPaymentEditForm((current) => ({
+                                        ...current,
+                                        receivedAt: event.target.value,
+                                      }))
+                                    }
+                                    className="mt-1 w-full border border-slate-300 px-2 py-1 text-xs"
+                                  />
+                                </label>
+                                <label className="block text-[11px] font-bold uppercase text-slate-500">
+                                  Due
+                                  <input
+                                    type="datetime-local"
+                                    value={paymentEditForm.dueAt}
+                                    onChange={(event) =>
+                                      setPaymentEditForm((current) => ({
+                                        ...current,
+                                        dueAt: event.target.value,
+                                      }))
+                                    }
+                                    className="mt-1 w-full border border-slate-300 px-2 py-1 text-xs"
+                                  />
+                                </label>
+                              </div>
+                            ) : (
+                              formatDateTime(payment.received_at || payment.created_at)
+                            )}
+                          </td>
+                          <td className="min-w-36 px-3 py-2 font-bold">
+                            {editingThisPayment ? (
+                              <select
+                                value={paymentEditForm.paymentType}
+                                onChange={(event) =>
+                                  setPaymentEditForm((current) => ({
+                                    ...current,
+                                    paymentType: event.target.value as TravelPackagePaymentType,
+                                  }))
+                                }
+                                className="w-full border border-slate-300 px-2 py-1 text-xs"
+                              >
+                                {PAYMENT_TYPES.map((item) => (
+                                  <option key={item.value} value={item.value}>
+                                    {item.label}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              label(payment.payment_type)
+                            )}
+                          </td>
+                          <td className="min-w-36 px-3 py-2">
+                            {editingThisPayment ? (
+                              <select
+                                value={paymentEditForm.paymentMethod}
+                                onChange={(event) =>
+                                  setPaymentEditForm((current) => ({
+                                    ...current,
+                                    paymentMethod: event.target.value as TravelPackagePaymentMethod,
+                                  }))
+                                }
+                                className="w-full border border-slate-300 px-2 py-1 text-xs"
+                              >
+                                {PAYMENT_METHODS.map((item) => (
+                                  <option key={item.value} value={item.value}>
+                                    {item.label}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              label(payment.payment_method)
+                            )}
+                          </td>
+                          <td className="min-w-44 px-3 py-2">
+                            {editingThisPayment ? (
+                              <input
+                                value={paymentEditForm.receiptReference}
+                                onChange={(event) =>
+                                  setPaymentEditForm((current) => ({
+                                    ...current,
+                                    receiptReference: event.target.value,
+                                  }))
+                                }
+                                placeholder="Receipt / bank reference"
+                                className="w-full border border-slate-300 px-2 py-1 text-xs"
+                              />
+                            ) : (
+                              payment.receipt_reference || '-'
+                            )}
+                          </td>
+                          <td className="min-w-32 px-3 py-2 text-right font-black">
+                            {editingThisPayment ? (
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={paymentEditForm.amount}
+                                onChange={(event) =>
+                                  setPaymentEditForm((current) => ({
+                                    ...current,
+                                    amount: event.target.value,
+                                  }))
+                                }
+                                className="w-full border border-slate-300 px-2 py-1 text-right text-xs"
+                              />
+                            ) : (
+                              formatMoney(payment.amount, payment.currency)
+                            )}
+                          </td>
+                          <td className="min-w-36 px-3 py-2">
+                            <select
+                              value={
+                                editingThisPayment
+                                  ? paymentEditForm.paymentStatus
+                                  : payment.payment_status
+                              }
+                              onChange={(event) => {
+                                const nextStatus =
+                                  event.target.value as TravelPackagePaymentStatus
+                                if (editingThisPayment) {
+                                  setPaymentEditForm((current) => ({
+                                    ...current,
+                                    paymentStatus: nextStatus,
+                                  }))
+                                  return
+                                }
+                                void updatePaymentStatus(payment, nextStatus)
+                              }}
+                              className="border border-slate-300 px-2 py-1 text-xs"
+                            >
+                              <option value="pending">Pending</option>
+                              <option value="completed">Completed</option>
+                              <option value="failed">Failed</option>
+                              <option value="cancelled">Cancelled</option>
+                              <option value="refunded">Refunded</option>
+                            </select>
+                          </td>
+                          <td className="min-w-56 px-3 py-2">
+                            {editingThisPayment ? (
+                              <textarea
+                                value={paymentEditForm.notes}
+                                onChange={(event) =>
+                                  setPaymentEditForm((current) => ({
+                                    ...current,
+                                    notes: event.target.value,
+                                  }))
+                                }
+                                placeholder="Payment notes"
+                                rows={2}
+                                className="w-full border border-slate-300 px-2 py-1 text-xs"
+                              />
+                            ) : (
+                              <span className="whitespace-pre-line text-xs text-slate-600">
+                                {payment.notes || '-'}
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2">
+                            <div className="flex items-center gap-1">
+                              {editingThisPayment ? (
+                                <>
+                                  <button
+                                    type="button"
+                                    title="Save payment"
+                                    onClick={() => void savePaymentEdit(payment)}
+                                    disabled={saving === payment.id}
+                                    className="p-1.5 text-emerald-700 hover:bg-emerald-50 disabled:text-slate-300"
+                                  >
+                                    <Save className="h-4 w-4" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    title="Cancel edit"
+                                    onClick={() => setEditingPaymentId(null)}
+                                    disabled={saving === payment.id}
+                                    className="p-1.5 text-slate-600 hover:bg-slate-100 disabled:text-slate-300"
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </button>
+                                </>
+                              ) : (
+                                <button
+                                  type="button"
+                                  title="Edit payment"
+                                  onClick={() => startPaymentEdit(payment)}
+                                  className="p-1.5 text-slate-700 hover:bg-slate-100"
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                title="Delete payment"
+                                onClick={() => void deletePayment(payment)}
+                                disabled={saving === payment.id}
+                                className="p-1.5 text-red-600 hover:bg-red-50 disabled:text-slate-300"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
                 {payments.length === 0 && (

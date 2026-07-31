@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { apiError, apiOk } from '@/lib/api/http'
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
 import { recordPackageAuditEvent } from '@/lib/packageAudit'
-import type { TravelPackagePassenger } from '@/app/types/packages'
+import type { TravelPackagePassenger, TravelPackagePassengerType } from '@/app/types/packages'
 import { selectTravelPackagePassengerColumns } from '../route'
 
 const VISA_STATUSES = new Set([
@@ -14,6 +14,7 @@ const VISA_STATUSES = new Set([
   'not_required',
 ])
 const TICKET_STATUSES = new Set(['not_started', 'held', 'ticketed', 'changed', 'cancelled'])
+const PASSENGER_TYPES = new Set<TravelPackagePassengerType>(['adult', 'child', 'infant'])
 
 function cleanText(value: unknown) {
   return typeof value === 'string' ? value.trim() : ''
@@ -73,6 +74,13 @@ export async function PATCH(
     const status = cleanText(body.ticketStatus ?? body.ticket_status)
     if (!TICKET_STATUSES.has(status)) return apiError('Invalid ticket status', 400)
     update.ticket_status = status
+  }
+  if ('passengerType' in body || 'passenger_type' in body) {
+    const passengerType = cleanText(
+      body.passengerType ?? body.passenger_type,
+    ) as TravelPackagePassengerType
+    if (!PASSENGER_TYPES.has(passengerType)) return apiError('Invalid passenger type', 400)
+    update.passenger_type = passengerType
   }
 
   const { data, error } = await supabase

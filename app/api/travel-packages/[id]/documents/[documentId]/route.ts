@@ -1,9 +1,13 @@
 import { NextRequest } from 'next/server'
 import { apiError, apiOk } from '@/lib/api/http'
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
-import { normalizePackageDocumentCategory } from '@/lib/packageDocuments'
+import {
+  isAgentOnlyPackageDocumentCategory,
+  normalizePackageDocumentCategory,
+} from '@/lib/packageDocuments'
 import type {
   TravelPackageDocument,
+  TravelPackageDocumentCategory,
   TravelPackageDocumentStatus,
 } from '@/app/types/packages'
 import { selectTravelPackageDocumentColumns } from '../route'
@@ -69,6 +73,19 @@ export async function PATCH(
   const body = await parseBody(request)
   if (!body) return apiError('Invalid JSON body', 400)
 
+  const { data: currentDocument } = await supabase
+    .from('travel_package_documents')
+    .select('id, category')
+    .eq('id', documentId)
+    .eq('package_id', id)
+    .single()
+  if (!currentDocument) return apiError('Document not found', 404)
+
+  const requestedCategory = hasBodyKey(body, 'category')
+    ? normalizePackageDocumentCategory(body.category)
+    : ((currentDocument as { category?: TravelPackageDocumentCategory }).category || 'other')
+  const agentOnlyDocument = isAgentOnlyPackageDocumentCategory(requestedCategory)
+
   const updatePayload: Record<string, unknown> = {
     updated_by: user.id,
   }
@@ -80,7 +97,7 @@ export async function PATCH(
   }
 
   if (hasBodyKey(body, 'category')) {
-    updatePayload.category = normalizePackageDocumentCategory(body.category)
+    updatePayload.category = requestedCategory
   }
 
   if (hasBodyKey(body, 'publicNotes')) {
@@ -92,7 +109,7 @@ export async function PATCH(
   }
 
   if (hasBodyKey(body, 'customerVisible')) {
-    const visible = Boolean(body.customerVisible)
+    const visible = Boolean(body.customerVisible) && !agentOnlyDocument
     updatePayload.customer_visible = visible
     updatePayload.status = visible ? 'released' : 'ready_for_review'
     updatePayload.released_at = visible ? new Date().toISOString() : null
@@ -107,7 +124,12 @@ export async function PATCH(
       return apiError('Invalid document status', 400)
     }
     updatePayload.status = status
-    if (status === 'released') {
+    if (status === 'released' && agentOnlyDocument) {
+      updatePayload.status = 'ready_for_review'
+      updatePayload.customer_visible = false
+      updatePayload.released_at = null
+      updatePayload.released_by = null
+    } else if (status === 'released') {
       updatePayload.customer_visible = true
       updatePayload.released_at = new Date().toISOString()
       updatePayload.released_by = user.id
@@ -121,6 +143,15 @@ export async function PATCH(
       updatePayload.customer_visible = false
       updatePayload.deleted_at = new Date().toISOString()
     }
+  }
+
+  if (agentOnlyDocument) {
+    updatePayload.customer_visible = false
+    if (!['revoked', 'deleted'].includes(String(updatePayload.status || ''))) {
+      updatePayload.status = 'ready_for_review'
+    }
+    updatePayload.released_at = null
+    updatePayload.released_by = null
   }
 
   if (Object.keys(updatePayload).length === 1) {

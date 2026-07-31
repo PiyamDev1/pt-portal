@@ -2157,6 +2157,11 @@ The Piyam Travel Team`
                           <span className="mt-1 block text-xs font-bold text-slate-500">
                             {documentCountsByCategory[category.value] || 0} uploaded
                           </span>
+                          {category.agentOnly && (
+                            <span className="mt-2 inline-flex rounded-full bg-amber-50 px-2 py-1 text-[11px] font-black uppercase text-amber-700">
+                              Agents only
+                            </span>
+                          )}
                         </span>
                         <Upload className="h-5 w-5 text-[#8b1e2d]" />
                       </span>
@@ -2187,6 +2192,7 @@ The Piyam Travel Team`
                           const updatingThisDocument = updatingDocumentId === document.id
                           const documentIsReleased =
                             document.customer_visible && document.status === 'released'
+                          const documentIsAgentOnly = document.category === 'travel_documents'
                           return (
                             <div
                               key={document.id}
@@ -2199,12 +2205,18 @@ The Piyam Travel Team`
                                   </p>
                                   <span
                                     className={`rounded-full px-2 py-1 text-[11px] font-black uppercase ${
-                                      documentIsReleased
+                                      documentIsAgentOnly
+                                        ? 'bg-amber-50 text-amber-700'
+                                        : documentIsReleased
                                         ? 'bg-emerald-50 text-emerald-700'
                                         : 'bg-slate-100 text-slate-500'
                                     }`}
                                   >
-                                    {documentIsReleased ? 'Released' : 'Internal'}
+                                    {documentIsAgentOnly
+                                      ? 'Agents only'
+                                      : documentIsReleased
+                                        ? 'Released'
+                                        : 'Internal'}
                                   </span>
                                 </div>
                                 <p className="mt-1 break-all text-xs font-bold text-slate-500">
@@ -2247,9 +2259,10 @@ The Piyam Travel Team`
                                 <button
                                   type="button"
                                   onClick={() => {
+                                    if (documentIsAgentOnly) return
                                     void updateDocumentVisibility(document, !documentIsReleased)
                                   }}
-                                  disabled={updatingThisDocument}
+                                  disabled={updatingThisDocument || documentIsAgentOnly}
                                   className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300"
                                 >
                                   {documentIsReleased ? (

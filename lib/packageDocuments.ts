@@ -6,6 +6,7 @@ import type {
 export const PACKAGE_DOCUMENT_CATEGORIES: Array<{
   value: TravelPackageDocumentCategory
   label: string
+  agentOnly?: boolean
 }> = [
   { value: 'flight', label: 'Flights' },
   { value: 'hotel', label: 'Hotels' },
@@ -14,6 +15,7 @@ export const PACKAGE_DOCUMENT_CATEGORIES: Array<{
   { value: 'e_sim', label: 'E-Sim' },
   { value: 'insurance', label: 'Insurance' },
   { value: 'invoice', label: 'Invoice' },
+  { value: 'travel_documents', label: 'Travel Documents', agentOnly: true },
   { value: 'other', label: 'Other' },
 ]
 
@@ -33,6 +35,10 @@ export function normalizePackageDocumentCategory(value: unknown): TravelPackageD
 
 export function getPackageDocumentCategoryLabel(category: TravelPackageDocumentCategory) {
   return PACKAGE_DOCUMENT_CATEGORIES.find((item) => item.value === category)?.label || 'Other'
+}
+
+export function isAgentOnlyPackageDocumentCategory(category: TravelPackageDocumentCategory) {
+  return Boolean(PACKAGE_DOCUMENT_CATEGORIES.find((item) => item.value === category)?.agentOnly)
 }
 
 export function sanitizePackageDocumentFileName(fileName: string) {
