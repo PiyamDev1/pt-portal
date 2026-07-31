@@ -56,7 +56,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     .single()
   if (error || !data) return apiError(error?.message || 'Failed to add invoice line', 500)
 
-  const recalculated = await recalculatePackageInvoice(supabase, id, invoiceId).catch(() => null)
+  const recalculated = await recalculatePackageInvoice(supabase, id, invoiceId).catch(
+    (recalcError) => {
+      const message =
+        recalcError instanceof Error
+          ? `Invoice line was added, but totals could not be recalculated: ${recalcError.message}`
+          : 'Invoice line was added, but totals could not be recalculated'
+      return { error: message }
+    },
+  )
+  if ('error' in recalculated) return apiError(recalculated.error, 500)
   await recordPackageAuditEvent(
     supabase as unknown as Parameters<typeof recordPackageAuditEvent>[0],
     {

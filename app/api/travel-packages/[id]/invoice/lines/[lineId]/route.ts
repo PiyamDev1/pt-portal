@@ -86,8 +86,15 @@ export async function PATCH(
   if (error || !data) return apiError(error?.message || 'Failed to update invoice line', 500)
 
   const recalculated = await recalculatePackageInvoice(supabase, id, current.invoice_id).catch(
-    () => null,
+    (recalcError) => {
+      const message =
+        recalcError instanceof Error
+          ? `Invoice line was updated, but totals could not be recalculated: ${recalcError.message}`
+          : 'Invoice line was updated, but totals could not be recalculated'
+      return { error: message }
+    },
   )
+  if ('error' in recalculated) return apiError(recalculated.error, 500)
   await recordPackageAuditEvent(
     supabase as unknown as Parameters<typeof recordPackageAuditEvent>[0],
     {
@@ -128,8 +135,15 @@ export async function DELETE(
     .eq('package_id', id)
   if (error) return apiError(error.message || 'Failed to delete invoice line', 500)
   const recalculated = await recalculatePackageInvoice(supabase, id, line.invoice_id).catch(
-    () => null,
+    (recalcError) => {
+      const message =
+        recalcError instanceof Error
+          ? `Invoice line was deleted, but totals could not be recalculated: ${recalcError.message}`
+          : 'Invoice line was deleted, but totals could not be recalculated'
+      return { error: message }
+    },
   )
+  if ('error' in recalculated) return apiError(recalculated.error, 500)
   await recordPackageAuditEvent(
     supabase as unknown as Parameters<typeof recordPackageAuditEvent>[0],
     {
