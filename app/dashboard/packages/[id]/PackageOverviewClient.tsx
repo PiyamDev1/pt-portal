@@ -49,7 +49,7 @@ import type {
   TravelPackageReservationStatus,
   TravelPackageReservationType,
 } from '@/app/types/packages'
-import { formatMoney } from '@/lib/packageQuote'
+import { formatMoney, getLinkedFlightOptionTotal } from '@/lib/packageQuote'
 import type { TravelPackageGroupDetail } from '@/lib/packageGroups'
 import {
   PACKAGE_DOCUMENT_CATEGORIES,
@@ -139,6 +139,16 @@ type ReservationItemFormState = {
   description: string
 }
 
+type ReservationDetailFormState = {
+  reservationType: TravelPackageReservationType
+  title: string
+  status: TravelPackageReservationStatus
+  supplierName: string
+  supplierReference: string
+  bookingReference: string
+  internalNotes: string
+}
+
 type ReservationFinancialFormState = {
   bookedCostTotal: string
   soldPriceTotal: string
@@ -156,6 +166,7 @@ type QuoteReservationPrefill = {
   bookedCostTotal?: number
   soldPriceTotal: number
   internalNotes: string
+  sourceLabel: string
 }
 
 type InvoiceFormState = {
@@ -403,6 +414,19 @@ function getOptionSoldTotal(
   return Number(option.price || 0)
 }
 
+function getVisaOptionSoldTotal(option: PackageComponentOption, servicePassengers: number) {
+  if (option.pricingMode === 'total') return Number(option.price || 0)
+  return Number(option.price || 0) * getVisaQuantity(option, servicePassengers)
+}
+
+function getStaySelectionSoldTotal(stay: PackageCombination['staySelections'][number]) {
+  const addonTotal = (stay.addonOptions || []).reduce(
+    (total, addon) => total + Number(addon.adjustedPrice ?? addon.price ?? 0),
+    0,
+  )
+  return Number(stay.option.price || 0) + addonTotal
+}
+
 function getReservationSummary(option: PackageComponentOption | null | undefined) {
   return (
     option?.summary?.trim() ||
@@ -443,6 +467,20 @@ function createReservationFinancialForm(
     paymentDueAt: reservation.payment_due_at
       ? toDateTimeLocalValue(reservation.payment_due_at)
       : '',
+  }
+}
+
+function createReservationDetailForm(
+  reservation: TravelPackageReservation,
+): ReservationDetailFormState {
+  return {
+    reservationType: reservation.reservation_type,
+    title: reservation.title,
+    status: reservation.status,
+    supplierName: reservation.supplier_name || '',
+    supplierReference: reservation.supplier_reference || '',
+    bookingReference: reservation.booking_reference || '',
+    internalNotes: reservation.internal_notes || '',
   }
 }
 
@@ -488,6 +526,9 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
   const [draggingDocumentCategory, setDraggingDocumentCategory] =
     useState<TravelPackageDocumentCategory | null>(null)
   const [itemForms, setItemForms] = useState<Record<string, ReservationItemFormState>>({})
+  const [reservationDetailForms, setReservationDetailForms] = useState<
+    Record<string, ReservationDetailFormState>
+  >({})
   const [reservationFinancialForms, setReservationFinancialForms] = useState<
     Record<string, ReservationFinancialFormState>
   >({})
@@ -503,6 +544,11 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
   const [savingDocument, setSavingDocument] = useState(false)
   const [savingInvoice, setSavingInvoice] = useState(false)
   const [updatingDocumentId, setUpdatingDocumentId] = useState<string | null>(null)
+  const [renamingDocumentId, setRenamingDocumentId] = useState<string | null>(null)
+  const [documentRenameForm, setDocumentRenameForm] = useState({ title: '', fileName: '' })
+  const [previewDocument, setPreviewDocument] = useState<TravelPackageDocument | null>(null)
+  const [previewDocumentUrl, setPreviewDocumentUrl] = useState('')
+  const [previewDocumentLoading, setPreviewDocumentLoading] = useState(false)
   const [updatingReservationId, setUpdatingReservationId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [reservationError, setReservationError] = useState<string | null>(null)
@@ -597,6 +643,15 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
           withItems.forEach((reservation) => {
             if (!next[reservation.id]) {
               next[reservation.id] = createReservationFinancialForm(reservation)
+            }
+          })
+          return next
+        })
+        setReservationDetailForms((current) => {
+          const next = { ...current }
+          withItems.forEach((reservation) => {
+            if (!next[reservation.id]) {
+              next[reservation.id] = createReservationDetailForm(reservation)
             }
           })
           return next
@@ -941,6 +996,9 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
   const visibleDocumentCount = documents.filter(
     (document) => document.customer_visible && document.status === 'released',
   ).length
+  const previewDocumentType = previewDocument?.file_type || ''
+  const previewDocumentIsImage = previewDocumentType.startsWith('image/')
+  const previewDocumentIsPdf = previewDocumentType === 'application/pdf'
   const customerAccessLastName =
     packageFolder?.customer_access_last_name ||
     packageFolder?.customer_name?.trim().split(/\s+/).pop()?.toLowerCase() ||
@@ -1012,6 +1070,22 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
     const servicePassengers = selectedCombination.servicePassengers
     const prefills: QuoteReservationPrefill[] = []
     if (selectedCombination.flightOption) {
+      const linkedFlightSoldTotal =
+        selectedPayload && selectedCombination.linkedFlightSelections.length > 0
+          ? selectedCombination.linkedFlightSelections.reduce(
+              (total, selection) =>
+                total + getLinkedFlightOptionTotal(selection.group, selection.option, selectedPayload),
+              0,
+            )
+          : 0
+      const linkedFlightNotes = selectedCombination.linkedFlightSelections
+        .map(
+          (selection) =>
+            `${selection.group.routeLabel}: ${selection.option.airlineName}${
+              selection.option.summary ? `\n${selection.option.summary}` : ''
+            }`,
+        )
+        .join('\n\n')
       prefills.push({
         key: `flight-${selectedCombination.flightOption.id}`,
         reservationType: 'flight',
@@ -1020,8 +1094,14 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
           selectedCombination.flightOption,
           servicePassengers,
           passengerSummary,
-        ),
-        internalNotes: getReservationSummary(selectedCombination.flightOption),
+        ) + linkedFlightSoldTotal,
+        internalNotes: [
+          getReservationSummary(selectedCombination.flightOption),
+          linkedFlightNotes ? `Linked included flight legs:\n${linkedFlightNotes}` : '',
+        ]
+          .filter(Boolean)
+          .join('\n\n'),
+        sourceLabel: 'Flight from final quote',
       })
     }
     selectedCombination.visaOptions.forEach((option) => {
@@ -1030,8 +1110,9 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
         key: `visa-${option.id}`,
         reservationType: 'visa',
         title: `${quantity} x ${option.title}`,
-        soldPriceTotal: Number(option.price || 0) * quantity,
+        soldPriceTotal: getVisaOptionSoldTotal(option, servicePassengers),
         internalNotes: getReservationSummary(option),
+        sourceLabel: 'Visa from final quote',
       })
     })
     if (selectedCombination.transportOption) {
@@ -1046,6 +1127,7 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
           passengerSummary,
         ),
         internalNotes: getTransportReservationSummary(selectedCombination.transportOption),
+        sourceLabel: 'Transport from final quote',
       })
     }
     selectedCombination.staySelections.forEach((stay) => {
@@ -1053,12 +1135,33 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
         key: `hotel-${stay.groupId}-${stay.option.id}`,
         reservationType: 'hotel',
         title: `${stay.groupLabel}: ${stay.option.title}`,
-        soldPriceTotal: Number(stay.option.price || 0),
-        internalNotes: getReservationSummary(stay.option),
+        soldPriceTotal: getStaySelectionSoldTotal(stay),
+        internalNotes: [
+          getReservationSummary(stay.option),
+          stay.addonOptions?.length
+            ? `Selected extras:\n${stay.addonOptions
+                .map((addon) => `* ${addon.label} - ${formatMoney(addon.adjustedPrice, reservationCurrency)}`)
+                .join('\n')}`
+            : '',
+        ]
+          .filter(Boolean)
+          .join('\n\n'),
+        sourceLabel: `${stay.groupLabel} hotel from final quote`,
       })
     })
     return prefills
-  }, [passengerSummary, selectedCombination])
+  }, [passengerSummary, reservationCurrency, selectedCombination, selectedPayload])
+  const quoteReservationMissingCount = useMemo(() => {
+    const existingSourceKeys = new Set(
+      reservations
+        .map((reservation) => {
+          const metadata = reservation.metadata || {}
+          return typeof metadata.sourceKey === 'string' ? metadata.sourceKey : ''
+        })
+        .filter(Boolean),
+    )
+    return quoteReservationPrefills.filter((prefill) => !existingSourceKeys.has(prefill.key)).length
+  }, [quoteReservationPrefills, reservations])
   const invoiceSubtotalSold = parseMoneyInput(invoiceForm.subtotalSold)
   const invoiceDiscountTotal = parseMoneyInput(invoiceForm.discountTotal)
   const invoiceTotalPaid = parseMoneyInput(invoiceForm.totalPaid)
@@ -1188,6 +1291,10 @@ The Piyam Travel Team`
         ...current,
         [createdReservation.id]: createReservationFinancialForm(createdReservation),
       }))
+      setReservationDetailForms((current) => ({
+        ...current,
+        [createdReservation.id]: createReservationDetailForm(createdReservation),
+      }))
       setReservationForm(createInitialReservationForm(defaultSoldPrice))
     } catch (saveError) {
       setReservationError(
@@ -1216,6 +1323,92 @@ The Piyam Travel Team`
     }))
   }
 
+  const createReservationFromPrefill = async (prefill: QuoteReservationPrefill) => {
+    if (!packageFolder) throw new Error('Package folder unavailable')
+    const response = await fetch(
+      `/api/travel-packages/${encodeURIComponent(packageId)}/reservations`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          quoteId: packageFolder.source_quote_id,
+          reservationType: prefill.reservationType,
+          title: prefill.title,
+          status: 'reservation_pending',
+          bookedCostTotal: prefill.bookedCostTotal || 0,
+          soldPriceTotal: prefill.soldPriceTotal,
+          paymentDueAt: toDateTimeLocalValue(),
+          internalNotes: prefill.internalNotes,
+          currency: reservationCurrency,
+          metadata: {
+            source: 'final_quote',
+            sourceKey: prefill.key,
+            sourceLabel: prefill.sourceLabel,
+          },
+        }),
+      },
+    )
+    const data = (await response.json()) as ReservationsResponse
+    if (!response.ok || !data.reservation) {
+      throw new Error(data.message || data.error || 'Failed to create reservation from quote')
+    }
+    return data.reservation
+  }
+
+  const createAllQuoteReservations = async () => {
+    if (!packageFolder || savingReservation || quoteReservationPrefills.length === 0) return
+    setSavingReservation(true)
+    setReservationError(null)
+    try {
+      const existingSourceKeys = new Set(
+        reservations
+          .map((reservation) => {
+            const metadata = reservation.metadata || {}
+            return typeof metadata.sourceKey === 'string' ? metadata.sourceKey : ''
+          })
+          .filter(Boolean),
+      )
+      const missingPrefills = quoteReservationPrefills.filter(
+        (prefill) => !existingSourceKeys.has(prefill.key),
+      )
+      const createdReservations: TravelPackageReservation[] = []
+      for (const prefill of missingPrefills) {
+        createdReservations.push(await createReservationFromPrefill(prefill))
+      }
+      if (createdReservations.length === 0) return
+      setReservations((current) => [...createdReservations, ...current])
+      setItemForms((current) => {
+        const next = { ...current }
+        createdReservations.forEach((reservation) => {
+          next[reservation.id] = createInitialReservationItemForm(reservation.reservation_type)
+        })
+        return next
+      })
+      setReservationFinancialForms((current) => {
+        const next = { ...current }
+        createdReservations.forEach((reservation) => {
+          next[reservation.id] = createReservationFinancialForm(reservation)
+        })
+        return next
+      })
+      setReservationDetailForms((current) => {
+        const next = { ...current }
+        createdReservations.forEach((reservation) => {
+          next[reservation.id] = createReservationDetailForm(reservation)
+        })
+        return next
+      })
+    } catch (saveError) {
+      setReservationError(
+        saveError instanceof Error
+          ? saveError.message
+          : 'Failed to create reservations from quote',
+      )
+    } finally {
+      setSavingReservation(false)
+    }
+  }
+
   const updateReservationStatus = async (
     reservation: TravelPackageReservation,
     status: TravelPackageReservationStatus,
@@ -1242,9 +1435,108 @@ The Piyam Travel Team`
           item.id === reservation.id ? { ...data.reservation!, items: item.items } : item,
         ),
       )
+      setReservationDetailForms((current) => ({
+        ...current,
+        [reservation.id]: createReservationDetailForm(data.reservation!),
+      }))
     } catch (updateError) {
       setReservationError(
         updateError instanceof Error ? updateError.message : 'Failed to update reservation',
+      )
+    } finally {
+      setUpdatingReservationId(null)
+    }
+  }
+
+  const getReservationDetailForm = (reservation: TravelPackageReservation) => {
+    return reservationDetailForms[reservation.id] || createReservationDetailForm(reservation)
+  }
+
+  const updateReservationDetailForm = <Key extends keyof ReservationDetailFormState>(
+    reservation: TravelPackageReservation,
+    key: Key,
+    value: ReservationDetailFormState[Key],
+  ) => {
+    setReservationDetailForms((current) => ({
+      ...current,
+      [reservation.id]: {
+        ...(current[reservation.id] || createReservationDetailForm(reservation)),
+        [key]: value,
+      },
+    }))
+  }
+
+  const saveReservationDetails = async (reservation: TravelPackageReservation) => {
+    const detailForm = getReservationDetailForm(reservation)
+    setUpdatingReservationId(reservation.id)
+    setReservationError(null)
+    try {
+      const response = await fetch(
+        `/api/travel-packages/${encodeURIComponent(packageId)}/reservations/${encodeURIComponent(
+          reservation.id,
+        )}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(detailForm),
+        },
+      )
+      const data = (await response.json()) as ReservationsResponse
+      if (!response.ok || !data.reservation) {
+        throw new Error(data.message || data.error || 'Failed to update reservation')
+      }
+      setReservations((current) =>
+        current.map((item) =>
+          item.id === reservation.id ? { ...data.reservation!, items: item.items } : item,
+        ),
+      )
+      setReservationDetailForms((current) => ({
+        ...current,
+        [reservation.id]: createReservationDetailForm(data.reservation!),
+      }))
+    } catch (saveError) {
+      setReservationError(
+        saveError instanceof Error ? saveError.message : 'Failed to update reservation',
+      )
+    } finally {
+      setUpdatingReservationId(null)
+    }
+  }
+
+  const deleteReservation = async (reservation: TravelPackageReservation) => {
+    if (!window.confirm(`Delete reservation "${reservation.title}"?`)) return
+    setUpdatingReservationId(reservation.id)
+    setReservationError(null)
+    try {
+      const response = await fetch(
+        `/api/travel-packages/${encodeURIComponent(packageId)}/reservations/${encodeURIComponent(
+          reservation.id,
+        )}`,
+        { method: 'DELETE' },
+      )
+      const data = (await response.json()) as ReservationsResponse
+      if (!response.ok) {
+        throw new Error(data.message || data.error || 'Failed to delete reservation')
+      }
+      setReservations((current) => current.filter((item) => item.id !== reservation.id))
+      setReservationDetailForms((current) => {
+        const next = { ...current }
+        delete next[reservation.id]
+        return next
+      })
+      setReservationFinancialForms((current) => {
+        const next = { ...current }
+        delete next[reservation.id]
+        return next
+      })
+      setItemForms((current) => {
+        const next = { ...current }
+        delete next[reservation.id]
+        return next
+      })
+    } catch (deleteError) {
+      setReservationError(
+        deleteError instanceof Error ? deleteError.message : 'Failed to delete reservation',
       )
     } finally {
       setUpdatingReservationId(null)
@@ -1261,7 +1553,7 @@ The Piyam Travel Team`
     }
   }
 
-  const uploadDocumentFile = async (
+  const uploadSingleDocumentFile = async (
     file: File,
     overrides: {
       title?: string
@@ -1272,35 +1564,57 @@ The Piyam Travel Team`
       customerVisible?: boolean
     },
   ) => {
-    if (savingDocument) return
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('title', overrides.title || file.name)
+    formData.append('category', overrides.category)
+    formData.append('reservationId', overrides.reservationId || '')
+    formData.append('publicNotes', overrides.publicNotes || '')
+    formData.append('internalNotes', overrides.internalNotes || '')
+    formData.append('customerVisible', String(Boolean(overrides.customerVisible)))
+
+    const response = await fetch(
+      `/api/travel-packages/${encodeURIComponent(packageId)}/documents`,
+      {
+        method: 'POST',
+        body: formData,
+      },
+    )
+    const data = (await response.json()) as DocumentsResponse
+    if (!response.ok || !data.document) {
+      throw new Error(data.message || data.error || 'Failed to upload package document')
+    }
+    return data.document
+  }
+
+  const uploadDocumentFiles = async (
+    files: FileList | File[],
+    overrides: {
+      category: TravelPackageDocumentCategory
+      reservationId?: string
+      publicNotes?: string
+      internalNotes?: string
+      customerVisible?: boolean
+    },
+  ) => {
+    const selectedFiles = Array.from(files).filter(Boolean)
+    if (savingDocument || selectedFiles.length === 0) return
     setSavingDocument(true)
     setDocumentError(null)
     try {
-      const formData = new FormData()
-      formData.append('file', file)
-      formData.append('title', overrides.title || file.name)
-      formData.append('category', overrides.category)
-      formData.append('reservationId', overrides.reservationId || '')
-      formData.append('publicNotes', overrides.publicNotes || '')
-      formData.append('internalNotes', overrides.internalNotes || '')
-      formData.append('customerVisible', String(Boolean(overrides.customerVisible)))
-
-      const response = await fetch(
-        `/api/travel-packages/${encodeURIComponent(packageId)}/documents`,
-        {
-          method: 'POST',
-          body: formData,
-        },
-      )
-      const data = (await response.json()) as DocumentsResponse
-      if (!response.ok || !data.document) {
-        throw new Error(data.message || data.error || 'Failed to upload package document')
+      const uploadedDocuments: TravelPackageDocument[] = []
+      for (const file of selectedFiles) {
+        const document = await uploadSingleDocumentFile(file, {
+          ...overrides,
+          title: file.name,
+        })
+        uploadedDocuments.push(document)
       }
-
-      setDocuments((current) => [data.document!, ...current])
+      setDocuments((current) => [...uploadedDocuments.reverse(), ...current])
+      setDraggingDocumentCategory(null)
     } catch (uploadError) {
       setDocumentError(
-        uploadError instanceof Error ? uploadError.message : 'Failed to upload package document',
+        uploadError instanceof Error ? uploadError.message : 'Failed to upload package documents',
       )
     } finally {
       setSavingDocument(false)
@@ -1341,6 +1655,49 @@ The Piyam Travel Team`
     }
   }
 
+  const startDocumentRename = (document: TravelPackageDocument) => {
+    setRenamingDocumentId(document.id)
+    setDocumentRenameForm({
+      title: document.title,
+      fileName: document.file_name,
+    })
+  }
+
+  const saveDocumentRename = async (document: TravelPackageDocument) => {
+    setUpdatingDocumentId(document.id)
+    setDocumentError(null)
+    try {
+      const response = await fetch(
+        `/api/travel-packages/${encodeURIComponent(packageId)}/documents/${encodeURIComponent(
+          document.id,
+        )}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: documentRenameForm.title,
+            fileName: documentRenameForm.fileName,
+          }),
+        },
+      )
+      const data = (await response.json()) as DocumentsResponse
+      if (!response.ok || !data.document) {
+        throw new Error(data.message || data.error || 'Failed to rename package document')
+      }
+      setDocuments((current) =>
+        current.map((item) => (item.id === document.id ? data.document! : item)),
+      )
+      setRenamingDocumentId(null)
+      if (previewDocument?.id === document.id) setPreviewDocument(data.document)
+    } catch (renameError) {
+      setDocumentError(
+        renameError instanceof Error ? renameError.message : 'Failed to rename package document',
+      )
+    } finally {
+      setUpdatingDocumentId(null)
+    }
+  }
+
   const deleteDocument = async (document: TravelPackageDocument) => {
     setUpdatingDocumentId(document.id)
     setDocumentError(null)
@@ -1356,12 +1713,42 @@ The Piyam Travel Team`
         throw new Error(data.message || data.error || 'Failed to delete package document')
       }
       setDocuments((current) => current.filter((item) => item.id !== document.id))
+      if (previewDocument?.id === document.id) {
+        setPreviewDocument(null)
+        setPreviewDocumentUrl('')
+      }
     } catch (deleteError) {
       setDocumentError(
         deleteError instanceof Error ? deleteError.message : 'Failed to delete package document',
       )
     } finally {
       setUpdatingDocumentId(null)
+    }
+  }
+
+  const openDocumentPreview = async (document: TravelPackageDocument) => {
+    setPreviewDocument(document)
+    setPreviewDocumentUrl('')
+    setPreviewDocumentLoading(true)
+    setDocumentError(null)
+    try {
+      const response = await fetch(
+        `/api/travel-packages/${encodeURIComponent(packageId)}/documents/${encodeURIComponent(
+          document.id,
+        )}/signed-url?disposition=inline`,
+      )
+      const data = (await response.json()) as { url?: string; error?: string; message?: string }
+      if (!response.ok || !data.url) {
+        throw new Error(data.message || data.error || 'Failed to prepare document preview')
+      }
+      setPreviewDocumentUrl(data.url)
+    } catch (previewError) {
+      setDocumentError(
+        previewError instanceof Error ? previewError.message : 'Failed to prepare document preview',
+      )
+      setPreviewDocument(null)
+    } finally {
+      setPreviewDocumentLoading(false)
     }
   }
 
@@ -2119,11 +2506,10 @@ The Piyam Travel Team`
                       onDrop={(event) => {
                         event.preventDefault()
                         setDraggingDocumentCategory(null)
-                        const file = event.dataTransfer.files?.[0]
-                        if (file) {
-                          void uploadDocumentFile(file, {
+                        const files = event.dataTransfer.files
+                        if (files?.length) {
+                          void uploadDocumentFiles(files, {
                             category: category.value,
-                            title: file.name,
                           })
                         }
                       }}
@@ -2135,16 +2521,16 @@ The Piyam Travel Team`
                     >
                       <input
                         type="file"
+                        multiple
                         accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx"
                         className="sr-only"
                         disabled={savingDocument}
                         onChange={(event) => {
-                          const file = event.target.files?.[0]
+                          const files = event.target.files
                           event.currentTarget.value = ''
-                          if (file) {
-                            void uploadDocumentFile(file, {
+                          if (files?.length) {
+                            void uploadDocumentFiles(files, {
                               category: category.value,
-                              title: file.name,
                             })
                           }
                         }}
@@ -2166,7 +2552,7 @@ The Piyam Travel Team`
                         <Upload className="h-5 w-5 text-[#8b1e2d]" />
                       </span>
                       <span className="mt-3 text-xs font-semibold text-slate-500">
-                        Drop file here or click to upload instantly
+                        Drop files here or click to upload instantly
                       </span>
                     </label>
                   )
@@ -2190,6 +2576,7 @@ The Piyam Travel Team`
                       <div className="divide-y divide-slate-100">
                         {group.documents.map((document) => {
                           const updatingThisDocument = updatingDocumentId === document.id
+                          const renamingThisDocument = renamingDocumentId === document.id
                           const documentIsReleased =
                             document.customer_visible && document.status === 'released'
                           const documentIsAgentOnly = document.category === 'travel_documents'
@@ -2200,9 +2587,36 @@ The Piyam Travel Team`
                             >
                               <div className="min-w-0">
                                 <div className="flex flex-wrap items-center gap-2">
-                                  <p className="text-sm font-black text-slate-950">
-                                    {document.title}
-                                  </p>
+                                  {renamingThisDocument ? (
+                                    <div className="grid w-full min-w-0 gap-2 sm:grid-cols-2">
+                                      <input
+                                        value={documentRenameForm.title}
+                                        onChange={(event) =>
+                                          setDocumentRenameForm((current) => ({
+                                            ...current,
+                                            title: event.target.value,
+                                          }))
+                                        }
+                                        placeholder="Display title"
+                                        className="min-w-0 rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold text-slate-900"
+                                      />
+                                      <input
+                                        value={documentRenameForm.fileName}
+                                        onChange={(event) =>
+                                          setDocumentRenameForm((current) => ({
+                                            ...current,
+                                            fileName: event.target.value,
+                                          }))
+                                        }
+                                        placeholder="Download file name"
+                                        className="min-w-0 rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold text-slate-900"
+                                      />
+                                    </div>
+                                  ) : (
+                                    <p className="text-sm font-black text-slate-950">
+                                      {document.title}
+                                    </p>
+                                  )}
                                   <span
                                     className={`rounded-full px-2 py-1 text-[11px] font-black uppercase ${
                                       documentIsAgentOnly
@@ -2241,6 +2655,53 @@ The Piyam Travel Team`
                                 )}
                               </div>
                               <div className="flex shrink-0 flex-wrap gap-2">
+                                {renamingThisDocument ? (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={() => void saveDocumentRename(document)}
+                                      disabled={updatingThisDocument}
+                                      className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 text-xs font-black text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:text-slate-300"
+                                    >
+                                      {updatingThisDocument ? (
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                      ) : (
+                                        <CheckCircle2 className="h-4 w-4" />
+                                      )}
+                                      Save
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setRenamingDocumentId(null)}
+                                      disabled={updatingThisDocument}
+                                      className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300"
+                                    >
+                                      <X className="h-4 w-4" />
+                                      Cancel
+                                    </button>
+                                  </>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => startDocumentRename(document)}
+                                    disabled={updatingThisDocument}
+                                    className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300"
+                                  >
+                                    <Pencil className="h-4 w-4" />
+                                    Rename
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    void openDocumentPreview(document)
+                                  }}
+                                  disabled={updatingThisDocument}
+                                  className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300"
+                                >
+                                  <FileText className="h-4 w-4" />
+                                  Preview
+                                </button>
                                 <button
                                   type="button"
                                   onClick={() => {
@@ -2550,9 +3011,24 @@ The Piyam Travel Team`
                         booked costs, and confirmation status remain agent-controlled.
                       </p>
                     </div>
-                    <span className="text-xs font-black uppercase text-slate-500">
-                      {quoteReservationPrefills.length} items
-                    </span>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-xs font-black uppercase text-slate-500">
+                        {quoteReservationPrefills.length} items
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => void createAllQuoteReservations()}
+                        disabled={savingReservation || quoteReservationMissingCount === 0}
+                        className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg bg-slate-900 px-3 text-xs font-black text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+                      >
+                        {savingReservation ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Plus className="h-4 w-4" />
+                        )}
+                        Create missing from quote
+                      </button>
+                    </div>
                   </div>
                   <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
                     {quoteReservationPrefills.map((prefill) => (
@@ -2563,7 +3039,7 @@ The Piyam Travel Team`
                         className="rounded-lg border border-slate-200 bg-white p-3 text-left transition hover:border-[#8b1e2d]/40 hover:bg-red-50"
                       >
                         <span className="text-[11px] font-black uppercase text-[#8b1e2d]">
-                          {prefill.reservationType}
+                          {prefill.sourceLabel}
                         </span>
                         <span className="mt-1 block text-sm font-black text-slate-950">
                           {prefill.title}
@@ -2792,6 +3268,7 @@ The Piyam Travel Team`
                   reservations.map((reservation) => {
                     const ReservationIcon = getReservationIcon(reservation.reservation_type)
                     const itemForm = getReservationItemForm(reservation)
+                    const detailForm = getReservationDetailForm(reservation)
                     const savingThisItem = savingItemReservationId === reservation.id
                     const financialForm = getReservationFinancialForm(reservation)
                     const savingFinancials = savingReservationFinancialId === reservation.id
@@ -2852,27 +3329,192 @@ The Piyam Travel Team`
                             </div>
                           </div>
 
-                          <select
-                            value={reservation.status}
-                            disabled={updatingReservationId === reservation.id}
-                            onChange={(event) =>
-                              void updateReservationStatus(
-                                reservation,
-                                event.target.value as TravelPackageReservationStatus,
-                              )
-                            }
-                            className="min-h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold capitalize text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20 disabled:bg-slate-100"
-                          >
-                            {reservationStatusOptions.map((option) => (
-                              <option key={option.value} value={option.value}>
-                                {option.label}
-                              </option>
-                            ))}
-                          </select>
+                          <div className="flex flex-wrap gap-2">
+                            <select
+                              value={reservation.status}
+                              disabled={updatingReservationId === reservation.id}
+                              onChange={(event) =>
+                                void updateReservationStatus(
+                                  reservation,
+                                  event.target.value as TravelPackageReservationStatus,
+                                )
+                              }
+                              className="min-h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold capitalize text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20 disabled:bg-slate-100"
+                            >
+                              {reservationStatusOptions.map((option) => (
+                                <option key={option.value} value={option.value}>
+                                  {option.label}
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              type="button"
+                              onClick={() => void deleteReservation(reservation)}
+                              disabled={updatingReservationId === reservation.id}
+                              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-rose-200 bg-white px-3 text-xs font-black text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:text-slate-300"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              Delete
+                            </button>
+                          </div>
                         </div>
 
                         {expanded && (
                           <>
+                            <form
+                              className="mt-4 rounded-lg border border-slate-200 bg-white p-3"
+                              onSubmit={(event) => {
+                                event.preventDefault()
+                                void saveReservationDetails(reservation)
+                              }}
+                            >
+                              <div className="mb-3 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                                <div>
+                                  <p className="text-xs font-black uppercase text-slate-500">
+                                    Reservation details
+                                  </p>
+                                  <p className="mt-1 text-xs font-bold text-slate-500">
+                                    Editable operational record. Supplier and booking references can
+                                    be updated after reservation.
+                                  </p>
+                                </div>
+                                <button
+                                  type="submit"
+                                  disabled={updatingReservationId === reservation.id}
+                                  className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg bg-slate-900 px-3 text-xs font-black text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+                                >
+                                  {updatingReservationId === reservation.id ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <CheckCircle2 className="h-4 w-4" />
+                                  )}
+                                  Save Details
+                                </button>
+                              </div>
+
+                              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                                <label className="text-xs font-bold uppercase text-slate-500">
+                                  Type
+                                  <select
+                                    value={detailForm.reservationType}
+                                    onChange={(event) =>
+                                      updateReservationDetailForm(
+                                        reservation,
+                                        'reservationType',
+                                        event.target.value as TravelPackageReservationType,
+                                      )
+                                    }
+                                    className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                                  >
+                                    {reservationTypeOptions.map((option) => (
+                                      <option key={option.value} value={option.value}>
+                                        {option.label}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </label>
+
+                                <label className="text-xs font-bold uppercase text-slate-500 xl:col-span-2">
+                                  Title
+                                  <input
+                                    value={detailForm.title}
+                                    onChange={(event) =>
+                                      updateReservationDetailForm(
+                                        reservation,
+                                        'title',
+                                        event.target.value,
+                                      )
+                                    }
+                                    className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                                  />
+                                </label>
+
+                                <label className="text-xs font-bold uppercase text-slate-500">
+                                  Status
+                                  <select
+                                    value={detailForm.status}
+                                    onChange={(event) =>
+                                      updateReservationDetailForm(
+                                        reservation,
+                                        'status',
+                                        event.target.value as TravelPackageReservationStatus,
+                                      )
+                                    }
+                                    className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                                  >
+                                    {reservationStatusOptions.map((option) => (
+                                      <option key={option.value} value={option.value}>
+                                        {option.label}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </label>
+
+                                <label className="text-xs font-bold uppercase text-slate-500">
+                                  Supplier
+                                  <input
+                                    value={detailForm.supplierName}
+                                    onChange={(event) =>
+                                      updateReservationDetailForm(
+                                        reservation,
+                                        'supplierName',
+                                        event.target.value,
+                                      )
+                                    }
+                                    className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                                    placeholder="Supplier name"
+                                  />
+                                </label>
+
+                                <label className="text-xs font-bold uppercase text-slate-500">
+                                  Supplier ref
+                                  <input
+                                    value={detailForm.supplierReference}
+                                    onChange={(event) =>
+                                      updateReservationDetailForm(
+                                        reservation,
+                                        'supplierReference',
+                                        event.target.value,
+                                      )
+                                    }
+                                    className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                                    placeholder="Supplier reference"
+                                  />
+                                </label>
+
+                                <label className="text-xs font-bold uppercase text-slate-500">
+                                  Booking ref
+                                  <input
+                                    value={detailForm.bookingReference}
+                                    onChange={(event) =>
+                                      updateReservationDetailForm(
+                                        reservation,
+                                        'bookingReference',
+                                        event.target.value,
+                                      )
+                                    }
+                                    className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                                    placeholder="PNR, hotel ref, voucher ref"
+                                  />
+                                </label>
+                              </div>
+
+                              <label className="mt-3 block text-xs font-bold uppercase text-slate-500">
+                                Internal notes
+                                <textarea
+                                  value={detailForm.internalNotes}
+                                  onChange={(event) =>
+                                    updateReservationDetailForm(
+                                      reservation,
+                                      'internalNotes',
+                                      event.target.value,
+                                    )
+                                  }
+                                  className="mt-1 min-h-20 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                                />
+                              </label>
+                            </form>
+
                             <form
                               className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3"
                               onSubmit={(event) => {
@@ -3041,9 +3683,15 @@ The Piyam Travel Team`
 
                             <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
                               <div className="mb-3 flex items-center justify-between gap-3">
-                                <p className="text-xs font-black uppercase text-slate-500">
-                                  Line items
-                                </p>
+                                <div>
+                                  <p className="text-xs font-black uppercase text-slate-500">
+                                    Line items
+                                  </p>
+                                  <p className="mt-1 text-xs font-semibold text-slate-500">
+                                    Optional breakdown rows for rooms, sectors, visas, transfers, or
+                                    commissions. Saved rows roll up into this reservation.
+                                  </p>
+                                </div>
                                 <p className="text-xs font-bold text-slate-400">
                                   {(reservation.items || []).length} saved
                                 </p>
@@ -3987,6 +4635,71 @@ The Piyam Travel Team`
                 </Link>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {previewDocument && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4">
+          <div className="flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+            <div className="flex flex-col gap-3 border-b border-slate-200 p-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <p className="text-xs font-bold uppercase text-slate-500">Document preview</p>
+                <h3 className="mt-1 truncate text-lg font-black text-slate-950">
+                  {previewDocument.title}
+                </h3>
+                <p className="mt-1 break-all text-xs font-bold text-slate-500">
+                  {previewDocument.file_name} · {formatFileSize(previewDocument.file_size)}
+                </p>
+              </div>
+              <div className="flex shrink-0 flex-wrap gap-2">
+                {previewDocumentUrl && (
+                  <button
+                    type="button"
+                    onClick={() => window.open(previewDocumentUrl, '_blank', 'noopener,noreferrer')}
+                    className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:bg-slate-100"
+                  >
+                    <Download className="h-4 w-4" />
+                    Open
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPreviewDocument(null)
+                    setPreviewDocumentUrl('')
+                  }}
+                  className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg bg-slate-900 px-3 text-xs font-black text-white transition hover:bg-slate-800"
+                >
+                  <X className="h-4 w-4" />
+                  Close
+                </button>
+              </div>
+            </div>
+            <div className="min-h-0 flex-1 bg-slate-100 p-4">
+              {previewDocumentLoading ? (
+                <div className="flex h-[70vh] items-center justify-center rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-500">
+                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                  Preparing preview
+                </div>
+              ) : previewDocumentUrl && (previewDocumentIsPdf || previewDocumentIsImage) ? (
+                <iframe
+                  title={`Preview ${previewDocument.title}`}
+                  src={previewDocumentUrl}
+                  className="h-[70vh] w-full rounded-xl border border-slate-200 bg-white"
+                />
+              ) : (
+                <div className="flex h-[70vh] flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white p-6 text-center">
+                  <FileText className="h-10 w-10 text-slate-400" />
+                  <p className="mt-3 text-sm font-black text-slate-900">
+                    Preview is not available for this file type.
+                  </p>
+                  <p className="mt-1 text-xs font-semibold text-slate-500">
+                    Use Open to view or download the document.
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

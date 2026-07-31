@@ -14,7 +14,7 @@ function isDocumentSchemaError(error: unknown) {
 }
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string; documentId: string }> },
 ) {
   const { id, documentId } = await params
@@ -43,13 +43,15 @@ export async function GET(
     storage_bucket: string
     storage_key: string
   }
+  const disposition =
+    request.nextUrl.searchParams.get('disposition') === 'inline' ? 'inline' : 'attachment'
 
   const url = await getSignedUrl(
     getS3Client(),
     new GetObjectCommand({
       Bucket: row.storage_bucket,
       Key: row.storage_key,
-      ResponseContentDisposition: `attachment; filename="${row.file_name.replace(/"/g, '')}"`,
+      ResponseContentDisposition: `${disposition}; filename="${row.file_name.replace(/"/g, '')}"`,
     }),
     { expiresIn: 15 * 60 },
   )

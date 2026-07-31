@@ -4,6 +4,7 @@ import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
 import {
   isAgentOnlyPackageDocumentCategory,
   normalizePackageDocumentCategory,
+  sanitizePackageDocumentFileName,
 } from '@/lib/packageDocuments'
 import type {
   TravelPackageDocument,
@@ -94,6 +95,14 @@ export async function PATCH(
     const title = cleanText(body.title)
     if (!title) return apiError('Document title is required', 400)
     updatePayload.title = title
+  }
+
+  if (hasBodyKey(body, 'fileName') || hasBodyKey(body, 'file_name')) {
+    const fileName = sanitizePackageDocumentFileName(
+      cleanText(body.fileName ?? body.file_name),
+    )
+    if (!fileName) return apiError('File name is required', 400)
+    updatePayload.file_name = fileName
   }
 
   if (hasBodyKey(body, 'category')) {

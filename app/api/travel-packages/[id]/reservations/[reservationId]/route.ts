@@ -209,3 +209,52 @@ export async function PATCH(
     setupRequired: false,
   })
 }
+
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string; reservationId: string }> },
+) {
+  const { id, reservationId } = await params
+  const supabase = await getRouteSupabaseClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) return apiError('Unauthorized', 401)
+
+  const { data: before, error: beforeError } = await supabase
+    .from('travel_package_reservations')
+    .select(selectTravelPackageReservationColumns())
+    .eq('id', reservationId)
+    .eq('package_id', id)
+    .single()
+
+  if (beforeError || !before) {
+    if (isReservationSchemaError(beforeError)) return apiError(SCHEMA_HINT, 503)
+    return apiError('Reservation not found', 404)
+  }
+
+  const { error } = await supabase
+    .from('travel_package_reservations')
+    .delete()
+    .eq('id', reservationId)
+    .eq('package_id', id)
+
+  if (error) {
+    if (isReservationSchemaError(error)) return apiError(SCHEMA_HINT, 503)
+    return apiError(error.message || 'Failed to delete package reservation', 500)
+  }
+
+  await recordPackageAuditEvent(
+    supabase as unknown as Parameters<typeof recordPackageAuditEvent>[0],
+    {
+      packageId: id,
+      actorId: user.id,
+      eventType: 'reservation_deleted',
+      eventSummary: `Reservation ${reservationId} deleted.`,
+      beforeData: before,
+    },
+  )
+
+  return apiOk({ deleted: true, setupRequired: false })
+}
