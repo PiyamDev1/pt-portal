@@ -546,7 +546,7 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
   const [savingInvoice, setSavingInvoice] = useState(false)
   const [updatingDocumentId, setUpdatingDocumentId] = useState<string | null>(null)
   const [renamingDocumentId, setRenamingDocumentId] = useState<string | null>(null)
-  const [documentRenameForm, setDocumentRenameForm] = useState({ title: '', fileName: '' })
+  const [documentRenameForm, setDocumentRenameForm] = useState({ name: '' })
   const [previewDocument, setPreviewDocument] = useState<TravelPackageDocument | null>(null)
   const [previewDocumentUrl, setPreviewDocumentUrl] = useState('')
   const [previewDocumentLoading, setPreviewDocumentLoading] = useState(false)
@@ -557,6 +557,8 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
   const [invoiceError, setInvoiceError] = useState<string | null>(null)
   const [showQuoteSnapshot, setShowQuoteSnapshot] = useState(false)
   const [showAccessVoucher, setShowAccessVoucher] = useState(false)
+  const [showPackageGroupPanel, setShowPackageGroupPanel] = useState(false)
+  const [showNewReservationForm, setShowNewReservationForm] = useState(false)
   const [accessVoucherQr, setAccessVoucherQr] = useState('')
   const [accessVoucherCopyMessage, setAccessVoucherCopyMessage] = useState('')
   const [activePackageTab, setActivePackageTab] = useState<PackageWorkspaceTab>('overview')
@@ -1320,6 +1322,7 @@ The Piyam Travel Team`
         [createdReservation.id]: createReservationDetailForm(createdReservation),
       }))
       setReservationForm(createInitialReservationForm(defaultSoldPrice))
+      setShowNewReservationForm(false)
     } catch (saveError) {
       setReservationError(
         saveError instanceof Error ? saveError.message : 'Failed to create reservation',
@@ -1330,6 +1333,7 @@ The Piyam Travel Team`
   }
 
   const applyReservationPrefill = (prefill: QuoteReservationPrefill) => {
+    setShowNewReservationForm(true)
     setReservationForm((current) => ({
       ...current,
       reservationType: prefill.reservationType,
@@ -1685,8 +1689,7 @@ The Piyam Travel Team`
   const startDocumentRename = (document: TravelPackageDocument) => {
     setRenamingDocumentId(document.id)
     setDocumentRenameForm({
-      title: document.title,
-      fileName: document.file_name,
+      name: document.title || document.file_name,
     })
   }
 
@@ -1694,6 +1697,12 @@ The Piyam Travel Team`
     setUpdatingDocumentId(document.id)
     setDocumentError(null)
     try {
+      const renameName = documentRenameForm.name.trim()
+      const currentExtension = document.file_name.match(/(\.[A-Za-z0-9]{1,10})$/)?.[1] || ''
+      const renameFileName =
+        currentExtension && !renameName.toLowerCase().endsWith(currentExtension.toLowerCase())
+          ? `${renameName}${currentExtension}`
+          : renameName
       const response = await fetch(
         `/api/travel-packages/${encodeURIComponent(packageId)}/documents/${encodeURIComponent(
           document.id,
@@ -1702,8 +1711,8 @@ The Piyam Travel Team`
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            title: documentRenameForm.title,
-            fileName: documentRenameForm.fileName,
+            title: renameName,
+            fileName: renameFileName,
           }),
         },
       )
@@ -2215,6 +2224,14 @@ The Piyam Travel Team`
             >
               Generate Access Voucher
             </button>
+            <button
+              type="button"
+              onClick={() => setShowPackageGroupPanel((current) => !current)}
+              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-cyan-200 bg-cyan-900 px-4 text-sm font-black text-white transition hover:bg-cyan-800"
+            >
+              <Link2 className="h-4 w-4" />
+              Add Package Link
+            </button>
           </div>
         </div>
       </section>
@@ -2226,6 +2243,7 @@ The Piyam Travel Team`
         <StatusCard icon={FileText} label="Invoice" value={packageFolder.invoice_status} />
       </section>
 
+      {showPackageGroupPanel && (
       <section className="rounded-xl border border-cyan-200 bg-cyan-50/50 p-4 shadow-sm">
         <div className="mb-3 flex items-center gap-2">
           <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-cyan-900 text-white">
@@ -2376,6 +2394,7 @@ The Piyam Travel Team`
           </div>
         </div>
       </section>
+      )}
 
       <nav
         aria-label="Package workspace"
@@ -2615,28 +2634,17 @@ The Piyam Travel Team`
                               <div className="min-w-0">
                                 <div className="flex flex-wrap items-center gap-2">
                                   {renamingThisDocument ? (
-                                    <div className="grid w-full min-w-0 gap-2 sm:grid-cols-2">
+                                    <div className="w-full min-w-0">
                                       <input
-                                        value={documentRenameForm.title}
+                                        value={documentRenameForm.name}
                                         onChange={(event) =>
                                           setDocumentRenameForm((current) => ({
                                             ...current,
-                                            title: event.target.value,
+                                            name: event.target.value,
                                           }))
                                         }
-                                        placeholder="Display title"
-                                        className="min-w-0 rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold text-slate-900"
-                                      />
-                                      <input
-                                        value={documentRenameForm.fileName}
-                                        onChange={(event) =>
-                                          setDocumentRenameForm((current) => ({
-                                            ...current,
-                                            fileName: event.target.value,
-                                          }))
-                                        }
-                                        placeholder="Download file name"
-                                        className="min-w-0 rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold text-slate-900"
+                                        placeholder="Document name"
+                                        className="w-full min-w-0 rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold text-slate-900"
                                       />
                                     </div>
                                   ) : (
@@ -3096,6 +3104,22 @@ The Piyam Travel Team`
                 </div>
               )}
 
+              <div className="mb-4 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowNewReservationForm((current) => !current)}
+                  className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 transition hover:bg-slate-50"
+                >
+                  {showNewReservationForm ? (
+                    <ChevronDown className="h-4 w-4" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4" />
+                  )}
+                  {showNewReservationForm ? 'Hide new reservation' : 'Add new reservation'}
+                </button>
+              </div>
+
+              {showNewReservationForm && (
               <form
                 className="rounded-lg border border-slate-200 bg-slate-50 p-4"
                 onSubmit={(event) => {
@@ -3294,6 +3318,7 @@ The Piyam Travel Team`
                   </button>
                 </div>
               </form>
+              )}
 
               <div className="mt-4 space-y-3">
                 {reservations.length === 0 && !reservationsLoading ? (
