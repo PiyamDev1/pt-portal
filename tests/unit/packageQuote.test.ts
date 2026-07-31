@@ -80,6 +80,13 @@ describe('package quote calculator', () => {
     expect(createTravelPackageReference()).toMatch(/^PT-[A-Z0-9]{6}$/)
   })
 
+  it('creates package references from quotation reference codes', () => {
+    expect(createTravelPackageReference('H29GPX - Umrah Quotation 31 Jul 2026')).toBe(
+      'PT-H29GPX',
+    )
+    expect(createTravelPackageReference('PT-H29GPX')).toBe('PT-H29GPX')
+  })
+
   it('generates sorted combinations including hotels, flights, and transport', () => {
     const combinations = buildPackageCombinations(payload)
 

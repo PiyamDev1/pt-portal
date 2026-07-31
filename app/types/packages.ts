@@ -471,6 +471,7 @@ export interface TravelPackageFolder {
   source_quote_id: string | null
   created_by: string | null
   assigned_agent_id: string | null
+  sales_employee_id?: string | null
   location_id: string | null
   customer_name: string | null
   customer_phone: string | null

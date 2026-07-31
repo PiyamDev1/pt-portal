@@ -67,7 +67,17 @@ export function createPackageOptionId(prefix = 'option') {
   return `${prefix}-${crypto.randomUUID().slice(0, 8)}`
 }
 
-export function createTravelPackageReference() {
+export function getTravelPackageQuoteReferenceCode(value: unknown) {
+  if (typeof value !== 'string') return ''
+  const title = value.trim().toUpperCase()
+  const prefixed = title.match(/\bPT-([A-Z0-9]{6})\b/)?.[1]
+  if (prefixed) return prefixed
+  return title.match(/\b([A-Z0-9]{6})\b/)?.[1] || ''
+}
+
+export function createTravelPackageReference(quoteReferenceCode?: unknown) {
+  const quoteCode = getTravelPackageQuoteReferenceCode(quoteReferenceCode)
+  if (quoteCode) return `PT-${quoteCode}`
   const token = crypto.randomUUID().replace(/-/g, '').slice(0, 6).toUpperCase()
   return `PT-${token}`
 }

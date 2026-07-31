@@ -70,6 +70,7 @@ function selectTravelPackageColumns() {
     source_quote_id,
     created_by,
     assigned_agent_id,
+    sales_employee_id,
     location_id,
     customer_name,
     customer_phone,
@@ -157,6 +158,27 @@ function visaQuantity(option: PackageComponentOption, payload: PackageQuotePaylo
   return option.quantity && option.quantity > 0
     ? option.quantity
     : payload.adults + payload.childrenPaying + payload.childrenFree + payload.infants
+}
+
+async function resolveEmployeeId(
+  supabase: { from: (table: string) => any },
+  candidateIds: Array<string | null | undefined>,
+) {
+  const checkedIds = new Set<string>()
+  for (const candidateId of candidateIds) {
+    const cleanId = typeof candidateId === 'string' ? candidateId.trim() : ''
+    if (!cleanId || checkedIds.has(cleanId)) continue
+    checkedIds.add(cleanId)
+
+    const { data } = (await supabase
+      .from('employees')
+      .select('id')
+      .eq('id', cleanId)
+      .maybeSingle()) as { data?: { id?: string | null } | null }
+
+    if (data?.id) return data.id
+  }
+  return null
 }
 
 function visaTotal(option: PackageComponentOption, payload: PackageQuotePayload) {
@@ -472,7 +494,14 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
   }
 
   const payload = normalizePackageQuotePayload(quote.payload)
-  const reference = createTravelPackageReference()
+  const reference = createTravelPackageReference(quote.title || payload.title)
+  const finalisingUserId = quote.finalised_by || quote.last_shared_by || quote.created_by || user.id
+  const salesEmployeeId = await resolveEmployeeId(supabase, [
+    quote.finalised_by,
+    quote.last_shared_by,
+    quote.created_by,
+    user.id,
+  ])
   const snapshot = buildPackageSnapshot(quote)
   const passengerSummary = buildPassengerSummary(payload)
   const nextAction = getDefaultPackageNextAction(quote.selected_option)
@@ -485,7 +514,8 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
       package_reference: reference,
       source_quote_id: quote.id,
       created_by: user.id,
-      assigned_agent_id: user.id,
+      assigned_agent_id: finalisingUserId,
+      sales_employee_id: salesEmployeeId,
       customer_name:
         quote.selected_option.selection.customerName ||
         quote.customer_name ||

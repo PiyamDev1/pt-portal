@@ -165,6 +165,7 @@ type QuoteReservationPrefill = {
   title: string
   bookedCostTotal?: number
   soldPriceTotal: number
+  discountTotal?: number
   internalNotes: string
   sourceLabel: string
 }
@@ -1065,6 +1066,7 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
   const bookedSoldDifference =
     reservationTotals.sold - reservationTotals.discount - reservationTotals.booked
   const estimatedMargin = bookedSoldDifference + reservationTotals.commission
+  const netReservationSold = reservationTotals.sold - reservationTotals.discount
   const quoteReservationPrefills = useMemo<QuoteReservationPrefill[]>(() => {
     if (!selectedCombination) return []
     const servicePassengers = selectedCombination.servicePassengers
@@ -1149,6 +1151,28 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
         sourceLabel: `${stay.groupLabel} hotel from final quote`,
       })
     })
+    const componentTotal = prefills.reduce((total, prefill) => total + prefill.soldPriceTotal, 0)
+    const adjustment = Math.round((selectedCombination.totalPrice - componentTotal) * 100) / 100
+    if (adjustment > 0) {
+      prefills.push({
+        key: 'package-pricing-adjustment',
+        reservationType: 'other',
+        title: 'Package pricing adjustment',
+        soldPriceTotal: adjustment,
+        internalNotes: 'Package-level surcharge or processing adjustment from the final quotation.',
+        sourceLabel: 'Package adjustment from final quote',
+      })
+    } else if (adjustment < 0) {
+      prefills.push({
+        key: 'package-discount-adjustment',
+        reservationType: 'other',
+        title: 'Package discount adjustment',
+        soldPriceTotal: 0,
+        discountTotal: Math.abs(adjustment),
+        internalNotes: 'Package-level discount from the final quotation.',
+        sourceLabel: 'Package discount from final quote',
+      })
+    }
     return prefills
   }, [passengerSummary, reservationCurrency, selectedCombination, selectedPayload])
   const quoteReservationMissingCount = useMemo(() => {
@@ -1312,6 +1336,8 @@ The Piyam Travel Team`
       title: prefill.title,
       status: 'reservation_pending',
       soldPriceTotal: prefill.soldPriceTotal > 0 ? String(prefill.soldPriceTotal) : '',
+      discountTotal:
+        prefill.discountTotal && prefill.discountTotal > 0 ? String(prefill.discountTotal) : '',
       bookedCostTotal:
         prefill.bookedCostTotal && prefill.bookedCostTotal > 0
           ? String(prefill.bookedCostTotal)
@@ -1337,6 +1363,7 @@ The Piyam Travel Team`
           status: 'reservation_pending',
           bookedCostTotal: prefill.bookedCostTotal || 0,
           soldPriceTotal: prefill.soldPriceTotal,
+          discountTotal: prefill.discountTotal || 0,
           paymentDueAt: toDateTimeLocalValue(),
           internalNotes: prefill.internalNotes,
           currency: reservationCurrency,
@@ -2967,7 +2994,7 @@ The Piyam Travel Team`
                 </div>
               )}
 
-              <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
                   <p className="text-xs font-bold uppercase text-slate-500">Booked cost</p>
                   <p className="mt-1 text-sm font-black text-slate-950">
@@ -2979,23 +3006,32 @@ The Piyam Travel Team`
                   <p className="mt-1 text-sm font-black text-slate-950">
                     {formatMoney(reservationTotals.sold, reservationCurrency)}
                   </p>
+                  {reservationTotals.discount > 0 && (
+                    <p className="mt-1 text-xs font-bold text-slate-500">
+                      Net after discount: {formatMoney(netReservationSold, reservationCurrency)}
+                    </p>
+                  )}
                 </div>
                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                  <p className="text-xs font-bold uppercase text-slate-500">Commission due</p>
+                  <p className="text-xs font-bold uppercase text-slate-500">Discounts</p>
+                  <p className="mt-1 text-sm font-black text-slate-950">
+                    {formatMoney(reservationTotals.discount, reservationCurrency)}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-xs font-bold uppercase text-slate-500">Commission</p>
                   <p className="mt-1 text-sm font-black text-slate-950">
                     {formatMoney(reservationTotals.commission, reservationCurrency)}
                   </p>
                 </div>
                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                  <p className="text-xs font-bold uppercase text-slate-500">Sold - booked</p>
+                  <p className="text-xs font-bold uppercase text-slate-500">Profit estimate</p>
                   <p className="mt-1 text-sm font-black text-[#8b1e2d]">
-                    {formatMoney(bookedSoldDifference, reservationCurrency)}
+                    {formatMoney(estimatedMargin, reservationCurrency)}
                   </p>
-                  {reservationTotals.commission > 0 && (
-                    <p className="mt-1 text-xs font-bold text-slate-500">
-                      With commission: {formatMoney(estimatedMargin, reservationCurrency)}
-                    </p>
-                  )}
+                  <p className="mt-1 text-xs font-bold text-slate-500">
+                    Sold - discounts - booked + commission
+                  </p>
                 </div>
               </div>
 
@@ -3183,7 +3219,7 @@ The Piyam Travel Team`
                   </label>
 
                   <label className="text-xs font-bold uppercase text-slate-500">
-                    Commission due
+                    Commission
                     <input
                       value={reservationForm.commissionExpectedTotal}
                       onChange={(event) =>
@@ -3528,7 +3564,7 @@ The Piyam Travel Team`
                                     Reservation pricing
                                   </p>
                                   <p className="mt-1 text-xs font-bold text-slate-500">
-                                    Difference:{' '}
+                                    Profit before commission:{' '}
                                     <span className="text-[#8b1e2d]">
                                       {formatMoney(reservationDifference, reservation.currency)}
                                     </span>{' '}
@@ -3536,7 +3572,7 @@ The Piyam Travel Team`
                                   </p>
                                   {parseMoneyInput(financialForm.commissionExpectedTotal) > 0 && (
                                     <p className="mt-1 text-xs font-bold text-slate-500">
-                                      With commission:{' '}
+                                      Profit with commission:{' '}
                                       {formatMoney(reservationWithCommission, reservation.currency)}
                                     </p>
                                   )}
@@ -3608,7 +3644,7 @@ The Piyam Travel Team`
                                 </label>
 
                                 <label className="text-xs font-bold uppercase text-slate-500">
-                                  Commission due
+                                  Commission
                                   <input
                                     value={financialForm.commissionExpectedTotal}
                                     onChange={(event) =>

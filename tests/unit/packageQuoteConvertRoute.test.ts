@@ -77,6 +77,10 @@ const mocks = vi.hoisted(() => {
   const packageEq = vi.fn(() => ({ single: packageSingle }))
   const packageSelect = vi.fn(() => ({ eq: packageEq }))
 
+  const employeeMaybeSingle = vi.fn(async () => ({ data: { id: 'agent-1' }, error: null }))
+  const employeeEq = vi.fn(() => ({ maybeSingle: employeeMaybeSingle }))
+  const employeeSelect = vi.fn(() => ({ eq: employeeEq }))
+
   const taskInsert = vi.fn()
   const communicationInsert = vi.fn()
   const versionInsert = vi.fn()
@@ -91,6 +95,7 @@ const mocks = vi.hoisted(() => {
     if (table === 'travel_packages') {
       return { insert: packageInsert, select: packageSelect }
     }
+    if (table === 'employees') return { select: employeeSelect }
     if (table === 'travel_package_tasks') return { insert: taskInsert }
     if (table === 'travel_package_communications') return { insert: communicationInsert }
     if (table === 'travel_package_versions') return { insert: versionInsert }
@@ -118,6 +123,9 @@ const mocks = vi.hoisted(() => {
     packageSingle,
     packageEq,
     packageSelect,
+    employeeMaybeSingle,
+    employeeEq,
+    employeeSelect,
     taskInsert,
     communicationInsert,
     versionInsert,
@@ -213,6 +221,64 @@ describe('POST /api/packages/[id]/convert', () => {
     )
     expect(mocks.quoteUpdate).toHaveBeenCalledWith(
       expect.objectContaining({ converted_package_id: 'package-1' }),
+    )
+  })
+
+  it('preserves the quotation code when creating the package reference', async () => {
+    mocks.quoteSingle.mockResolvedValueOnce({
+      data: {
+        ...quote,
+        title: 'H29GPX - Umrah Quotation 31 Jul 2026',
+        payload: {
+          ...payload,
+          title: 'H29GPX - Umrah Quotation 31 Jul 2026',
+        },
+      },
+      error: null,
+    })
+
+    const response = await POST(
+      new Request('http://localhost/api/packages/quote-1/convert') as never,
+      {
+        params: Promise.resolve({ id: 'quote-1' }),
+      },
+    )
+
+    expect(response.status).toBe(201)
+    expect(mocks.packageInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        package_reference: 'PT-H29GPX',
+        minio_prefix: 'PT-H29GPX/',
+      }),
+    )
+  })
+
+  it('assigns converted packages to the agent who finalised the quote', async () => {
+    mocks.employeeMaybeSingle.mockResolvedValueOnce({
+      data: { id: 'sales-agent-2' },
+      error: null,
+    })
+    mocks.quoteSingle.mockResolvedValueOnce({
+      data: {
+        ...quote,
+        finalised_by: 'sales-agent-2',
+      },
+      error: null,
+    })
+
+    const response = await POST(
+      new Request('http://localhost/api/packages/quote-1/convert') as never,
+      {
+        params: Promise.resolve({ id: 'quote-1' }),
+      },
+    )
+
+    expect(response.status).toBe(201)
+    expect(mocks.packageInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        assigned_agent_id: 'sales-agent-2',
+        sales_employee_id: 'sales-agent-2',
+      }),
     )
   })
 

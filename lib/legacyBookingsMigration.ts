@@ -371,6 +371,7 @@ export async function importLegacyBookingCustomer(input: {
       package_reference: reference,
       created_by: actorId,
       assigned_agent_id: actorId,
+      sales_employee_id: actorId,
       customer_name: customer.customerName || null,
       customer_access_last_name: customer.lastName.toLowerCase() || null,
       package_type: customer.packageType,
