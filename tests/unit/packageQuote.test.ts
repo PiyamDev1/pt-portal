@@ -208,6 +208,48 @@ describe('package quote calculator', () => {
     expect(resolved.combination.totalPrice).toBe(1200)
   })
 
+  it('allows negative hotel extras for downgrade credits', () => {
+    const downgradePayload = normalizePackageQuotePayload({
+      ...payload,
+      flightOptions: [],
+      visaOptions: [],
+      transportOptions: [],
+      stayGroups: [
+        {
+          id: 'makkah',
+          label: 'Makkah',
+          options: [
+            {
+              id: 'mk-hotel',
+              title: 'Makkah hotel',
+              summary: 'Makkah hotel',
+              price: 1000,
+              hotelAddonOptions: [
+                {
+                  id: 'room-downgrade',
+                  label: 'City view downgrade',
+                  searchPrice: -100,
+                  adjustedPrice: -75,
+                  price: -75,
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    })
+
+    const resolved = resolvePackageSelection(downgradePayload, {
+      stayOptionIds: { makkah: 'mk-hotel' },
+      hotelAddonOptionIds: { makkah: ['room-downgrade'] },
+      paymentMethod: 'bank_transfer',
+    })
+
+    expect(downgradePayload.stayGroups[0].options[0].hotelAddonOptions?.[0].searchPrice).toBe(-100)
+    expect(resolved.combination.staySelections[0].addonOptions?.[0].price).toBe(-75)
+    expect(resolved.combination.totalPrice).toBe(925)
+  })
+
   it('sorts hotel options from low to high by adjusted cost', () => {
     const sorted = sortPackageOptionsLowToHigh([
       {

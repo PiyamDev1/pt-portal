@@ -218,6 +218,11 @@ function formatSelectionDelta(value: number, currency: string) {
   return formatDelta(value, currency)
 }
 
+function formatSignedHotelExtraPrice(value: number, currency: string) {
+  if (Math.abs(value) < 0.005) return formatMoney(0, currency)
+  return `${value > 0 ? '+' : '-'}${formatMoney(Math.abs(value), currency)}`
+}
+
 function formatUnitDelta(value: number, currency: string) {
   return formatSelectionDelta(value, currency)
 }
@@ -950,7 +955,10 @@ export default function PackageSalesModeClient({ quoteId }: PackageSalesModeClie
                                           </span>
                                         )}
                                         <span className="font-black">
-                                          +{formatMoney(addon.price, payload.currency)}
+                                          {formatSignedHotelExtraPrice(
+                                            addon.price,
+                                            payload.currency,
+                                          )}
                                         </span>
                                       </span>
                                     </button>

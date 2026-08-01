@@ -96,6 +96,12 @@ function asNumber(value: unknown, fallback = 0) {
   return Math.max(0, parsed)
 }
 
+function asSignedNumber(value: unknown, fallback = 0) {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) return fallback
+  return parsed
+}
+
 function asInteger(value: unknown, fallback = 0) {
   return Math.floor(asNumber(value, fallback))
 }
@@ -197,12 +203,12 @@ function normalizeHotelAddonOption(
 ): PackageHotelAddonOption | null {
   const candidate = raw as Partial<PackageHotelAddonOption> | null
   const label = asString(candidate?.label)
-  const searchPrice = asNumber(candidate?.searchPrice)
+  const searchPrice = asSignedNumber(candidate?.searchPrice)
   const hasAdjustedPrice = Object.prototype.hasOwnProperty.call(candidate || {}, 'adjustedPrice')
-  const rawPrice = asNumber(candidate?.price)
-  const adjustedPrice = hasAdjustedPrice ? asNumber(candidate?.adjustedPrice) : rawPrice
+  const rawPrice = asSignedNumber(candidate?.price)
+  const adjustedPrice = hasAdjustedPrice ? asSignedNumber(candidate?.adjustedPrice) : rawPrice
 
-  if (!label && searchPrice <= 0 && adjustedPrice <= 0) return null
+  if (!label && searchPrice === 0 && adjustedPrice === 0) return null
 
   return {
     id: asString(candidate?.id, fallbackId),
@@ -1354,6 +1360,11 @@ function formatDelta(value: number, currency: string) {
   return `${value > 0 ? '+' : '-'}${formatMoney(Math.abs(value), currency)}`
 }
 
+function formatSignedHotelAddonPrice(value: number, currency: string) {
+  if (Math.abs(value) < 0.005) return formatMoney(0, currency)
+  return `${value > 0 ? '+' : '-'}${formatMoney(Math.abs(value), currency)}`
+}
+
 function formatPaymentMethodLabel(method: PackagePaymentMethod) {
   if (method === 'cash') return 'Cash'
   if (method === 'card') return 'Credit Card'
@@ -1501,7 +1512,7 @@ export function formatPackageCombinationForCopy(
     lines.push(`*(${stay.groupLabel})*`)
     pushHotelCopyLines(lines, stay.option)
     for (const addon of stay.addonOptions || []) {
-      lines.push(`+ ${addon.label}: ${formatMoney(addon.price, payload.currency)}`)
+      lines.push(`${addon.label}: ${formatSignedHotelAddonPrice(addon.price, payload.currency)}`)
     }
     lines.push('')
   }
@@ -1670,7 +1681,7 @@ export function formatPackageQuoteForCopy(
       lines.push(`*${stay.groupLabel}*`)
       pushHotelCopyLines(lines, stay.option)
       for (const addon of stay.addonOptions || []) {
-        lines.push(`+ ${addon.label}: ${formatMoney(addon.price, payload.currency)}`)
+        lines.push(`${addon.label}: ${formatSignedHotelAddonPrice(addon.price, payload.currency)}`)
       }
       lines.push('')
     }

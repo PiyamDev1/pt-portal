@@ -1473,9 +1473,8 @@ function OptionEditor({
                             })
                           }
                           type="number"
-                          min="0"
                           step="0.01"
-                          placeholder="0.00"
+                          placeholder="+/- 0.00"
                           className="min-w-0 w-full bg-transparent text-sm font-bold outline-none"
                         />
                       </div>
@@ -1496,9 +1495,8 @@ function OptionEditor({
                             })
                           }
                           type="number"
-                          min="0"
                           step="0.01"
-                          placeholder="0.00"
+                          placeholder="+/- 0.00"
                           className="min-w-0 w-full bg-transparent text-sm font-bold outline-none"
                         />
                       </div>

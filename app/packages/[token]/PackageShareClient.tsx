@@ -230,6 +230,11 @@ function formatSelectionDelta(value: number, currency: string) {
   return formatDelta(value, currency)
 }
 
+function formatSignedHotelExtraPrice(value: number, currency: string) {
+  if (Math.abs(value) < 0.005) return formatMoney(0, currency)
+  return `${value > 0 ? '+' : '-'}${formatMoney(Math.abs(value), currency)}`
+}
+
 const PAYMENT_BREAKDOWN_FIELDS: Array<{
   key: keyof PackagePaymentBreakdown
   label: string
@@ -2059,7 +2064,10 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                                               </span>
                                             )}
                                             <span className="font-black">
-                                              +{formatMoney(addon.price, payload.currency)}
+                                              {formatSignedHotelExtraPrice(
+                                                addon.price,
+                                                payload.currency,
+                                              )}
                                             </span>
                                           </span>
                                         </button>
