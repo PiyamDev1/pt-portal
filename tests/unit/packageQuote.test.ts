@@ -409,16 +409,57 @@ describe('package quote calculator', () => {
   it('uses generic location stays for holiday quotes and keeps Location 1 first', () => {
     const normalized = normalizePackageQuotePayload({
       packageType: 'holiday',
+      stayGroups: [
+        {
+          id: 'location-1',
+          label: 'Location 1',
+          options: [{ id: 'loc-1-hotel', title: 'Beach resort', summary: '', price: 1200 }],
+        },
+        {
+          id: 'location-2',
+          label: 'Location 2',
+          options: [{ id: 'loc-2-hotel', title: 'City hotel', summary: '', price: 800 }],
+        },
+      ],
       itineraryOrder: ['location-2', 'location-1', 'location-3'],
     })
 
     expect(normalized.packageType).toBe('holiday')
-    expect(normalized.stayGroups.map((group) => group.label)).toEqual([
-      'Location 1',
-      'Location 2',
-      'Location 3',
-    ])
+    expect(normalized.stayGroups.map((group) => group.label)).toEqual(['Location 1', 'Location 2'])
     expect(normalized.itineraryOrder[0]).toBe('location-1')
+  })
+
+  it('generates customer options for a single-location holiday quote', () => {
+    const holidayPayload = normalizePackageQuotePayload({
+      packageType: 'holiday',
+      currency: 'GBP',
+      adults: 2,
+      childrenPaying: 0,
+      stayGroups: [
+        {
+          id: 'location-1',
+          label: 'Dubai',
+          options: [
+            {
+              id: 'dubai-hotel',
+              title: 'Dubai Marina Hotel',
+              summary: '5 nights',
+              price: 1600,
+            },
+          ],
+        },
+      ],
+      flightOptions: [],
+      visaOptions: [],
+      transportOptions: [],
+    })
+
+    const options = buildCustomerPackageOptions(holidayPayload)
+
+    expect(options).toHaveLength(1)
+    expect(options[0].combination.staySelections).toHaveLength(1)
+    expect(options[0].combination.staySelections[0].groupLabel).toBe('Dubai')
+    expect(options[0].combination.totalPrice).toBe(1600)
   })
 
   it('preserves linked package group notes without exposing shared transport cost in copy', () => {

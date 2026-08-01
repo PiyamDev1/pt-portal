@@ -576,14 +576,13 @@ function formatQuoteTypeName(type: TravelPackageType) {
 
 function createDefaultStaySetup(packageType: TravelPackageType) {
   if (packageType === 'holiday') {
-    const stayGroups = [1, 2, 3].map((position) => {
-      const id = `location-${position}`
-      return {
-        id,
-        label: `Location ${position}`,
-        options: [newOption(`${id}-hotel`, { isDefault: true })],
-      }
-    })
+    const stayGroups = [
+      {
+        id: 'location-1',
+        label: 'Location 1',
+        options: [newOption('location-1-hotel', { isDefault: true })],
+      },
+    ]
     return {
       itineraryOrder: stayGroups.map((group) => group.id),
       stayGroups,
@@ -1865,6 +1864,32 @@ export default function PackagesClient({
     const nextGroups = payload.stayGroups.map((group, index) =>
       index === groupIndex ? nextGroup : group,
     )
+    updatePayload({
+      stayGroups: nextGroups,
+      itineraryOrder: nextGroups.map((group) => group.id),
+    })
+  }
+
+  const addHolidayLocation = () => {
+    const nextPosition = payload.stayGroups.length + 1
+    const id = makeId('location')
+    const nextGroups = [
+      ...payload.stayGroups,
+      {
+        id,
+        label: `Location ${nextPosition}`,
+        options: [newOption(`${id}-hotel`, { isDefault: true })],
+      },
+    ]
+    updatePayload({
+      stayGroups: nextGroups,
+      itineraryOrder: nextGroups.map((group) => group.id),
+    })
+  }
+
+  const removeHolidayLocation = (groupIndex: number) => {
+    if (payload.packageType !== 'holiday' || payload.stayGroups.length <= 1) return
+    const nextGroups = payload.stayGroups.filter((_, index) => index !== groupIndex)
     updatePayload({
       stayGroups: nextGroups,
       itineraryOrder: nextGroups.map((group) => group.id),
@@ -3263,15 +3288,28 @@ export default function PackagesClient({
               icon={Building2}
               title="Hotel and stay options"
               action={
-                <button
-                  type="button"
-                  onClick={sortStayGroupsByAdjustedCost}
-                  className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-violet-200 bg-white px-3 text-xs font-black text-violet-900 transition hover:bg-violet-100"
-                  title="Sort hotel options by adjusted cost"
-                >
-                  <ArrowDownWideNarrow className="h-4 w-4" />
-                  Sort low-high
-                </button>
+                <div className="flex flex-wrap gap-2">
+                  {payload.packageType === 'holiday' && (
+                    <button
+                      type="button"
+                      onClick={addHolidayLocation}
+                      className="inline-flex min-h-9 items-center gap-2 rounded-lg bg-violet-900 px-3 text-xs font-black text-white transition hover:bg-violet-950"
+                      title="Add holiday location"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Add location
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={sortStayGroupsByAdjustedCost}
+                    className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-violet-200 bg-white px-3 text-xs font-black text-violet-900 transition hover:bg-violet-100"
+                    title="Sort hotel options by adjusted cost"
+                  >
+                    <ArrowDownWideNarrow className="h-4 w-4" />
+                    Sort low-high
+                  </button>
+                </div>
               }
             />
             <div className="grid gap-4 lg:grid-cols-2">
@@ -3290,6 +3328,16 @@ export default function PackagesClient({
                       <span className="rounded-lg bg-blue-100 px-2 py-2 text-[11px] font-black text-blue-800">
                         Start
                       </span>
+                    )}
+                    {payload.packageType === 'holiday' && payload.stayGroups.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeHolidayLocation(groupIndex)}
+                        className="flex h-10 w-10 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 transition hover:bg-red-50"
+                        title="Remove location"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
                     )}
                     <button
                       type="button"

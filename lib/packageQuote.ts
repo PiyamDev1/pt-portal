@@ -485,11 +485,7 @@ function normalizeDefaultOption(options: PackageComponentOption[]) {
 
 function getDefaultStayGroups(packageType: TravelPackageType): PackageStayGroup[] {
   if (packageType === 'holiday') {
-    return [
-      { id: 'location-1', label: 'Location 1', options: [] },
-      { id: 'location-2', label: 'Location 2', options: [] },
-      { id: 'location-3', label: 'Location 3', options: [] },
-    ]
+    return [{ id: 'location-1', label: 'Location 1', options: [] }]
   }
 
   return [
