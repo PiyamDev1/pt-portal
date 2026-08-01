@@ -36,6 +36,7 @@ import type {
   PackageStayGroup,
   PackageTransportRouteKind,
   PackageTransportRouteSelection,
+  PackageVisaPassengerCategory,
   TravelPackageQuote,
   TravelPackageType,
 } from '@/app/types/packages'
@@ -904,6 +905,7 @@ function OptionEditor({
   showDefaultToggle = false,
   defaultLabel = 'Preferred option',
   showQuantity = false,
+  showVisaPassengerCategory = false,
   showTransportExtras = false,
   showTransportPriceList = true,
   transportPricingData = null,
@@ -922,6 +924,7 @@ function OptionEditor({
   showDefaultToggle?: boolean
   defaultLabel?: string
   showQuantity?: boolean
+  showVisaPassengerCategory?: boolean
   showTransportExtras?: boolean
   showTransportPriceList?: boolean
   transportPricingData?: UmrahTransportPricingData | null
@@ -1286,23 +1289,46 @@ function OptionEditor({
         </div>
       )}
       {showQuantity && (
-        <label className="mb-2 block">
-          <span className="block text-xs font-bold text-slate-500">Quantity</span>
-          <input
-            value={option.quantity ?? quantityFallback ?? ''}
-            onChange={(event) =>
-              onChange({
-                ...option,
-                quantity: Number(event.target.value || 0) || undefined,
-              })
-            }
-            type="number"
-            min="1"
-            step="1"
-            className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold outline-none focus:border-slate-900"
-            placeholder="Number of travellers"
-          />
-        </label>
+        <div className="mb-2 grid gap-2 sm:grid-cols-2">
+          <label className="block">
+            <span className="block text-xs font-bold text-slate-500">Quantity</span>
+            <input
+              value={option.quantity ?? quantityFallback ?? ''}
+              onChange={(event) =>
+                onChange({
+                  ...option,
+                  quantity: Number(event.target.value || 0) || undefined,
+                })
+              }
+              type="number"
+              min="1"
+              step="1"
+              className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold outline-none focus:border-slate-900"
+              placeholder="Number of travellers"
+            />
+          </label>
+          {showVisaPassengerCategory && (
+            <label className="block">
+              <span className="block text-xs font-bold text-slate-500">Visa applies to</span>
+              <select
+                value={option.visaPassengerCategory || 'all'}
+                onChange={(event) =>
+                  onChange({
+                    ...option,
+                    visaPassengerCategory: event.target.value as PackageVisaPassengerCategory,
+                  })
+                }
+                className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold outline-none focus:border-slate-900"
+              >
+                <option value="all">All travellers</option>
+                <option value="adult">Adult 12+</option>
+                <option value="child_5_plus">Child 5+</option>
+                <option value="child_2_to_4">Child 2-4</option>
+                <option value="infant">Infant under 2</option>
+              </select>
+            </label>
+          )}
+        </div>
       )}
       <textarea
         value={option.summary}
@@ -1562,8 +1588,8 @@ export default function PackagesClient({
     return [...groups].sort((a, b) => {
       const aIndex = payload.itineraryOrder.findIndex((item) => a.group.id.startsWith(item))
       const bIndex = payload.itineraryOrder.findIndex((item) => b.group.id.startsWith(item))
-      const aPosition = aIndex === -1 ? 999 : aIndex === 0 ? 1 : aIndex === 1 ? 0 : aIndex
-      const bPosition = bIndex === -1 ? 999 : bIndex === 0 ? 1 : bIndex === 1 ? 0 : bIndex
+      const aPosition = aIndex === -1 ? 999 : aIndex
+      const bPosition = bIndex === -1 ? 999 : bIndex
       return aPosition - bPosition
     })
   }, [payload.itineraryOrder, payload.packageType, payload.stayGroups])
@@ -1571,6 +1597,13 @@ export default function PackagesClient({
   const servicePassengerCount =
     payload.adults + payload.childrenPaying + payload.childrenFree + payload.infants
   const payingGuestCount = payload.adults + payload.childrenPaying
+  const getVisaQuantityFallback = (category: PackageVisaPassengerCategory | undefined) => {
+    if (category === 'adult') return payload.adults
+    if (category === 'child_5_plus') return payload.childrenPaying
+    if (category === 'child_2_to_4') return payload.childrenFree
+    if (category === 'infant') return payload.infants
+    return servicePassengerCount
+  }
   const shareUrl = buildShareUrl(activeQuote?.share_token)
   const filteredQuotes = useMemo(() => {
     if (quoteFilter === 'live') {
@@ -3229,7 +3262,8 @@ export default function PackagesClient({
                     priceLabel="Visa cost"
                     showPricingMode
                     showQuantity
-                    quantityFallback={servicePassengerCount}
+                    showVisaPassengerCategory
+                    quantityFallback={getVisaQuantityFallback(option.visaPassengerCategory)}
                     canRemove
                     onChange={(next) => updateComponentOption('visaOptions', index, next)}
                     onRemove={() => removeComponentOption('visaOptions', index)}

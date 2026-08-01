@@ -149,6 +149,12 @@ export type TravelPackageGroupAllocationMode =
   | 'manual'
   | 'one_package_pays'
   | 'no_split_note_only'
+export type PackageVisaPassengerCategory =
+  | 'all'
+  | 'adult'
+  | 'child_5_plus'
+  | 'child_2_to_4'
+  | 'infant'
 
 export interface PackageComponentOption {
   id: string
@@ -164,6 +170,7 @@ export interface PackageComponentOption {
   childPrice?: number
   infantPrice?: number
   quantity?: number
+  visaPassengerCategory?: PackageVisaPassengerCategory
   includesZiyarat?: boolean
   includesTourGuide?: boolean
   transportRoutes?: PackageTransportRouteSelection[]
@@ -330,6 +337,15 @@ export interface PackagePassengerPriceBreakdown {
   infantTotal: number
   total: number
   currency: string
+  visaLines?: Array<{
+    category: PackageVisaPassengerCategory
+    categoryLabel: string
+    optionId: string
+    title: string
+    quantity: number
+    unitPrice: number
+    total: number
+  }>
 }
 
 export interface PackagePaymentBreakdown {

@@ -36,6 +36,8 @@ import {
 import type {
   PackageCombination,
   PackageComponentOption,
+  PackageQuotePayload,
+  PackageVisaPassengerCategory,
   TravelPackageDocument,
   TravelPackageDocumentCategory,
   TravelPackageFolder,
@@ -393,8 +395,39 @@ function normalizeSelectedCombination(
   }
 }
 
-function getVisaQuantity(option: { quantity?: number }, servicePassengers: number) {
-  return option.quantity && option.quantity > 0 ? option.quantity : servicePassengers
+type VisaPassengerCounts = Pick<
+  PackageQuotePayload,
+  'adults' | 'childrenPaying' | 'childrenFree' | 'infants'
+> & {
+  servicePassengers: number
+}
+
+function getVisaPassengerCategoryCount(
+  option: { visaPassengerCategory?: PackageVisaPassengerCategory },
+  counts: VisaPassengerCounts,
+) {
+  if (option.visaPassengerCategory === 'adult') return counts.adults
+  if (option.visaPassengerCategory === 'child_5_plus') return counts.childrenPaying
+  if (option.visaPassengerCategory === 'child_2_to_4') return counts.childrenFree
+  if (option.visaPassengerCategory === 'infant') return counts.infants
+  return counts.servicePassengers
+}
+
+function getVisaQuantity(
+  option: { quantity?: number; visaPassengerCategory?: PackageVisaPassengerCategory },
+  counts: VisaPassengerCounts,
+) {
+  return option.quantity && option.quantity > 0
+    ? option.quantity
+    : getVisaPassengerCategoryCount(option, counts)
+}
+
+function getVisaPassengerCategoryLabel(category: PackageVisaPassengerCategory | undefined) {
+  if (category === 'adult') return 'Adult'
+  if (category === 'child_5_plus') return 'Child 5+'
+  if (category === 'child_2_to_4') return 'Child 2-4'
+  if (category === 'infant') return 'Infant'
+  return 'Traveller'
 }
 
 function getOptionSoldTotal(
@@ -415,9 +448,9 @@ function getOptionSoldTotal(
   return Number(option.price || 0)
 }
 
-function getVisaOptionSoldTotal(option: PackageComponentOption, servicePassengers: number) {
+function getVisaOptionSoldTotal(option: PackageComponentOption, counts: VisaPassengerCounts) {
   if (option.pricingMode === 'total') return Number(option.price || 0)
-  return Number(option.price || 0) * getVisaQuantity(option, servicePassengers)
+  return Number(option.price || 0) * getVisaQuantity(option, counts)
 }
 
 function getStaySelectionSoldTotal(stay: PackageCombination['staySelections'][number]) {
@@ -976,6 +1009,22 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
   const selectedQuote = packageFolder?.selected_quote_snapshot?.quote
   const defaultSoldPrice = selectedCombination?.totalPrice || 0
   const passengerSummary = packageFolder?.passenger_summary
+  const selectedVisaPassengerCounts = useMemo<VisaPassengerCounts>(
+    () => ({
+      adults: Number(selectedPayload?.adults ?? passengerSummary?.adults ?? 0),
+      childrenPaying: Number(
+        selectedPayload?.childrenPaying ?? passengerSummary?.childrenPaying ?? 0,
+      ),
+      childrenFree: Number(
+        selectedPayload?.childrenFree ?? passengerSummary?.childrenFree ?? 0,
+      ),
+      infants: Number(selectedPayload?.infants ?? passengerSummary?.infants ?? 0),
+      servicePassengers: Number(
+        selectedCombination?.servicePassengers ?? passengerSummary?.servicePassengers ?? 0,
+      ),
+    }),
+    [passengerSummary, selectedCombination, selectedPayload],
+  )
   const groupedDocuments = useMemo(() => groupPackageDocumentsByCategory(documents), [documents])
   const documentCountsByCategory = useMemo(() => {
     return documents.reduce(
@@ -1110,12 +1159,14 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
       })
     }
     selectedCombination.visaOptions.forEach((option) => {
-      const quantity = getVisaQuantity(option, servicePassengers)
+      const quantity = getVisaQuantity(option, selectedVisaPassengerCounts)
       prefills.push({
         key: `visa-${option.id}`,
         reservationType: 'visa',
-        title: `${quantity} x ${option.title}`,
-        soldPriceTotal: getVisaOptionSoldTotal(option, servicePassengers),
+        title: `${quantity} x ${getVisaPassengerCategoryLabel(
+          option.visaPassengerCategory,
+        )} ${option.title}`,
+        soldPriceTotal: getVisaOptionSoldTotal(option, selectedVisaPassengerCounts),
         internalNotes: getReservationSummary(option),
         sourceLabel: 'Visa from final quote',
       })
@@ -1177,7 +1228,13 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
       })
     }
     return prefills
-  }, [passengerSummary, reservationCurrency, selectedCombination, selectedPayload])
+  }, [
+    passengerSummary,
+    reservationCurrency,
+    selectedCombination,
+    selectedPayload,
+    selectedVisaPassengerCounts,
+  ])
   const quoteReservationMissingCount = useMemo(() => {
     const existingSourceKeys = new Set(
       reservations
@@ -2924,7 +2981,10 @@ The Piyam Travel Team`
                             {selectedCombination.visaOptions.map((option) => (
                               <div key={option.id}>
                                 <p className="text-sm font-black text-slate-950">
-                                  {getVisaQuantity(option, selectedCombination.servicePassengers)} x{' '}
+                                  {getVisaQuantity(option, selectedVisaPassengerCounts)} x{' '}
+                                  {getVisaPassengerCategoryLabel(
+                                    option.visaPassengerCategory,
+                                  )}{' '}
                                   {option.title}
                                 </p>
                                 {option.summary && (
@@ -4644,7 +4704,8 @@ The Piyam Travel Team`
                       {selectedCombination.visaOptions.map((option) => (
                         <div key={option.id}>
                           <p className="text-sm font-black text-slate-950">
-                            {getVisaQuantity(option, selectedCombination.servicePassengers)} x{' '}
+                            {getVisaQuantity(option, selectedVisaPassengerCounts)} x{' '}
+                            {getVisaPassengerCategoryLabel(option.visaPassengerCategory)}{' '}
                             {option.title}
                           </p>
                           {option.summary && (

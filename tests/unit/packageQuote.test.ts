@@ -654,6 +654,72 @@ describe('package quote calculator', () => {
     expect(resolved.combination.totalPrice).toBe(725)
   })
 
+  it('formats alternative transport options with routes and vehicles for WhatsApp copy', () => {
+    const transportPayload = normalizePackageQuotePayload({
+      ...payload,
+      adults: 2,
+      childrenPaying: 1,
+      childrenFree: 0,
+      infants: 0,
+      flightOptions: [],
+      visaOptions: [],
+      transportOptions: [
+        {
+          id: 'transport-car',
+          title: 'Private car transport',
+          summary: '',
+          price: 300,
+          pricingMode: 'total',
+          isDefault: true,
+          transportRoutes: [
+            {
+              id: 'route-1',
+              kind: 'transfer',
+              routeId: 'jeddah-makkah',
+              routeName: 'Jeddah Airport to Makkah Hotel',
+              supplierId: 'supplier-1',
+              supplierName: 'Supplier 1',
+              vehicleTypeId: 'car',
+              vehicleLabel: 'Car',
+              costPrice: 100,
+              currency: 'GBP',
+            },
+          ],
+        },
+        {
+          id: 'transport-h1',
+          title: 'Upgrade to H1',
+          summary: '',
+          price: 390,
+          pricingMode: 'total',
+          transportRoutes: [
+            {
+              id: 'route-2',
+              kind: 'transfer',
+              routeId: 'jeddah-makkah',
+              routeName: 'Jeddah Airport to Makkah Hotel',
+              supplierId: 'supplier-1',
+              supplierName: 'Supplier 1',
+              vehicleTypeId: 'h1',
+              vehicleLabel: 'H1',
+              costPrice: 130,
+              currency: 'GBP',
+            },
+          ],
+        },
+      ],
+    })
+
+    const copy = formatPackageQuoteForCopy(transportPayload)
+
+    expect(copy).toContain('****Transport Included****')
+    expect(copy).toContain('* Jeddah Airport to Makkah Hotel (Car)')
+    expect(copy).toContain('****Alternative Transport Options****')
+    expect(copy).toContain('*Upgrade to H1*')
+    expect(copy).toContain('* Jeddah Airport to Makkah Hotel (H1)')
+    expect(copy).toContain('Difference: +£30.00 p.p.')
+  })
+
   it('applies active limited-time offers to the final package total', () => {
     const offerPayload: PackageQuotePayload = {
       ...payload,
@@ -809,8 +875,8 @@ describe('package quote calculator', () => {
   it('prices multiple visa types by quantity', () => {
     const mixedVisaPayload: PackageQuotePayload = {
       ...payload,
-      adults: 5,
-      childrenPaying: 1,
+      adults: 9,
+      childrenPaying: 0,
       childrenFree: 0,
       infants: 0,
       visaOptions: [
@@ -818,29 +884,52 @@ describe('package quote calculator', () => {
           id: 'gb-eta',
           title: 'GB ETA',
           summary: 'GB ETA visa',
-          price: 40,
+          price: 30,
           pricingMode: 'per_person',
-          quantity: 4,
+          quantity: 8,
+          visaPassengerCategory: 'adult',
         },
         {
           id: 'multi-entry',
           title: '1 year multiple entry',
           summary: 'Multiple entry visa with insurance',
-          price: 120,
+          price: 145,
           pricingMode: 'per_person',
-          quantity: 2,
+          quantity: 1,
+          visaPassengerCategory: 'adult',
         },
       ],
     }
 
     const [combination] = buildPackageCombinations(mixedVisaPayload)
+    const breakdown = getPackagePassengerPriceBreakdown(mixedVisaPayload, combination)
     const copy = formatPackageQuoteForCopy(mixedVisaPayload)
 
     expect(combination.visaOptions).toHaveLength(2)
-    expect(combination.grossPrice).toBe(2105)
-    expect(combination.totalPrice).toBe(2105)
-    expect(copy).toContain('4 x GB ETA visa')
-    expect(copy).toContain('2 x Multiple entry visa with insurance')
+    expect(combination.grossPrice).toBe(2090)
+    expect(combination.totalPrice).toBe(2090)
+    expect(breakdown.visaLines).toEqual([
+      {
+        category: 'adult',
+        categoryLabel: 'Adult',
+        optionId: 'gb-eta',
+        title: 'GB ETA',
+        quantity: 8,
+        unitPrice: 30,
+        total: 240,
+      },
+      {
+        category: 'adult',
+        categoryLabel: 'Adult',
+        optionId: 'multi-entry',
+        title: '1 year multiple entry',
+        quantity: 1,
+        unitPrice: 145,
+        total: 145,
+      },
+    ])
+    expect(copy).toContain('8 x Adult "GB ETA visa" - £30.00 p.p.')
+    expect(copy).toContain('1 x Adult "Multiple entry visa with insurance" - £145.00 p.p.')
   })
 
   it('adds card processing charges only when card is selected', () => {

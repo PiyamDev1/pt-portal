@@ -18,6 +18,7 @@ import type {
   PackageStayGroup,
   PackageTransportRouteKind,
   PackageTransportRouteSelection,
+  PackageVisaPassengerCategory,
   TravelPackageQuote,
   TravelPackageType,
 } from '@/app/types/packages'
@@ -35,6 +36,13 @@ const VALID_TRANSPORT_ROUTE_KINDS = new Set<PackageTransportRouteKind>([
   'transfer',
   'makkah_ziyarat',
   'madinah_ziyarat',
+])
+const VALID_VISA_PASSENGER_CATEGORIES = new Set<PackageVisaPassengerCategory>([
+  'all',
+  'adult',
+  'child_5_plus',
+  'child_2_to_4',
+  'infant',
 ])
 
 export const DEFAULT_PACKAGE_CURRENCY = 'GBP'
@@ -131,6 +139,12 @@ function normalizePricingMode(value: unknown, fallback: PackagePricingMode): Pac
   return VALID_PRICING_MODES.has(value as PackagePricingMode)
     ? (value as PackagePricingMode)
     : fallback
+}
+
+function normalizeVisaPassengerCategory(value: unknown): PackageVisaPassengerCategory {
+  return VALID_VISA_PASSENGER_CATEGORIES.has(value as PackageVisaPassengerCategory)
+    ? (value as PackageVisaPassengerCategory)
+    : 'all'
 }
 
 function normalizeDiscountMode(value: unknown, fallback: PackageDiscountMode): PackageDiscountMode {
@@ -400,6 +414,7 @@ function normalizeOption(
   const infantPrice = asNumber(candidate?.infantPrice)
   const isDefault = asBoolean(candidate?.isDefault)
   const quantity = asOptionalPositiveNumber(candidate?.quantity)
+  const visaPassengerCategory = normalizeVisaPassengerCategory(candidate?.visaPassengerCategory)
   const transportRoutes = normalizeTransportRoutes(candidate?.transportRoutes)
   const hotelAddonOptions = normalizeHotelAddonOptions(candidate?.hotelAddonOptions, id)
 
@@ -430,6 +445,7 @@ function normalizeOption(
     adultPrice,
     childPrice,
     infantPrice,
+    visaPassengerCategory,
     includesZiyarat: asBoolean(candidate?.includesZiyarat),
     includesTourGuide: asBoolean(candidate?.includesTourGuide),
     transportRoutes,
@@ -668,18 +684,51 @@ function getOptionTotal(option: PackageComponentOption | null, passengerCount: n
   return option.price * (option.pricingMode === 'per_person' ? passengerCount : 1)
 }
 
-function getVisaOptionQuantity(option: PackageComponentOption, servicePassengers: number) {
-  return option.quantity && option.quantity > 0 ? option.quantity : servicePassengers
+function getVisaPassengerCategoryCount(
+  payload: PackageQuotePayload,
+  category: PackageVisaPassengerCategory | undefined,
+) {
+  if (category === 'adult') return payload.adults
+  if (category === 'child_5_plus') return payload.childrenPaying
+  if (category === 'child_2_to_4') return payload.childrenFree
+  if (category === 'infant') return payload.infants
+  return getServicePassengerCount(payload)
+}
+
+function getVisaOptionQuantity(option: PackageComponentOption, payload: PackageQuotePayload) {
+  return option.quantity && option.quantity > 0
+    ? option.quantity
+    : getVisaPassengerCategoryCount(payload, option.visaPassengerCategory)
 }
 
 function getVisaOptionTotal(option: PackageComponentOption | null, payload: PackageQuotePayload) {
   if (!option) return 0
   if (option.pricingMode === 'total') return option.price
-  return option.price * getVisaOptionQuantity(option, getServicePassengerCount(payload))
+  return option.price * getVisaOptionQuantity(option, payload)
 }
 
 function getVisaOptionsTotal(options: PackageComponentOption[], payload: PackageQuotePayload) {
   return options.reduce((sum, option) => sum + getVisaOptionTotal(option, payload), 0)
+}
+
+function getVisaPriceBreakdownLines(options: PackageComponentOption[], payload: PackageQuotePayload) {
+  return options
+    .map((option) => {
+      const category = option.visaPassengerCategory || 'all'
+      const quantity = getVisaOptionQuantity(option, payload)
+      const total = getVisaOptionTotal(option, payload)
+      const unitPrice = quantity > 0 ? total / quantity : total
+      return {
+        category,
+        categoryLabel: getVisaPassengerCategoryLabel(category),
+        optionId: option.id,
+        title: option.title || option.summary || 'Visa',
+        quantity,
+        unitPrice,
+        total,
+      }
+    })
+    .filter((line) => line.quantity > 0 || line.total > 0)
 }
 
 function getFlightOptionTotal(option: PackageComponentOption | null, payload: PackageQuotePayload) {
@@ -1299,8 +1348,24 @@ export function getPackagePassengerPriceBreakdown(
     },
     { adult: 0, child: 0, infant: 0 },
   )
-  const visaTotal = getVisaOptionsTotal(combination.visaOptions, payload)
-  const visaUnit = servicePassengers > 0 ? visaTotal / servicePassengers : 0
+  const visaLines = getVisaPriceBreakdownLines(combination.visaOptions, payload)
+  const allVisaTotal = visaLines
+    .filter((line) => line.category === 'all')
+    .reduce((sum, line) => sum + line.total, 0)
+  const allVisaUnit = servicePassengers > 0 ? allVisaTotal / servicePassengers : 0
+  const getCategoryVisaUnit = (
+    category: PackageVisaPassengerCategory,
+    passengerCount: number,
+  ) => {
+    const categoryTotal = visaLines
+      .filter((line) => line.category === category)
+      .reduce((sum, line) => sum + line.total, 0)
+    return allVisaUnit + (passengerCount > 0 ? categoryTotal / passengerCount : 0)
+  }
+  const adultVisaUnit = getCategoryVisaUnit('adult', payload.adults)
+  const childVisaUnit = getCategoryVisaUnit('child_5_plus', payload.childrenPaying)
+  const childTwoToFourVisaUnit = getCategoryVisaUnit('child_2_to_4', payload.childrenFree)
+  const infantVisaUnit = getCategoryVisaUnit('infant', payload.infants)
   const transportUnit = getComponentPassengerUnitPrice(
     combination.transportOption,
     servicePassengers,
@@ -1313,7 +1378,7 @@ export function getPackagePassengerPriceBreakdown(
     hotelUnit +
       flightUnits.adult +
       linkedFlightUnits.adult +
-      visaUnit +
+      adultVisaUnit +
       transportUnit -
       discountUnit +
       surchargeUnit,
@@ -1323,18 +1388,18 @@ export function getPackagePassengerPriceBreakdown(
     hotelUnit +
       flightUnits.child +
       linkedFlightUnits.child +
-      visaUnit +
+      childVisaUnit +
       transportUnit -
       discountUnit +
       surchargeUnit,
   )
   const childTwoToFour = Math.max(
     0,
-    flightUnits.child + linkedFlightUnits.child + visaUnit + transportUnit,
+    flightUnits.child + linkedFlightUnits.child + childTwoToFourVisaUnit + transportUnit,
   )
   const infant = Math.max(
     0,
-    flightUnits.infant + linkedFlightUnits.infant + visaUnit + transportUnit,
+    flightUnits.infant + linkedFlightUnits.infant + infantVisaUnit + transportUnit,
   )
 
   return {
@@ -1352,6 +1417,7 @@ export function getPackagePassengerPriceBreakdown(
       childTwoToFour * payload.childrenFree +
       infant * payload.infants,
     currency: combination.currency,
+    visaLines,
   }
 }
 
@@ -1372,8 +1438,21 @@ function formatPaymentMethodLabel(method: PackagePaymentMethod) {
 }
 
 function formatVisaLine(option: PackageComponentOption, payload: PackageQuotePayload) {
-  const quantity = getVisaOptionQuantity(option, getServicePassengerCount(payload))
-  return `${quantity} x ${option.summary || option.title}`
+  const quantity = getVisaOptionQuantity(option, payload)
+  const category = getVisaPassengerCategoryLabel(option.visaPassengerCategory)
+  const unitPrice =
+    option.pricingMode === 'per_person'
+      ? ` - ${formatMoney(option.price, payload.currency)} p.p.`
+      : ` - ${formatMoney(option.price, payload.currency)} total`
+  return `${quantity} x ${category} "${option.summary || option.title}"${unitPrice}`
+}
+
+function getVisaPassengerCategoryLabel(category: PackageVisaPassengerCategory | undefined) {
+  if (category === 'adult') return 'Adult'
+  if (category === 'child_5_plus') return 'Child 5+'
+  if (category === 'child_2_to_4') return 'Child 2-4'
+  if (category === 'infant') return 'Infant'
+  return 'Traveller'
 }
 
 function formatTransportLines(option: PackageComponentOption) {
@@ -1390,6 +1469,23 @@ function formatTransportLines(option: PackageComponentOption) {
     lines.push('Makkah & Madinah Ziyarat included')
   }
   if (option.includesTourGuide) lines.push('Tour guide included')
+  return lines
+}
+
+function formatTransportAlternativeLines(
+  option: PackageComponentOption,
+  defaultTransport: PackageComponentOption,
+  payload: PackageQuotePayload,
+) {
+  const servicePassengers = getServicePassengerCount(payload)
+  const delta =
+    servicePassengers > 0
+      ? (option.price - defaultTransport.price) / servicePassengers
+      : option.price - defaultTransport.price
+  const title = option.title?.trim() || 'Alternative transport'
+  const lines = [`*${title}*`]
+  lines.push(...formatTransportLines(option))
+  lines.push(`Difference: ${formatDelta(delta, payload.currency)} p.p.`)
   return lines
 }
 
@@ -1656,13 +1752,13 @@ export function formatPackageQuoteForCopy(
     const transportAlternatives = payload.transportOptions.filter(
       (option) => option.id !== defaultTransport.id,
     )
-    for (const option of transportAlternatives) {
-      const servicePassengers = getServicePassengerCount(payload)
-      const delta =
-        servicePassengers > 0
-          ? (option.price - defaultTransport.price) / servicePassengers
-          : option.price - defaultTransport.price
-      lines.push(`- ${option.title}: ${formatDelta(delta, payload.currency)} p.p.`)
+    if (transportAlternatives.length > 0) {
+      lines.push('')
+      lines.push('****Alternative Transport Options****')
+      transportAlternatives.forEach((option, index) => {
+        if (index > 0) lines.push('')
+        lines.push(...formatTransportAlternativeLines(option, defaultTransport, payload))
+      })
     }
     lines.push('')
   }

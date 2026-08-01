@@ -21,6 +21,7 @@ import type {
   PackageQuotePayload,
   PackageResolvedSelection,
   PackageSelectionInput,
+  PackageVisaPassengerCategory,
   TravelPackageQuote,
 } from '@/app/types/packages'
 import { buildLinkedPackageGroupSnapshot, type TravelPackageGroupDetail } from '@/lib/packageGroups'
@@ -198,10 +199,32 @@ const PAYMENT_BREAKDOWN_FIELDS: Array<{
   { key: 'card', label: 'Credit Card' },
 ]
 
-function getVisaQuantity(option: { quantity?: number }, payload: PackageQuotePayload) {
+function getVisaPassengerCategoryCount(
+  option: { visaPassengerCategory?: PackageVisaPassengerCategory },
+  payload: PackageQuotePayload,
+) {
+  if (option.visaPassengerCategory === 'adult') return payload.adults
+  if (option.visaPassengerCategory === 'child_5_plus') return payload.childrenPaying
+  if (option.visaPassengerCategory === 'child_2_to_4') return payload.childrenFree
+  if (option.visaPassengerCategory === 'infant') return payload.infants
+  return payload.adults + payload.childrenPaying + payload.childrenFree + payload.infants
+}
+
+function getVisaQuantity(
+  option: { quantity?: number; visaPassengerCategory?: PackageVisaPassengerCategory },
+  payload: PackageQuotePayload,
+) {
   return option.quantity && option.quantity > 0
     ? option.quantity
-    : payload.adults + payload.childrenPaying + payload.childrenFree + payload.infants
+    : getVisaPassengerCategoryCount(option, payload)
+}
+
+function getVisaPassengerCategoryLabel(category: PackageVisaPassengerCategory | undefined) {
+  if (category === 'adult') return 'Adult'
+  if (category === 'child_5_plus') return 'Child 5+'
+  if (category === 'child_2_to_4') return 'Child 2-4'
+  if (category === 'infant') return 'Infant'
+  return 'Traveller'
 }
 
 function getPreferredOption<T extends { isDefault?: boolean }>(options: T[]) {
@@ -792,7 +815,13 @@ export default function PackageSalesModeClient({ quoteId }: PackageSalesModeClie
                         {option.summary && <SummaryText value={option.summary} />}
                       </div>
                       <p className="shrink-0 text-sm font-black text-slate-950">
-                        {getVisaQuantity(option, payload)} included
+                        {getVisaQuantity(option, payload)} x{' '}
+                        {getVisaPassengerCategoryLabel(option.visaPassengerCategory)} included
+                        {option.pricingMode === 'per_person' && (
+                          <span className="block text-right text-[11px] font-bold text-slate-500">
+                            {formatMoney(option.price, payload.currency)} pp
+                          </span>
+                        )}
                       </p>
                     </div>
                   </div>
@@ -1082,6 +1111,28 @@ export default function PackageSalesModeClient({ quoteId }: PackageSalesModeClie
                         </div>
                       </div>
                     </div>
+                    {priceBreakdown.visaLines && priceBreakdown.visaLines.length > 0 && (
+                      <div className="mt-3 border-t border-slate-200 pt-3">
+                        <p className="mb-2 text-xs font-black uppercase text-slate-500">
+                          Visa allocation
+                        </p>
+                        <div className="space-y-2 text-xs">
+                          {priceBreakdown.visaLines.map((line) => (
+                            <div
+                              key={`${line.optionId}-${line.category}`}
+                              className="flex items-start justify-between gap-3"
+                            >
+                              <span className="font-bold text-slate-600">
+                                {line.quantity} x {line.categoryLabel} "{line.title}"
+                              </span>
+                              <span className="shrink-0 text-right font-black text-slate-950">
+                                {formatMoney(line.unitPrice, priceBreakdown.currency)} pp
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
