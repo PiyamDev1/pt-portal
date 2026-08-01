@@ -9,6 +9,13 @@ export const APPLICATION_SOURCE_LABELS: Record<ApplicationSourceKey, string> = {
   visa: 'Visa',
 }
 
+export const APPLICATION_TRACKING_LABELS: Record<ApplicationSourceKey, string> = {
+  nadra: 'Tracking number',
+  pak_passport: 'Tracking number',
+  gb_passport: 'PEX reference',
+  visa: 'Internal tracking',
+}
+
 export const REPORT_MONTHS = [
   { shortLabel: 'Jan', label: 'January' },
   { shortLabel: 'Feb', label: 'February' },

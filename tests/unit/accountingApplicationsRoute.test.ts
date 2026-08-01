@@ -114,6 +114,7 @@ describe('GET /api/accounting/applications', () => {
           id: 'g-1',
           created_at: '2026-01-12T09:00:00.000Z',
           status: 'In Progress',
+          pex_number: 'PEX123456',
           age_group: 'Adult',
           service_type: 'Express',
           applicants: { first_name: 'Adam', last_name: 'Smith' },
@@ -232,9 +233,40 @@ describe('GET /api/accounting/applications', () => {
       table: 'british_passport_applications',
       op: 'select',
       args: [
-        'id, created_at, status, age_group, service_type, applicants(first_name, last_name), applications(tracking_number)',
+        'id, created_at, status, pex_number, age_group, service_type, applicants(first_name, last_name), applications(tracking_number)',
       ],
     })
+  })
+
+  it('uses the PEX reference as the GB passport tracking number', async () => {
+    mocks.tableData.british_passport_applications = {
+      data: [
+        {
+          id: 'g-pex',
+          created_at: '2026-03-12T09:00:00.000Z',
+          status: 'Submitted',
+          pex_number: 'pex987654',
+          age_group: 'Adult',
+          service_type: 'Standard',
+          applicants: { first_name: 'Ben', last_name: 'Taylor' },
+          applications: { tracking_number: 'APP-GB-001' },
+        },
+      ],
+      error: null,
+    }
+
+    const response = await GET(
+      new Request('http://localhost/api/accounting/applications?year=2026&service=gb_passport'),
+    )
+    const payload = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(section(payload, 'gb_passport').rows[0].applications).toEqual([
+      expect.objectContaining({
+        applicantName: 'Ben Taylor',
+        trackingNumber: 'PEX987654',
+      }),
+    ])
   })
 
   it('subtracts cancelled and refunded records while retaining their applicant details', async () => {

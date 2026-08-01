@@ -20,6 +20,7 @@ import type {
   ApplicationReportSection,
   ApplicationSourceKey,
 } from '@/lib/accounting/applicationReports'
+import { APPLICATION_TRACKING_LABELS } from '@/lib/accounting/applicationReports'
 
 const SERVICE_OPTIONS: Array<{ value: ApplicationSourceKey | 'all'; label: string }> = [
   { value: 'all', label: 'All applications' },
@@ -59,6 +60,7 @@ const YEAR_OPTIONS = Array.from({ length: 12 }, (_, index) => CURRENT_YEAR - ind
 
 type SelectedDetails = {
   sectionLabel: string
+  sectionSource: ApplicationSourceKey
   row: ApplicationReportRow
 }
 
@@ -117,7 +119,8 @@ function ApplicationDetailsWindow({
 
   if (!selected) return null
 
-  const { row, sectionLabel } = selected
+  const { row, sectionLabel, sectionSource } = selected
+  const trackingLabel = APPLICATION_TRACKING_LABELS[sectionSource]
   const applications = row.applications.filter((application) => {
     const appliedAt = new Date(application.appliedAt)
     return (
@@ -187,7 +190,7 @@ function ApplicationDetailsWindow({
         <div className="min-h-0 overflow-y-auto">
           <div className="hidden grid-cols-[minmax(0,1fr)_minmax(12rem,0.8fr)_8rem_8rem] gap-3 border-b border-slate-200 bg-white px-5 py-2.5 text-[10px] font-black uppercase text-slate-500 sm:grid">
             <span>Applicant</span>
-            <span>Tracking number</span>
+            <span>{trackingLabel}</span>
             <span>Applied</span>
             <span>Status</span>
           </div>
@@ -213,6 +216,9 @@ function ApplicationDetailsWindow({
                     </p>
                   </div>
                   <p className="break-all font-mono text-xs font-semibold text-slate-700">
+                    <span className="mb-1 block font-sans text-[10px] font-black uppercase text-slate-500 sm:hidden">
+                      {trackingLabel}
+                    </span>
                     {application.trackingNumber}
                   </p>
                   <p className="hidden text-xs text-slate-600 sm:block">
@@ -327,7 +333,13 @@ function SectionTable({
                       </div>
                       <button
                         type="button"
-                        onClick={() => onOpenDetails({ sectionLabel: section.label, row })}
+                        onClick={() =>
+                          onOpenDetails({
+                            sectionLabel: section.label,
+                            sectionSource: section.source,
+                            row,
+                          })
+                        }
                         disabled={monthRecorded === 0}
                         className="flex h-9 min-w-9 items-center justify-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2 text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
                         aria-label={`Expand ${row.application} applicant list`}
@@ -403,7 +415,13 @@ function SectionTable({
                       <td className="px-4 py-3 text-right">
                         <button
                           type="button"
-                          onClick={() => onOpenDetails({ sectionLabel: section.label, row })}
+                          onClick={() =>
+                            onOpenDetails({
+                              sectionLabel: section.label,
+                              sectionSource: section.source,
+                              row,
+                            })
+                          }
                           disabled={monthRecorded === 0}
                           className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
                           aria-label={`Expand ${row.application} applicant list`}

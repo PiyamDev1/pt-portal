@@ -23,6 +23,7 @@ type RawApplication = {
   is_refunded?: boolean | null
   tracking_number?: string | null
   internal_tracking_number?: string | null
+  pex_number?: string | null
   service_type?: string | null
   speed?: string | null
   category?: string | null
@@ -63,6 +64,22 @@ function deductionReason(row: RawApplication) {
   return null
 }
 
+function trackingNumberFor(
+  source: ApplicationSourceKey,
+  row: RawApplication,
+  parentApplication: { tracking_number?: string | null } | null,
+) {
+  if (source === 'visa') return cleanLabel(row.internal_tracking_number, 'Not recorded')
+  if (source === 'nadra') return cleanLabel(row.tracking_number, 'Not recorded')
+
+  if (source === 'gb_passport') {
+    const pexNumber = cleanLabel(row.pex_number, '')
+    if (pexNumber) return pexNumber.toUpperCase()
+  }
+
+  return cleanLabel(parentApplication?.tracking_number, 'Not recorded')
+}
+
 function normalizeApplication(source: ApplicationSourceKey, row: RawApplication) {
   const applicant = pickOne(row.applicants)
   const parentApplication = pickOne(row.applications)
@@ -70,18 +87,12 @@ function normalizeApplication(source: ApplicationSourceKey, row: RawApplication)
     [applicant?.first_name, applicant?.last_name].filter(Boolean).join(' '),
     'Unknown applicant',
   )
-  const trackingNumber =
-    source === 'visa'
-      ? cleanLabel(row.internal_tracking_number, 'Not recorded')
-      : source === 'nadra'
-        ? cleanLabel(row.tracking_number, 'Not recorded')
-        : cleanLabel(parentApplication?.tracking_number, 'Not recorded')
   const common = {
     id: row.id,
     source,
     appliedAt: row.created_at || '',
     applicantName,
-    trackingNumber,
+    trackingNumber: trackingNumberFor(source, row, parentApplication),
     status: cleanLabel(row.status, 'Unknown'),
     deductionReason: deductionReason(row),
   }
@@ -156,7 +167,7 @@ function createSourceQuery(
     return supabase
       .from('british_passport_applications')
       .select(
-        'id, created_at, status, age_group, service_type, applicants(first_name, last_name), applications(tracking_number)',
+        'id, created_at, status, pex_number, age_group, service_type, applicants(first_name, last_name), applications(tracking_number)',
       )
       .gte('created_at', fromIso)
       .lt('created_at', toIso)
