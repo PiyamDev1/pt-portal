@@ -559,6 +559,7 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
   const [showAccessVoucher, setShowAccessVoucher] = useState(false)
   const [showPackageGroupPanel, setShowPackageGroupPanel] = useState(false)
   const [showNewReservationForm, setShowNewReservationForm] = useState(false)
+  const [showInvoicePreview, setShowInvoicePreview] = useState(false)
   const [accessVoucherQr, setAccessVoucherQr] = useState('')
   const [accessVoucherCopyMessage, setAccessVoucherCopyMessage] = useState('')
   const [activePackageTab, setActivePackageTab] = useState<PackageWorkspaceTab>('overview')
@@ -1198,6 +1199,19 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
   const invoiceProjectedMargin =
     invoiceTotalSold - invoiceTotalBookedCost + invoiceExpectedCommission
   const invoiceCurrency = invoice?.currency || reservationCurrency
+  const invoicePreviewLines = useMemo(
+    () => (invoice?.lines || []).filter((line) => line.customer_visible),
+    [invoice?.lines],
+  )
+  const invoicePreviewDueDate = invoiceForm.dueAt
+    ? new Date(invoiceForm.dueAt).toLocaleString('en-GB', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    : 'Not set'
   const packageTabs: Array<{
     value: PackageWorkspaceTab
     label: string
@@ -4338,6 +4352,15 @@ The Piyam Travel Team`
                   />
 
                   <div className="mt-4 flex flex-wrap justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowInvoicePreview(true)}
+                      disabled={!invoice}
+                      className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300"
+                    >
+                      <Eye className="h-4 w-4" />
+                      Preview Invoice
+                    </button>
                     {invoice.released_to_customer ? (
                       <button
                         type="button"
@@ -4696,6 +4719,154 @@ The Piyam Travel Team`
                 </Link>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {showInvoicePreview && invoice && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4">
+          <div className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+            <div className="flex flex-col gap-3 border-b border-slate-200 p-5 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-xs font-bold uppercase text-slate-500">
+                  Customer invoice preview
+                </p>
+                <h3 className="mt-1 text-xl font-black text-slate-950">
+                  {invoice.invoice_number}
+                </h3>
+                <p className="mt-1 text-sm font-bold text-slate-500">
+                  Preview only. Internal costs, margin, and commission are hidden.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowInvoicePreview(false)}
+                className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg bg-slate-900 px-3 text-xs font-black text-white transition hover:bg-slate-800"
+              >
+                <X className="h-4 w-4" />
+                Close
+              </button>
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-y-auto bg-slate-100 p-4">
+              <div className="mx-auto max-w-3xl rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+                <div className="flex flex-col gap-4 border-b border-slate-200 pb-5 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <p className="text-xs font-bold uppercase text-slate-500">Bill to</p>
+                    <p className="mt-1 text-lg font-black text-slate-950">
+                      {quoteCustomerName}
+                    </p>
+                    {packageFolder.customer_email && (
+                      <p className="mt-1 text-sm font-bold text-slate-500">
+                        {packageFolder.customer_email}
+                      </p>
+                    )}
+                    {packageFolder.customer_phone && (
+                      <p className="mt-1 text-sm font-bold text-slate-500">
+                        {packageFolder.customer_phone}
+                      </p>
+                    )}
+                  </div>
+                  <div className="text-left sm:text-right">
+                    <p className="text-xs font-bold uppercase text-slate-500">Package reference</p>
+                    <p className="mt-1 text-lg font-black text-[#8b1e2d]">
+                      {packageFolder.package_reference}
+                    </p>
+                    <p className="mt-2 text-xs font-bold uppercase text-slate-500">Due</p>
+                    <p className="mt-1 text-sm font-black text-slate-950">
+                      {invoicePreviewDueDate}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-5 overflow-hidden rounded-lg border border-slate-200">
+                  <div className="grid grid-cols-[minmax(0,1fr)_7rem_8rem] gap-3 bg-slate-900 px-4 py-3 text-xs font-black uppercase text-white">
+                    <span>Description</span>
+                    <span className="text-right">Qty</span>
+                    <span className="text-right">Amount</span>
+                  </div>
+                  {invoicePreviewLines.length > 0 ? (
+                    <div className="divide-y divide-slate-100">
+                      {invoicePreviewLines.map((line) => (
+                        <div
+                          key={line.id}
+                          className="grid grid-cols-[minmax(0,1fr)_7rem_8rem] gap-3 px-4 py-3 text-sm text-slate-700"
+                        >
+                          <div className="min-w-0">
+                            <p className="font-black text-slate-950">{line.description}</p>
+                            <p className="mt-1 text-xs font-bold capitalize text-slate-500">
+                              {line.line_type}
+                            </p>
+                          </div>
+                          <p className="text-right font-bold">
+                            {Number(line.quantity || 0).toLocaleString('en-GB')}
+                          </p>
+                          <div className="text-right">
+                            <p className="font-black text-slate-950">
+                              {formatMoney(
+                                line.total_sold_price - line.discount_amount,
+                                invoiceCurrency,
+                              )}
+                            </p>
+                            {line.discount_amount > 0 && (
+                              <p className="mt-1 text-xs font-bold text-emerald-700">
+                                Discount {formatMoney(line.discount_amount, invoiceCurrency)}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="px-4 py-6 text-center text-sm font-bold text-slate-500">
+                      No customer-visible invoice lines yet.
+                    </p>
+                  )}
+                </div>
+
+                <div className="mt-5 ml-auto max-w-sm space-y-2 rounded-lg bg-slate-50 p-4">
+                  <div className="flex items-center justify-between gap-4 text-sm">
+                    <span className="font-bold text-slate-500">Subtotal</span>
+                    <span className="font-black text-slate-950">
+                      {formatMoney(invoiceSubtotalSold, invoiceCurrency)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-4 text-sm">
+                    <span className="font-bold text-slate-500">Discount</span>
+                    <span className="font-black text-emerald-700">
+                      -{formatMoney(invoiceDiscountTotal, invoiceCurrency)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-4 border-t border-slate-200 pt-2 text-base">
+                    <span className="font-black text-slate-950">Total</span>
+                    <span className="font-black text-slate-950">
+                      {formatMoney(invoiceTotalSold, invoiceCurrency)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-4 text-sm">
+                    <span className="font-bold text-slate-500">Paid</span>
+                    <span className="font-black text-slate-950">
+                      {formatMoney(invoiceTotalPaid, invoiceCurrency)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-4 rounded-lg bg-[#8b1e2d] px-3 py-2 text-base text-white">
+                    <span className="font-black">Balance due</span>
+                    <span className="font-black">
+                      {formatMoney(invoiceBalanceDue, invoiceCurrency)}
+                    </span>
+                  </div>
+                </div>
+
+                {invoiceForm.customerTerms.trim() && (
+                  <div className="mt-5 rounded-lg border border-slate-200 bg-white p-4">
+                    <p className="text-xs font-bold uppercase text-slate-500">Terms</p>
+                    <p className="mt-2 whitespace-pre-line text-sm leading-6 text-slate-700">
+                      {invoiceForm.customerTerms}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       )}
