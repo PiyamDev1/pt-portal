@@ -337,11 +337,9 @@ export interface PackagePassengerPriceBreakdown {
   infantTotal: number
   total: number
   currency: string
-  visaLines?: Array<{
+  passengerLines?: Array<{
     category: PackageVisaPassengerCategory
-    categoryLabel: string
-    optionId: string
-    title: string
+    label: string
     quantity: number
     unitPrice: number
     total: number

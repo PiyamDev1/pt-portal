@@ -489,58 +489,19 @@ function PassengerPricingRows({
 }) {
   return (
     <div className="space-y-2">
-      {breakdown.adultTotal > 0 && (
-        <div className="flex items-center justify-between gap-3">
-          <span className="font-bold text-slate-600">Adult 12+</span>
+      {(breakdown.passengerLines || []).map((line, index) => (
+        <div
+          key={`${line.category}-${line.quantity}-${line.unitPrice}-${index}`}
+          className="flex items-center justify-between gap-3"
+        >
+          <span className="font-bold text-slate-600">
+            {line.label} x {line.quantity}
+          </span>
           <span className="font-black text-slate-950">
-            {formatMoney(breakdown.adult, currency)} each
+            {formatMoney(line.unitPrice, currency)} each
           </span>
         </div>
-      )}
-      {breakdown.childTotal > 0 && (
-        <div className="flex items-center justify-between gap-3">
-          <span className="font-bold text-slate-600">Child 5+</span>
-          <span className="font-black text-slate-950">
-            {formatMoney(breakdown.child, currency)} each
-          </span>
-        </div>
-      )}
-      {breakdown.childTwoToFourTotal > 0 && (
-        <div className="flex items-center justify-between gap-3">
-          <span className="font-bold text-slate-600">Child 2-5</span>
-          <span className="font-black text-slate-950">
-            {formatMoney(breakdown.childTwoToFour, currency)} each
-          </span>
-        </div>
-      )}
-      {breakdown.infantTotal > 0 && (
-        <div className="flex items-center justify-between gap-3">
-          <span className="font-bold text-slate-600">Infant under 2</span>
-          <span className="font-black text-slate-950">
-            {formatMoney(breakdown.infant, currency)} each
-          </span>
-        </div>
-      )}
-      {breakdown.visaLines && breakdown.visaLines.length > 0 && (
-        <div className="border-t border-slate-200 pt-2">
-          <p className="mb-2 text-xs font-black uppercase text-slate-500">Visa allocation</p>
-          <div className="space-y-2">
-            {breakdown.visaLines.map((line) => (
-              <div
-                key={`${line.optionId}-${line.category}`}
-                className="flex items-start justify-between gap-3 text-xs"
-              >
-                <span className="font-bold text-slate-600">
-                  {line.quantity} x {line.categoryLabel} "{line.title}"
-                </span>
-                <span className="shrink-0 font-black text-slate-950">
-                  {formatMoney(line.unitPrice, currency)} pp
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      ))}
     </div>
   )
 }

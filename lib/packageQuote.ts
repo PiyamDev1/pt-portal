@@ -731,6 +731,70 @@ function getVisaPriceBreakdownLines(options: PackageComponentOption[], payload: 
     .filter((line) => line.quantity > 0 || line.total > 0)
 }
 
+function getPassengerPriceCategoryLabel(category: PackageVisaPassengerCategory) {
+  if (category === 'adult') return 'Adult 12+'
+  if (category === 'child_5_plus') return 'Child 5+'
+  if (category === 'child_2_to_4') return 'Child 2-4'
+  if (category === 'infant') return 'Infant under 2'
+  return 'Traveller'
+}
+
+function getPassengerPriceLinesForCategory({
+  category,
+  passengerCount,
+  baseUnitPrice,
+  visaLines,
+}: {
+  category: PackageVisaPassengerCategory
+  passengerCount: number
+  baseUnitPrice: number
+  visaLines: ReturnType<typeof getVisaPriceBreakdownLines>
+}) {
+  if (passengerCount <= 0) return []
+
+  const categoryVisaLines = visaLines.filter((line) => line.category === category)
+  if (categoryVisaLines.length === 0) {
+    const unitPrice = Math.max(0, baseUnitPrice)
+    return [
+      {
+        category,
+        label: getPassengerPriceCategoryLabel(category),
+        quantity: passengerCount,
+        unitPrice,
+        total: unitPrice * passengerCount,
+      },
+    ]
+  }
+
+  const allocatedQuantity = categoryVisaLines.reduce((sum, line) => sum + line.quantity, 0)
+  const lines = categoryVisaLines
+    .filter((line) => line.quantity > 0)
+    .map((line) => {
+      const unitPrice = Math.max(0, baseUnitPrice + line.unitPrice)
+      return {
+        category,
+        label: getPassengerPriceCategoryLabel(category),
+        quantity: line.quantity,
+        unitPrice,
+        total: unitPrice * line.quantity,
+      }
+    })
+
+  const remainingQuantity = Math.max(0, passengerCount - allocatedQuantity)
+  if (remainingQuantity > 0) {
+    const unitPrice = Math.max(0, baseUnitPrice)
+    lines.push({
+      category,
+      label: getPassengerPriceCategoryLabel(category),
+      quantity: remainingQuantity,
+      unitPrice,
+      total: unitPrice * remainingQuantity,
+    })
+  }
+
+  return lines
+}
+
 function getFlightOptionTotal(option: PackageComponentOption | null, payload: PackageQuotePayload) {
   if (!option) return 0
   if (!hasTieredFlightPricing(option)) {
@@ -1353,19 +1417,6 @@ export function getPackagePassengerPriceBreakdown(
     .filter((line) => line.category === 'all')
     .reduce((sum, line) => sum + line.total, 0)
   const allVisaUnit = servicePassengers > 0 ? allVisaTotal / servicePassengers : 0
-  const getCategoryVisaUnit = (
-    category: PackageVisaPassengerCategory,
-    passengerCount: number,
-  ) => {
-    const categoryTotal = visaLines
-      .filter((line) => line.category === category)
-      .reduce((sum, line) => sum + line.total, 0)
-    return allVisaUnit + (passengerCount > 0 ? categoryTotal / passengerCount : 0)
-  }
-  const adultVisaUnit = getCategoryVisaUnit('adult', payload.adults)
-  const childVisaUnit = getCategoryVisaUnit('child_5_plus', payload.childrenPaying)
-  const childTwoToFourVisaUnit = getCategoryVisaUnit('child_2_to_4', payload.childrenFree)
-  const infantVisaUnit = getCategoryVisaUnit('infant', payload.infants)
   const transportUnit = getComponentPassengerUnitPrice(
     combination.transportOption,
     servicePassengers,
@@ -1373,52 +1424,128 @@ export function getPackagePassengerPriceBreakdown(
   const discountUnit = payingGuests > 0 ? combination.offerDiscountTotal / payingGuests : 0
   const surchargeUnit = payingGuests > 0 ? combination.paymentSurchargeTotal / payingGuests : 0
 
-  const adult = Math.max(
-    0,
+  const adultBase =
     hotelUnit +
-      flightUnits.adult +
-      linkedFlightUnits.adult +
-      adultVisaUnit +
-      transportUnit -
-      discountUnit +
-      surchargeUnit,
-  )
-  const child = Math.max(
-    0,
+    flightUnits.adult +
+    linkedFlightUnits.adult +
+    allVisaUnit +
+    transportUnit -
+    discountUnit +
+    surchargeUnit
+  const childBase =
     hotelUnit +
-      flightUnits.child +
-      linkedFlightUnits.child +
-      childVisaUnit +
-      transportUnit -
-      discountUnit +
-      surchargeUnit,
-  )
-  const childTwoToFour = Math.max(
-    0,
-    flightUnits.child + linkedFlightUnits.child + childTwoToFourVisaUnit + transportUnit,
-  )
-  const infant = Math.max(
-    0,
-    flightUnits.infant + linkedFlightUnits.infant + infantVisaUnit + transportUnit,
-  )
+    flightUnits.child +
+    linkedFlightUnits.child +
+    allVisaUnit +
+    transportUnit -
+    discountUnit +
+    surchargeUnit
+  const childTwoToFourBase =
+    flightUnits.child + linkedFlightUnits.child + allVisaUnit + transportUnit
+  const infantBase = flightUnits.infant + linkedFlightUnits.infant + allVisaUnit + transportUnit
+
+  const passengerLines = [
+    ...getPassengerPriceLinesForCategory({
+      category: 'adult',
+      passengerCount: payload.adults,
+      baseUnitPrice: adultBase,
+      visaLines,
+    }),
+    ...getPassengerPriceLinesForCategory({
+      category: 'child_5_plus',
+      passengerCount: payload.childrenPaying,
+      baseUnitPrice: childBase,
+      visaLines,
+    }),
+    ...getPassengerPriceLinesForCategory({
+      category: 'child_2_to_4',
+      passengerCount: payload.childrenFree,
+      baseUnitPrice: childTwoToFourBase,
+      visaLines,
+    }),
+    ...getPassengerPriceLinesForCategory({
+      category: 'infant',
+      passengerCount: payload.infants,
+      baseUnitPrice: infantBase,
+      visaLines,
+    }),
+  ]
+  const getCategoryTotal = (category: PackageVisaPassengerCategory) =>
+    passengerLines
+      .filter((line) => line.category === category)
+      .reduce((sum, line) => sum + line.total, 0)
+  const adultTotal = getCategoryTotal('adult')
+  const childTotal = getCategoryTotal('child_5_plus')
+  const childTwoToFourTotal = getCategoryTotal('child_2_to_4')
+  const infantTotal = getCategoryTotal('infant')
+  const adult = payload.adults > 0 ? adultTotal / payload.adults : 0
+  const child = payload.childrenPaying > 0 ? childTotal / payload.childrenPaying : 0
+  const childTwoToFour =
+    payload.childrenFree > 0 ? childTwoToFourTotal / payload.childrenFree : 0
+  const infant = payload.infants > 0 ? infantTotal / payload.infants : 0
+  const total = passengerLines.reduce((sum, line) => sum + line.total, 0)
 
   return {
     adult,
     child,
     childTwoToFour,
     infant,
-    adultTotal: adult * payload.adults,
-    childTotal: child * payload.childrenPaying,
-    childTwoToFourTotal: childTwoToFour * payload.childrenFree,
-    infantTotal: infant * payload.infants,
-    total:
-      adult * payload.adults +
-      child * payload.childrenPaying +
-      childTwoToFour * payload.childrenFree +
-      infant * payload.infants,
+    adultTotal,
+    childTotal,
+    childTwoToFourTotal,
+    infantTotal,
+    total,
     currency: combination.currency,
-    visaLines,
+    passengerLines,
   }
+}
+
+function getPassengerPriceDisplayLines(breakdown: PackagePassengerPriceBreakdown) {
+  if (breakdown.passengerLines && breakdown.passengerLines.length > 0) {
+    return breakdown.passengerLines
+  }
+
+  return [
+    {
+      category: 'adult' as PackageVisaPassengerCategory,
+      label: getPassengerPriceCategoryLabel('adult'),
+      quantity: breakdown.adult > 0 ? 1 : 0,
+      unitPrice: breakdown.adult,
+      total: breakdown.adultTotal,
+    },
+    {
+      category: 'child_5_plus' as PackageVisaPassengerCategory,
+      label: getPassengerPriceCategoryLabel('child_5_plus'),
+      quantity: breakdown.child > 0 ? 1 : 0,
+      unitPrice: breakdown.child,
+      total: breakdown.childTotal,
+    },
+    {
+      category: 'child_2_to_4' as PackageVisaPassengerCategory,
+      label: getPassengerPriceCategoryLabel('child_2_to_4'),
+      quantity: breakdown.childTwoToFour > 0 ? 1 : 0,
+      unitPrice: breakdown.childTwoToFour,
+      total: breakdown.childTwoToFourTotal,
+    },
+    {
+      category: 'infant' as PackageVisaPassengerCategory,
+      label: getPassengerPriceCategoryLabel('infant'),
+      quantity: breakdown.infant > 0 ? 1 : 0,
+      unitPrice: breakdown.infant,
+      total: breakdown.infantTotal,
+    },
+  ].filter((line) => line.quantity > 0 && line.total > 0)
+}
+
+function pushPassengerPriceCopyLines(
+  lines: string[],
+  breakdown: PackagePassengerPriceBreakdown,
+) {
+  getPassengerPriceDisplayLines(breakdown).forEach((line) => {
+    lines.push(
+      `${line.quantity} x ${line.label}: ${formatMoney(line.unitPrice, breakdown.currency)} p.p.`,
+    )
+  })
 }
 
 function formatDelta(value: number, currency: string) {
@@ -1440,11 +1567,7 @@ function formatPaymentMethodLabel(method: PackagePaymentMethod) {
 function formatVisaLine(option: PackageComponentOption, payload: PackageQuotePayload) {
   const quantity = getVisaOptionQuantity(option, payload)
   const category = getVisaPassengerCategoryLabel(option.visaPassengerCategory)
-  const unitPrice =
-    option.pricingMode === 'per_person'
-      ? ` - ${formatMoney(option.price, payload.currency)} p.p.`
-      : ` - ${formatMoney(option.price, payload.currency)} total`
-  return `${quantity} x ${category} "${option.summary || option.title}"${unitPrice}`
+  return `${quantity} x ${category} "${option.summary || option.title}"`
 }
 
 function getVisaPassengerCategoryLabel(category: PackageVisaPassengerCategory | undefined) {
@@ -1639,16 +1762,7 @@ export function formatPackageCombinationForCopy(
     )
   }
   const breakdown = getPackagePassengerPriceBreakdown(payload, combination)
-  lines.push(`Adult 12+: ${formatMoney(breakdown.adult, breakdown.currency)} p.p.`)
-  if (payload.childrenPaying > 0) {
-    lines.push(`Child 5+: ${formatMoney(breakdown.child, breakdown.currency)} p.p.`)
-  }
-  if (payload.childrenFree > 0) {
-    lines.push(`Child 2-5: ${formatMoney(breakdown.childTwoToFour, breakdown.currency)} p.p.`)
-  }
-  if (payload.infants > 0) {
-    lines.push(`Infant under 2: ${formatMoney(breakdown.infant, breakdown.currency)} p.p.`)
-  }
+  pushPassengerPriceCopyLines(lines, breakdown)
   lines.push(`*Total Package Cost: ${formatMoney(combination.totalPrice, combination.currency)}*`)
 
   return lines.join('\n').trim()
@@ -1782,16 +1896,7 @@ export function formatPackageQuoteForCopy(
       lines.push('')
     }
     const breakdown = getPackagePassengerPriceBreakdown(payload, combination)
-    lines.push(`Adult 12+: ${formatMoney(breakdown.adult, breakdown.currency)} p.p.`)
-    if (payload.childrenPaying > 0) {
-      lines.push(`Child 5+: ${formatMoney(breakdown.child, breakdown.currency)} p.p.`)
-    }
-    if (payload.childrenFree > 0) {
-      lines.push(`Child 2-4: ${formatMoney(breakdown.childTwoToFour, breakdown.currency)} p.p.`)
-    }
-    if (payload.infants > 0) {
-      lines.push(`Infant 0-2: ${formatMoney(breakdown.infant, breakdown.currency)} p.p.`)
-    }
+    pushPassengerPriceCopyLines(lines, breakdown)
     if (index === 0 && payload.depositRequired && (payload.depositAmount || 0) > 0) {
       lines.push(
         `Deposit required to secure: ${formatMoney(payload.depositAmount || 0, payload.currency)}`,

@@ -841,7 +841,7 @@ describe('package quote calculator', () => {
     expect(copy).toContain('----------------------------')
     expect(copy).toContain('Adult 12+:')
     expect(copy).toContain('Child 5+:')
-    expect(copy).toContain('Infant 0-2:')
+    expect(copy).toContain('Infant under 2:')
     expect(copy).not.toContain('Total Package Cost')
   })
 
@@ -908,28 +908,25 @@ describe('package quote calculator', () => {
     expect(combination.visaOptions).toHaveLength(2)
     expect(combination.grossPrice).toBe(2090)
     expect(combination.totalPrice).toBe(2090)
-    expect(breakdown.visaLines).toEqual([
-      {
-        category: 'adult',
-        categoryLabel: 'Adult',
-        optionId: 'gb-eta',
-        title: 'GB ETA',
-        quantity: 8,
-        unitPrice: 30,
-        total: 240,
-      },
-      {
-        category: 'adult',
-        categoryLabel: 'Adult',
-        optionId: 'multi-entry',
-        title: '1 year multiple entry',
-        quantity: 1,
-        unitPrice: 145,
-        total: 145,
-      },
-    ])
-    expect(copy).toContain('8 x Adult "GB ETA visa" - £30.00 p.p.')
-    expect(copy).toContain('1 x Adult "Multiple entry visa with insurance" - £145.00 p.p.')
+    expect(breakdown.passengerLines).toHaveLength(2)
+    expect(breakdown.passengerLines?.[0]).toMatchObject({
+      category: 'adult',
+      label: 'Adult 12+',
+      quantity: 8,
+    })
+    expect(breakdown.passengerLines?.[0].unitPrice).toBeCloseTo(219.44, 2)
+    expect(breakdown.passengerLines?.[0].total).toBeCloseTo(1755.56, 2)
+    expect(breakdown.passengerLines?.[1]).toMatchObject({
+      category: 'adult',
+      label: 'Adult 12+',
+      quantity: 1,
+    })
+    expect(breakdown.passengerLines?.[1].unitPrice).toBeCloseTo(334.44, 2)
+    expect(breakdown.passengerLines?.[1].total).toBeCloseTo(334.44, 2)
+    expect(copy).toContain('8 x Adult 12+: £219.44 p.p.')
+    expect(copy).toContain('1 x Adult 12+: £334.44 p.p.')
+    expect(copy).not.toContain('£30.00 p.p.')
+    expect(copy).not.toContain('£145.00 p.p.')
   })
 
   it('adds card processing charges only when card is selected', () => {

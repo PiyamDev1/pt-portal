@@ -1049,59 +1049,22 @@ export default function PackageSalesModeClient({ quoteId }: PackageSalesModeClie
                       Passenger pricing
                     </p>
                     <div className="space-y-2 text-sm">
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="font-bold text-slate-600">
-                          Adult 12+ x {payload.adults}
-                        </span>
-                        <span className="text-right font-black text-slate-950">
-                          {formatMoney(priceBreakdown.adult, priceBreakdown.currency)} pp
-                          <span className="block text-[11px] text-slate-500">
-                            {formatMoney(priceBreakdown.adultTotal, priceBreakdown.currency)}
-                          </span>
-                        </span>
-                      </div>
-                      {payload.childrenPaying > 0 && (
-                        <div className="flex items-center justify-between gap-3">
+                      {(priceBreakdown.passengerLines || []).map((line, index) => (
+                        <div
+                          key={`${line.category}-${line.quantity}-${line.unitPrice}-${index}`}
+                          className="flex items-center justify-between gap-3"
+                        >
                           <span className="font-bold text-slate-600">
-                            Child 5+ x {payload.childrenPaying}
+                            {line.label} x {line.quantity}
                           </span>
                           <span className="text-right font-black text-slate-950">
-                            {formatMoney(priceBreakdown.child, priceBreakdown.currency)} pp
+                            {formatMoney(line.unitPrice, priceBreakdown.currency)} pp
                             <span className="block text-[11px] text-slate-500">
-                              {formatMoney(priceBreakdown.childTotal, priceBreakdown.currency)}
+                              {formatMoney(line.total, priceBreakdown.currency)}
                             </span>
                           </span>
                         </div>
-                      )}
-                      {payload.childrenFree > 0 && (
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="font-bold text-slate-600">
-                            Child 2-5 x {payload.childrenFree}
-                          </span>
-                          <span className="text-right font-black text-slate-950">
-                            {formatMoney(priceBreakdown.childTwoToFour, priceBreakdown.currency)} pp
-                            <span className="block text-[11px] text-slate-500">
-                              {formatMoney(
-                                priceBreakdown.childTwoToFourTotal,
-                                priceBreakdown.currency,
-                              )}
-                            </span>
-                          </span>
-                        </div>
-                      )}
-                      {payload.infants > 0 && (
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="font-bold text-slate-600">
-                            Infant under 2 x {payload.infants}
-                          </span>
-                          <span className="text-right font-black text-slate-950">
-                            {formatMoney(priceBreakdown.infant, priceBreakdown.currency)} pp
-                            <span className="block text-[11px] text-slate-500">
-                              {formatMoney(priceBreakdown.infantTotal, priceBreakdown.currency)}
-                            </span>
-                          </span>
-                        </div>
-                      )}
+                      ))}
                       <div className="border-t border-slate-200 pt-2">
                         <div className="flex items-center justify-between gap-3">
                           <span className="font-black text-slate-950">Passenger line total</span>
@@ -1111,28 +1074,6 @@ export default function PackageSalesModeClient({ quoteId }: PackageSalesModeClie
                         </div>
                       </div>
                     </div>
-                    {priceBreakdown.visaLines && priceBreakdown.visaLines.length > 0 && (
-                      <div className="mt-3 border-t border-slate-200 pt-3">
-                        <p className="mb-2 text-xs font-black uppercase text-slate-500">
-                          Visa allocation
-                        </p>
-                        <div className="space-y-2 text-xs">
-                          {priceBreakdown.visaLines.map((line) => (
-                            <div
-                              key={`${line.optionId}-${line.category}`}
-                              className="flex items-start justify-between gap-3"
-                            >
-                              <span className="font-bold text-slate-600">
-                                {line.quantity} x {line.categoryLabel} "{line.title}"
-                              </span>
-                              <span className="shrink-0 text-right font-black text-slate-950">
-                                {formatMoney(line.unitPrice, priceBreakdown.currency)} pp
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
                   </div>
                 )}
 
