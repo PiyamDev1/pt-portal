@@ -30,6 +30,30 @@ function hasBodyKey(body: Record<string, unknown>, key: string) {
   return Object.prototype.hasOwnProperty.call(body, key)
 }
 
+function mergeDocumentMetadata(
+  currentMetadata: unknown,
+  nextMetadata: unknown,
+): Record<string, unknown> {
+  const current =
+    currentMetadata && typeof currentMetadata === 'object' && !Array.isArray(currentMetadata)
+      ? { ...(currentMetadata as Record<string, unknown>) }
+      : {}
+  const next =
+    nextMetadata && typeof nextMetadata === 'object' && !Array.isArray(nextMetadata)
+      ? (nextMetadata as Record<string, unknown>)
+      : {}
+
+  for (const [key, value] of Object.entries(next)) {
+    if (value === null) {
+      delete current[key]
+    } else {
+      current[key] = value
+    }
+  }
+
+  return current
+}
+
 async function syncDocumentReleaseStatus(
   supabase: Awaited<ReturnType<typeof getRouteSupabaseClient>>,
   packageId: string,
@@ -76,7 +100,7 @@ export async function PATCH(
 
   const { data: currentDocument } = await supabase
     .from('travel_package_documents')
-    .select('id, category')
+    .select('id, category, metadata')
     .eq('id', documentId)
     .eq('package_id', id)
     .single()
@@ -115,6 +139,13 @@ export async function PATCH(
 
   if (hasBodyKey(body, 'internalNotes')) {
     updatePayload.internal_notes = cleanText(body.internalNotes) || null
+  }
+
+  if (hasBodyKey(body, 'metadata')) {
+    updatePayload.metadata = mergeDocumentMetadata(
+      (currentDocument as { metadata?: Record<string, unknown> }).metadata,
+      body.metadata,
+    )
   }
 
   if (hasBodyKey(body, 'customerVisible')) {

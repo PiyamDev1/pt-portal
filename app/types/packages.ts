@@ -573,6 +573,32 @@ export interface TravelPackageDocument {
   signed_url?: string
 }
 
+export interface TravelPackageThirdPartyDocumentShare {
+  id: string
+  package_id: string
+  created_by: string | null
+  updated_by: string | null
+  label: string
+  recipient_name: string | null
+  purpose: string | null
+  status: 'active' | 'revoked' | 'expired'
+  access_code_hint: string
+  allowed_categories: TravelPackageDocumentCategory[]
+  expires_at: string
+  terms_text: string
+  terms_accepted_at: string | null
+  terms_accepted_by: string | null
+  last_accessed_at: string | null
+  last_access_ip_hash: string | null
+  failed_access_count: number
+  last_failed_at: string | null
+  revoked_at: string | null
+  revoked_by: string | null
+  metadata: Record<string, unknown>
+  created_at: string
+  updated_at: string | null
+}
+
 export interface TravelPackageReservationItem {
   id: string
   reservation_id: string

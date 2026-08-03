@@ -104,6 +104,20 @@ function cleanText(value: unknown) {
   return typeof value === 'string' ? value.trim() : ''
 }
 
+function parseDocumentMetadata(value: unknown) {
+  const rawMetadata = cleanText(value)
+  if (!rawMetadata) return {}
+
+  try {
+    const parsed = JSON.parse(rawMetadata) as unknown
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : {}
+  } catch {
+    return {}
+  }
+}
+
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -170,6 +184,7 @@ export async function POST(
   const publicNotes = cleanText(formData.get('publicNotes')) || null
   const internalNotes = cleanText(formData.get('internalNotes')) || null
   const reservationId = cleanText(formData.get('reservationId')) || null
+  const documentMetadata = parseDocumentMetadata(formData.get('metadata'))
   const packageData = packageFolder as PackageLookup
   const bucket = packageData.minio_bucket || getPackageMinioBucketName()
   const prefix = packageData.minio_prefix || `${packageData.package_reference}/`
@@ -182,7 +197,7 @@ export async function POST(
   const arrayBuffer = await file.arrayBuffer()
   const body = Buffer.from(arrayBuffer)
   let etag = ''
-  const metadata: Record<string, unknown> = {}
+  const metadata: Record<string, unknown> = { ...documentMetadata }
 
   try {
     const putResult = await getS3Client().send(

@@ -136,7 +136,7 @@ const PACKAGE_TYPES: Array<{ value: TravelPackageType; label: string }> = [
   { value: 'holiday', label: 'Holiday' },
 ]
 
-type QuoteFilter = 'all' | 'live' | 'draft' | 'selected' | 'expired'
+type QuoteFilter = 'all' | 'live' | 'draft' | 'selected' | 'expired' | 'bin'
 
 const QUOTE_FILTERS: Array<{ value: QuoteFilter; label: string }> = [
   { value: 'all', label: 'All' },
@@ -144,13 +144,38 @@ const QUOTE_FILTERS: Array<{ value: QuoteFilter; label: string }> = [
   { value: 'draft', label: 'Drafts' },
   { value: 'selected', label: 'Selected' },
   { value: 'expired', label: 'Expired' },
+  { value: 'bin', label: 'Bin' },
 ]
+
+const EXPIRED_QUOTE_BIN_AFTER_DAYS = 10
+const MS_PER_DAY = 24 * 60 * 60 * 1000
+
+type QuoteTableRow =
+  | { type: 'quote'; id: string; createdAt: string; quote: TravelPackageQuote }
+  | { type: 'group'; id: string; createdAt: string; group: TravelPackageGroup }
 
 function makeId(prefix: string) {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
     return `${prefix}-${crypto.randomUUID().slice(0, 8)}`
   }
   return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1000)}`
+}
+
+function getTimestamp(value: string | null | undefined) {
+  if (!value) return 0
+  const time = new Date(value).getTime()
+  return Number.isFinite(time) ? time : 0
+}
+
+function shouldMoveExpiredQuoteToBin(quote: TravelPackageQuote) {
+  if (quote.status === 'archived' || !isPackageQuoteExpired(quote.expires_at)) return false
+  const expiresAt = getTimestamp(quote.expires_at)
+  if (!expiresAt) return false
+  return Date.now() - expiresAt >= EXPIRED_QUOTE_BIN_AFTER_DAYS * MS_PER_DAY
+}
+
+function getQuoteLinkedGroupId(quote: TravelPackageQuote) {
+  return normalizePackageQuotePayload(quote.payload).linkedPackageGroup?.groupId || null
 }
 
 function normalizeSearchText(value: string) {
@@ -1605,9 +1630,17 @@ export default function PackagesClient({
     return servicePassengerCount
   }
   const shareUrl = buildShareUrl(activeQuote?.share_token)
+  const activeQuotes = useMemo(
+    () => quotes.filter((quote) => quote.status !== 'archived'),
+    [quotes],
+  )
+  const binnedQuotes = useMemo(
+    () => quotes.filter((quote) => quote.status === 'archived'),
+    [quotes],
+  )
   const filteredQuotes = useMemo(() => {
     if (quoteFilter === 'live') {
-      return quotes.filter(
+      return activeQuotes.filter(
         (quote) =>
           quote.share_enabled &&
           quote.status === 'shared' &&
@@ -1615,16 +1648,50 @@ export default function PackagesClient({
       )
     }
     if (quoteFilter === 'draft') {
-      return quotes.filter((quote) => quote.status === 'draft' || !quote.share_enabled)
+      return activeQuotes.filter((quote) => quote.status === 'draft' || !quote.share_enabled)
     }
     if (quoteFilter === 'selected') {
-      return quotes.filter((quote) => Boolean(quote.selected_at))
+      return activeQuotes.filter((quote) => Boolean(quote.selected_at))
     }
     if (quoteFilter === 'expired') {
-      return quotes.filter((quote) => isPackageQuoteExpired(quote.expires_at))
+      return activeQuotes.filter((quote) => isPackageQuoteExpired(quote.expires_at))
     }
-    return quotes
-  }, [quoteFilter, quotes])
+    if (quoteFilter === 'bin') {
+      return binnedQuotes
+    }
+    const visibleGroupIds = new Set(
+      packageGroups
+        .filter((group) => group.status !== 'archived')
+        .map((group) => group.id),
+    )
+    return activeQuotes.filter((quote) => {
+      const groupId = getQuoteLinkedGroupId(quote)
+      return !groupId || !visibleGroupIds.has(groupId)
+    })
+  }, [activeQuotes, binnedQuotes, packageGroups, quoteFilter])
+  const quoteTableRows = useMemo<QuoteTableRow[]>(() => {
+    const quoteRows: QuoteTableRow[] = filteredQuotes.map((quote) => ({
+      type: 'quote',
+      id: quote.id,
+      createdAt: quote.created_at,
+      quote,
+    }))
+    const groupRows: QuoteTableRow[] =
+      quoteFilter === 'all'
+        ? packageGroups
+            .filter((group) => group.status !== 'archived')
+            .map((group) => ({
+              type: 'group',
+              id: group.id,
+              createdAt: group.created_at,
+              group,
+            }))
+        : []
+
+    return [...quoteRows, ...groupRows].sort(
+      (a, b) => getTimestamp(b.createdAt) - getTimestamp(a.createdAt),
+    )
+  }, [filteredQuotes, packageGroups, quoteFilter])
   const filteredPackageGroups = useMemo(() => {
     const search = packageGroupSearch.trim().toLowerCase()
     if (!search) return packageGroups
@@ -1745,11 +1812,41 @@ export default function PackagesClient({
   const loadQuotes = useCallback(async () => {
     setLoading(true)
     try {
-      const response = await fetch('/api/packages')
-      const data = (await response.json()) as PackagesResponse
-      if (!response.ok)
-        throw new Error((data as { error?: string }).error || 'Failed to load packages')
-      const loadedQuotes = data.packages || []
+      const [activeResponse, binnedResponse] = await Promise.all([
+        fetch('/api/packages'),
+        fetch('/api/packages?status=archived'),
+      ])
+      const activeData = (await activeResponse.json()) as PackagesResponse
+      const binnedData = (await binnedResponse.json()) as PackagesResponse
+      if (!activeResponse.ok)
+        throw new Error((activeData as { error?: string }).error || 'Failed to load packages')
+      if (!binnedResponse.ok)
+        throw new Error((binnedData as { error?: string }).error || 'Failed to load binned packages')
+
+      const activeLoadedQuotes = activeData.packages || []
+      const staleExpiredQuotes = activeLoadedQuotes.filter(shouldMoveExpiredQuoteToBin)
+      const movedQuotes = await Promise.all(
+        staleExpiredQuotes.map(async (quote) => {
+          const response = await fetch(`/api/packages/${quote.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: 'archived', shareEnabled: false }),
+          })
+          const data = (await response.json()) as SaveResponse
+          if (!response.ok || data.setupRequired || !data.quote) return null
+          return data.quote
+        }),
+      )
+      const movedQuoteIds = new Set(
+        movedQuotes
+          .map((quote) => quote?.id)
+          .filter((quoteId): quoteId is string => Boolean(quoteId)),
+      )
+      const loadedQuotes = [
+        ...activeLoadedQuotes.filter((quote) => !movedQuoteIds.has(quote.id)),
+        ...(binnedData.packages || []),
+        ...movedQuotes.filter((quote): quote is TravelPackageQuote => Boolean(quote)),
+      ].sort((a, b) => getTimestamp(b.created_at) - getTimestamp(a.created_at))
       setQuotes(loadedQuotes)
       if (initialQuoteId) {
         const initialQuote = loadedQuotes.find((quote) => quote.id === initialQuoteId)
@@ -1760,7 +1857,9 @@ export default function PackagesClient({
         }
       }
       setSetupMessage(
-        data.setupRequired ? data.message || 'Package quote schema is required.' : null,
+        activeData.setupRequired || binnedData.setupRequired
+          ? activeData.message || binnedData.message || 'Package quote schema is required.'
+          : null,
       )
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to load packages')
@@ -3652,11 +3751,11 @@ export default function PackagesClient({
             <SectionHeader icon={PackageCheck} title="Recent quotes" />
             {loading ? (
               <p className="text-sm text-slate-500">Loading quotes...</p>
-            ) : quotes.length === 0 ? (
+            ) : activeQuotes.length === 0 ? (
               <p className="text-sm text-slate-500">No saved package quotes yet.</p>
             ) : (
               <div className="space-y-2">
-                {quotes.slice(0, 12).map((quote) => (
+                {activeQuotes.slice(0, 12).map((quote) => (
                   <button
                     key={quote.id}
                     type="button"
@@ -3727,7 +3826,7 @@ export default function PackagesClient({
 
         {loading ? (
           <p className="mt-3 text-sm text-slate-500">Loading package quotes...</p>
-        ) : filteredQuotes.length === 0 ? (
+        ) : quoteTableRows.length === 0 ? (
           <div className="mt-3 rounded-lg border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">
             No package quotes match this view.
           </div>
@@ -3747,9 +3846,73 @@ export default function PackagesClient({
                 </tr>
               </thead>
               <tbody>
-                {filteredQuotes.map((quote) => {
+                {quoteTableRows.map((row) => {
+                  if (row.type === 'group') {
+                    const { group } = row
+                    return (
+                      <tr
+                        key={`group-${group.id}`}
+                        className="align-top bg-cyan-50/40 hover:bg-cyan-50"
+                      >
+                        <td className="border-b border-slate-100 px-3 py-3">
+                          <p className="max-w-[16rem] truncate font-black text-slate-950">
+                            {group.title}
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            Group quote · {new Date(group.created_at).toLocaleDateString('en-GB')}
+                          </p>
+                        </td>
+                        <td className="border-b border-slate-100 px-3 py-3">
+                          <p className="font-bold text-cyan-900">{group.group_reference}</p>
+                          <p className="text-xs text-slate-500">Linked package group</p>
+                        </td>
+                        <td className="border-b border-slate-100 px-3 py-3">
+                          <span className="inline-flex rounded-lg bg-cyan-100 px-2 py-1 text-xs font-black text-cyan-800">
+                            {group.status}
+                          </span>
+                        </td>
+                        <td className="border-b border-slate-100 px-3 py-3">
+                          <span className="text-xs font-bold text-slate-400">Not applicable</span>
+                        </td>
+                        <td className="border-b border-slate-100 px-3 py-3">
+                          <p className="text-xs font-bold text-slate-700">
+                            {new Date(group.created_at).toLocaleString('en-GB')}
+                          </p>
+                        </td>
+                        <td className="border-b border-slate-100 px-3 py-3">
+                          <span className="text-xs font-bold text-cyan-800">
+                            Linked families
+                          </span>
+                        </td>
+                        <td className="border-b border-slate-100 px-3 py-3">
+                          <span className="text-xs font-bold text-slate-500">
+                            Managed as group
+                          </span>
+                        </td>
+                        <td className="border-b border-slate-100 px-3 py-3">
+                          <div className="flex justify-end">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPackageGroupExpanded(true)
+                                setSelectedGroupId(group.id)
+                                void loadPackageGroupDetail(group.id, false)
+                              }}
+                              className="flex h-9 w-9 items-center justify-center rounded-lg border border-cyan-200 bg-white text-cyan-900 transition hover:bg-cyan-100"
+                              title="Open linked package group"
+                            >
+                              <Link2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  }
+
+                  const { quote } = row
                   const startingPrice = getQuoteStartingPrice(quote)
                   const expired = isPackageQuoteExpired(quote.expires_at)
+                  const binned = quote.status === 'archived'
                   const live = quote.share_enabled && quote.status === 'shared' && !expired
                   const quoteShareUrl = buildShareUrl(quote.share_token)
 
@@ -3780,7 +3943,9 @@ export default function PackagesClient({
                       <td className="border-b border-slate-100 px-3 py-3">
                         <span
                           className={`inline-flex rounded-lg px-2 py-1 text-xs font-black ${
-                            expired
+                            binned
+                              ? 'bg-slate-100 text-slate-600'
+                              : expired
                               ? 'bg-red-50 text-red-700'
                               : live
                                 ? 'bg-emerald-50 text-emerald-700'
@@ -3789,7 +3954,7 @@ export default function PackagesClient({
                                   : 'bg-slate-100 text-slate-600'
                           }`}
                         >
-                          {expired ? 'Expired' : live ? 'Live' : quote.status}
+                          {binned ? 'Bin' : expired ? 'Expired' : live ? 'Live' : quote.status}
                         </span>
                       </td>
                       <td className="border-b border-slate-100 px-3 py-3">
@@ -3800,7 +3965,7 @@ export default function PackagesClient({
                         </p>
                         {quote.share_enabled && (
                           <p className="mt-1 text-[11px] text-slate-500">
-                            {expired ? 'Link closed' : 'Link open'}
+                            {binned ? 'Moved to bin' : expired ? 'Link closed' : 'Link open'}
                           </p>
                         )}
                       </td>

@@ -18,6 +18,7 @@ import {
   Download,
   Eye,
   EyeOff,
+  FileImage,
   FileText,
   FolderOpen,
   Link2,
@@ -50,11 +51,14 @@ import type {
   TravelPackageReservationItemType,
   TravelPackageReservationStatus,
   TravelPackageReservationType,
+  TravelPackageThirdPartyDocumentShare,
 } from '@/app/types/packages'
 import { formatMoney, getLinkedFlightOptionTotal } from '@/lib/packageQuote'
 import type { TravelPackageGroupDetail } from '@/lib/packageGroups'
 import {
   PACKAGE_DOCUMENT_CATEGORIES,
+  THIRD_PARTY_PACKAGE_DOCUMENT_CATEGORIES,
+  getPackageDocumentCategoryLabel,
   groupPackageDocumentsByCategory,
 } from '@/lib/packageDocuments'
 import PackageOperationsWorkspace from './PackageOperationsWorkspace'
@@ -86,6 +90,16 @@ type ReservationsResponse = {
 type DocumentsResponse = {
   documents?: TravelPackageDocument[]
   document?: TravelPackageDocument | null
+  setupRequired?: boolean
+  message?: string
+  error?: string
+}
+
+type ThirdPartySharesResponse = {
+  shares?: TravelPackageThirdPartyDocumentShare[]
+  share?: TravelPackageThirdPartyDocumentShare | null
+  shareUrl?: string
+  accessCode?: string
   setupRequired?: boolean
   message?: string
   error?: string
@@ -185,6 +199,20 @@ type InvoiceFormState = {
   internalNotes: string
   dueAt: string
   amendmentReason: string
+}
+
+type ThirdPartyShareFormState = {
+  label: string
+  recipientName: string
+  purpose: string
+  expiresAt: string
+  allowedCategories: TravelPackageDocumentCategory[]
+}
+
+const VISA_PHOTO_DOCUMENT_KIND = 'visa_photo'
+
+function isVisaPhotoDocument(document: TravelPackageDocument) {
+  return document.metadata?.documentKind === VISA_PHOTO_DOCUMENT_KIND
 }
 
 const reservationTypeOptions: Array<{ value: TravelPackageReservationType; label: string }> = [
@@ -304,6 +332,18 @@ function createInitialInvoiceForm(invoice?: TravelPackageInvoice | null): Invoic
     internalNotes: invoice?.internal_notes || '',
     dueAt: invoice?.due_at ? toDateTimeLocalValue(invoice.due_at) : toDateTimeLocalValue(),
     amendmentReason: invoice?.amendment_reason || '',
+  }
+}
+
+function createInitialThirdPartyShareForm(): ThirdPartyShareFormState {
+  const expiresAt = new Date()
+  expiresAt.setDate(expiresAt.getDate() + 7)
+  return {
+    label: 'Third-party document access',
+    recipientName: '',
+    purpose: '',
+    expiresAt: toDateTimeLocalValue(expiresAt),
+    allowedCategories: [...THIRD_PARTY_PACKAGE_DOCUMENT_CATEGORIES],
   }
 }
 
@@ -552,6 +592,16 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
   const [packageFolder, setPackageFolder] = useState<TravelPackageFolder | null>(null)
   const [reservations, setReservations] = useState<TravelPackageReservation[]>([])
   const [documents, setDocuments] = useState<TravelPackageDocument[]>([])
+  const [thirdPartyShares, setThirdPartyShares] = useState<TravelPackageThirdPartyDocumentShare[]>(
+    [],
+  )
+  const [thirdPartyShareForm, setThirdPartyShareForm] = useState<ThirdPartyShareFormState>(() =>
+    createInitialThirdPartyShareForm(),
+  )
+  const [generatedThirdPartyShare, setGeneratedThirdPartyShare] = useState<{
+    shareUrl: string
+    accessCode: string
+  } | null>(null)
   const [invoice, setInvoice] = useState<TravelPackageInvoice | null>(null)
   const [reservationForm, setReservationForm] = useState<ReservationFormState>(() =>
     createInitialReservationForm(),
@@ -569,6 +619,7 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
   const [loading, setLoading] = useState(true)
   const [reservationsLoading, setReservationsLoading] = useState(false)
   const [documentsLoading, setDocumentsLoading] = useState(false)
+  const [thirdPartyShareLoading, setThirdPartyShareLoading] = useState(false)
   const [invoiceLoading, setInvoiceLoading] = useState(false)
   const [savingReservation, setSavingReservation] = useState(false)
   const [savingItemReservationId, setSavingItemReservationId] = useState<string | null>(null)
@@ -576,6 +627,7 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
     null,
   )
   const [savingDocument, setSavingDocument] = useState(false)
+  const [savingThirdPartyShare, setSavingThirdPartyShare] = useState(false)
   const [savingInvoice, setSavingInvoice] = useState(false)
   const [updatingDocumentId, setUpdatingDocumentId] = useState<string | null>(null)
   const [renamingDocumentId, setRenamingDocumentId] = useState<string | null>(null)
@@ -733,6 +785,35 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
     }
 
     void loadDocuments()
+  }, [packageId])
+
+  useEffect(() => {
+    const loadThirdPartyShares = async () => {
+      setThirdPartyShareLoading(true)
+      try {
+        const response = await fetch(
+          `/api/travel-packages/${encodeURIComponent(packageId)}/third-party-document-shares`,
+        )
+        const data = (await response.json()) as ThirdPartySharesResponse
+        if (!response.ok) {
+          throw new Error(data.message || data.error || 'Unable to load third-party shares')
+        }
+        if (data.setupRequired) {
+          setDocumentError(data.message || 'Third-party share schema is not installed yet')
+          setThirdPartyShares([])
+          return
+        }
+        setThirdPartyShares(data.shares || [])
+      } catch (loadError) {
+        setDocumentError(
+          loadError instanceof Error ? loadError.message : 'Unable to load third-party shares',
+        )
+      } finally {
+        setThirdPartyShareLoading(false)
+      }
+    }
+
+    void loadThirdPartyShares()
   }, [packageId])
 
   useEffect(() => {
@@ -1035,6 +1116,13 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
       {} as Record<TravelPackageDocumentCategory, number>,
     )
   }, [documents])
+  const visaPhotoDocuments = useMemo(
+    () =>
+      documents.filter(
+        (document) => document.category === 'travel_documents' && isVisaPhotoDocument(document),
+      ),
+    [documents],
+  )
   const reservationTitleById = useMemo(
     () => new Map(reservations.map((reservation) => [reservation.id, reservation.title])),
     [reservations],
@@ -1289,6 +1377,14 @@ Last Name: *${quoteCustomerLastName}*
 
 Kind regards,
 The Piyam Travel Team`
+  const generatedThirdPartyShareDetailsText = generatedThirdPartyShare
+    ? `Third-party document access
+Package: ${packageFolder?.package_reference || packageId}
+Link: ${generatedThirdPartyShare.shareUrl}
+Access code: ${generatedThirdPartyShare.accessCode}
+
+Please enter the access code and accept the data handling terms before downloading documents.`
+    : ''
 
   useEffect(() => {
     let active = true
@@ -1664,6 +1760,7 @@ The Piyam Travel Team`
       publicNotes?: string
       internalNotes?: string
       customerVisible?: boolean
+      metadata?: Record<string, unknown>
     },
   ) => {
     const formData = new FormData()
@@ -1674,6 +1771,7 @@ The Piyam Travel Team`
     formData.append('publicNotes', overrides.publicNotes || '')
     formData.append('internalNotes', overrides.internalNotes || '')
     formData.append('customerVisible', String(Boolean(overrides.customerVisible)))
+    formData.append('metadata', JSON.stringify(overrides.metadata || {}))
 
     const response = await fetch(
       `/api/travel-packages/${encodeURIComponent(packageId)}/documents`,
@@ -1697,6 +1795,7 @@ The Piyam Travel Team`
       publicNotes?: string
       internalNotes?: string
       customerVisible?: boolean
+      metadata?: Record<string, unknown>
     },
   ) => {
     const selectedFiles = Array.from(files).filter(Boolean)
@@ -1717,6 +1816,37 @@ The Piyam Travel Team`
     } catch (uploadError) {
       setDocumentError(
         uploadError instanceof Error ? uploadError.message : 'Failed to upload package documents',
+      )
+    } finally {
+      setSavingDocument(false)
+      setDraggingDocumentCategory(null)
+    }
+  }
+
+  const uploadVisaPhotoFiles = async (files: FileList | File[]) => {
+    const selectedFiles = Array.from(files).filter(Boolean)
+    if (savingDocument || selectedFiles.length === 0) return
+    setSavingDocument(true)
+    setDocumentError(null)
+    try {
+      const uploadedDocuments: TravelPackageDocument[] = []
+      for (const file of selectedFiles) {
+        const document = await uploadSingleDocumentFile(file, {
+          title: `Visa photo - ${file.name}`,
+          category: 'travel_documents',
+          internalNotes: 'Linked photo for visa issuing.',
+          metadata: {
+            documentKind: VISA_PHOTO_DOCUMENT_KIND,
+            linkedPurpose: 'visa_issue',
+          },
+        })
+        uploadedDocuments.push(document)
+      }
+      setDocuments((current) => [...uploadedDocuments.reverse(), ...current])
+      setDraggingDocumentCategory(null)
+    } catch (uploadError) {
+      setDocumentError(
+        uploadError instanceof Error ? uploadError.message : 'Failed to upload visa photo',
       )
     } finally {
       setSavingDocument(false)
@@ -1751,6 +1881,47 @@ The Piyam Travel Team`
     } catch (updateError) {
       setDocumentError(
         updateError instanceof Error ? updateError.message : 'Failed to update package document',
+      )
+    } finally {
+      setUpdatingDocumentId(null)
+    }
+  }
+
+  const updateVisaPhotoLink = async (document: TravelPackageDocument, linked: boolean) => {
+    setUpdatingDocumentId(document.id)
+    setDocumentError(null)
+    try {
+      const response = await fetch(
+        `/api/travel-packages/${encodeURIComponent(packageId)}/documents/${encodeURIComponent(
+          document.id,
+        )}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            category: 'travel_documents',
+            metadata: linked
+              ? {
+                  documentKind: VISA_PHOTO_DOCUMENT_KIND,
+                  linkedPurpose: 'visa_issue',
+                }
+              : {
+                  documentKind: null,
+                  linkedPurpose: null,
+                },
+          }),
+        },
+      )
+      const data = (await response.json()) as DocumentsResponse
+      if (!response.ok || !data.document) {
+        throw new Error(data.message || data.error || 'Failed to update visa photo link')
+      }
+      setDocuments((current) =>
+        current.map((item) => (item.id === document.id ? data.document! : item)),
+      )
+    } catch (updateError) {
+      setDocumentError(
+        updateError instanceof Error ? updateError.message : 'Failed to update visa photo link',
       )
     } finally {
       setUpdatingDocumentId(null)
@@ -1881,6 +2052,90 @@ The Piyam Travel Team`
       )
     } finally {
       setUpdatingDocumentId(null)
+    }
+  }
+
+  const toggleThirdPartyShareCategory = (category: TravelPackageDocumentCategory) => {
+    setThirdPartyShareForm((current) => {
+      const active = current.allowedCategories.includes(category)
+      const nextCategories = active
+        ? current.allowedCategories.filter((item) => item !== category)
+        : [...current.allowedCategories, category]
+      return {
+        ...current,
+        allowedCategories:
+          nextCategories.length > 0 ? nextCategories : [...THIRD_PARTY_PACKAGE_DOCUMENT_CATEGORIES],
+      }
+    })
+  }
+
+  const createThirdPartyShare = async () => {
+    setSavingThirdPartyShare(true)
+    setDocumentError(null)
+    setGeneratedThirdPartyShare(null)
+    try {
+      const response = await fetch(
+        `/api/travel-packages/${encodeURIComponent(packageId)}/third-party-document-shares`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            label: thirdPartyShareForm.label,
+            recipientName: thirdPartyShareForm.recipientName,
+            purpose: thirdPartyShareForm.purpose,
+            expiresAt: thirdPartyShareForm.expiresAt
+              ? new Date(thirdPartyShareForm.expiresAt).toISOString()
+              : '',
+            allowedCategories: thirdPartyShareForm.allowedCategories,
+          }),
+        },
+      )
+      const data = (await response.json()) as ThirdPartySharesResponse
+      if (!response.ok || data.setupRequired || !data.share || !data.shareUrl || !data.accessCode) {
+        throw new Error(data.message || data.error || 'Failed to create third-party share')
+      }
+      setThirdPartyShares((current) => [data.share!, ...current])
+      setGeneratedThirdPartyShare({
+        shareUrl: data.shareUrl,
+        accessCode: data.accessCode,
+      })
+      setThirdPartyShareForm(createInitialThirdPartyShareForm())
+    } catch (shareError) {
+      setDocumentError(
+        shareError instanceof Error ? shareError.message : 'Failed to create third-party share',
+      )
+    } finally {
+      setSavingThirdPartyShare(false)
+    }
+  }
+
+  const revokeThirdPartyShare = async (share: TravelPackageThirdPartyDocumentShare) => {
+    setSavingThirdPartyShare(true)
+    setDocumentError(null)
+    try {
+      const response = await fetch(
+        `/api/travel-packages/${encodeURIComponent(
+          packageId,
+        )}/third-party-document-shares/${encodeURIComponent(share.id)}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'revoked' }),
+        },
+      )
+      const data = (await response.json()) as ThirdPartySharesResponse
+      if (!response.ok || data.setupRequired || !data.share) {
+        throw new Error(data.message || data.error || 'Failed to revoke third-party share')
+      }
+      setThirdPartyShares((current) =>
+        current.map((item) => (item.id === data.share!.id ? data.share! : item)),
+      )
+    } catch (shareError) {
+      setDocumentError(
+        shareError instanceof Error ? shareError.message : 'Failed to revoke third-party share',
+      )
+    } finally {
+      setSavingThirdPartyShare(false)
     }
   }
 
@@ -2609,6 +2864,320 @@ The Piyam Travel Team`
                 </div>
               </div>
 
+              <div className="mb-4 rounded-lg border border-cyan-200 bg-cyan-50/60 p-4">
+                <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                  <div>
+                    <p className="text-sm font-black text-slate-950">
+                      Third-party document access
+                    </p>
+                    <p className="mt-1 text-sm leading-6 text-slate-600">
+                      Generate a WhatsApp-safe link and access code for suppliers or partners. They
+                      must enter the code and accept data-handling responsibility before documents
+                      are shown.
+                    </p>
+                  </div>
+                  {thirdPartyShareLoading && (
+                    <span className="inline-flex items-center gap-2 text-xs font-bold text-slate-500">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Loading shares
+                    </span>
+                  )}
+                </div>
+
+                <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_14rem]">
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <label className="block">
+                      <span className="mb-1 block text-xs font-bold uppercase text-slate-500">
+                        Label
+                      </span>
+                      <input
+                        value={thirdPartyShareForm.label}
+                        onChange={(event) =>
+                          setThirdPartyShareForm((current) => ({
+                            ...current,
+                            label: event.target.value,
+                          }))
+                        }
+                        className="min-h-10 w-full rounded-lg border border-slate-200 px-3 text-sm font-bold outline-none focus:border-slate-900"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="mb-1 block text-xs font-bold uppercase text-slate-500">
+                        Recipient
+                      </span>
+                      <input
+                        value={thirdPartyShareForm.recipientName}
+                        onChange={(event) =>
+                          setThirdPartyShareForm((current) => ({
+                            ...current,
+                            recipientName: event.target.value,
+                          }))
+                        }
+                        className="min-h-10 w-full rounded-lg border border-slate-200 px-3 text-sm font-bold outline-none focus:border-slate-900"
+                        placeholder="Supplier or company"
+                      />
+                    </label>
+                    <label className="block md:col-span-2">
+                      <span className="mb-1 block text-xs font-bold uppercase text-slate-500">
+                        Purpose
+                      </span>
+                      <input
+                        value={thirdPartyShareForm.purpose}
+                        onChange={(event) =>
+                          setThirdPartyShareForm((current) => ({
+                            ...current,
+                            purpose: event.target.value,
+                          }))
+                        }
+                        className="min-h-10 w-full rounded-lg border border-slate-200 px-3 text-sm font-bold outline-none focus:border-slate-900"
+                        placeholder="Reservation handling, ticketing, supplier verification"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="mb-1 block text-xs font-bold uppercase text-slate-500">
+                        Expires
+                      </span>
+                      <input
+                        type="datetime-local"
+                        value={thirdPartyShareForm.expiresAt}
+                        onChange={(event) =>
+                          setThirdPartyShareForm((current) => ({
+                            ...current,
+                            expiresAt: event.target.value,
+                          }))
+                        }
+                        className="min-h-10 w-full rounded-lg border border-slate-200 px-3 text-sm font-bold outline-none focus:border-slate-900"
+                      />
+                    </label>
+                    <div className="md:col-span-2">
+                      <p className="mb-2 text-xs font-bold uppercase text-slate-500">
+                        Allowed documents
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {THIRD_PARTY_PACKAGE_DOCUMENT_CATEGORIES.map((category) => {
+                          const active = thirdPartyShareForm.allowedCategories.includes(category)
+                          return (
+                            <button
+                              key={category}
+                              type="button"
+                              onClick={() => toggleThirdPartyShareCategory(category)}
+                              className={`min-h-9 rounded-lg border px-3 text-xs font-black transition ${
+                                active
+                                  ? 'border-cyan-700 bg-cyan-700 text-white'
+                                  : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                              }`}
+                            >
+                              {category === 'hotel'
+                                ? 'Hotel reservation'
+                                : getPackageDocumentCategoryLabel(category)}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-cyan-200 bg-white p-3">
+                    <button
+                      type="button"
+                      onClick={() => void createThirdPartyShare()}
+                      disabled={savingThirdPartyShare}
+                      className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg bg-cyan-800 px-3 text-sm font-black text-white transition hover:bg-cyan-900 disabled:opacity-50"
+                    >
+                      {savingThirdPartyShare ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Link2 className="h-4 w-4" />
+                      )}
+                      Generate link/code
+                    </button>
+                    <p className="mt-3 text-xs leading-5 text-slate-500">
+                      The code is only shown after generation. Regenerate a new share if the code is
+                      lost.
+                    </p>
+                  </div>
+                </div>
+
+                {generatedThirdPartyShare && (
+                  <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <p className="text-sm font-black text-emerald-900">
+                          Share generated for WhatsApp
+                        </p>
+                        <p className="mt-1 text-xs font-semibold text-emerald-800">
+                          Send this link and code together.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void copyAccessVoucherText(
+                            generatedThirdPartyShareDetailsText,
+                            'Third-party share copied',
+                          )
+                        }
+                        className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg bg-emerald-800 px-3 text-xs font-black text-white transition hover:bg-emerald-900"
+                      >
+                        <Copy className="h-4 w-4" />
+                        Quick copy share
+                      </button>
+                    </div>
+                    <div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_10rem]">
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold uppercase text-emerald-700">Link</p>
+                        <p className="mt-1 truncate text-sm font-bold text-slate-800">
+                          {generatedThirdPartyShare.shareUrl}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold uppercase text-emerald-700">Access code</p>
+                        <p className="mt-1 rounded-lg bg-white px-3 py-2 text-center text-lg font-black tracking-[0.2em] text-slate-950">
+                          {generatedThirdPartyShare.accessCode}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void copyAccessVoucherText(
+                            generatedThirdPartyShare.shareUrl,
+                            'Third-party link copied',
+                          )
+                        }
+                        className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-emerald-200 bg-white px-3 text-xs font-black text-emerald-900 transition hover:bg-emerald-100"
+                      >
+                        <Copy className="h-4 w-4" />
+                        Copy link
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void copyAccessVoucherText(
+                            generatedThirdPartyShareDetailsText,
+                            'Third-party details copied',
+                          )
+                        }
+                        className="inline-flex min-h-9 items-center gap-2 rounded-lg bg-emerald-800 px-3 text-xs font-black text-white transition hover:bg-emerald-900"
+                      >
+                        <Copy className="h-4 w-4" />
+                        Copy WhatsApp details
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {thirdPartyShares.length > 0 && (
+                  <div className="mt-4 space-y-2">
+                    {thirdPartyShares.slice(0, 5).map((share) => {
+                      const expired = new Date(share.expires_at).getTime() <= Date.now()
+                      const active = share.status === 'active' && !expired
+                      return (
+                        <div
+                          key={share.id}
+                          className="flex flex-col gap-2 rounded-lg border border-cyan-100 bg-white p-3 md:flex-row md:items-center md:justify-between"
+                        >
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-black text-slate-950">
+                              {share.label}
+                            </p>
+                            <p className="text-xs text-slate-500">
+                              {share.recipient_name || 'No recipient'} · expires{' '}
+                              {formatDateTime(share.expires_at)} · code ends {share.access_code_hint}
+                            </p>
+                            <p className="mt-1 text-xs font-semibold text-slate-500">
+                              {share.allowed_categories
+                                .map((category) =>
+                                  category === 'hotel'
+                                    ? 'Hotel reservation'
+                                    : getPackageDocumentCategoryLabel(category),
+                                )
+                                .join(', ')}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`rounded-lg px-2 py-1 text-xs font-black ${
+                                active
+                                  ? 'bg-emerald-50 text-emerald-700'
+                                  : 'bg-slate-100 text-slate-600'
+                              }`}
+                            >
+                              {active ? 'Active' : share.status === 'revoked' ? 'Revoked' : 'Expired'}
+                            </span>
+                            {share.status === 'active' && (
+                              <button
+                                type="button"
+                                onClick={() => void revokeThirdPartyShare(share)}
+                                disabled={savingThirdPartyShare}
+                                className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-red-200 bg-white px-3 text-xs font-black text-red-700 transition hover:bg-red-50 disabled:opacity-50"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                                Revoke
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+
+              <label
+                onDragOver={(event) => {
+                  event.preventDefault()
+                  setDraggingDocumentCategory('travel_documents')
+                }}
+                onDragLeave={() => setDraggingDocumentCategory(null)}
+                onDrop={(event) => {
+                  event.preventDefault()
+                  setDraggingDocumentCategory(null)
+                  const files = event.dataTransfer.files
+                  if (files?.length) {
+                    void uploadVisaPhotoFiles(files)
+                  }
+                }}
+                className={`mb-4 flex cursor-pointer flex-col gap-3 rounded-lg border-2 border-dashed p-4 transition md:flex-row md:items-center md:justify-between ${
+                  draggingDocumentCategory === 'travel_documents'
+                    ? 'border-indigo-500 bg-indigo-50'
+                    : 'border-indigo-200 bg-indigo-50/60 hover:border-indigo-400'
+                }`}
+              >
+                <input
+                  type="file"
+                  multiple
+                  accept=".jpg,.jpeg,.png,.webp"
+                  className="sr-only"
+                  disabled={savingDocument}
+                  onChange={(event) => {
+                    const files = event.target.files
+                    event.currentTarget.value = ''
+                    if (files?.length) {
+                      void uploadVisaPhotoFiles(files)
+                    }
+                  }}
+                />
+                <span className="flex items-start gap-3">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-indigo-900 text-white">
+                    <FileImage className="h-5 w-5" />
+                  </span>
+                  <span>
+                    <span className="block text-sm font-black text-slate-950">
+                      Visa issue photos
+                    </span>
+                    <span className="mt-1 block text-xs font-semibold leading-5 text-slate-600">
+                      Upload customer photos here to link them as agent-only Travel Documents for
+                      visa issuing.
+                    </span>
+                  </span>
+                </span>
+                <span className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg bg-indigo-900 px-3 text-xs font-black text-white">
+                  {savingDocument ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                  {visaPhotoDocuments.length} linked
+                </span>
+              </label>
+
               <div className="mb-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                 {PACKAGE_DOCUMENT_CATEGORIES.map((category) => {
                   const activeDrop = draggingDocumentCategory === category.value
@@ -2697,6 +3266,7 @@ The Piyam Travel Team`
                           const documentIsReleased =
                             document.customer_visible && document.status === 'released'
                           const documentIsAgentOnly = document.category === 'travel_documents'
+                          const documentIsVisaPhoto = isVisaPhotoDocument(document)
                           return (
                             <div
                               key={document.id}
@@ -2738,6 +3308,12 @@ The Piyam Travel Team`
                                         ? 'Released'
                                         : 'Internal'}
                                   </span>
+                                  {documentIsVisaPhoto && (
+                                    <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-1 text-[11px] font-black uppercase text-indigo-700">
+                                      <FileImage className="h-3 w-3" />
+                                      Visa photo
+                                    </span>
+                                  )}
                                 </div>
                                 <p className="mt-1 break-all text-xs font-bold text-slate-500">
                                   {document.file_name} · {formatFileSize(document.file_size)}
@@ -2795,6 +3371,23 @@ The Piyam Travel Team`
                                   >
                                     <Pencil className="h-4 w-4" />
                                     Rename
+                                  </button>
+                                )}
+                                {document.category === 'travel_documents' && (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      void updateVisaPhotoLink(document, !documentIsVisaPhoto)
+                                    }
+                                    disabled={updatingThisDocument}
+                                    className={`inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border px-3 text-xs font-black transition disabled:cursor-not-allowed disabled:text-slate-300 ${
+                                      documentIsVisaPhoto
+                                        ? 'border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
+                                        : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-100'
+                                    }`}
+                                  >
+                                    <FileImage className="h-4 w-4" />
+                                    {documentIsVisaPhoto ? 'Unlink photo' : 'Link photo'}
                                   </button>
                                 )}
                                 <button
