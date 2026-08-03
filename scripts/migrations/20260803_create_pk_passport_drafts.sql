@@ -40,9 +40,6 @@ CREATE TABLE IF NOT EXISTS public.pakistani_passport_drafts (
   page_count TEXT,
   speed TEXT NOT NULL,
   old_passport_number TEXT,
-  fingerprints_completed BOOLEAN NOT NULL DEFAULT FALSE,
-  requested_page_number TEXT,
-  requested_page_provided BOOLEAN NOT NULL DEFAULT FALSE,
   notes TEXT,
 
   status TEXT NOT NULL DEFAULT 'Documents Pending',

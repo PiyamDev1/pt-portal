@@ -90,6 +90,9 @@ export async function POST(request) {
     if (appError) throw appError
 
     // 3. Create Passport Record
+    const normalizedOldPassportNumber =
+      applicationType === 'First Time' ? null : oldPassportNumber || null
+
     const { error: ppError } = await supabase.from('pakistani_passport_applications').insert({
       application_id: appRecord.id,
       applicant_id: applicant.id,
@@ -99,7 +102,7 @@ export async function POST(request) {
       category: category,
       page_count: pageCount,
       speed: speed,
-      old_passport_number: oldPassportNumber || null,
+      old_passport_number: normalizedOldPassportNumber,
       is_old_passport_returned: false,
       is_refunded: false,
       fingerprints_completed: fingerprintsCompleted || false,

@@ -69,7 +69,6 @@ const baseDraftPayload = {
   pageCount: '34 pages',
   speed: 'Normal',
   oldPassportNumber: 'ab123',
-  fingerprintsCompleted: true,
   paymentStatus: 'taken',
   paymentAmount: '120',
   currentUserId: 'emp-1',
@@ -110,6 +109,34 @@ describe('POST /api/passports/pak/drafts', () => {
     })
     expect(insertPayload).not.toHaveProperty('tracking_number')
     expect(mocks.from).not.toHaveBeenCalledWith('applications')
+  })
+
+  it('does not store old passport number for first-time drafts', async () => {
+    const insertQuery = mocks.makeQuery({
+      data: {
+        id: 'draft-row-1',
+        draft_id: 'PKD-ABCDE12345',
+        applicant_name: 'John Doe',
+        status: 'Documents Pending',
+      },
+      error: null,
+    })
+    queue('pakistani_passport_drafts', insertQuery)
+
+    const res = await POST(
+      makeRequest({
+        action: 'create',
+        ...baseDraftPayload,
+        applicationType: 'First Time',
+        oldPassportNumber: 'P123',
+      }),
+    )
+
+    expect(res.status).toBe(200)
+    expect(insertQuery.insert.mock.calls[0][0]).toMatchObject({
+      application_type: 'First Time',
+      old_passport_number: null,
+    })
   })
 
   it('rejects conversion when the official tracking number already exists', async () => {
@@ -162,9 +189,6 @@ describe('POST /api/passports/pak/drafts', () => {
         page_count: '34 pages',
         speed: 'Normal',
         old_passport_number: 'P123',
-        fingerprints_completed: true,
-        requested_page_number: null,
-        requested_page_provided: false,
         status: 'Ready to Process',
         created_by: 'emp-1',
       },

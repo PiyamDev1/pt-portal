@@ -88,7 +88,7 @@ describe('GET /api/passports/pak/metadata', () => {
 
     expect(body.categories).toEqual(['Adult'])
     expect(body.speeds).toEqual(['Urgent'])
-    expect(body.applicationTypes).toEqual(['Renewal'])
+    expect(body.applicationTypes).toEqual(['Renewal', 'Lost'])
     expect(body.pageCounts).toEqual(['36 Pages'])
     expect(body.pricing).toEqual([
       {

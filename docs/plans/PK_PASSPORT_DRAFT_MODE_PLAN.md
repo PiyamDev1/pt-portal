@@ -54,9 +54,11 @@ Drafts should capture the same information as the current new application form, 
 - page count
 - speed
 - old passport number
-- fingerprints completed
-- requested page number, if applicable
 - notes
+
+Application types include `Lost`. Old passport number is only captured when the application type is not `First Time`.
+
+Requested-page handling and biometrics are intentionally excluded from draft data. Those fields start after an official tracking number is received and the draft is converted into the tracked passport ledger.
 
 Additional draft-only fields:
 

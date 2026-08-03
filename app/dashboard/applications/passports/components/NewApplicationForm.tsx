@@ -31,6 +31,11 @@ export default function NewApplicationForm({
   errors = {},
   metadata,
 }: Props) {
+  const applicationTypes = metadata.applicationTypes.includes('Lost')
+    ? metadata.applicationTypes
+    : [...metadata.applicationTypes, 'Lost']
+  const oldPassportRequired = formData.applicationType !== 'First Time'
+
   return (
     <div className="bg-green-50 p-4 rounded-xl border border-green-100 shadow-md animate-fade-in-down">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -150,7 +155,7 @@ export default function NewApplicationForm({
               className="p-2 bg-white border border-green-100 rounded-lg text-sm"
               value={formData.applicationType}
             >
-              {metadata.applicationTypes.map((type) => (
+              {applicationTypes.map((type) => (
                 <option key={type} value={type}>
                   {type}
                 </option>
@@ -193,14 +198,16 @@ export default function NewApplicationForm({
               ))}
             </select>
           </div>
-          <input
-            name="oldPassportNumber"
-            onChange={onChange}
-            onBlur={onBlur}
-            value={formData.oldPassportNumber}
-            placeholder="Old Passport #"
-            className="w-full p-2 bg-white border border-green-100 rounded-lg text-sm font-mono uppercase"
-          />
+          {oldPassportRequired && (
+            <input
+              name="oldPassportNumber"
+              onChange={onChange}
+              onBlur={onBlur}
+              value={formData.oldPassportNumber}
+              placeholder="Old Passport #"
+              className="w-full p-2 bg-white border border-green-100 rounded-lg text-sm font-mono uppercase"
+            />
+          )}
           <div>
             <input
               name="trackingNumber"

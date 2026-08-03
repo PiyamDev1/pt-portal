@@ -59,19 +59,21 @@ function formatDate(value?: string | null) {
 }
 
 function createEmptyDraftForm(metadata: Metadata): PakPassportDraftFormData {
+  const applicationTypes = metadata.applicationTypes.includes('Lost')
+    ? metadata.applicationTypes
+    : [...metadata.applicationTypes, 'Lost']
+
   return {
     applicantName: '',
     applicantCnic: '',
     applicantEmail: '',
     applicantPhone: '',
     familyHeadEmail: '',
-    applicationType: metadata.applicationTypes[0] || 'Renewal',
+    applicationType: applicationTypes[0] || 'Renewal',
     category: metadata.categories[0] || 'Adult 10 Year',
     pageCount: metadata.pageCounts[0] || '34 pages',
     speed: metadata.speeds[0] || 'Normal',
     oldPassportNumber: '',
-    fingerprintsCompleted: false,
-    requestedPageNumber: '',
     notes: '',
     status: 'Documents Pending',
     assignedEmployeeId: '',
@@ -93,8 +95,6 @@ function draftToForm(draft: PakPassportDraft): PakPassportDraftFormData {
     pageCount: draft.page_count || '34 pages',
     speed: draft.speed || 'Normal',
     oldPassportNumber: draft.old_passport_number || '',
-    fingerprintsCompleted: !!draft.fingerprints_completed,
-    requestedPageNumber: draft.requested_page_number || '',
     notes: draft.notes || '',
     status: draft.status || 'Documents Pending',
     assignedEmployeeId: draft.assigned_employee_id || '',
@@ -193,6 +193,16 @@ export default function DraftModePanel({
     })
   }, [drafts, paymentFilter, searchQuery, statusFilter])
 
+  const applicationTypeOptions = useMemo(
+    () =>
+      metadata.applicationTypes.includes('Lost')
+        ? metadata.applicationTypes
+        : [...metadata.applicationTypes, 'Lost'],
+    [metadata.applicationTypes],
+  )
+
+  const oldPassportRequired = formData.applicationType !== 'First Time'
+
   const handleFormChange = (
     event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>,
   ) => {
@@ -207,6 +217,11 @@ export default function DraftModePanel({
 
     if (name === 'applicantCnic') value = formatCNIC(value)
     if (name === 'oldPassportNumber') value = value.toUpperCase()
+
+    if (name === 'applicationType' && value === 'First Time') {
+      setFormData((current) => ({ ...current, applicationType: value, oldPassportNumber: '' }))
+      return
+    }
 
     setFormData((current) => ({ ...current, [name]: value }))
   }
@@ -382,7 +397,7 @@ export default function DraftModePanel({
                     onChange={handleFormChange}
                     className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
                   >
-                    {metadata.applicationTypes.map((value) => (
+                    {applicationTypeOptions.map((value) => (
                       <option key={value} value={value}>
                         {value}
                       </option>
@@ -425,30 +440,15 @@ export default function DraftModePanel({
                     ))}
                   </select>
                 </div>
-                <input
-                  name="oldPassportNumber"
-                  value={formData.oldPassportNumber}
-                  onChange={handleFormChange}
-                  placeholder="Old passport number"
-                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-mono uppercase"
-                />
-                <input
-                  name="requestedPageNumber"
-                  value={formData.requestedPageNumber}
-                  onChange={handleFormChange}
-                  placeholder="Requested page"
-                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
-                />
-                <label className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700">
+                {oldPassportRequired && (
                   <input
-                    type="checkbox"
-                    name="fingerprintsCompleted"
-                    checked={formData.fingerprintsCompleted}
+                    name="oldPassportNumber"
+                    value={formData.oldPassportNumber}
                     onChange={handleFormChange}
-                    className="h-4 w-4 rounded text-green-600"
+                    placeholder="Old passport number"
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-mono uppercase"
                   />
-                  Biometrics completed
-                </label>
+                )}
               </div>
 
               <div className="space-y-3">

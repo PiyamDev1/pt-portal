@@ -30,9 +30,6 @@ const DRAFT_SELECT = `
   page_count,
   speed,
   old_passport_number,
-  fingerprints_completed,
-  requested_page_number,
-  requested_page_provided,
   notes,
   status,
   payment_status,
@@ -72,9 +69,6 @@ type DraftRow = {
   page_count?: string | null
   speed: string
   old_passport_number?: string | null
-  fingerprints_completed?: boolean | null
-  requested_page_number?: string | null
-  requested_page_provided?: boolean | null
   notes?: string | null
   status: PakPassportDraftStatus
   payment_status?: PakPassportDraftPaymentStatus | null
@@ -106,6 +100,13 @@ function normalizePaymentAmount(value: unknown) {
     throw new Error('Payment amount must be a valid positive number')
   }
   return amount
+}
+
+function normalizeOldPassportNumber(value: unknown, applicationType: unknown) {
+  if (cleanText(applicationType) === 'First Time') {
+    return null
+  }
+  return nullableText(value)?.toUpperCase() || null
 }
 
 function normalizeCreatePayload(body: Record<string, unknown>) {
@@ -147,11 +148,7 @@ function normalizeCreatePayload(body: Record<string, unknown>) {
       category,
       page_count: nullableText(body.pageCount),
       speed,
-      old_passport_number: nullableText(body.oldPassportNumber)?.toUpperCase() || null,
-      fingerprints_completed: !!body.fingerprintsCompleted,
-      requested_page_number: nullableText(body.requestedPageNumber),
-      requested_page_provided:
-        !!body.requestedPageProvided && !!nullableText(body.requestedPageNumber),
+      old_passport_number: normalizeOldPassportNumber(body.oldPassportNumber, body.applicationType),
       notes: nullableText(body.notes),
       status,
       payment_status: paymentStatus,
@@ -184,13 +181,13 @@ function normalizeUpdatePayload(body: Record<string, unknown>) {
   if ('pageCount' in data) payload.page_count = nullableText(data.pageCount)
   if ('speed' in data) payload.speed = cleanText(data.speed)
   if ('oldPassportNumber' in data) {
-    payload.old_passport_number = nullableText(data.oldPassportNumber)?.toUpperCase() || null
+    payload.old_passport_number = normalizeOldPassportNumber(
+      data.oldPassportNumber,
+      data.applicationType,
+    )
   }
-  if ('fingerprintsCompleted' in data) payload.fingerprints_completed = !!data.fingerprintsCompleted
-  if ('requestedPageNumber' in data) {
-    payload.requested_page_number = nullableText(data.requestedPageNumber)
-    payload.requested_page_provided =
-      !!data.requestedPageProvided && !!nullableText(data.requestedPageNumber)
+  if ('applicationType' in data && cleanText(data.applicationType) === 'First Time') {
+    payload.old_passport_number = null
   }
   if ('notes' in data) payload.notes = nullableText(data.notes)
   if ('assignedEmployeeId' in data)
@@ -428,9 +425,9 @@ async function convertDraft(body: Record<string, unknown>) {
         old_passport_number: draft.old_passport_number || null,
         is_old_passport_returned: false,
         is_refunded: false,
-        fingerprints_completed: !!draft.fingerprints_completed,
-        requested_page_number: draft.requested_page_number || null,
-        requested_page_provided: !!draft.requested_page_provided && !!draft.requested_page_number,
+        fingerprints_completed: false,
+        requested_page_number: null,
+        requested_page_provided: false,
         status: 'Pending Submission',
       })
       .select('id')

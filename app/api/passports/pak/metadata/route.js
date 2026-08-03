@@ -18,6 +18,18 @@ import { toErrorMessage } from '@/lib/api/error'
 // Metadata doesn't change often - cache for 1 hour
 export const revalidate = 3600
 
+const REQUIRED_APPLICATION_TYPES = ['Lost']
+
+function withRequiredApplicationTypes(rows) {
+  const names = (rows || []).map((item) => item.name).filter(Boolean)
+  for (const type of REQUIRED_APPLICATION_TYPES) {
+    if (!names.includes(type)) {
+      names.push(type)
+    }
+  }
+  return names
+}
+
 export async function GET() {
   try {
     const supabase = createClient(
@@ -71,7 +83,7 @@ export async function GET() {
       {
         categories: (categories.data || []).map((c) => c.name),
         speeds: (speeds.data || []).map((s) => s.name),
-        applicationTypes: (applicationTypes.data || []).map((t) => t.name),
+        applicationTypes: withRequiredApplicationTypes(applicationTypes.data),
         pageCounts: (pages.data || []).map((p) => p.option_label),
         pricing: flatPricing,
       },

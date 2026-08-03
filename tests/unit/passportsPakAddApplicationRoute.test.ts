@@ -131,6 +131,29 @@ describe('POST /api/passports/pak/add-application', () => {
     expect(body.applicantId).toBe('a-new')
   })
 
+  it('stores no old passport number for first-time applications', async () => {
+    mocks.applicantSingle.mockResolvedValue({ data: { id: 'a-1' }, error: null })
+    mocks.applicantUpdateEq.mockResolvedValue({ error: null })
+    mocks.appInsertSingle.mockResolvedValue({ data: { id: 'app-1' }, error: null })
+    mocks.pakInsert.mockResolvedValue({ error: null })
+
+    const res = await POST(
+      makeRequest({
+        ...baseBody,
+        applicationType: 'First Time',
+        oldPassportNumber: 'P123',
+      }),
+    )
+
+    expect(res.status).toBe(200)
+    expect(mocks.pakInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        application_type: 'First Time',
+        old_passport_number: null,
+      }),
+    )
+  })
+
   it('rolls back app and returns 500 when passport insert fails', async () => {
     mocks.applicantSingle.mockResolvedValue({ data: { id: 'a-1' }, error: null })
     mocks.appInsertSingle.mockResolvedValue({ data: { id: 'app-1' }, error: null })

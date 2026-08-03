@@ -144,9 +144,6 @@ export type PakPassportDraft = {
   page_count?: string | null
   speed: string
   old_passport_number?: string | null
-  fingerprints_completed: boolean
-  requested_page_number?: string | null
-  requested_page_provided?: boolean
   notes?: string | null
   status: PakPassportDraftStatus
   payment_status: PakPassportDraftPaymentStatus
@@ -181,8 +178,6 @@ export type PakPassportDraftFormData = {
   pageCount: string
   speed: string
   oldPassportNumber: string
-  fingerprintsCompleted: boolean
-  requestedPageNumber: string
   notes: string
   status: PakPassportDraftStatus
   assignedEmployeeId: string

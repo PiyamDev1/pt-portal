@@ -244,6 +244,15 @@ export default function PakPassportClient({
     }
     if (name === 'applicantCnic') value = formatCNIC(value)
     if (['trackingNumber', 'oldPassportNumber'].includes(name)) value = value.toUpperCase()
+    if (name === 'applicationType' && value === 'First Time') {
+      setFormData({ ...formData, applicationType: value, oldPassportNumber: '' })
+      setFormErrors((prev) => ({
+        ...prev,
+        applicationType: undefined,
+        oldPassportNumber: undefined,
+      }))
+      return
+    }
 
     setFormData({ ...formData, [name]: value })
     setFormErrors((prev) => ({ ...prev, [name]: undefined }))
