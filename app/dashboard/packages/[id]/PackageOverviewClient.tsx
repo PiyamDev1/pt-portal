@@ -4053,36 +4053,7 @@ Please enter the access code and accept the data handling terms before downloadi
                             </div>
                           </div>
 
-                          <div className="flex flex-wrap items-end gap-2">
-                            <label className="min-w-36 text-[11px] font-black uppercase text-slate-500">
-                              Booked cost
-                              <input
-                                value={financialForm.bookedCostTotal}
-                                onChange={(event) =>
-                                  updateReservationFinancialForm(
-                                    reservation,
-                                    'bookedCostTotal',
-                                    event.target.value,
-                                  )
-                                }
-                                className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
-                                inputMode="decimal"
-                                placeholder="0.00"
-                              />
-                            </label>
-                            <button
-                              type="button"
-                              onClick={() => void saveReservationFinancials(reservation)}
-                              disabled={savingFinancials}
-                              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-slate-900 px-3 text-xs font-black text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
-                            >
-                              {savingFinancials ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <CheckCircle2 className="h-4 w-4" />
-                              )}
-                              Save
-                            </button>
+                          <div className="flex flex-wrap gap-2">
                             <select
                               value={reservation.status}
                               disabled={updatingReservationId === reservation.id}
@@ -4281,6 +4252,10 @@ Please enter the access code and accept the data handling terms before downloadi
                                     Reservation pricing
                                   </p>
                                   <p className="mt-1 text-xs font-bold text-slate-500">
+                                    Edit booked cost, sold price, discount, commission, and payment
+                                    due values here.
+                                  </p>
+                                  <p className="mt-1 text-xs font-bold text-slate-500">
                                     Profit before commission:{' '}
                                     <span className="text-[#8b1e2d]">
                                       {formatMoney(reservationDifference, reservation.currency)}
@@ -4309,7 +4284,7 @@ Please enter the access code and accept the data handling terms before downloadi
                               </div>
 
                               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                                <label className="text-xs font-bold uppercase text-slate-500">
+                                <label className="rounded-lg border border-[#8b1e2d]/20 bg-white p-2 text-xs font-bold uppercase text-slate-500">
                                   Booked cost
                                   <input
                                     value={financialForm.bookedCostTotal}
