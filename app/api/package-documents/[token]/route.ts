@@ -48,22 +48,34 @@ function selectPublicDocumentColumns() {
     customer_visible,
     released_at,
     public_notes,
+    metadata,
     created_at
   `
 }
 
 async function withSignedUrl(document: TravelPackageDocument) {
+  const s3Client = getS3Client()
+  const safeFileName = document.file_name.replace(/"/g, '')
   const signedUrl = await getSignedUrl(
-    getS3Client(),
+    s3Client,
     new GetObjectCommand({
       Bucket: document.storage_bucket,
       Key: document.storage_key,
-      ResponseContentDisposition: `attachment; filename="${document.file_name.replace(/"/g, '')}"`,
+      ResponseContentDisposition: `attachment; filename="${safeFileName}"`,
+    }),
+    { expiresIn: 15 * 60 },
+  )
+  const previewUrl = await getSignedUrl(
+    s3Client,
+    new GetObjectCommand({
+      Bucket: document.storage_bucket,
+      Key: document.storage_key,
+      ResponseContentDisposition: `inline; filename="${safeFileName}"`,
     }),
     { expiresIn: 15 * 60 },
   )
 
-  return createPublicPackageDocument(document, signedUrl)
+  return createPublicPackageDocument(document, signedUrl, previewUrl)
 }
 
 export async function GET(

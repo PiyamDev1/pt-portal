@@ -3189,7 +3189,10 @@ Please enter the access code and accept the data handling terms before downloadi
                         </span>
                       </div>
                       <div className="divide-y divide-slate-100">
-                        {group.documents.map((document) => {
+                        {(group.value === 'travel_documents'
+                          ? group.documents.filter((document) => !isVisaPhotoDocument(document))
+                          : group.documents
+                        ).map((document) => {
                           const updatingThisDocument = updatingDocumentId === document.id
                           const renamingThisDocument = renamingDocumentId === document.id
                           const documentIsReleased =
@@ -3280,14 +3283,52 @@ Please enter the access code and accept the data handling terms before downloadi
                                         Linked visa photos
                                       </p>
                                       <div className="mt-1 space-y-1">
-                                        {linkedVisaPhotos.map((photo) => (
-                                          <p
-                                            key={photo.id}
-                                            className="break-all text-xs font-semibold text-indigo-900"
-                                          >
-                                            {photo.title}
-                                          </p>
-                                        ))}
+                                        {linkedVisaPhotos.map((photo) => {
+                                          const updatingPhoto = updatingDocumentId === photo.id
+                                          return (
+                                            <div
+                                              key={photo.id}
+                                              className="flex flex-col gap-2 rounded-lg bg-white/70 p-2 sm:flex-row sm:items-center sm:justify-between"
+                                            >
+                                              <p className="break-all text-xs font-semibold text-indigo-900">
+                                                {photo.title}
+                                              </p>
+                                              <div className="flex shrink-0 flex-wrap gap-2">
+                                                <button
+                                                  type="button"
+                                                  onClick={() => void openDocumentPreview(photo)}
+                                                  disabled={updatingPhoto}
+                                                  className="inline-flex min-h-8 items-center justify-center gap-1 rounded-lg border border-indigo-100 bg-white px-2 text-[11px] font-black text-indigo-800 transition hover:bg-indigo-50 disabled:cursor-not-allowed disabled:text-slate-300"
+                                                >
+                                                  <FileText className="h-3 w-3" />
+                                                  Preview
+                                                </button>
+                                                <button
+                                                  type="button"
+                                                  onClick={() => void downloadDocument(photo)}
+                                                  disabled={updatingPhoto}
+                                                  className="inline-flex min-h-8 items-center justify-center gap-1 rounded-lg border border-indigo-100 bg-white px-2 text-[11px] font-black text-indigo-800 transition hover:bg-indigo-50 disabled:cursor-not-allowed disabled:text-slate-300"
+                                                >
+                                                  {updatingPhoto ? (
+                                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                                  ) : (
+                                                    <Download className="h-3 w-3" />
+                                                  )}
+                                                  Open
+                                                </button>
+                                                <button
+                                                  type="button"
+                                                  onClick={() => void deleteDocument(photo)}
+                                                  disabled={updatingPhoto}
+                                                  className="inline-flex min-h-8 items-center justify-center gap-1 rounded-lg border border-rose-100 bg-white px-2 text-[11px] font-black text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:text-rose-300"
+                                                >
+                                                  <Trash2 className="h-3 w-3" />
+                                                  Delete
+                                                </button>
+                                              </div>
+                                            </div>
+                                          )
+                                        })}
                                       </div>
                                     </div>
                                   )}
@@ -3329,7 +3370,8 @@ Please enter the access code and accept the data handling terms before downloadi
                                     Rename
                                   </button>
                                 )}
-                                {document.category === 'travel_documents' && !documentIsVisaPhoto && (
+                                {document.category === 'travel_documents' &&
+                                  !documentIsVisaPhoto && (
                                   <button
                                     type="button"
                                     onClick={() => setPhotoLinkDocument(document)}

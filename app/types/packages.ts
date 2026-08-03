@@ -571,6 +571,7 @@ export interface TravelPackageDocument {
   updated_at: string | null
   deleted_at: string | null
   signed_url?: string
+  preview_url?: string
 }
 
 export interface TravelPackageThirdPartyDocumentShare {

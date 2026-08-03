@@ -10,7 +10,11 @@ export function normalizePackagePortalReference(value: unknown) {
     : ''
 }
 
-export function createPublicPackageDocument(document: TravelPackageDocument, signedUrl: string) {
+export function createPublicPackageDocument(
+  document: TravelPackageDocument,
+  signedUrl: string,
+  previewUrl?: string,
+) {
   return {
     id: document.id,
     package_id: document.package_id,
@@ -23,8 +27,10 @@ export function createPublicPackageDocument(document: TravelPackageDocument, sig
     customer_visible: document.customer_visible,
     released_at: document.released_at,
     public_notes: document.public_notes,
+    metadata: document.metadata || {},
     created_at: document.created_at,
     signed_url: signedUrl,
+    preview_url: previewUrl || signedUrl,
   }
 }
 
