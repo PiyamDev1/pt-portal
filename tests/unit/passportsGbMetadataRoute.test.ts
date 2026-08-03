@@ -79,7 +79,7 @@ describe('GET /api/passports/gb/metadata', () => {
           sale_price: '120.75',
           age_group: 'Adult',
           pages: '32',
-          service_type: 'Standard',
+          service_type: 'Fast Track 1 Week',
           is_active: true,
         },
         {
@@ -105,7 +105,7 @@ describe('GET /api/passports/gb/metadata', () => {
     ])
     expect(body.services.map((service: { name: string }) => service.name)).toEqual([
       'Fast Track',
-      'Standard',
+      'Fast Track 1 Week',
     ])
     expect(body.ages.map((age: { name: string }) => age.name)).toEqual(['Adult'])
     expect(body.pricing).toEqual([
@@ -115,10 +115,10 @@ describe('GET /api/passports/gb/metadata', () => {
         price: 120.75,
         age: 'Adult',
         pages: '32',
-        service: 'Standard',
+        service: 'Fast Track 1 Week',
         ageKey: 'adult',
         pagesKey: '32',
-        serviceKey: 'standard',
+        serviceKey: 'fast track 1 week',
       },
     ])
   })

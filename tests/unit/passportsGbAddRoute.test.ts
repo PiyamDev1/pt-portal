@@ -132,6 +132,37 @@ describe('POST /api/passports/gb/add', () => {
     )
   })
 
+  it('matches fast track service duration variants from lookup labels', async () => {
+    mocks.pricingSelect.mockResolvedValue({
+      data: [
+        {
+          id: 'pr-fast',
+          age_group: 'Adult',
+          pages: '34',
+          service_type: 'Fast Track 1 Week',
+          cost_price: 90,
+          sale_price: 140,
+          is_active: true,
+        },
+      ],
+      error: null,
+    })
+    mocks.applicantMaybeSingle.mockResolvedValue({ data: { id: 'a-1' }, error: null })
+    mocks.applicantUpdateEq.mockResolvedValue({ error: null })
+    mocks.appInsertSingle.mockResolvedValue({ data: { id: 'app-1' }, error: null })
+    mocks.gbInsert.mockResolvedValue({ error: null })
+
+    const res = await POST(makeRequest({ ...baseBody, pages: '34', serviceType: 'Fast Track 1wk' }))
+    expect(res.status).toBe(200)
+    expect(mocks.gbInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pricing_id: 'pr-fast',
+        cost_price: 90,
+        sale_price: 140,
+      }),
+    )
+  })
+
   it('creates applicant when not found', async () => {
     mocks.pricingSelect.mockResolvedValue({
       data: [

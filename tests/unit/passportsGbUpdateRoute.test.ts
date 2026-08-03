@@ -221,4 +221,52 @@ describe('POST /api/passports/gb/update', () => {
     expect(res.status).toBe(200)
     expect(mocks.pricingSelect).toHaveBeenCalled()
   })
+
+  it('matches fast track service duration variants when pricing id is missing', async () => {
+    mocks.gbSingle.mockResolvedValue({
+      data: {
+        applicant_id: 'a-1',
+        status: 'Pending',
+        pricing_id: null,
+        age_group: 'Adult',
+        pages: '34',
+        service_type: 'Fast Track 1wk',
+      },
+      error: null,
+    })
+    mocks.pricingSelect.mockResolvedValue({
+      data: [
+        {
+          id: 'pricing-fast',
+          cost_price: 115,
+          sale_price: 155,
+          age_group: 'Adult',
+          pages: '34',
+          service_type: 'Fast Track 1 Week',
+          is_active: true,
+        },
+      ],
+      error: null,
+    })
+    mocks.gbUpdateEq.mockResolvedValue({ error: null })
+
+    const res = await POST(
+      makeRequest({
+        id: 'gb-1',
+        status: 'Pending',
+        ageGroup: 'Adult',
+        pages: '34',
+        serviceType: 'Fast Track 1wk',
+      }),
+    )
+    expect(res.status).toBe(200)
+    expect(mocks.gbUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pricing_id: 'pricing-fast',
+        cost_price: 115,
+        sale_price: 155,
+        service_type: 'Fast Track 1 Week',
+      }),
+    )
+  })
 })
