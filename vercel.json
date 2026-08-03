@@ -14,6 +14,10 @@
       "schedule": "0 3 * * *"
     },
     {
+      "path": "/api/cron/passports/pak/drafts-cleanup",
+      "schedule": "30 3 * * *"
+    },
+    {
       "path": "/api/cron/integrations/frappe/outbox",
       "schedule": "0 4 * * *"
     },

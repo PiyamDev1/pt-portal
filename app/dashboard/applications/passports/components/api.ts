@@ -3,7 +3,12 @@
  * Dashboard module for applications/passports/components/api.ts.
  */
 
-import type { PakApplicationCreatePayload, PakEditFormData, PakUpdateRecordPayload } from './types'
+import type {
+  PakApplicationCreatePayload,
+  PakEditFormData,
+  PakPassportDraftFormData,
+  PakUpdateRecordPayload,
+} from './types'
 
 type ApiResponse<T = unknown> = {
   ok: boolean
@@ -49,11 +54,7 @@ export const pakPassportApi = {
       body: JSON.stringify({ action: 'update', id, data, userId }),
     }),
 
-  markRequestedPageProvided: (
-    applicationId: string,
-    passportId: string,
-    userId: string | number,
-  ) =>
+  markRequestedPageProvided: (applicationId: string, passportId: string, userId: string | number) =>
     apiRequest('/api/passports/pak/manage-record', {
       method: 'POST',
       body: JSON.stringify({
@@ -104,14 +105,37 @@ export const pakPassportApi = {
     return res.ok ? res.data : null
   },
 
-  saveNotes: (
-    applicationId: string,
-    notes: string,
-    userId: string | number,
-    passportId?: string,
-  ) =>
+  saveNotes: (applicationId: string, notes: string, userId: string | number, passportId?: string) =>
     apiRequest('/api/passports/pak/notes', {
       method: 'POST',
       body: JSON.stringify({ applicationId, passportId, notes, userId }),
+    }),
+
+  createDraft: (data: PakPassportDraftFormData, currentUserId: string | number) =>
+    apiRequest('/api/passports/pak/drafts', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'create', ...data, currentUserId }),
+    }),
+
+  updateDraft: (
+    draftId: string,
+    data: Partial<PakPassportDraftFormData>,
+    currentUserId: string | number,
+  ) =>
+    apiRequest('/api/passports/pak/drafts', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'update', draftId, data, currentUserId }),
+    }),
+
+  cancelDraft: (draftId: string, reason: string, currentUserId: string | number) =>
+    apiRequest('/api/passports/pak/drafts', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'cancel', draftId, reason, currentUserId }),
+    }),
+
+  convertDraft: (draftId: string, trackingNumber: string, currentUserId: string | number) =>
+    apiRequest('/api/passports/pak/drafts', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'convert', draftId, trackingNumber, currentUserId }),
     }),
 }

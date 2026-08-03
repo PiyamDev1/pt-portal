@@ -14,6 +14,7 @@ import HistoryModal from './components/HistoryModal'
 import ArrivalModal from './components/ArrivalModal'
 import NotesModal from './components/NotesModal'
 import NewApplicationForm from './components/NewApplicationForm'
+import DraftModePanel from './components/DraftModePanel'
 import PassportsToolbar from './components/PassportsToolbar'
 import ReceiptViewerModal from '@/app/dashboard/applications/components/ReceiptViewerModal'
 import PassportsTable from './components/PassportsTable'
@@ -27,7 +28,9 @@ import type {
   ModalState,
   Metadata,
   PakEditFormData,
+  PakPassportDraft,
   PakUpdateRecordPayload,
+  EmployeeOption,
 } from './components/types'
 import { PakApplicationFormSchema } from './components/schemas'
 import type { PakApplicationFormErrors } from './components/schemas'
@@ -43,21 +46,28 @@ type StatusHistoryEntry = {
 
 type PakPassportClientProps = {
   initialApplications: Application[]
+  initialDrafts?: PakPassportDraft[]
   currentUserId: string
   documentCounts?: Record<string, number>
+  draftDocumentCounts?: Record<string, number>
+  employeeOptions?: EmployeeOption[]
 }
 
 const getNoteSignature = (value?: string | null) => String(value || '').trim()
 
 export default function PakPassportClient({
   initialApplications,
+  initialDrafts = [],
   currentUserId,
   documentCounts = {},
+  draftDocumentCounts = {},
+  employeeOptions = [],
 }: PakPassportClientProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const attentionMode = searchParams.get('focus') === 'attention'
   const [showForm, setShowForm] = useState(false)
+  const [showDraftMode, setShowDraftMode] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('All')
@@ -344,7 +354,11 @@ export default function PakPassportClient({
       return
     }
 
-    const result = await pakPassportApi.markRequestedPageProvided(item.id, passport.id, currentUserId)
+    const result = await pakPassportApi.markRequestedPageProvided(
+      item.id,
+      passport.id,
+      currentUserId,
+    )
     if (result.ok) {
       toast.success('Requested page marked as provided')
       router.refresh()
@@ -354,9 +368,9 @@ export default function PakPassportClient({
   }
 
   const handleViewHistory = async (appId: string, trackingNo: string) => {
-    const data = (await pakPassportApi.getStatusHistory(appId)) as
-      | { history?: StatusHistoryEntry[] }
-      | null
+    const data = (await pakPassportApi.getStatusHistory(appId)) as {
+      history?: StatusHistoryEntry[]
+    } | null
     if (data) {
       setStatusHistory(data.history || [])
       setHistoryModal({ trackingNumber: trackingNo })
@@ -402,6 +416,14 @@ export default function PakPassportClient({
       return
     }
     router.push(`/dashboard/applications/passports/documents/${applicationId}`)
+  }
+
+  const handleManageDraftDocuments = (draftId: string) => {
+    if (!draftId) {
+      toast.error('Cannot manage documents for this draft')
+      return
+    }
+    router.push(`/dashboard/applications/passports/drafts/${encodeURIComponent(draftId)}/documents`)
   }
 
   const handleGenerateReceipt = async (item: Application) => {
@@ -453,9 +475,9 @@ export default function PakPassportClient({
     setNotesText('')
     setIsNotesLoading(true)
 
-    const data = (await pakPassportApi.getNotes(applicationId, passportId)) as
-      | { notes?: string }
-      | null
+    const data = (await pakPassportApi.getNotes(applicationId, passportId)) as {
+      notes?: string
+    } | null
     let loadedNotes = ''
     if (data && typeof data.notes === 'string') {
       loadedNotes = data.notes
@@ -540,9 +562,7 @@ export default function PakPassportClient({
         category: metadata.categories.includes(prev.category)
           ? prev.category
           : metadata.categories[0] || prev.category,
-        speed: metadata.speeds.includes(prev.speed)
-          ? prev.speed
-          : metadata.speeds[0] || prev.speed,
+        speed: metadata.speeds.includes(prev.speed) ? prev.speed : metadata.speeds[0] || prev.speed,
         applicationType: metadata.applicationTypes.includes(prev.applicationType)
           ? prev.applicationType
           : metadata.applicationTypes[0] || prev.applicationType,
@@ -576,6 +596,31 @@ export default function PakPassportClient({
         showForm={showForm}
         setShowForm={setShowForm}
       />
+
+      <div className="flex justify-end">
+        <button
+          type="button"
+          onClick={() => setShowDraftMode((value) => !value)}
+          className={`rounded-xl px-5 py-2.5 text-sm font-black shadow-sm transition ${
+            showDraftMode
+              ? 'bg-slate-900 text-white hover:bg-black'
+              : 'border border-green-200 bg-white text-green-700 hover:bg-green-50'
+          }`}
+        >
+          {showDraftMode ? 'Close Draft Mode' : 'Draft Mode'}
+        </button>
+      </div>
+
+      {showDraftMode && (
+        <DraftModePanel
+          drafts={initialDrafts}
+          documentCounts={draftDocumentCounts}
+          employeeOptions={employeeOptions}
+          metadata={metadata}
+          currentUserId={currentUserId}
+          onManageDocuments={handleManageDraftDocuments}
+        />
+      )}
 
       <ReceiptViewerModal
         isOpen={receiptViewerOpen}
