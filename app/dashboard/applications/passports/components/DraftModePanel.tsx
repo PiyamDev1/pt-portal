@@ -457,6 +457,14 @@ export default function DraftModePanel({
                     className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-mono uppercase"
                   />
                 )}
+                <textarea
+                  name="notes"
+                  value={formData.notes}
+                  onChange={handleFormChange}
+                  placeholder="Draft notes"
+                  rows={4}
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+                />
               </div>
 
               <div className="space-y-3">
@@ -513,14 +521,6 @@ export default function DraftModePanel({
                   onChange={handleFormChange}
                   placeholder="Payment note"
                   rows={2}
-                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
-                />
-                <textarea
-                  name="notes"
-                  value={formData.notes}
-                  onChange={handleFormChange}
-                  placeholder="Draft notes"
-                  rows={3}
                   className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
                 />
               </div>
