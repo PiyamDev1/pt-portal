@@ -4053,7 +4053,36 @@ Please enter the access code and accept the data handling terms before downloadi
                             </div>
                           </div>
 
-                          <div className="flex flex-wrap gap-2">
+                          <div className="flex flex-wrap items-end gap-2">
+                            <label className="min-w-36 text-[11px] font-black uppercase text-slate-500">
+                              Booked cost
+                              <input
+                                value={financialForm.bookedCostTotal}
+                                onChange={(event) =>
+                                  updateReservationFinancialForm(
+                                    reservation,
+                                    'bookedCostTotal',
+                                    event.target.value,
+                                  )
+                                }
+                                className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                                inputMode="decimal"
+                                placeholder="0.00"
+                              />
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => void saveReservationFinancials(reservation)}
+                              disabled={savingFinancials}
+                              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-slate-900 px-3 text-xs font-black text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+                            >
+                              {savingFinancials ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <CheckCircle2 className="h-4 w-4" />
+                              )}
+                              Save
+                            </button>
                             <select
                               value={reservation.status}
                               disabled={updatingReservationId === reservation.id}
