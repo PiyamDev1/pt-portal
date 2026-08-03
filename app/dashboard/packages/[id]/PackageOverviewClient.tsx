@@ -606,6 +606,7 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
   const [generatedThirdPartyShare, setGeneratedThirdPartyShare] = useState<{
     shareUrl: string
     accessCode: string
+    recipientName: string
   } | null>(null)
   const [invoice, setInvoice] = useState<TravelPackageInvoice | null>(null)
   const [reservationForm, setReservationForm] = useState<ReservationFormState>(() =>
@@ -1394,6 +1395,7 @@ The Piyam Travel Team`
   const generatedThirdPartyShareDetailsText = generatedThirdPartyShare
     ? `Third-party document access
 Package: ${packageFolder?.package_reference || packageId}
+Recipient: ${generatedThirdPartyShare.recipientName || 'Not specified'}
 Link: ${generatedThirdPartyShare.shareUrl}
 Access code: ${generatedThirdPartyShare.accessCode}
 
@@ -2081,6 +2083,8 @@ Please enter the access code and accept the data handling terms before downloadi
       setGeneratedThirdPartyShare({
         shareUrl: data.shareUrl,
         accessCode: data.accessCode,
+        recipientName:
+          data.share.recipient_name || thirdPartyShareForm.recipientName.trim() || 'Not specified',
       })
       setThirdPartyShareForm(createInitialThirdPartyShareForm())
     } catch (shareError) {
@@ -5609,7 +5613,7 @@ Please enter the access code and accept the data handling terms before downloadi
 
       {previewDocument && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4">
-          <div className="flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+          <div className="flex h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
             <div className="flex flex-col gap-3 border-b border-slate-200 p-4 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0">
                 <p className="text-xs font-bold uppercase text-slate-500">Document preview</p>
@@ -5644,20 +5648,29 @@ Please enter the access code and accept the data handling terms before downloadi
                 </button>
               </div>
             </div>
-            <div className="min-h-0 flex-1 bg-slate-100 p-4">
+            <div className="min-h-0 flex-1 overflow-hidden bg-slate-100 p-4">
               {previewDocumentLoading ? (
-                <div className="flex h-[70vh] items-center justify-center rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-500">
+                <div className="flex h-full items-center justify-center rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-500">
                   <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                   Preparing preview
                 </div>
-              ) : previewDocumentUrl && (previewDocumentIsPdf || previewDocumentIsImage) ? (
+              ) : previewDocumentUrl && previewDocumentIsImage ? (
+                <div className="flex h-full items-center justify-center rounded-xl border border-slate-200 bg-white p-3">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={previewDocumentUrl}
+                    alt={previewDocument.title}
+                    className="max-h-full max-w-full object-contain"
+                  />
+                </div>
+              ) : previewDocumentUrl && previewDocumentIsPdf ? (
                 <iframe
                   title={`Preview ${previewDocument.title}`}
                   src={previewDocumentUrl}
-                  className="h-[70vh] w-full rounded-xl border border-slate-200 bg-white"
+                  className="h-full w-full rounded-xl border border-slate-200 bg-white"
                 />
               ) : (
-                <div className="flex h-[70vh] flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white p-6 text-center">
+                <div className="flex h-full flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white p-6 text-center">
                   <FileText className="h-10 w-10 text-slate-400" />
                   <p className="mt-3 text-sm font-black text-slate-900">
                     Preview is not available for this file type.

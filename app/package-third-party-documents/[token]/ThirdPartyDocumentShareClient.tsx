@@ -72,6 +72,9 @@ export default function ThirdPartyDocumentShareClient({
   const [previewDocument, setPreviewDocument] = useState<TravelPackageDocument | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const previewDocumentType = previewDocument?.file_type || ''
+  const previewDocumentIsImage = previewDocumentType.startsWith('image/')
+  const previewDocumentIsPdf = previewDocumentType === 'application/pdf'
 
   const groupedDocuments = useMemo(() => groupPackageDocumentsByCategory(documents), [documents])
   const visaPhotosByTravelDocumentId = useMemo(() => {
@@ -361,7 +364,7 @@ export default function ThirdPartyDocumentShareClient({
       </div>
       {previewDocument && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4">
-          <section className="flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
+          <section className="flex h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
             <div className="flex items-start justify-between gap-3 border-b border-slate-200 p-4">
               <div className="min-w-0">
                 <p className="text-xs font-black uppercase text-slate-500">Document preview</p>
@@ -392,12 +395,33 @@ export default function ThirdPartyDocumentShareClient({
                 </button>
               </div>
             </div>
-            <div className="min-h-0 flex-1 bg-slate-100 p-4">
-              <iframe
-                title={`Preview ${previewDocument.title || previewDocument.file_name}`}
-                src={previewDocument.preview_url || previewDocument.signed_url || ''}
-                className="h-[72vh] w-full rounded-lg border border-slate-200 bg-white"
-              />
+            <div className="min-h-0 flex-1 overflow-hidden bg-slate-100 p-4">
+              {previewDocumentIsImage ? (
+                <div className="flex h-full items-center justify-center rounded-lg border border-slate-200 bg-white p-3">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={previewDocument.preview_url || previewDocument.signed_url || ''}
+                    alt={previewDocument.title || previewDocument.file_name}
+                    className="max-h-full max-w-full object-contain"
+                  />
+                </div>
+              ) : previewDocumentIsPdf ? (
+                <iframe
+                  title={`Preview ${previewDocument.title || previewDocument.file_name}`}
+                  src={previewDocument.preview_url || previewDocument.signed_url || ''}
+                  className="h-full w-full rounded-lg border border-slate-200 bg-white"
+                />
+              ) : (
+                <div className="flex h-full flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white p-6 text-center">
+                  <FileText className="h-10 w-10 text-slate-400" />
+                  <p className="mt-3 text-sm font-black text-slate-900">
+                    Preview is not available for this file type.
+                  </p>
+                  <p className="mt-1 text-xs font-semibold text-slate-500">
+                    Use Download to view the document.
+                  </p>
+                </div>
+              )}
             </div>
           </section>
         </div>
