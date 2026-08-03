@@ -19,7 +19,14 @@ const SCHEMA_HINT =
 
 export function isThirdPartyShareSchemaError(error: unknown) {
   const code = (error as { code?: string } | null)?.code
-  return code === '42P01' || code === '42703' || code === '42P10'
+  return (
+    code === '42P01' ||
+    code === '42703' ||
+    code === '42P10' ||
+    code === '42501' ||
+    code === 'PGRST200' ||
+    code === 'PGRST204'
+  )
 }
 
 function getDefaultExpiry() {
@@ -86,10 +93,13 @@ export async function GET(
     .order('created_at', { ascending: false })
 
   if (error) {
-    if (isThirdPartyShareSchemaError(error)) {
-      return apiOk({ shares: [], setupRequired: true, message: SCHEMA_HINT })
-    }
-    return apiError(error.message || 'Failed to load third-party document shares', 500)
+    return apiOk({
+      shares: [],
+      setupRequired: isThirdPartyShareSchemaError(error),
+      message: isThirdPartyShareSchemaError(error)
+        ? SCHEMA_HINT
+        : error.message || 'Failed to load third-party document shares',
+    })
   }
 
   return apiOk({

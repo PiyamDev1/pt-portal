@@ -215,6 +215,11 @@ function isVisaPhotoDocument(document: TravelPackageDocument) {
   return document.metadata?.documentKind === VISA_PHOTO_DOCUMENT_KIND
 }
 
+function getLinkedVisaPhotoParentId(document: TravelPackageDocument) {
+  const linkedDocumentId = document.metadata?.linkedTravelDocumentId
+  return typeof linkedDocumentId === 'string' ? linkedDocumentId : ''
+}
+
 const reservationTypeOptions: Array<{ value: TravelPackageReservationType; label: string }> = [
   { value: 'flight', label: 'Flight' },
   { value: 'hotel', label: 'Hotel' },
@@ -635,6 +640,7 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
   const [previewDocument, setPreviewDocument] = useState<TravelPackageDocument | null>(null)
   const [previewDocumentUrl, setPreviewDocumentUrl] = useState('')
   const [previewDocumentLoading, setPreviewDocumentLoading] = useState(false)
+  const [photoLinkDocument, setPhotoLinkDocument] = useState<TravelPackageDocument | null>(null)
   const [updatingReservationId, setUpdatingReservationId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [reservationError, setReservationError] = useState<string | null>(null)
@@ -799,15 +805,12 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
           throw new Error(data.message || data.error || 'Unable to load third-party shares')
         }
         if (data.setupRequired) {
-          setDocumentError(data.message || 'Third-party share schema is not installed yet')
           setThirdPartyShares([])
           return
         }
         setThirdPartyShares(data.shares || [])
-      } catch (loadError) {
-        setDocumentError(
-          loadError instanceof Error ? loadError.message : 'Unable to load third-party shares',
-        )
+      } catch {
+        setThirdPartyShares([])
       } finally {
         setThirdPartyShareLoading(false)
       }
@@ -1123,6 +1126,17 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
       ),
     [documents],
   )
+  const visaPhotosByTravelDocumentId = useMemo(() => {
+    return visaPhotoDocuments.reduce(
+      (photosByDocument, document) => {
+        const parentId = getLinkedVisaPhotoParentId(document)
+        if (!parentId) return photosByDocument
+        photosByDocument[parentId] = [...(photosByDocument[parentId] || []), document]
+        return photosByDocument
+      },
+      {} as Record<string, TravelPackageDocument[]>,
+    )
+  }, [visaPhotoDocuments])
   const reservationTitleById = useMemo(
     () => new Map(reservations.map((reservation) => [reservation.id, reservation.title])),
     [reservations],
@@ -1823,7 +1837,10 @@ Please enter the access code and accept the data handling terms before downloadi
     }
   }
 
-  const uploadVisaPhotoFiles = async (files: FileList | File[]) => {
+  const uploadVisaPhotoFiles = async (
+    files: FileList | File[],
+    linkedTravelDocument?: TravelPackageDocument,
+  ) => {
     const selectedFiles = Array.from(files).filter(Boolean)
     if (savingDocument || selectedFiles.length === 0) return
     setSavingDocument(true)
@@ -1831,19 +1848,26 @@ Please enter the access code and accept the data handling terms before downloadi
     try {
       const uploadedDocuments: TravelPackageDocument[] = []
       for (const file of selectedFiles) {
+        const linkedTitle = linkedTravelDocument?.title || linkedTravelDocument?.file_name || ''
         const document = await uploadSingleDocumentFile(file, {
-          title: `Visa photo - ${file.name}`,
+          title: linkedTitle ? `Visa photo for ${linkedTitle}` : `Visa photo - ${file.name}`,
           category: 'travel_documents',
-          internalNotes: 'Linked photo for visa issuing.',
+          internalNotes: linkedTitle
+            ? `Linked photo for visa issuing. Parent document: ${linkedTitle}.`
+            : 'Linked photo for visa issuing.',
           metadata: {
             documentKind: VISA_PHOTO_DOCUMENT_KIND,
             linkedPurpose: 'visa_issue',
+            linkedTravelDocumentId: linkedTravelDocument?.id || null,
+            linkedTravelDocumentTitle: linkedTitle || null,
+            originalPhotoFileName: file.name,
           },
         })
         uploadedDocuments.push(document)
       }
       setDocuments((current) => [...uploadedDocuments.reverse(), ...current])
       setDraggingDocumentCategory(null)
+      if (linkedTravelDocument) setPhotoLinkDocument(null)
     } catch (uploadError) {
       setDocumentError(
         uploadError instanceof Error ? uploadError.message : 'Failed to upload visa photo',
@@ -1881,47 +1905,6 @@ Please enter the access code and accept the data handling terms before downloadi
     } catch (updateError) {
       setDocumentError(
         updateError instanceof Error ? updateError.message : 'Failed to update package document',
-      )
-    } finally {
-      setUpdatingDocumentId(null)
-    }
-  }
-
-  const updateVisaPhotoLink = async (document: TravelPackageDocument, linked: boolean) => {
-    setUpdatingDocumentId(document.id)
-    setDocumentError(null)
-    try {
-      const response = await fetch(
-        `/api/travel-packages/${encodeURIComponent(packageId)}/documents/${encodeURIComponent(
-          document.id,
-        )}`,
-        {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            category: 'travel_documents',
-            metadata: linked
-              ? {
-                  documentKind: VISA_PHOTO_DOCUMENT_KIND,
-                  linkedPurpose: 'visa_issue',
-                }
-              : {
-                  documentKind: null,
-                  linkedPurpose: null,
-                },
-          }),
-        },
-      )
-      const data = (await response.json()) as DocumentsResponse
-      if (!response.ok || !data.document) {
-        throw new Error(data.message || data.error || 'Failed to update visa photo link')
-      }
-      setDocuments((current) =>
-        current.map((item) => (item.id === document.id ? data.document! : item)),
-      )
-    } catch (updateError) {
-      setDocumentError(
-        updateError instanceof Error ? updateError.message : 'Failed to update visa photo link',
       )
     } finally {
       setUpdatingDocumentId(null)
@@ -3124,60 +3107,6 @@ Please enter the access code and accept the data handling terms before downloadi
                 )}
               </div>
 
-              <label
-                onDragOver={(event) => {
-                  event.preventDefault()
-                  setDraggingDocumentCategory('travel_documents')
-                }}
-                onDragLeave={() => setDraggingDocumentCategory(null)}
-                onDrop={(event) => {
-                  event.preventDefault()
-                  setDraggingDocumentCategory(null)
-                  const files = event.dataTransfer.files
-                  if (files?.length) {
-                    void uploadVisaPhotoFiles(files)
-                  }
-                }}
-                className={`mb-4 flex cursor-pointer flex-col gap-3 rounded-lg border-2 border-dashed p-4 transition md:flex-row md:items-center md:justify-between ${
-                  draggingDocumentCategory === 'travel_documents'
-                    ? 'border-indigo-500 bg-indigo-50'
-                    : 'border-indigo-200 bg-indigo-50/60 hover:border-indigo-400'
-                }`}
-              >
-                <input
-                  type="file"
-                  multiple
-                  accept=".jpg,.jpeg,.png,.webp"
-                  className="sr-only"
-                  disabled={savingDocument}
-                  onChange={(event) => {
-                    const files = event.target.files
-                    event.currentTarget.value = ''
-                    if (files?.length) {
-                      void uploadVisaPhotoFiles(files)
-                    }
-                  }}
-                />
-                <span className="flex items-start gap-3">
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-indigo-900 text-white">
-                    <FileImage className="h-5 w-5" />
-                  </span>
-                  <span>
-                    <span className="block text-sm font-black text-slate-950">
-                      Visa issue photos
-                    </span>
-                    <span className="mt-1 block text-xs font-semibold leading-5 text-slate-600">
-                      Upload customer photos here to link them as agent-only Travel Documents for
-                      visa issuing.
-                    </span>
-                  </span>
-                </span>
-                <span className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg bg-indigo-900 px-3 text-xs font-black text-white">
-                  {savingDocument ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                  {visaPhotoDocuments.length} linked
-                </span>
-              </label>
-
               <div className="mb-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                 {PACKAGE_DOCUMENT_CATEGORIES.map((category) => {
                   const activeDrop = draggingDocumentCategory === category.value
@@ -3267,6 +3196,7 @@ Please enter the access code and accept the data handling terms before downloadi
                             document.customer_visible && document.status === 'released'
                           const documentIsAgentOnly = document.category === 'travel_documents'
                           const documentIsVisaPhoto = isVisaPhotoDocument(document)
+                          const linkedVisaPhotos = visaPhotosByTravelDocumentId[document.id] || []
                           return (
                             <div
                               key={document.id}
@@ -3325,6 +3255,13 @@ Please enter the access code and accept the data handling terms before downloadi
                                       'reservation'}
                                   </p>
                                 )}
+                                {documentIsVisaPhoto &&
+                                  typeof document.metadata?.linkedTravelDocumentTitle ===
+                                    'string' && (
+                                    <p className="mt-1 text-xs font-bold text-indigo-700">
+                                      Photo for {document.metadata.linkedTravelDocumentTitle}
+                                    </p>
+                                  )}
                                 {document.public_notes && (
                                   <p className="mt-2 whitespace-pre-line text-xs leading-5 text-slate-600">
                                     {document.public_notes}
@@ -3335,6 +3272,25 @@ Please enter the access code and accept the data handling terms before downloadi
                                     {document.internal_notes}
                                   </p>
                                 )}
+                                {document.category === 'travel_documents' &&
+                                  !documentIsVisaPhoto &&
+                                  linkedVisaPhotos.length > 0 && (
+                                    <div className="mt-2 rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2">
+                                      <p className="text-xs font-black uppercase text-indigo-700">
+                                        Linked visa photos
+                                      </p>
+                                      <div className="mt-1 space-y-1">
+                                        {linkedVisaPhotos.map((photo) => (
+                                          <p
+                                            key={photo.id}
+                                            className="break-all text-xs font-semibold text-indigo-900"
+                                          >
+                                            {photo.title}
+                                          </p>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
                               </div>
                               <div className="flex shrink-0 flex-wrap gap-2">
                                 {renamingThisDocument ? (
@@ -3373,21 +3329,15 @@ Please enter the access code and accept the data handling terms before downloadi
                                     Rename
                                   </button>
                                 )}
-                                {document.category === 'travel_documents' && (
+                                {document.category === 'travel_documents' && !documentIsVisaPhoto && (
                                   <button
                                     type="button"
-                                    onClick={() =>
-                                      void updateVisaPhotoLink(document, !documentIsVisaPhoto)
-                                    }
+                                    onClick={() => setPhotoLinkDocument(document)}
                                     disabled={updatingThisDocument}
-                                    className={`inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border px-3 text-xs font-black transition disabled:cursor-not-allowed disabled:text-slate-300 ${
-                                      documentIsVisaPhoto
-                                        ? 'border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
-                                        : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-100'
-                                    }`}
+                                    className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300"
                                   >
                                     <FileImage className="h-4 w-4" />
-                                    {documentIsVisaPhoto ? 'Unlink photo' : 'Link photo'}
+                                    Link photo
                                   </button>
                                 )}
                                 <button
@@ -5520,6 +5470,96 @@ Please enter the access code and accept the data handling terms before downloadi
                   </div>
                 )}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {photoLinkDocument && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4">
+          <div className="w-full max-w-xl overflow-hidden rounded-2xl bg-white shadow-2xl">
+            <div className="flex items-start justify-between gap-3 border-b border-slate-200 p-4">
+              <div className="min-w-0">
+                <p className="text-xs font-bold uppercase text-slate-500">Link visa photo</p>
+                <h3 className="mt-1 truncate text-lg font-black text-slate-950">
+                  {photoLinkDocument.title}
+                </h3>
+                <p className="mt-1 break-all text-xs font-bold text-slate-500">
+                  Photos uploaded here stay in Travel Documents and link back to this file.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPhotoLinkDocument(null)}
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600 transition hover:bg-slate-200"
+                aria-label="Close photo upload"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="p-4">
+              <label
+                onDragOver={(event) => {
+                  event.preventDefault()
+                  setDraggingDocumentCategory('travel_documents')
+                }}
+                onDragLeave={() => setDraggingDocumentCategory(null)}
+                onDrop={(event) => {
+                  event.preventDefault()
+                  setDraggingDocumentCategory(null)
+                  const files = event.dataTransfer.files
+                  if (files?.length) {
+                    void uploadVisaPhotoFiles(files, photoLinkDocument)
+                  }
+                }}
+                className={`flex min-h-48 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed p-6 text-center transition ${
+                  draggingDocumentCategory === 'travel_documents'
+                    ? 'border-indigo-500 bg-indigo-50'
+                    : 'border-indigo-200 bg-indigo-50/60 hover:border-indigo-400'
+                }`}
+              >
+                <input
+                  type="file"
+                  multiple
+                  accept=".jpg,.jpeg,.png,.webp"
+                  className="sr-only"
+                  disabled={savingDocument}
+                  onChange={(event) => {
+                    const files = event.target.files
+                    event.currentTarget.value = ''
+                    if (files?.length) {
+                      void uploadVisaPhotoFiles(files, photoLinkDocument)
+                    }
+                  }}
+                />
+                <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-900 text-white">
+                  {savingDocument ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    <FileImage className="h-5 w-5" />
+                  )}
+                </span>
+                <span className="mt-3 block text-sm font-black text-slate-950">
+                  Upload photo for this travel document
+                </span>
+                <span className="mt-1 block text-xs font-semibold leading-5 text-slate-600">
+                  Drop image files here or click to select photos.
+                </span>
+              </label>
+              {(visaPhotosByTravelDocumentId[photoLinkDocument.id] || []).length > 0 && (
+                <div className="mt-4 rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2">
+                  <p className="text-xs font-black uppercase text-indigo-700">
+                    Already linked
+                  </p>
+                  <div className="mt-1 space-y-1">
+                    {(visaPhotosByTravelDocumentId[photoLinkDocument.id] || []).map((photo) => (
+                      <p key={photo.id} className="break-all text-xs font-semibold text-indigo-900">
+                        {photo.title}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
