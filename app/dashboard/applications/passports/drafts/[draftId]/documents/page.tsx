@@ -85,7 +85,7 @@ export default async function PassportDraftDocumentsPage({
         <main className="flex-1 max-w-7xl mx-auto p-6 w-full">
           <div className="mb-6">
             <a
-              href="/dashboard/applications/passports"
+              href="/dashboard/applications/passports/drafts"
               className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 text-sm font-medium mb-4"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -96,7 +96,7 @@ export default async function PassportDraftDocumentsPage({
                   d="M15 19l-7-7 7-7"
                 />
               </svg>
-              Back to Pakistani Passports
+              Back to Passport Drafts
             </a>
           </div>
 

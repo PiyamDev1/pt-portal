@@ -22,7 +22,7 @@ type DraftModePanelProps = {
   employeeOptions: EmployeeOption[]
   metadata: Metadata
   currentUserId: string
-  onManageDocuments: (draftId: string) => void
+  onManageDocuments?: (draftId: string) => void
 }
 
 const DRAFT_STATUSES: PakPassportDraftStatus[] = [
@@ -236,6 +236,14 @@ export default function DraftModePanel({
     setEditingDraftId(draft.id)
     setFormData(draftToForm(draft))
     setShowForm(true)
+  }
+
+  const manageDocuments = (draftId: string) => {
+    if (onManageDocuments) {
+      onManageDocuments(draftId)
+      return
+    }
+    router.push(`/dashboard/applications/passports/drafts/${encodeURIComponent(draftId)}/documents`)
   }
 
   const saveDraft = async () => {
@@ -700,7 +708,7 @@ export default function DraftModePanel({
                       <td className="px-3 py-3">
                         <button
                           type="button"
-                          onClick={() => onManageDocuments(draft.draft_id)}
+                          onClick={() => manageDocuments(draft.draft_id)}
                           className="inline-flex items-center gap-2 rounded-lg bg-sky-50 px-3 py-2 text-xs font-bold text-sky-700 hover:bg-sky-100"
                         >
                           <FileText className="h-4 w-4" />

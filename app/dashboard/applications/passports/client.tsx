@@ -14,7 +14,6 @@ import HistoryModal from './components/HistoryModal'
 import ArrivalModal from './components/ArrivalModal'
 import NotesModal from './components/NotesModal'
 import NewApplicationForm from './components/NewApplicationForm'
-import DraftModePanel from './components/DraftModePanel'
 import PassportsToolbar from './components/PassportsToolbar'
 import ReceiptViewerModal from '@/app/dashboard/applications/components/ReceiptViewerModal'
 import PassportsTable from './components/PassportsTable'
@@ -28,9 +27,7 @@ import type {
   ModalState,
   Metadata,
   PakEditFormData,
-  PakPassportDraft,
   PakUpdateRecordPayload,
-  EmployeeOption,
 } from './components/types'
 import { PakApplicationFormSchema } from './components/schemas'
 import type { PakApplicationFormErrors } from './components/schemas'
@@ -46,28 +43,21 @@ type StatusHistoryEntry = {
 
 type PakPassportClientProps = {
   initialApplications: Application[]
-  initialDrafts?: PakPassportDraft[]
   currentUserId: string
   documentCounts?: Record<string, number>
-  draftDocumentCounts?: Record<string, number>
-  employeeOptions?: EmployeeOption[]
 }
 
 const getNoteSignature = (value?: string | null) => String(value || '').trim()
 
 export default function PakPassportClient({
   initialApplications,
-  initialDrafts = [],
   currentUserId,
   documentCounts = {},
-  draftDocumentCounts = {},
-  employeeOptions = [],
 }: PakPassportClientProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const attentionMode = searchParams.get('focus') === 'attention'
   const [showForm, setShowForm] = useState(false)
-  const [showDraftMode, setShowDraftMode] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('All')
@@ -427,14 +417,6 @@ export default function PakPassportClient({
     router.push(`/dashboard/applications/passports/documents/${applicationId}`)
   }
 
-  const handleManageDraftDocuments = (draftId: string) => {
-    if (!draftId) {
-      toast.error('Cannot manage documents for this draft')
-      return
-    }
-    router.push(`/dashboard/applications/passports/drafts/${encodeURIComponent(draftId)}/documents`)
-  }
-
   const handleGenerateReceipt = async (item: Application) => {
     const passport = getPassportRecord(item)
     if (!passport?.id) {
@@ -605,31 +587,6 @@ export default function PakPassportClient({
         showForm={showForm}
         setShowForm={setShowForm}
       />
-
-      <div className="flex justify-end">
-        <button
-          type="button"
-          onClick={() => setShowDraftMode((value) => !value)}
-          className={`rounded-xl px-5 py-2.5 text-sm font-black shadow-sm transition ${
-            showDraftMode
-              ? 'bg-slate-900 text-white hover:bg-black'
-              : 'border border-green-200 bg-white text-green-700 hover:bg-green-50'
-          }`}
-        >
-          {showDraftMode ? 'Close Draft Mode' : 'Draft Mode'}
-        </button>
-      </div>
-
-      {showDraftMode && (
-        <DraftModePanel
-          drafts={initialDrafts}
-          documentCounts={draftDocumentCounts}
-          employeeOptions={employeeOptions}
-          metadata={metadata}
-          currentUserId={currentUserId}
-          onManageDocuments={handleManageDraftDocuments}
-        />
-      )}
 
       <ReceiptViewerModal
         isOpen={receiptViewerOpen}

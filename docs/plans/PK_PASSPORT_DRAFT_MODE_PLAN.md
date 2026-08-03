@@ -16,7 +16,7 @@ Drafts are operational records only. They are not real passport application reco
 
 ## Product Decision
 
-Add a Draft Mode section to `/dashboard/applications/passports`.
+Add a Draft Mode workspace at `/dashboard/applications/passports/drafts`.
 
 Draft Mode is a separate operational queue for pre-tracking work. It should not insert into `applications` until the official tracking number is received.
 
@@ -205,7 +205,8 @@ Cleanup safety:
 On `/dashboard/applications/passports`:
 
 - Add top-level button: `Draft Mode`
-- Draft Mode opens a section or tab beside the tracked ledger
+- Draft Mode opens `/dashboard/applications/passports/drafts` so draft and live tracked ledgers cannot be confused.
+- Add a `Live Mode` button on the drafts page to return to `/dashboard/applications/passports`.
 - Draft queue should have filters for status, assigned staff, date, payment status, and search
 - Draft rows should expose:
   - applicant name
@@ -293,7 +294,7 @@ Payment draft fields are operational reminders, not financial ledger entries.
 
 ### Phase 2: Draft Mode UI
 
-- Add Draft Mode button/section to Pakistani passports page.
+- Add Draft Mode button to Pakistani passports page and render drafts on `/dashboard/applications/passports/drafts`.
 - Add draft creation form based on the current new application form without tracking number.
 - Add draft queue table.
 - Add draft edit modal.

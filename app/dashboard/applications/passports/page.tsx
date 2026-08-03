@@ -18,10 +18,11 @@
 import { createServerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
+import Link from 'next/link'
+import { ClipboardList } from 'lucide-react'
 import PageHeader from '@/app/components/PageHeader.client'
 import PakPassportClient from './client'
 import DashboardClientWrapper from '@/app/dashboard/client-wrapper'
-import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
 
 export default async function PakPassportPage() {
   const cookieStore = await cookies()
@@ -86,81 +87,12 @@ export default async function PakPassportPage() {
     .order('created_at', { ascending: false })
     .limit(10000)
 
-  const serviceSupabase = getServiceSupabaseClient()
-
-  const { data: drafts } = await serviceSupabase
-    .from('pakistani_passport_drafts')
-    .select(
-      `
-        id,
-        draft_id,
-        applicant_id,
-        applicant_name,
-        applicant_cnic,
-        applicant_email,
-        applicant_phone,
-        family_head_email,
-        application_type,
-        category,
-        page_count,
-        speed,
-        old_passport_number,
-        notes,
-        status,
-        payment_status,
-        payment_amount,
-        payment_note,
-        payment_refunded_at,
-        assigned_employee_id,
-        created_by,
-        updated_by,
-        sent_to_external_at,
-        converted_application_id,
-        converted_by,
-        converted_at,
-        official_tracking_number,
-        cancelled_at,
-        cancelled_by,
-        cancellation_reason,
-        created_at,
-        updated_at,
-        assigned_employee:employees!pakistani_passport_drafts_assigned_employee_id_fkey(id, full_name),
-        created_by_employee:employees!pakistani_passport_drafts_created_by_fkey(id, full_name)
-      `,
-    )
-    .not('status', 'in', '("Converted","Cancelled")')
-    .order('updated_at', { ascending: false })
-    .limit(1000)
-
-  const { data: employees } = await serviceSupabase
-    .from('employees')
-    .select('id, full_name')
-    .order('full_name', { ascending: true })
-
   // Build documentCounts from the has_documents marker stored on each application.
   // No second query needed — the flag is maintained by the upload/delete APIs.
   const documentCounts: Record<string, number> = {}
   for (const app of applications || []) {
     if ((app as { has_documents?: boolean }).has_documents) {
       documentCounts[app.id] = 1
-    }
-  }
-
-  const draftDocumentCounts: Record<string, number> = {}
-  const draftIds = (drafts || []).map((draft) => draft.draft_id).filter(Boolean)
-  if (draftIds.length > 0) {
-    const { data: draftDocuments } = await serviceSupabase
-      .from('documents')
-      .select('family_head_id')
-      .in('family_head_id', draftIds)
-      .eq('deleted', false)
-      .neq('category', 'zip-archive')
-
-    for (const document of draftDocuments || []) {
-      const key = document.family_head_id
-      if (key) {
-        draftDocumentCounts[key] = (draftDocumentCounts[key] || 0) + 1
-      }
     }
   }
 
@@ -178,21 +110,25 @@ export default async function PakPassportPage() {
           showBack={true}
         />
         <main className="max-w-7xl mx-auto p-6">
-          <div className="mb-8 flex justify-between items-end">
+          <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <h1 className="text-3xl font-bold text-slate-800">Pakistani Passports</h1>
               <p className="text-slate-500">
                 Manage renewals, new arrivals, and custody of old passports.
               </p>
             </div>
+            <Link
+              href="/dashboard/applications/passports/drafts"
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-green-200 bg-white px-5 py-2.5 text-sm font-black text-green-700 shadow-sm transition hover:bg-green-50"
+            >
+              <ClipboardList className="h-4 w-4" />
+              Draft Mode
+            </Link>
           </div>
           <PakPassportClient
             initialApplications={applications || []}
-            initialDrafts={drafts || []}
             currentUserId={session.user.id}
             documentCounts={documentCounts}
-            draftDocumentCounts={draftDocumentCounts}
-            employeeOptions={employees || []}
           />
         </main>
       </div>
