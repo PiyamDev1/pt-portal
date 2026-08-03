@@ -9,6 +9,7 @@ import { Save } from 'lucide-react'
 import { useEffect, useMemo } from 'react'
 import type { ChangeEvent } from 'react'
 import type { GbMetadata, GbPricingRule } from './types'
+import { findGbPricingRule } from '@/lib/passports/gbPricing'
 
 interface FormData {
   applicantName: string
@@ -32,14 +33,10 @@ interface FormSectionProps {
   onResolvedPricing?: (pricingId: string | null) => void
 }
 
-function normalisePricingText(value: string) {
-  return String(value || '').trim().toLowerCase().replace(/\s+/g, ' ')
-}
-
-function normalisePageValue(value: string) {
+function formatPageLabel(value: string) {
   const text = String(value || '').trim()
-  const numeric = text.match(/\d+/)?.[0]
-  return numeric || normalisePricingText(text)
+  if (!text) return ''
+  return /\bpages?\b/i.test(text) ? text : `${text} Pages`
 }
 
 export default function FormSection({
@@ -64,15 +61,11 @@ export default function FormSection({
       return { cost: 0, price: 0, matched: false }
     }
 
-    const ageKey = normalisePricingText(formData.ageGroup)
-    const pagesKey = normalisePageValue(formData.pages)
-    const serviceKey = normalisePricingText(formData.serviceType)
-    const rule = metadata.pricing.find(
-      (p: GbPricingRule) =>
-        (p.ageKey || normalisePricingText(p.age)) === ageKey &&
-        (p.pagesKey || normalisePageValue(p.pages)) === pagesKey &&
-        (p.serviceKey || normalisePricingText(p.service)) === serviceKey,
-    )
+    const rule = findGbPricingRule(metadata.pricing, {
+      ageGroup: formData.ageGroup,
+      pages: formData.pages,
+      serviceType: formData.serviceType,
+    }) as GbPricingRule | null
     return rule
       ? { cost: rule.cost, price: rule.price, matched: true, pricingId: rule.id }
       : { cost: 0, price: 0, matched: false, pricingId: null }
@@ -200,7 +193,7 @@ export default function FormSection({
                             : 'bg-white text-slate-600 border-slate-200'
                         }`}
                       >
-                        {pg.option_label} Pages
+                        {formatPageLabel(pg.option_label)}
                       </button>
                     ))}
                   </div>

@@ -8,17 +8,35 @@
 import { createClient } from '@supabase/supabase-js'
 import { apiOk, apiError } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
+import {
+  mapGbPricingRule,
+  normaliseGbPageValue,
+  normaliseGbPricingText,
+} from '@/lib/passports/gbPricing'
 
 export const dynamic = 'force-dynamic'
 
-function normalisePricingText(value) {
-  return String(value || '').trim().toLowerCase().replace(/\s+/g, ' ')
-}
+function mergeLookupOptions(lookupRows, pricingRows, lookupLabelKey, pricingLabelKey, normalise) {
+  const merged = []
+  const seen = new Set()
 
-function normalisePageValue(value) {
-  const text = String(value || '').trim()
-  const numeric = text.match(/\d+/)?.[0]
-  return numeric || normalisePricingText(text)
+  for (const row of lookupRows || []) {
+    const label = row?.[lookupLabelKey]
+    const key = normalise(label)
+    if (!key || seen.has(key)) continue
+    seen.add(key)
+    merged.push(row)
+  }
+
+  for (const row of pricingRows || []) {
+    const label = row?.[pricingLabelKey]
+    const key = normalise(label)
+    if (!key || seen.has(key)) continue
+    seen.add(key)
+    merged.push({ id: `pricing-${pricingLabelKey}-${key}`, [lookupLabelKey]: label })
+  }
+
+  return merged
 }
 
 export async function GET() {
@@ -47,27 +65,35 @@ export async function GET() {
     const errors = [ages.error, pages.error, services.error, pricing.error].filter(Boolean)
     if (errors.length > 0) throw errors[0]
 
-    // Flatten pricing for easier frontend lookup
-    const flatPricing =
-      pricing.data
-        ?.filter((p) => p.is_active !== false)
-        .map((p) => ({
-          id: p.id,
-          cost: p.cost_price,
-          price: p.sale_price,
-          age: p.age_group,
-          pages: p.pages,
-          service: p.service_type,
-          ageKey: normalisePricingText(p.age_group),
-          pagesKey: normalisePageValue(p.pages),
-          serviceKey: normalisePricingText(p.service_type),
-        })) || []
+    const activePricingRows = (pricing.data || []).filter((p) => p.is_active !== false)
+
+    // Flatten pricing for easier frontend lookup and merge active pricing labels
+    // into the dropdowns so the pricing table remains the source of truth.
+    const flatPricing = activePricingRows.map(mapGbPricingRule)
 
     return apiOk(
       {
-        ages: ages.data || [],
-        pages: pages.data || [],
-        services: services.data || [],
+        ages: mergeLookupOptions(
+          ages.data,
+          activePricingRows,
+          'name',
+          'age_group',
+          normaliseGbPricingText,
+        ),
+        pages: mergeLookupOptions(
+          pages.data,
+          activePricingRows,
+          'option_label',
+          'pages',
+          normaliseGbPageValue,
+        ),
+        services: mergeLookupOptions(
+          services.data,
+          activePricingRows,
+          'name',
+          'service_type',
+          normaliseGbPricingText,
+        ),
         pricing: flatPricing,
       },
       {

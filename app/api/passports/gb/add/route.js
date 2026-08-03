@@ -8,16 +8,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
-
-function normalisePricingText(value) {
-  return String(value || '').trim().toLowerCase().replace(/\s+/g, ' ')
-}
-
-function normalisePageValue(value) {
-  const text = String(value || '').trim()
-  const numeric = text.match(/\d+/)?.[0]
-  return numeric || normalisePricingText(text)
-}
+import { findGbPricingRow } from '@/lib/passports/gbPricing'
 
 async function findGbPassportPricing(supabase, { pricingId, ageGroup, pages, serviceType }) {
   if (pricingId) {
@@ -31,24 +22,13 @@ async function findGbPassportPricing(supabase, { pricingId, ageGroup, pages, ser
     if (pricingById && pricingById.is_active !== false) return pricingById
   }
 
-  const requestedAge = normalisePricingText(ageGroup)
-  const requestedPages = normalisePageValue(pages)
-  const requestedService = normalisePricingText(serviceType)
-
   const { data: pricingRows, error } = await supabase
     .from('gb_passport_pricing')
     .select('id, cost_price, sale_price, age_group, pages, service_type, is_active')
 
   if (error) throw new Error(`Pricing lookup failed: ${error.message}`)
 
-  const pricing = (pricingRows || []).find((row) => {
-    if (row.is_active === false) return false
-    return (
-      normalisePricingText(row.age_group) === requestedAge &&
-      normalisePageValue(row.pages) === requestedPages &&
-      normalisePricingText(row.service_type) === requestedService
-    )
-  })
+  const pricing = findGbPricingRow(pricingRows, { ageGroup, pages, serviceType })
 
   if (!pricing) {
     throw new Error(

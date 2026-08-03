@@ -67,6 +67,62 @@ describe('GET /api/passports/gb/metadata', () => {
     ])
   })
 
+  it('adds active pricing-table labels to lookup options when lookup rows are stale', async () => {
+    mocks.agesOrder.mockResolvedValue({ data: [{ id: 1, name: 'Adult' }], error: null })
+    mocks.pagesOrder.mockResolvedValue({ data: [{ id: 1, option_label: '34 Pages' }], error: null })
+    mocks.servicesOrder.mockResolvedValue({ data: [{ id: 1, name: 'Fast Track' }], error: null })
+    mocks.pricingSelect.mockResolvedValue({
+      data: [
+        {
+          id: 'p-1',
+          cost_price: '90.50',
+          sale_price: '120.75',
+          age_group: 'Adult',
+          pages: '32',
+          service_type: 'Standard',
+          is_active: true,
+        },
+        {
+          id: 'p-inactive',
+          cost_price: 1,
+          sale_price: 2,
+          age_group: 'Infant',
+          pages: '52',
+          service_type: 'Premium',
+          is_active: false,
+        },
+      ],
+      error: null,
+    })
+
+    const res = await GET()
+    expect(res.status).toBe(200)
+    const body = await res.json()
+
+    expect(body.pages.map((page: { option_label: string }) => page.option_label)).toEqual([
+      '34 Pages',
+      '32',
+    ])
+    expect(body.services.map((service: { name: string }) => service.name)).toEqual([
+      'Fast Track',
+      'Standard',
+    ])
+    expect(body.ages.map((age: { name: string }) => age.name)).toEqual(['Adult'])
+    expect(body.pricing).toEqual([
+      {
+        id: 'p-1',
+        cost: 90.5,
+        price: 120.75,
+        age: 'Adult',
+        pages: '32',
+        service: 'Standard',
+        ageKey: 'adult',
+        pagesKey: '32',
+        serviceKey: 'standard',
+      },
+    ])
+  })
+
   it('returns 500 when a metadata query throws', async () => {
     mocks.agesOrder.mockRejectedValue(new Error('query failed'))
     const res = await GET()

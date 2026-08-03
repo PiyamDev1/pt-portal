@@ -77,7 +77,14 @@ export default function GbPassportsClient({ initialData, currentUserId }: GbPass
   useEffect(() => {
     fetch('/api/passports/gb/metadata')
       .then((res) => res.json())
-      .then((data) => setMetadata(data))
+      .then((data) =>
+        setMetadata({
+          ages: Array.isArray(data?.ages) ? data.ages : [],
+          pages: Array.isArray(data?.pages) ? data.pages : [],
+          services: Array.isArray(data?.services) ? data.services : [],
+          pricing: Array.isArray(data?.pricing) ? data.pricing : [],
+        }),
+      )
       .catch(() => {
         // Silently fail - will use defaults
       })

@@ -21,7 +21,7 @@ export const PRICING_OPTIONS = {
   },
   GB_PASSPORT: {
     ageGroups: ['Adult', 'Child', 'Infant'],
-    pages: ['32', '48', '52'],
+    pages: ['34', '48', '52'],
     serviceTypes: ['Standard', 'Express', 'Premium'],
   },
 }

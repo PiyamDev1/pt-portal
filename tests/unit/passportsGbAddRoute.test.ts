@@ -104,7 +104,7 @@ describe('POST /api/passports/gb/add', () => {
         {
           id: 'pr-1',
           age_group: 'Adult',
-          pages: '34',
+          pages: '32',
           service_type: 'Fast Track',
           cost_price: 80,
           sale_price: 120,
@@ -123,6 +123,13 @@ describe('POST /api/passports/gb/add', () => {
     const body = await res.json()
     expect(body).toEqual({ applicantId: 'a-1', applicationId: 'app-1' })
     expect(mocks.gbInsert).toHaveBeenCalled()
+    expect(mocks.gbInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pricing_id: 'pr-1',
+        cost_price: 80,
+        sale_price: 120,
+      }),
+    )
   })
 
   it('creates applicant when not found', async () => {

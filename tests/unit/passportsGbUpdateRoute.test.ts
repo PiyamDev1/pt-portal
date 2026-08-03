@@ -181,7 +181,7 @@ describe('POST /api/passports/gb/update', () => {
     expect(mocks.historyInsert).not.toHaveBeenCalled()
   })
 
-  it('falls back to exact pricing lookup when pricing id is missing', async () => {
+  it('falls back to tolerant pricing lookup when pricing id is missing', async () => {
     mocks.gbSingle.mockResolvedValue({
       data: {
         applicant_id: 'a-1',
@@ -200,7 +200,7 @@ describe('POST /api/passports/gb/update', () => {
           cost_price: 110,
           sale_price: 140,
           age_group: 'Adult',
-          pages: '34',
+          pages: '32',
           service_type: 'Standard',
           is_active: true,
         },
