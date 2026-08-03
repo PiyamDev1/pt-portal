@@ -3141,9 +3141,9 @@ Please enter the access code and accept the data handling terms before downloadi
                         className="sr-only"
                         disabled={savingDocument}
                         onChange={(event) => {
-                          const files = event.target.files
+                          const files = Array.from(event.currentTarget.files || [])
                           event.currentTarget.value = ''
-                          if (files?.length) {
+                          if (files.length) {
                             void uploadDocumentFiles(files, {
                               category: category.value,
                             })
@@ -5525,9 +5525,9 @@ Please enter the access code and accept the data handling terms before downloadi
                   className="sr-only"
                   disabled={savingDocument}
                   onChange={(event) => {
-                    const files = event.target.files
+                    const files = Array.from(event.currentTarget.files || [])
                     event.currentTarget.value = ''
-                    if (files?.length) {
+                    if (files.length) {
                       void uploadVisaPhotoFiles(files, photoLinkDocument)
                     }
                   }}
