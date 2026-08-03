@@ -139,6 +139,51 @@ describe('POST /api/passports/pak/drafts', () => {
     })
   })
 
+  it('allows draft creation before family head email is known', async () => {
+    const insertQuery = mocks.makeQuery({
+      data: {
+        id: 'draft-row-1',
+        draft_id: 'PKD-ABCDE12345',
+        applicant_name: 'John Doe',
+        status: 'Documents Pending',
+      },
+      error: null,
+    })
+    queue('pakistani_passport_drafts', insertQuery)
+
+    const res = await POST(
+      makeRequest({
+        action: 'create',
+        ...baseDraftPayload,
+        familyHeadEmail: '',
+      }),
+    )
+
+    expect(res.status).toBe(200)
+    expect(insertQuery.insert.mock.calls[0][0]).toMatchObject({
+      family_head_email: '',
+    })
+  })
+
+  it('returns a validation response when the draft insert violates a database constraint', async () => {
+    queue(
+      'pakistani_passport_drafts',
+      mocks.makeQuery({
+        data: null,
+        error: {
+          code: '23503',
+          message: 'insert or update on table "pakistani_passport_drafts" violates foreign key constraint',
+        },
+      }),
+    )
+
+    const res = await POST(makeRequest({ action: 'create', ...baseDraftPayload }))
+    const body = await res.json()
+
+    expect(res.status).toBe(400)
+    expect(body.error).toContain('foreign key constraint')
+  })
+
   it('rejects conversion when the official tracking number already exists', async () => {
     queue(
       'pakistani_passport_drafts',

@@ -120,7 +120,6 @@ function normalizeCreatePayload(body: Record<string, unknown>) {
 
   if (!applicantName) throw new Error('Applicant name is required')
   if (!applicantCnic) throw new Error('Applicant CNIC is required')
-  if (!familyHeadEmail) throw new Error('Family head email is required')
   if (!applicationType) throw new Error('Application type is required')
   if (!category) throw new Error('Category is required')
   if (!speed) throw new Error('Speed is required')
@@ -160,6 +159,21 @@ function normalizeCreatePayload(body: Record<string, unknown>) {
       updated_by: currentUserId,
     },
   }
+}
+
+function statusForDraftError(error: unknown, message: string) {
+  const code = (error as { code?: string } | null)?.code
+  if (code && ['22P02', '23502', '23503', '23514'].includes(code)) {
+    return 400
+  }
+  if (
+    message.includes('required') ||
+    message.includes('Invalid') ||
+    message.includes('must be')
+  ) {
+    return 400
+  }
+  return 500
 }
 
 function normalizeUpdatePayload(body: Record<string, unknown>) {
@@ -515,15 +529,18 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as Record<string, unknown>
     const action = cleanText(body.action || 'create')
 
-    if (action === 'create') return createDraft(body)
-    if (action === 'update') return updateDraft(body)
-    if (action === 'cancel') return cancelDraft(body)
-    if (action === 'convert') return convertDraft(body)
+    if (action === 'create') return await createDraft(body)
+    if (action === 'update') return await updateDraft(body)
+    if (action === 'cancel') return await cancelDraft(body)
+    if (action === 'convert') return await convertDraft(body)
 
     return apiError('Invalid action', 400)
   } catch (error) {
     const message = toErrorMessage(error, 'Pakistani passport draft action failed')
-    const status = message.includes('required') || message.includes('Invalid') ? 400 : 500
+    const status = statusForDraftError(error, message)
+    if (status === 500) {
+      console.error('[Pakistani passport drafts] action failed', error)
+    }
     return apiError(message, status)
   }
 }

@@ -392,7 +392,7 @@ export default function DraftModePanel({
                   name="familyHeadEmail"
                   value={formData.familyHeadEmail}
                   onChange={handleFormChange}
-                  placeholder="Family head email"
+                  placeholder="Family head email (optional)"
                   className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
                 />
               </div>
