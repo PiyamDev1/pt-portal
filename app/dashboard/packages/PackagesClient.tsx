@@ -3325,7 +3325,8 @@ export default function PackagesClient({
                             </p>
                             <p className="mt-1 text-xs font-semibold leading-5 text-slate-600">
                               Allow customers to apply the same main and linked flight choices to
-                              the other families in this group where matching options exist.
+                              the other families in this group where matching options exist. Save
+                              this setting for the customer match-flight option to appear.
                             </p>
                           </div>
                           <button

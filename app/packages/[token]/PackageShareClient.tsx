@@ -760,8 +760,10 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
     [linkedGroup, matchLinkedFlightOptions, matchLinkedHotelOptions, payload, selection],
   )
   const canMatchLinkedHotelOptions = linkedFamilyTotals.length > 0
+  const linkedFamiliesWithPayload =
+    linkedGroup?.families.filter((family) => !family.isCurrent && family.payload).length || 0
   const canMatchLinkedFlightOptions =
-    Boolean(linkedGroup?.sharedFlightSelection) && linkedFamilyTotals.length > 0
+    Boolean(linkedGroup?.sharedFlightSelection) && linkedFamiliesWithPayload > 0
   const canSaveLinkedFamilySelection = Boolean(linkedGroup && linkedGroup.families.length > 1)
   const superGroupTotals = useMemo(() => {
     if (!resolved) return null
