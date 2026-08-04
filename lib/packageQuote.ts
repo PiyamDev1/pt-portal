@@ -389,6 +389,7 @@ function normalizeLinkedPackageGroup(raw: unknown): PackageLinkedPackageGroupSna
     title: asString(candidate.title, groupReference || 'Linked package group'),
     visibilityMode,
     currentFamilyLabel: asString(candidate.currentFamilyLabel, 'This family'),
+    sharedFlightSelection: asBoolean(candidate.sharedFlightSelection),
     linkedFamilies,
     sharedServices,
   }
@@ -398,6 +399,7 @@ function normalizeOption(
   raw: unknown,
   fallbackId: string,
   defaultPricingMode: PackagePricingMode,
+  useAdjustedPrice = false,
 ): PackageComponentOption | null {
   const candidate = raw as Partial<PackageComponentOption> | null
   const title = asString(candidate?.title)
@@ -405,7 +407,8 @@ function normalizeOption(
   const summaryText = summary.trim()
   const price = asNumber(candidate?.price)
   const hasAdjustedPrice = Object.prototype.hasOwnProperty.call(candidate || {}, 'adjustedPrice')
-  const adjustedPrice = hasAdjustedPrice ? asNumber(candidate?.adjustedPrice) : price
+  const adjustedPrice =
+    useAdjustedPrice && hasAdjustedPrice ? asNumber(candidate?.adjustedPrice) : price
   const searchPrice = asNumber(candidate?.searchPrice)
   const id = asString(candidate?.id, fallbackId)
   const pricingMode = normalizePricingMode(candidate?.pricingMode, defaultPricingMode)
@@ -489,10 +492,17 @@ function normalizeOffers(raw: unknown) {
     .filter((value): value is PackageLimitedTimeOffer => Boolean(value))
 }
 
-function normalizeOptions(raw: unknown, prefix: string, defaultPricingMode: PackagePricingMode) {
+function normalizeOptions(
+  raw: unknown,
+  prefix: string,
+  defaultPricingMode: PackagePricingMode,
+  useAdjustedPrice = false,
+) {
   const values = Array.isArray(raw) ? raw : []
   return values
-    .map((value, index) => normalizeOption(value, `${prefix}-${index + 1}`, defaultPricingMode))
+    .map((value, index) =>
+      normalizeOption(value, `${prefix}-${index + 1}`, defaultPricingMode, useAdjustedPrice),
+    )
     .filter((value): value is PackageComponentOption => Boolean(value))
 }
 
@@ -534,7 +544,9 @@ function normalizeStayGroups(raw: unknown, packageType: TravelPackageType): Pack
     return {
       id,
       label: asString(candidate?.label, getDefaultStayGroupLabel(packageType, index)),
-      options: normalizeDefaultOption(normalizeOptions(candidate?.options, `${id}-hotel`, 'total')),
+      options: normalizeDefaultOption(
+        normalizeOptions(candidate?.options, `${id}-hotel`, 'total', true),
+      ),
     }
   })
 

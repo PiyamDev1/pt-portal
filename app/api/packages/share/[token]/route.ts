@@ -19,6 +19,7 @@ type PublicGroupRow = {
   group_reference: string
   title: string
   customer_visibility_mode: string
+  metadata: Record<string, unknown> | null
 }
 
 type PublicGroupMemberRow = {
@@ -69,7 +70,8 @@ function selectPublicGroupColumns() {
     id,
     group_reference,
     title,
-    customer_visibility_mode
+    customer_visibility_mode,
+    metadata
   `
 }
 
@@ -240,6 +242,7 @@ async function loadPublicLinkedGroup(
       groupReference: group.group_reference,
       title: group.title,
       visibilityMode: group.customer_visibility_mode,
+      sharedFlightSelection: group.metadata?.sharedFlightSelection === true,
       families,
     }
   } catch (error) {

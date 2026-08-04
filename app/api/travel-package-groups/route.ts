@@ -127,6 +127,7 @@ export async function POST(request: NextRequest) {
         status: 'active',
         customer_visibility_mode: 'linked_notice_only',
         internal_notes: cleanPackageGroupText(body.internalNotes || body.internal_notes) || null,
+        metadata: cleanMetadata(body.groupMetadata || body.group_metadata),
         created_by: user.id,
         updated_by: user.id,
       })

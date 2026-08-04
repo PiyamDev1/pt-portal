@@ -253,6 +253,7 @@ export interface PackageLinkedPackageGroupSnapshot {
   title: string
   visibilityMode: TravelPackageGroupVisibilityMode
   currentFamilyLabel: string
+  sharedFlightSelection: boolean
   linkedFamilies: Array<{
     packageId?: string | null
     quoteId?: string | null

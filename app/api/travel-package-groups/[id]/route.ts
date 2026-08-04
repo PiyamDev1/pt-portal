@@ -22,6 +22,12 @@ import {
   type TravelPackageGroupDetail,
 } from '@/lib/packageGroups'
 
+function cleanMetadata(value: unknown) {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {}
+}
+
 async function loadGroupDetail(
   supabase: Awaited<ReturnType<typeof getRouteSupabaseClient>>,
   id: string,
@@ -165,6 +171,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     Object.prototype.hasOwnProperty.call(body, 'internal_notes')
   ) {
     update.internal_notes = cleanPackageGroupText(body.internalNotes || body.internal_notes) || null
+  }
+
+  if (Object.prototype.hasOwnProperty.call(body, 'metadata')) {
+    update.metadata = cleanMetadata(body.metadata)
   }
 
   if (Object.keys(update).length === 1) return apiError('No package group changes supplied', 400)

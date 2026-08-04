@@ -167,6 +167,7 @@ export function buildLinkedPackageGroupSnapshot(
     title: group.title,
     visibilityMode: group.customer_visibility_mode,
     currentFamilyLabel: currentMember?.family_label || 'This family',
+    sharedFlightSelection: group.metadata?.sharedFlightSelection === true,
     linkedFamilies: group.members
       .filter((member) => member.id !== currentMember?.id)
       .map((member) => ({

@@ -13,7 +13,7 @@ describe('package group helpers', () => {
       status: 'active',
       customer_visibility_mode: 'linked_notice_only',
       internal_notes: 'Internal supplier cost must not appear in quote copy.',
-      metadata: {},
+      metadata: { sharedFlightSelection: true },
       created_by: 'agent-1',
       updated_by: 'agent-1',
       created_at: '2026-07-21T00:00:00.000Z',
@@ -109,6 +109,7 @@ describe('package group helpers', () => {
     const snapshot = buildLinkedPackageGroupSnapshot(group, { packageId: 'package-1' })
 
     expect(snapshot.currentFamilyLabel).toBe('Family Ali')
+    expect(snapshot.sharedFlightSelection).toBe(true)
     expect(snapshot.linkedFamilies).toEqual([
       expect.objectContaining({
         familyLabel: 'Family Hussain',

@@ -165,6 +165,40 @@ describe('package quote calculator', () => {
     expect(combination.totalPrice).toBe(900)
   })
 
+  it('does not let stale adjusted cost override visa and transport prices', () => {
+    const normalized = normalizePackageQuotePayload({
+      ...payload,
+      flightOptions: [],
+      stayGroups: [],
+      visaOptions: [
+        {
+          id: 'visa-updated',
+          title: 'Updated visa',
+          summary: 'Updated visa',
+          price: 145,
+          adjustedPrice: 30,
+          pricingMode: 'per_person',
+          quantity: 1,
+        },
+      ],
+      transportOptions: [
+        {
+          id: 'transport-updated',
+          title: 'Updated transport',
+          summary: 'Updated transport',
+          price: 300,
+          adjustedPrice: 180,
+          pricingMode: 'total',
+        },
+      ],
+    })
+
+    expect(normalized.visaOptions[0].price).toBe(145)
+    expect(normalized.visaOptions[0].adjustedPrice).toBe(145)
+    expect(normalized.transportOptions[0].price).toBe(300)
+    expect(normalized.transportOptions[0].adjustedPrice).toBe(300)
+  })
+
   it('adds selected hotel extras to the resolved package total', () => {
     const addonPayload = normalizePackageQuotePayload({
       ...payload,
@@ -513,6 +547,7 @@ describe('package quote calculator', () => {
         title: 'Ali / Hussain Umrah',
         visibilityMode: 'linked_notice_only',
         currentFamilyLabel: 'Family Ali',
+        sharedFlightSelection: true,
         linkedFamilies: [
           {
             packageId: 'package-2',
@@ -535,6 +570,7 @@ describe('package quote calculator', () => {
     const copy = formatPackageQuoteForCopy(normalized, 1, 'https://example.test/packages/token')
 
     expect(normalized.linkedPackageGroup?.groupReference).toBe('PTG-ABC123')
+    expect(normalized.linkedPackageGroup?.sharedFlightSelection).toBe(true)
     expect(copy).toContain('Package URL: https://example.test/packages/token')
     expect(copy).toContain('* Transport is shared with Family Hussain / PT-HUS123.')
     expect(copy).not.toContain('allocated')

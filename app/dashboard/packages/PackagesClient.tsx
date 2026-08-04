@@ -671,6 +671,33 @@ function isAutomaticPackageGroupFamilyLabel(value: string) {
   return /^family\s+\d+$/i.test(value.trim())
 }
 
+function preserveStayGroupItineraryOrder({
+  currentOrder,
+  nextGroups,
+  replacedGroupId,
+  replacementGroupId,
+}: {
+  currentOrder: string[]
+  nextGroups: PackageStayGroup[]
+  replacedGroupId?: string
+  replacementGroupId?: string
+}) {
+  const nextGroupIds = new Set(nextGroups.map((group) => group.id))
+  const orderedIds = currentOrder
+    .map((groupId) =>
+      replacedGroupId && replacementGroupId && groupId === replacedGroupId
+        ? replacementGroupId
+        : groupId,
+    )
+    .filter((groupId) => nextGroupIds.has(groupId))
+
+  nextGroups.forEach((group) => {
+    if (!orderedIds.includes(group.id)) orderedIds.push(group.id)
+  })
+
+  return orderedIds
+}
+
 function createInitialPayload(): PackageQuotePayload {
   const defaultStaySetup = createDefaultStaySetup('umrah')
 
@@ -1604,6 +1631,7 @@ export default function PackagesClient({
   const [selectedQuoteForGroupId, setSelectedQuoteForGroupId] = useState('')
   const [selectedQuoteFamilyLabel, setSelectedQuoteFamilyLabel] = useState('Family 2')
   const [sharedTransportNote, setSharedTransportNote] = useState('')
+  const [sharedFlightSelection, setSharedFlightSelection] = useState(false)
 
   const customerOptions = useMemo(() => buildCustomerPackageOptions(payload, 80), [payload])
   const systematicQuoteTitle = useMemo(() => buildSystematicQuoteTitle(payload), [payload])
@@ -1893,6 +1921,7 @@ export default function PackagesClient({
       if (!group || !activeQuote) return
       const snapshot = buildLinkedPackageGroupSnapshot(group, { quoteId: activeQuote.id })
       updatePayload({ linkedPackageGroup: snapshot })
+      setSharedFlightSelection(snapshot.sharedFlightSelection)
       const transportNote =
         snapshot.sharedServices.find(
           (service) => service.serviceType === 'transport' && service.customerVisible,
@@ -1928,6 +1957,7 @@ export default function PackagesClient({
           (service) => service.service_type === 'transport' && service.customer_visible,
         )?.customer_note || ''
       setSharedTransportNote(transportNote)
+      setSharedFlightSelection(detail.metadata?.sharedFlightSelection === true)
       if (applySnapshot) applyPackageGroupSnapshot(detail)
       return detail
     },
@@ -1958,6 +1988,7 @@ export default function PackagesClient({
       if (!linkedResponse) {
         setActivePackageGroup(null)
         setSelectedGroupId('')
+        setSharedFlightSelection(false)
         return
       }
 
@@ -1969,6 +2000,7 @@ export default function PackagesClient({
       } else {
         setActivePackageGroup(null)
         setSelectedGroupId('')
+        setSharedFlightSelection(false)
       }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to load linked package groups')
@@ -1987,16 +2019,23 @@ export default function PackagesClient({
       setSelectedGroupId('')
       setLinkedFamilyLabel('Family 1')
       setSharedTransportNote(payload.linkedPackageGroup?.sharedServices[0]?.customerNote || '')
+      setSharedFlightSelection(false)
     }
   }, [activeQuote, payload.linkedPackageGroup?.sharedServices])
 
   const updateStayGroup = (groupIndex: number, nextGroup: PackageStayGroup) => {
+    const previousGroupId = payload.stayGroups[groupIndex]?.id
     const nextGroups = payload.stayGroups.map((group, index) =>
       index === groupIndex ? nextGroup : group,
     )
     updatePayload({
       stayGroups: nextGroups,
-      itineraryOrder: nextGroups.map((group) => group.id),
+      itineraryOrder: preserveStayGroupItineraryOrder({
+        currentOrder: payload.itineraryOrder,
+        nextGroups,
+        replacedGroupId: previousGroupId,
+        replacementGroupId: nextGroup.id,
+      }),
     })
   }
 
@@ -2013,7 +2052,10 @@ export default function PackagesClient({
     ]
     updatePayload({
       stayGroups: nextGroups,
-      itineraryOrder: nextGroups.map((group) => group.id),
+      itineraryOrder: preserveStayGroupItineraryOrder({
+        currentOrder: payload.itineraryOrder,
+        nextGroups,
+      }),
     })
   }
 
@@ -2022,7 +2064,10 @@ export default function PackagesClient({
     const nextGroups = payload.stayGroups.filter((_, index) => index !== groupIndex)
     updatePayload({
       stayGroups: nextGroups,
-      itineraryOrder: nextGroups.map((group) => group.id),
+      itineraryOrder: preserveStayGroupItineraryOrder({
+        currentOrder: payload.itineraryOrder,
+        nextGroups,
+      }),
     })
   }
 
@@ -2201,6 +2246,7 @@ export default function PackagesClient({
           leadQuoteId: activeQuote.id,
           familyLabel: linkedFamilyLabel || 'Family 1',
           customerVisible: true,
+          groupMetadata: { sharedFlightSelection },
           metadata: buildQuoteGroupMemberMetadata(activeQuote),
         }),
       })
@@ -2310,6 +2356,7 @@ export default function PackagesClient({
             leadQuoteId: activeQuote.id,
             familyLabel: linkedFamilyLabel || 'Family 1',
             customerVisible: true,
+            groupMetadata: { sharedFlightSelection },
             metadata: buildQuoteGroupMemberMetadata(activeQuote),
           }),
         })
@@ -2388,6 +2435,37 @@ export default function PackagesClient({
     }
   }
 
+  const saveSharedFlightSelection = async () => {
+    if (!activePackageGroup) {
+      toast.error('Create or link a package group first')
+      return
+    }
+    setPackageGroupSaving(true)
+    try {
+      const response = await fetch(`/api/travel-package-groups/${activePackageGroup.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          metadata: {
+            ...(activePackageGroup.metadata || {}),
+            sharedFlightSelection,
+          },
+        }),
+      })
+      const data = (await response.json()) as PackageGroupResponse
+      if (!response.ok || data.setupRequired || !data.group) {
+        throw new Error(data.message || data.error || 'Failed to save shared flight setting')
+      }
+      const detail = await loadPackageGroupDetail(activePackageGroup.id, false)
+      if (detail) await persistPackageGroupSnapshot(detail)
+      toast.success('Shared flight setting updated')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to save shared flight setting')
+    } finally {
+      setPackageGroupSaving(false)
+    }
+  }
+
   const unlinkCurrentQuoteFromGroup = async () => {
     const member = activePackageGroup?.members.find(
       (candidate) => candidate.quote_id === activeQuote?.id,
@@ -2413,6 +2491,7 @@ export default function PackagesClient({
       setActivePackageGroup(null)
       setSelectedGroupId('')
       setSharedTransportNote('')
+      setSharedFlightSelection(false)
       setSelectedQuoteFamilyLabel('Family 2')
       await persistUnlinkedPackageGroupSnapshot()
       await loadPackageGroups()
@@ -3238,6 +3317,31 @@ export default function PackagesClient({
                           className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-cyan-700"
                         />
                       </label>
+                      <div className="mt-3 rounded-lg border border-sky-200 bg-sky-50 p-3">
+                        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                          <div>
+                            <p className="text-sm font-black text-slate-950">
+                              Shared flight selection
+                            </p>
+                            <p className="mt-1 text-xs font-semibold leading-5 text-slate-600">
+                              Allow customers to apply the same main and linked flight choices to
+                              the other families in this group where matching options exist.
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setSharedFlightSelection((current) => !current)}
+                            disabled={!activePackageGroup}
+                            className={`min-h-10 rounded-lg px-4 text-sm font-black transition disabled:opacity-50 ${
+                              sharedFlightSelection
+                                ? 'bg-sky-900 text-white hover:bg-sky-950'
+                                : 'border border-sky-200 bg-white text-sky-900 hover:bg-sky-100'
+                            }`}
+                          >
+                            {sharedFlightSelection ? 'Shared Flights: Yes' : 'Shared Flights: No'}
+                          </button>
+                        </div>
+                      </div>
                       <div className="mt-3 flex flex-wrap gap-2">
                         <button
                           type="button"
@@ -3246,6 +3350,14 @@ export default function PackagesClient({
                           className="min-h-10 rounded-lg bg-slate-900 px-3 text-sm font-black text-white transition hover:bg-black disabled:opacity-50"
                         >
                           Save Transport Note
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void saveSharedFlightSelection()}
+                          disabled={packageGroupSaving || !activePackageGroup}
+                          className="min-h-10 rounded-lg bg-sky-900 px-3 text-sm font-black text-white transition hover:bg-sky-950 disabled:opacity-50"
+                        >
+                          Save Flight Sharing
                         </button>
                         <button
                           type="button"

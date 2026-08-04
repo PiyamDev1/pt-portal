@@ -76,6 +76,7 @@ type PublicLinkedPackageGroup = {
   groupReference: string
   title: string
   visibilityMode: string
+  sharedFlightSelection?: boolean
   families: PublicLinkedFamily[]
 }
 
@@ -360,17 +361,90 @@ function normalizeMatchValue(value: string) {
     .trim()
 }
 
+function findMatchingComponentOption(
+  sourceOption: PackageComponentOption | null | undefined,
+  targetOptions: PackageComponentOption[],
+) {
+  if (!sourceOption) return null
+  const sourceTitle = normalizeMatchValue(sourceOption.title)
+  const sourceSummary = normalizeMatchValue(sourceOption.summary)
+  return (
+    targetOptions.find((option) => normalizeMatchValue(option.title) === sourceTitle) ||
+    targetOptions.find(
+      (option) =>
+        sourceSummary && normalizeMatchValue(option.summary) === sourceSummary,
+    ) ||
+    null
+  )
+}
+
+function findMatchingLinkedFlightOption(
+  sourceGroup: PackageQuotePayload['linkedFlightGroups'][number] | undefined,
+  sourceOptionId: string | undefined,
+  targetGroup: PackageQuotePayload['linkedFlightGroups'][number],
+) {
+  if (!sourceGroup) return null
+  const sourceOption = sourceGroup.options.find((option) => option.id === sourceOptionId)
+  if (!sourceOption) return null
+  const sourceAirline = normalizeMatchValue(sourceOption.airlineName)
+  const sourceSummary = normalizeMatchValue(sourceOption.summary)
+  return (
+    targetGroup.options.find((option) => normalizeMatchValue(option.airlineName) === sourceAirline) ||
+    targetGroup.options.find(
+      (option) => sourceSummary && normalizeMatchValue(option.summary) === sourceSummary,
+    ) ||
+    null
+  )
+}
+
 function resolveLinkedFamilySelection(
   family: PublicLinkedFamily,
   currentPayload: PackageQuotePayload,
   currentSelection: PackageSelectionInput,
   matchHotels: boolean,
+  matchFlights = false,
 ) {
   if (!family.payload) return null
 
   try {
     const targetPayload = normalizePackageQuotePayload(family.payload)
     const baseSelection = family.baseSelection || getDefaultPackageSelection(targetPayload)
+    const sourceFlightOption =
+      currentPayload.flightOptions.find(
+        (option) => option.id === currentSelection.flightOptionId,
+      ) || null
+    const matchedTargetFlight = matchFlights
+      ? findMatchingComponentOption(sourceFlightOption, targetPayload.flightOptions)
+      : null
+    const targetFlightOptionId =
+      matchedTargetFlight?.id || baseSelection.flightOptionId || null
+    const sourceLinkedGroups = getLinkedFlightGroupsForFlight(currentPayload, sourceFlightOption)
+    const targetFlightOption =
+      targetPayload.flightOptions.find((option) => option.id === targetFlightOptionId) || null
+    const targetLinkedGroups = getLinkedFlightGroupsForFlight(targetPayload, targetFlightOption)
+    const targetLinkedFlightOptionIds = matchFlights
+      ? Object.fromEntries(
+          targetLinkedGroups.map((targetGroup, groupIndex) => {
+            const routeKey = normalizeMatchValue(targetGroup.routeLabel)
+            const sourceGroup =
+              sourceLinkedGroups.find(
+                (group) => normalizeMatchValue(group.routeLabel) === routeKey,
+              ) || sourceLinkedGroups[groupIndex]
+            const matchedOption = findMatchingLinkedFlightOption(
+              sourceGroup,
+              sourceGroup ? currentSelection.linkedFlightOptionIds?.[sourceGroup.id] : undefined,
+              targetGroup,
+            )
+            return [
+              targetGroup.id,
+              matchedOption?.id ||
+                baseSelection.linkedFlightOptionIds?.[targetGroup.id] ||
+                getLinkedFlightOptionForSelection(targetGroup, null)?.id ||
+                '',
+            ]
+          }),
+        )
+      : baseSelection.linkedFlightOptionIds || {}
     const sourceGroups = currentPayload.stayGroups
     const targetStayOptionIds = matchHotels
       ? Object.fromEntries(
@@ -441,6 +515,8 @@ function resolveLinkedFamilySelection(
       ...baseSelection,
       stayOptionIds: targetStayOptionIds,
       hotelAddonOptionIds: targetHotelAddonOptionIds,
+      flightOptionId: targetFlightOptionId,
+      linkedFlightOptionIds: targetLinkedFlightOptionIds,
       paymentBreakdown: null,
       paymentMethod: 'bank_transfer',
     })
@@ -456,14 +532,18 @@ function getLinkedFamilyPricing(
   currentPayload: PackageQuotePayload,
   currentSelection: PackageSelectionInput,
   matchHotels: boolean,
+  matchFlights = false,
 ) {
-  if (!matchHotels || !family.payload || !family.baseSelection) return family.pricing
+  if ((!matchHotels && !matchFlights) || !family.payload || !family.baseSelection) {
+    return family.pricing
+  }
 
   const result = resolveLinkedFamilySelection(
     family,
     currentPayload,
     currentSelection,
     matchHotels,
+    matchFlights,
   )
   if (!result) {
     return family.pricing
@@ -543,6 +623,7 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
   const [promoCode, setPromoCode] = useState('')
   const [priceSummaryExpanded, setPriceSummaryExpanded] = useState(false)
   const [matchLinkedHotelOptions, setMatchLinkedHotelOptions] = useState(false)
+  const [matchLinkedFlightOptions, setMatchLinkedFlightOptions] = useState(false)
   const [selectionSaveMessage, setSelectionSaveMessage] = useState('')
 
   useEffect(() => {
@@ -557,7 +638,17 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
         const normalized = normalizePackageQuotePayload(data.quote.payload)
         setQuote(data.quote)
         setPayload(normalized)
-        setLinkedGroup(data.linkedGroup || null)
+        setLinkedGroup(
+          data.linkedGroup
+            ? {
+                ...data.linkedGroup,
+                sharedFlightSelection:
+                  data.linkedGroup.sharedFlightSelection ||
+                  normalized.linkedPackageGroup?.sharedFlightSelection ||
+                  false,
+              }
+            : null,
+        )
         setSelection(firstSelections(normalized))
         setCustomer({
           customerName: data.quote.customer_name || normalized.customerName,
@@ -575,6 +666,7 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
         setPromoCode('')
         setPriceSummaryExpanded(false)
         setMatchLinkedHotelOptions(false)
+        setMatchLinkedFlightOptions(false)
         setSelectionSaveMessage('')
       } catch (loadError) {
         setError(loadError instanceof Error ? loadError.message : 'Unable to load package quote')
@@ -641,11 +733,12 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                 payload,
                 selection,
                 matchLinkedHotelOptions,
+                matchLinkedFlightOptions,
               )
               return pricing ? [{ family, index, pricing }] : []
             })
         : [],
-    [linkedGroup, matchLinkedHotelOptions, payload, selection],
+    [linkedGroup, matchLinkedFlightOptions, matchLinkedHotelOptions, payload, selection],
   )
   const linkedFamilyReviewSelections = useMemo(
     () =>
@@ -659,13 +752,16 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                 payload,
                 selection,
                 matchLinkedHotelOptions,
+                matchLinkedFlightOptions,
               )
               return result ? [{ family, index, ...result }] : []
             })
         : [],
-    [linkedGroup, matchLinkedHotelOptions, payload, selection],
+    [linkedGroup, matchLinkedFlightOptions, matchLinkedHotelOptions, payload, selection],
   )
   const canMatchLinkedHotelOptions = linkedFamilyTotals.length > 0
+  const canMatchLinkedFlightOptions =
+    Boolean(linkedGroup?.sharedFlightSelection) && linkedFamilyTotals.length > 0
   const canSaveLinkedFamilySelection = Boolean(linkedGroup && linkedGroup.families.length > 1)
   const superGroupTotals = useMemo(() => {
     if (!resolved) return null
@@ -824,6 +920,13 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                     : 'Customer kept linked group hotel options separate.'
                 }`
               : '',
+            canMatchLinkedFlightOptions
+              ? `Linked family flight preference: ${
+                  matchLinkedFlightOptions
+                    ? 'Customer requested the same flight choices for linked groups.'
+                    : 'Customer kept linked group flight choices separate.'
+                }`
+              : '',
           ),
         }),
       })
@@ -912,6 +1015,13 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                   matchLinkedHotelOptions
                     ? 'Customer requested the same hotel options for linked groups.'
                     : 'Customer kept linked group hotel options separate.'
+                }`
+              : '',
+            canMatchLinkedFlightOptions
+              ? `Linked family flight preference: ${
+                  matchLinkedFlightOptions
+                    ? 'Customer requested the same flight choices for linked groups.'
+                    : 'Customer kept linked group flight choices separate.'
                 }`
               : '',
             canPayForLinkedGroup
@@ -1064,9 +1174,10 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                   <div className="min-w-0">
                     <p className="font-black text-slate-950">Save this family selection</p>
                     <p className="mt-1 leading-6 text-slate-600">
-                      Save this linked package before opening another family quote. Flight options
-                      may differ between families, so flights need to be manually selected and saved
-                      on each linked quote to show an accurate total balance.
+                      Save this linked package before opening another family quote.{' '}
+                      {linkedGroup.sharedFlightSelection
+                        ? 'The agent has allowed matching flight choices across linked families where the same options exist.'
+                        : 'Flight options may differ between families, so flights need to be manually selected and saved on each linked quote to show an accurate total balance.'}
                     </p>
                     {selectionSaveMessage && (
                       <p className="mt-2 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800">
@@ -1759,7 +1870,39 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
               )}
               {payload.flightOptions.length > 0 && (
                 <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                  <SectionTitle icon={Plane} title="Flights" />
+                  <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <SectionTitle icon={Plane} title="Flights" />
+                    {canMatchLinkedFlightOptions && (
+                      <div className="rounded-lg border border-sky-200 bg-sky-50 p-3 sm:max-w-md">
+                        <p className="text-xs font-black uppercase text-sky-900">
+                          Use same flights for linked groups?
+                        </p>
+                        <p className="mt-1 text-xs font-semibold leading-5 text-slate-600">
+                          Apply matching main and linked flight choices to the other family quotes
+                          where available.
+                        </p>
+                        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                          {[
+                            { value: true, label: 'Yes, same flights' },
+                            { value: false, label: 'No, separate flights' },
+                          ].map((option) => (
+                            <button
+                              key={option.label}
+                              type="button"
+                              onClick={() => setMatchLinkedFlightOptions(option.value)}
+                              className={`min-h-9 rounded-lg px-3 text-xs font-black transition ${
+                                matchLinkedFlightOptions === option.value
+                                  ? 'bg-sky-900 text-white'
+                                  : 'border border-sky-200 bg-white text-sky-900 hover:bg-sky-100'
+                              }`}
+                            >
+                              {option.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                   <div className="space-y-3">
                     {payload.flightOptions.map((option) => {
                       const selectedFlight =
