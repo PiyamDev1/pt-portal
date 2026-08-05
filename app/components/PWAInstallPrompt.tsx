@@ -5,6 +5,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { usePathname } from 'next/navigation'
 import { Download, PlusSquare, Share2, X } from 'lucide-react'
 import { isIosDevice, isMobileDevice, isStandalonePwa } from '@/lib/auth/webauthnClient'
 
@@ -16,10 +17,16 @@ type BeforeInstallPromptEvent = Event & {
 const INSTALL_DISMISSED_KEY = 'pt-ims-pwa-install-dismissed'
 
 export function PWAInstallPrompt() {
+  const pathname = usePathname()
   const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null)
   const [visible, setVisible] = useState(false)
 
   useEffect(() => {
+    if (pathname?.startsWith('/packages/')) {
+      setInstallEvent(null)
+      setVisible(false)
+      return
+    }
     if (!isMobileDevice() || isStandalonePwa()) return
     if (window.localStorage.getItem(INSTALL_DISMISSED_KEY) === '1') return
 
@@ -40,7 +47,7 @@ export function PWAInstallPrompt() {
     }
 
     return () => window.removeEventListener('beforeinstallprompt', onBeforeInstallPrompt)
-  }, [])
+  }, [pathname])
 
   const dismiss = () => {
     window.localStorage.setItem(INSTALL_DISMISSED_KEY, '1')
