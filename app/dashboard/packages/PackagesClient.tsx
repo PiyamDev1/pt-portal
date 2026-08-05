@@ -1497,9 +1497,7 @@ function OptionEditor({
         <div className="mt-3 rounded-lg border border-violet-100 bg-violet-50/60 p-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <p className="text-xs font-black uppercase text-violet-900">
-                Customer hotel extras
-              </p>
+              <p className="text-xs font-black uppercase text-violet-900">Customer hotel extras</p>
               <p className="text-xs font-semibold text-slate-500">
                 Add breakfast, view, or any selectable hotel extra.
               </p>
@@ -1540,9 +1538,7 @@ function OptionEditor({
                         Search cost
                       </span>
                       <div className="mt-1 flex min-h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-2">
-                        <span className="mr-1 shrink-0 text-xs font-black text-slate-500">
-                          GBP
-                        </span>
+                        <span className="mr-1 shrink-0 text-xs font-black text-slate-500">GBP</span>
                         <input
                           value={addon.searchPrice || ''}
                           onChange={(event) =>
@@ -1562,9 +1558,7 @@ function OptionEditor({
                         Adjustment cost
                       </span>
                       <div className="mt-1 flex min-h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-2">
-                        <span className="mr-1 shrink-0 text-xs font-black text-slate-500">
-                          GBP
-                        </span>
+                        <span className="mr-1 shrink-0 text-xs font-black text-slate-500">GBP</span>
                         <input
                           value={addon.adjustedPrice || ''}
                           onChange={(event) =>
@@ -1688,9 +1682,7 @@ export default function PackagesClient({
       return binnedQuotes
     }
     const visibleGroupIds = new Set(
-      packageGroups
-        .filter((group) => group.status !== 'archived')
-        .map((group) => group.id),
+      packageGroups.filter((group) => group.status !== 'archived').map((group) => group.id),
     )
     return activeQuotes.filter((quote) => {
       const groupId = getQuoteLinkedGroupId(quote)
@@ -1849,7 +1841,9 @@ export default function PackagesClient({
       if (!activeResponse.ok)
         throw new Error((activeData as { error?: string }).error || 'Failed to load packages')
       if (!binnedResponse.ok)
-        throw new Error((binnedData as { error?: string }).error || 'Failed to load binned packages')
+        throw new Error(
+          (binnedData as { error?: string }).error || 'Failed to load binned packages',
+        )
 
       const activeLoadedQuotes = activeData.packages || []
       const staleExpiredQuotes = activeLoadedQuotes.filter(shouldMoveExpiredQuoteToBin)
@@ -1948,9 +1942,7 @@ export default function PackagesClient({
       setSelectedGroupId(detail.id)
       setNewGroupTitle(detail.title)
       const currentMember = detail.members.find((member) => member.quote_id === activeQuote?.id)
-      setLinkedFamilyLabel(
-        currentMember?.family_label || getNextPackageGroupFamilyLabel(detail),
-      )
+      setLinkedFamilyLabel(currentMember?.family_label || getNextPackageGroupFamilyLabel(detail))
       setSelectedQuoteFamilyLabel(getNextPackageGroupFamilyLabel(detail))
       const transportNote =
         detail.sharedServices.find(
@@ -2435,7 +2427,7 @@ export default function PackagesClient({
     }
   }
 
-  const saveSharedFlightSelection = async () => {
+  const saveSharedFlightSelection = async (nextValue = sharedFlightSelection) => {
     if (!activePackageGroup) {
       toast.error('Create or link a package group first')
       return
@@ -2448,7 +2440,7 @@ export default function PackagesClient({
         body: JSON.stringify({
           metadata: {
             ...(activePackageGroup.metadata || {}),
-            sharedFlightSelection,
+            sharedFlightSelection: nextValue,
           },
         }),
       })
@@ -2456,6 +2448,7 @@ export default function PackagesClient({
       if (!response.ok || data.setupRequired || !data.group) {
         throw new Error(data.message || data.error || 'Failed to save shared flight setting')
       }
+      setSharedFlightSelection(nextValue)
       const detail = await loadPackageGroupDetail(activePackageGroup.id, false)
       if (detail) await persistPackageGroupSnapshot(detail)
       toast.success('Shared flight setting updated')
@@ -2652,10 +2645,7 @@ export default function PackagesClient({
       setSharedTransportNote('')
       setPayload(normalizePackageQuotePayload(data.quote.payload))
       setExpiresAtInput(toDateTimeLocalValue(data.quote.expires_at))
-      setQuotes((current) => [
-        data.quote!,
-        ...current.filter((item) => item.id !== data.quote!.id),
-      ])
+      setQuotes((current) => [data.quote!, ...current.filter((item) => item.id !== data.quote!.id)])
       window.scrollTo({ top: 0, behavior: 'smooth' })
       toast.success('Quote duplicated and saved as a new draft')
     } catch (error) {
@@ -3095,6 +3085,20 @@ export default function PackagesClient({
                     +{activePackageGroup.members.length - 4} more
                   </span>
                 )}
+                <button
+                  type="button"
+                  onClick={() => void saveSharedFlightSelection(!sharedFlightSelection)}
+                  disabled={packageGroupSaving}
+                  className={`inline-flex min-h-8 items-center gap-2 rounded-lg px-3 text-xs font-black transition disabled:opacity-50 ${
+                    sharedFlightSelection
+                      ? 'bg-sky-900 text-white hover:bg-sky-950'
+                      : 'border border-sky-200 bg-white text-sky-900 hover:bg-sky-50'
+                  }`}
+                  title="Allow customers to select the same flight options across linked packages"
+                >
+                  <Plane className="h-3.5 w-3.5" />
+                  Same flights across packages: {sharedFlightSelection ? 'Yes' : 'No'}
+                </button>
               </div>
             )}
             {packageGroupExpanded && (
@@ -3331,7 +3335,7 @@ export default function PackagesClient({
                           </div>
                           <button
                             type="button"
-                            onClick={() => setSharedFlightSelection((current) => !current)}
+                            onClick={() => void saveSharedFlightSelection(!sharedFlightSelection)}
                             disabled={!activePackageGroup}
                             className={`min-h-10 rounded-lg px-4 text-sm font-black transition disabled:opacity-50 ${
                               sharedFlightSelection
@@ -3351,14 +3355,6 @@ export default function PackagesClient({
                           className="min-h-10 rounded-lg bg-slate-900 px-3 text-sm font-black text-white transition hover:bg-black disabled:opacity-50"
                         >
                           Save Transport Note
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void saveSharedFlightSelection()}
-                          disabled={packageGroupSaving || !activePackageGroup}
-                          className="min-h-10 rounded-lg bg-sky-900 px-3 text-sm font-black text-white transition hover:bg-sky-950 disabled:opacity-50"
-                        >
-                          Save Flight Sharing
                         </button>
                         <button
                           type="button"
@@ -3993,14 +3989,10 @@ export default function PackagesClient({
                           </p>
                         </td>
                         <td className="border-b border-slate-100 px-3 py-3">
-                          <span className="text-xs font-bold text-cyan-800">
-                            Linked families
-                          </span>
+                          <span className="text-xs font-bold text-cyan-800">Linked families</span>
                         </td>
                         <td className="border-b border-slate-100 px-3 py-3">
-                          <span className="text-xs font-bold text-slate-500">
-                            Managed as group
-                          </span>
+                          <span className="text-xs font-bold text-slate-500">Managed as group</span>
                         </td>
                         <td className="border-b border-slate-100 px-3 py-3">
                           <div className="flex justify-end">
@@ -4059,12 +4051,12 @@ export default function PackagesClient({
                             binned
                               ? 'bg-slate-100 text-slate-600'
                               : expired
-                              ? 'bg-red-50 text-red-700'
-                              : live
-                                ? 'bg-emerald-50 text-emerald-700'
-                                : quote.status === 'draft'
-                                  ? 'bg-amber-50 text-amber-700'
-                                  : 'bg-slate-100 text-slate-600'
+                                ? 'bg-red-50 text-red-700'
+                                : live
+                                  ? 'bg-emerald-50 text-emerald-700'
+                                  : quote.status === 'draft'
+                                    ? 'bg-amber-50 text-amber-700'
+                                    : 'bg-slate-100 text-slate-600'
                           }`}
                         >
                           {binned ? 'Bin' : expired ? 'Expired' : live ? 'Live' : quote.status}

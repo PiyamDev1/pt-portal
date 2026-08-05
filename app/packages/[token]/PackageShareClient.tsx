@@ -12,6 +12,7 @@ import {
   Plane,
   Send,
   Tag,
+  Users,
 } from 'lucide-react'
 import type {
   PackageComponentOption,
@@ -349,6 +350,10 @@ function getLinkedFamilyLabel(family: PublicLinkedFamily, index: number) {
   return `Family / group ${index + 1}${family.familyLabel ? `: ${family.familyLabel}` : ''}`
 }
 
+function getLinkedFamilyKey(family: PublicLinkedFamily, index: number) {
+  return family.quoteId || `${family.familyLabel}-${index}`
+}
+
 function getPricingSubtotal(pricing: PublicLinkedFamily['pricing']) {
   if (!pricing) return 0
   return Math.max(0, pricing.grossPrice - pricing.discountTotal)
@@ -371,8 +376,7 @@ function findMatchingComponentOption(
   return (
     targetOptions.find((option) => normalizeMatchValue(option.title) === sourceTitle) ||
     targetOptions.find(
-      (option) =>
-        sourceSummary && normalizeMatchValue(option.summary) === sourceSummary,
+      (option) => sourceSummary && normalizeMatchValue(option.summary) === sourceSummary,
     ) ||
     null
   )
@@ -389,7 +393,9 @@ function findMatchingLinkedFlightOption(
   const sourceAirline = normalizeMatchValue(sourceOption.airlineName)
   const sourceSummary = normalizeMatchValue(sourceOption.summary)
   return (
-    targetGroup.options.find((option) => normalizeMatchValue(option.airlineName) === sourceAirline) ||
+    targetGroup.options.find(
+      (option) => normalizeMatchValue(option.airlineName) === sourceAirline,
+    ) ||
     targetGroup.options.find(
       (option) => sourceSummary && normalizeMatchValue(option.summary) === sourceSummary,
     ) ||
@@ -416,8 +422,7 @@ function resolveLinkedFamilySelection(
     const matchedTargetFlight = matchFlights
       ? findMatchingComponentOption(sourceFlightOption, targetPayload.flightOptions)
       : null
-    const targetFlightOptionId =
-      matchedTargetFlight?.id || baseSelection.flightOptionId || null
+    const targetFlightOptionId = matchedTargetFlight?.id || baseSelection.flightOptionId || null
     const sourceLinkedGroups = getLinkedFlightGroupsForFlight(currentPayload, sourceFlightOption)
     const targetFlightOption =
       targetPayload.flightOptions.find((option) => option.id === targetFlightOptionId) || null
@@ -450,12 +455,8 @@ function resolveLinkedFamilySelection(
       ? Object.fromEntries(
           targetPayload.stayGroups.map((targetGroup, groupIndex) => {
             const sourceGroup = sourceGroups[groupIndex]
-            const sourceOptionId = sourceGroup
-              ? currentSelection.stayOptionIds[sourceGroup.id]
-              : ''
-            const sourceOption = sourceGroup?.options.find(
-              (option) => option.id === sourceOptionId,
-            )
+            const sourceOptionId = sourceGroup ? currentSelection.stayOptionIds[sourceGroup.id] : ''
+            const sourceOption = sourceGroup?.options.find((option) => option.id === sourceOptionId)
             const sourceTitle = normalizeMatchValue(sourceOption?.title || '')
             const matchedByTitle = sourceTitle
               ? targetGroup.options.find(
@@ -487,7 +488,9 @@ function resolveLinkedFamilySelection(
               if (!sourceOption || sourceAddonIds.length === 0) return null
 
               const targetOptionId = targetStayOptionIds[targetGroup.id]
-              const targetOption = targetGroup.options.find((option) => option.id === targetOptionId)
+              const targetOption = targetGroup.options.find(
+                (option) => option.id === targetOptionId,
+              )
               if (!targetOption) return null
 
               const matchedAddonIds = sourceAddonIds
@@ -586,10 +589,128 @@ function PassengerPricingRows({
   )
 }
 
-function SectionTitle({ icon: Icon, title }: { icon: typeof Building2; title: string }) {
+function LinkedFamilySummaryCard({
+  label,
+  quoteTitle,
+  isCurrent,
+  sharePath,
+  pricing,
+  expanded,
+  onToggle,
+}: {
+  label: string
+  quoteTitle?: string | null
+  isCurrent: boolean
+  sharePath?: string | null
+  pricing: NonNullable<PublicLinkedFamily['pricing']>
+  expanded: boolean
+  onToggle: () => void
+}) {
+  return (
+    <article
+      className={`rounded-xl border bg-white p-3 shadow-sm transition ${
+        isCurrent ? 'border-cyan-300 ring-1 ring-cyan-100' : 'border-cyan-100'
+      }`}
+    >
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={expanded}
+        className="flex w-full items-start justify-between gap-3 text-left"
+      >
+        <span className="min-w-0">
+          <span className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-black text-slate-950">{label}</span>
+            {isCurrent && (
+              <span className="rounded-full bg-cyan-900 px-2 py-1 text-[10px] font-black uppercase text-white">
+                Your package
+              </span>
+            )}
+          </span>
+          {quoteTitle && (
+            <span className="mt-1 block truncate text-xs font-semibold text-slate-500">
+              {quoteTitle}
+            </span>
+          )}
+        </span>
+        <span className="flex shrink-0 items-center gap-2">
+          <span className="text-right text-sm font-black text-slate-950">
+            {formatMoney(pricing.totalPrice, pricing.currency)}
+          </span>
+          <ChevronDown
+            className={`h-4 w-4 text-slate-500 transition ${expanded ? 'rotate-180' : ''}`}
+          />
+        </span>
+      </button>
+
+      {expanded && (
+        <div className="mt-3 border-t-4 border-cyan-600 pt-3">
+          <div className="grid gap-2 sm:grid-cols-3">
+            <div className="rounded-lg bg-slate-50 p-3">
+              <p className="text-[11px] font-black uppercase text-slate-500">Subtotal</p>
+              <p className="mt-1 text-sm font-black text-slate-950">
+                {formatMoney(pricing.grossPrice, pricing.currency)}
+              </p>
+            </div>
+            <div className="rounded-lg bg-emerald-50 p-3">
+              <p className="text-[11px] font-black uppercase text-emerald-700">Discount</p>
+              <p className="mt-1 text-sm font-black text-emerald-800">
+                {pricing.discountTotal > 0
+                  ? `-${formatMoney(pricing.discountTotal, pricing.currency)}`
+                  : 'None'}
+              </p>
+            </div>
+            <div className="rounded-lg bg-slate-950 p-3 text-white">
+              <p className="text-[11px] font-black uppercase text-white/70">Total</p>
+              <p className="mt-1 text-sm font-black">
+                {formatMoney(pricing.totalPrice, pricing.currency)}
+              </p>
+            </div>
+          </div>
+          <div className="mt-3 rounded-lg bg-slate-50 p-3 text-sm">
+            <p className="mb-2 text-xs font-black uppercase text-slate-500">Passenger pricing</p>
+            <PassengerPricingRows breakdown={pricing.breakdown} currency={pricing.currency} />
+          </div>
+          {sharePath && !isCurrent && (
+            <a
+              href={sharePath}
+              className="mt-3 inline-flex min-h-9 items-center justify-center rounded-lg border border-cyan-200 bg-white px-3 text-xs font-black text-cyan-900 transition hover:bg-cyan-50"
+            >
+              Open this family quote
+            </a>
+          )}
+        </div>
+      )}
+    </article>
+  )
+}
+
+function SectionTitle({
+  icon: Icon,
+  title,
+  tone = 'slate',
+}: {
+  icon: typeof Building2
+  title: string
+  tone?: 'slate' | 'flight' | 'visa' | 'transport' | 'hotel' | 'offer'
+}) {
+  const toneClass =
+    tone === 'flight'
+      ? 'bg-sky-900'
+      : tone === 'visa'
+        ? 'bg-emerald-700'
+        : tone === 'transport'
+          ? 'bg-teal-700'
+          : tone === 'hotel'
+            ? 'bg-violet-800'
+            : tone === 'offer'
+              ? 'bg-amber-600'
+              : 'bg-slate-900'
   return (
     <div className="mb-3 flex items-center gap-2">
-      <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900 text-white">
+      <span
+        className={`flex h-9 w-9 items-center justify-center rounded-lg text-white ${toneClass}`}
+      >
         <Icon className="h-4 w-4" />
       </span>
       <h2 className="text-lg font-black">{title}</h2>
@@ -624,6 +745,7 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
   const [priceSummaryExpanded, setPriceSummaryExpanded] = useState(false)
   const [matchLinkedHotelOptions, setMatchLinkedHotelOptions] = useState(false)
   const [matchLinkedFlightOptions, setMatchLinkedFlightOptions] = useState(false)
+  const [expandedLinkedFamilyKey, setExpandedLinkedFamilyKey] = useState('')
   const [selectionSaveMessage, setSelectionSaveMessage] = useState('')
 
   useEffect(() => {
@@ -667,6 +789,7 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
         setPriceSummaryExpanded(false)
         setMatchLinkedHotelOptions(false)
         setMatchLinkedFlightOptions(false)
+        setExpandedLinkedFamilyKey('')
         setSelectionSaveMessage('')
       } catch (loadError) {
         setError(loadError instanceof Error ? loadError.message : 'Unable to load package quote')
@@ -782,6 +905,44 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
       },
     )
   }, [linkedFamilyTotals, resolved])
+  const linkedFamilyCards = useMemo(() => {
+    if (!linkedGroup || !resolved || !priceBreakdown) return []
+    return linkedGroup.families.flatMap((family, index) => {
+      const pricing = family.isCurrent
+        ? {
+            grossPrice: resolved.combination.grossPrice,
+            discountTotal: resolved.combination.offerDiscountTotal,
+            totalPrice: resolved.combination.totalPrice,
+            currency: resolved.combination.currency,
+            breakdown: priceBreakdown,
+          }
+        : linkedFamilyTotals.find(
+            (item) =>
+              getLinkedFamilyKey(item.family, item.index) === getLinkedFamilyKey(family, index),
+          )?.pricing || family.pricing
+
+      return pricing
+        ? [
+            {
+              family,
+              index,
+              key: getLinkedFamilyKey(family, index),
+              pricing,
+            },
+          ]
+        : []
+    })
+  }, [linkedFamilyTotals, linkedGroup, priceBreakdown, resolved])
+
+  useEffect(() => {
+    if (!linkedGroup) {
+      setExpandedLinkedFamilyKey('')
+      return
+    }
+    const currentIndex = linkedGroup.families.findIndex((family) => family.isCurrent)
+    const currentFamily = currentIndex >= 0 ? linkedGroup.families[currentIndex] : null
+    setExpandedLinkedFamilyKey(currentFamily ? getLinkedFamilyKey(currentFamily, currentIndex) : '')
+  }, [linkedGroup?.groupId])
 
   const depositPaymentSummary = useMemo(() => {
     if (!payload) return null
@@ -979,10 +1140,7 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
       setError('Payment breakdown must match the selected payment amount before finalising.')
       return
     }
-    if (
-      paymentIntent === 'deposit_only' &&
-      !depositPaymentAvailable
-    ) {
+    if (paymentIntent === 'deposit_only' && !depositPaymentAvailable) {
       setError('Deposit-only payment is not available for this quote.')
       return
     }
@@ -1096,7 +1254,7 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
   if (!quote || !payload || !selection) return null
 
   return (
-    <main className="min-h-screen bg-slate-50 text-slate-950">
+    <main className="min-h-screen bg-slate-50 pb-24 text-slate-950 lg:pb-0">
       <section className="bg-[#4b0f16] px-4 py-6 text-white">
         <div className="mx-auto flex max-w-6xl items-start justify-between gap-4">
           <div>
@@ -1137,39 +1295,67 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
       </section>
 
       {linkedGroup && linkedGroup.families.length > 0 && (
-        <section className="border-b border-cyan-200 bg-cyan-50 px-4 py-5">
+        <section className="border-b border-cyan-200 bg-gradient-to-b from-cyan-50 to-white px-4 py-5">
           <div className="mx-auto max-w-6xl">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <p className="text-xs font-black uppercase text-cyan-900">Linked package group</p>
+                <div className="flex items-center gap-2">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-cyan-900 text-white">
+                    <Users className="h-4 w-4" />
+                  </span>
+                  <p className="text-xs font-black uppercase text-cyan-900">Linked package group</p>
+                </div>
                 <h2 className="mt-1 text-xl font-black text-slate-950">{linkedGroup.title}</h2>
                 <p className="mt-1 text-sm font-semibold text-slate-600">
                   {linkedGroup.groupReference}
                 </p>
               </div>
-              <div className="flex flex-wrap gap-2">
-                {linkedGroup.families.map((family, index) =>
-                  family.sharePath && !family.isCurrent ? (
-                    <a
-                      key={`${family.quoteId || family.familyLabel}-${index}`}
-                      href={family.sharePath}
-                      className="rounded-lg border border-cyan-200 bg-white px-3 py-2 text-xs font-black text-cyan-900 transition hover:bg-cyan-100"
-                    >
-                      Family / group {index + 1}
-                    </a>
-                  ) : (
-                    <span
-                      key={`${family.quoteId || family.familyLabel}-${index}`}
-                      className={`rounded-lg px-3 py-2 text-xs font-black ${
-                        family.isCurrent ? 'bg-cyan-900 text-white' : 'bg-white text-slate-500'
-                      }`}
-                    >
-                      Family / group {index + 1}
-                    </span>
-                  ),
-                )}
-              </div>
+              {superGroupTotals && linkedFamilyCards.length > 1 && (
+                <div className="grid grid-cols-3 gap-2 rounded-xl border border-cyan-200 bg-white p-2 text-xs shadow-sm sm:min-w-[24rem]">
+                  <div className="rounded-lg bg-slate-50 p-2">
+                    <p className="font-black uppercase text-slate-500">Subtotal</p>
+                    <p className="mt-1 font-black text-slate-950">
+                      {formatMoney(superGroupTotals.grossPrice, superGroupTotals.currency)}
+                    </p>
+                  </div>
+                  <div className="rounded-lg bg-emerald-50 p-2">
+                    <p className="font-black uppercase text-emerald-700">Discount</p>
+                    <p className="mt-1 font-black text-emerald-800">
+                      {superGroupTotals.discountTotal > 0
+                        ? `-${formatMoney(
+                            superGroupTotals.discountTotal,
+                            superGroupTotals.currency,
+                          )}`
+                        : 'None'}
+                    </p>
+                  </div>
+                  <div className="rounded-lg bg-slate-950 p-2 text-white">
+                    <p className="font-black uppercase text-white/70">Group total</p>
+                    <p className="mt-1 font-black">
+                      {formatMoney(superGroupTotals.totalPrice, superGroupTotals.currency)}
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
+            {linkedFamilyCards.length > 0 && (
+              <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                {linkedFamilyCards.map(({ family, index, key, pricing }) => (
+                  <LinkedFamilySummaryCard
+                    key={key}
+                    label={getLinkedFamilyLabel(family, index)}
+                    quoteTitle={family.quoteTitle}
+                    isCurrent={family.isCurrent}
+                    sharePath={family.sharePath}
+                    pricing={pricing}
+                    expanded={expandedLinkedFamilyKey === key}
+                    onToggle={() =>
+                      setExpandedLinkedFamilyKey((current) => (current === key ? '' : key))
+                    }
+                  />
+                ))}
+              </div>
+            )}
             {canSaveLinkedFamilySelection && (
               <div className="mt-4 rounded-xl border border-cyan-200 bg-white p-4 text-sm shadow-sm">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -1392,9 +1578,7 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                                   {resolved.combination.visaOptions.map((option) => (
                                     <p key={option.id} className="font-black text-slate-950">
                                       {getVisaQuantity(option, payload)} x{' '}
-                                      {getVisaPassengerCategoryLabel(
-                                        option.visaPassengerCategory,
-                                      )}{' '}
+                                      {getVisaPassengerCategoryLabel(option.visaPassengerCategory)}{' '}
                                       {option.title || 'Visa'}
                                     </p>
                                   ))}
@@ -1403,9 +1587,7 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                             )}
 
                             <div>
-                              <p className="text-xs font-black uppercase text-slate-500">
-                                Hotels
-                              </p>
+                              <p className="text-xs font-black uppercase text-slate-500">Hotels</p>
                               <div className="mt-1 space-y-2">
                                 {resolved.combination.staySelections.map((stay) => (
                                   <div key={stay.groupId}>
@@ -1457,7 +1639,10 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
             </section>
 
             <aside className="space-y-4 lg:sticky lg:top-5 lg:self-start">
-              <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+              <section
+                id="summary"
+                className="scroll-mt-4 rounded-xl border border-[#8b1e2d]/20 bg-white p-4 shadow-sm"
+              >
                 <p className="text-xs font-black uppercase text-slate-500">Payment option</p>
                 {canPayForLinkedGroup && (
                   <div className="mt-3 rounded-lg border border-cyan-200 bg-cyan-50 p-3">
@@ -1539,10 +1724,7 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                         <div className="flex items-center justify-between gap-3 border-t border-slate-200 pt-2 text-sm text-blue-700">
                           <span className="font-bold">Credit Card processing fee</span>
                           <span className="font-black">
-                            +{formatMoney(
-                              paymentProcessingFeeTotal,
-                              resolved.combination.currency,
-                            )}
+                            +{formatMoney(paymentProcessingFeeTotal, resolved.combination.currency)}
                           </span>
                         </div>
                       )}
@@ -1579,8 +1761,7 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                       'Subject to availability. We only have 5 customer installment slots.',
                     ],
                   ].map(([value, title, description]) => {
-                    const disabled =
-                      value === 'deposit_only' && !depositPaymentAvailable
+                    const disabled = value === 'deposit_only' && !depositPaymentAvailable
                     return (
                       <button
                         key={value}
@@ -1725,8 +1906,8 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                             {formatMoney(
                               activeDepositPaymentSummary.processingFee,
                               payload.currency,
-                            )} (
-                            {payload.cardProcessingFeePercent}%)
+                            )}{' '}
+                            ({payload.cardProcessingFeePercent}%)
                           </span>
                         ) : null}
                       </span>
@@ -1741,17 +1922,17 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                     </label>
                     {activeDepositPaymentSummary &&
                       activeDepositPaymentSummary.depositAmount > 0 && (
-                      <p className="mt-2 text-xs font-bold text-amber-900">
-                        Base deposit:{' '}
-                        {formatMoney(activeDepositPaymentSummary.depositAmount, payload.currency)}
-                        {activeDepositPaymentSummary.processingFee > 0
-                          ? ` + ${formatMoney(
-                              activeDepositPaymentSummary.processingFee,
-                              payload.currency,
-                            )} non-refundable Credit Card processing fee`
-                          : ''}
-                      </p>
-                    )}
+                        <p className="mt-2 text-xs font-bold text-amber-900">
+                          Base deposit:{' '}
+                          {formatMoney(activeDepositPaymentSummary.depositAmount, payload.currency)}
+                          {activeDepositPaymentSummary.processingFee > 0
+                            ? ` + ${formatMoney(
+                                activeDepositPaymentSummary.processingFee,
+                                payload.currency,
+                              )} non-refundable Credit Card processing fee`
+                            : ''}
+                        </p>
+                      )}
                   </div>
                 )}
 
@@ -1831,6 +2012,23 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
           <div className="mb-5 rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm font-semibold leading-6 text-blue-900 shadow-sm">
             Advice: to get the best price possible, please make flight reservations first.
           </div>
+          <nav className="mb-5 flex gap-2 overflow-x-auto rounded-xl border border-slate-200 bg-white p-2 text-xs font-black shadow-sm lg:hidden">
+            {[
+              ['#flights', 'Flights', 'text-sky-800'],
+              ['#visa', 'Visa', 'text-emerald-800'],
+              ['#transport', 'Transport', 'text-teal-800'],
+              ['#hotels', 'Hotels', 'text-violet-800'],
+              ['#summary', 'Total', 'text-[#8b1e2d]'],
+            ].map(([href, label, colour]) => (
+              <a
+                key={href}
+                href={href}
+                className={`shrink-0 rounded-lg bg-slate-50 px-3 py-2 ${colour}`}
+              >
+                {label}
+              </a>
+            ))}
+          </nav>
           <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]">
             <div className="space-y-5">
               {packagePresets.length > 0 && (
@@ -1871,9 +2069,12 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                 </section>
               )}
               {payload.flightOptions.length > 0 && (
-                <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                <section
+                  id="flights"
+                  className="scroll-mt-4 rounded-xl border border-sky-200 bg-white p-4 shadow-sm"
+                >
                   <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <SectionTitle icon={Plane} title="Flights" />
+                    <SectionTitle icon={Plane} title="Flights" tone="flight" />
                     {canMatchLinkedFlightOptions && (
                       <div className="rounded-lg border border-sky-200 bg-sky-50 p-3 sm:max-w-md">
                         <p className="text-xs font-black uppercase text-sky-900">
@@ -1920,7 +2121,11 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                           title={option.title}
                           summary={formatTransportSummary(option)}
                           price={option.price}
-                          priceLabel={selected ? 'Selected' : formatSelectionDelta(deltas.adult, payload.currency)}
+                          priceLabel={
+                            selected
+                              ? 'Selected'
+                              : formatSelectionDelta(deltas.adult, payload.currency)
+                          }
                           priceSubLabel={selected ? 'current option' : undefined}
                           priceSubLines={
                             selected
@@ -1962,7 +2167,10 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                                 selection.linkedFlightOptionIds,
                               )
                               const selected = selectedOption?.id === option.id
-                              const deltas = getLinkedFlightOptionPriceDeltas(option, selectedOption)
+                              const deltas = getLinkedFlightOptionPriceDeltas(
+                                option,
+                                selectedOption,
+                              )
                               return (
                                 <OptionButton
                                   key={option.id}
@@ -1971,13 +2179,19 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                                   summary={option.summary}
                                   price={deltas.adult}
                                   priceLabel={
-                                    selected ? 'Selected' : formatSelectionDelta(deltas.adult, payload.currency)
+                                    selected
+                                      ? 'Selected'
+                                      : formatSelectionDelta(deltas.adult, payload.currency)
                                   }
                                   priceSubLabel={selected ? 'current option' : undefined}
                                   priceSubLines={
                                     selected
                                       ? undefined
-                                      : formatLinkedFlightPassengerDeltas(payload, option, selectedOption)
+                                      : formatLinkedFlightPassengerDeltas(
+                                          payload,
+                                          option,
+                                          selectedOption,
+                                        )
                                   }
                                   pricingMode="per_person"
                                   currency={payload.currency}
@@ -2006,8 +2220,11 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
               )}
 
               {payload.visaOptions.length > 0 && (
-                <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                  <SectionTitle icon={FileText} title="Visa" />
+                <section
+                  id="visa"
+                  className="scroll-mt-4 rounded-xl border border-emerald-200 bg-white p-4 shadow-sm"
+                >
+                  <SectionTitle icon={FileText} title="Visa" tone="visa" />
                   <div className="space-y-3">
                     {payload.visaOptions.map((option) => (
                       <div
@@ -2038,8 +2255,11 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
               )}
 
               {payload.transportOptions.length > 0 && (
-                <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                  <SectionTitle icon={Bus} title="Transport" />
+                <section
+                  id="transport"
+                  className="scroll-mt-4 rounded-xl border border-teal-200 bg-white p-4 shadow-sm"
+                >
+                  <SectionTitle icon={Bus} title="Transport" tone="transport" />
                   <div className="space-y-3">
                     {payload.transportOptions.map((option) => {
                       const selectedTransport =
@@ -2087,9 +2307,12 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                 </section>
               )}
 
-              <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+              <section
+                id="hotels"
+                className="scroll-mt-4 rounded-xl border border-violet-200 bg-white p-4 shadow-sm"
+              >
                 <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <SectionTitle icon={Building2} title="Hotels" />
+                  <SectionTitle icon={Building2} title="Hotels" tone="hotel" />
                   {canMatchLinkedHotelOptions && (
                     <div className="rounded-lg border border-cyan-200 bg-cyan-50 p-3 sm:max-w-md">
                       <p className="text-xs font-black uppercase text-cyan-900">
@@ -2246,9 +2469,9 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
               </section>
 
               {visibleOffers.length > 0 && (
-                <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                <section className="rounded-xl border border-amber-200 bg-white p-4 shadow-sm">
                   <div className="mb-3 flex items-center gap-2">
-                    <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900 text-white">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-600 text-white">
                       <Tag className="h-4 w-4" />
                     </span>
                     <h2 className="text-lg font-black">Limited Time Offers</h2>
@@ -2605,6 +2828,32 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                 {error && <p className="mt-3 text-sm font-bold text-red-600">{error}</p>}
               </section>
             </aside>
+          </div>
+        </div>
+      )}
+      {!reviewingPayment && resolved && (
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 px-4 py-3 shadow-[0_-8px_24px_rgba(15,23,42,0.12)] backdrop-blur lg:hidden">
+          <div className="mx-auto flex max-w-6xl items-center justify-between gap-3">
+            <div>
+              <p className="text-[11px] font-black uppercase text-slate-500">
+                {superGroupTotals && linkedFamilyTotals.length > 0 ? 'Group total' : 'Your total'}
+              </p>
+              <p className="text-lg font-black text-slate-950">
+                {formatMoney(
+                  superGroupTotals && linkedFamilyTotals.length > 0
+                    ? superGroupTotals.totalPrice
+                    : resolved.combination.totalPrice,
+                  resolved.combination.currency,
+                )}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={continueToPaymentReview}
+              className="min-h-11 rounded-lg bg-[#8b1e2d] px-4 text-sm font-black text-white"
+            >
+              Review
+            </button>
           </div>
         </div>
       )}
