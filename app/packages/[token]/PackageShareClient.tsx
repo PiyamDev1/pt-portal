@@ -14,6 +14,7 @@ import {
   Send,
   Tag,
   Users,
+  X,
 } from 'lucide-react'
 import type {
   PackageComponentOption,
@@ -687,6 +688,187 @@ function LinkedFamilySummaryCard({
   )
 }
 
+function PriceSummaryContent({
+  resolved,
+  linkedFamilyTotals,
+  superGroupTotals,
+  priceBreakdown,
+  currentLinkedFamily,
+  currentLinkedFamilyIndex,
+}: {
+  resolved: PackageResolvedSelection
+  linkedFamilyTotals: Array<{
+    family: PublicLinkedFamily
+    index: number
+    pricing: NonNullable<PublicLinkedFamily['pricing']>
+  }>
+  superGroupTotals: {
+    grossPrice: number
+    discountTotal: number
+    totalPrice: number
+    currency: string
+  } | null
+  priceBreakdown: PackagePassengerPriceBreakdown | null
+  currentLinkedFamily?: PublicLinkedFamily | null
+  currentLinkedFamilyIndex: number
+}) {
+  return (
+    <div className="space-y-4">
+      <div className="space-y-2 rounded-lg bg-slate-50 p-3 text-sm">
+        <div className="flex items-center justify-between gap-3">
+          <span className="font-bold text-slate-600">Package subtotal</span>
+          <span className="font-black text-slate-950">
+            {formatMoney(resolved.combination.grossPrice, resolved.combination.currency)}
+          </span>
+        </div>
+        <div className="flex items-center justify-between gap-3 text-emerald-700">
+          <span className="font-bold">Discounts applied</span>
+          <span className="font-black">
+            {resolved.combination.offerDiscountTotal > 0
+              ? `-${formatMoney(
+                  resolved.combination.offerDiscountTotal,
+                  resolved.combination.currency,
+                )}`
+              : 'None'}
+          </span>
+        </div>
+        <div className="border-t border-slate-200 pt-2">
+          <div className="flex items-center justify-between gap-3">
+            <span className="font-black text-slate-950">Total package price</span>
+            <span className="font-black text-slate-950">
+              {formatMoney(resolved.combination.totalPrice, resolved.combination.currency)}
+            </span>
+          </div>
+        </div>
+        {linkedFamilyTotals.map(({ family, index, pricing }) => (
+          <div
+            key={`${family.quoteId || family.familyLabel}-${index}-summary`}
+            className="border-t border-slate-200 pt-2"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <span className="font-bold text-slate-600">
+                {getLinkedFamilyLabel(family, index)} total
+              </span>
+              <span className="font-black text-slate-950">
+                {formatMoney(pricing.totalPrice, pricing.currency)}
+              </span>
+            </div>
+            {pricing.discountTotal > 0 && (
+              <div className="mt-1 flex items-center justify-between gap-3 text-xs text-emerald-700">
+                <span className="font-bold">Discount applied</span>
+                <span className="font-black">
+                  -{formatMoney(pricing.discountTotal, pricing.currency)}
+                </span>
+              </div>
+            )}
+          </div>
+        ))}
+        {resolved.combination.paymentSurchargeTotal > 0 ? (
+          <div className="flex items-center justify-between gap-3 border-t border-slate-200 pt-2">
+            <span className="font-bold text-slate-600">Credit Card processing fee</span>
+            <span className="font-black text-slate-950">
+              {formatMoney(
+                resolved.combination.paymentSurchargeTotal,
+                resolved.combination.currency,
+              )}
+            </span>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between gap-3 border-t border-slate-200 pt-2">
+            <span className="font-bold text-slate-600">Additional charges</span>
+            <span className="font-black text-slate-950">None</span>
+          </div>
+        )}
+      </div>
+
+      {superGroupTotals && linkedFamilyTotals.length > 0 && (
+        <div className="rounded-lg border border-[#8b1e2d]/30 bg-white p-3 text-sm shadow-sm">
+          <p className="text-xs font-black uppercase text-[#8b1e2d]">Super total</p>
+          <div className="mt-2 space-y-2">
+            <div className="flex items-center justify-between gap-3">
+              <span className="font-bold text-slate-600">Before group discounts</span>
+              <span className="font-black text-slate-950">
+                {formatMoney(superGroupTotals.grossPrice, superGroupTotals.currency)}
+              </span>
+            </div>
+            <div className="flex items-center justify-between gap-3 text-emerald-700">
+              <span className="font-bold">Group discounts applied</span>
+              <span className="font-black">
+                {superGroupTotals.discountTotal > 0
+                  ? `-${formatMoney(superGroupTotals.discountTotal, superGroupTotals.currency)}`
+                  : 'None'}
+              </span>
+            </div>
+            <div className="border-t border-slate-200 pt-2">
+              <div className="flex items-center justify-between gap-3">
+                <span className="font-black text-slate-950">After group discounts</span>
+                <span className="font-black text-slate-950">
+                  {formatMoney(superGroupTotals.totalPrice, superGroupTotals.currency)}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="border-t-4 border-[#8b1e2d] pt-4">
+        <p className="text-xs font-black uppercase text-[#8b1e2d]">Passenger details</p>
+        <p className="mt-2 text-sm font-bold text-slate-600">
+          Adult, child, and infant prices are listed below.
+        </p>
+
+        {priceBreakdown && (
+          <div className="mt-3 space-y-2 rounded-lg bg-slate-50 p-3 text-sm">
+            <p className="text-xs font-black uppercase text-slate-500">
+              {currentLinkedFamily
+                ? `${getLinkedFamilyLabel(
+                    currentLinkedFamily,
+                    currentLinkedFamilyIndex,
+                  )} passenger pricing`
+                : 'Passenger pricing'}
+            </p>
+            <PassengerPricingRows breakdown={priceBreakdown} currency={priceBreakdown.currency} />
+          </div>
+        )}
+        {linkedFamilyTotals.map(({ family, index, pricing }) => (
+          <div
+            key={`${family.quoteId || family.familyLabel}-${index}-breakdown`}
+            className="mt-3 space-y-2 rounded-lg bg-slate-50 p-3 text-sm"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-black uppercase text-slate-500">
+                  {getLinkedFamilyLabel(family, index)} passenger pricing
+                </p>
+                {family.quoteTitle && (
+                  <p className="mt-1 text-xs font-semibold text-slate-500">{family.quoteTitle}</p>
+                )}
+              </div>
+              <span className="shrink-0 text-sm font-black text-slate-950">
+                {formatMoney(pricing.totalPrice, pricing.currency)}
+              </span>
+            </div>
+            <PassengerPricingRows breakdown={pricing.breakdown} currency={pricing.currency} />
+          </div>
+        ))}
+        {resolved.combination.paymentSurchargeTotal > 0 && (
+          <p className="mt-2 text-xs font-semibold text-slate-500">
+            Credit Card processing fees are non-refundable.
+          </p>
+        )}
+        {resolved.combination.servicePassengers !== resolved.combination.payingGuests && (
+          <p className="mt-1 text-xs font-semibold text-slate-500">
+            Services calculated for {resolved.combination.servicePassengers} passengers.
+          </p>
+        )}
+        <p className="mt-4 rounded-lg bg-slate-50 p-3 text-xs font-semibold leading-5 text-slate-600">
+          Payment options, deposits, installment requests, and terms are reviewed on the next step.
+        </p>
+      </div>
+    </div>
+  )
+}
+
 function SectionTitle({
   icon: Icon,
   title,
@@ -745,6 +927,7 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
   const [termsAccepted, setTermsAccepted] = useState(false)
   const [promoCode, setPromoCode] = useState('')
   const [priceSummaryExpanded, setPriceSummaryExpanded] = useState(false)
+  const [priceSummaryDrawerOpen, setPriceSummaryDrawerOpen] = useState(false)
   const [matchLinkedHotelOptions, setMatchLinkedHotelOptions] = useState(false)
   const [matchLinkedFlightOptions, setMatchLinkedFlightOptions] = useState(false)
   const [expandedLinkedFamilyKey, setExpandedLinkedFamilyKey] = useState('')
@@ -789,6 +972,7 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
         setTermsAccepted(false)
         setPromoCode('')
         setPriceSummaryExpanded(false)
+        setPriceSummaryDrawerOpen(false)
         setMatchLinkedHotelOptions(false)
         setMatchLinkedFlightOptions(false)
         setExpandedLinkedFamilyKey('')
@@ -2564,7 +2748,7 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
             </div>
 
             <aside className="space-y-4 lg:sticky lg:top-5 lg:self-start">
-              <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+              <section className="hidden rounded-xl border border-slate-200 bg-white p-4 shadow-sm lg:block">
                 {resolved ? (
                   <>
                     <button
@@ -2807,6 +2991,17 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
               <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                 <p className="mb-3 text-sm font-black text-slate-950">Your contact details</p>
                 <div className="space-y-3">
+                  <label className="block lg:hidden">
+                    <span className="mb-1 block text-xs font-black uppercase text-slate-500">
+                      Promo code
+                    </span>
+                    <input
+                      value={promoCode}
+                      onChange={(event) => setPromoCode(event.target.value)}
+                      placeholder="Enter promo code if you have one"
+                      className="min-h-10 w-full rounded-lg border border-slate-200 px-3 text-sm font-bold outline-none focus:border-slate-900"
+                    />
+                  </label>
                   <label className="block">
                     <span className="mb-1 block text-xs font-bold text-slate-500">Lead name</span>
                     <input
@@ -2879,6 +3074,40 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
           </div>
         </div>
       )}
+      {!reviewingPayment && resolved && priceSummaryDrawerOpen && (
+        <div className="fixed inset-0 z-40 bg-slate-950/40 lg:hidden">
+          <button
+            type="button"
+            aria-label="Close price breakdown"
+            className="absolute inset-0 h-full w-full cursor-default"
+            onClick={() => setPriceSummaryDrawerOpen(false)}
+          />
+          <section className="absolute inset-x-0 bottom-0 max-h-[86vh] overflow-y-auto rounded-t-3xl bg-white p-4 shadow-2xl">
+            <div className="mb-4 flex items-start justify-between gap-3 border-b border-slate-200 pb-3">
+              <div>
+                <p className="text-xs font-black uppercase text-[#8b1e2d]">Price summary</p>
+                <h2 className="mt-1 text-xl font-black text-slate-950">Package breakdown</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPriceSummaryDrawerOpen(false)}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-600"
+                aria-label="Close price breakdown"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <PriceSummaryContent
+              resolved={resolved}
+              linkedFamilyTotals={linkedFamilyTotals}
+              superGroupTotals={superGroupTotals}
+              priceBreakdown={priceBreakdown}
+              currentLinkedFamily={currentLinkedFamily}
+              currentLinkedFamilyIndex={currentLinkedFamilyIndex}
+            />
+          </section>
+        </div>
+      )}
       {!reviewingPayment && resolved && (
         <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 px-4 py-3 shadow-[0_-8px_24px_rgba(15,23,42,0.12)] backdrop-blur lg:hidden">
           <div className="mx-auto flex max-w-6xl items-center justify-between gap-3">
@@ -2895,13 +3124,22 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                 )}
               </p>
             </div>
-            <button
-              type="button"
-              onClick={continueToPaymentReview}
-              className="min-h-11 rounded-lg bg-[#8b1e2d] px-4 text-sm font-black text-white"
-            >
-              Review
-            </button>
+            <div className="flex shrink-0 gap-2">
+              <button
+                type="button"
+                onClick={() => setPriceSummaryDrawerOpen(true)}
+                className="min-h-11 rounded-lg border border-[#8b1e2d]/30 bg-white px-3 text-sm font-black text-[#8b1e2d]"
+              >
+                Show Breakdown
+              </button>
+              <button
+                type="button"
+                onClick={continueToPaymentReview}
+                className="min-h-11 rounded-lg bg-[#8b1e2d] px-4 text-sm font-black text-white"
+              >
+                Review
+              </button>
+            </div>
           </div>
         </div>
       )}
