@@ -2792,695 +2792,725 @@ Please enter the access code and accept the data handling terms before downloadi
           {activePackageTab === 'documents' && (
             <div
               id="package-documents"
-              className="scroll-mt-20 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+              className="scroll-mt-20 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
             >
-              <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900 text-white">
-                      <Upload className="h-4 w-4" />
-                    </span>
-                    <h2 className="text-lg font-black text-slate-950">Documents</h2>
-                  </div>
-                  <p className="mt-2 text-sm leading-6 text-slate-600">
-                    Upload flight tickets, hotel vouchers, visa files, transport vouchers, and other
-                    final customer documents. Only released files appear in the customer portal.
-                  </p>
-                </div>
-                {documentsLoading && (
-                  <span className="inline-flex items-center gap-2 text-xs font-bold text-slate-500">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Loading documents
-                  </span>
-                )}
-              </div>
-
-              {documentError && (
-                <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-900">
-                  {documentError}
-                </div>
-              )}
-
-              <div className="mb-4 grid gap-3 md:grid-cols-3">
-                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                  <p className="text-xs font-bold uppercase text-slate-500">Total documents</p>
-                  <p className="mt-1 text-sm font-black text-slate-950">{documents.length}</p>
-                </div>
-                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                  <p className="text-xs font-bold uppercase text-slate-500">Released to customer</p>
-                  <p className="mt-1 text-sm font-black text-slate-950">{visibleDocumentCount}</p>
-                </div>
-                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                  <p className="text-xs font-bold uppercase text-slate-500">Customer access</p>
-                  <p className="mt-1 text-sm font-black text-slate-950">Bookings portal</p>
-                  <p className="mt-1 text-xs font-bold text-slate-500">
-                    Use PT reference and lead surname
-                  </p>
-                </div>
-              </div>
-
-              <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
-                <div className="grid gap-3 md:grid-cols-3">
-                  <div className="min-w-0">
-                    <p className="text-xs font-bold uppercase text-slate-500">Customer portal</p>
-                    <p className="mt-1 text-sm font-black text-slate-950">
-                      bookings.piyamtravel.com
-                    </p>
-                    <p className="mt-1 text-xs font-semibold text-slate-500">
-                      No unique customer link is generated from this page.
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs font-bold uppercase text-slate-500">Reference</p>
-                    <p className="mt-1 text-sm font-black text-slate-950">
-                      {packageFolder.package_reference}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs font-bold uppercase text-slate-500">Lead surname</p>
-                    <p className="mt-1 text-sm font-black capitalize text-slate-950">
-                      {customerAccessLastName}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mb-4 rounded-lg border border-cyan-200 bg-cyan-50/60 p-4">
+              <div className="border-b border-slate-200 bg-slate-50 px-4 py-4 sm:px-5">
                 <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
                   <div>
-                    <p className="text-sm font-black text-slate-950">Third-party document access</p>
-                    <p className="mt-1 text-sm leading-6 text-slate-600">
-                      Generate a WhatsApp-safe link and access code for suppliers or partners. They
-                      must enter the code and accept data-handling responsibility before documents
-                      are shown.
+                    <div className="flex items-center gap-2">
+                      <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900 text-white">
+                        <Upload className="h-4 w-4" />
+                      </span>
+                      <div>
+                        <p className="text-xs font-bold uppercase text-[#8b1e2d]">Package folder</p>
+                        <h2 className="text-lg font-black text-slate-950">Documents</h2>
+                      </div>
+                    </div>
+                    <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+                      Upload, release, preview, and share package files from one controlled
+                      workspace. Customer files stay separate from agent-only travel documents.
                     </p>
                   </div>
-                  {thirdPartyShareLoading && (
+                  {documentsLoading && (
                     <span className="inline-flex items-center gap-2 text-xs font-bold text-slate-500">
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      Loading shares
+                      Loading documents
                     </span>
                   )}
                 </div>
+              </div>
 
-                <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_14rem]">
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <label className="block">
-                      <span className="mb-1 block text-xs font-bold uppercase text-slate-500">
-                        Label
-                      </span>
-                      <input
-                        value={thirdPartyShareForm.label}
-                        onChange={(event) =>
-                          setThirdPartyShareForm((current) => ({
-                            ...current,
-                            label: event.target.value,
-                          }))
-                        }
-                        className="min-h-10 w-full rounded-lg border border-slate-200 px-3 text-sm font-bold outline-none focus:border-slate-900"
-                      />
-                    </label>
-                    <label className="block">
-                      <span className="mb-1 block text-xs font-bold uppercase text-slate-500">
-                        Recipient
-                      </span>
-                      <input
-                        value={thirdPartyShareForm.recipientName}
-                        onChange={(event) =>
-                          setThirdPartyShareForm((current) => ({
-                            ...current,
-                            recipientName: event.target.value,
-                          }))
-                        }
-                        className="min-h-10 w-full rounded-lg border border-slate-200 px-3 text-sm font-bold outline-none focus:border-slate-900"
-                        placeholder="Supplier or company"
-                      />
-                    </label>
-                    <label className="block md:col-span-2">
-                      <span className="mb-1 block text-xs font-bold uppercase text-slate-500">
-                        Purpose
-                      </span>
-                      <input
-                        value={thirdPartyShareForm.purpose}
-                        onChange={(event) =>
-                          setThirdPartyShareForm((current) => ({
-                            ...current,
-                            purpose: event.target.value,
-                          }))
-                        }
-                        className="min-h-10 w-full rounded-lg border border-slate-200 px-3 text-sm font-bold outline-none focus:border-slate-900"
-                        placeholder="Reservation handling, ticketing, supplier verification"
-                      />
-                    </label>
-                    <label className="block">
-                      <span className="mb-1 block text-xs font-bold uppercase text-slate-500">
-                        Expires
-                      </span>
-                      <input
-                        type="datetime-local"
-                        value={thirdPartyShareForm.expiresAt}
-                        onChange={(event) =>
-                          setThirdPartyShareForm((current) => ({
-                            ...current,
-                            expiresAt: event.target.value,
-                          }))
-                        }
-                        className="min-h-10 w-full rounded-lg border border-slate-200 px-3 text-sm font-bold outline-none focus:border-slate-900"
-                      />
-                    </label>
-                    <div className="md:col-span-2">
-                      <p className="mb-2 text-xs font-bold uppercase text-slate-500">
-                        Allowed documents
-                      </p>
-                      <div className="flex flex-wrap gap-2">
-                        {THIRD_PARTY_PACKAGE_DOCUMENT_CATEGORIES.map((category) => {
-                          const active = thirdPartyShareForm.allowedCategories.includes(category)
+              <div className="p-4 sm:p-5">
+                {documentError && (
+                  <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-900">
+                    {documentError}
+                  </div>
+                )}
+
+                <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_24rem]">
+                  <div className="space-y-4">
+                    <div className="grid gap-3 md:grid-cols-3">
+                      <div className="rounded-lg border border-slate-200 bg-white p-3">
+                        <p className="text-xs font-bold uppercase text-slate-500">
+                          Total documents
+                        </p>
+                        <p className="mt-1 text-2xl font-black text-slate-950">
+                          {documents.length}
+                        </p>
+                      </div>
+                      <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+                        <p className="text-xs font-bold uppercase text-emerald-700">
+                          Released to customer
+                        </p>
+                        <p className="mt-1 text-2xl font-black text-emerald-950">
+                          {visibleDocumentCount}
+                        </p>
+                      </div>
+                      <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                        <p className="text-xs font-bold uppercase text-amber-700">
+                          Agent-only documents
+                        </p>
+                        <p className="mt-1 text-2xl font-black text-amber-950">
+                          {documentCountsByCategory.travel_documents || 0}
+                        </p>
+                      </div>
+                    </div>
+
+                    <section className="rounded-xl border border-slate-200 bg-white">
+                      <div className="flex flex-col gap-2 border-b border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <p className="text-sm font-black text-slate-950">Upload documents</p>
+                          <p className="mt-1 text-xs font-semibold text-slate-500">
+                            Choose a category first, then click or drop files directly into it.
+                          </p>
+                        </div>
+                        {savingDocument && (
+                          <span className="inline-flex items-center gap-2 text-xs font-black text-[#8b1e2d]">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Uploading
+                          </span>
+                        )}
+                      </div>
+                      <div className="grid gap-3 p-3 sm:grid-cols-2 2xl:grid-cols-3">
+                        {PACKAGE_DOCUMENT_CATEGORIES.map((category) => {
+                          const activeDrop = draggingDocumentCategory === category.value
                           return (
-                            <button
-                              key={category}
-                              type="button"
-                              onClick={() => toggleThirdPartyShareCategory(category)}
-                              className={`min-h-9 rounded-lg border px-3 text-xs font-black transition ${
-                                active
-                                  ? 'border-cyan-700 bg-cyan-700 text-white'
-                                  : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                            <label
+                              key={category.value}
+                              onDragOver={(event) => {
+                                event.preventDefault()
+                                setDraggingDocumentCategory(category.value)
+                              }}
+                              onDragLeave={() => setDraggingDocumentCategory(null)}
+                              onDrop={(event) => {
+                                event.preventDefault()
+                                setDraggingDocumentCategory(null)
+                                const files = event.dataTransfer.files
+                                if (files?.length) {
+                                  void uploadDocumentFiles(files, {
+                                    category: category.value,
+                                  })
+                                }
+                              }}
+                              className={`group flex min-h-24 cursor-pointer items-start justify-between gap-3 rounded-lg border-2 border-dashed p-3 transition ${
+                                activeDrop
+                                  ? 'border-[#8b1e2d] bg-red-50'
+                                  : 'border-slate-300 bg-slate-50 hover:border-[#8b1e2d]/50 hover:bg-white'
                               }`}
                             >
-                              {category === 'hotel'
-                                ? 'Hotel reservation'
-                                : getPackageDocumentCategoryLabel(category)}
-                            </button>
+                              <input
+                                type="file"
+                                multiple
+                                accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx"
+                                className="sr-only"
+                                disabled={savingDocument}
+                                onChange={(event) => {
+                                  const files = Array.from(event.currentTarget.files || [])
+                                  event.currentTarget.value = ''
+                                  if (files.length) {
+                                    void uploadDocumentFiles(files, {
+                                      category: category.value,
+                                    })
+                                  }
+                                }}
+                              />
+                              <span className="min-w-0">
+                                <span className="block text-sm font-black text-slate-950">
+                                  {category.label}
+                                </span>
+                                <span className="mt-1 block text-xs font-bold text-slate-500">
+                                  {documentCountsByCategory[category.value] || 0} uploaded
+                                </span>
+                                {category.agentOnly && (
+                                  <span className="mt-2 inline-flex rounded-full bg-amber-100 px-2 py-1 text-[11px] font-black uppercase text-amber-800">
+                                    Agents only
+                                  </span>
+                                )}
+                                <span className="mt-2 block text-[11px] font-semibold text-slate-500">
+                                  Drop files or click to upload
+                                </span>
+                              </span>
+                              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-[#8b1e2d] shadow-sm ring-1 ring-slate-200 transition group-hover:bg-[#8b1e2d] group-hover:text-white">
+                                <Upload className="h-4 w-4" />
+                              </span>
+                            </label>
                           )
                         })}
                       </div>
-                    </div>
-                  </div>
-                  <div className="rounded-lg border border-cyan-200 bg-white p-3">
-                    <button
-                      type="button"
-                      onClick={() => void createThirdPartyShare()}
-                      disabled={savingThirdPartyShare}
-                      className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg bg-cyan-800 px-3 text-sm font-black text-white transition hover:bg-cyan-900 disabled:opacity-50"
-                    >
-                      {savingThirdPartyShare ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Link2 className="h-4 w-4" />
-                      )}
-                      Generate link/code
-                    </button>
-                    <p className="mt-3 text-xs leading-5 text-slate-500">
-                      The code is only shown after generation. Regenerate a new share if the code is
-                      lost.
-                    </p>
-                  </div>
-                </div>
+                    </section>
 
-                {generatedThirdPartyShare && (
-                  <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3">
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                      <div>
-                        <p className="text-sm font-black text-emerald-900">
-                          Share generated for WhatsApp
-                        </p>
-                        <p className="mt-1 text-xs font-semibold text-emerald-800">
-                          Send this link and code together.
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          void copyAccessVoucherText(
-                            generatedThirdPartyShareDetailsText,
-                            'Third-party share copied',
-                          )
-                        }
-                        className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg bg-emerald-800 px-3 text-xs font-black text-white transition hover:bg-emerald-900"
-                      >
-                        <Copy className="h-4 w-4" />
-                        Quick copy share
-                      </button>
-                    </div>
-                    <div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_10rem]">
-                      <div className="min-w-0">
-                        <p className="text-xs font-bold uppercase text-emerald-700">Link</p>
-                        <p className="mt-1 truncate text-sm font-bold text-slate-800">
-                          {generatedThirdPartyShare.shareUrl}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs font-bold uppercase text-emerald-700">Access code</p>
-                        <p className="mt-1 rounded-lg bg-white px-3 py-2 text-center text-lg font-black tracking-[0.2em] text-slate-950">
-                          {generatedThirdPartyShare.accessCode}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          void copyAccessVoucherText(
-                            generatedThirdPartyShare.shareUrl,
-                            'Third-party link copied',
-                          )
-                        }
-                        className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-emerald-200 bg-white px-3 text-xs font-black text-emerald-900 transition hover:bg-emerald-100"
-                      >
-                        <Copy className="h-4 w-4" />
-                        Copy link
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          void copyAccessVoucherText(
-                            generatedThirdPartyShareDetailsText,
-                            'Third-party details copied',
-                          )
-                        }
-                        className="inline-flex min-h-9 items-center gap-2 rounded-lg bg-emerald-800 px-3 text-xs font-black text-white transition hover:bg-emerald-900"
-                      >
-                        <Copy className="h-4 w-4" />
-                        Copy WhatsApp details
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {thirdPartyShares.length > 0 && (
-                  <div className="mt-4 space-y-2">
-                    {thirdPartyShares.slice(0, 5).map((share) => {
-                      const expired = new Date(share.expires_at).getTime() <= Date.now()
-                      const active = share.status === 'active' && !expired
-                      return (
-                        <div
-                          key={share.id}
-                          className="flex flex-col gap-2 rounded-lg border border-cyan-100 bg-white p-3 md:flex-row md:items-center md:justify-between"
-                        >
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-black text-slate-950">
-                              {share.label}
-                            </p>
-                            <p className="text-xs text-slate-500">
-                              {share.recipient_name || 'No recipient'} · expires{' '}
-                              {formatDateTime(share.expires_at)} · code ends{' '}
-                              {share.access_code_hint}
-                            </p>
-                            <p className="mt-1 text-xs font-semibold text-slate-500">
-                              {share.allowed_categories
-                                .map((category) =>
-                                  category === 'hotel'
-                                    ? 'Hotel reservation'
-                                    : getPackageDocumentCategoryLabel(category),
-                                )
-                                .join(', ')}
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span
-                              className={`rounded-lg px-2 py-1 text-xs font-black ${
-                                active
-                                  ? 'bg-emerald-50 text-emerald-700'
-                                  : 'bg-slate-100 text-slate-600'
-                              }`}
-                            >
-                              {active
-                                ? 'Active'
-                                : share.status === 'revoked'
-                                  ? 'Revoked'
-                                  : 'Expired'}
-                            </span>
-                            {share.status === 'active' && (
-                              <button
-                                type="button"
-                                onClick={() => void revokeThirdPartyShare(share)}
-                                disabled={savingThirdPartyShare}
-                                className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-red-200 bg-white px-3 text-xs font-black text-red-700 transition hover:bg-red-50 disabled:opacity-50"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                                Revoke
-                              </button>
-                            )}
-                          </div>
+                    <section className="rounded-xl border border-slate-200 bg-white">
+                      <div className="flex flex-col gap-2 border-b border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <p className="text-sm font-black text-slate-950">Document library</p>
+                          <p className="mt-1 text-xs font-semibold text-slate-500">
+                            Review files by category. Travel document photos are nested under the
+                            passport they belong to.
+                          </p>
                         </div>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-
-              <div className="mb-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                {PACKAGE_DOCUMENT_CATEGORIES.map((category) => {
-                  const activeDrop = draggingDocumentCategory === category.value
-                  return (
-                    <label
-                      key={category.value}
-                      onDragOver={(event) => {
-                        event.preventDefault()
-                        setDraggingDocumentCategory(category.value)
-                      }}
-                      onDragLeave={() => setDraggingDocumentCategory(null)}
-                      onDrop={(event) => {
-                        event.preventDefault()
-                        setDraggingDocumentCategory(null)
-                        const files = event.dataTransfer.files
-                        if (files?.length) {
-                          void uploadDocumentFiles(files, {
-                            category: category.value,
-                          })
-                        }
-                      }}
-                      className={`flex min-h-32 cursor-pointer flex-col justify-between rounded-lg border-2 border-dashed p-4 transition ${
-                        activeDrop
-                          ? 'border-[#8b1e2d] bg-red-50'
-                          : 'border-slate-300 bg-white hover:border-[#8b1e2d]/50 hover:bg-slate-50'
-                      }`}
-                    >
-                      <input
-                        type="file"
-                        multiple
-                        accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx"
-                        className="sr-only"
-                        disabled={savingDocument}
-                        onChange={(event) => {
-                          const files = Array.from(event.currentTarget.files || [])
-                          event.currentTarget.value = ''
-                          if (files.length) {
-                            void uploadDocumentFiles(files, {
-                              category: category.value,
-                            })
-                          }
-                        }}
-                      />
-                      <span className="flex items-center justify-between gap-3">
-                        <span>
-                          <span className="block text-sm font-black text-slate-950">
-                            {category.label}
-                          </span>
-                          <span className="mt-1 block text-xs font-bold text-slate-500">
-                            {documentCountsByCategory[category.value] || 0} uploaded
-                          </span>
-                          {category.agentOnly && (
-                            <span className="mt-2 inline-flex rounded-full bg-amber-50 px-2 py-1 text-[11px] font-black uppercase text-amber-700">
-                              Agents only
-                            </span>
-                          )}
-                        </span>
-                        <Upload className="h-5 w-5 text-[#8b1e2d]" />
-                      </span>
-                      <span className="mt-3 text-xs font-semibold text-slate-500">
-                        Drop files here or click to upload instantly
-                      </span>
-                    </label>
-                  )
-                })}
-              </div>
-
-              <div className="mt-4 space-y-3">
-                {documents.length === 0 && !documentsLoading ? (
-                  <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center text-sm font-bold text-slate-500">
-                    No package documents uploaded yet.
-                  </div>
-                ) : (
-                  groupedDocuments.map((group) => (
-                    <div key={group.value} className="rounded-lg border border-slate-200">
-                      <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3">
-                        <p className="text-sm font-black text-slate-950">{group.label}</p>
-                        <span className="rounded-full bg-white px-2 py-1 text-xs font-black text-slate-500">
-                          {group.documents.length}
+                        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-600">
+                          {documents.length} files
                         </span>
                       </div>
-                      <div className="divide-y divide-slate-100">
-                        {(group.value === 'travel_documents'
-                          ? group.documents.filter((document) => !isVisaPhotoDocument(document))
-                          : group.documents
-                        ).map((document) => {
-                          const updatingThisDocument = updatingDocumentId === document.id
-                          const renamingThisDocument = renamingDocumentId === document.id
-                          const documentIsReleased =
-                            document.customer_visible && document.status === 'released'
-                          const documentIsAgentOnly = document.category === 'travel_documents'
-                          const documentIsVisaPhoto = isVisaPhotoDocument(document)
-                          const linkedVisaPhotos = visaPhotosByTravelDocumentId[document.id] || []
-                          return (
-                            <div
-                              key={document.id}
-                              className="flex flex-col gap-3 px-4 py-3 lg:flex-row lg:items-start lg:justify-between"
-                            >
-                              <div className="min-w-0 flex-1">
-                                <div className="flex flex-wrap items-center gap-2">
-                                  {renamingThisDocument ? (
-                                    <div className="w-full min-w-0">
-                                      <input
-                                        value={documentRenameForm.name}
-                                        onChange={(event) =>
-                                          setDocumentRenameForm((current) => ({
-                                            ...current,
-                                            name: event.target.value,
-                                          }))
-                                        }
-                                        placeholder="Document name"
-                                        className="w-full min-w-0 rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold text-slate-900"
-                                      />
-                                    </div>
-                                  ) : (
-                                    <p className="text-sm font-black text-slate-950">
-                                      {document.title}
-                                    </p>
-                                  )}
-                                  <span
-                                    className={`rounded-full px-2 py-1 text-[11px] font-black uppercase ${
-                                      documentIsAgentOnly
-                                        ? 'bg-amber-50 text-amber-700'
-                                        : documentIsReleased
-                                          ? 'bg-emerald-50 text-emerald-700'
-                                          : 'bg-slate-100 text-slate-500'
-                                    }`}
-                                  >
-                                    {documentIsAgentOnly
-                                      ? 'Agents only'
-                                      : documentIsReleased
-                                        ? 'Released'
-                                        : 'Internal'}
-                                  </span>
-                                  {documentIsVisaPhoto && (
-                                    <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-1 text-[11px] font-black uppercase text-indigo-700">
-                                      <FileImage className="h-3 w-3" />
-                                      Visa photo
-                                    </span>
-                                  )}
-                                </div>
-                                <p className="mt-1 break-all text-xs font-bold text-slate-500">
-                                  {document.file_name} · {formatFileSize(document.file_size)}
-                                </p>
-                                {document.reservation_id && (
-                                  <p className="mt-1 text-xs font-bold text-slate-500">
-                                    Linked to{' '}
-                                    {reservationTitleById.get(document.reservation_id) ||
-                                      'reservation'}
-                                  </p>
-                                )}
-                                {documentIsVisaPhoto &&
-                                  typeof document.metadata?.linkedTravelDocumentTitle ===
-                                    'string' && (
-                                    <p className="mt-1 text-xs font-bold text-indigo-700">
-                                      Photo for {document.metadata.linkedTravelDocumentTitle}
-                                    </p>
-                                  )}
-                                {document.public_notes && (
-                                  <p className="mt-2 whitespace-pre-line text-xs leading-5 text-slate-600">
-                                    {document.public_notes}
-                                  </p>
-                                )}
-                                {document.internal_notes && (
-                                  <p className="mt-2 whitespace-pre-line rounded-lg bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">
-                                    {document.internal_notes}
-                                  </p>
-                                )}
-                                {document.category === 'travel_documents' &&
-                                  !documentIsVisaPhoto &&
-                                  linkedVisaPhotos.length > 0 && (
-                                    <div className="mt-3 w-full rounded-lg border border-indigo-100 bg-indigo-50/80 px-3 py-3">
-                                      <div className="flex flex-wrap items-center justify-between gap-2">
-                                        <p className="text-xs font-black uppercase text-indigo-700">
-                                          Linked visa photos
+                      <div className="space-y-3 p-3">
+                        {documents.length === 0 && !documentsLoading ? (
+                          <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center text-sm font-bold text-slate-500">
+                            No package documents uploaded yet.
+                          </div>
+                        ) : (
+                          groupedDocuments.map((group) => (
+                            <div key={group.value} className="rounded-lg border border-slate-200">
+                              <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3">
+                                <p className="text-sm font-black text-slate-950">{group.label}</p>
+                                <span className="rounded-full bg-white px-2 py-1 text-xs font-black text-slate-500">
+                                  {group.documents.length}
+                                </span>
+                              </div>
+                              <div className="divide-y divide-slate-100">
+                                {(group.value === 'travel_documents'
+                                  ? group.documents.filter(
+                                      (document) => !isVisaPhotoDocument(document),
+                                    )
+                                  : group.documents
+                                ).map((document) => {
+                                  const updatingThisDocument = updatingDocumentId === document.id
+                                  const renamingThisDocument = renamingDocumentId === document.id
+                                  const documentIsReleased =
+                                    document.customer_visible && document.status === 'released'
+                                  const documentIsAgentOnly =
+                                    document.category === 'travel_documents'
+                                  const documentIsVisaPhoto = isVisaPhotoDocument(document)
+                                  const linkedVisaPhotos =
+                                    visaPhotosByTravelDocumentId[document.id] || []
+                                  return (
+                                    <div
+                                      key={document.id}
+                                      className="flex flex-col gap-3 px-4 py-3 lg:flex-row lg:items-start lg:justify-between"
+                                    >
+                                      <div className="min-w-0 flex-1">
+                                        <div className="flex flex-wrap items-center gap-2">
+                                          {renamingThisDocument ? (
+                                            <div className="w-full min-w-0">
+                                              <input
+                                                value={documentRenameForm.name}
+                                                onChange={(event) =>
+                                                  setDocumentRenameForm((current) => ({
+                                                    ...current,
+                                                    name: event.target.value,
+                                                  }))
+                                                }
+                                                placeholder="Document name"
+                                                className="w-full min-w-0 rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold text-slate-900"
+                                              />
+                                            </div>
+                                          ) : (
+                                            <p className="text-sm font-black text-slate-950">
+                                              {document.title}
+                                            </p>
+                                          )}
+                                          <span
+                                            className={`rounded-full px-2 py-1 text-[11px] font-black uppercase ${
+                                              documentIsAgentOnly
+                                                ? 'bg-amber-50 text-amber-700'
+                                                : documentIsReleased
+                                                  ? 'bg-emerald-50 text-emerald-700'
+                                                  : 'bg-slate-100 text-slate-500'
+                                            }`}
+                                          >
+                                            {documentIsAgentOnly
+                                              ? 'Agents only'
+                                              : documentIsReleased
+                                                ? 'Released'
+                                                : 'Internal'}
+                                          </span>
+                                          {documentIsVisaPhoto && (
+                                            <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-1 text-[11px] font-black uppercase text-indigo-700">
+                                              <FileImage className="h-3 w-3" />
+                                              Visa photo
+                                            </span>
+                                          )}
+                                        </div>
+                                        <p className="mt-1 break-all text-xs font-bold text-slate-500">
+                                          {document.file_name} ·{' '}
+                                          {formatFileSize(document.file_size)}
                                         </p>
-                                        <span className="rounded-full bg-white px-2 py-1 text-[11px] font-black text-indigo-700">
-                                          {linkedVisaPhotos.length}
-                                        </span>
-                                      </div>
-                                      <div className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                                        {linkedVisaPhotos.map((photo) => {
-                                          const updatingPhoto = updatingDocumentId === photo.id
-                                          return (
-                                            <div
-                                              key={photo.id}
-                                              className="min-w-0 rounded-lg border border-indigo-100 bg-white p-2 shadow-sm"
-                                            >
-                                              <div className="min-w-0">
-                                                <p
-                                                  className="truncate text-xs font-black text-indigo-950"
-                                                  title={photo.title}
-                                                >
-                                                  {photo.title}
+                                        {document.reservation_id && (
+                                          <p className="mt-1 text-xs font-bold text-slate-500">
+                                            Linked to{' '}
+                                            {reservationTitleById.get(document.reservation_id) ||
+                                              'reservation'}
+                                          </p>
+                                        )}
+                                        {documentIsVisaPhoto &&
+                                          typeof document.metadata?.linkedTravelDocumentTitle ===
+                                            'string' && (
+                                            <p className="mt-1 text-xs font-bold text-indigo-700">
+                                              Photo for{' '}
+                                              {document.metadata.linkedTravelDocumentTitle}
+                                            </p>
+                                          )}
+                                        {document.public_notes && (
+                                          <p className="mt-2 whitespace-pre-line text-xs leading-5 text-slate-600">
+                                            {document.public_notes}
+                                          </p>
+                                        )}
+                                        {document.internal_notes && (
+                                          <p className="mt-2 whitespace-pre-line rounded-lg bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">
+                                            {document.internal_notes}
+                                          </p>
+                                        )}
+                                        {document.category === 'travel_documents' &&
+                                          !documentIsVisaPhoto &&
+                                          linkedVisaPhotos.length > 0 && (
+                                            <div className="mt-3 w-full rounded-lg border border-indigo-100 bg-indigo-50/80 px-3 py-3">
+                                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                                <p className="text-xs font-black uppercase text-indigo-700">
+                                                  Linked visa photos
                                                 </p>
-                                                <p
-                                                  className="mt-0.5 truncate text-[11px] font-bold text-indigo-700"
-                                                  title={photo.file_name}
-                                                >
-                                                  {photo.file_name} ·{' '}
-                                                  {formatFileSize(photo.file_size)}
-                                                </p>
+                                                <span className="rounded-full bg-white px-2 py-1 text-[11px] font-black text-indigo-700">
+                                                  {linkedVisaPhotos.length}
+                                                </span>
                                               </div>
-                                              <div className="mt-2 flex flex-wrap gap-2">
-                                                <button
-                                                  type="button"
-                                                  onClick={() => void openDocumentPreview(photo)}
-                                                  disabled={updatingPhoto}
-                                                  className="inline-flex min-h-8 items-center justify-center gap-1 rounded-lg border border-indigo-100 bg-white px-2 text-[11px] font-black text-indigo-800 transition hover:bg-indigo-50 disabled:cursor-not-allowed disabled:text-slate-300"
-                                                >
-                                                  <FileText className="h-3 w-3" />
-                                                  Preview
-                                                </button>
-                                                <button
-                                                  type="button"
-                                                  onClick={() => void downloadDocument(photo)}
-                                                  disabled={updatingPhoto}
-                                                  className="inline-flex min-h-8 items-center justify-center gap-1 rounded-lg border border-indigo-100 bg-white px-2 text-[11px] font-black text-indigo-800 transition hover:bg-indigo-50 disabled:cursor-not-allowed disabled:text-slate-300"
-                                                >
-                                                  {updatingPhoto ? (
-                                                    <Loader2 className="h-3 w-3 animate-spin" />
-                                                  ) : (
-                                                    <Download className="h-3 w-3" />
-                                                  )}
-                                                  Open
-                                                </button>
-                                                <button
-                                                  type="button"
-                                                  onClick={() => void deleteDocument(photo)}
-                                                  disabled={updatingPhoto}
-                                                  className="inline-flex min-h-8 items-center justify-center gap-1 rounded-lg border border-rose-100 bg-white px-2 text-[11px] font-black text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:text-rose-300"
-                                                >
-                                                  <Trash2 className="h-3 w-3" />
-                                                  Delete
-                                                </button>
+                                              <div className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                                                {linkedVisaPhotos.map((photo) => {
+                                                  const updatingPhoto =
+                                                    updatingDocumentId === photo.id
+                                                  return (
+                                                    <div
+                                                      key={photo.id}
+                                                      className="min-w-0 rounded-lg border border-indigo-100 bg-white p-2 shadow-sm"
+                                                    >
+                                                      <div className="min-w-0">
+                                                        <p
+                                                          className="truncate text-xs font-black text-indigo-950"
+                                                          title={photo.title}
+                                                        >
+                                                          {photo.title}
+                                                        </p>
+                                                        <p
+                                                          className="mt-0.5 truncate text-[11px] font-bold text-indigo-700"
+                                                          title={photo.file_name}
+                                                        >
+                                                          {photo.file_name} ·{' '}
+                                                          {formatFileSize(photo.file_size)}
+                                                        </p>
+                                                      </div>
+                                                      <div className="mt-2 flex flex-wrap gap-2">
+                                                        <button
+                                                          type="button"
+                                                          onClick={() =>
+                                                            void openDocumentPreview(photo)
+                                                          }
+                                                          disabled={updatingPhoto}
+                                                          className="inline-flex min-h-8 items-center justify-center gap-1 rounded-lg border border-indigo-100 bg-white px-2 text-[11px] font-black text-indigo-800 transition hover:bg-indigo-50 disabled:cursor-not-allowed disabled:text-slate-300"
+                                                        >
+                                                          <FileText className="h-3 w-3" />
+                                                          Preview
+                                                        </button>
+                                                        <button
+                                                          type="button"
+                                                          onClick={() =>
+                                                            void downloadDocument(photo)
+                                                          }
+                                                          disabled={updatingPhoto}
+                                                          className="inline-flex min-h-8 items-center justify-center gap-1 rounded-lg border border-indigo-100 bg-white px-2 text-[11px] font-black text-indigo-800 transition hover:bg-indigo-50 disabled:cursor-not-allowed disabled:text-slate-300"
+                                                        >
+                                                          {updatingPhoto ? (
+                                                            <Loader2 className="h-3 w-3 animate-spin" />
+                                                          ) : (
+                                                            <Download className="h-3 w-3" />
+                                                          )}
+                                                          Open
+                                                        </button>
+                                                        <button
+                                                          type="button"
+                                                          onClick={() => void deleteDocument(photo)}
+                                                          disabled={updatingPhoto}
+                                                          className="inline-flex min-h-8 items-center justify-center gap-1 rounded-lg border border-rose-100 bg-white px-2 text-[11px] font-black text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:text-rose-300"
+                                                        >
+                                                          <Trash2 className="h-3 w-3" />
+                                                          Delete
+                                                        </button>
+                                                      </div>
+                                                    </div>
+                                                  )
+                                                })}
                                               </div>
                                             </div>
-                                          )
-                                        })}
+                                          )}
+                                      </div>
+                                      <div className="flex shrink-0 flex-wrap gap-2">
+                                        {renamingThisDocument ? (
+                                          <>
+                                            <button
+                                              type="button"
+                                              onClick={() => void saveDocumentRename(document)}
+                                              disabled={updatingThisDocument}
+                                              className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 text-xs font-black text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:text-slate-300"
+                                            >
+                                              {updatingThisDocument ? (
+                                                <Loader2 className="h-4 w-4 animate-spin" />
+                                              ) : (
+                                                <CheckCircle2 className="h-4 w-4" />
+                                              )}
+                                              Save
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => setRenamingDocumentId(null)}
+                                              disabled={updatingThisDocument}
+                                              className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300"
+                                            >
+                                              <X className="h-4 w-4" />
+                                              Cancel
+                                            </button>
+                                          </>
+                                        ) : (
+                                          <button
+                                            type="button"
+                                            onClick={() => startDocumentRename(document)}
+                                            disabled={updatingThisDocument}
+                                            className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300"
+                                          >
+                                            <Pencil className="h-4 w-4" />
+                                            Rename
+                                          </button>
+                                        )}
+                                        {document.category === 'travel_documents' &&
+                                          !documentIsVisaPhoto && (
+                                            <button
+                                              type="button"
+                                              onClick={() => setPhotoLinkDocument(document)}
+                                              disabled={updatingThisDocument}
+                                              className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300"
+                                            >
+                                              <FileImage className="h-4 w-4" />
+                                              Link photo
+                                            </button>
+                                          )}
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            void openDocumentPreview(document)
+                                          }}
+                                          disabled={updatingThisDocument}
+                                          className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300"
+                                        >
+                                          <FileText className="h-4 w-4" />
+                                          Preview
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            void downloadDocument(document)
+                                          }}
+                                          disabled={updatingThisDocument}
+                                          className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300"
+                                        >
+                                          {updatingThisDocument ? (
+                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                          ) : (
+                                            <Download className="h-4 w-4" />
+                                          )}
+                                          Open
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            if (documentIsAgentOnly) return
+                                            void updateDocumentVisibility(
+                                              document,
+                                              !documentIsReleased,
+                                            )
+                                          }}
+                                          disabled={updatingThisDocument || documentIsAgentOnly}
+                                          className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300"
+                                        >
+                                          {documentIsReleased ? (
+                                            <EyeOff className="h-4 w-4" />
+                                          ) : (
+                                            <Eye className="h-4 w-4" />
+                                          )}
+                                          {documentIsReleased ? 'Hide' : 'Release'}
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            void deleteDocument(document)
+                                          }}
+                                          disabled={updatingThisDocument}
+                                          className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-rose-200 bg-white px-3 text-xs font-black text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:text-rose-300"
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                          Delete
+                                        </button>
                                       </div>
                                     </div>
-                                  )}
-                              </div>
-                              <div className="flex shrink-0 flex-wrap gap-2">
-                                {renamingThisDocument ? (
-                                  <>
-                                    <button
-                                      type="button"
-                                      onClick={() => void saveDocumentRename(document)}
-                                      disabled={updatingThisDocument}
-                                      className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 text-xs font-black text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:text-slate-300"
-                                    >
-                                      {updatingThisDocument ? (
-                                        <Loader2 className="h-4 w-4 animate-spin" />
-                                      ) : (
-                                        <CheckCircle2 className="h-4 w-4" />
-                                      )}
-                                      Save
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => setRenamingDocumentId(null)}
-                                      disabled={updatingThisDocument}
-                                      className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300"
-                                    >
-                                      <X className="h-4 w-4" />
-                                      Cancel
-                                    </button>
-                                  </>
-                                ) : (
-                                  <button
-                                    type="button"
-                                    onClick={() => startDocumentRename(document)}
-                                    disabled={updatingThisDocument}
-                                    className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300"
-                                  >
-                                    <Pencil className="h-4 w-4" />
-                                    Rename
-                                  </button>
-                                )}
-                                {document.category === 'travel_documents' &&
-                                  !documentIsVisaPhoto && (
-                                    <button
-                                      type="button"
-                                      onClick={() => setPhotoLinkDocument(document)}
-                                      disabled={updatingThisDocument}
-                                      className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300"
-                                    >
-                                      <FileImage className="h-4 w-4" />
-                                      Link photo
-                                    </button>
-                                  )}
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    void openDocumentPreview(document)
-                                  }}
-                                  disabled={updatingThisDocument}
-                                  className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300"
-                                >
-                                  <FileText className="h-4 w-4" />
-                                  Preview
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    void downloadDocument(document)
-                                  }}
-                                  disabled={updatingThisDocument}
-                                  className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300"
-                                >
-                                  {updatingThisDocument ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                  ) : (
-                                    <Download className="h-4 w-4" />
-                                  )}
-                                  Open
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    if (documentIsAgentOnly) return
-                                    void updateDocumentVisibility(document, !documentIsReleased)
-                                  }}
-                                  disabled={updatingThisDocument || documentIsAgentOnly}
-                                  className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300"
-                                >
-                                  {documentIsReleased ? (
-                                    <EyeOff className="h-4 w-4" />
-                                  ) : (
-                                    <Eye className="h-4 w-4" />
-                                  )}
-                                  {documentIsReleased ? 'Hide' : 'Release'}
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    void deleteDocument(document)
-                                  }}
-                                  disabled={updatingThisDocument}
-                                  className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-rose-200 bg-white px-3 text-xs font-black text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:text-rose-300"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                  Delete
-                                </button>
+                                  )
+                                })}
                               </div>
                             </div>
-                          )
-                        })}
+                          ))
+                        )}
                       </div>
-                    </div>
-                  ))
-                )}
+                    </section>
+                  </div>
+                  <aside className="space-y-4">
+                    <section className="rounded-xl border border-slate-200 bg-white p-4">
+                      <div className="flex items-start gap-3">
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#8b1e2d] text-white">
+                          <ShieldCheck className="h-4 w-4" />
+                        </span>
+                        <div className="min-w-0">
+                          <p className="text-sm font-black text-slate-950">Customer access</p>
+                          <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
+                            Customers use the booking portal with the package reference and lead
+                            surname.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="mt-4 space-y-3 rounded-lg bg-slate-50 p-3">
+                        <div>
+                          <p className="text-[11px] font-black uppercase text-slate-500">
+                            Login website
+                          </p>
+                          <p className="mt-1 break-all text-sm font-black text-slate-950">
+                            {CUSTOMER_PORTAL_URL.replace('https://', '')}
+                          </p>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="rounded-lg bg-white p-2">
+                            <p className="text-[11px] font-black uppercase text-slate-500">
+                              Reference
+                            </p>
+                            <p className="mt-1 font-mono text-sm font-black text-[#8b1e2d]">
+                              {packageFolder.package_reference}
+                            </p>
+                          </div>
+                          <div className="rounded-lg bg-white p-2">
+                            <p className="text-[11px] font-black uppercase text-slate-500">
+                              Lead surname
+                            </p>
+                            <p className="mt-1 text-sm font-black capitalize text-slate-950">
+                              {customerAccessLastName}
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void copyAccessVoucherText(accessVoucherDetailsText, 'Details copied')
+                          }
+                          className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg bg-[#8b1e2d] px-3 text-sm font-black text-white transition hover:bg-[#741827]"
+                        >
+                          <Copy className="h-4 w-4" />
+                          Copy customer details
+                        </button>
+                      </div>
+                    </section>
+
+                    <section className="rounded-xl border border-cyan-200 bg-cyan-50/70 p-4">
+                      <div className="flex items-start gap-3">
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-cyan-700 text-white">
+                          <Link2 className="h-4 w-4" />
+                        </span>
+                        <div className="min-w-0">
+                          <p className="text-sm font-black text-slate-950">
+                            Third-party document access
+                          </p>
+                          <p className="mt-1 text-xs font-semibold leading-5 text-slate-600">
+                            Generate a coded link for suppliers or partners. They must enter the
+                            code and accept the data-handling responsibility before viewing files.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 space-y-3">
+                        <label className="block">
+                          <span className="text-xs font-bold uppercase text-slate-500">Label</span>
+                          <input
+                            value={thirdPartyShareForm.label}
+                            onChange={(event) =>
+                              setThirdPartyShareForm((current) => ({
+                                ...current,
+                                label: event.target.value,
+                              }))
+                            }
+                            placeholder="Third-party document access"
+                            className="mt-1 w-full rounded-lg border border-cyan-200 bg-white px-3 py-2 text-sm font-bold text-slate-900 outline-none focus:border-cyan-500"
+                          />
+                        </label>
+                        <label className="block">
+                          <span className="text-xs font-bold uppercase text-slate-500">
+                            Recipient
+                          </span>
+                          <input
+                            value={thirdPartyShareForm.recipientName}
+                            onChange={(event) =>
+                              setThirdPartyShareForm((current) => ({
+                                ...current,
+                                recipientName: event.target.value,
+                              }))
+                            }
+                            placeholder="Supplier or company"
+                            className="mt-1 w-full rounded-lg border border-cyan-200 bg-white px-3 py-2 text-sm font-bold text-slate-900 outline-none focus:border-cyan-500"
+                          />
+                        </label>
+                        <label className="block">
+                          <span className="text-xs font-bold uppercase text-slate-500">
+                            Purpose
+                          </span>
+                          <input
+                            value={thirdPartyShareForm.purpose}
+                            onChange={(event) =>
+                              setThirdPartyShareForm((current) => ({
+                                ...current,
+                                purpose: event.target.value,
+                              }))
+                            }
+                            placeholder="Reservation handling, ticketing, supplier verification"
+                            className="mt-1 w-full rounded-lg border border-cyan-200 bg-white px-3 py-2 text-sm font-bold text-slate-900 outline-none focus:border-cyan-500"
+                          />
+                        </label>
+                        <label className="block">
+                          <span className="text-xs font-bold uppercase text-slate-500">
+                            Expires
+                          </span>
+                          <input
+                            type="datetime-local"
+                            value={thirdPartyShareForm.expiresAt}
+                            onChange={(event) =>
+                              setThirdPartyShareForm((current) => ({
+                                ...current,
+                                expiresAt: event.target.value,
+                              }))
+                            }
+                            className="mt-1 w-full rounded-lg border border-cyan-200 bg-white px-3 py-2 text-sm font-bold text-slate-900 outline-none focus:border-cyan-500"
+                          />
+                        </label>
+
+                        <div>
+                          <p className="text-xs font-bold uppercase text-slate-500">
+                            Allowed documents
+                          </p>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {THIRD_PARTY_PACKAGE_DOCUMENT_CATEGORIES.map((category) => {
+                              const active =
+                                thirdPartyShareForm.allowedCategories.includes(category)
+                              return (
+                                <button
+                                  key={category}
+                                  type="button"
+                                  onClick={() => toggleThirdPartyShareCategory(category)}
+                                  className={`rounded-full px-3 py-1.5 text-xs font-black transition ${
+                                    active
+                                      ? 'bg-cyan-700 text-white'
+                                      : 'bg-white text-slate-600 ring-1 ring-cyan-200 hover:bg-cyan-100'
+                                  }`}
+                                >
+                                  {getPackageDocumentCategoryLabel(category)}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => void createThirdPartyShare()}
+                          disabled={savingThirdPartyShare}
+                          className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg bg-slate-950 px-3 text-sm font-black text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+                        >
+                          {savingThirdPartyShare ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Link2 className="h-4 w-4" />
+                          )}
+                          Generate link/code
+                        </button>
+                      </div>
+
+                      {generatedThirdPartyShare && (
+                        <div className="mt-4 rounded-lg border border-cyan-200 bg-white p-3">
+                          <p className="text-xs font-black uppercase text-cyan-700">
+                            Ready to share
+                          </p>
+                          <p className="mt-2 break-all text-xs font-bold text-slate-600">
+                            {generatedThirdPartyShare.shareUrl}
+                          </p>
+                          <p className="mt-2 text-sm font-black text-slate-950">
+                            Code: {generatedThirdPartyShare.accessCode}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void copyAccessVoucherText(
+                                generatedThirdPartyShareDetailsText,
+                                'Third-party details copied',
+                              )
+                            }
+                            className="mt-3 inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-lg border border-cyan-200 bg-cyan-50 px-3 text-xs font-black text-cyan-800 transition hover:bg-cyan-100"
+                          >
+                            <Copy className="h-4 w-4" />
+                            Copy share info
+                          </button>
+                        </div>
+                      )}
+
+                      {thirdPartyShares.length > 0 && (
+                        <div className="mt-4 space-y-2">
+                          <p className="text-xs font-black uppercase text-slate-500">
+                            Recent shares
+                          </p>
+                          {thirdPartyShares.slice(0, 4).map((share) => (
+                            <div
+                              key={share.id}
+                              className="rounded-lg border border-cyan-100 bg-white p-3"
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="min-w-0">
+                                  <p className="truncate text-sm font-black text-slate-950">
+                                    {share.label}
+                                  </p>
+                                  <p className="mt-1 truncate text-xs font-bold text-slate-500">
+                                    {share.recipient_name || 'No recipient'} · expires{' '}
+                                    {formatDateTime(share.expires_at)}
+                                  </p>
+                                </div>
+                                <span
+                                  className={`shrink-0 rounded-full px-2 py-1 text-[11px] font-black uppercase ${
+                                    share.status === 'active'
+                                      ? 'bg-emerald-50 text-emerald-700'
+                                      : 'bg-slate-100 text-slate-500'
+                                  }`}
+                                >
+                                  {share.status}
+                                </span>
+                              </div>
+                              {share.status === 'active' && (
+                                <button
+                                  type="button"
+                                  onClick={() => void revokeThirdPartyShare(share)}
+                                  disabled={savingThirdPartyShare}
+                                  className="mt-2 inline-flex min-h-8 items-center justify-center gap-1 rounded-lg border border-rose-200 bg-white px-2 text-xs font-black text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:text-rose-300"
+                                >
+                                  <X className="h-3 w-3" />
+                                  Revoke
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </section>
+
+                    {accessVoucherCopyMessage && (
+                      <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-center text-xs font-black text-emerald-700">
+                        {accessVoucherCopyMessage}
+                      </p>
+                    )}
+                  </aside>
+                </div>
               </div>
             </div>
           )}
