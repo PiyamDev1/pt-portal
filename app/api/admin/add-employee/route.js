@@ -148,6 +148,10 @@ export async function POST(request) {
       return apiError('Email and Role ID are required.', 400)
     }
 
+    if (!Array.isArray(department_ids) || department_ids.length === 0) {
+      return apiError('At least one department is required.', 400)
+    }
+
     const tempPassword =
       Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-4) + '!'
 

@@ -12,6 +12,10 @@ import {
   type PakPassportDraftPaymentStatus,
   type PakPassportDraftStatus,
 } from '@/lib/passports/pakDrafts'
+import {
+  sendPakPassportDraftAssignmentEmail,
+  type PakPassportDraftAssignmentEmailResult,
+} from '@/lib/passports/pakDraftAssignmentEmail'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -76,6 +80,16 @@ type DraftRow = {
   payment_note?: string | null
   converted_application_id?: string | null
   created_by?: string | null
+}
+
+type DraftAssignmentNotificationInput = {
+  draft: Partial<DraftRow> & {
+    draft_id: string
+    applicant_name: string
+    assigned_employee_id?: string | null
+  }
+  assignedEmployeeId?: string | null
+  assignedById?: string | null
 }
 
 function cleanPayload(payload: Record<string, unknown>) {
@@ -176,6 +190,62 @@ function statusForDraftError(error: unknown, message: string) {
   return 500
 }
 
+async function notifyAssignedEmployee(
+  supabase: ReturnType<typeof getSupabaseClient>,
+  input: DraftAssignmentNotificationInput,
+): Promise<PakPassportDraftAssignmentEmailResult | null> {
+  const assignedEmployeeId = cleanText(input.assignedEmployeeId || input.draft.assigned_employee_id)
+  if (!assignedEmployeeId) return null
+
+  const [{ data: assignedEmployee, error: assignedError }, { data: assignedBy }] =
+    await Promise.all([
+      supabase
+        .from('employees')
+        .select('id, full_name, email')
+        .eq('id', assignedEmployeeId)
+        .maybeSingle(),
+      input.assignedById
+        ? supabase
+            .from('employees')
+            .select('id, full_name')
+            .eq('id', input.assignedById)
+            .maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
+    ])
+
+  if (assignedError) {
+    console.error('[Pakistani passport drafts] failed to load assigned employee', assignedError)
+    return {
+      sent: false,
+      senderEmail: process.env.MAILGUN_SENDER_EMAIL || process.env.MAIL_FROM_ADDRESS || '',
+      reason: assignedError.message,
+    }
+  }
+
+  const result = await sendPakPassportDraftAssignmentEmail({
+    to: assignedEmployee?.email,
+    assigneeName: assignedEmployee?.full_name,
+    draftId: input.draft.draft_id,
+    applicantName: input.draft.applicant_name,
+    applicantCnic: input.draft.applicant_cnic,
+    applicationType: input.draft.application_type,
+    category: input.draft.category,
+    pageCount: input.draft.page_count,
+    speed: input.draft.speed,
+    assignedByName: assignedBy?.full_name,
+  })
+
+  if (!result.sent) {
+    console.warn('[Pakistani passport drafts] assignment email not sent', {
+      draftId: input.draft.draft_id,
+      assignedEmployeeId,
+      reason: result.reason,
+    })
+  }
+
+  return result
+}
+
 function normalizeUpdatePayload(body: Record<string, unknown>) {
   const data = (body.data || body) as Record<string, unknown>
   const currentUserId = cleanText(body.currentUserId || body.userId)
@@ -259,7 +329,7 @@ async function fetchDocumentCounts(
 
 async function createDraft(body: Record<string, unknown>) {
   const supabase = getSupabaseClient()
-  const { payload } = normalizeCreatePayload(body)
+  const { currentUserId, payload } = normalizeCreatePayload(body)
 
   let lastError: unknown = null
   for (let attempt = 0; attempt < MAX_DRAFT_ID_ATTEMPTS; attempt += 1) {
@@ -271,7 +341,12 @@ async function createDraft(body: Record<string, unknown>) {
       .single()
 
     if (!error && data) {
-      return apiOk({ draft: data })
+      const assignmentNotification = await notifyAssignedEmployee(supabase, {
+        draft: data,
+        assignedEmployeeId: payload.assigned_employee_id as string | null | undefined,
+        assignedById: currentUserId,
+      })
+      return apiOk({ draft: data, assignmentNotification })
     }
 
     lastError = error
@@ -289,6 +364,18 @@ async function updateDraft(body: Record<string, unknown>) {
   if (!draftId) return apiError('Draft ID is required', 400)
 
   const payload = normalizeUpdatePayload(body)
+  let previousAssignedEmployeeId: string | null = null
+  if ('assigned_employee_id' in payload) {
+    const { data: existingDraft, error: existingError } = await supabase
+      .from('pakistani_passport_drafts')
+      .select('assigned_employee_id')
+      .eq('id', draftId)
+      .maybeSingle()
+
+    if (existingError) throw existingError
+    previousAssignedEmployeeId = existingDraft?.assigned_employee_id || null
+  }
+
   const { data, error } = await supabase
     .from('pakistani_passport_drafts')
     .update(payload)
@@ -297,7 +384,17 @@ async function updateDraft(body: Record<string, unknown>) {
     .single()
 
   if (error) throw error
-  return apiOk({ draft: data })
+  const assignedEmployeeId = payload.assigned_employee_id as string | null | undefined
+  const assignmentNotification =
+    assignedEmployeeId && assignedEmployeeId !== previousAssignedEmployeeId
+      ? await notifyAssignedEmployee(supabase, {
+          draft: data,
+          assignedEmployeeId,
+          assignedById: payload.updated_by as string | null | undefined,
+        })
+      : null
+
+  return apiOk({ draft: data, assignmentNotification })
 }
 
 async function cancelDraft(body: Record<string, unknown>) {

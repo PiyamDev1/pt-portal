@@ -56,19 +56,36 @@ export default async function SettingsPage() {
   if (!session) redirect('/login')
 
   // 2. Fetch Hierarchy Data in Parallel (Fast)
-  const [locations, departments, roles, employees, employeeData] = await Promise.all([
-    supabase.from('locations').select('*').order('name'),
-    supabase.from('departments').select('*').order('name'),
-    supabase.from('roles').select('*').order('level'), // Level 1 = Boss
-    supabase
-      .from('employees')
-      .select('id, full_name, email, role_id, department_id, location_id, manager_id, is_active'),
-    supabase
-      .from('employees')
-      .select('full_name, roles(name), locations(name, branch_code)')
-      .eq('id', session.user.id)
-      .single(),
-  ])
+  const [locations, departments, roles, employees, employeeDepartments, employeeData] =
+    await Promise.all([
+      supabase.from('locations').select('*').order('name'),
+      supabase.from('departments').select('*').order('name'),
+      supabase.from('roles').select('*').order('level'), // Level 1 = Boss
+      supabase
+        .from('employees')
+        .select('id, full_name, email, role_id, department_id, location_id, manager_id, is_active'),
+      supabase.from('employee_departments').select('employee_id, department_id'),
+      supabase
+        .from('employees')
+        .select('full_name, roles(name), locations(name, branch_code)')
+        .eq('id', session.user.id)
+        .single(),
+    ])
+
+  const departmentsByEmployee = new Map<string, string[]>()
+  for (const membership of employeeDepartments.data || []) {
+    if (!membership.employee_id || !membership.department_id) continue
+    const current = departmentsByEmployee.get(membership.employee_id) || []
+    current.push(membership.department_id)
+    departmentsByEmployee.set(membership.employee_id, current)
+  }
+
+  const employeesWithDepartments = (employees.data || []).map((employee) => ({
+    ...employee,
+    department_ids:
+      departmentsByEmployee.get(employee.id) ||
+      (employee.department_id ? [employee.department_id] : []),
+  }))
 
   const location = Array.isArray(employeeData?.data?.locations)
     ? employeeData.data.locations[0]
@@ -114,7 +131,7 @@ export default async function SettingsPage() {
             initialLocations={locations.data || []}
             initialDepts={departments.data || []}
             initialRoles={roles.data || []}
-            initialEmployees={employees.data || []}
+            initialEmployees={employeesWithDepartments}
           />
         </main>
       </div>

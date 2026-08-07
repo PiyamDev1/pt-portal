@@ -71,7 +71,7 @@ export default async function PakPassportDraftsPage() {
 
   const serviceSupabase = getServiceSupabaseClient()
 
-  const [drafts, employees, categories, speeds, applicationTypes, pages] = await Promise.all([
+  const [drafts, departments, categories, speeds, applicationTypes, pages] = await Promise.all([
     serviceSupabase
       .from('pakistani_passport_drafts')
       .select(
@@ -115,9 +115,7 @@ export default async function PakPassportDraftsPage() {
       .not('status', 'in', '("Converted","Cancelled")')
       .order('updated_at', { ascending: false })
       .limit(1000),
-    serviceSupabase.from('employees').select('id, full_name').order('full_name', {
-      ascending: true,
-    }),
+    serviceSupabase.from('departments').select('id, name').order('name'),
     serviceSupabase.from('pk_passport_categories').select('name').eq('is_active', true).order('name'),
     serviceSupabase.from('pk_passport_speeds').select('name').eq('is_active', true).order('name'),
     serviceSupabase
@@ -131,6 +129,42 @@ export default async function PakPassportDraftsPage() {
       .eq('is_active', true)
       .order('option_label'),
   ])
+
+  const applicationDepartment = (departments.data || []).find(
+    (department) => department.name?.trim().toLowerCase() === 'applications',
+  )
+  const assignedDraftEmployeeIds = (drafts.data || [])
+    .map((draft) => draft.assigned_employee_id)
+    .filter((id): id is string => Boolean(id))
+
+  let applicationEmployeeIds: string[] = []
+  if (applicationDepartment?.id) {
+    const { data: memberships } = await serviceSupabase
+      .from('employee_departments')
+      .select('employee_id')
+      .eq('department_id', applicationDepartment.id)
+
+    applicationEmployeeIds = (memberships || [])
+      .map((membership) => membership.employee_id)
+      .filter((id): id is string => Boolean(id))
+  }
+
+  const employeeOptionIds = Array.from(
+    new Set([...applicationEmployeeIds, ...assignedDraftEmployeeIds]),
+  )
+  const { data: applicationEmployees } =
+    employeeOptionIds.length > 0
+      ? await serviceSupabase
+          .from('employees')
+          .select('id, full_name, email, is_active')
+          .in('id', employeeOptionIds)
+          .order('full_name', { ascending: true })
+      : { data: [] }
+
+  const employeeOptions = (applicationEmployees || []).filter(
+    (employee) =>
+      employee.is_active !== false || assignedDraftEmployeeIds.includes(employee.id),
+  )
 
   const draftDocumentCounts: Record<string, number> = {}
   const draftIds = (drafts.data || []).map((draft) => draft.draft_id).filter(Boolean)
@@ -191,7 +225,7 @@ export default async function PakPassportDraftsPage() {
           <DraftModePanel
             drafts={drafts.data || []}
             documentCounts={draftDocumentCounts}
-            employeeOptions={employees.data || []}
+            employeeOptions={employeeOptions}
             metadata={passportMetadata}
             currentUserId={session.user.id}
           />

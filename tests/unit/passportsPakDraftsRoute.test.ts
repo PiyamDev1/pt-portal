@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => {
     return query || makeQuery()
   })
   const getSupabaseClient = vi.fn(() => ({ from }))
+  const sendPakPassportDraftAssignmentEmail = vi.fn()
 
   function makeQuery(result: QueryResult = { data: null, error: null }) {
     const query: any = {
@@ -42,11 +43,16 @@ const mocks = vi.hoisted(() => {
     from,
     getSupabaseClient,
     makeQuery,
+    sendPakPassportDraftAssignmentEmail,
   }
 })
 
 vi.mock('@/lib/supabaseClient', () => ({
   getSupabaseClient: mocks.getSupabaseClient,
+}))
+
+vi.mock('@/lib/passports/pakDraftAssignmentEmail', () => ({
+  sendPakPassportDraftAssignmentEmail: mocks.sendPakPassportDraftAssignmentEmail,
 }))
 
 import { POST } from '@/app/api/passports/pak/drafts/route'
@@ -82,6 +88,11 @@ describe('POST /api/passports/pak/drafts', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.queues.clear()
+    mocks.sendPakPassportDraftAssignmentEmail.mockResolvedValue({
+      sent: true,
+      recipientEmail: 'worker@example.com',
+      senderEmail: 'noreply.applications@piyamtravel.com',
+    })
   })
 
   it('creates a draft without writing an application tracking number', async () => {
@@ -163,6 +174,57 @@ describe('POST /api/passports/pak/drafts', () => {
     expect(insertQuery.insert.mock.calls[0][0]).toMatchObject({
       family_head_email: '',
     })
+  })
+
+  it('emails the assigned applications worker when a draft is created', async () => {
+    const insertQuery = mocks.makeQuery({
+      data: {
+        id: 'draft-row-1',
+        draft_id: 'PKD-ABCDE12345',
+        applicant_name: 'John Doe',
+        applicant_cnic: '12345-1234567-1',
+        application_type: 'Renewal',
+        category: 'Adult 10 Year',
+        page_count: '34 pages',
+        speed: 'Normal',
+        assigned_employee_id: 'worker-1',
+        status: 'Documents Pending',
+      },
+      error: null,
+    })
+    queue('pakistani_passport_drafts', insertQuery)
+    queue(
+      'employees',
+      mocks.makeQuery({
+        data: { id: 'worker-1', full_name: 'Worker One', email: 'worker@example.com' },
+        error: null,
+      }),
+      mocks.makeQuery({ data: { id: 'emp-1', full_name: 'Creator One' }, error: null }),
+    )
+
+    const res = await POST(
+      makeRequest({
+        action: 'create',
+        ...baseDraftPayload,
+        assignedEmployeeId: 'worker-1',
+      }),
+    )
+    const body = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(body.assignmentNotification).toMatchObject({
+      sent: true,
+      recipientEmail: 'worker@example.com',
+    })
+    expect(mocks.sendPakPassportDraftAssignmentEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: 'worker@example.com',
+        assigneeName: 'Worker One',
+        draftId: 'PKD-ABCDE12345',
+        applicantName: 'John Doe',
+        assignedByName: 'Creator One',
+      }),
+    )
   })
 
   it('returns a validation response when the draft insert violates a database constraint', async () => {

@@ -19,6 +19,7 @@ interface Employee {
   email: string
   role_id: string | null
   department_id: string | null
+  department_ids?: string[]
   location_id: string | null
   manager_id?: string | null
   is_active?: boolean
@@ -150,6 +151,13 @@ export default function StaffTab({
 
   const isSuperAdmin = userRole === 'Master Admin'
 
+  const departmentIdsForEmployee = (employee: Employee) =>
+    employee.department_ids?.length
+      ? employee.department_ids
+      : employee.department_id
+        ? [employee.department_id]
+        : []
+
   const toggleDepartment = (deptId: string) => {
     setNewEmployee((prev) => {
       const exists = prev.department_ids.includes(deptId)
@@ -164,6 +172,10 @@ export default function StaffTab({
 
   const handleAddEmployee = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (newEmployee.department_ids.length === 0) {
+      toast.error('Select at least one department')
+      return
+    }
     setLoading(true)
     try {
       const res = await fetch('/api/admin/add-employee', {
@@ -318,27 +330,73 @@ export default function StaffTab({
   const handleUpdateEmployee = async () => {
     if (!editingEmployee) return
     setLoading(true)
+    const selectedDepartmentIds = departmentIdsForEmployee(editingEmployee)
+    if (selectedDepartmentIds.length === 0) {
+      toast.error('Select at least one department')
+      setLoading(false)
+      return
+    }
     const { error } = await supabase
       .from('employees')
       .update({
         role_id: editingEmployee.role_id,
-        department_id: editingEmployee.department_id,
+        department_id: selectedDepartmentIds[0] || null,
         location_id: editingEmployee.location_id,
         manager_id: editingEmployee.manager_id,
       })
       .eq('id', editingEmployee.id)
 
+    let membershipError: { message?: string } | null = null
     if (!error) {
+      const { error: deleteError } = await supabase
+        .from('employee_departments')
+        .delete()
+        .eq('employee_id', editingEmployee.id)
+
+      if (deleteError) {
+        membershipError = deleteError
+      } else if (selectedDepartmentIds.length > 0) {
+        const { error: insertError } = await supabase.from('employee_departments').insert(
+          selectedDepartmentIds.map((departmentId) => ({
+            employee_id: editingEmployee.id,
+            department_id: departmentId,
+          })),
+        )
+        membershipError = insertError
+      }
+    }
+
+    if (!error && !membershipError) {
+      const updatedEmployee = {
+        ...editingEmployee,
+        department_id: selectedDepartmentIds[0] || null,
+        department_ids: selectedDepartmentIds,
+      }
       setEmployees((currentEmployees) =>
-        currentEmployees.map((emp) => (emp.id === editingEmployee.id ? editingEmployee : emp)),
+        currentEmployees.map((emp) => (emp.id === editingEmployee.id ? updatedEmployee : emp)),
       )
       setEditingEmployee(null)
       toast.success('Employee updated successfully')
       router.refresh()
     } else {
-      toast.error('Failed to update employee', { description: error.message })
+      toast.error('Failed to update employee', {
+        description: error?.message || membershipError?.message,
+      })
     }
     setLoading(false)
+  }
+
+  const toggleEditingDepartment = (departmentId: string) => {
+    if (!editingEmployee) return
+    const currentIds = departmentIdsForEmployee(editingEmployee)
+    const nextIds = currentIds.includes(departmentId)
+      ? currentIds.filter((id) => id !== departmentId)
+      : [...currentIds, departmentId]
+    setEditingEmployee({
+      ...editingEmployee,
+      department_id: nextIds[0] || null,
+      department_ids: nextIds,
+    })
   }
 
   return (
@@ -428,7 +486,24 @@ export default function StaffTab({
                       </select>
                     </td>
                     <td className="px-2 py-3">
-                      <span className="text-xs text-gray-400 italic">Manage via Profile</span>
+                      <div className="grid min-w-48 grid-cols-1 gap-1">
+                        {initialDepts.map((department) => (
+                          <label
+                            key={department.id}
+                            className="flex items-center gap-2 rounded border border-slate-200 bg-white px-2 py-1 text-xs"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={departmentIdsForEmployee(editingEmployee).includes(
+                                department.id,
+                              )}
+                              onChange={() => toggleEditingDepartment(department.id)}
+                              className="h-3.5 w-3.5 rounded border-slate-300"
+                            />
+                            {department.name}
+                          </label>
+                        ))}
+                      </div>
                     </td>
                     <td className="px-2 py-3" />
                     <td className="px-4 py-3 flex gap-2">
@@ -457,8 +532,20 @@ export default function StaffTab({
                       {(emp.location_id ? locationsById.get(emp.location_id) : undefined) || '-'}
                     </td>
                     <td className="px-4 py-3">
-                      {(emp.department_id ? departmentsById.get(emp.department_id) : undefined) ||
-                        '-'}
+                      {departmentIdsForEmployee(emp).length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {departmentIdsForEmployee(emp).map((departmentId) => (
+                            <span
+                              key={departmentId}
+                              className="rounded bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700"
+                            >
+                              {departmentsById.get(departmentId) || 'Department'}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        '-'
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       {emp.is_active === false ? (
