@@ -59,6 +59,7 @@ import {
 type Props = {
   packageFolder: TravelPackageFolder
   invoice: TravelPackageInvoice | null
+  employees?: Array<{ id: string; full_name: string | null; email?: string | null }>
   onPackageChange: (packageFolder: TravelPackageFolder) => void
   onInvoiceChange?: (invoice: TravelPackageInvoice) => void
 }
@@ -137,6 +138,10 @@ function formatDateTime(value?: string | null) {
 
 function label(value: string) {
   return value.replace(/_/g, ' ').replace(/\b\w/g, (character) => character.toUpperCase())
+}
+
+function employeeLabel(employee: { full_name: string | null; email?: string | null }) {
+  return employee.full_name || employee.email || 'Unnamed employee'
 }
 
 function emptyVoucher(): TravelPackageTransportVoucherData {
@@ -236,6 +241,7 @@ function normalizeVoucherVehicleFields(
 export default function PackageOperationsWorkspace({
   packageFolder,
   invoice,
+  employees = [],
   onPackageChange,
   onInvoiceChange,
 }: Props) {
@@ -435,6 +441,32 @@ export default function PackageOperationsWorkspace({
   const availableStatuses = [
     packageFolder.status,
     ...getTravelPackageStatusTransitions(packageFolder.status),
+  ]
+  const responsibilityFields = [
+    {
+      label: 'Sales',
+      helper: 'Who sold/finalised the package',
+      value: packageFolder.sales_responsible_employee_id || packageFolder.sales_employee_id || '',
+      bodyKey: 'salesResponsibleEmployeeId',
+    },
+    {
+      label: 'Booking',
+      helper: 'Who is making reservations',
+      value: packageFolder.booking_responsible_employee_id || '',
+      bodyKey: 'bookingResponsibleEmployeeId',
+    },
+    {
+      label: 'Modify',
+      helper: 'Who handles changes/amendments',
+      value: packageFolder.modify_responsible_employee_id || '',
+      bodyKey: 'modifyResponsibleEmployeeId',
+    },
+    {
+      label: 'Service',
+      helper: 'Who looks after customer service',
+      value: packageFolder.service_responsible_employee_id || '',
+      bodyKey: 'serviceResponsibleEmployeeId',
+    },
   ]
   const selectedVehicle = getVehicleCapacity(voucherForm.vehicle || voucherForm.vehicleType)
   const voucherSeatPassengers = Number(voucherForm.adults || 0) + Number(voucherForm.children || 0)
@@ -1215,162 +1247,244 @@ export default function PackageOperationsWorkspace({
         <div className="p-4 sm:p-5">
           {activeTab === 'control' && (
             <div className="space-y-5">
-              <div className="grid gap-3 md:grid-cols-3">
-                <label className="block border border-slate-200 bg-slate-50 p-3 text-xs font-bold text-slate-600">
-                  Lifecycle status
-                  <select
-                    value={packageFolder.status}
-                    onChange={(event) =>
-                      void changePackageStatus(event.target.value as TravelPackageFolderStatus)
-                    }
-                    className="mt-1 w-full border border-slate-300 bg-white px-3 py-2 text-sm"
-                  >
-                    {availableStatuses.map((status) => (
-                      <option key={status} value={status}>
-                        {label(status)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="block border border-slate-200 bg-slate-50 p-3 text-xs font-bold text-slate-600">
-                  Passport status
-                  <select
-                    value={packageFolder.passport_status}
-                    onChange={(event) => void patchPackage({ passportStatus: event.target.value })}
-                    className="mt-1 w-full border border-slate-300 bg-white px-3 py-2 text-sm"
-                  >
-                    {PASSPORT_STATUSES.map((status) => (
-                      <option key={status} value={status}>
-                        {label(status)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <div className="border border-slate-200 bg-slate-50 p-3">
-                  <p className="text-xs font-bold uppercase text-slate-500">Next action</p>
-                  <p className="mt-1 text-sm font-black text-slate-900">
-                    {packageFolder.next_action || 'Review package'}
-                  </p>
-                  {packageFolder.next_action_due_at && (
-                    <p className="mt-1 text-xs text-slate-500">
-                      Due {formatDateTime(packageFolder.next_action_due_at)}
+              <div className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(360px,0.75fr)]">
+                <div className="border border-slate-200 bg-white">
+                  <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
+                    <p className="text-sm font-black text-slate-950">Package details</p>
+                    <p className="mt-1 text-xs font-semibold text-slate-500">
+                      Status, dates, and customer contact information.
                     </p>
-                  )}
+                  </div>
+                  <div className="space-y-4 p-4">
+                    <div className="grid gap-3 md:grid-cols-3">
+                      <label className="block text-xs font-bold text-slate-600">
+                        Lifecycle status
+                        <select
+                          value={packageFolder.status}
+                          onChange={(event) =>
+                            void changePackageStatus(
+                              event.target.value as TravelPackageFolderStatus,
+                            )
+                          }
+                          className="mt-1 w-full border border-slate-300 bg-white px-3 py-2 text-sm"
+                        >
+                          {availableStatuses.map((status) => (
+                            <option key={status} value={status}>
+                              {label(status)}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="block text-xs font-bold text-slate-600">
+                        Passport status
+                        <select
+                          value={packageFolder.passport_status}
+                          onChange={(event) =>
+                            void patchPackage({ passportStatus: event.target.value })
+                          }
+                          className="mt-1 w-full border border-slate-300 bg-white px-3 py-2 text-sm"
+                        >
+                          {PASSPORT_STATUSES.map((status) => (
+                            <option key={status} value={status}>
+                              {label(status)}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <div className="border border-slate-200 bg-slate-50 p-3">
+                        <p className="text-xs font-bold uppercase text-slate-500">Next action</p>
+                        <p className="mt-1 text-sm font-black text-slate-900">
+                          {packageFolder.next_action || 'Review package'}
+                        </p>
+                        {packageFolder.next_action_due_at && (
+                          <p className="mt-1 text-xs text-slate-500">
+                            Due {formatDateTime(packageFolder.next_action_due_at)}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <form
+                      onSubmit={(event) => {
+                        event.preventDefault()
+                        void patchPackage(customerForm)
+                      }}
+                      className="grid gap-3 md:grid-cols-3"
+                    >
+                      <label className="text-xs font-bold text-slate-600">
+                        Lead customer
+                        <input
+                          value={customerForm.customerName}
+                          onChange={(event) =>
+                            setCustomerForm((current) => ({
+                              ...current,
+                              customerName: event.target.value,
+                            }))
+                          }
+                          className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
+                        />
+                      </label>
+                      <label className="text-xs font-bold text-slate-600">
+                        Phone
+                        <input
+                          value={customerForm.customerPhone}
+                          onChange={(event) =>
+                            setCustomerForm((current) => ({
+                              ...current,
+                              customerPhone: event.target.value,
+                            }))
+                          }
+                          className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
+                        />
+                      </label>
+                      <label className="text-xs font-bold text-slate-600">
+                        Email
+                        <input
+                          type="email"
+                          value={customerForm.customerEmail}
+                          onChange={(event) =>
+                            setCustomerForm((current) => ({
+                              ...current,
+                              customerEmail: event.target.value,
+                            }))
+                          }
+                          className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
+                        />
+                      </label>
+                      <label className="text-xs font-bold text-slate-600">
+                        Destination
+                        <input
+                          value={customerForm.destination}
+                          onChange={(event) =>
+                            setCustomerForm((current) => ({
+                              ...current,
+                              destination: event.target.value,
+                            }))
+                          }
+                          className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
+                        />
+                      </label>
+                      <label className="text-xs font-bold text-slate-600">
+                        Departure
+                        <input
+                          type="date"
+                          value={customerForm.departureDate}
+                          onChange={(event) =>
+                            setCustomerForm((current) => ({
+                              ...current,
+                              departureDate: event.target.value,
+                            }))
+                          }
+                          className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
+                        />
+                      </label>
+                      <label className="text-xs font-bold text-slate-600">
+                        Return
+                        <input
+                          type="date"
+                          value={customerForm.returnDate}
+                          onChange={(event) =>
+                            setCustomerForm((current) => ({
+                              ...current,
+                              returnDate: event.target.value,
+                            }))
+                          }
+                          className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
+                        />
+                      </label>
+                      <button
+                        type="submit"
+                        disabled={saving === 'package'}
+                        className="inline-flex items-center justify-center gap-2 bg-slate-900 px-3 py-2 text-xs font-black text-white md:col-span-3 md:justify-self-start disabled:opacity-50"
+                      >
+                        {saving === 'package' ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Save className="h-4 w-4" />
+                        )}
+                        Save package details
+                      </button>
+                    </form>
+                  </div>
                 </div>
-              </div>
-              <div>
-                <form
-                  onSubmit={(event) => {
-                    event.preventDefault()
-                    void patchPackage(customerForm)
-                  }}
-                  className="grid gap-3 md:grid-cols-3"
-                >
-                  <label className="text-xs font-bold text-slate-600">
-                    Lead customer
-                    <input
-                      value={customerForm.customerName}
-                      onChange={(event) =>
-                        setCustomerForm((current) => ({
-                          ...current,
-                          customerName: event.target.value,
-                        }))
-                      }
-                      className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
-                    />
-                  </label>
-                  <label className="text-xs font-bold text-slate-600">
-                    Phone
-                    <input
-                      value={customerForm.customerPhone}
-                      onChange={(event) =>
-                        setCustomerForm((current) => ({
-                          ...current,
-                          customerPhone: event.target.value,
-                        }))
-                      }
-                      className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
-                    />
-                  </label>
-                  <label className="text-xs font-bold text-slate-600">
-                    Email
-                    <input
-                      type="email"
-                      value={customerForm.customerEmail}
-                      onChange={(event) =>
-                        setCustomerForm((current) => ({
-                          ...current,
-                          customerEmail: event.target.value,
-                        }))
-                      }
-                      className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
-                    />
-                  </label>
-                  <label className="text-xs font-bold text-slate-600">
-                    Destination
-                    <input
-                      value={customerForm.destination}
-                      onChange={(event) =>
-                        setCustomerForm((current) => ({
-                          ...current,
-                          destination: event.target.value,
-                        }))
-                      }
-                      className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
-                    />
-                  </label>
-                  <label className="text-xs font-bold text-slate-600">
-                    Departure
-                    <input
-                      type="date"
-                      value={customerForm.departureDate}
-                      onChange={(event) =>
-                        setCustomerForm((current) => ({
-                          ...current,
-                          departureDate: event.target.value,
-                        }))
-                      }
-                      className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
-                    />
-                  </label>
-                  <label className="text-xs font-bold text-slate-600">
-                    Return
-                    <input
-                      type="date"
-                      value={customerForm.returnDate}
-                      onChange={(event) =>
-                        setCustomerForm((current) => ({
-                          ...current,
-                          returnDate: event.target.value,
-                        }))
-                      }
-                      className="mt-1 w-full border border-slate-300 px-3 py-2 text-sm"
-                    />
-                  </label>
-                  <button
-                    type="submit"
-                    disabled={saving === 'package'}
-                    className="inline-flex items-center justify-center gap-2 bg-slate-900 px-3 py-2 text-xs font-black text-white md:col-span-3 md:justify-self-start"
-                  >
-                    <Save className="h-4 w-4" />
-                    Save package details
-                  </button>
-                </form>
-              </div>
-              <div className="grid gap-3 md:grid-cols-3">
-                <div className="border border-slate-200 p-3">
-                  <p className="text-xs font-bold uppercase text-slate-500">Open tasks</p>
-                  <p className="mt-1 text-2xl font-black">{openTasks.length}</p>
-                </div>
-                <div className="border border-slate-200 p-3">
-                  <p className="text-xs font-bold uppercase text-slate-500">Open risks</p>
-                  <p className="mt-1 text-2xl font-black">{openRisks.length}</p>
-                </div>
-                <div className="border border-slate-200 p-3">
-                  <p className="text-xs font-bold uppercase text-slate-500">Risk level</p>
-                  <p className="mt-1 text-lg font-black text-[#8b1e2d]">
-                    {label(packageFolder.risk_level)}
-                  </p>
+
+                <div className="space-y-4">
+                  <div className="overflow-hidden border border-cyan-200 bg-white">
+                    <div className="flex flex-wrap items-start justify-between gap-3 border-b border-cyan-100 bg-cyan-50 px-4 py-3">
+                      <div>
+                        <p className="text-sm font-black text-cyan-950">Responsible agents</p>
+                        <p className="mt-1 text-xs font-semibold text-cyan-800">
+                          Employee ownership by package stage.
+                        </p>
+                      </div>
+                      {saving === 'package' && (
+                        <span className="inline-flex items-center gap-2 text-xs font-black text-cyan-900">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Saving
+                        </span>
+                      )}
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full text-left text-sm">
+                        <thead className="bg-slate-50 text-[11px] uppercase text-slate-500">
+                          <tr>
+                            <th className="px-3 py-2">Role</th>
+                            <th className="px-3 py-2">Employee</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {responsibilityFields.map((field) => (
+                            <tr key={field.bodyKey}>
+                              <td className="w-24 px-3 py-2 align-top">
+                                <p className="font-black text-slate-950">{field.label}</p>
+                                <p className="mt-0.5 text-[11px] font-semibold leading-4 text-slate-500">
+                                  {field.helper}
+                                </p>
+                              </td>
+                              <td className="px-3 py-2 align-top">
+                                <select
+                                  value={field.value}
+                                  onChange={(event) =>
+                                    void patchPackage({ [field.bodyKey]: event.target.value })
+                                  }
+                                  disabled={saving === 'package' || employees.length === 0}
+                                  className="w-full min-w-44 border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-900 disabled:bg-slate-100 disabled:text-slate-400"
+                                >
+                                  <option value="">
+                                    {employees.length === 0
+                                      ? 'No employees available'
+                                      : 'Not assigned'}
+                                  </option>
+                                  {employees.map((employee) => (
+                                    <option key={employee.id} value={employee.id}>
+                                      {employeeLabel(employee)}
+                                    </option>
+                                  ))}
+                                </select>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
+                    <div className="border border-slate-200 bg-white p-3">
+                      <p className="text-xs font-bold uppercase text-slate-500">Open tasks</p>
+                      <p className="mt-1 text-2xl font-black">{openTasks.length}</p>
+                    </div>
+                    <div className="border border-slate-200 bg-white p-3">
+                      <p className="text-xs font-bold uppercase text-slate-500">Open risks</p>
+                      <p className="mt-1 text-2xl font-black">{openRisks.length}</p>
+                    </div>
+                    <div className="border border-slate-200 bg-white p-3">
+                      <p className="text-xs font-bold uppercase text-slate-500">Risk level</p>
+                      <p className="mt-1 text-lg font-black text-[#8b1e2d]">
+                        {label(packageFolder.risk_level)}
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
               {openRisks.length > 0 && (
@@ -1608,7 +1722,9 @@ export default function PackageOperationsWorkspace({
                             <select
                               value={passenger.ticket_status}
                               onChange={(event) =>
-                                void updatePassenger(passenger, { ticketStatus: event.target.value })
+                                void updatePassenger(passenger, {
+                                  ticketStatus: event.target.value,
+                                })
                               }
                               className="border border-slate-300 px-2 py-1 text-xs"
                             >
@@ -2015,8 +2131,7 @@ export default function PackageOperationsWorkspace({
                                   : payment.payment_status
                               }
                               onChange={(event) => {
-                                const nextStatus =
-                                  event.target.value as TravelPackagePaymentStatus
+                                const nextStatus = event.target.value as TravelPackagePaymentStatus
                                 if (editingThisPayment) {
                                   setPaymentEditForm((current) => ({
                                     ...current,

@@ -487,6 +487,10 @@ export interface TravelPackageFolder {
   created_by: string | null
   assigned_agent_id: string | null
   sales_employee_id?: string | null
+  sales_responsible_employee_id?: string | null
+  booking_responsible_employee_id?: string | null
+  modify_responsible_employee_id?: string | null
+  service_responsible_employee_id?: string | null
   location_id: string | null
   customer_name: string | null
   customer_phone: string | null

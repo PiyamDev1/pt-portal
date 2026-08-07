@@ -50,6 +50,10 @@ export function selectTravelPackageColumns() {
     created_by,
     assigned_agent_id,
     sales_employee_id,
+    sales_responsible_employee_id,
+    booking_responsible_employee_id,
+    modify_responsible_employee_id,
+    service_responsible_employee_id,
     location_id,
     customer_name,
     customer_phone,
@@ -95,6 +99,12 @@ function cleanText(value: unknown) {
 
 function getCustomerLastName(customerName: string) {
   return customerName.trim().split(/\s+/).at(-1)?.toLowerCase() || null
+}
+
+function cleanOptionalId(value: unknown) {
+  const clean = cleanText(value)
+  if (!clean || clean === 'none') return null
+  return clean
 }
 
 async function parseBody(request: NextRequest) {
@@ -203,6 +213,19 @@ export async function PATCH(
   }
   if (Object.prototype.hasOwnProperty.call(body, 'assignedAgentId')) {
     update.assigned_agent_id = cleanText(body.assignedAgentId) || null
+  }
+  if (Object.prototype.hasOwnProperty.call(body, 'salesResponsibleEmployeeId')) {
+    update.sales_responsible_employee_id = cleanOptionalId(body.salesResponsibleEmployeeId)
+    update.sales_employee_id = update.sales_responsible_employee_id
+  }
+  if (Object.prototype.hasOwnProperty.call(body, 'bookingResponsibleEmployeeId')) {
+    update.booking_responsible_employee_id = cleanOptionalId(body.bookingResponsibleEmployeeId)
+  }
+  if (Object.prototype.hasOwnProperty.call(body, 'modifyResponsibleEmployeeId')) {
+    update.modify_responsible_employee_id = cleanOptionalId(body.modifyResponsibleEmployeeId)
+  }
+  if (Object.prototype.hasOwnProperty.call(body, 'serviceResponsibleEmployeeId')) {
+    update.service_responsible_employee_id = cleanOptionalId(body.serviceResponsibleEmployeeId)
   }
   if (Object.prototype.hasOwnProperty.call(body, 'nextAction')) {
     update.next_action = cleanText(body.nextAction) || null

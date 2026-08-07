@@ -793,6 +793,76 @@ describe('package quote calculator', () => {
     expect(copy).toContain('*Total Package Cost: £1,785.00*')
   })
 
+  it('spreads package discounts evenly across all passenger price lines', () => {
+    const offerPayload: PackageQuotePayload = {
+      ...payload,
+      infants: 1,
+      limitedTimeOffers: [
+        {
+          id: 'family-saving',
+          title: 'Family saving',
+          summary: 'Save across every passenger.',
+          expiresAt: '2999-01-01T12:00:00.000Z',
+          discountAmount: 125,
+          discountMode: 'total',
+          active: true,
+        },
+      ],
+    }
+
+    const selection = getDefaultPackageSelection(offerPayload)
+    const resolved = resolvePackageSelection(offerPayload, selection)
+    const undiscounted = resolvePackageSelection(
+      { ...offerPayload, limitedTimeOffers: [] },
+      selection,
+    )
+    const breakdown = getPackagePassengerPriceBreakdown(offerPayload, resolved.combination)
+    const undiscountedBreakdown = getPackagePassengerPriceBreakdown(
+      { ...offerPayload, limitedTimeOffers: [] },
+      undiscounted.combination,
+    )
+
+    const adultLine = breakdown.passengerLines?.find((line) => line.category === 'adult')
+    const childFivePlusLine = breakdown.passengerLines?.find(
+      (line) => line.category === 'child_5_plus',
+    )
+    const childTwoToFourLine = breakdown.passengerLines?.find(
+      (line) => line.category === 'child_2_to_4',
+    )
+    const infantLine = breakdown.passengerLines?.find((line) => line.category === 'infant')
+    const undiscountedAdultLine = undiscountedBreakdown.passengerLines?.find(
+      (line) => line.category === 'adult',
+    )
+    const undiscountedChildFivePlusLine = undiscountedBreakdown.passengerLines?.find(
+      (line) => line.category === 'child_5_plus',
+    )
+    const undiscountedChildTwoToFourLine = undiscountedBreakdown.passengerLines?.find(
+      (line) => line.category === 'child_2_to_4',
+    )
+    const undiscountedInfantLine = undiscountedBreakdown.passengerLines?.find(
+      (line) => line.category === 'infant',
+    )
+
+    expect(resolved.combination.offerDiscountTotal).toBe(125)
+    expect(breakdown.total).toBeCloseTo(resolved.combination.totalPrice, 2)
+    expect((undiscountedAdultLine?.unitPrice || 0) - (adultLine?.unitPrice || 0)).toBeCloseTo(
+      25,
+      2,
+    )
+    expect(
+      (undiscountedChildFivePlusLine?.unitPrice || 0) -
+        (childFivePlusLine?.unitPrice || 0),
+    ).toBeCloseTo(25, 2)
+    expect(
+      (undiscountedChildTwoToFourLine?.unitPrice || 0) -
+        (childTwoToFourLine?.unitPrice || 0),
+    ).toBeCloseTo(25, 2)
+    expect((undiscountedInfantLine?.unitPrice || 0) - (infantLine?.unitPrice || 0)).toBeCloseTo(
+      25,
+      2,
+    )
+  })
+
   it('uses preferred flights and tiered adult child infant pricing', () => {
     const tieredPayload: PackageQuotePayload = {
       ...payload,

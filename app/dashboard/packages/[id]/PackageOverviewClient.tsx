@@ -64,11 +64,18 @@ import {
 import PackageOperationsWorkspace from './PackageOperationsWorkspace'
 import PackageInvoiceLinesEditor from './PackageInvoiceLinesEditor'
 
-type PackageOverviewClientProps = {
-  packageId: string
+type PackageWorkspaceTab = 'overview' | 'documents' | 'reservations' | 'invoice'
+
+export type PackageEmployeeOption = {
+  id: string
+  full_name: string | null
+  email?: string | null
 }
 
-type PackageWorkspaceTab = 'overview' | 'documents' | 'reservations' | 'invoice'
+type PackageOverviewClientProps = {
+  packageId: string
+  employees?: PackageEmployeeOption[]
+}
 
 type PackageResponse = {
   package?: TravelPackageFolder | null
@@ -593,7 +600,10 @@ function StatusCard({
   )
 }
 
-export default function PackageOverviewClient({ packageId }: PackageOverviewClientProps) {
+export default function PackageOverviewClient({
+  packageId,
+  employees = [],
+}: PackageOverviewClientProps) {
   const [packageFolder, setPackageFolder] = useState<TravelPackageFolder | null>(null)
   const [reservations, setReservations] = useState<TravelPackageReservation[]>([])
   const [documents, setDocuments] = useState<TravelPackageDocument[]>([])
@@ -1100,9 +1110,7 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
       childrenPaying: Number(
         selectedPayload?.childrenPaying ?? passengerSummary?.childrenPaying ?? 0,
       ),
-      childrenFree: Number(
-        selectedPayload?.childrenFree ?? passengerSummary?.childrenFree ?? 0,
-      ),
+      childrenFree: Number(selectedPayload?.childrenFree ?? passengerSummary?.childrenFree ?? 0),
       infants: Number(selectedPayload?.infants ?? passengerSummary?.infants ?? 0),
       servicePassengers: Number(
         selectedCombination?.servicePassengers ?? passengerSummary?.servicePassengers ?? 0,
@@ -1231,7 +1239,8 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
         selectedPayload && selectedCombination.linkedFlightSelections.length > 0
           ? selectedCombination.linkedFlightSelections.reduce(
               (total, selection) =>
-                total + getLinkedFlightOptionTotal(selection.group, selection.option, selectedPayload),
+                total +
+                getLinkedFlightOptionTotal(selection.group, selection.option, selectedPayload),
               0,
             )
           : 0
@@ -1247,11 +1256,12 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
         key: `flight-${selectedCombination.flightOption.id}`,
         reservationType: 'flight',
         title: selectedCombination.flightOption.title,
-        soldPriceTotal: getOptionSoldTotal(
-          selectedCombination.flightOption,
-          servicePassengers,
-          passengerSummary,
-        ) + linkedFlightSoldTotal,
+        soldPriceTotal:
+          getOptionSoldTotal(
+            selectedCombination.flightOption,
+            servicePassengers,
+            passengerSummary,
+          ) + linkedFlightSoldTotal,
         internalNotes: [
           getReservationSummary(selectedCombination.flightOption),
           linkedFlightNotes ? `Linked included flight legs:\n${linkedFlightNotes}` : '',
@@ -1299,7 +1309,10 @@ export default function PackageOverviewClient({ packageId }: PackageOverviewClie
           getReservationSummary(stay.option),
           stay.addonOptions?.length
             ? `Selected extras:\n${stay.addonOptions
-                .map((addon) => `* ${addon.label} - ${formatMoney(addon.adjustedPrice, reservationCurrency)}`)
+                .map(
+                  (addon) =>
+                    `* ${addon.label} - ${formatMoney(addon.adjustedPrice, reservationCurrency)}`,
+                )
                 .join('\n')}`
             : '',
         ]
@@ -1614,9 +1627,7 @@ Please enter the access code and accept the data handling terms before downloadi
       })
     } catch (saveError) {
       setReservationError(
-        saveError instanceof Error
-          ? saveError.message
-          : 'Failed to create reservations from quote',
+        saveError instanceof Error ? saveError.message : 'Failed to create reservations from quote',
       )
     } finally {
       setSavingReservation(false)
@@ -2557,156 +2568,158 @@ Please enter the access code and accept the data handling terms before downloadi
       </section>
 
       {showPackageGroupPanel && (
-      <section className="rounded-xl border border-cyan-200 bg-cyan-50/50 p-4 shadow-sm">
-        <div className="mb-3 flex items-center gap-2">
-          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-cyan-900 text-white">
-            <Link2 className="h-4 w-4" />
-          </span>
-          <div>
-            <h2 className="text-lg font-black text-slate-950">Linked package group</h2>
-            <p className="text-xs font-semibold text-cyan-900">
-              Link family package folders for shared transport without showing internal transport
-              cost to customers.
-            </p>
-          </div>
-        </div>
-        {packageGroupError && (
-          <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm font-bold text-amber-900">
-            {packageGroupError}
-          </div>
-        )}
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-          <div className="rounded-lg border border-cyan-200 bg-white p-3">
-            <p className="text-sm font-black text-slate-950">Create or link group</p>
-            <div className="mt-3 grid gap-3 md:grid-cols-2">
-              <label className="block md:col-span-2">
-                <span className="mb-1 block text-xs font-bold text-slate-500">Group name</span>
-                <input
-                  value={packageGroupTitle}
-                  onChange={(event) => setPackageGroupTitle(event.target.value)}
-                  placeholder={`${packageFolder.customer_name || packageFolder.package_reference} linked group`}
-                  className="min-h-11 w-full rounded-lg border border-slate-200 px-3 text-sm font-bold outline-none focus:border-cyan-700"
-                />
-              </label>
-              <label className="block">
-                <span className="mb-1 block text-xs font-bold text-slate-500">
-                  This family label
-                </span>
-                <input
-                  value={packageGroupFamilyLabel}
-                  onChange={(event) => setPackageGroupFamilyLabel(event.target.value)}
-                  placeholder="Family Ali"
-                  className="min-h-11 w-full rounded-lg border border-slate-200 px-3 text-sm font-bold outline-none focus:border-cyan-700"
-                />
-              </label>
-              <button
-                type="button"
-                onClick={() => void createPackageGroup()}
-                disabled={packageGroupSaving}
-                className="self-end min-h-11 rounded-lg bg-cyan-900 px-3 text-sm font-black text-white transition hover:bg-cyan-950 disabled:opacity-50"
-              >
-                Create Group
-              </button>
-              <label className="block md:col-span-2">
-                <span className="mb-1 block text-xs font-bold text-slate-500">Find group</span>
-                <input
-                  value={packageGroupSearch}
-                  onChange={(event) => setPackageGroupSearch(event.target.value)}
-                  placeholder="Search by group ref or name"
-                  className="min-h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-cyan-700"
-                />
-              </label>
-              <label className="block">
-                <span className="mb-1 block text-xs font-bold text-slate-500">Existing group</span>
-                <select
-                  value={packageGroupSelectedId}
-                  onChange={(event) => setPackageGroupSelectedId(event.target.value)}
-                  disabled={packageGroupLoading}
-                  className="min-h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold outline-none focus:border-cyan-700 disabled:text-slate-400"
-                >
-                  <option value="">
-                    {packageGroupLoading ? 'Loading groups...' : 'Select group'}
-                  </option>
-                  {filteredPackageGroups.map((group) => (
-                    <option key={group.id} value={group.id}>
-                      {group.group_reference} - {group.title}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <button
-                type="button"
-                onClick={() => void linkPackageToGroup()}
-                disabled={packageGroupSaving || !packageGroupSelectedId}
-                className="self-end min-h-11 rounded-lg border border-cyan-200 bg-cyan-50 px-3 text-sm font-black text-cyan-900 transition hover:bg-cyan-100 disabled:opacity-50"
-              >
-                Link Package
-              </button>
+        <section className="rounded-xl border border-cyan-200 bg-cyan-50/50 p-4 shadow-sm">
+          <div className="mb-3 flex items-center gap-2">
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-cyan-900 text-white">
+              <Link2 className="h-4 w-4" />
+            </span>
+            <div>
+              <h2 className="text-lg font-black text-slate-950">Linked package group</h2>
+              <p className="text-xs font-semibold text-cyan-900">
+                Link family package folders for shared transport without showing internal transport
+                cost to customers.
+              </p>
             </div>
           </div>
-
-          <div className="rounded-lg border border-cyan-200 bg-white p-3">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <p className="text-sm font-black text-slate-950">
-                  {activePackageGroup
-                    ? `${activePackageGroup.group_reference} - ${activePackageGroup.title}`
-                    : 'No linked group active'}
-                </p>
-                <p className="mt-1 text-xs font-semibold text-slate-500">
-                  Customer output uses note-only wording. Internal allocation stays private.
-                </p>
-              </div>
-              {activePackageGroup && (
+          {packageGroupError && (
+            <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm font-bold text-amber-900">
+              {packageGroupError}
+            </div>
+          )}
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+            <div className="rounded-lg border border-cyan-200 bg-white p-3">
+              <p className="text-sm font-black text-slate-950">Create or link group</p>
+              <div className="mt-3 grid gap-3 md:grid-cols-2">
+                <label className="block md:col-span-2">
+                  <span className="mb-1 block text-xs font-bold text-slate-500">Group name</span>
+                  <input
+                    value={packageGroupTitle}
+                    onChange={(event) => setPackageGroupTitle(event.target.value)}
+                    placeholder={`${packageFolder.customer_name || packageFolder.package_reference} linked group`}
+                    className="min-h-11 w-full rounded-lg border border-slate-200 px-3 text-sm font-bold outline-none focus:border-cyan-700"
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-xs font-bold text-slate-500">
+                    This family label
+                  </span>
+                  <input
+                    value={packageGroupFamilyLabel}
+                    onChange={(event) => setPackageGroupFamilyLabel(event.target.value)}
+                    placeholder="Family Ali"
+                    className="min-h-11 w-full rounded-lg border border-slate-200 px-3 text-sm font-bold outline-none focus:border-cyan-700"
+                  />
+                </label>
                 <button
                   type="button"
-                  onClick={() => void unlinkPackageFromGroup()}
+                  onClick={() => void createPackageGroup()}
                   disabled={packageGroupSaving}
-                  className="min-h-9 rounded-lg border border-red-200 px-3 text-xs font-black text-red-700 transition hover:bg-red-50 disabled:opacity-50"
+                  className="self-end min-h-11 rounded-lg bg-cyan-900 px-3 text-sm font-black text-white transition hover:bg-cyan-950 disabled:opacity-50"
                 >
-                  Unlink
+                  Create Group
                 </button>
-              )}
-            </div>
-            {activePackageGroup && activePackageGroup.members.length > 0 && (
-              <div className="mt-3 flex flex-wrap gap-2">
-                {activePackageGroup.members.map((member) => (
-                  <span
-                    key={member.id}
-                    className={`rounded-lg px-2 py-1 text-xs font-bold ${
-                      member.package_id === packageId
-                        ? 'bg-slate-900 text-white'
-                        : 'bg-slate-100 text-slate-700'
-                    }`}
-                  >
-                    {member.family_label}
+                <label className="block md:col-span-2">
+                  <span className="mb-1 block text-xs font-bold text-slate-500">Find group</span>
+                  <input
+                    value={packageGroupSearch}
+                    onChange={(event) => setPackageGroupSearch(event.target.value)}
+                    placeholder="Search by group ref or name"
+                    className="min-h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-cyan-700"
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-xs font-bold text-slate-500">
+                    Existing group
                   </span>
-                ))}
+                  <select
+                    value={packageGroupSelectedId}
+                    onChange={(event) => setPackageGroupSelectedId(event.target.value)}
+                    disabled={packageGroupLoading}
+                    className="min-h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold outline-none focus:border-cyan-700 disabled:text-slate-400"
+                  >
+                    <option value="">
+                      {packageGroupLoading ? 'Loading groups...' : 'Select group'}
+                    </option>
+                    {filteredPackageGroups.map((group) => (
+                      <option key={group.id} value={group.id}>
+                        {group.group_reference} - {group.title}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <button
+                  type="button"
+                  onClick={() => void linkPackageToGroup()}
+                  disabled={packageGroupSaving || !packageGroupSelectedId}
+                  className="self-end min-h-11 rounded-lg border border-cyan-200 bg-cyan-50 px-3 text-sm font-black text-cyan-900 transition hover:bg-cyan-100 disabled:opacity-50"
+                >
+                  Link Package
+                </button>
               </div>
-            )}
-            <label className="mt-3 block">
-              <span className="mb-1 block text-xs font-bold text-slate-500">
-                Shared transport customer note
-              </span>
-              <textarea
-                value={packageGroupTransportNote}
-                onChange={(event) => setPackageGroupTransportNote(event.target.value)}
-                placeholder="Transport is shared with Family Hussain / PT-ABC123."
-                rows={4}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-cyan-700"
-              />
-            </label>
-            <button
-              type="button"
-              onClick={() => void updatePackageGroupTransportNote()}
-              disabled={packageGroupSaving || !activePackageGroup}
-              className="mt-3 min-h-10 rounded-lg bg-slate-900 px-3 text-sm font-black text-white transition hover:bg-black disabled:opacity-50"
-            >
-              Save Transport Note
-            </button>
+            </div>
+
+            <div className="rounded-lg border border-cyan-200 bg-white p-3">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p className="text-sm font-black text-slate-950">
+                    {activePackageGroup
+                      ? `${activePackageGroup.group_reference} - ${activePackageGroup.title}`
+                      : 'No linked group active'}
+                  </p>
+                  <p className="mt-1 text-xs font-semibold text-slate-500">
+                    Customer output uses note-only wording. Internal allocation stays private.
+                  </p>
+                </div>
+                {activePackageGroup && (
+                  <button
+                    type="button"
+                    onClick={() => void unlinkPackageFromGroup()}
+                    disabled={packageGroupSaving}
+                    className="min-h-9 rounded-lg border border-red-200 px-3 text-xs font-black text-red-700 transition hover:bg-red-50 disabled:opacity-50"
+                  >
+                    Unlink
+                  </button>
+                )}
+              </div>
+              {activePackageGroup && activePackageGroup.members.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {activePackageGroup.members.map((member) => (
+                    <span
+                      key={member.id}
+                      className={`rounded-lg px-2 py-1 text-xs font-bold ${
+                        member.package_id === packageId
+                          ? 'bg-slate-900 text-white'
+                          : 'bg-slate-100 text-slate-700'
+                      }`}
+                    >
+                      {member.family_label}
+                    </span>
+                  ))}
+                </div>
+              )}
+              <label className="mt-3 block">
+                <span className="mb-1 block text-xs font-bold text-slate-500">
+                  Shared transport customer note
+                </span>
+                <textarea
+                  value={packageGroupTransportNote}
+                  onChange={(event) => setPackageGroupTransportNote(event.target.value)}
+                  placeholder="Transport is shared with Family Hussain / PT-ABC123."
+                  rows={4}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-cyan-700"
+                />
+              </label>
+              <button
+                type="button"
+                onClick={() => void updatePackageGroupTransportNote()}
+                disabled={packageGroupSaving || !activePackageGroup}
+                className="mt-3 min-h-10 rounded-lg bg-slate-900 px-3 text-sm font-black text-white transition hover:bg-black disabled:opacity-50"
+              >
+                Save Transport Note
+              </button>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
       )}
 
       <nav
@@ -2765,6 +2778,7 @@ Please enter the access code and accept the data handling terms before downloadi
                 <PackageOperationsWorkspace
                   packageFolder={packageFolder}
                   invoice={invoice}
+                  employees={employees}
                   onPackageChange={setPackageFolder}
                   onInvoiceChange={(updatedInvoice) => {
                     setInvoice(updatedInvoice)
@@ -2854,9 +2868,7 @@ Please enter the access code and accept the data handling terms before downloadi
               <div className="mb-4 rounded-lg border border-cyan-200 bg-cyan-50/60 p-4">
                 <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
                   <div>
-                    <p className="text-sm font-black text-slate-950">
-                      Third-party document access
-                    </p>
+                    <p className="text-sm font-black text-slate-950">Third-party document access</p>
                     <p className="mt-1 text-sm leading-6 text-slate-600">
                       Generate a WhatsApp-safe link and access code for suppliers or partners. They
                       must enter the code and accept data-handling responsibility before documents
@@ -3070,7 +3082,8 @@ Please enter the access code and accept the data handling terms before downloadi
                             </p>
                             <p className="text-xs text-slate-500">
                               {share.recipient_name || 'No recipient'} · expires{' '}
-                              {formatDateTime(share.expires_at)} · code ends {share.access_code_hint}
+                              {formatDateTime(share.expires_at)} · code ends{' '}
+                              {share.access_code_hint}
                             </p>
                             <p className="mt-1 text-xs font-semibold text-slate-500">
                               {share.allowed_categories
@@ -3090,7 +3103,11 @@ Please enter the access code and accept the data handling terms before downloadi
                                   : 'bg-slate-100 text-slate-600'
                               }`}
                             >
-                              {active ? 'Active' : share.status === 'revoked' ? 'Revoked' : 'Expired'}
+                              {active
+                                ? 'Active'
+                                : share.status === 'revoked'
+                                  ? 'Revoked'
+                                  : 'Expired'}
                             </span>
                             {share.status === 'active' && (
                               <button
@@ -3209,7 +3226,7 @@ Please enter the access code and accept the data handling terms before downloadi
                               key={document.id}
                               className="flex flex-col gap-3 px-4 py-3 lg:flex-row lg:items-start lg:justify-between"
                             >
-                              <div className="min-w-0">
+                              <div className="min-w-0 flex-1">
                                 <div className="flex flex-wrap items-center gap-2">
                                   {renamingThisDocument ? (
                                     <div className="w-full min-w-0">
@@ -3235,8 +3252,8 @@ Please enter the access code and accept the data handling terms before downloadi
                                       documentIsAgentOnly
                                         ? 'bg-amber-50 text-amber-700'
                                         : documentIsReleased
-                                        ? 'bg-emerald-50 text-emerald-700'
-                                        : 'bg-slate-100 text-slate-500'
+                                          ? 'bg-emerald-50 text-emerald-700'
+                                          : 'bg-slate-100 text-slate-500'
                                     }`}
                                   >
                                     {documentIsAgentOnly
@@ -3282,22 +3299,39 @@ Please enter the access code and accept the data handling terms before downloadi
                                 {document.category === 'travel_documents' &&
                                   !documentIsVisaPhoto &&
                                   linkedVisaPhotos.length > 0 && (
-                                    <div className="mt-2 rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2">
-                                      <p className="text-xs font-black uppercase text-indigo-700">
-                                        Linked visa photos
-                                      </p>
-                                      <div className="mt-1 space-y-1">
+                                    <div className="mt-3 w-full rounded-lg border border-indigo-100 bg-indigo-50/80 px-3 py-3">
+                                      <div className="flex flex-wrap items-center justify-between gap-2">
+                                        <p className="text-xs font-black uppercase text-indigo-700">
+                                          Linked visa photos
+                                        </p>
+                                        <span className="rounded-full bg-white px-2 py-1 text-[11px] font-black text-indigo-700">
+                                          {linkedVisaPhotos.length}
+                                        </span>
+                                      </div>
+                                      <div className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
                                         {linkedVisaPhotos.map((photo) => {
                                           const updatingPhoto = updatingDocumentId === photo.id
                                           return (
                                             <div
                                               key={photo.id}
-                                              className="flex flex-col gap-2 rounded-lg bg-white/70 p-2 sm:flex-row sm:items-center sm:justify-between"
+                                              className="min-w-0 rounded-lg border border-indigo-100 bg-white p-2 shadow-sm"
                                             >
-                                              <p className="break-all text-xs font-semibold text-indigo-900">
-                                                {photo.title}
-                                              </p>
-                                              <div className="flex shrink-0 flex-wrap gap-2">
+                                              <div className="min-w-0">
+                                                <p
+                                                  className="truncate text-xs font-black text-indigo-950"
+                                                  title={photo.title}
+                                                >
+                                                  {photo.title}
+                                                </p>
+                                                <p
+                                                  className="mt-0.5 truncate text-[11px] font-bold text-indigo-700"
+                                                  title={photo.file_name}
+                                                >
+                                                  {photo.file_name} ·{' '}
+                                                  {formatFileSize(photo.file_size)}
+                                                </p>
+                                              </div>
+                                              <div className="mt-2 flex flex-wrap gap-2">
                                                 <button
                                                   type="button"
                                                   onClick={() => void openDocumentPreview(photo)}
@@ -3376,16 +3410,16 @@ Please enter the access code and accept the data handling terms before downloadi
                                 )}
                                 {document.category === 'travel_documents' &&
                                   !documentIsVisaPhoto && (
-                                  <button
-                                    type="button"
-                                    onClick={() => setPhotoLinkDocument(document)}
-                                    disabled={updatingThisDocument}
-                                    className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300"
-                                  >
-                                    <FileImage className="h-4 w-4" />
-                                    Link photo
-                                  </button>
-                                )}
+                                    <button
+                                      type="button"
+                                      onClick={() => setPhotoLinkDocument(document)}
+                                      disabled={updatingThisDocument}
+                                      className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300"
+                                    >
+                                      <FileImage className="h-4 w-4" />
+                                      Link photo
+                                    </button>
+                                  )}
                                 <button
                                   type="button"
                                   onClick={() => {
@@ -3571,9 +3605,7 @@ Please enter the access code and accept the data handling terms before downloadi
                               <div key={option.id}>
                                 <p className="text-sm font-black text-slate-950">
                                   {getVisaQuantity(option, selectedVisaPassengerCounts)} x{' '}
-                                  {getVisaPassengerCategoryLabel(
-                                    option.visaPassengerCategory,
-                                  )}{' '}
+                                  {getVisaPassengerCategoryLabel(option.visaPassengerCategory)}{' '}
                                   {option.title}
                                 </p>
                                 {option.summary && (
@@ -3783,204 +3815,206 @@ Please enter the access code and accept the data handling terms before downloadi
               </div>
 
               {showNewReservationForm && (
-              <form
-                className="rounded-lg border border-slate-200 bg-slate-50 p-4"
-                onSubmit={(event) => {
-                  event.preventDefault()
-                  void createReservation()
-                }}
-              >
-                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                  <label className="text-xs font-bold uppercase text-slate-500">
-                    Type
-                    <select
-                      value={reservationForm.reservationType}
+                <form
+                  className="rounded-lg border border-slate-200 bg-slate-50 p-4"
+                  onSubmit={(event) => {
+                    event.preventDefault()
+                    void createReservation()
+                  }}
+                >
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                    <label className="text-xs font-bold uppercase text-slate-500">
+                      Type
+                      <select
+                        value={reservationForm.reservationType}
+                        onChange={(event) =>
+                          updateReservationForm(
+                            'reservationType',
+                            event.target.value as TravelPackageReservationType,
+                          )
+                        }
+                        className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                      >
+                        {reservationTypeOptions.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label className="text-xs font-bold uppercase text-slate-500 xl:col-span-2">
+                      Reservation title
+                      <input
+                        value={reservationForm.title}
+                        onChange={(event) => updateReservationForm('title', event.target.value)}
+                        className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                        placeholder="Etihad flights, Swissotel Makkah, GB ETA visas"
+                        required
+                      />
+                    </label>
+
+                    <label className="text-xs font-bold uppercase text-slate-500">
+                      Status
+                      <select
+                        value={reservationForm.status}
+                        onChange={(event) =>
+                          updateReservationForm(
+                            'status',
+                            event.target.value as TravelPackageReservationStatus,
+                          )
+                        }
+                        className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                      >
+                        {reservationStatusOptions.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label className="text-xs font-bold uppercase text-slate-500">
+                      Supplier
+                      <input
+                        value={reservationForm.supplierName}
+                        onChange={(event) =>
+                          updateReservationForm('supplierName', event.target.value)
+                        }
+                        className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                        placeholder="Airline, hotel, visa provider"
+                      />
+                    </label>
+
+                    <label className="text-xs font-bold uppercase text-slate-500">
+                      Supplier ref
+                      <input
+                        value={reservationForm.supplierReference}
+                        onChange={(event) =>
+                          updateReservationForm('supplierReference', event.target.value)
+                        }
+                        className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                        placeholder="PNR or booking ref"
+                      />
+                    </label>
+
+                    <label className="text-xs font-bold uppercase text-slate-500">
+                      Booked cost
+                      <input
+                        value={reservationForm.bookedCostTotal}
+                        onChange={(event) =>
+                          updateReservationForm('bookedCostTotal', event.target.value)
+                        }
+                        className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                        inputMode="decimal"
+                        placeholder="0.00"
+                      />
+                    </label>
+
+                    <label className="text-xs font-bold uppercase text-slate-500">
+                      Sold price
+                      <input
+                        value={reservationForm.soldPriceTotal}
+                        onChange={(event) =>
+                          updateReservationForm('soldPriceTotal', event.target.value)
+                        }
+                        className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                        inputMode="decimal"
+                        placeholder="0.00"
+                      />
+                    </label>
+
+                    <label className="text-xs font-bold uppercase text-slate-500">
+                      Discount
+                      <input
+                        value={reservationForm.discountTotal}
+                        onChange={(event) =>
+                          updateReservationForm('discountTotal', event.target.value)
+                        }
+                        className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                        inputMode="decimal"
+                        placeholder="0.00"
+                      />
+                    </label>
+
+                    <label className="text-xs font-bold uppercase text-slate-500">
+                      Commission
+                      <input
+                        value={reservationForm.commissionExpectedTotal}
+                        onChange={(event) =>
+                          updateReservationForm('commissionExpectedTotal', event.target.value)
+                        }
+                        className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                        inputMode="decimal"
+                        placeholder="0.00"
+                      />
+                    </label>
+
+                    <label className="flex min-h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700">
+                      <input
+                        checked={reservationForm.depositRequired}
+                        onChange={(event) =>
+                          updateReservationForm('depositRequired', event.target.checked)
+                        }
+                        type="checkbox"
+                        className="h-4 w-4 rounded border-slate-300 text-[#8b1e2d]"
+                      />
+                      Deposit required
+                    </label>
+
+                    <label className="text-xs font-bold uppercase text-slate-500">
+                      Deposit amount
+                      <input
+                        value={reservationForm.depositAmount}
+                        onChange={(event) =>
+                          updateReservationForm('depositAmount', event.target.value)
+                        }
+                        className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                        inputMode="decimal"
+                        placeholder="0.00"
+                      />
+                    </label>
+
+                    <label className="text-xs font-bold uppercase text-slate-500">
+                      Payment due
+                      <input
+                        value={reservationForm.paymentDueAt}
+                        onChange={(event) =>
+                          updateReservationForm('paymentDueAt', event.target.value)
+                        }
+                        className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                        type="datetime-local"
+                      />
+                    </label>
+                  </div>
+
+                  <label className="mt-3 block text-xs font-bold uppercase text-slate-500">
+                    Internal notes
+                    <textarea
+                      value={reservationForm.internalNotes}
                       onChange={(event) =>
-                        updateReservationForm(
-                          'reservationType',
-                          event.target.value as TravelPackageReservationType,
-                        )
+                        updateReservationForm('internalNotes', event.target.value)
                       }
-                      className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                      className="mt-1 min-h-20 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
+                      placeholder="Supplier conditions, amendment notes, deposit details"
+                    />
+                  </label>
+
+                  <div className="mt-4 flex justify-end">
+                    <button
+                      type="submit"
+                      disabled={!reservationForm.title.trim() || savingReservation}
+                      className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-black text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
                     >
-                      {reservationTypeOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <label className="text-xs font-bold uppercase text-slate-500 xl:col-span-2">
-                    Reservation title
-                    <input
-                      value={reservationForm.title}
-                      onChange={(event) => updateReservationForm('title', event.target.value)}
-                      className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
-                      placeholder="Etihad flights, Swissotel Makkah, GB ETA visas"
-                      required
-                    />
-                  </label>
-
-                  <label className="text-xs font-bold uppercase text-slate-500">
-                    Status
-                    <select
-                      value={reservationForm.status}
-                      onChange={(event) =>
-                        updateReservationForm(
-                          'status',
-                          event.target.value as TravelPackageReservationStatus,
-                        )
-                      }
-                      className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
-                    >
-                      {reservationStatusOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <label className="text-xs font-bold uppercase text-slate-500">
-                    Supplier
-                    <input
-                      value={reservationForm.supplierName}
-                      onChange={(event) =>
-                        updateReservationForm('supplierName', event.target.value)
-                      }
-                      className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
-                      placeholder="Airline, hotel, visa provider"
-                    />
-                  </label>
-
-                  <label className="text-xs font-bold uppercase text-slate-500">
-                    Supplier ref
-                    <input
-                      value={reservationForm.supplierReference}
-                      onChange={(event) =>
-                        updateReservationForm('supplierReference', event.target.value)
-                      }
-                      className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
-                      placeholder="PNR or booking ref"
-                    />
-                  </label>
-
-                  <label className="text-xs font-bold uppercase text-slate-500">
-                    Booked cost
-                    <input
-                      value={reservationForm.bookedCostTotal}
-                      onChange={(event) =>
-                        updateReservationForm('bookedCostTotal', event.target.value)
-                      }
-                      className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
-                      inputMode="decimal"
-                      placeholder="0.00"
-                    />
-                  </label>
-
-                  <label className="text-xs font-bold uppercase text-slate-500">
-                    Sold price
-                    <input
-                      value={reservationForm.soldPriceTotal}
-                      onChange={(event) =>
-                        updateReservationForm('soldPriceTotal', event.target.value)
-                      }
-                      className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
-                      inputMode="decimal"
-                      placeholder="0.00"
-                    />
-                  </label>
-
-                  <label className="text-xs font-bold uppercase text-slate-500">
-                    Discount
-                    <input
-                      value={reservationForm.discountTotal}
-                      onChange={(event) =>
-                        updateReservationForm('discountTotal', event.target.value)
-                      }
-                      className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
-                      inputMode="decimal"
-                      placeholder="0.00"
-                    />
-                  </label>
-
-                  <label className="text-xs font-bold uppercase text-slate-500">
-                    Commission
-                    <input
-                      value={reservationForm.commissionExpectedTotal}
-                      onChange={(event) =>
-                        updateReservationForm('commissionExpectedTotal', event.target.value)
-                      }
-                      className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
-                      inputMode="decimal"
-                      placeholder="0.00"
-                    />
-                  </label>
-
-                  <label className="flex min-h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700">
-                    <input
-                      checked={reservationForm.depositRequired}
-                      onChange={(event) =>
-                        updateReservationForm('depositRequired', event.target.checked)
-                      }
-                      type="checkbox"
-                      className="h-4 w-4 rounded border-slate-300 text-[#8b1e2d]"
-                    />
-                    Deposit required
-                  </label>
-
-                  <label className="text-xs font-bold uppercase text-slate-500">
-                    Deposit amount
-                    <input
-                      value={reservationForm.depositAmount}
-                      onChange={(event) =>
-                        updateReservationForm('depositAmount', event.target.value)
-                      }
-                      className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
-                      inputMode="decimal"
-                      placeholder="0.00"
-                    />
-                  </label>
-
-                  <label className="text-xs font-bold uppercase text-slate-500">
-                    Payment due
-                    <input
-                      value={reservationForm.paymentDueAt}
-                      onChange={(event) =>
-                        updateReservationForm('paymentDueAt', event.target.value)
-                      }
-                      className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
-                      type="datetime-local"
-                    />
-                  </label>
-                </div>
-
-                <label className="mt-3 block text-xs font-bold uppercase text-slate-500">
-                  Internal notes
-                  <textarea
-                    value={reservationForm.internalNotes}
-                    onChange={(event) => updateReservationForm('internalNotes', event.target.value)}
-                    className="mt-1 min-h-20 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm normal-case text-slate-900 outline-none transition focus:border-[#8b1e2d] focus:ring-2 focus:ring-[#8b1e2d]/20"
-                    placeholder="Supplier conditions, amendment notes, deposit details"
-                  />
-                </label>
-
-                <div className="mt-4 flex justify-end">
-                  <button
-                    type="submit"
-                    disabled={!reservationForm.title.trim() || savingReservation}
-                    className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-black text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
-                  >
-                    {savingReservation ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Plus className="h-4 w-4" />
-                    )}
-                    Add Reservation
-                  </button>
-                </div>
-              </form>
+                      {savingReservation ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Plus className="h-4 w-4" />
+                      )}
+                      Add Reservation
+                    </button>
+                  </div>
+                </form>
               )}
 
               <div className="mt-4 space-y-3">
@@ -5385,9 +5419,7 @@ Please enter the access code and accept the data handling terms before downloadi
                 <p className="text-xs font-bold uppercase text-slate-500">
                   Customer invoice preview
                 </p>
-                <h3 className="mt-1 text-xl font-black text-slate-950">
-                  {invoice.invoice_number}
-                </h3>
+                <h3 className="mt-1 text-xl font-black text-slate-950">{invoice.invoice_number}</h3>
                 <p className="mt-1 text-sm font-bold text-slate-500">
                   Preview only. Internal costs, margin, and commission are hidden.
                 </p>
@@ -5407,9 +5439,7 @@ Please enter the access code and accept the data handling terms before downloadi
                 <div className="flex flex-col gap-4 border-b border-slate-200 pb-5 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <p className="text-xs font-bold uppercase text-slate-500">Bill to</p>
-                    <p className="mt-1 text-lg font-black text-slate-950">
-                      {quoteCustomerName}
-                    </p>
+                    <p className="mt-1 text-lg font-black text-slate-950">{quoteCustomerName}</p>
                     {packageFolder.customer_email && (
                       <p className="mt-1 text-sm font-bold text-slate-500">
                         {packageFolder.customer_email}
@@ -5598,14 +5628,23 @@ Please enter the access code and accept the data handling terms before downloadi
               </label>
               {(visaPhotosByTravelDocumentId[photoLinkDocument.id] || []).length > 0 && (
                 <div className="mt-4 rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2">
-                  <p className="text-xs font-black uppercase text-indigo-700">
-                    Already linked
-                  </p>
-                  <div className="mt-1 space-y-1">
+                  <p className="text-xs font-black uppercase text-indigo-700">Already linked</p>
+                  <div className="mt-2 grid gap-2 sm:grid-cols-2">
                     {(visaPhotosByTravelDocumentId[photoLinkDocument.id] || []).map((photo) => (
-                      <p key={photo.id} className="break-all text-xs font-semibold text-indigo-900">
-                        {photo.title}
-                      </p>
+                      <div key={photo.id} className="min-w-0 rounded-lg bg-white px-3 py-2">
+                        <p
+                          className="truncate text-xs font-black text-indigo-950"
+                          title={photo.title}
+                        >
+                          {photo.title}
+                        </p>
+                        <p
+                          className="mt-0.5 truncate text-[11px] font-bold text-indigo-700"
+                          title={photo.file_name}
+                        >
+                          {photo.file_name}
+                        </p>
+                      </div>
                     ))}
                   </div>
                 </div>

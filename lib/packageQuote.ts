@@ -1433,7 +1433,8 @@ export function getPackagePassengerPriceBreakdown(
     combination.transportOption,
     servicePassengers,
   )
-  const discountUnit = payingGuests > 0 ? combination.offerDiscountTotal / payingGuests : 0
+  const discountUnit =
+    servicePassengers > 0 ? combination.offerDiscountTotal / servicePassengers : 0
   const surchargeUnit = payingGuests > 0 ? combination.paymentSurchargeTotal / payingGuests : 0
 
   const adultBase =
@@ -1453,8 +1454,9 @@ export function getPackagePassengerPriceBreakdown(
     discountUnit +
     surchargeUnit
   const childTwoToFourBase =
-    flightUnits.child + linkedFlightUnits.child + allVisaUnit + transportUnit
-  const infantBase = flightUnits.infant + linkedFlightUnits.infant + allVisaUnit + transportUnit
+    flightUnits.child + linkedFlightUnits.child + allVisaUnit + transportUnit - discountUnit
+  const infantBase =
+    flightUnits.infant + linkedFlightUnits.infant + allVisaUnit + transportUnit - discountUnit
 
   const passengerLines = [
     ...getPassengerPriceLinesForCategory({

@@ -2,6 +2,7 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createServerClient } from '@supabase/auth-helpers-nextjs'
 import PageHeader from '@/app/components/PageHeader.client'
+import type { PackageEmployeeOption } from './PackageOverviewClient'
 import PackageOverviewClient from './PackageOverviewClient'
 import { getPackagePageHeader } from '../packagePageHeader'
 
@@ -47,6 +48,12 @@ export default async function TravelPackageFolderPage({
     session.user.id,
     session.user.user_metadata?.full_name,
   )
+  const { data: employeeRows } = await supabase
+    .from('employees')
+    .select('id, full_name, email')
+    .eq('is_active', true)
+    .order('full_name', { ascending: true })
+  const employees = (employeeRows || []) as PackageEmployeeOption[]
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-950">
@@ -58,7 +65,7 @@ export default async function TravelPackageFolderPage({
       />
 
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-        <PackageOverviewClient packageId={id} />
+        <PackageOverviewClient packageId={id} employees={employees} />
       </main>
     </div>
   )

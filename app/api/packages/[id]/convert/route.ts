@@ -71,6 +71,10 @@ function selectTravelPackageColumns() {
     created_by,
     assigned_agent_id,
     sales_employee_id,
+    sales_responsible_employee_id,
+    booking_responsible_employee_id,
+    modify_responsible_employee_id,
+    service_responsible_employee_id,
     location_id,
     customer_name,
     customer_phone,
@@ -495,7 +499,6 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
 
   const payload = normalizePackageQuotePayload(quote.payload)
   const reference = createTravelPackageReference(quote.title || payload.title)
-  const finalisingUserId = quote.finalised_by || quote.last_shared_by || quote.created_by || user.id
   const salesEmployeeId = await resolveEmployeeId(supabase, [
     quote.finalised_by,
     quote.last_shared_by,
@@ -514,8 +517,11 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
       package_reference: reference,
       source_quote_id: quote.id,
       created_by: user.id,
-      assigned_agent_id: finalisingUserId,
+      assigned_agent_id: salesEmployeeId,
       sales_employee_id: salesEmployeeId,
+      sales_responsible_employee_id: salesEmployeeId,
+      booking_responsible_employee_id: salesEmployeeId,
+      service_responsible_employee_id: salesEmployeeId,
       customer_name:
         quote.selected_option.selection.customerName ||
         quote.customer_name ||
