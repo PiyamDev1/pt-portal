@@ -33,7 +33,7 @@ describe('transport vouchers', () => {
     expect(html).not.toContain('Supplier cost is 100')
   })
 
-  it('keeps supplier and provider names off the customer voucher', () => {
+  it('shows transport provider while keeping route pricing supplier off the customer voucher', () => {
     const html = renderTransportVoucherHtml(
       {
         package_reference: 'PT-ABC123',
@@ -41,14 +41,15 @@ describe('transport vouchers', () => {
         passenger_summary: { totalPassengers: 4 },
       } as TravelPackageFolder,
       normalizeTransportVoucherData({
-        providerName: 'Supplier One',
-        transportCompany: 'Supplier Two',
+        providerName: 'Operations Company',
+        transportCompany: 'Fallback Company',
         providerContact: '+966000000',
+        driverContact: '+966111111',
         routeAssignments: [
           {
             routeName: 'Jeddah Airport to Makkah Hotel',
             type: 'Airport Pickup',
-            supplierName: 'Private Supplier',
+            supplierName: 'Hidden Pricing Supplier',
             vehicleType: 'H1',
             date: '2026-08-10',
             time: '10:00',
@@ -67,10 +68,10 @@ describe('transport vouchers', () => {
 
     expect(html).toContain('timeline-item')
     expect(html).toContain('Vehicle: H1')
-    expect(html).not.toContain('Supplier One')
-    expect(html).not.toContain('Supplier Two')
-    expect(html).not.toContain('Private Supplier')
-    expect(html).not.toContain('Provider:')
-    expect(html).not.toContain('Transport Provider')
+    expect(html).toContain('Transport provider: Operations Company')
+    expect(html).toContain('Provider contact: +966000000')
+    expect(html).toContain('Driver: +966111111')
+    expect(html).not.toContain('Fallback Company')
+    expect(html).not.toContain('Hidden Pricing Supplier')
   })
 })
