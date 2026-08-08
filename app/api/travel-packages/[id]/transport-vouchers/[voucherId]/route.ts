@@ -33,6 +33,8 @@ export async function PATCH(
     data: { user },
   } = await supabase.auth.getUser()
   if (!user) return apiError('Unauthorized', 401)
+
+  try {
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null
   if (!body) return apiError('Invalid JSON body', 400)
 
@@ -263,4 +265,11 @@ export async function PATCH(
     renderWarning,
     documentWarning,
   })
+  } catch (error) {
+    console.error('Transport voucher update failed', error)
+    return apiError(
+      error instanceof Error ? error.message : 'Failed to update transport voucher',
+      500,
+    )
+  }
 }

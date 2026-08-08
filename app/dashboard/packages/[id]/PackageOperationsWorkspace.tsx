@@ -150,7 +150,15 @@ async function readApiResponse<T>(response: Response): Promise<T> {
   try {
     return JSON.parse(text) as T
   } catch {
-    return { error: text.slice(0, 240) || 'Unexpected server response' } as T
+    const htmlTitle = text.match(/<title>(.*?)<\/title>/i)?.[1]
+    return {
+      error:
+        htmlTitle ||
+        (text.trim().startsWith('<!DOCTYPE') || text.trim().startsWith('<html')
+          ? `Unexpected server error (${response.status})`
+          : text.slice(0, 240)) ||
+        'Unexpected server response',
+    } as T
   }
 }
 
@@ -354,11 +362,11 @@ export default function PackageOperationsWorkspace({
       ])
       const [passengerData, paymentData, operationData, voucherData, planData] = (await Promise.all(
         [
-          passengerResponse.json(),
-          paymentResponse.json(),
-          operationsResponse.json(),
-          voucherResponse.json(),
-          planResponse.json(),
+          readApiResponse(passengerResponse),
+          readApiResponse(paymentResponse),
+          readApiResponse(operationsResponse),
+          readApiResponse(voucherResponse),
+          readApiResponse(planResponse),
         ],
       )) as [
         {
@@ -400,6 +408,9 @@ export default function PackageOperationsWorkspace({
       setAuditEvents(operationData.auditEvents || [])
       setVouchers(voucherResponse.ok ? voucherData.vouchers || [] : [])
       setPaymentPlan(planData.plan || null)
+      if (!voucherResponse.ok) {
+        toast.error(voucherData.error || 'Failed to load transport vouchers')
+      }
       setSetupMessage(
         passengerData.setupRequired ||
           paymentData.setupRequired ||

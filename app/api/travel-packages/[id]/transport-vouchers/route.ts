@@ -80,6 +80,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   } = await supabase.auth.getUser()
   if (!user) return apiError('Unauthorized', 401)
 
+  try {
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null
   if (!body) return apiError('Invalid JSON body', 400)
 
@@ -295,4 +296,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     },
     { status: 201 },
   )
+  } catch (error) {
+    console.error('Transport voucher creation failed', error)
+    return apiError(
+      error instanceof Error ? error.message : 'Failed to create transport voucher',
+      500,
+    )
+  }
 }
