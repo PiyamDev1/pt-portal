@@ -15,7 +15,7 @@ import {
 import { enrichTransportVoucherPortalData } from '@/lib/packageTransportVoucherAccess'
 import {
   getTransportVoucherLogoDataUrl,
-  renderTransportVoucherPdf,
+  renderTransportVoucherDocument,
 } from '@/lib/packageTransportVoucherServer'
 import { recordPackageAuditEvent } from '@/lib/packageAudit'
 import type { TravelPackageFolder, TravelPackageTransportVoucher } from '@/app/types/packages'
@@ -117,13 +117,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const pdfHtml = renderTransportVoucherHtml(packageFolder, voucherData, {
     logoSrc: await getTransportVoucherLogoDataUrl(),
   })
-  const pdfBody = await renderTransportVoucherPdf(pdfHtml)
+  const documentFile = await renderTransportVoucherDocument(pdfHtml)
   const customerVisible = Boolean(body.customerVisible || body.customer_visible)
   const generatedAt = new Date().toISOString()
   const bucket = packageFolder.minio_bucket || getPackageMinioBucketName()
   const prefix = packageFolder.minio_prefix || `${packageFolder.package_reference}/`
-  const storageKey = `${prefix.replace(/\/?$/, '/')}vouchers/transport-v${version}.pdf`
+  const storageKey = `${prefix.replace(/\/?$/, '/')}vouchers/transport-v${version}.${documentFile.extension}`
   let etag = ''
+  const renderWarning = documentFile.renderWarning
   let storageWarning: string | null = null
 
   try {
@@ -131,8 +132,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       new PutObjectCommand({
         Bucket: bucket,
         Key: storageKey,
-        Body: pdfBody,
-        ContentType: 'application/pdf',
+        Body: documentFile.body,
+        ContentType: documentFile.contentType,
       }),
     )
     etag = result.ETag || ''
@@ -151,8 +152,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         new PutObjectCommand({
           Bucket: backupConfig.bucketName,
           Key: storageKey,
-          Body: pdfBody,
-          ContentType: 'application/pdf',
+          Body: documentFile.body,
+          ContentType: documentFile.contentType,
         }),
       )
       backupStatus = 'copied'
@@ -192,6 +193,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
   }
 
+  const documentWarning = [renderWarning, storageWarning].filter(Boolean).join(' ') || null
   let documentId: string | null = null
   if (!storageWarning) {
     const { data: documentData, error: documentError } = await supabase
@@ -202,9 +204,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         updated_by: user.id,
         category: 'transport',
         title: `Transport Voucher v${version}`,
-        file_name: `transport-voucher-${packageFolder.package_reference}-v${version}.pdf`,
-        file_size: pdfBody.byteLength,
-        file_type: 'application/pdf',
+        file_name: `transport-voucher-${packageFolder.package_reference}-v${version}.${documentFile.extension}`,
+        file_size: documentFile.body.byteLength,
+        file_type: documentFile.contentType,
         storage_provider: 'minio',
         storage_bucket: bucket,
         storage_key: storageKey,
@@ -264,10 +266,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     snapshot: {
       voucher: data,
       storage: storageWarning ? null : { bucket, key: storageKey },
-      storageWarning,
+      storageWarning: documentWarning,
     },
     internal_change_summary: storageWarning
-      ? `Transport voucher version ${version} generated without stored HTML document.`
+      ? `Transport voucher version ${version} generated without stored document.`
       : `Transport voucher version ${version} generated.`,
     created_by: user.id,
     released_at: customerVisible ? generatedAt : null,
@@ -284,7 +286,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     },
   )
   return apiOk(
-    { voucher: data as unknown as TravelPackageTransportVoucher, storageWarning },
+    { voucher: data as unknown as TravelPackageTransportVoucher, storageWarning: documentWarning },
     { status: 201 },
   )
 }

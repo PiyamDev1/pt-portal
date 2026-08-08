@@ -14,7 +14,7 @@ import {
 import { enrichTransportVoucherPortalData } from '@/lib/packageTransportVoucherAccess'
 import {
   getTransportVoucherLogoDataUrl,
-  renderTransportVoucherPdf,
+  renderTransportVoucherDocument,
 } from '@/lib/packageTransportVoucherServer'
 import { getS3Client } from '@/lib/s3Client'
 import type { TravelPackageFolder, TravelPackageTransportVoucher } from '@/app/types/packages'
@@ -73,7 +73,8 @@ export async function PATCH(
   const pdfHtml = renderTransportVoucherHtml(packageFolder, voucherData, {
     logoSrc: await getTransportVoucherLogoDataUrl(),
   })
-  const pdfBody = await renderTransportVoucherPdf(pdfHtml)
+  const documentFile = await renderTransportVoucherDocument(pdfHtml)
+  const renderWarning = documentFile.renderWarning
   let storageWarning: string | null = null
   const nextStatus = customerVisible
     ? 'released_to_customer'
@@ -99,19 +100,22 @@ export async function PATCH(
       | null
       | undefined
     if (document?.storage_bucket && document.storage_key) {
-      const nextStorageKey = document.storage_key.replace(/\.html$/i, '.pdf')
+      const nextStorageKey = document.storage_key.replace(
+        /\.(html|pdf)$/i,
+        `.${documentFile.extension}`,
+      )
       const nextFileName =
-        document.file_name?.replace(/\.html$/i, '.pdf') ||
+        document.file_name?.replace(/\.(html|pdf)$/i, `.${documentFile.extension}`) ||
         nextStorageKey.split('/').at(-1) ||
-        `transport-voucher-${packageFolder.package_reference}-v${voucher.version}.pdf`
+        `transport-voucher-${packageFolder.package_reference}-v${voucher.version}.${documentFile.extension}`
       let etag = ''
       try {
         const result = await getS3Client().send(
           new PutObjectCommand({
             Bucket: document.storage_bucket,
             Key: nextStorageKey,
-            Body: pdfBody,
-            ContentType: 'application/pdf',
+            Body: documentFile.body,
+            ContentType: documentFile.contentType,
           }),
         )
         etag = result.ETag || ''
@@ -127,8 +131,8 @@ export async function PATCH(
               new PutObjectCommand({
                 Bucket: backupConfig.bucketName,
                 Key: nextStorageKey,
-                Body: pdfBody,
-                ContentType: 'application/pdf',
+                Body: documentFile.body,
+                ContentType: documentFile.contentType,
               }),
             )
             backupStatus = 'copied'
@@ -142,8 +146,8 @@ export async function PATCH(
           .from('travel_package_documents')
           .update({
             file_name: nextFileName,
-            file_size: pdfBody.byteLength,
-            file_type: 'application/pdf',
+            file_size: documentFile.body.byteLength,
+            file_type: documentFile.contentType,
             storage_key: nextStorageKey,
             storage_etag: etag,
             backup_status: backupStatus,
@@ -158,6 +162,7 @@ export async function PATCH(
       }
     }
   }
+  const documentWarning = [renderWarning, storageWarning].filter(Boolean).join(' ') || null
 
   if (customerVisible) {
     const { data: oldVouchers } = await supabase
@@ -251,5 +256,8 @@ export async function PATCH(
       afterData: data,
     },
   )
-  return apiOk({ voucher: data as unknown as TravelPackageTransportVoucher, storageWarning })
+  return apiOk({
+    voucher: data as unknown as TravelPackageTransportVoucher,
+    storageWarning: documentWarning,
+  })
 }

@@ -144,6 +144,16 @@ function employeeLabel(employee: { full_name: string | null; email?: string | nu
   return employee.full_name || employee.email || 'Unnamed employee'
 }
 
+async function readApiResponse<T>(response: Response): Promise<T> {
+  const text = await response.text()
+  if (!text.trim()) return {} as T
+  try {
+    return JSON.parse(text) as T
+  } catch {
+    return { error: text.slice(0, 240) || 'Unexpected server response' } as T
+  }
+}
+
 function emptyVoucher(): TravelPackageTransportVoucherData {
   return {
     bookingId: '',
@@ -1088,11 +1098,11 @@ export default function PackageOperationsWorkspace({
           }),
         },
       )
-      const data = (await response.json()) as {
+      const data = await readApiResponse<{
         voucher?: TravelPackageTransportVoucher
         storageWarning?: string | null
         error?: string
-      }
+      }>(response)
       if (!response.ok || !data.voucher) throw new Error(data.error || 'Failed to save voucher')
       setVouchers((current) =>
         current.map((voucher) => (voucher.id === data.voucher!.id ? data.voucher! : voucher)),
@@ -1129,10 +1139,10 @@ export default function PackageOperationsWorkspace({
           body: JSON.stringify({ customerVisible }),
         },
       )
-      const data = (await response.json()) as {
+      const data = await readApiResponse<{
         voucher?: TravelPackageTransportVoucher
         error?: string
-      }
+      }>(response)
       if (!response.ok || !data.voucher) {
         throw new Error(data.error || 'Failed to update voucher release status')
       }
@@ -1163,11 +1173,11 @@ export default function PackageOperationsWorkspace({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ voucherData, customerVisible }),
       })
-      const data = (await response.json()) as {
+      const data = await readApiResponse<{
         voucher?: TravelPackageTransportVoucher
         storageWarning?: string | null
         error?: string
-      }
+      }>(response)
       if (!response.ok || !data.voucher) throw new Error(data.error || 'Failed to generate voucher')
       setVouchers((current) => [
         data.voucher!,

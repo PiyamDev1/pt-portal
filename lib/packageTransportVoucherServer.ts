@@ -43,3 +43,23 @@ export async function renderTransportVoucherPdf(html: string) {
     await browser.close()
   }
 }
+
+export async function renderTransportVoucherDocument(html: string) {
+  try {
+    const pdf = await renderTransportVoucherPdf(html)
+    return {
+      body: pdf,
+      extension: 'pdf',
+      contentType: 'application/pdf',
+      renderWarning: null,
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'PDF generation failed'
+    return {
+      body: Buffer.from(html, 'utf8'),
+      extension: 'html',
+      contentType: 'text/html; charset=utf-8',
+      renderWarning: `PDF generation failed; saved HTML fallback instead. ${message}`,
+    }
+  }
+}
