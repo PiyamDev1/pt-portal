@@ -9,6 +9,360 @@ const DEFAULT_TRANSPORT_PROVIDER_CONTACT = '+966555049005'
 const DEFAULT_EXTRA_BAGGAGE_FEE = '50 SAR per bag'
 const DEFAULT_CUSTOMER_PORTAL_URL = 'https://bookings.piyamtravel.com'
 const PIYAM_LOGO_URL = '/logo.png'
+const TRANSPORT_VOUCHER_PRINT_CSS = `
+  @page { size: 110mm 220mm; margin: 0; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: Inter, Arial, sans-serif;
+    color: #111827;
+    margin: 0;
+    background: #f4f6f8;
+  }
+  .voucher {
+    width: 107.8mm;
+    height: 215.6mm;
+    max-width: 100%;
+    margin: 24px auto;
+    background: #fff;
+    display: flex;
+    flex-direction: column;
+    border-radius: 12px;
+    border: 1px dashed #cbd5e1;
+    overflow: hidden;
+  }
+  .main {
+    flex: 1;
+    min-height: 0;
+    padding: 4.8mm;
+    display: flex;
+    flex-direction: column;
+    font-size: 10px;
+  }
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 4mm;
+    padding-bottom: 2.6mm;
+    border-bottom: 1px solid #e5e7eb;
+  }
+  .brand {
+    min-width: 30mm;
+  }
+  .brand-logo {
+    display: block;
+    max-width: 29mm;
+    max-height: 13mm;
+    object-fit: contain;
+  }
+  .brand-fallback {
+    display: none;
+    font-size: 15px;
+    font-weight: 900;
+    color: #800000;
+  }
+  .title { text-align: right; }
+  .title h1 {
+    font-size: 17px;
+    font-weight: 900;
+    color: #800000;
+    margin: 0;
+    line-height: 1;
+  }
+  .title p {
+    font-size: 8px;
+    font-weight: 800;
+    color: #6b7280;
+    letter-spacing: .05em;
+    margin: 2px 0 0;
+  }
+  .summary {
+    margin-top: 2.8mm;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .summary-top {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 25mm;
+    gap: 3mm;
+    padding: 2.2mm 2.4mm;
+    background: #f8fafc;
+    border-bottom: 1px solid #e5e7eb;
+  }
+  .summary-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.8mm 3mm;
+    padding: 2.2mm 2.4mm;
+  }
+  .label {
+    font-size: 7.2px;
+    color: #6b7280;
+    margin: 0;
+    text-transform: uppercase;
+    font-weight: 800;
+    letter-spacing: .03em;
+  }
+  .value {
+    font-weight: 800;
+    color: #1f2937;
+    margin: 0;
+  }
+  .lead {
+    font-size: 12.5px;
+    color: #111827;
+  }
+  .itinerary {
+    margin-top: 3mm;
+    border-top: 1px solid #e5e7eb;
+    padding-top: 2.5mm;
+  }
+  .itinerary-list {
+    font-size: 9px;
+    margin-top: 2mm;
+    color: #374151;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1mm;
+  }
+  .timeline-item {
+    display: grid;
+    grid-template-columns: 8.5mm 1fr;
+    gap: 1.8mm;
+    break-inside: avoid;
+    position: relative;
+  }
+  .timeline-item:not(:last-child)::before {
+    content: "";
+    position: absolute;
+    left: 4.1mm;
+    top: 7.4mm;
+    bottom: -1.4mm;
+    border-left: 1.5px solid #fecaca;
+  }
+  .timeline-marker {
+    position: relative;
+    z-index: 1;
+  }
+  .timeline-marker span {
+    display: flex;
+    width: 8.2mm;
+    height: 8.2mm;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: #800000;
+    color: #fff;
+    font-size: 6.5px;
+    font-weight: 900;
+  }
+  .timeline-card {
+    border: 1px solid #e5e7eb;
+    border-radius: 5px;
+    padding: 1.4mm 1.9mm;
+    background: #f9fafb;
+  }
+  .timeline-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 2.3mm;
+  }
+  .timeline-row strong {
+    font-size: 9.2px;
+    color: #111827;
+  }
+  .timeline-row span {
+    font-size: 13px;
+    font-weight: 900;
+    color: #800000;
+    text-align: right;
+    white-space: nowrap;
+  }
+  .route {
+    margin: .8mm 0 0;
+    font-size: 9px;
+    font-weight: 700;
+    color: #374151;
+  }
+  .segment-meta {
+    display: inline-block;
+    margin: 1mm 0 0;
+    border-radius: 999px;
+    background: #fff;
+    padding: .8mm 1.8mm;
+    font-size: 7.5px;
+    font-weight: 900;
+    color: #475569;
+    border: 1px solid #e2e8f0;
+  }
+  .footer {
+    border-top: 1px solid #e5e7eb;
+    padding-top: 2.2mm;
+    margin-top: auto;
+    font-size: 9.6px;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1.8mm;
+  }
+  .footer p { margin: 0; }
+  .footer .value {
+    font-size: 10.5px;
+    color: #111827;
+  }
+  .footer .contact-line {
+    margin-top: .8mm;
+    font-size: 9.4px;
+    font-weight: 800;
+    color: #334155;
+  }
+  .stub {
+    background: #800000;
+    color: #fff;
+    padding: 3.8mm;
+    height: 56mm;
+    flex-shrink: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 31mm;
+    gap: 3.5mm;
+    align-items: stretch;
+  }
+  .stub-head {
+    display: flex;
+    align-items: center;
+    gap: 2mm;
+    padding-bottom: 2.4mm;
+    border-bottom: 1px solid #a83333;
+  }
+  .stub-logo {
+    display: block;
+    max-width: 29mm;
+    max-height: 13mm;
+    background: #fff;
+    border-radius: 5px;
+    padding: 2mm;
+    object-fit: contain;
+  }
+  .stub-logo-fallback {
+    display: none;
+    background: #fff;
+    border-radius: 5px;
+    padding: 2mm;
+    color: #800000;
+    font-size: 11px;
+    font-weight: 900;
+  }
+  .stub-head p {
+    font-size: 8px;
+    opacity: .85;
+    margin: 0;
+    font-weight: 800;
+    letter-spacing: .08em;
+  }
+  .stub-stack {
+    margin-top: 2.4mm;
+    font-size: 9px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.8mm 3mm;
+  }
+  .stub-label {
+    font-size: 6.8px;
+    color: #fecaca;
+    margin: 0;
+    font-weight: 800;
+    letter-spacing: .04em;
+  }
+  .stub-value {
+    font-weight: 800;
+    margin: 0;
+  }
+  .qr {
+    width: 30mm;
+    height: 30mm;
+    align-self: center;
+    justify-self: center;
+    background: #fff;
+    color: #111827;
+    padding: 2mm;
+    border-radius: 6px;
+    border: 1px solid #e5e7eb;
+    font-size: 6px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .qr img {
+    display: block;
+    width: 26mm;
+    height: 26mm;
+  }
+  .notice {
+    margin-top: 2mm;
+    padding: 2mm;
+    background: #fef2f2;
+    border-left: 3px solid #800000;
+    white-space: pre-wrap;
+    font-size: 8px;
+  }
+  @media print {
+    html,
+    body {
+      width: 110mm;
+      height: 220mm;
+      background: #fff;
+    }
+    .voucher {
+      width: 107.8mm;
+      height: 215.6mm;
+      margin: 2.2mm auto;
+      border-radius: 0;
+      border: 1px dashed #94a3b8;
+      box-shadow: none;
+    }
+    .main { padding: 4.8mm; }
+    .stub { padding: 3.8mm; }
+    .itinerary-list { gap: .9mm; }
+    .timeline-card { padding: 1.3mm 1.8mm; }
+    .no-print { display: none; }
+  }
+  @media (max-width: 720px) {
+    body { background: #fff; }
+    .voucher {
+      margin: 0;
+      border-radius: 0;
+      width: 100%;
+      height: auto;
+      min-height: 215.6mm;
+    }
+    .summary-top,
+    .summary-grid {
+      grid-template-columns: 1fr;
+    }
+    .footer { display: block; }
+    .title {
+      text-align: left;
+      margin-top: 10px;
+    }
+    .header { display: block; }
+    .timeline-row { display: block; }
+    .timeline-row span {
+      display: block;
+      text-align: left;
+      margin-top: 2px;
+    }
+    .stub {
+      height: auto;
+      grid-template-columns: 1fr;
+    }
+    .stub-stack { grid-template-columns: 1fr; }
+    .qr { min-height: 32mm; }
+  }
+`
 
 function escapeHtml(value: unknown) {
   return String(value ?? '')
@@ -155,6 +509,15 @@ function routeType(description: string, index: number, total: number) {
   if (lower.includes('airport') && index === total - 1) return 'Return Transfer'
   if (lower.includes('hotel')) return 'Hotel Transfer'
   return 'Transport Segment'
+}
+
+function routeBadge(type: string, description: string) {
+  const lower = `${type} ${description}`.toLowerCase()
+  if (lower.includes('ziyar') || lower.includes('tour')) return 'ZYA'
+  if (lower.includes('return')) return 'RET'
+  if (lower.includes('airport')) return 'AIR'
+  if (lower.includes('hotel')) return 'HTL'
+  return 'TRN'
 }
 
 type VoucherTransportOption = PackageComponentOption | null | undefined
@@ -517,12 +880,15 @@ export function renderTransportVoucherHtml(
     ? itinerary
         .map((item, index) => {
           const assignment = routeAssignments[index]
+          const segmentType = item.type || assignment?.type || 'Transport Segment'
+          const segmentRoute =
+            item.description || assignment?.routeName || 'Details to be confirmed'
           const segmentVehicle =
             assignment?.vehicleType || (vehicle !== 'Mixed vehicles' ? vehicle : '')
-          return `<div class="timeline-item"><div class="timeline-marker"><span>${index + 1}</span></div><div class="timeline-card"><div class="timeline-row"><strong>${escapeHtml(item.type || assignment?.type || 'Transport Segment')}</strong><span>${escapeHtml(formatSegmentSchedule(item.date || assignment?.date || '', item.time || assignment?.time || ''))}</span></div><p class="route">${escapeHtml(item.description || assignment?.routeName || 'Details to be confirmed')}</p>${segmentVehicle ? `<p class="segment-meta">Vehicle: ${escapeHtml(segmentVehicle)}</p>` : ''}</div></div>`
+          return `<div class="timeline-item"><div class="timeline-marker"><span>${escapeHtml(routeBadge(segmentType, segmentRoute))}</span></div><div class="timeline-card"><div class="timeline-row"><strong>${index + 1}. ${escapeHtml(segmentType)}</strong><span>${escapeHtml(formatSegmentSchedule(item.date || assignment?.date || '', item.time || assignment?.time || ''))}</span></div><p class="route">${escapeHtml(segmentRoute)}</p>${segmentVehicle ? `<p class="segment-meta">Vehicle: ${escapeHtml(segmentVehicle)}</p>` : ''}</div></div>`
         })
         .join('')
-    : '<div class="timeline-item"><div class="timeline-marker"><span>1</span></div><div class="timeline-card"><div class="timeline-row"><strong>Transport Segment</strong><span>Timing to be confirmed</span></div><p class="route">Details to be confirmed</p></div></div>'
+    : '<div class="timeline-item"><div class="timeline-marker"><span>TRN</span></div><div class="timeline-card"><div class="timeline-row"><strong>1. Transport Segment</strong><span>Timing to be confirmed</span></div><p class="route">Details to be confirmed</p></div></div>'
   const qrText = [
     'GROUND TRANSPORT',
     `REF: ${packageFolder.package_reference}`,
@@ -547,28 +913,30 @@ export function renderTransportVoucherHtml(
   return `<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Transport Voucher ${escapeHtml(packageFolder.package_reference)}</title>
-  <style>
-    @page{size:110mm 220mm;margin:0}*{box-sizing:border-box}body{font-family:Inter,Arial,sans-serif;color:#111827;margin:0;background:#f4f6f8}.voucher{width:110mm;height:220mm;max-width:100%;margin:24px auto;background:#fff;display:flex;flex-direction:column;border-radius:12px;border:1px dashed #cbd5e1;overflow:hidden}.main{flex:1;min-height:0;padding:5mm;display:flex;flex-direction:column;font-size:10px}.header{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:3mm;border-bottom:1px solid #e5e7eb}.brand{font-size:17px;font-weight:900;color:#800000}.title{text-align:right}.title h1{font-size:18px;font-weight:900;color:#800000;margin:0;line-height:1}.title p{font-size:8px;font-weight:800;color:#6b7280;letter-spacing:.05em;margin:2px 0 0}.grid{display:grid;grid-template-columns:1fr 1fr;gap:2.5mm 5mm;margin-top:3mm;flex:1;min-height:0}.label{font-size:7.5px;color:#6b7280;margin:0;text-transform:uppercase;font-weight:800;letter-spacing:.03em}.value{font-weight:800;color:#1f2937;margin:0}.lead{font-size:13px;color:#111827}.itinerary{grid-column:span 2;border-top:1px solid #e5e7eb;padding-top:2.5mm}.itinerary-list{font-size:9px;margin-top:2mm;color:#374151;display:grid;grid-template-columns:1fr;gap:1mm}.timeline-item{display:grid;grid-template-columns:7.5mm 1fr;gap:1.8mm;break-inside:avoid;position:relative}.timeline-item:not(:last-child)::before{content:"";position:absolute;left:3.6mm;top:7mm;bottom:-1.4mm;border-left:1.5px solid #fecaca}.timeline-marker{position:relative;z-index:1}.timeline-marker span{display:flex;width:7mm;height:7mm;align-items:center;justify-content:center;border-radius:999px;background:#800000;color:#fff;font-size:8px;font-weight:900}.timeline-card{border:1px solid #e5e7eb;border-radius:5px;padding:1.5mm 2mm;background:#f9fafb}.timeline-row{display:flex;align-items:flex-start;justify-content:space-between;gap:2.5mm}.timeline-row strong{font-size:9.5px;color:#111827}.timeline-row span{font-size:15px;font-weight:900;color:#800000;text-align:right;white-space:nowrap}.route{margin:.8mm 0 0;font-size:9px;font-weight:700;color:#374151}.segment-meta{display:inline-block;margin:1mm 0 0;border-radius:999px;background:#fff;padding:.8mm 1.8mm;font-size:7.5px;font-weight:900;color:#475569;border:1px solid #e2e8f0}.footer{border-top:1px solid #e5e7eb;padding-top:2mm;margin-top:auto;font-size:8px;display:flex;justify-content:space-between;gap:4mm}.footer p{margin:0}.footer .contact-line{margin-top:.7mm;font-weight:700;color:#475569}.stub{background:#800000;color:#fff;padding:4mm;height:59mm;flex-shrink:0;display:grid;grid-template-columns:minmax(0,1fr) 30mm;gap:4mm;align-items:stretch}.stub-head{display:flex;align-items:center;gap:2mm;padding-bottom:2.5mm;border-bottom:1px solid #a83333}.stub-logo{display:block;max-width:28mm;max-height:14mm;background:#fff;border-radius:5px;padding:2mm}.stub-logo-fallback{display:none;background:#fff;border-radius:5px;padding:2mm;color:#800000;font-size:11px;font-weight:900}.stub-head p{font-size:8px;opacity:.85;margin:0;font-weight:800;letter-spacing:.08em}.stub-stack{margin-top:2.5mm;font-size:9.5px;display:grid;grid-template-columns:1fr 1fr;gap:2mm 3mm}.stub-label{font-size:7px;color:#fecaca;margin:0;font-weight:800;letter-spacing:.04em}.stub-value{font-weight:800;margin:0}.qr{background:#fff;color:#111827;padding:2mm;border-radius:6px;font-size:6px;white-space:pre-wrap;word-break:break-word;overflow:hidden;display:flex;align-items:center;justify-content:center}.qr img{display:block;width:26mm;height:26mm}.notice{margin-top:2mm;padding:2mm;background:#fef2f2;border-left:3px solid #800000;white-space:pre-wrap;font-size:8px}@media print{html,body{width:110mm;height:220mm;background:#fff}.voucher{width:110mm;height:220mm;margin:0;border-radius:0;border:1px dashed #94a3b8;box-shadow:none}.main{padding:5mm}.stub{padding:4mm}.itinerary-list{gap:.9mm}.timeline-card{padding:1.4mm 1.9mm}.no-print{display:none}}@media(max-width:720px){body{background:#fff}.voucher{margin:0;border-radius:0;width:100%;height:auto;min-height:220mm}.grid{grid-template-columns:1fr}.itinerary{grid-column:auto}.footer{display:block}.title{text-align:left;margin-top:10px}.header{display:block}.timeline-row{display:block}.timeline-row span{display:block;text-align:left;margin-top:2px}.stub{height:auto;grid-template-columns:1fr}.stub-stack{grid-template-columns:1fr}.qr{min-height:32mm}}
-  </style>
-</head>
-<body><main class="voucher">
-  <section class="main">
-    <header class="header">
-      <div class="brand">Piyam Travel</div>
-      <div class="title"><h1>GROUND TRANSPORT</h1><p>VOUCHER / ITINERARY</p></div>
-    </header>
-    <div class="grid">
-      <div><p class="label">Lead passenger</p><p class="value lead">${escapeHtml(packageFolder.customer_name || 'Customer')}</p></div>
-      <div></div>
-      <div><p class="label">Passengers</p><p class="value">${escapeHtml(passengerLabel || String(passengerCount || 'To be confirmed'))}</p></div>
-      <div><p class="label">Flight</p><p class="value">${escapeHtml(data.flightNumber || 'To be confirmed')}</p></div>
-      <div><p class="label">Arrival from</p><p class="value">${escapeHtml(data.airports || data.arrivalAirport || 'To be confirmed')}</p></div>
-      <div><p class="label">Landing</p><p class="value">${escapeHtml(formatVoucherDateTime(data.landingDate || dateOnly(data.arrivalAt), data.landingTime || timeOnly(data.arrivalAt)))}</p></div>
-      <div class="itinerary"><p class="label">Itinerary</p><div class="itinerary-list">${itineraryHtml}</div></div>
-    </div>
+	  <meta charset="utf-8">
+	  <meta name="viewport" content="width=device-width, initial-scale=1">
+	  <title>Transport Voucher ${escapeHtml(packageFolder.package_reference)}</title>
+	  <style>${TRANSPORT_VOUCHER_PRINT_CSS}</style>
+	</head>
+	<body><main class="voucher">
+	  <section class="main">
+	    <header class="header">
+	      <div class="brand"><img class="brand-logo" src="${escapeHtml(PIYAM_LOGO_URL)}" alt="Piyam Travel" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"><span class="brand-fallback">Piyam Travel</span></div>
+	      <div class="title"><h1>GROUND TRANSPORT</h1><p>VOUCHER / ITINERARY</p></div>
+	    </header>
+	    <div class="summary">
+	      <div class="summary-top">
+	        <div><p class="label">Lead passenger</p><p class="value lead">${escapeHtml(packageFolder.customer_name || 'Customer')}</p></div>
+	        <div><p class="label">Reference</p><p class="value">${escapeHtml(packageFolder.package_reference)}</p></div>
+	      </div>
+	      <div class="summary-grid">
+	        <div><p class="label">Passengers</p><p class="value">${escapeHtml(passengerLabel || String(passengerCount || 'To be confirmed'))}</p></div>
+	        <div><p class="label">Flight</p><p class="value">${escapeHtml(data.flightNumber || 'To be confirmed')}</p></div>
+	        <div><p class="label">Arrival from</p><p class="value">${escapeHtml(data.airports || data.arrivalAirport || 'To be confirmed')}</p></div>
+	        <div><p class="label">Landing</p><p class="value">${escapeHtml(formatVoucherDateTime(data.landingDate || dateOnly(data.arrivalAt), data.landingTime || timeOnly(data.arrivalAt)))}</p></div>
+	      </div>
+	    </div>
+	    <div class="itinerary"><p class="label">Itinerary</p><div class="itinerary-list">${itineraryHtml}</div></div>
     <div class="footer">
       <div><p class="value">Transport provider: ${escapeHtml(providerName)}</p>${transportContactParts.length ? `<p class="contact-line">${escapeHtml(transportContactParts.join(' | '))}</p>` : '<p class="contact-line">Contact details to be confirmed</p>'}</div>
       <div style="text-align:right"><p class="value">24/7 Support</p><p>Email: info@piyamtravel.com | +447400828212</p></div>

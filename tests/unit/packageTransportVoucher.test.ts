@@ -68,9 +68,12 @@ describe('transport vouchers', () => {
 
     expect(html).toContain('timeline-item')
     expect(html).toContain('Vehicle: H1')
+    expect(html).toContain('AIR')
     expect(html).toContain('Transport provider: Operations Company')
     expect(html).toContain('Provider contact: +966000000')
     expect(html).toContain('Driver: +966111111')
+    expect(html).toContain('brand-logo')
+    expect(html).toContain('summary-grid')
     expect(html).not.toContain('Fallback Company')
     expect(html).not.toContain('Hidden Pricing Supplier')
   })
@@ -85,9 +88,11 @@ describe('transport vouchers', () => {
       normalizeTransportVoucherData({ routes: ['Airport to hotel'] }),
     )
 
-    expect(html).toContain('@page{size:110mm 220mm;margin:0}')
-    expect(html).toContain('html,body{width:110mm;height:220mm')
-    expect(html).toContain('.voucher{width:110mm;height:220mm')
-    expect(html).not.toContain('@page{size:220mm 110mm')
+    expect(html).toMatch(/@page\s*{\s*size:\s*110mm 220mm;\s*margin:\s*0;\s*}/)
+    expect(html).toMatch(/html,\s*body\s*{[^}]*width:\s*110mm;[^}]*height:\s*220mm/s)
+    expect(html).toMatch(/\.voucher\s*{[^}]*width:\s*107\.8mm;[^}]*height:\s*215\.6mm/s)
+    expect(html).toMatch(/\.timeline-row span\s*{[^}]*font-size:\s*13px/s)
+    expect(html).toMatch(/\.qr\s*{[^}]*width:\s*30mm;[^}]*height:\s*30mm/s)
+    expect(html).not.toMatch(/@page\s*{\s*size:\s*220mm 110mm/)
   })
 })
