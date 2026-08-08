@@ -21,6 +21,7 @@ import { recordPackageAuditEvent } from '@/lib/packageAudit'
 import type { TravelPackageFolder, TravelPackageTransportVoucher } from '@/app/types/packages'
 
 export const runtime = 'nodejs'
+export const maxDuration = 60
 
 const SCHEMA_HINT =
   'Transport vouchers are not installed yet. Run scripts/migrations/20260712_create_travel_package_documents.sql, scripts/migrations/20260712_create_travel_package_invoices.sql, then scripts/migrations/20260712_finalize_travel_package_workflow.sql.'

@@ -18,6 +18,9 @@ try {
 const nextConfig = {
   reactStrictMode: true,
 
+  // Keep the serverless Chromium package intact so its bundled binaries can be resolved at runtime.
+  serverExternalPackages: ['@sparticuz/chromium'],
+
   compiler: {
     // Remove console logs in production
     removeConsole: process.env.NODE_ENV === 'production' ? { exclude: ['error', 'warn'] } : false,

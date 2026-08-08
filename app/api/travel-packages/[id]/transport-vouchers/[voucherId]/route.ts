@@ -21,6 +21,7 @@ import type { TravelPackageFolder, TravelPackageTransportVoucher } from '@/app/t
 import { selectTravelPackageVoucherColumns } from '../route'
 
 export const runtime = 'nodejs'
+export const maxDuration = 60
 
 export async function PATCH(
   request: NextRequest,

@@ -2827,9 +2827,9 @@ Please enter the access code and accept the data handling terms before downloadi
                   </div>
                 )}
 
-                <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_24rem]">
-                  <div className="space-y-4">
-                    <div className="grid gap-3 md:grid-cols-3">
+                <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_24rem] xl:items-start">
+                  <div className="contents">
+                    <div className="order-1 grid gap-3 md:grid-cols-3 xl:col-start-1">
                       <div className="rounded-lg border border-slate-200 bg-white p-3">
                         <p className="text-xs font-bold uppercase text-slate-500">
                           Total documents
@@ -2856,7 +2856,7 @@ Please enter the access code and accept the data handling terms before downloadi
                       </div>
                     </div>
 
-                    <section className="rounded-xl border border-slate-200 bg-white">
+                    <section className="order-4 rounded-xl border border-slate-200 bg-white xl:col-span-2">
                       <div className="flex flex-col gap-2 border-b border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                         <div>
                           <p className="text-sm font-black text-slate-950">Upload documents</p>
@@ -2939,7 +2939,7 @@ Please enter the access code and accept the data handling terms before downloadi
                       </div>
                     </section>
 
-                    <section className="rounded-xl border border-slate-200 bg-white">
+                    <section className="order-5 rounded-xl border border-slate-200 bg-white xl:col-span-2">
                       <div className="flex flex-col gap-2 border-b border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                         <div>
                           <p className="text-sm font-black text-slate-950">Document library</p>
@@ -3255,8 +3255,8 @@ Please enter the access code and accept the data handling terms before downloadi
                       </div>
                     </section>
                   </div>
-                  <aside className="space-y-4">
-                    <section className="rounded-xl border border-slate-200 bg-white p-4">
+                  <aside className="contents">
+                    <section className="order-2 rounded-xl border border-slate-200 bg-white p-4 xl:col-start-1">
                       <div className="flex items-start gap-3">
                         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#8b1e2d] text-white">
                           <ShieldCheck className="h-4 w-4" />
@@ -3309,7 +3309,7 @@ Please enter the access code and accept the data handling terms before downloadi
                       </div>
                     </section>
 
-                    <section className="rounded-xl border border-cyan-200 bg-cyan-50/70 p-4">
+                    <section className="order-3 rounded-xl border border-cyan-200 bg-cyan-50/70 p-4 xl:col-start-2 xl:row-span-2 xl:row-start-1">
                       <div className="flex items-start gap-3">
                         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-cyan-700 text-white">
                           <Link2 className="h-4 w-4" />
@@ -3505,7 +3505,7 @@ Please enter the access code and accept the data handling terms before downloadi
                     </section>
 
                     {accessVoucherCopyMessage && (
-                      <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-center text-xs font-black text-emerald-700">
+                      <p className="order-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-center text-xs font-black text-emerald-700 xl:col-start-2">
                         {accessVoucherCopyMessage}
                       </p>
                     )}

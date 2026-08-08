@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
-import { chromium } from 'playwright'
+import serverlessChromium from '@sparticuz/chromium'
+import { chromium as playwrightChromium } from 'playwright-core'
 
 let cachedLogoDataUrl: string | null = null
 
@@ -14,13 +15,21 @@ export async function getTransportVoucherLogoDataUrl() {
 }
 
 export async function renderTransportVoucherPdf(html: string) {
-  const executablePath =
+  const configuredExecutablePath =
     process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || process.env.CHROMIUM_EXECUTABLE_PATH
-  const browser = await chromium.launch({
+  const isServerless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME)
+  const executablePath =
+    configuredExecutablePath ||
+    (isServerless
+      ? await serverlessChromium.executablePath()
+      : playwrightChromium.executablePath())
+  const browser = await playwrightChromium.launch({
     headless: true,
-    executablePath: executablePath || undefined,
+    executablePath,
     chromiumSandbox: false,
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
+    args: isServerless
+      ? serverlessChromium.args
+      : ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
   })
 
   try {
@@ -54,6 +63,7 @@ export async function renderTransportVoucherDocument(html: string) {
       renderWarning: null,
     }
   } catch (error) {
+    console.error('Transport voucher PDF rendering failed', error)
     return {
       body: Buffer.from(html, 'utf8'),
       extension: 'html',
