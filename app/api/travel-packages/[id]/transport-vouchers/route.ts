@@ -13,10 +13,7 @@ import {
   renderTransportVoucherHtml,
 } from '@/lib/packageTransportVoucher'
 import { enrichTransportVoucherPortalData } from '@/lib/packageTransportVoucherAccess'
-import {
-  getTransportVoucherLogoDataUrl,
-  renderTransportVoucherDocument,
-} from '@/lib/packageTransportVoucherServer'
+import { selectTravelPackageVoucherColumns } from '@/lib/packageTransportVoucherColumns'
 import { recordPackageAuditEvent } from '@/lib/packageAudit'
 import type { TravelPackageFolder, TravelPackageTransportVoucher } from '@/app/types/packages'
 
@@ -25,14 +22,6 @@ export const maxDuration = 60
 
 const SCHEMA_HINT =
   'Transport vouchers are not installed yet. Run scripts/migrations/20260712_create_travel_package_documents.sql, scripts/migrations/20260712_create_travel_package_invoices.sql, then scripts/migrations/20260712_finalize_travel_package_workflow.sql.'
-
-export function selectTravelPackageVoucherColumns() {
-  return `
-    id, package_id, reservation_id, document_id, version, status,
-    customer_visible, voucher_data, rendered_html, generated_at, released_at,
-    released_by, created_by, updated_by, created_at, updated_at
-  `
-}
 
 function isSchemaError(error: unknown) {
   const code = (error as { code?: string } | null)?.code
@@ -52,24 +41,32 @@ function cleanText(value: unknown) {
 }
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params
-  const supabase = await getRouteSupabaseClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return apiError('Unauthorized', 401)
+  try {
+    const { id } = await params
+    const supabase = await getRouteSupabaseClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) return apiError('Unauthorized', 401)
 
-  const { data, error } = await supabase
-    .from('travel_package_transport_vouchers')
-    .select(selectTravelPackageVoucherColumns())
-    .eq('package_id', id)
-    .order('version', { ascending: false })
-  if (error) {
-    if (isSchemaError(error))
-      return apiOk({ vouchers: [], setupRequired: true, message: SCHEMA_HINT })
-    return apiError(error.message || 'Failed to load transport vouchers', 500)
+    const { data, error } = await supabase
+      .from('travel_package_transport_vouchers')
+      .select(selectTravelPackageVoucherColumns())
+      .eq('package_id', id)
+      .order('version', { ascending: false })
+    if (error) {
+      if (isSchemaError(error))
+        return apiOk({ vouchers: [], setupRequired: true, message: SCHEMA_HINT })
+      return apiError(error.message || 'Failed to load transport vouchers', 500)
+    }
+    return apiOk({ vouchers: (data || []) as unknown as TravelPackageTransportVoucher[] })
+  } catch (error) {
+    console.error('Transport voucher list failed', error)
+    return apiError(
+      error instanceof Error ? error.message : 'Failed to load transport vouchers',
+      500,
+    )
   }
-  return apiOk({ vouchers: (data || []) as unknown as TravelPackageTransportVoucher[] })
 }
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -116,6 +113,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     normalizeTransportVoucherData(body.voucherData || body.voucher_data),
   )
   const renderedHtml = renderTransportVoucherHtml(packageFolder, voucherData)
+  const { getTransportVoucherLogoDataUrl, renderTransportVoucherDocument } = await import(
+    '@/lib/packageTransportVoucherServer'
+  )
   const pdfHtml = renderTransportVoucherHtml(packageFolder, voucherData, {
     logoSrc: await getTransportVoucherLogoDataUrl(),
   })

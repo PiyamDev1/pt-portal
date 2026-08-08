@@ -12,13 +12,9 @@ import {
   renderTransportVoucherHtml,
 } from '@/lib/packageTransportVoucher'
 import { enrichTransportVoucherPortalData } from '@/lib/packageTransportVoucherAccess'
-import {
-  getTransportVoucherLogoDataUrl,
-  renderTransportVoucherDocument,
-} from '@/lib/packageTransportVoucherServer'
+import { selectTravelPackageVoucherColumns } from '@/lib/packageTransportVoucherColumns'
 import { getS3Client } from '@/lib/s3Client'
 import type { TravelPackageFolder, TravelPackageTransportVoucher } from '@/app/types/packages'
-import { selectTravelPackageVoucherColumns } from '../route'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -73,6 +69,9 @@ export async function PATCH(
       : normalizeTransportVoucherData(voucher.voucher_data),
   )
   const renderedHtml = renderTransportVoucherHtml(packageFolder, voucherData)
+  const { getTransportVoucherLogoDataUrl, renderTransportVoucherDocument } = await import(
+    '@/lib/packageTransportVoucherServer'
+  )
   const pdfHtml = renderTransportVoucherHtml(packageFolder, voucherData, {
     logoSrc: await getTransportVoucherLogoDataUrl(),
   })
