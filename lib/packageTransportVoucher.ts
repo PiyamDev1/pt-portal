@@ -486,6 +486,14 @@ export function renderTransportVoucherHtml(
   data: TravelPackageTransportVoucherData,
 ) {
   const passengerCount = Number(packageFolder.passenger_summary?.totalPassengers || 0)
+  const passengerLabel =
+    data.passengers ||
+    formatPassengerLabel({
+      adults: data.adults || 0,
+      children: data.children || 0,
+      infants: data.infants || 0,
+    })
+  const vehicle = data.vehicle || data.vehicleType || 'To be confirmed'
   const itinerary =
     data.itinerary && data.itinerary.length > 0
       ? data.itinerary
@@ -509,14 +517,12 @@ export function renderTransportVoucherHtml(
     ? itinerary
         .map((item, index) => {
           const assignment = routeAssignments[index]
-          const detailParts = [
-            assignment?.vehicleType ? `Vehicle: ${assignment.vehicleType}` : '',
-            assignment?.supplierName ? `Provider: ${assignment.supplierName}` : '',
-          ].filter(Boolean)
-          return `<div class="segment"><div><strong>${index + 1}. ${escapeHtml(item.type || assignment?.type || 'Transport Segment')}</strong></div><div>${escapeHtml(item.description || assignment?.routeName || 'Details to be confirmed')}</div><div class="segment-time">${escapeHtml(formatSegmentSchedule(item.date || assignment?.date || '', item.time || assignment?.time || ''))}</div>${detailParts.length ? `<div class="segment-meta">${escapeHtml(detailParts.join(' · '))}</div>` : ''}</div>`
+          const segmentVehicle =
+            assignment?.vehicleType || (vehicle !== 'Mixed vehicles' ? vehicle : '')
+          return `<div class="timeline-item"><div class="timeline-marker"><span>${index + 1}</span></div><div class="timeline-card"><div class="timeline-row"><strong>${escapeHtml(item.type || assignment?.type || 'Transport Segment')}</strong><span>${escapeHtml(formatSegmentSchedule(item.date || assignment?.date || '', item.time || assignment?.time || ''))}</span></div><p class="route">${escapeHtml(item.description || assignment?.routeName || 'Details to be confirmed')}</p>${segmentVehicle ? `<p class="segment-meta">Vehicle: ${escapeHtml(segmentVehicle)}</p>` : ''}</div></div>`
         })
         .join('')
-    : '<div class="segment"><div><strong>1. Transport Segment</strong></div><div>Details to be confirmed</div><div class="segment-time">Timing to be confirmed</div></div>'
+    : '<div class="timeline-item"><div class="timeline-marker"><span>1</span></div><div class="timeline-card"><div class="timeline-row"><strong>Transport Segment</strong><span>Timing to be confirmed</span></div><p class="route">Details to be confirmed</p></div></div>'
   const qrText = [
     'GROUND TRANSPORT',
     `REF: ${packageFolder.package_reference}`,
@@ -530,16 +536,6 @@ export function renderTransportVoucherHtml(
   const qrContent = data.qrCodeDataUrl
     ? `<img src="${escapeHtml(data.qrCodeDataUrl)}" alt="Open digital voucher" />`
     : escapeHtml((data.digitalVoucherUrl || qrText).trim())
-  const passengerLabel =
-    data.passengers ||
-    formatPassengerLabel({
-      adults: data.adults || 0,
-      children: data.children || 0,
-      infants: data.infants || 0,
-    })
-  const vehicle = data.vehicle || data.vehicleType || 'To be confirmed'
-  const providerName = data.providerName || data.transportCompany || 'To be confirmed'
-  const providerContact = data.providerContact || data.groundManager || 'To be confirmed'
 
   return `<!doctype html>
 <html lang="en">
@@ -548,7 +544,7 @@ export function renderTransportVoucherHtml(
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Transport Voucher ${escapeHtml(packageFolder.package_reference)}</title>
   <style>
-    @page{size:220mm 110mm;margin:0}*{box-sizing:border-box}body{font-family:Inter,Arial,sans-serif;color:#111827;margin:0;background:#f4f6f8}.voucher{width:220mm;min-height:110mm;max-width:100%;margin:24px auto;background:#fff;display:flex;border-radius:12px;border:1px dashed #cbd5e1;overflow:hidden}.main{flex:1;padding:7mm;display:flex;flex-direction:column;font-size:11px}.header{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:4mm;border-bottom:1px solid #e5e7eb}.brand{font-size:19px;font-weight:900;color:#800000}.title{text-align:right}.title h1{font-size:22px;font-weight:900;color:#800000;margin:0;line-height:1}.title p{font-size:9px;font-weight:800;color:#6b7280;letter-spacing:.05em;margin:2px 0 0}.grid{display:grid;grid-template-columns:1fr 1fr;gap:3mm 7mm;margin-top:4mm;flex:1}.label{font-size:8px;color:#6b7280;margin:0;text-transform:uppercase;font-weight:800;letter-spacing:.03em}.value{font-weight:800;color:#1f2937;margin:0}.lead{font-size:15px;color:#111827}.itinerary{grid-column:span 2;border-top:1px solid #e5e7eb;padding-top:3mm}.itinerary-list{font-size:10px;margin-top:2mm;color:#374151;display:grid;grid-template-columns:1fr;gap:1.5mm}.segment{border:1px solid #e5e7eb;border-radius:5px;padding:2mm 2.5mm;background:#f9fafb;break-inside:avoid}.segment-time{margin-top:1mm;font-weight:900;color:#800000}.segment-meta{margin-top:1mm;font-size:8px;color:#6b7280}.footer{border-top:1px solid #e5e7eb;padding-top:2.5mm;margin-top:auto;font-size:9px;display:flex;justify-content:space-between;gap:6mm}.stub{background:#800000;color:#fff;padding:6mm;width:62mm;flex-shrink:0;display:flex;flex-direction:column;justify-content:space-between}.stub-head{text-align:center;padding-bottom:4mm;border-bottom:1px solid #a83333}.stub-logo{display:block;margin:0 auto;max-width:42mm;max-height:19mm;background:#fff;border-radius:6px;padding:3mm}.stub-logo-fallback{display:none;margin:0 auto;background:#fff;border-radius:6px;padding:3mm;color:#800000;font-size:14px;font-weight:900}.stub-head p{font-size:9px;opacity:.85;margin:2mm 0 0;font-weight:800;letter-spacing:.08em}.stub-stack{margin-top:4mm;font-size:11px;display:flex;flex-direction:column;gap:3mm}.stub-label{font-size:8px;color:#fecaca;margin:0;font-weight:800;letter-spacing:.04em}.stub-value{font-weight:800;margin:0}.qr{background:#fff;color:#111827;padding:2mm;border-radius:6px;font-size:7px;white-space:pre-wrap;word-break:break-word;overflow:hidden;min-height:32mm;display:flex;align-items:center;justify-content:center}.qr img{display:block;width:30mm;height:30mm}.notice{margin-top:3mm;padding:2.5mm;background:#fef2f2;border-left:3px solid #800000;white-space:pre-wrap;font-size:9px}@media print{html,body{width:220mm;height:110mm;background:#fff}.voucher{width:220mm;height:110mm;margin:0;border-radius:0;border:1px dashed #94a3b8;box-shadow:none}.main{padding:6mm}.stub{padding:6mm}.segment{padding:1.8mm 2.3mm}.itinerary-list{gap:1.2mm}.no-print{display:none}}@media(max-width:720px){.voucher{margin:0;border-radius:0;display:block;width:100%;min-height:auto}.stub{width:auto}.grid{grid-template-columns:1fr}.itinerary{grid-column:auto}.footer{display:block}.title{text-align:left;margin-top:10px}.header{display:block}}
+    @page{size:220mm 110mm;margin:0}*{box-sizing:border-box}body{font-family:Inter,Arial,sans-serif;color:#111827;margin:0;background:#f4f6f8}.voucher{width:220mm;min-height:110mm;max-width:100%;margin:24px auto;background:#fff;display:flex;border-radius:12px;border:1px dashed #cbd5e1;overflow:hidden}.main{flex:1;padding:7mm;display:flex;flex-direction:column;font-size:11px}.header{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:4mm;border-bottom:1px solid #e5e7eb}.brand{font-size:19px;font-weight:900;color:#800000}.title{text-align:right}.title h1{font-size:22px;font-weight:900;color:#800000;margin:0;line-height:1}.title p{font-size:9px;font-weight:800;color:#6b7280;letter-spacing:.05em;margin:2px 0 0}.grid{display:grid;grid-template-columns:1fr 1fr;gap:3mm 7mm;margin-top:4mm;flex:1}.label{font-size:8px;color:#6b7280;margin:0;text-transform:uppercase;font-weight:800;letter-spacing:.03em}.value{font-weight:800;color:#1f2937;margin:0}.lead{font-size:15px;color:#111827}.itinerary{grid-column:span 2;border-top:1px solid #e5e7eb;padding-top:3mm}.itinerary-list{font-size:10px;margin-top:2mm;color:#374151;display:grid;grid-template-columns:1fr;gap:1.2mm}.timeline-item{display:grid;grid-template-columns:8mm 1fr;gap:2mm;break-inside:avoid;position:relative}.timeline-item:not(:last-child)::before{content:"";position:absolute;left:3.8mm;top:7mm;bottom:-1.5mm;border-left:1.5px solid #fecaca}.timeline-marker{position:relative;z-index:1}.timeline-marker span{display:flex;width:7.5mm;height:7.5mm;align-items:center;justify-content:center;border-radius:999px;background:#800000;color:#fff;font-size:8px;font-weight:900}.timeline-card{border:1px solid #e5e7eb;border-radius:5px;padding:1.7mm 2.3mm;background:#f9fafb}.timeline-row{display:flex;align-items:flex-start;justify-content:space-between;gap:4mm}.timeline-row strong{font-size:10px;color:#111827}.timeline-row span{font-size:8px;font-weight:900;color:#800000;text-align:right;white-space:nowrap}.route{margin:1mm 0 0;font-size:9.5px;font-weight:700;color:#374151}.segment-meta{display:inline-block;margin:1.2mm 0 0;border-radius:999px;background:#fff;padding:1mm 2mm;font-size:8px;font-weight:900;color:#475569;border:1px solid #e2e8f0}.footer{border-top:1px solid #e5e7eb;padding-top:2.5mm;margin-top:auto;font-size:9px;display:flex;justify-content:space-between;gap:6mm}.footer p{margin:0}.stub{background:#800000;color:#fff;padding:6mm;width:62mm;flex-shrink:0;display:flex;flex-direction:column;justify-content:space-between}.stub-head{text-align:center;padding-bottom:4mm;border-bottom:1px solid #a83333}.stub-logo{display:block;margin:0 auto;max-width:42mm;max-height:19mm;background:#fff;border-radius:6px;padding:3mm}.stub-logo-fallback{display:none;margin:0 auto;background:#fff;border-radius:6px;padding:3mm;color:#800000;font-size:14px;font-weight:900}.stub-head p{font-size:9px;opacity:.85;margin:2mm 0 0;font-weight:800;letter-spacing:.08em}.stub-stack{margin-top:4mm;font-size:11px;display:flex;flex-direction:column;gap:3mm}.stub-label{font-size:8px;color:#fecaca;margin:0;font-weight:800;letter-spacing:.04em}.stub-value{font-weight:800;margin:0}.qr{background:#fff;color:#111827;padding:2mm;border-radius:6px;font-size:7px;white-space:pre-wrap;word-break:break-word;overflow:hidden;min-height:32mm;display:flex;align-items:center;justify-content:center}.qr img{display:block;width:30mm;height:30mm}.notice{margin-top:3mm;padding:2.5mm;background:#fef2f2;border-left:3px solid #800000;white-space:pre-wrap;font-size:9px}@media print{html,body{width:220mm;height:110mm;background:#fff}.voucher{width:220mm;height:110mm;margin:0;border-radius:0;border:1px dashed #94a3b8;box-shadow:none}.main{padding:6mm}.stub{padding:6mm}.itinerary-list{gap:1mm}.timeline-card{padding:1.5mm 2.1mm}.no-print{display:none}}@media(max-width:720px){.voucher{margin:0;border-radius:0;display:block;width:100%;min-height:auto}.stub{width:auto}.grid{grid-template-columns:1fr}.itinerary{grid-column:auto}.footer{display:block}.title{text-align:left;margin-top:10px}.header{display:block}.timeline-row{display:block}.timeline-row span{display:block;text-align:left;margin-top:2px}}
   </style>
 </head>
 <body><main class="voucher">
@@ -567,8 +563,8 @@ export function renderTransportVoucherHtml(
       <div class="itinerary"><p class="label">Itinerary</p><div class="itinerary-list">${itineraryHtml}</div></div>
     </div>
     <div class="footer">
-      <div><p class="value">Transport Provider: ${escapeHtml(providerName)}</p><p style="margin:0">Transport Manager contact: ${escapeHtml(providerContact)}</p></div>
-      <div style="text-align:right"><p class="value">Voucher Agency: Piyam Travel</p><p style="margin:0">Email: info@piyamtravel.com | 24/7: +447400828212</p></div>
+      <div><p class="value">Issued by Piyam Travel</p><p>For support, contact your Piyam Travel agent.</p></div>
+      <div style="text-align:right"><p class="value">24/7 Support</p><p>Email: info@piyamtravel.com | +447400828212</p></div>
     </div>
     ${data.publicNotes ? `<div class="notice">${escapeHtml(data.publicNotes)}</div>` : ''}
   </section>

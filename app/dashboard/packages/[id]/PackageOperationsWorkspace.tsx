@@ -2604,8 +2604,8 @@ export default function PackageOperationsWorkspace({
                 <div>
                   <p className="text-sm font-black text-slate-900">Dynamic Transport Voucher</p>
                   <p className="mt-1 text-xs font-semibold text-slate-500">
-                    Final quote details are prefilled. Complete flight, landing, provider, and route
-                    timings before releasing.
+                    Final quote details are prefilled. Complete flight, landing, internal supplier
+                    notes, and route timings before releasing.
                   </p>
                   <p className="mt-1 text-xs font-bold text-slate-600">
                     {selectedVoucher
@@ -2630,8 +2630,8 @@ export default function PackageOperationsWorkspace({
                         Route data from final quote
                       </p>
                       <p className="mt-1 text-xs font-semibold text-emerald-800">
-                        Supplier and vehicle details are carried into the voucher for operations.
-                        Costs are not shown to customers.
+                        Vehicle details are shown on the customer voucher. Supplier and cost details
+                        stay internal for operations.
                       </p>
                     </div>
                     <button
@@ -2800,7 +2800,7 @@ export default function PackageOperationsWorkspace({
                       </label>
                     </div>
                     <label className="text-xs font-bold text-slate-600">
-                      Provider name
+                      Internal supplier name
                       <input
                         value={voucherForm.providerName || voucherForm.transportCompany || ''}
                         onChange={(event) => {
@@ -2811,7 +2811,7 @@ export default function PackageOperationsWorkspace({
                       />
                     </label>
                     <label className="text-xs font-bold text-slate-600">
-                      Provider contact
+                      Internal supplier contact
                       <input
                         value={voucherForm.providerContact || voucherForm.groundManager || ''}
                         onChange={(event) => {
