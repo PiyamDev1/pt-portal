@@ -299,28 +299,9 @@ const TRANSPORT_VOUCHER_PRINT_CSS = `
     width: 26mm;
     height: 26mm;
   }
-  .portal-card {
+  .qr-wrap {
     align-self: center;
     justify-self: center;
-    width: 31mm;
-    color: #111827;
-  }
-  .portal-access {
-    margin-top: 1.8mm;
-    background: #fff;
-    border-radius: 6px;
-    padding: 1.8mm;
-    border: 1px solid #e5e7eb;
-    font-size: 6.6px;
-    line-height: 1.25;
-  }
-  .portal-access p {
-    margin: 0;
-  }
-  .portal-access strong {
-    display: block;
-    font-size: 7px;
-    color: #800000;
   }
   .notice {
     margin-top: 2mm;
@@ -454,19 +435,6 @@ function formatDateTime(value: string) {
     minute: '2-digit',
     timeZone: 'UTC',
   })
-}
-
-function getCustomerAccessLastName(
-  packageFolder: Pick<TravelPackageFolder, 'customer_name' | 'customer_access_last_name'>,
-) {
-  return (
-    packageFolder.customer_access_last_name ||
-    String(packageFolder.customer_name || '')
-      .trim()
-      .split(/\s+/)
-      .at(-1) ||
-    ''
-  )
 }
 
 function getPiyamLogoSrc() {
@@ -947,7 +915,6 @@ export function renderTransportVoucherHtml(
   const providerName = data.providerName || data.transportCompany || 'To be confirmed'
   const providerContact = data.providerContact || data.groundManager || ''
   const driverContact = data.driverContact || ''
-  const accessLastName = getCustomerAccessLastName(packageFolder)
   const transportContactParts = [
     providerContact ? `Provider contact: ${providerContact}` : '',
     driverContact ? `Driver: ${driverContact}` : '',
@@ -998,13 +965,8 @@ export function renderTransportVoucherHtml(
         <div><p class="stub-label">BAGGAGE</p><p class="stub-value" style="font-size:12px">${escapeHtml(data.maxBags || '0')} Bags Max (${escapeHtml(data.extraBaggageFee || DEFAULT_EXTRA_BAGGAGE_FEE)})</p></div>
       </div>
     </div>
-    <div class="portal-card">
+    <div class="qr-wrap">
       <div class="qr">${qrContent}</div>
-      <div class="portal-access">
-        <p><strong>Portal login</strong></p>
-        <p>Ref: ${escapeHtml(packageFolder.package_reference)}</p>
-        <p>Last name: ${escapeHtml(accessLastName || 'Confirm with agent')}</p>
-      </div>
     </div>
   </aside>
 </main></body></html>`
