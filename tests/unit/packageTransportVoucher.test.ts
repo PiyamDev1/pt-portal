@@ -74,4 +74,20 @@ describe('transport vouchers', () => {
     expect(html).not.toContain('Fallback Company')
     expect(html).not.toContain('Hidden Pricing Supplier')
   })
+
+  it('renders portrait DL print dimensions', () => {
+    const html = renderTransportVoucherHtml(
+      {
+        package_reference: 'PT-ABC123',
+        customer_name: 'Customer',
+        passenger_summary: { totalPassengers: 2 },
+      } as TravelPackageFolder,
+      normalizeTransportVoucherData({ routes: ['Airport to hotel'] }),
+    )
+
+    expect(html).toContain('@page{size:110mm 220mm;margin:0}')
+    expect(html).toContain('html,body{width:110mm;height:220mm')
+    expect(html).toContain('.voucher{width:110mm;height:220mm')
+    expect(html).not.toContain('@page{size:220mm 110mm')
+  })
 })
