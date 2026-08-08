@@ -475,21 +475,11 @@ export default function PackageOperationsWorkspace({
       ? `Exceeds capacity of ${selectedVehicle.passengers}. Select a larger vehicle.`
       : ''
   const selectedVoucher = vouchers.find((voucher) => voucher.id === editingVoucherId) || null
-  const packageAccessLastName =
-    packageFolder.customer_access_last_name ||
-    packageFolder.customer_name?.trim().split(/\s+/).at(-1) ||
-    ''
   const voucherDigitalUrl =
     voucherForm.digitalVoucherUrl ||
     (packageFolder.document_access_token
-      ? getPackageDocumentPortalUrl(packageFolder.document_access_token, undefined, {
-          reference: packageFolder.package_reference,
-          lastName: packageAccessLastName,
-        })
-      : getPackageDocumentPortalUrl('', undefined, {
-          reference: packageFolder.package_reference,
-          lastName: packageAccessLastName,
-        }))
+      ? getPackageDocumentPortalUrl(packageFolder.document_access_token)
+      : getPackageDocumentPortalUrl(''))
   const voucherPreviewData = useMemo(
     () => ({
       ...voucherForm,

@@ -16,14 +16,9 @@ describe('transport vouchers', () => {
     expect(voucher.routes).toEqual(['Airport to hotel', 'Hotel to airport'])
   })
 
-  it('adds reference and last name to the document portal URL', () => {
-    expect(
-      getPackageDocumentPortalUrl('token-123', 'https://bookings.piyamtravel.com', {
-        reference: 'PT-ABC123',
-        lastName: 'Ali',
-      }),
-    ).toBe(
-      'https://bookings.piyamtravel.com/package-documents/token-123?reference=PT-ABC123&lastName=Ali',
+  it('keeps portal credentials out of the QR URL', () => {
+    expect(getPackageDocumentPortalUrl('token-123', 'https://bookings.piyamtravel.com')).toBe(
+      'https://bookings.piyamtravel.com/package-documents/token-123',
     )
   })
 
@@ -50,6 +45,7 @@ describe('transport vouchers', () => {
       {
         package_reference: 'PT-ABC123',
         customer_name: 'Customer',
+        customer_access_last_name: 'customer',
         passenger_summary: { totalPassengers: 4 },
       } as TravelPackageFolder,
       normalizeTransportVoucherData({
@@ -85,7 +81,10 @@ describe('transport vouchers', () => {
     expect(html).toContain('Provider contact: +966000000')
     expect(html).toContain('Driver: +966111111')
     expect(html).toContain('brand-logo')
-    expect(html).toMatch(/src="https?:\/\/[^"]+\/logo\.png"/)
+    expect(html).toContain('src="/logo.png"')
+    expect(html).toContain('Portal login')
+    expect(html).toContain('Ref: PT-ABC123')
+    expect(html).toContain('Last name: customer')
     expect(html).toContain('summary-grid')
     expect(html).not.toContain('Fallback Company')
     expect(html).not.toContain('Hidden Pricing Supplier')

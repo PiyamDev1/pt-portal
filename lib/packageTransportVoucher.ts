@@ -8,7 +8,7 @@ const DEFAULT_TRANSPORT_PROVIDER = 'Barakat AlMusafar Trading'
 const DEFAULT_TRANSPORT_PROVIDER_CONTACT = '+966555049005'
 const DEFAULT_EXTRA_BAGGAGE_FEE = '50 SAR per bag'
 const DEFAULT_CUSTOMER_PORTAL_URL = 'https://bookings.piyamtravel.com'
-const DEFAULT_PT_PORTAL_URL = 'https://piyamtravels.com'
+const PIYAM_LOGO_SRC = '/logo.png'
 const TRANSPORT_VOUCHER_PRINT_CSS = `
   @page { size: 110mm 220mm; margin: 0; }
   * { box-sizing: border-box; }
@@ -281,8 +281,6 @@ const TRANSPORT_VOUCHER_PRINT_CSS = `
   .qr {
     width: 30mm;
     height: 30mm;
-    align-self: center;
-    justify-self: center;
     background: #fff;
     color: #111827;
     padding: 2mm;
@@ -300,6 +298,29 @@ const TRANSPORT_VOUCHER_PRINT_CSS = `
     display: block;
     width: 26mm;
     height: 26mm;
+  }
+  .portal-card {
+    align-self: center;
+    justify-self: center;
+    width: 31mm;
+    color: #111827;
+  }
+  .portal-access {
+    margin-top: 1.8mm;
+    background: #fff;
+    border-radius: 6px;
+    padding: 1.8mm;
+    border: 1px solid #e5e7eb;
+    font-size: 6.6px;
+    line-height: 1.25;
+  }
+  .portal-access p {
+    margin: 0;
+  }
+  .portal-access strong {
+    display: block;
+    font-size: 7px;
+    color: #800000;
   }
   .notice {
     margin-top: 2mm;
@@ -448,14 +469,12 @@ function getCustomerAccessLastName(
   )
 }
 
-function getPiyamLogoUrl() {
-  const baseUrl = (
-    process.env.NEXT_PUBLIC_APP_URL ||
-    process.env.APP_BASE_URL ||
-    process.env.NEXT_PUBLIC_SITE_URL ||
-    DEFAULT_PT_PORTAL_URL
-  ).replace(/\/+$/, '')
-  return `${baseUrl}/logo.png`
+function getPiyamLogoSrc() {
+  const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || process.env.APP_BASE_URL || '').replace(
+    /\/+$/,
+    '',
+  )
+  return baseUrl ? `${baseUrl}${PIYAM_LOGO_SRC}` : PIYAM_LOGO_SRC
 }
 
 function getSummaryLines(value: string | null | undefined) {
@@ -520,18 +539,9 @@ export function getPackageCustomerPortalBaseUrl() {
 export function getPackageDocumentPortalUrl(
   token: string,
   baseUrl = getPackageCustomerPortalBaseUrl(),
-  access?: {
-    reference?: string | null
-    lastName?: string | null
-  },
 ) {
   const cleanToken = token.trim()
-  const url = new URL(cleanToken ? `${baseUrl}/package-documents/${cleanToken}` : baseUrl)
-  const reference = String(access?.reference || '').trim()
-  const lastName = String(access?.lastName || '').trim()
-  if (reference) url.searchParams.set('reference', reference)
-  if (lastName) url.searchParams.set('lastName', lastName)
-  return url.toString()
+  return cleanToken ? `${baseUrl}/package-documents/${cleanToken}` : baseUrl
 }
 
 function routeType(description: string, index: number, total: number) {
@@ -937,11 +947,12 @@ export function renderTransportVoucherHtml(
   const providerName = data.providerName || data.transportCompany || 'To be confirmed'
   const providerContact = data.providerContact || data.groundManager || ''
   const driverContact = data.driverContact || ''
+  const accessLastName = getCustomerAccessLastName(packageFolder)
   const transportContactParts = [
     providerContact ? `Provider contact: ${providerContact}` : '',
     driverContact ? `Driver: ${driverContact}` : '',
   ].filter(Boolean)
-  const logoUrl = getPiyamLogoUrl()
+  const logoSrc = getPiyamLogoSrc()
 
   return `<!doctype html>
 <html lang="en">
@@ -954,7 +965,7 @@ export function renderTransportVoucherHtml(
 	<body><main class="voucher">
 	  <section class="main">
 	    <header class="header">
-	      <div class="brand"><img class="brand-logo" src="${escapeHtml(logoUrl)}" alt="Piyam Travel" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"><span class="brand-fallback">Piyam Travel</span></div>
+	      <div class="brand"><img class="brand-logo" src="${escapeHtml(logoSrc)}" alt="Piyam Travel" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"><span class="brand-fallback">Piyam Travel</span></div>
 	      <div class="title"><h1>GROUND TRANSPORT</h1><p>VOUCHER / ITINERARY</p></div>
 	    </header>
 	    <div class="summary">
@@ -978,7 +989,7 @@ export function renderTransportVoucherHtml(
   </section>
   <aside class="stub">
     <div>
-      <div class="stub-head"><img class="stub-logo" src="${escapeHtml(logoUrl)}" alt="Piyam Travel" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"><span class="stub-logo-fallback">Piyam Travel</span><p>CUSTOMER COPY</p></div>
+      <div class="stub-head"><img class="stub-logo" src="${escapeHtml(logoSrc)}" alt="Piyam Travel" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"><span class="stub-logo-fallback">Piyam Travel</span><p>CUSTOMER COPY</p></div>
       <div class="stub-stack">
         <div><p class="stub-label">PASSENGER</p><p class="stub-value">${escapeHtml(packageFolder.customer_name || 'Customer')}</p></div>
         <div><p class="stub-label">REFERENCE</p><p class="stub-value">${escapeHtml(packageFolder.package_reference)}</p></div>
@@ -987,7 +998,14 @@ export function renderTransportVoucherHtml(
         <div><p class="stub-label">BAGGAGE</p><p class="stub-value" style="font-size:12px">${escapeHtml(data.maxBags || '0')} Bags Max (${escapeHtml(data.extraBaggageFee || DEFAULT_EXTRA_BAGGAGE_FEE)})</p></div>
       </div>
     </div>
-    <div class="qr">${qrContent}</div>
+    <div class="portal-card">
+      <div class="qr">${qrContent}</div>
+      <div class="portal-access">
+        <p><strong>Portal login</strong></p>
+        <p>Ref: ${escapeHtml(packageFolder.package_reference)}</p>
+        <p>Last name: ${escapeHtml(accessLastName || 'Confirm with agent')}</p>
+      </div>
+    </div>
   </aside>
 </main></body></html>`
 }
