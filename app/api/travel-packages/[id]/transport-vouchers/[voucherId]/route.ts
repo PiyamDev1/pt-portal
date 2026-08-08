@@ -12,10 +12,15 @@ import {
   renderTransportVoucherHtml,
 } from '@/lib/packageTransportVoucher'
 import { enrichTransportVoucherPortalData } from '@/lib/packageTransportVoucherAccess'
-import { getTransportVoucherLogoDataUrl } from '@/lib/packageTransportVoucherServer'
+import {
+  getTransportVoucherLogoDataUrl,
+  renderTransportVoucherPdf,
+} from '@/lib/packageTransportVoucherServer'
 import { getS3Client } from '@/lib/s3Client'
 import type { TravelPackageFolder, TravelPackageTransportVoucher } from '@/app/types/packages'
 import { selectTravelPackageVoucherColumns } from '../route'
+
+export const runtime = 'nodejs'
 
 export async function PATCH(
   request: NextRequest,
@@ -64,9 +69,11 @@ export async function PATCH(
       ? normalizeTransportVoucherData(body.voucherData || body.voucher_data, voucher.voucher_data)
       : normalizeTransportVoucherData(voucher.voucher_data),
   )
-  const renderedHtml = renderTransportVoucherHtml(packageFolder, voucherData, {
+  const renderedHtml = renderTransportVoucherHtml(packageFolder, voucherData)
+  const pdfHtml = renderTransportVoucherHtml(packageFolder, voucherData, {
     logoSrc: await getTransportVoucherLogoDataUrl(),
   })
+  const pdfBody = await renderTransportVoucherPdf(pdfHtml)
   let storageWarning: string | null = null
   const nextStatus = customerVisible
     ? 'released_to_customer'
@@ -77,25 +84,34 @@ export async function PATCH(
       : 'revoked'
 
   if (voucher.document_id && renderedHtml) {
-    const htmlBody = Buffer.from(renderedHtml, 'utf8')
     const { data: documentData } = await supabase
       .from('travel_package_documents')
-      .select('id, storage_bucket, storage_key')
+      .select('id, file_name, storage_bucket, storage_key')
       .eq('id', voucher.document_id)
       .single()
     const document = documentData as
-      | { id: string; storage_bucket?: string | null; storage_key?: string | null }
+      | {
+          id: string
+          file_name?: string | null
+          storage_bucket?: string | null
+          storage_key?: string | null
+        }
       | null
       | undefined
     if (document?.storage_bucket && document.storage_key) {
+      const nextStorageKey = document.storage_key.replace(/\.html$/i, '.pdf')
+      const nextFileName =
+        document.file_name?.replace(/\.html$/i, '.pdf') ||
+        nextStorageKey.split('/').at(-1) ||
+        `transport-voucher-${packageFolder.package_reference}-v${voucher.version}.pdf`
       let etag = ''
       try {
         const result = await getS3Client().send(
           new PutObjectCommand({
             Bucket: document.storage_bucket,
-            Key: document.storage_key,
-            Body: htmlBody,
-            ContentType: 'text/html; charset=utf-8',
+            Key: nextStorageKey,
+            Body: pdfBody,
+            ContentType: 'application/pdf',
           }),
         )
         etag = result.ETag || ''
@@ -110,9 +126,9 @@ export async function PATCH(
             await getPackageBackupStorageClient().send(
               new PutObjectCommand({
                 Bucket: backupConfig.bucketName,
-                Key: document.storage_key,
-                Body: htmlBody,
-                ContentType: 'text/html; charset=utf-8',
+                Key: nextStorageKey,
+                Body: pdfBody,
+                ContentType: 'application/pdf',
               }),
             )
             backupStatus = 'copied'
@@ -125,10 +141,14 @@ export async function PATCH(
         await supabase
           .from('travel_package_documents')
           .update({
-            file_size: htmlBody.byteLength,
+            file_name: nextFileName,
+            file_size: pdfBody.byteLength,
+            file_type: 'application/pdf',
+            storage_key: nextStorageKey,
             storage_etag: etag,
             backup_status: backupStatus,
             backup_error: backupError,
+            backup_key: backupConfig ? nextStorageKey : null,
             updated_by: user.id,
           })
           .eq('id', voucher.document_id)

@@ -13,9 +13,14 @@ import {
   renderTransportVoucherHtml,
 } from '@/lib/packageTransportVoucher'
 import { enrichTransportVoucherPortalData } from '@/lib/packageTransportVoucherAccess'
-import { getTransportVoucherLogoDataUrl } from '@/lib/packageTransportVoucherServer'
+import {
+  getTransportVoucherLogoDataUrl,
+  renderTransportVoucherPdf,
+} from '@/lib/packageTransportVoucherServer'
 import { recordPackageAuditEvent } from '@/lib/packageAudit'
 import type { TravelPackageFolder, TravelPackageTransportVoucher } from '@/app/types/packages'
+
+export const runtime = 'nodejs'
 
 const SCHEMA_HINT =
   'Transport vouchers are not installed yet. Run scripts/migrations/20260712_create_travel_package_documents.sql, scripts/migrations/20260712_create_travel_package_invoices.sql, then scripts/migrations/20260712_finalize_travel_package_workflow.sql.'
@@ -108,15 +113,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     packageFolder,
     normalizeTransportVoucherData(body.voucherData || body.voucher_data),
   )
-  const renderedHtml = renderTransportVoucherHtml(packageFolder, voucherData, {
+  const renderedHtml = renderTransportVoucherHtml(packageFolder, voucherData)
+  const pdfHtml = renderTransportVoucherHtml(packageFolder, voucherData, {
     logoSrc: await getTransportVoucherLogoDataUrl(),
   })
+  const pdfBody = await renderTransportVoucherPdf(pdfHtml)
   const customerVisible = Boolean(body.customerVisible || body.customer_visible)
   const generatedAt = new Date().toISOString()
   const bucket = packageFolder.minio_bucket || getPackageMinioBucketName()
   const prefix = packageFolder.minio_prefix || `${packageFolder.package_reference}/`
-  const storageKey = `${prefix.replace(/\/?$/, '/')}vouchers/transport-v${version}.html`
-  const htmlBody = Buffer.from(renderedHtml, 'utf8')
+  const storageKey = `${prefix.replace(/\/?$/, '/')}vouchers/transport-v${version}.pdf`
   let etag = ''
   let storageWarning: string | null = null
 
@@ -125,8 +131,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       new PutObjectCommand({
         Bucket: bucket,
         Key: storageKey,
-        Body: htmlBody,
-        ContentType: 'text/html; charset=utf-8',
+        Body: pdfBody,
+        ContentType: 'application/pdf',
       }),
     )
     etag = result.ETag || ''
@@ -145,8 +151,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         new PutObjectCommand({
           Bucket: backupConfig.bucketName,
           Key: storageKey,
-          Body: htmlBody,
-          ContentType: 'text/html; charset=utf-8',
+          Body: pdfBody,
+          ContentType: 'application/pdf',
         }),
       )
       backupStatus = 'copied'
@@ -196,9 +202,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         updated_by: user.id,
         category: 'transport',
         title: `Transport Voucher v${version}`,
-        file_name: `transport-voucher-${packageFolder.package_reference}-v${version}.html`,
-        file_size: htmlBody.byteLength,
-        file_type: 'text/html',
+        file_name: `transport-voucher-${packageFolder.package_reference}-v${version}.pdf`,
+        file_size: pdfBody.byteLength,
+        file_type: 'application/pdf',
         storage_provider: 'minio',
         storage_bucket: bucket,
         storage_key: storageKey,
