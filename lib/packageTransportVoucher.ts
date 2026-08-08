@@ -8,7 +8,7 @@ const DEFAULT_TRANSPORT_PROVIDER = 'Barakat AlMusafar Trading'
 const DEFAULT_TRANSPORT_PROVIDER_CONTACT = '+966555049005'
 const DEFAULT_EXTRA_BAGGAGE_FEE = '50 SAR per bag'
 const DEFAULT_CUSTOMER_PORTAL_URL = 'https://bookings.piyamtravel.com'
-const PIYAM_LOGO_URL = '/logo.png'
+const DEFAULT_PT_PORTAL_URL = 'https://piyamtravels.com'
 const TRANSPORT_VOUCHER_PRINT_CSS = `
   @page { size: 110mm 220mm; margin: 0; }
   * { box-sizing: border-box; }
@@ -170,7 +170,7 @@ const TRANSPORT_VOUCHER_PRINT_CSS = `
     gap: 2.3mm;
   }
   .timeline-row strong {
-    font-size: 9.2px;
+    font-size: 11.2px;
     color: #111827;
   }
   .timeline-row span {
@@ -182,7 +182,7 @@ const TRANSPORT_VOUCHER_PRINT_CSS = `
   }
   .route {
     margin: .8mm 0 0;
-    font-size: 9px;
+    font-size: 11px;
     font-weight: 700;
     color: #374151;
   }
@@ -192,7 +192,7 @@ const TRANSPORT_VOUCHER_PRINT_CSS = `
     border-radius: 999px;
     background: #fff;
     padding: .8mm 1.8mm;
-    font-size: 7.5px;
+    font-size: 9.5px;
     font-weight: 900;
     color: #475569;
     border: 1px solid #e2e8f0;
@@ -435,6 +435,29 @@ function formatDateTime(value: string) {
   })
 }
 
+function getCustomerAccessLastName(
+  packageFolder: Pick<TravelPackageFolder, 'customer_name' | 'customer_access_last_name'>,
+) {
+  return (
+    packageFolder.customer_access_last_name ||
+    String(packageFolder.customer_name || '')
+      .trim()
+      .split(/\s+/)
+      .at(-1) ||
+    ''
+  )
+}
+
+function getPiyamLogoUrl() {
+  const baseUrl = (
+    process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.APP_BASE_URL ||
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    DEFAULT_PT_PORTAL_URL
+  ).replace(/\/+$/, '')
+  return `${baseUrl}/logo.png`
+}
+
 function getSummaryLines(value: string | null | undefined) {
   return String(value || '')
     .split(/\r?\n/)
@@ -497,9 +520,18 @@ export function getPackageCustomerPortalBaseUrl() {
 export function getPackageDocumentPortalUrl(
   token: string,
   baseUrl = getPackageCustomerPortalBaseUrl(),
+  access?: {
+    reference?: string | null
+    lastName?: string | null
+  },
 ) {
   const cleanToken = token.trim()
-  return cleanToken ? `${baseUrl}/package-documents/${cleanToken}` : baseUrl
+  const url = new URL(cleanToken ? `${baseUrl}/package-documents/${cleanToken}` : baseUrl)
+  const reference = String(access?.reference || '').trim()
+  const lastName = String(access?.lastName || '').trim()
+  if (reference) url.searchParams.set('reference', reference)
+  if (lastName) url.searchParams.set('lastName', lastName)
+  return url.toString()
 }
 
 function routeType(description: string, index: number, total: number) {
@@ -844,7 +876,7 @@ export function normalizeTransportVoucherData(
 export function renderTransportVoucherHtml(
   packageFolder: Pick<
     TravelPackageFolder,
-    'package_reference' | 'customer_name' | 'passenger_summary'
+    'package_reference' | 'customer_name' | 'customer_access_last_name' | 'passenger_summary'
   >,
   data: TravelPackageTransportVoucherData,
 ) {
@@ -909,6 +941,7 @@ export function renderTransportVoucherHtml(
     providerContact ? `Provider contact: ${providerContact}` : '',
     driverContact ? `Driver: ${driverContact}` : '',
   ].filter(Boolean)
+  const logoUrl = getPiyamLogoUrl()
 
   return `<!doctype html>
 <html lang="en">
@@ -921,7 +954,7 @@ export function renderTransportVoucherHtml(
 	<body><main class="voucher">
 	  <section class="main">
 	    <header class="header">
-	      <div class="brand"><img class="brand-logo" src="${escapeHtml(PIYAM_LOGO_URL)}" alt="Piyam Travel" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"><span class="brand-fallback">Piyam Travel</span></div>
+	      <div class="brand"><img class="brand-logo" src="${escapeHtml(logoUrl)}" alt="Piyam Travel" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"><span class="brand-fallback">Piyam Travel</span></div>
 	      <div class="title"><h1>GROUND TRANSPORT</h1><p>VOUCHER / ITINERARY</p></div>
 	    </header>
 	    <div class="summary">
@@ -945,7 +978,7 @@ export function renderTransportVoucherHtml(
   </section>
   <aside class="stub">
     <div>
-      <div class="stub-head"><img class="stub-logo" src="${escapeHtml(PIYAM_LOGO_URL)}" alt="Piyam Travel" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"><span class="stub-logo-fallback">Piyam Travel</span><p>CUSTOMER COPY</p></div>
+      <div class="stub-head"><img class="stub-logo" src="${escapeHtml(logoUrl)}" alt="Piyam Travel" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"><span class="stub-logo-fallback">Piyam Travel</span><p>CUSTOMER COPY</p></div>
       <div class="stub-stack">
         <div><p class="stub-label">PASSENGER</p><p class="stub-value">${escapeHtml(packageFolder.customer_name || 'Customer')}</p></div>
         <div><p class="stub-label">REFERENCE</p><p class="stub-value">${escapeHtml(packageFolder.package_reference)}</p></div>

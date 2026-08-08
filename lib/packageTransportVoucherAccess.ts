@@ -29,6 +29,7 @@ export async function ensureTransportVoucherPortalAccess(
   packageFolder: Pick<
     TravelPackageFolder,
     | 'id'
+    | 'package_reference'
     | 'customer_name'
     | 'customer_access_last_name'
     | 'document_access_token'
@@ -64,7 +65,12 @@ export async function ensureTransportVoucherPortalAccess(
 
   return {
     token,
-    url: getPackageDocumentPortalUrl(token),
+    url: getPackageDocumentPortalUrl(token, undefined, {
+      reference: packageFolder.package_reference,
+      lastName:
+        packageFolder.customer_access_last_name ||
+        lastNameFromCustomer(packageFolder.customer_name),
+    }),
     expiresAt,
   }
 }

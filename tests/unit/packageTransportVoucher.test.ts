@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { TravelPackageFolder } from '@/app/types/packages'
 import {
+  getPackageDocumentPortalUrl,
   normalizeTransportVoucherData,
   renderTransportVoucherHtml,
 } from '@/lib/packageTransportVoucher'
@@ -13,6 +14,17 @@ describe('transport vouchers', () => {
     })
     expect(voucher.arrivalAirport).toBe('JED')
     expect(voucher.routes).toEqual(['Airport to hotel', 'Hotel to airport'])
+  })
+
+  it('adds reference and last name to the document portal URL', () => {
+    expect(
+      getPackageDocumentPortalUrl('token-123', 'https://bookings.piyamtravel.com', {
+        reference: 'PT-ABC123',
+        lastName: 'Ali',
+      }),
+    ).toBe(
+      'https://bookings.piyamtravel.com/package-documents/token-123?reference=PT-ABC123&lastName=Ali',
+    )
   })
 
   it('escapes public content and never renders internal notes', () => {
@@ -73,6 +85,7 @@ describe('transport vouchers', () => {
     expect(html).toContain('Provider contact: +966000000')
     expect(html).toContain('Driver: +966111111')
     expect(html).toContain('brand-logo')
+    expect(html).toMatch(/src="https?:\/\/[^"]+\/logo\.png"/)
     expect(html).toContain('summary-grid')
     expect(html).not.toContain('Fallback Company')
     expect(html).not.toContain('Hidden Pricing Supplier')
@@ -92,6 +105,9 @@ describe('transport vouchers', () => {
     expect(html).toMatch(/html,\s*body\s*{[^}]*width:\s*110mm;[^}]*height:\s*220mm/s)
     expect(html).toMatch(/\.voucher\s*{[^}]*width:\s*107\.8mm;[^}]*height:\s*215\.6mm/s)
     expect(html).toMatch(/\.timeline-row span\s*{[^}]*font-size:\s*13px/s)
+    expect(html).toMatch(/\.timeline-row strong\s*{[^}]*font-size:\s*11\.2px/s)
+    expect(html).toMatch(/\.route\s*{[^}]*font-size:\s*11px/s)
+    expect(html).toMatch(/\.segment-meta\s*{[^}]*font-size:\s*9\.5px/s)
     expect(html).toMatch(/\.qr\s*{[^}]*width:\s*30mm;[^}]*height:\s*30mm/s)
     expect(html).not.toMatch(/@page\s*{\s*size:\s*220mm 110mm/)
   })
