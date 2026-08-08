@@ -45,7 +45,7 @@
     "nprogress": "^0.2.0",
     "pdfjs-dist": "^5.5.207",
     "playwright": "^1.58.2",
-    "playwright-core": "^1.62.1",
+    "puppeteer-core": "^25.5.0",
     "qrcode": "^1.5.4",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",

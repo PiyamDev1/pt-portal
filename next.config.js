@@ -19,7 +19,7 @@ const nextConfig = {
   reactStrictMode: true,
 
   // Keep the serverless Chromium package intact so its bundled binaries can be resolved at runtime.
-  serverExternalPackages: ['@sparticuz/chromium'],
+  serverExternalPackages: ['@sparticuz/chromium', 'puppeteer-core'],
 
   compiler: {
     // Remove console logs in production

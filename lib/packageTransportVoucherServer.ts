@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import serverlessChromium from '@sparticuz/chromium'
-import { chromium as playwrightChromium } from 'playwright-core'
+import puppeteer from 'puppeteer-core'
 
 let cachedLogoDataUrl: string | null = null
 
@@ -17,28 +17,24 @@ export async function getTransportVoucherLogoDataUrl() {
 export async function renderTransportVoucherPdf(html: string) {
   const configuredExecutablePath =
     process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || process.env.CHROMIUM_EXECUTABLE_PATH
-  const isServerless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME)
-  const executablePath =
-    configuredExecutablePath ||
-    (isServerless
-      ? await serverlessChromium.executablePath()
-      : playwrightChromium.executablePath())
-  const browser = await playwrightChromium.launch({
-    headless: true,
-    executablePath,
-    chromiumSandbox: false,
-    args: isServerless
-      ? serverlessChromium.args
-      : ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
+  const browser = await puppeteer.launch({
+    args: await puppeteer.defaultArgs({
+      args: serverlessChromium.args,
+      headless: 'shell',
+    }),
+    defaultViewport: {
+      width: 416,
+      height: 832,
+      deviceScaleFactor: 2,
+    },
+    executablePath: configuredExecutablePath || (await serverlessChromium.executablePath()),
+    headless: 'shell',
   })
 
   try {
-    const page = await browser.newPage({
-      viewport: { width: 416, height: 832 },
-      deviceScaleFactor: 2,
-    })
-    await page.setContent(html, { waitUntil: 'networkidle' })
-    await page.emulateMedia({ media: 'print' })
+    const page = await browser.newPage()
+    await page.setContent(html, { waitUntil: 'load' })
+    await page.emulateMediaType('print')
     const pdf = await page.pdf({
       width: '110mm',
       height: '220mm',
