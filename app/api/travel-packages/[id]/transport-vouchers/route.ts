@@ -286,7 +286,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     },
   )
   return apiOk(
-    { voucher: data as unknown as TravelPackageTransportVoucher, storageWarning: documentWarning },
+    {
+      voucher: data as unknown as TravelPackageTransportVoucher,
+      storageWarning,
+      renderWarning,
+      documentWarning,
+    },
     { status: 201 },
   )
 }

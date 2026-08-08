@@ -54,12 +54,12 @@ export async function renderTransportVoucherDocument(html: string) {
       renderWarning: null,
     }
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'PDF generation failed'
     return {
       body: Buffer.from(html, 'utf8'),
       extension: 'html',
       contentType: 'text/html; charset=utf-8',
-      renderWarning: `PDF generation failed; saved HTML fallback instead. ${message}`,
+      renderWarning:
+        'PDF renderer is unavailable on this server. A self-contained HTML voucher was saved instead.',
     }
   }
 }

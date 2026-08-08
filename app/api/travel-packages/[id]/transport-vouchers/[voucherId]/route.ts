@@ -258,6 +258,8 @@ export async function PATCH(
   )
   return apiOk({
     voucher: data as unknown as TravelPackageTransportVoucher,
-    storageWarning: documentWarning,
+    storageWarning,
+    renderWarning,
+    documentWarning,
   })
 }

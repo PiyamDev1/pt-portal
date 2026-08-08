@@ -1101,6 +1101,7 @@ export default function PackageOperationsWorkspace({
       const data = await readApiResponse<{
         voucher?: TravelPackageTransportVoucher
         storageWarning?: string | null
+        renderWarning?: string | null
         error?: string
       }>(response)
       if (!response.ok || !data.voucher) throw new Error(data.error || 'Failed to save voucher')
@@ -1116,6 +1117,7 @@ export default function PackageOperationsWorkspace({
         ).join('\n'),
       )
       toast.success('Voucher edits saved')
+      if (data.renderWarning) toast.warning(data.renderWarning)
       if (data.storageWarning)
         toast.warning(`Voucher saved, but document storage failed: ${data.storageWarning}`)
     } catch (error) {
@@ -1141,6 +1143,8 @@ export default function PackageOperationsWorkspace({
       )
       const data = await readApiResponse<{
         voucher?: TravelPackageTransportVoucher
+        storageWarning?: string | null
+        renderWarning?: string | null
         error?: string
       }>(response)
       if (!response.ok || !data.voucher) {
@@ -1157,6 +1161,9 @@ export default function PackageOperationsWorkspace({
       )
       if (editingVoucherId === data.voucher.id) setVoucherForm(data.voucher.voucher_data)
       toast.success(customerVisible ? 'Voucher released to customer' : 'Voucher revoked')
+      if (data.renderWarning) toast.warning(data.renderWarning)
+      if (data.storageWarning)
+        toast.warning(`Voucher saved, but document storage failed: ${data.storageWarning}`)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to update voucher')
     } finally {
@@ -1176,6 +1183,7 @@ export default function PackageOperationsWorkspace({
       const data = await readApiResponse<{
         voucher?: TravelPackageTransportVoucher
         storageWarning?: string | null
+        renderWarning?: string | null
         error?: string
       }>(response)
       if (!response.ok || !data.voucher) throw new Error(data.error || 'Failed to generate voucher')
@@ -1197,6 +1205,7 @@ export default function PackageOperationsWorkspace({
         ).join('\n'),
       )
       toast.success(customerVisible ? 'Voucher generated and released' : 'Voucher draft generated')
+      if (data.renderWarning) toast.warning(data.renderWarning)
       if (data.storageWarning)
         toast.warning(`Voucher saved, but document storage failed: ${data.storageWarning}`)
     } catch (error) {

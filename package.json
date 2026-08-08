@@ -20,7 +20,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "sync:pdf-worker": "node scripts/dev/sync-pdf-worker.mjs",
-    "postinstall": "npm run sync:pdf-worker",
+    "postinstall": "npm run sync:pdf-worker && playwright install chromium",
     "test:smoke": "playwright test",
     "test:smoke:headed": "playwright test --headed",
     "test:unit": "vitest run",
