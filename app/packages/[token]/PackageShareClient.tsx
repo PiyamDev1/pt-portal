@@ -2473,11 +2473,6 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                           <p className="shrink-0 text-sm font-black text-slate-950">
                             {getVisaQuantity(option, payload)} x{' '}
                             {getVisaPassengerCategoryLabel(option.visaPassengerCategory)} included
-                            {option.pricingMode === 'per_person' && (
-                              <span className="block text-right text-[11px] font-bold text-slate-500">
-                                {formatMoney(option.price, payload.currency)} pp
-                              </span>
-                            )}
                           </p>
                         </div>
                       </div>
