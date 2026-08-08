@@ -22,6 +22,24 @@ const TRANSPORT_VOUCHER_PRINT_CSS = `
     margin: 0;
     background: #f4f6f8;
   }
+  .preview-toolbar {
+    width: 107.8mm;
+    max-width: calc(100% - 24px);
+    margin: 16px auto -12px;
+    display: flex;
+    justify-content: flex-end;
+  }
+  .preview-toolbar button {
+    appearance: none;
+    border: 0;
+    border-radius: 5px;
+    background: #800000;
+    color: #fff;
+    cursor: pointer;
+    font: 800 13px Inter, Arial, sans-serif;
+    padding: 9px 14px;
+  }
+  .preview-toolbar button:hover { background: #660000; }
   .voucher {
     width: 107.8mm;
     height: 215.6mm;
@@ -934,7 +952,7 @@ export function renderTransportVoucherHtml(
 	  <title>Transport Voucher ${escapeHtml(packageFolder.package_reference)}</title>
 	  <style>${TRANSPORT_VOUCHER_PRINT_CSS}</style>
 	</head>
-	<body><main class="voucher">
+	<body><div class="preview-toolbar no-print"><button type="button" onclick="window.print()">Print voucher</button></div><main class="voucher">
 	  <section class="main">
 	    <header class="header">
 	      <div class="brand"><img class="brand-logo" src="${escapeHtml(logoSrc)}" alt="Piyam Travel" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"><span class="brand-fallback">Piyam Travel</span></div>

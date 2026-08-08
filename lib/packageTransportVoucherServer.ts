@@ -65,7 +65,7 @@ export async function renderTransportVoucherDocument(html: string) {
       extension: 'html',
       contentType: 'text/html; charset=utf-8',
       renderWarning:
-        'PDF renderer is unavailable on this server. A self-contained HTML voucher was saved instead.',
+        'PDF renderer is unavailable on this server. Use View / Print to open the online voucher.',
     }
   }
 }

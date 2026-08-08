@@ -8,7 +8,7 @@ import {
   Check,
   ClipboardList,
   CreditCard,
-  Download,
+  ExternalLink,
   FileClock,
   History,
   Loader2,
@@ -1037,18 +1037,25 @@ export default function PackageOperationsWorkspace({
     })
   }
 
-  const downloadVoucherPreview = () => {
-    const blob = new Blob([voucherPreviewHtml], { type: 'text/html;charset=utf-8' })
+  const openVoucherPreview = (voucher?: TravelPackageTransportVoucher) => {
+    const savedVoucher = voucher || selectedVoucher
+    if (savedVoucher) {
+      window.open(
+        `/api/travel-packages/${encodeURIComponent(packageFolder.id)}/transport-vouchers/${encodeURIComponent(savedVoucher.id)}/preview`,
+        '_blank',
+        'noopener,noreferrer',
+      )
+      return
+    }
+
+    const htmlWithBase = voucherPreviewHtml.replace(
+      /<head>/i,
+      `<head><base href="${window.location.origin}/">`,
+    )
+    const blob = new Blob([htmlWithBase], { type: 'text/html;charset=utf-8' })
     const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `transport-voucher-${packageFolder.package_reference}${
-      selectedVoucher ? `-v${selectedVoucher.version}` : '-preview'
-    }.html`
-    document.body.appendChild(link)
-    link.click()
-    link.remove()
-    URL.revokeObjectURL(url)
+    window.open(url, '_blank', 'noopener,noreferrer')
+    window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
   }
 
   const buildVoucherData = () => {
@@ -3037,11 +3044,11 @@ export default function PackageOperationsWorkspace({
                     </p>
                     <button
                       type="button"
-                      onClick={downloadVoucherPreview}
+                      onClick={() => openVoucherPreview()}
                       className="inline-flex items-center gap-1 border border-slate-300 bg-white px-2 py-1 text-xs font-black text-slate-700"
                     >
-                      <Download className="h-3.5 w-3.5" />
-                      Download HTML
+                      <ExternalLink className="h-3.5 w-3.5" />
+                      View / Print
                     </button>
                   </div>
                 </div>
@@ -3083,6 +3090,14 @@ export default function PackageOperationsWorkspace({
                                 className="border border-slate-300 bg-white px-2 py-1 text-xs font-black text-slate-700"
                               >
                                 Edit / Preview
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => openVoucherPreview(voucher)}
+                                className="inline-flex items-center gap-1 border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-black text-blue-800"
+                              >
+                                <ExternalLink className="h-3.5 w-3.5" />
+                                View / Print
                               </button>
                               <button
                                 type="button"
