@@ -89,6 +89,21 @@ describe('transport vouchers', () => {
     expect(html).not.toContain('Hidden Pricing Supplier')
   })
 
+  it('can render a self-contained logo for stored HTML documents', () => {
+    const html = renderTransportVoucherHtml(
+      {
+        package_reference: 'PT-ABC123',
+        customer_name: 'Customer',
+        passenger_summary: { totalPassengers: 2 },
+      } as TravelPackageFolder,
+      normalizeTransportVoucherData({ routes: ['Airport to hotel'] }),
+      { logoSrc: 'data:image/png;base64,logo-data' },
+    )
+
+    expect(html).toContain('src="data:image/png;base64,logo-data"')
+    expect(html).not.toContain('src="/logo.png"')
+  })
+
   it('renders portrait DL print dimensions', () => {
     const html = renderTransportVoucherHtml(
       {

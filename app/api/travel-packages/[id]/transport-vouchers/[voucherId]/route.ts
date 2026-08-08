@@ -12,6 +12,7 @@ import {
   renderTransportVoucherHtml,
 } from '@/lib/packageTransportVoucher'
 import { enrichTransportVoucherPortalData } from '@/lib/packageTransportVoucherAccess'
+import { getTransportVoucherLogoDataUrl } from '@/lib/packageTransportVoucherServer'
 import { getS3Client } from '@/lib/s3Client'
 import type { TravelPackageFolder, TravelPackageTransportVoucher } from '@/app/types/packages'
 import { selectTravelPackageVoucherColumns } from '../route'
@@ -63,7 +64,9 @@ export async function PATCH(
       ? normalizeTransportVoucherData(body.voucherData || body.voucher_data, voucher.voucher_data)
       : normalizeTransportVoucherData(voucher.voucher_data),
   )
-  const renderedHtml = renderTransportVoucherHtml(packageFolder, voucherData)
+  const renderedHtml = renderTransportVoucherHtml(packageFolder, voucherData, {
+    logoSrc: await getTransportVoucherLogoDataUrl(),
+  })
   let storageWarning: string | null = null
   const nextStatus = customerVisible
     ? 'released_to_customer'

@@ -9,6 +9,10 @@ const DEFAULT_TRANSPORT_PROVIDER_CONTACT = '+966555049005'
 const DEFAULT_EXTRA_BAGGAGE_FEE = '50 SAR per bag'
 const DEFAULT_CUSTOMER_PORTAL_URL = 'https://bookings.piyamtravel.com'
 const PIYAM_LOGO_SRC = '/logo.png'
+export interface TransportVoucherRenderOptions {
+  logoSrc?: string
+}
+
 const TRANSPORT_VOUCHER_PRINT_CSS = `
   @page { size: 110mm 220mm; margin: 0; }
   * { box-sizing: border-box; }
@@ -857,6 +861,7 @@ export function renderTransportVoucherHtml(
     'package_reference' | 'customer_name' | 'customer_access_last_name' | 'passenger_summary'
   >,
   data: TravelPackageTransportVoucherData,
+  options: TransportVoucherRenderOptions = {},
 ) {
   const passengerCount = Number(packageFolder.passenger_summary?.totalPassengers || 0)
   const passengerLabel =
@@ -919,7 +924,7 @@ export function renderTransportVoucherHtml(
     providerContact ? `Provider contact: ${providerContact}` : '',
     driverContact ? `Driver: ${driverContact}` : '',
   ].filter(Boolean)
-  const logoSrc = getPiyamLogoSrc()
+  const logoSrc = options.logoSrc || getPiyamLogoSrc()
 
   return `<!doctype html>
 <html lang="en">

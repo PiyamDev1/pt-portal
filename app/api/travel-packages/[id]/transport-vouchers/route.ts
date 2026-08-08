@@ -13,6 +13,7 @@ import {
   renderTransportVoucherHtml,
 } from '@/lib/packageTransportVoucher'
 import { enrichTransportVoucherPortalData } from '@/lib/packageTransportVoucherAccess'
+import { getTransportVoucherLogoDataUrl } from '@/lib/packageTransportVoucherServer'
 import { recordPackageAuditEvent } from '@/lib/packageAudit'
 import type { TravelPackageFolder, TravelPackageTransportVoucher } from '@/app/types/packages'
 
@@ -107,7 +108,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     packageFolder,
     normalizeTransportVoucherData(body.voucherData || body.voucher_data),
   )
-  const renderedHtml = renderTransportVoucherHtml(packageFolder, voucherData)
+  const renderedHtml = renderTransportVoucherHtml(packageFolder, voucherData, {
+    logoSrc: await getTransportVoucherLogoDataUrl(),
+  })
   const customerVisible = Boolean(body.customerVisible || body.customer_visible)
   const generatedAt = new Date().toISOString()
   const bucket = packageFolder.minio_bucket || getPackageMinioBucketName()
