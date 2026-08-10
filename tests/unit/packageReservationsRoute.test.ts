@@ -19,6 +19,10 @@ const reservation: TravelPackageReservation = {
   discount_total: 50,
   commission_expected_total: 0,
   commission_received_total: 0,
+  supplier_refund_total: 0,
+  customer_refund_total: 0,
+  last_refund_reason: null,
+  last_refunded_at: null,
   deposit_required: true,
   deposit_amount: 300,
   deposit_due_at: null,
@@ -172,11 +176,26 @@ describe('travel package reservation routes', () => {
     )
   })
 
-  it('updates reservation status for an existing package reservation', async () => {
-    const response = await PATCH(
-      makeRequest({ status: 'confirmed' }, 'PATCH') as never,
-      { params: Promise.resolve({ id: 'package-1', reservationId: 'reservation-1' }) },
+  it('rejects negative reservation offsets and directs agents to refunds', async () => {
+    const response = await POST(
+      makeRequest({
+        reservationType: 'hotel',
+        title: 'Cancelled hotel offset',
+        bookedCostTotal: '-500',
+      }) as never,
+      { params: Promise.resolve({ id: 'package-1' }) },
     )
+    const body = await response.json()
+
+    expect(response.status).toBe(400)
+    expect(body.error).toContain('Record refund')
+    expect(mocks.insert).not.toHaveBeenCalled()
+  })
+
+  it('updates reservation status for an existing package reservation', async () => {
+    const response = await PATCH(makeRequest({ status: 'confirmed' }, 'PATCH') as never, {
+      params: Promise.resolve({ id: 'package-1', reservationId: 'reservation-1' }),
+    })
     const body = await response.json()
 
     expect(response.status).toBe(200)

@@ -53,6 +53,11 @@ function parseMoney(value: unknown) {
   return Math.round(Math.max(0, number) * 100) / 100
 }
 
+function hasNegativeMoney(value: unknown) {
+  const number = Number(value)
+  return Number.isFinite(number) && number < 0
+}
+
 function parseOptionalDate(value: unknown) {
   const text = cleanText(value)
   if (!text) return null
@@ -69,8 +74,10 @@ async function parseBody(request: NextRequest) {
 }
 
 function hasBodyKey(body: Record<string, unknown>, camelKey: string, snakeKey: string) {
-  return Object.prototype.hasOwnProperty.call(body, camelKey)
-    || Object.prototype.hasOwnProperty.call(body, snakeKey)
+  return (
+    Object.prototype.hasOwnProperty.call(body, camelKey) ||
+    Object.prototype.hasOwnProperty.call(body, snakeKey)
+  )
 }
 
 export async function PATCH(
@@ -138,11 +145,18 @@ export async function PATCH(
     ['depositAmount', 'deposit_amount', 'deposit_amount'],
   ] as const
 
-  moneyFields.forEach(([camelKey, snakeKey, column]) => {
+  for (const [camelKey, snakeKey, column] of moneyFields) {
     if (hasBodyKey(body, camelKey, snakeKey)) {
-      updatePayload[column] = parseMoney(getBodyValue(body, camelKey, snakeKey))
+      const value = getBodyValue(body, camelKey, snakeKey)
+      if (hasNegativeMoney(value)) {
+        return apiError(
+          'Reservation amounts cannot be negative. Use Record refund or supplier credit.',
+          400,
+        )
+      }
+      updatePayload[column] = parseMoney(value)
     }
-  })
+  }
 
   const dateFields = [
     ['depositDueAt', 'deposit_due_at', 'deposit_due_at'],
@@ -159,11 +173,15 @@ export async function PATCH(
   })
 
   if (hasBodyKey(body, 'depositRequired', 'deposit_required')) {
-    updatePayload.deposit_required = Boolean(getBodyValue(body, 'depositRequired', 'deposit_required'))
+    updatePayload.deposit_required = Boolean(
+      getBodyValue(body, 'depositRequired', 'deposit_required'),
+    )
   }
 
   if (hasBodyKey(body, 'customerVisible', 'customer_visible')) {
-    updatePayload.customer_visible = Boolean(getBodyValue(body, 'customerVisible', 'customer_visible'))
+    updatePayload.customer_visible = Boolean(
+      getBodyValue(body, 'customerVisible', 'customer_visible'),
+    )
   }
 
   if (hasBodyKey(body, 'metadata', 'metadata')) {

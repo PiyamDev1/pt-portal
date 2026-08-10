@@ -74,6 +74,7 @@ function payment(overrides: Partial<TravelPackagePayment>): TravelPackagePayment
     id: crypto.randomUUID(),
     package_id: 'package-1',
     invoice_id: 'invoice-1',
+    reservation_id: null,
     amount: 0,
     currency: 'GBP',
     payment_type: 'payment',

@@ -30,7 +30,7 @@ const STATUSES = new Set<TravelPackagePaymentStatus>([
 
 export function selectTravelPackagePaymentColumns() {
   return `
-    id, package_id, invoice_id, amount, currency, payment_type, payment_method,
+    id, package_id, invoice_id, reservation_id, amount, currency, payment_type, payment_method,
     payment_status, requested_at, due_at, received_at, received_by,
     receipt_reference, receipt_document_id, notes, metadata, created_by,
     updated_by, created_at, updated_at
@@ -97,11 +97,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const now = new Date().toISOString()
   const invoiceId = cleanText(body.invoiceId || body.invoice_id) || null
+  const reservationId = cleanText(body.reservationId || body.reservation_id) || null
   const { data, error } = await supabase
     .from('travel_package_payments')
     .insert({
       package_id: id,
       invoice_id: invoiceId,
+      reservation_id: reservationId,
       amount,
       currency: cleanText(body.currency).toUpperCase() || 'GBP',
       payment_type: paymentType,
@@ -117,6 +119,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       received_by: paymentStatus === 'completed' ? user.id : null,
       receipt_reference: cleanText(body.receiptReference || body.receipt_reference) || null,
       notes: cleanText(body.notes) || null,
+      metadata:
+        body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata)
+          ? body.metadata
+          : {},
       created_by: user.id,
       updated_by: user.id,
     })

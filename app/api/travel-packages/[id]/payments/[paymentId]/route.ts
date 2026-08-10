@@ -20,6 +20,48 @@ function cleanText(value: unknown) {
   return typeof value === 'string' ? value.trim() : ''
 }
 
+function customerRefundContribution(payment: TravelPackagePayment) {
+  return payment.reservation_id &&
+    payment.payment_type === 'refund' &&
+    payment.payment_status === 'completed'
+    ? Number(payment.amount || 0)
+    : 0
+}
+
+async function syncLinkedReservationRefund(
+  supabase: Awaited<ReturnType<typeof getRouteSupabaseClient>>,
+  packageId: string,
+  before: TravelPackagePayment,
+  after: TravelPackagePayment | null,
+) {
+  const reservationId = after?.reservation_id || before.reservation_id
+  if (!reservationId) return
+
+  const delta =
+    customerRefundContribution(after || ({ ...before, amount: 0 } as TravelPackagePayment)) -
+    customerRefundContribution(before)
+  if (Math.abs(delta) < 0.005) return
+
+  const { data: reservation } = await supabase
+    .from('travel_package_reservations')
+    .select('customer_refund_total')
+    .eq('id', reservationId)
+    .eq('package_id', packageId)
+    .single()
+  if (!reservation) return
+
+  await supabase
+    .from('travel_package_reservations')
+    .update({
+      customer_refund_total: Math.max(
+        0,
+        Math.round((Number(reservation.customer_refund_total || 0) + delta) * 100) / 100,
+      ),
+    })
+    .eq('id', reservationId)
+    .eq('package_id', packageId)
+}
+
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; paymentId: string }> },
@@ -86,6 +128,7 @@ export async function PATCH(
   if (error || !data) return apiError(error?.message || 'Failed to update payment', 500)
 
   const payment = data as unknown as TravelPackagePayment
+  await syncLinkedReservationRefund(supabase, id, current, payment)
   await supabase
     .from('travel_package_installments')
     .update({
@@ -134,6 +177,8 @@ export async function DELETE(
     .eq('id', paymentId)
     .eq('package_id', id)
   if (error) return apiError(error.message || 'Failed to delete payment', 500)
+
+  await syncLinkedReservationRefund(supabase, id, payment, null)
 
   await supabase
     .from('travel_package_installments')

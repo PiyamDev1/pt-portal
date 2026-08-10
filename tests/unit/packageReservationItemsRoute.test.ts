@@ -1,8 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type {
-  TravelPackageReservation,
-  TravelPackageReservationItem,
-} from '@/app/types/packages'
+import type { TravelPackageReservation, TravelPackageReservationItem } from '@/app/types/packages'
 
 const reservation: TravelPackageReservation = {
   id: 'reservation-1',
@@ -22,6 +19,10 @@ const reservation: TravelPackageReservation = {
   discount_total: 50,
   commission_expected_total: 100,
   commission_received_total: 0,
+  supplier_refund_total: 0,
+  customer_refund_total: 0,
+  last_refund_reason: null,
+  last_refunded_at: null,
   deposit_required: false,
   deposit_amount: 0,
   deposit_due_at: null,
@@ -225,16 +226,13 @@ describe('travel package reservation item routes', () => {
   })
 
   it('updates an existing reservation item inside the package boundary', async () => {
-    const response = await PATCH(
-      makeRequest({ status: 'confirmed' }, 'PATCH') as never,
-      {
-        params: Promise.resolve({
-          id: 'package-1',
-          reservationId: 'reservation-1',
-          itemId: 'item-1',
-        }),
-      },
-    )
+    const response = await PATCH(makeRequest({ status: 'confirmed' }, 'PATCH') as never, {
+      params: Promise.resolve({
+        id: 'package-1',
+        reservationId: 'reservation-1',
+        itemId: 'item-1',
+      }),
+    })
     const body = await response.json()
 
     expect(response.status).toBe(200)

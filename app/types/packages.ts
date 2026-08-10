@@ -648,6 +648,10 @@ export interface TravelPackageReservation {
   discount_total: number
   commission_expected_total: number
   commission_received_total: number
+  supplier_refund_total: number
+  customer_refund_total: number
+  last_refund_reason: string | null
+  last_refunded_at: string | null
   deposit_required: boolean
   deposit_amount: number
   deposit_due_at: string | null
@@ -752,6 +756,7 @@ export interface TravelPackagePayment {
   id: string
   package_id: string
   invoice_id: string | null
+  reservation_id: string | null
   amount: number
   currency: string
   payment_type: TravelPackagePaymentType

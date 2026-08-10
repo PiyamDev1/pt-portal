@@ -27,6 +27,7 @@ import {
   Pencil,
   Plane,
   Plus,
+  RotateCcw,
   ShieldCheck,
   Stamp,
   Trash2,
@@ -182,6 +183,14 @@ type ReservationFinancialFormState = {
   paymentDueAt: string
 }
 
+type ReservationRefundFormState = {
+  refundKind: 'supplier' | 'customer'
+  amount: string
+  paymentMethod: 'cash' | 'bank_transfer' | 'card' | 'other'
+  reference: string
+  reason: string
+}
+
 type QuoteReservationPrefill = {
   key: string
   reservationType: TravelPackageReservationType
@@ -310,6 +319,16 @@ function createInitialReservationForm(soldPriceTotal = 0): ReservationFormState 
     depositAmount: '',
     paymentDueAt: toDateTimeLocalValue(),
     internalNotes: '',
+  }
+}
+
+function createInitialReservationRefundForm(): ReservationRefundFormState {
+  return {
+    refundKind: 'supplier',
+    amount: '',
+    paymentMethod: 'bank_transfer',
+    reference: '',
+    reason: '',
   }
 }
 
@@ -632,6 +651,9 @@ export default function PackageOverviewClient({
   const [reservationFinancialForms, setReservationFinancialForms] = useState<
     Record<string, ReservationFinancialFormState>
   >({})
+  const [reservationRefundForms, setReservationRefundForms] = useState<
+    Record<string, ReservationRefundFormState>
+  >({})
   const [loading, setLoading] = useState(true)
   const [reservationsLoading, setReservationsLoading] = useState(false)
   const [documentsLoading, setDocumentsLoading] = useState(false)
@@ -642,6 +664,7 @@ export default function PackageOverviewClient({
   const [savingReservationFinancialId, setSavingReservationFinancialId] = useState<string | null>(
     null,
   )
+  const [savingReservationRefundId, setSavingReservationRefundId] = useState<string | null>(null)
   const [savingDocument, setSavingDocument] = useState(false)
   const [savingThirdPartyShare, setSavingThirdPartyShare] = useState(false)
   const [savingInvoice, setSavingInvoice] = useState(false)
@@ -655,6 +678,7 @@ export default function PackageOverviewClient({
   const [updatingReservationId, setUpdatingReservationId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [reservationError, setReservationError] = useState<string | null>(null)
+  const [reservationNotice, setReservationNotice] = useState<string | null>(null)
   const [documentError, setDocumentError] = useState<string | null>(null)
   const [invoiceError, setInvoiceError] = useState<string | null>(null)
   const [showQuoteSnapshot, setShowQuoteSnapshot] = useState(false)
@@ -1217,13 +1241,24 @@ export default function PackageOverviewClient({
   const reservationTotals = useMemo(() => {
     return reservations.reduce(
       (totals, reservation) => {
-        totals.booked += Number(reservation.booked_cost_total || 0)
-        totals.sold += Number(reservation.sold_price_total || 0)
+        const supplierRefund = Number(reservation.supplier_refund_total || 0)
+        const customerRefund = Number(reservation.customer_refund_total || 0)
+        totals.booked += Math.max(0, Number(reservation.booked_cost_total || 0) - supplierRefund)
+        totals.sold += Math.max(0, Number(reservation.sold_price_total || 0) - customerRefund)
         totals.discount += Number(reservation.discount_total || 0)
         totals.commission += Number(reservation.commission_expected_total || 0)
+        totals.supplierRefund += supplierRefund
+        totals.customerRefund += customerRefund
         return totals
       },
-      { booked: 0, sold: 0, discount: 0, commission: 0 },
+      {
+        booked: 0,
+        sold: 0,
+        discount: 0,
+        commission: 0,
+        supplierRefund: 0,
+        customerRefund: 0,
+      },
     )
   }, [reservations])
   const bookedSoldDifference =
@@ -2393,6 +2428,70 @@ Please enter the access code and accept the data handling terms before downloadi
       )
     } finally {
       setSavingReservationFinancialId(null)
+    }
+  }
+
+  const getReservationRefundForm = (reservation: TravelPackageReservation) =>
+    reservationRefundForms[reservation.id] || createInitialReservationRefundForm()
+
+  const updateReservationRefundForm = <Key extends keyof ReservationRefundFormState>(
+    reservation: TravelPackageReservation,
+    key: Key,
+    value: ReservationRefundFormState[Key],
+  ) => {
+    setReservationRefundForms((current) => ({
+      ...current,
+      [reservation.id]: {
+        ...(current[reservation.id] || createInitialReservationRefundForm()),
+        [key]: value,
+      },
+    }))
+  }
+
+  const recordReservationRefund = async (reservation: TravelPackageReservation) => {
+    const refundForm = getReservationRefundForm(reservation)
+    setSavingReservationRefundId(reservation.id)
+    setReservationError(null)
+    setReservationNotice(null)
+    try {
+      const response = await fetch(
+        `/api/travel-packages/${encodeURIComponent(packageId)}/reservations/${encodeURIComponent(
+          reservation.id,
+        )}/refunds`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...refundForm,
+            invoiceId: invoice?.id || null,
+          }),
+        },
+      )
+      const data = (await response.json()) as ReservationsResponse
+      if (!response.ok || !data.reservation) {
+        throw new Error(data.message || data.error || 'Failed to record reservation refund')
+      }
+
+      setReservations((current) =>
+        current.map((item) =>
+          item.id === reservation.id ? { ...data.reservation!, items: item.items } : item,
+        ),
+      )
+      setReservationRefundForms((current) => ({
+        ...current,
+        [reservation.id]: createInitialReservationRefundForm(),
+      }))
+      setReservationNotice(
+        refundForm.refundKind === 'customer'
+          ? 'Customer refund recorded in this reservation and in Payments. Amend or regenerate a draft invoice to update its sales lines.'
+          : 'Supplier credit recorded and deducted from the net booked cost.',
+      )
+    } catch (saveError) {
+      setReservationError(
+        saveError instanceof Error ? saveError.message : 'Failed to record reservation refund',
+      )
+    } finally {
+      setSavingReservationRefundId(null)
     }
   }
 
@@ -3727,18 +3826,36 @@ Please enter the access code and accept the data handling terms before downloadi
                 </div>
               )}
 
+              {reservationNotice && (
+                <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800">
+                  {reservationNotice}
+                </div>
+              )}
+
               <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                  <p className="text-xs font-bold uppercase text-slate-500">Booked cost</p>
+                  <p className="text-xs font-bold uppercase text-slate-500">Net booked cost</p>
                   <p className="mt-1 text-sm font-black text-slate-950">
                     {formatMoney(reservationTotals.booked, reservationCurrency)}
                   </p>
+                  {reservationTotals.supplierRefund > 0 && (
+                    <p className="mt-1 text-xs font-bold text-emerald-700">
+                      Supplier credits: -
+                      {formatMoney(reservationTotals.supplierRefund, reservationCurrency)}
+                    </p>
+                  )}
                 </div>
                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                  <p className="text-xs font-bold uppercase text-slate-500">Sold price</p>
+                  <p className="text-xs font-bold uppercase text-slate-500">Net sold price</p>
                   <p className="mt-1 text-sm font-black text-slate-950">
                     {formatMoney(reservationTotals.sold, reservationCurrency)}
                   </p>
+                  {reservationTotals.customerRefund > 0 && (
+                    <p className="mt-1 text-xs font-bold text-rose-700">
+                      Customer refunds: -
+                      {formatMoney(reservationTotals.customerRefund, reservationCurrency)}
+                    </p>
+                  )}
                   {reservationTotals.discount > 0 && (
                     <p className="mt-1 text-xs font-bold text-slate-500">
                       Net after discount: {formatMoney(netReservationSold, reservationCurrency)}
@@ -4059,13 +4176,21 @@ Please enter the access code and accept the data handling terms before downloadi
                     const detailForm = getReservationDetailForm(reservation)
                     const savingThisItem = savingItemReservationId === reservation.id
                     const financialForm = getReservationFinancialForm(reservation)
+                    const refundForm = getReservationRefundForm(reservation)
                     const savingFinancials = savingReservationFinancialId === reservation.id
+                    const savingRefund = savingReservationRefundId === reservation.id
                     const expanded = Boolean(expandedReservationIds[reservation.id])
+                    const supplierRefund = Number(reservation.supplier_refund_total || 0)
+                    const customerRefund = Number(reservation.customer_refund_total || 0)
+                    const netBooked = Math.max(
+                      0,
+                      parseMoneyInput(financialForm.bookedCostTotal) - supplierRefund,
+                    )
                     const netSold =
                       parseMoneyInput(financialForm.soldPriceTotal) -
-                      parseMoneyInput(financialForm.discountTotal)
-                    const reservationDifference =
-                      netSold - parseMoneyInput(financialForm.bookedCostTotal)
+                      parseMoneyInput(financialForm.discountTotal) -
+                      customerRefund
+                    const reservationDifference = netSold - netBooked
                     const reservationWithCommission =
                       reservationDifference + parseMoneyInput(financialForm.commissionExpectedTotal)
                     return (
@@ -4110,10 +4235,33 @@ Please enter the access code and accept the data handling terms before downloadi
                               )}
                               <p className="mt-2 text-xs font-bold text-slate-500">
                                 Sold{' '}
-                                {formatMoney(reservation.sold_price_total, reservation.currency)} ·
-                                Booked{' '}
-                                {formatMoney(reservation.booked_cost_total, reservation.currency)}
+                                {formatMoney(
+                                  Math.max(
+                                    0,
+                                    Number(reservation.sold_price_total || 0) - customerRefund,
+                                  ),
+                                  reservation.currency,
+                                )}{' '}
+                                · Booked{' '}
+                                {formatMoney(
+                                  Math.max(
+                                    0,
+                                    Number(reservation.booked_cost_total || 0) - supplierRefund,
+                                  ),
+                                  reservation.currency,
+                                )}
                               </p>
+                              {(supplierRefund > 0 || customerRefund > 0) && (
+                                <p className="mt-1 text-xs font-bold text-emerald-700">
+                                  {supplierRefund > 0
+                                    ? `Supplier credit ${formatMoney(supplierRefund, reservation.currency)}`
+                                    : ''}
+                                  {supplierRefund > 0 && customerRefund > 0 ? ' · ' : ''}
+                                  {customerRefund > 0
+                                    ? `Customer refunded ${formatMoney(customerRefund, reservation.currency)}`
+                                    : ''}
+                                </p>
+                              )}
                             </div>
                           </div>
 
@@ -4464,6 +4612,146 @@ Please enter the access code and accept the data handling terms before downloadi
                                     type="datetime-local"
                                   />
                                 </label>
+                              </div>
+                            </form>
+
+                            <form
+                              className="mt-4 rounded-lg border border-rose-200 bg-rose-50/60 p-3"
+                              onSubmit={(event) => {
+                                event.preventDefault()
+                                void recordReservationRefund(reservation)
+                              }}
+                            >
+                              <div className="mb-3 flex items-start gap-3">
+                                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-rose-100 text-rose-700">
+                                  <RotateCcw className="h-4 w-4" />
+                                </span>
+                                <div>
+                                  <p className="text-xs font-black uppercase text-slate-700">
+                                    Record refund or supplier credit
+                                  </p>
+                                  <p className="mt-1 text-xs font-semibold leading-5 text-slate-600">
+                                    Enter a positive amount. Supplier credits reduce booked cost;
+                                    customer refunds reduce sold value and are also added to
+                                    Payments.
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+                                <label className="text-xs font-bold uppercase text-slate-500">
+                                  Refund type
+                                  <select
+                                    value={refundForm.refundKind}
+                                    onChange={(event) =>
+                                      updateReservationRefundForm(
+                                        reservation,
+                                        'refundKind',
+                                        event.target.value as 'supplier' | 'customer',
+                                      )
+                                    }
+                                    className="mt-1 min-h-10 w-full rounded-lg border border-rose-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-200"
+                                  >
+                                    <option value="supplier">Supplier credit / refund</option>
+                                    <option value="customer">Customer refund</option>
+                                  </select>
+                                </label>
+
+                                <label className="text-xs font-bold uppercase text-slate-500">
+                                  Amount
+                                  <input
+                                    type="number"
+                                    min="0.01"
+                                    step="0.01"
+                                    required
+                                    value={refundForm.amount}
+                                    onChange={(event) =>
+                                      updateReservationRefundForm(
+                                        reservation,
+                                        'amount',
+                                        event.target.value,
+                                      )
+                                    }
+                                    className="mt-1 min-h-10 w-full rounded-lg border border-rose-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-200"
+                                    placeholder="0.00"
+                                  />
+                                </label>
+
+                                {refundForm.refundKind === 'customer' && (
+                                  <label className="text-xs font-bold uppercase text-slate-500">
+                                    Refund method
+                                    <select
+                                      value={refundForm.paymentMethod}
+                                      onChange={(event) =>
+                                        updateReservationRefundForm(
+                                          reservation,
+                                          'paymentMethod',
+                                          event.target
+                                            .value as ReservationRefundFormState['paymentMethod'],
+                                        )
+                                      }
+                                      className="mt-1 min-h-10 w-full rounded-lg border border-rose-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-200"
+                                    >
+                                      <option value="cash">Cash</option>
+                                      <option value="bank_transfer">Bank transfer</option>
+                                      <option value="card">Credit card</option>
+                                      <option value="other">Other</option>
+                                    </select>
+                                  </label>
+                                )}
+
+                                <label className="text-xs font-bold uppercase text-slate-500">
+                                  Reference
+                                  <input
+                                    value={refundForm.reference}
+                                    onChange={(event) =>
+                                      updateReservationRefundForm(
+                                        reservation,
+                                        'reference',
+                                        event.target.value,
+                                      )
+                                    }
+                                    className="mt-1 min-h-10 w-full rounded-lg border border-rose-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-200"
+                                    placeholder="Supplier or bank reference"
+                                  />
+                                </label>
+
+                                <label className="text-xs font-bold uppercase text-slate-500">
+                                  Reason
+                                  <input
+                                    value={refundForm.reason}
+                                    onChange={(event) =>
+                                      updateReservationRefundForm(
+                                        reservation,
+                                        'reason',
+                                        event.target.value,
+                                      )
+                                    }
+                                    className="mt-1 min-h-10 w-full rounded-lg border border-rose-200 bg-white px-3 text-sm font-bold normal-case text-slate-900 outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-200"
+                                    placeholder="Cancellation or refund reason"
+                                  />
+                                </label>
+                              </div>
+
+                              <div className="mt-3 flex flex-col gap-2 border-t border-rose-200 pt-3 sm:flex-row sm:items-center sm:justify-between">
+                                <p className="text-xs font-bold text-slate-600">
+                                  Recorded: supplier{' '}
+                                  {formatMoney(supplierRefund, reservation.currency)}
+                                  {' · '}customer{' '}
+                                  {formatMoney(customerRefund, reservation.currency)}
+                                </p>
+                                <button
+                                  type="submit"
+                                  disabled={savingRefund}
+                                  className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg bg-rose-700 px-3 text-xs font-black text-white transition hover:bg-rose-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+                                >
+                                  {savingRefund ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <RotateCcw className="h-4 w-4" />
+                                  )}
+                                  Record refund
+                                </button>
                               </div>
                             </form>
 

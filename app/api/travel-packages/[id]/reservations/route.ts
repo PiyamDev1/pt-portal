@@ -57,6 +57,10 @@ export function selectTravelPackageReservationColumns() {
     discount_total,
     commission_expected_total,
     commission_received_total,
+    supplier_refund_total,
+    customer_refund_total,
+    last_refund_reason,
+    last_refunded_at,
     deposit_required,
     deposit_amount,
     deposit_due_at,
@@ -87,6 +91,11 @@ function parseMoney(value: unknown) {
   return Math.round(Math.max(0, number) * 100) / 100
 }
 
+function hasNegativeMoney(value: unknown) {
+  const number = Number(value)
+  return Number.isFinite(number) && number < 0
+}
+
 function parseOptionalDate(value: unknown) {
   const text = cleanText(value)
   if (!text) return null
@@ -102,10 +111,7 @@ async function parseBody(request: NextRequest) {
   }
 }
 
-export async function GET(
-  _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const supabase = await getRouteSupabaseClient()
   const {
@@ -133,10 +139,7 @@ export async function GET(
   })
 }
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const supabase = await getRouteSupabaseClient()
   const {
@@ -160,6 +163,21 @@ export async function POST(
     ? (requestedStatus as TravelPackageReservationStatus)
     : 'not_started'
 
+  const moneyValues = [
+    getBodyValue(body, 'bookedCostTotal', 'booked_cost_total'),
+    getBodyValue(body, 'soldPriceTotal', 'sold_price_total'),
+    getBodyValue(body, 'discountTotal', 'discount_total'),
+    getBodyValue(body, 'commissionExpectedTotal', 'commission_expected_total'),
+    getBodyValue(body, 'commissionReceivedTotal', 'commission_received_total'),
+    getBodyValue(body, 'depositAmount', 'deposit_amount'),
+  ]
+  if (moneyValues.some(hasNegativeMoney)) {
+    return apiError(
+      'Reservation amounts cannot be negative. Save the reservation, then use Record refund or supplier credit.',
+      400,
+    )
+  }
+
   const insertPayload = {
     package_id: id,
     quote_id: cleanText(getBodyValue(body, 'quoteId', 'quote_id')) || null,
@@ -169,8 +187,10 @@ export async function POST(
     title,
     status,
     supplier_name: cleanText(getBodyValue(body, 'supplierName', 'supplier_name')) || null,
-    supplier_reference: cleanText(getBodyValue(body, 'supplierReference', 'supplier_reference')) || null,
-    booking_reference: cleanText(getBodyValue(body, 'bookingReference', 'booking_reference')) || null,
+    supplier_reference:
+      cleanText(getBodyValue(body, 'supplierReference', 'supplier_reference')) || null,
+    booking_reference:
+      cleanText(getBodyValue(body, 'bookingReference', 'booking_reference')) || null,
     currency: cleanText(body.currency) || 'GBP',
     booked_cost_total: parseMoney(getBodyValue(body, 'bookedCostTotal', 'booked_cost_total')),
     sold_price_total: parseMoney(getBodyValue(body, 'soldPriceTotal', 'sold_price_total')),
@@ -204,7 +224,10 @@ export async function POST(
 
   if (error) {
     if (isReservationSchemaError(error)) {
-      return apiOk({ reservation: null, setupRequired: true, message: SCHEMA_HINT }, { status: 503 })
+      return apiOk(
+        { reservation: null, setupRequired: true, message: SCHEMA_HINT },
+        { status: 503 },
+      )
     }
     return apiError(error.message || 'Failed to create package reservation', 500)
   }

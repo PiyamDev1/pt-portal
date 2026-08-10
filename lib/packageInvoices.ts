@@ -31,7 +31,10 @@ export function roundPackageInvoiceMoney(value: unknown) {
 }
 
 export function createPackageInvoiceNumber(packageReference: string) {
-  const cleanReference = packageReference.trim().replace(/[^A-Z0-9-]/gi, '').toUpperCase()
+  const cleanReference = packageReference
+    .trim()
+    .replace(/[^A-Z0-9-]/gi, '')
+    .toUpperCase()
   const token = crypto.randomUUID().replace(/-/g, '').slice(0, 4).toUpperCase()
   return `INV-${cleanReference || 'PT'}-${token}`
 }
@@ -131,31 +134,74 @@ export function createPackageInvoiceLinesFromReservations(
       reservationItems.forEach((item, itemIndex) => {
         lines.push(createLineFromReservationItem(reservation, item, reservationIndex, itemIndex))
       })
-      return
+    } else {
+      lines.push({
+        package_id: reservation.package_id,
+        reservation_id: reservation.id,
+        reservation_item_id: null,
+        line_type: reservationTypeToInvoiceLineType(reservation.reservation_type),
+        description: reservation.title,
+        quantity: 1,
+        unit_sold_price: roundPackageInvoiceMoney(reservation.sold_price_total),
+        total_sold_price: roundPackageInvoiceMoney(reservation.sold_price_total),
+        unit_booked_cost: roundPackageInvoiceMoney(reservation.booked_cost_total),
+        total_booked_cost: roundPackageInvoiceMoney(reservation.booked_cost_total),
+        discount_amount: roundPackageInvoiceMoney(reservation.discount_total),
+        expected_commission: roundPackageInvoiceMoney(reservation.commission_expected_total),
+        received_commission: roundPackageInvoiceMoney(reservation.commission_received_total),
+        customer_visible: true,
+        sort_order: reservationIndex * 100,
+        metadata: {
+          source: 'reservation',
+          supplierName: reservation.supplier_name,
+          supplierReference: reservation.supplier_reference,
+        },
+      })
     }
 
-    lines.push({
-      package_id: reservation.package_id,
-      reservation_id: reservation.id,
-      reservation_item_id: null,
-      line_type: reservationTypeToInvoiceLineType(reservation.reservation_type),
-      description: reservation.title,
-      quantity: 1,
-      unit_sold_price: roundPackageInvoiceMoney(reservation.sold_price_total),
-      total_sold_price: roundPackageInvoiceMoney(reservation.sold_price_total),
-      unit_booked_cost: roundPackageInvoiceMoney(reservation.booked_cost_total),
-      total_booked_cost: roundPackageInvoiceMoney(reservation.booked_cost_total),
-      discount_amount: roundPackageInvoiceMoney(reservation.discount_total),
-      expected_commission: roundPackageInvoiceMoney(reservation.commission_expected_total),
-      received_commission: roundPackageInvoiceMoney(reservation.commission_received_total),
-      customer_visible: true,
-      sort_order: reservationIndex * 100,
-      metadata: {
-        source: 'reservation',
-        supplierName: reservation.supplier_name,
-        supplierReference: reservation.supplier_reference,
-      },
-    })
+    const customerRefund = roundPackageInvoiceMoney(reservation.customer_refund_total)
+    if (customerRefund > 0) {
+      lines.push({
+        package_id: reservation.package_id,
+        reservation_id: reservation.id,
+        reservation_item_id: null,
+        line_type: 'other',
+        description: `${reservation.title} - customer refund`,
+        quantity: 1,
+        unit_sold_price: -customerRefund,
+        total_sold_price: -customerRefund,
+        unit_booked_cost: 0,
+        total_booked_cost: 0,
+        discount_amount: 0,
+        expected_commission: 0,
+        received_commission: 0,
+        customer_visible: true,
+        sort_order: reservationIndex * 100 + 98,
+        metadata: { source: 'reservation_refund', refundKind: 'customer' },
+      })
+    }
+
+    const supplierRefund = roundPackageInvoiceMoney(reservation.supplier_refund_total)
+    if (supplierRefund > 0) {
+      lines.push({
+        package_id: reservation.package_id,
+        reservation_id: reservation.id,
+        reservation_item_id: null,
+        line_type: 'other',
+        description: `${reservation.title} - supplier credit`,
+        quantity: 1,
+        unit_sold_price: 0,
+        total_sold_price: 0,
+        unit_booked_cost: -supplierRefund,
+        total_booked_cost: -supplierRefund,
+        discount_amount: 0,
+        expected_commission: 0,
+        received_commission: 0,
+        customer_visible: false,
+        sort_order: reservationIndex * 100 + 99,
+        metadata: { source: 'reservation_refund', refundKind: 'supplier' },
+      })
+    }
   })
 
   return lines
