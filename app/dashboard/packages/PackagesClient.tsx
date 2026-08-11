@@ -791,13 +791,18 @@ function SectionHeader({
 
 function LinkedFlightGroupEditor({
   group,
+  legNumber,
+  flightOptionNumber,
   onChange,
   onRemove,
 }: {
   group: PackageLinkedFlightGroup
+  legNumber: number
+  flightOptionNumber: number
   onChange: (next: PackageLinkedFlightGroup) => void
   onRemove: () => void
 }) {
+  const [expanded, setExpanded] = useState(true)
   const updateOption = (optionIndex: number, option: PackageLinkedFlightOption) => {
     const nextOptions = group.options.map((current, index) =>
       index === optionIndex ? option : current,
@@ -831,119 +836,354 @@ function LinkedFlightGroupEditor({
     })
   }
 
+  const includedOption =
+    group.options.find((option) => option.id === group.defaultOptionId) ||
+    group.options.find((option) => option.isDefault) ||
+    group.options[0]
+  const orderedOptions = [
+    ...(includedOption
+      ? [
+          {
+            option: includedOption,
+            optionIndex: group.options.findIndex((option) => option.id === includedOption.id),
+            isIncluded: true,
+            alternativeNumber: 0,
+          },
+        ]
+      : []),
+    ...group.options
+      .filter((option) => option.id !== includedOption?.id)
+      .map((option, alternativeIndex) => ({
+        option,
+        optionIndex: group.options.findIndex((candidate) => candidate.id === option.id),
+        isIncluded: false,
+        alternativeNumber: alternativeIndex + 1,
+      })),
+  ]
+
   return (
-    <div className="mt-3 rounded-lg border border-blue-100 bg-blue-50 p-3">
-      <div className="mb-3 flex items-start justify-between gap-3">
-        <label className="block flex-1">
-          <span className="block text-xs font-black uppercase text-blue-900">
-            Linked flight leg
-          </span>
-          <input
-            value={group.routeLabel}
-            onChange={(event) => onChange({ ...group, routeLabel: event.target.value })}
-            placeholder="Madinah to London"
-            className="mt-1 min-h-10 w-full rounded-lg border border-blue-100 bg-white px-3 text-sm font-bold outline-none focus:border-blue-700"
-          />
-        </label>
+    <div className="rounded-lg border-2 border-indigo-400 bg-indigo-50 shadow-sm">
+      <div className="flex items-start justify-between gap-3 border-b-2 border-indigo-200 bg-indigo-100/80 p-3">
         <button
           type="button"
-          onClick={onRemove}
-          className="mt-5 flex h-10 w-10 items-center justify-center rounded-lg border border-red-100 bg-white text-red-600 transition hover:bg-red-50"
-          title="Remove linked flight"
+          onClick={() => setExpanded((current) => !current)}
+          className="flex min-w-0 flex-1 items-start gap-3 text-left"
+          aria-expanded={expanded}
         >
-          <Trash2 className="h-4 w-4" />
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-900 text-sm font-black text-white">
+            {legNumber + 1}
+          </span>
+          <span className="min-w-0">
+            <span className="block text-xs font-black uppercase text-indigo-900">
+              Linked journey leg {legNumber}
+            </span>
+            <span className="mt-0.5 block text-xs font-bold text-indigo-700">
+              Belongs to Flight Option {flightOptionNumber}
+            </span>
+            <span className="mt-1 block truncate text-sm font-black text-slate-950">
+              {group.routeLabel || 'Route not entered'}
+            </span>
+          </span>
         </button>
+        <div className="flex shrink-0 items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setExpanded((current) => !current)}
+            className="flex h-9 w-9 items-center justify-center rounded-lg border-2 border-indigo-300 bg-white text-indigo-900 transition hover:bg-indigo-50"
+            title={expanded ? 'Collapse linked journey leg' : 'Expand linked journey leg'}
+            aria-label={expanded ? 'Collapse linked journey leg' : 'Expand linked journey leg'}
+          >
+            <ChevronDown
+              className={`h-4 w-4 transition-transform ${expanded ? 'rotate-180' : ''}`}
+            />
+          </button>
+          <button
+            type="button"
+            onClick={onRemove}
+            className="flex h-9 w-9 items-center justify-center rounded-lg border-2 border-red-200 bg-white text-red-600 transition hover:bg-red-50"
+            title="Remove linked journey leg"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </div>
       </div>
 
-      <div className="space-y-3">
-        {group.options.map((option, optionIndex) => (
-          <div key={option.id} className="rounded-lg border border-blue-100 bg-white p-3">
-            <div className="mb-2 flex items-center gap-2">
-              <input
-                value={option.airlineName}
-                onChange={(event) =>
-                  updateOption(optionIndex, { ...option, airlineName: event.target.value })
-                }
-                placeholder="Airline"
-                className="min-h-10 flex-1 rounded-lg border border-slate-200 px-3 text-sm font-bold outline-none focus:border-blue-700"
-              />
-              <button
-                type="button"
-                onClick={() =>
-                  updateOption(optionIndex, {
-                    ...option,
-                    isDefault: true,
-                  })
-                }
-                className={`min-h-10 rounded-lg px-3 text-xs font-black transition ${
-                  option.isDefault
-                    ? 'bg-emerald-100 text-emerald-800'
-                    : 'border border-slate-200 text-slate-600 hover:bg-slate-100'
+      {expanded && (
+        <div className="p-3">
+          <label className="block">
+            <span className="block text-xs font-black uppercase text-indigo-900">Journey route</span>
+            <input
+              value={group.routeLabel}
+              onChange={(event) => onChange({ ...group, routeLabel: event.target.value })}
+              placeholder="Madinah to London"
+              className="mt-1 min-h-10 w-full rounded-lg border-2 border-indigo-200 bg-white px-3 text-sm font-bold outline-none focus:border-indigo-700"
+            />
+          </label>
+
+          <div className="mt-3 space-y-3">
+            {orderedOptions.map(({ option, optionIndex, isIncluded, alternativeNumber }) => (
+              <div
+                key={option.id}
+                className={`rounded-lg border-2 p-3 ${
+                  isIncluded
+                    ? 'border-emerald-400 bg-emerald-50'
+                    : 'border-slate-300 bg-white'
                 }`}
               >
-                {option.isDefault ? 'Included' : 'Mark included'}
-              </button>
-              <button
-                type="button"
-                onClick={() => removeOption(option.id)}
-                disabled={group.options.length <= 1}
-                className="flex h-10 w-10 items-center justify-center rounded-lg border border-red-100 text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-30"
-                title="Remove airline"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
-            </div>
-            <textarea
-              value={option.summary}
-              onChange={(event) =>
-                updateOption(optionIndex, { ...option, summary: event.target.value })
-              }
-              placeholder="Connection, baggage, airport notes"
-              rows={2}
-              className="w-full resize-y rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-700"
-            />
-            <div className="mt-2 grid gap-2 sm:grid-cols-3">
-              {[
-                ['Adult leg cost', 'adultPrice'],
-                ['Child leg cost', 'childPrice'],
-                ['Infant leg cost', 'infantPrice'],
-              ].map(([label, key]) => (
-                <label key={key} className="block">
-                  <span className="block text-xs font-bold text-slate-500">{label}</span>
-                  <div className="mt-1 flex min-h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-3">
-                    <span className="mr-2 text-sm font-black text-slate-500">GBP</span>
-                    <input
-                      value={option[key as 'adultPrice' | 'childPrice' | 'infantPrice'] ?? ''}
-                      onChange={(event) =>
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <p
+                    className={`text-xs font-black uppercase ${
+                      isIncluded ? 'text-emerald-800' : 'text-slate-600'
+                    }`}
+                  >
+                    {isIncluded ? 'Included flight' : `Alternative flight ${alternativeNumber}`}
+                  </p>
+                  {isIncluded && (
+                    <span className="rounded-md bg-emerald-700 px-2 py-1 text-[10px] font-black uppercase text-white">
+                      Included
+                    </span>
+                  )}
+                </div>
+                <div className="mb-2 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center">
+                  <input
+                    value={option.airlineName}
+                    onChange={(event) =>
+                      updateOption(optionIndex, { ...option, airlineName: event.target.value })
+                    }
+                    placeholder="Airline"
+                    className="min-h-10 min-w-0 flex-1 rounded-lg border-2 border-slate-200 bg-white px-3 text-sm font-bold outline-none focus:border-indigo-700"
+                  />
+                  {!isIncluded && (
+                    <button
+                      type="button"
+                      onClick={() =>
                         updateOption(optionIndex, {
                           ...option,
-                          [key]: Number(event.target.value || 0),
+                          isDefault: true,
                         })
                       }
-                      type="number"
-                      step="0.01"
-                      placeholder="0.00"
-                      className="w-full bg-transparent text-sm font-bold outline-none"
-                    />
-                  </div>
-                </label>
-              ))}
-            </div>
-            <p className="mt-2 text-xs font-semibold text-blue-900">
-              Enter the actual cost for this leg. Customers see only the difference from the
-              included airline for this leg.
-            </p>
+                      className="min-h-10 w-full rounded-lg border-2 border-emerald-300 bg-white px-3 text-xs font-black text-emerald-800 transition hover:bg-emerald-50 sm:w-auto"
+                    >
+                      Set as included
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => removeOption(option.id)}
+                    disabled={group.options.length <= 1}
+                    className="flex h-10 w-10 shrink-0 items-center justify-center justify-self-end rounded-lg border-2 border-red-100 bg-white text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-30"
+                    title="Remove airline"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+                <textarea
+                  value={option.summary}
+                  onChange={(event) =>
+                    updateOption(optionIndex, { ...option, summary: event.target.value })
+                  }
+                  placeholder="Connection, baggage, airport notes"
+                  rows={2}
+                  className="w-full resize-y rounded-lg border-2 border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-700"
+                />
+                <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                  {[
+                    ['Adult leg cost', 'adultPrice'],
+                    ['Child leg cost', 'childPrice'],
+                    ['Infant leg cost', 'infantPrice'],
+                  ].map(([label, key]) => (
+                    <label key={key} className="block">
+                      <span className="block text-xs font-bold text-slate-500">{label}</span>
+                      <div className="mt-1 flex min-h-10 items-center rounded-lg border-2 border-slate-200 bg-white px-3">
+                        <span className="mr-2 text-sm font-black text-slate-500">GBP</span>
+                        <input
+                          value={option[key as 'adultPrice' | 'childPrice' | 'infantPrice'] ?? ''}
+                          onChange={(event) =>
+                            updateOption(optionIndex, {
+                              ...option,
+                              [key]: Number(event.target.value || 0),
+                            })
+                          }
+                          type="number"
+                          step="0.01"
+                          placeholder="0.00"
+                          className="min-w-0 w-full bg-transparent text-sm font-bold outline-none"
+                        />
+                      </div>
+                    </label>
+                  ))}
+                </div>
+                <p className="mt-2 text-xs font-semibold text-indigo-900">
+                  Enter the actual cost for this leg. Customers see only the difference from the
+                  included airline for this leg.
+                </p>
+              </div>
+            ))}
           </div>
-        ))}
+          <button
+            type="button"
+            onClick={addOption}
+            className="mt-3 inline-flex min-h-9 items-center gap-2 rounded-lg border-2 border-indigo-300 bg-white px-3 text-xs font-black text-indigo-900 transition hover:bg-indigo-100"
+          >
+            <Plus className="h-4 w-4" />
+            Add alternative airline
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function FlightOptionEditor({
+  option,
+  optionIndex,
+  linkedGroups,
+  onChange,
+  onRemove,
+  onAddLinkedGroup,
+  onChangeLinkedGroup,
+  onRemoveLinkedGroup,
+}: {
+  option: PackageComponentOption
+  optionIndex: number
+  linkedGroups: PackageLinkedFlightGroup[]
+  onChange: (next: PackageComponentOption) => void
+  onRemove: () => void
+  onAddLinkedGroup: () => void
+  onChangeLinkedGroup: (groupId: string, next: PackageLinkedFlightGroup) => void
+  onRemoveLinkedGroup: (groupId: string) => void
+}) {
+  const [expanded, setExpanded] = useState(option.isDefault || !option.title.trim())
+  const getMainPrice = (key: 'adultPrice' | 'childPrice' | 'infantPrice') =>
+    option[key] || (option.pricingMode === 'per_person' ? option.price || 0 : 0)
+  const getLinkedPrice = (key: 'adultPrice' | 'childPrice' | 'infantPrice') =>
+    linkedGroups.reduce((total, group) => {
+      const includedOption =
+        group.options.find((candidate) => candidate.id === group.defaultOptionId) ||
+        group.options.find((candidate) => candidate.isDefault) ||
+        group.options[0]
+      return total + (includedOption?.[key] || 0)
+    }, 0)
+  const arrangementPrices = {
+    adult: getMainPrice('adultPrice') + getLinkedPrice('adultPrice'),
+    child: getMainPrice('childPrice') + getLinkedPrice('childPrice'),
+    infant: getMainPrice('infantPrice') + getLinkedPrice('infantPrice'),
+  }
+  const hasArrangementPrices = Object.values(arrangementPrices).some((price) => price !== 0)
+
+  return (
+    <div className="overflow-hidden rounded-lg border-2 border-sky-500 bg-white shadow-md">
+      <div className="flex items-start justify-between gap-3 border-b-2 border-sky-300 bg-sky-100 p-3">
+        <button
+          type="button"
+          onClick={() => setExpanded((current) => !current)}
+          className="flex min-w-0 flex-1 items-start gap-3 text-left"
+          aria-expanded={expanded}
+        >
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sky-900 text-sm font-black text-white">
+            {optionIndex + 1}
+          </span>
+          <span className="min-w-0">
+            <span className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-black uppercase text-sky-900">
+                Flight Option {optionIndex + 1}
+              </span>
+              {option.isDefault && (
+                <span className="rounded-md bg-emerald-700 px-2 py-1 text-[10px] font-black uppercase text-white">
+                  Preferred
+                </span>
+              )}
+            </span>
+            <span className="mt-1 block truncate text-base font-black text-slate-950">
+              {option.title || 'Untitled flight arrangement'}
+            </span>
+            <span className="mt-1 block text-xs font-bold text-sky-800">
+              {linkedGroups.length === 0
+                ? 'Main flight only'
+                : `Main flight + ${linkedGroups.length} linked journey ${
+                    linkedGroups.length === 1 ? 'leg' : 'legs'
+                  }`}
+            </span>
+          </span>
+        </button>
+        <div className="flex shrink-0 items-center gap-3">
+          {hasArrangementPrices && (
+            <div className="hidden text-right xl:block">
+              <p className="text-[10px] font-black uppercase text-sky-800">
+                Included arrangement
+              </p>
+              <p className="mt-0.5 text-xs font-black text-slate-950">
+                Adult {formatMoney(arrangementPrices.adult, 'GBP')} · Child{' '}
+                {formatMoney(arrangementPrices.child, 'GBP')} · Infant{' '}
+                {formatMoney(arrangementPrices.infant, 'GBP')}
+              </p>
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={() => setExpanded((current) => !current)}
+            className="flex h-9 w-9 items-center justify-center rounded-lg border-2 border-sky-300 bg-white text-sky-900 transition hover:bg-sky-50"
+            title={expanded ? 'Collapse flight option' : 'Expand flight option'}
+            aria-label={expanded ? 'Collapse flight option' : 'Expand flight option'}
+          >
+            <ChevronDown
+              className={`h-4 w-4 transition-transform ${expanded ? 'rotate-180' : ''}`}
+            />
+          </button>
+        </div>
       </div>
-      <button
-        type="button"
-        onClick={addOption}
-        className="mt-3 inline-flex min-h-9 items-center gap-2 rounded-lg border border-blue-200 bg-white px-3 text-xs font-black text-blue-900 transition hover:bg-blue-100"
-      >
-        <Plus className="h-4 w-4" />
-        Add airline for this leg
-      </button>
+
+      {expanded && (
+        <div className="p-3">
+          <div className="rounded-lg border-2 border-sky-300 bg-sky-50/70 p-3">
+            <div className="mb-2 flex items-center gap-3">
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-900 text-sm font-black text-white">
+                1
+              </span>
+              <div>
+                <p className="text-xs font-black uppercase text-sky-900">Main flight</p>
+                <p className="text-xs font-bold text-sky-700">
+                  Starting flight for Flight Option {optionIndex + 1}
+                </p>
+              </div>
+            </div>
+            <OptionEditor
+              option={option}
+              titlePlaceholder="Flight option"
+              summaryPlaceholder="Airline, route, connection time, baggage"
+              priceLabel="Flight cost"
+              showFlightPricing
+              showDefaultToggle
+              defaultLabel="Preferred flight"
+              canRemove
+              containerClassName="rounded-lg border-2 border-sky-200 bg-white p-3"
+              onChange={onChange}
+              onRemove={onRemove}
+            />
+          </div>
+
+          <div className="ml-4 mt-3 space-y-3 border-l-4 border-indigo-300 pl-4">
+            {linkedGroups.map((group, linkedIndex) => (
+              <LinkedFlightGroupEditor
+                key={group.id}
+                group={group}
+                legNumber={linkedIndex + 1}
+                flightOptionNumber={optionIndex + 1}
+                onChange={(next) => onChangeLinkedGroup(group.id, next)}
+                onRemove={() => onRemoveLinkedGroup(group.id)}
+              />
+            ))}
+            <button
+              type="button"
+              onClick={onAddLinkedGroup}
+              className="inline-flex min-h-9 items-center gap-2 rounded-lg border-2 border-indigo-300 bg-indigo-50 px-3 text-xs font-black text-indigo-900 transition hover:bg-indigo-100"
+            >
+              <Link2 className="h-4 w-4" />
+              Add another journey leg
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -967,6 +1207,7 @@ function OptionEditor({
   transportPricingData = null,
   quantityFallback,
   canRemove,
+  containerClassName = 'rounded-lg border border-slate-200 bg-white p-3 shadow-sm',
 }: {
   option: PackageComponentOption
   onChange: (next: PackageComponentOption) => void
@@ -986,6 +1227,7 @@ function OptionEditor({
   transportPricingData?: UmrahTransportPricingData | null
   quantityFallback?: number
   canRemove: boolean
+  containerClassName?: string
 }) {
   const restoredTransportSummaryRef = useRef('')
   const transportRoutes = option.transportRoutes || []
@@ -1112,7 +1354,7 @@ function OptionEditor({
   }
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+    <div className={containerClassName}>
       <div className="mb-2 flex items-center gap-2">
         <input
           value={option.title}
@@ -3384,7 +3626,7 @@ export default function PackagesClient({
           </section>
 
           <section className="grid gap-5 lg:grid-cols-2">
-            <div className="rounded-xl border border-sky-200 bg-sky-50/50 p-4 shadow-sm">
+            <div className="rounded-xl border-2 border-sky-300 bg-sky-50/50 p-4 shadow-sm lg:col-span-2">
               <SectionHeader
                 icon={Plane}
                 title="Flight options"
@@ -3406,45 +3648,24 @@ export default function PackagesClient({
                   </p>
                 )}
                 {payload.flightOptions.map((option, index) => (
-                  <div key={option.id}>
-                    <OptionEditor
-                      option={option}
-                      titlePlaceholder="Flight option"
-                      summaryPlaceholder="Airline, route, connection time, baggage"
-                      priceLabel="Flight cost"
-                      showFlightPricing
-                      showDefaultToggle
-                      defaultLabel="Preferred flight"
-                      canRemove
-                      onChange={(next) => updateComponentOption('flightOptions', index, next)}
-                      onRemove={() => removeComponentOption('flightOptions', index)}
-                    />
-                    <div className="mt-3 space-y-3">
-                      {payload.linkedFlightGroups
-                        .filter((group) => group.baseFlightOptionId === option.id)
-                        .map((group) => (
-                          <LinkedFlightGroupEditor
-                            key={group.id}
-                            group={group}
-                            onChange={(next) => updateLinkedFlightGroup(group.id, next)}
-                            onRemove={() => removeLinkedFlightGroup(group.id)}
-                          />
-                        ))}
-                      <button
-                        type="button"
-                        onClick={() => addLinkedFlightGroup(option.id)}
-                        className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 text-xs font-black text-blue-900 transition hover:bg-blue-100"
-                      >
-                        <Link2 className="h-4 w-4" />
-                        Add linked flight leg
-                      </button>
-                    </div>
-                  </div>
+                  <FlightOptionEditor
+                    key={option.id}
+                    option={option}
+                    optionIndex={index}
+                    linkedGroups={payload.linkedFlightGroups.filter(
+                      (group) => group.baseFlightOptionId === option.id,
+                    )}
+                    onChange={(next) => updateComponentOption('flightOptions', index, next)}
+                    onRemove={() => removeComponentOption('flightOptions', index)}
+                    onAddLinkedGroup={() => addLinkedFlightGroup(option.id)}
+                    onChangeLinkedGroup={updateLinkedFlightGroup}
+                    onRemoveLinkedGroup={removeLinkedFlightGroup}
+                  />
                 ))}
               </div>
             </div>
 
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50/40 p-4 shadow-sm">
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50/40 p-4 shadow-sm lg:col-span-2">
               <SectionHeader
                 icon={FileText}
                 title="Visa options"
