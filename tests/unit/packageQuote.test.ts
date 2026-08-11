@@ -369,6 +369,74 @@ describe('package quote calculator', () => {
     expect(cheapest.resolved?.selection.flightOptionId).toBe('flight-cheapest')
   })
 
+  it('includes the cheapest linked flight legs when building the cheapest preset', () => {
+    const presetPayload = normalizePackageQuotePayload({
+      ...payload,
+      adults: 2,
+      childrenPaying: 0,
+      childrenFree: 0,
+      infants: 0,
+      flightOptions: [
+        {
+          id: 'flight-main',
+          title: 'Main flight',
+          summary: '',
+          price: 800,
+          pricingMode: 'total',
+          isDefault: true,
+        },
+      ],
+      linkedFlightGroups: [
+        {
+          id: 'return-leg',
+          baseFlightOptionId: 'flight-main',
+          routeLabel: 'Madinah to London',
+          defaultOptionId: 'agent-choice',
+          options: [
+            {
+              id: 'agent-choice',
+              airlineName: 'Agent choice',
+              summary: '',
+              adultPrice: 250,
+              childPrice: 200,
+              infantPrice: 50,
+              adultDelta: 0,
+              childDelta: 0,
+              infantDelta: 0,
+              isDefault: true,
+            },
+            {
+              id: 'cheapest-leg',
+              airlineName: 'Cheapest linked flight',
+              summary: '',
+              adultPrice: 175,
+              childPrice: 150,
+              infantPrice: 40,
+              adultDelta: 0,
+              childDelta: 0,
+              infantDelta: 0,
+            },
+          ],
+        },
+      ],
+    })
+
+    const [cheapest, preferred, luxury] = buildPackagePresetSelections(presetPayload)
+
+    expect(cheapest.resolved?.selection.linkedFlightOptionIds).toEqual({
+      'return-leg': 'cheapest-leg',
+    })
+    expect(preferred.resolved?.selection.linkedFlightOptionIds).toEqual({
+      'return-leg': 'agent-choice',
+    })
+    expect(luxury.resolved?.selection.linkedFlightOptionIds).toEqual({
+      'return-leg': 'agent-choice',
+    })
+    expect(cheapest.resolved?.combination.totalPrice).toBeLessThan(
+      preferred.resolved?.combination.totalPrice || 0,
+    )
+  })
+
   it('calculates linked flight option differences from actual leg costs', () => {
     const linkedPayload = normalizePackageQuotePayload({
       ...payload,

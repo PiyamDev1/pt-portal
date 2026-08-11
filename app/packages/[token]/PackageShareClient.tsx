@@ -152,6 +152,30 @@ function SummaryText({ value }: { value: string }) {
   )
 }
 
+function LinkedFlightSummary({
+  selections,
+}: {
+  selections: PackageResolvedSelection['combination']['linkedFlightSelections']
+}) {
+  if (selections.length === 0) return null
+
+  return (
+    <div className="mt-3 space-y-3 border-t border-slate-200 pt-3">
+      {selections.map(({ group, option }) => (
+        <div key={`${group.id}-${option.id}`}>
+          <p className="text-xs font-black uppercase text-sky-700">
+            {group.routeLabel || 'Linked flight'}
+          </p>
+          <p className="mt-1 text-sm font-black text-slate-950">
+            {option.airlineName || 'Selected linked flight'}
+          </p>
+          {option.summary && <SummaryText value={option.summary} />}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function OptionButton({
   selected,
   title,
@@ -1663,6 +1687,9 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                         {resolved.combination.flightOption.summary && (
                           <SummaryText value={resolved.combination.flightOption.summary} />
                         )}
+                        <LinkedFlightSummary
+                          selections={resolved.combination.linkedFlightSelections}
+                        />
                       </div>
                     </div>
                   </div>
@@ -1784,6 +1811,9 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                                 {resolved.combination.flightOption.summary && (
                                   <SummaryText value={resolved.combination.flightOption.summary} />
                                 )}
+                                <LinkedFlightSummary
+                                  selections={resolved.combination.linkedFlightSelections}
+                                />
                               </div>
                             )}
 

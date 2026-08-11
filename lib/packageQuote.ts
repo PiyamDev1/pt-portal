@@ -1496,35 +1496,91 @@ export function buildCustomerPackageOptions(
     .slice(0, limit)
 }
 
-export function buildPackagePresetSelections(payloadInput: unknown) {
-  const payload = normalizePackageQuotePayload(payloadInput)
-  const fullPackageOptions = buildPackageCombinations(payload, 250)
-    .map((combination) => {
-      try {
-        return resolvePackageSelection(payload, {
-          ...getDefaultPackageSelection(payload),
-          stayOptionIds: Object.fromEntries(
-            combination.staySelections.map((stay) => [stay.groupId, stay.option.id]),
-          ),
-          flightOptionId: combination.flightOption?.id || null,
-          linkedFlightOptionIds: Object.fromEntries(
-            (combination.linkedFlightSelections || []).map((selection) => [
-              selection.group.id,
-              selection.option.id,
-            ]),
-          ),
-          transportOptionId: combination.transportOption?.id || null,
-          paymentMethod: 'bank_transfer',
-          paymentBreakdown: null,
-        })
-      } catch {
-        return null
+type PackagePresetPriceDirection = 'lowest' | 'highest'
+
+function getLinkedFlightOptionForPreset(
+  payload: PackageQuotePayload,
+  group: PackageLinkedFlightGroup,
+  direction: PackagePresetPriceDirection,
+) {
+  const defaultOption = getLinkedFlightOptionForSelection(group, null)
+  return [...group.options].sort((left, right) => {
+    const priceDifference =
+      getLinkedFlightOptionTotal(group, left, payload) -
+      getLinkedFlightOptionTotal(group, right, payload)
+    if (priceDifference !== 0) {
+      return direction === 'lowest' ? priceDifference : -priceDifference
+    }
+    if (left.id === defaultOption?.id) return -1
+    if (right.id === defaultOption?.id) return 1
+    return 0
+  })[0]
+}
+
+function resolvePackagePricePreset(
+  payload: PackageQuotePayload,
+  direction: PackagePresetPriceDirection,
+) {
+  const defaultSelection = getDefaultPackageSelection(payload)
+  const stayOptionIds = Object.fromEntries(
+    payload.stayGroups.map((group) => {
+      const options = sortPackageOptionsLowToHigh(group.options)
+      const option = direction === 'lowest' ? options[0] : options.at(-1)
+      return [group.id, option?.id || '']
+    }),
+  )
+  const flightCandidates: Array<PackageComponentOption | null> =
+    payload.flightOptions.length > 0 ? payload.flightOptions : [null]
+  const rankedFlights = flightCandidates
+    .map((flightOption) => {
+      const linkedFlightOptionIds = Object.fromEntries(
+        getLinkedFlightGroupsForFlight(payload, flightOption).map((group) => [
+          group.id,
+          getLinkedFlightOptionForPreset(payload, group, direction)?.id || '',
+        ]),
+      )
+      const linkedFlightSelections = getLinkedFlightSelections(
+        payload,
+        flightOption,
+        linkedFlightOptionIds,
+      )
+      return {
+        flightOption,
+        linkedFlightOptionIds,
+        total:
+          getFlightOptionTotal(flightOption, payload) +
+          getLinkedFlightSelectionsTotal(payload, linkedFlightSelections),
       }
     })
-    .filter((value): value is PackageResolvedSelection => Boolean(value))
-    .sort((a, b) => a.combination.totalPrice - b.combination.totalPrice)
-  const cheapest = fullPackageOptions[0] || null
-  const luxury = fullPackageOptions.at(-1) || null
+    .sort((left, right) => left.total - right.total)
+  const selectedFlight = direction === 'lowest' ? rankedFlights[0] : rankedFlights.at(-1)
+  const rankedTransportOptions = [...payload.transportOptions].sort(
+    (left, right) =>
+      getOptionTotal(left, getServicePassengerCount(payload)) -
+      getOptionTotal(right, getServicePassengerCount(payload)),
+  )
+  const transportOption =
+    direction === 'lowest' ? rankedTransportOptions[0] : rankedTransportOptions.at(-1)
+
+  try {
+    return resolvePackageSelection(payload, {
+      ...defaultSelection,
+      stayOptionIds,
+      flightOptionId: selectedFlight?.flightOption?.id || null,
+      linkedFlightOptionIds: selectedFlight?.linkedFlightOptionIds || {},
+      transportOptionId: transportOption?.id || null,
+      paymentMethod: 'bank_transfer',
+      paymentBreakdown: null,
+    })
+  } catch {
+    return null
+  }
+}
+
+export function buildPackagePresetSelections(payloadInput: unknown) {
+  const payload = normalizePackageQuotePayload(payloadInput)
+  const cheapest = resolvePackagePricePreset(payload, 'lowest')
+  const luxury = resolvePackagePricePreset(payload, 'highest')
   const preferred = resolveDefaultPackageSelection(payload)
 
   return [
