@@ -3,6 +3,7 @@ import { apiError, apiOk } from '@/lib/api/http'
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
 import { recordPackageAuditEvent } from '@/lib/packageAudit'
 import { syncPackagePaymentFinancials } from '@/lib/packagePaymentsServer'
+import { calculateTravelPackageDiscountAllocations } from '@/lib/packageDiscountAllocations'
 import type { TravelPackagePaymentMethod, TravelPackageReservation } from '@/app/types/packages'
 import { selectTravelPackagePaymentColumns } from '../../../payments/route'
 import { selectTravelPackageReservationColumns } from '../../route'
@@ -63,6 +64,25 @@ export async function POST(
   }
 
   const reservation = reservationData as unknown as TravelPackageReservation
+  const [{ data: packageData }, { data: reservationRows }] = await Promise.all([
+    supabase.from('travel_packages').select('selected_quote_snapshot').eq('id', id).maybeSingle(),
+    supabase
+      .from('travel_package_reservations')
+      .select(selectTravelPackageReservationColumns())
+      .eq('package_id', id),
+  ])
+  const packageReservations = Array.isArray(reservationRows)
+    ? (reservationRows as unknown as TravelPackageReservation[])
+    : [reservation]
+  const discountAllocation = calculateTravelPackageDiscountAllocations(
+    packageReservations,
+    (
+      packageData as {
+        selected_quote_snapshot?: Parameters<typeof calculateTravelPackageDiscountAllocations>[1]
+      } | null
+    )?.selected_quote_snapshot,
+  )[reservation.id]
+  const allocatedQuoteDiscount = Number(discountAllocation?.total || 0)
   const existingRefund =
     refundKind === 'supplier'
       ? Number(reservation.supplier_refund_total || 0)
@@ -72,7 +92,9 @@ export async function POST(
       ? Number(reservation.booked_cost_total || 0)
       : Math.max(
           0,
-          Number(reservation.sold_price_total || 0) - Number(reservation.discount_total || 0),
+          Number(reservation.sold_price_total || 0) -
+            Number(reservation.discount_total || 0) -
+            allocatedQuoteDiscount,
         )
   const remainingRefundable = Math.max(0, refundableTotal - existingRefund)
 
@@ -115,6 +137,8 @@ export async function POST(
         metadata: {
           source: 'reservation_refund',
           reservationTitle: reservation.title,
+          allocatedQuoteDiscount,
+          discountAllocation: discountAllocation || null,
         },
         created_by: user.id,
         updated_by: user.id,
@@ -181,13 +205,22 @@ export async function POST(
       eventSummary: `${refundKind === 'supplier' ? 'Supplier credit' : 'Customer refund'} of ${reservation.currency} ${amount.toFixed(2)} recorded for ${reservation.title}.`,
       beforeData: reservation,
       afterData: updatedReservation,
-      metadata: { reservationId, paymentId, reference: reference || null },
+      metadata: {
+        reservationId,
+        paymentId,
+        reference: reference || null,
+        allocatedQuoteDiscount,
+        discountAllocation: discountAllocation || null,
+      },
     },
   )
 
   return apiOk(
     {
-      reservation: updatedReservation as unknown as TravelPackageReservation,
+      reservation: {
+        ...(updatedReservation as unknown as TravelPackageReservation),
+        discount_allocation: discountAllocation,
+      },
       payment,
     },
     { status: 201 },

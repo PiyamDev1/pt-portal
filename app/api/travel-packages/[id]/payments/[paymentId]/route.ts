@@ -9,6 +9,7 @@ import { selectTravelPackagePaymentColumns } from '../route'
 const TYPES = new Set<TravelPackagePaymentType>([
   'deposit',
   'payment',
+  'account_credit',
   'refund',
   'chargeback',
   'commission',
@@ -117,6 +118,13 @@ export async function PATCH(
   if ('receiptReference' in body || 'receipt_reference' in body)
     update.receipt_reference = cleanText(body.receiptReference ?? body.receipt_reference) || null
   if ('notes' in body) update.notes = cleanText(body.notes) || null
+
+  const nextPaymentType = (update.payment_type || current.payment_type) as TravelPackagePaymentType
+  const nextReceiptReference =
+    'receipt_reference' in update ? update.receipt_reference : current.receipt_reference
+  if (nextPaymentType === 'account_credit' && !cleanText(nextReceiptReference)) {
+    return apiError('Enter the previous package or refund reference for this account credit', 400)
+  }
 
   const { data, error } = await supabase
     .from('travel_package_payments')

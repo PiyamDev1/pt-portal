@@ -48,7 +48,6 @@ function selectPublicDocumentColumns() {
     customer_visible,
     released_at,
     public_notes,
-    metadata,
     created_at
   `
 }

@@ -1,6 +1,7 @@
 import type {
   PackageCombination,
   PackageComponentOption,
+  PackageDiscountEligibleService,
   PackageDiscountMode,
   PackageHotelAddonOption,
   PackageLinkedPackageGroupSnapshot,
@@ -13,6 +14,7 @@ import type {
   PackagePaymentMethod,
   PackagePricingMode,
   PackageQuotePayload,
+  PackageQuoteDiscountType,
   PackageResolvedSelection,
   PackageSelectionInput,
   PackageStayGroup,
@@ -26,6 +28,22 @@ import type {
 const VALID_PACKAGE_TYPES = new Set<TravelPackageType>(['umrah', 'ziyarat', 'holiday'])
 const VALID_PRICING_MODES = new Set<PackagePricingMode>(['total', 'per_person'])
 const VALID_DISCOUNT_MODES = new Set<PackageDiscountMode>(['total', 'per_person'])
+const VALID_QUOTE_DISCOUNT_TYPES = new Set<PackageQuoteDiscountType>([
+  'early_bird',
+  'general_discount',
+  'visa_special',
+])
+const VALID_DISCOUNT_ELIGIBLE_SERVICES = new Set<PackageDiscountEligibleService>([
+  'flight',
+  'hotel',
+  'transport',
+  'visa',
+])
+const DEFAULT_PACKAGE_DISCOUNT_SERVICES: PackageDiscountEligibleService[] = [
+  'flight',
+  'hotel',
+  'transport',
+]
 const VALID_PAYMENT_METHODS = new Set<PackagePaymentMethod>(['cash', 'bank_transfer', 'card'])
 const VALID_PAYMENT_INTENTS = new Set<PackagePaymentIntent>([
   'full_payment',
@@ -471,6 +489,28 @@ function normalizeOffer(raw: unknown, fallbackId: string): PackageLimitedTimeOff
   const discountMode = normalizeDiscountMode(candidate?.discountMode, 'total')
   const active = asBoolean(candidate?.active, true)
   const id = asString(candidate?.id, fallbackId)
+  const requestedDiscountType = asString(candidate?.discountType) as PackageQuoteDiscountType
+  const discountType = VALID_QUOTE_DISCOUNT_TYPES.has(requestedDiscountType)
+    ? requestedDiscountType
+    : 'early_bird'
+  const requestedServices = Array.isArray(candidate?.eligibleServices)
+    ? candidate.eligibleServices.filter((service): service is PackageDiscountEligibleService =>
+        VALID_DISCOUNT_ELIGIBLE_SERVICES.has(service as PackageDiscountEligibleService),
+      )
+    : []
+  const eligibleServices =
+    discountType === 'visa_special'
+      ? (['visa'] as PackageDiscountEligibleService[])
+      : requestedServices.filter((service) => service !== 'visa').length > 0
+        ? requestedServices.filter((service) => service !== 'visa')
+        : [...DEFAULT_PACKAGE_DISCOUNT_SERVICES]
+  const requestedVisaCategory = asString(
+    candidate?.visaPassengerCategory,
+  ) as PackageVisaPassengerCategory
+  const visaPassengerCategory = VALID_VISA_PASSENGER_CATEGORIES.has(requestedVisaCategory)
+    ? requestedVisaCategory
+    : 'all'
+  const visaQuantity = asInteger(candidate?.visaQuantity)
 
   if (!title && !summary.trim() && !expiresAt && discountAmount <= 0) return null
 
@@ -481,6 +521,11 @@ function normalizeOffer(raw: unknown, fallbackId: string): PackageLimitedTimeOff
     expiresAt,
     discountAmount,
     discountMode,
+    discountType,
+    eligibleServices,
+    visaOptionId: asString(candidate?.visaOptionId) || null,
+    visaPassengerCategory,
+    ...(visaQuantity > 0 ? { visaQuantity } : {}),
     active,
   }
 }
@@ -723,7 +768,10 @@ function getVisaOptionsTotal(options: PackageComponentOption[], payload: Package
   return options.reduce((sum, option) => sum + getVisaOptionTotal(option, payload), 0)
 }
 
-function getVisaPriceBreakdownLines(options: PackageComponentOption[], payload: PackageQuotePayload) {
+function getVisaPriceBreakdownLines(
+  options: PackageComponentOption[],
+  payload: PackageQuotePayload,
+) {
   return options
     .map((option) => {
       const category = option.visaPassengerCategory || 'all'
@@ -756,55 +804,97 @@ function getPassengerPriceLinesForCategory({
   passengerCount,
   baseUnitPrice,
   visaLines,
+  visaSpecialDiscounts,
 }: {
   category: PackageVisaPassengerCategory
   passengerCount: number
   baseUnitPrice: number
   visaLines: ReturnType<typeof getVisaPriceBreakdownLines>
+  visaSpecialDiscounts: Array<{
+    offerId: string
+    optionId: string
+    category: PackageVisaPassengerCategory
+    quantity: number
+    amount: number
+  }>
 }) {
   if (passengerCount <= 0) return []
 
   const categoryVisaLines = visaLines.filter((line) => line.category === category)
-  if (categoryVisaLines.length === 0) {
-    const unitPrice = Math.max(0, baseUnitPrice)
-    return [
-      {
-        category,
-        label: getPassengerPriceCategoryLabel(category),
-        quantity: passengerCount,
-        unitPrice,
-        total: unitPrice * passengerCount,
-      },
-    ]
-  }
-
-  const allocatedQuantity = categoryVisaLines.reduce((sum, line) => sum + line.quantity, 0)
-  const lines = categoryVisaLines
-    .filter((line) => line.quantity > 0)
-    .map((line) => {
-      const unitPrice = Math.max(0, baseUnitPrice + line.unitPrice)
-      return {
-        category,
-        label: getPassengerPriceCategoryLabel(category),
-        quantity: line.quantity,
-        unitPrice,
-        total: unitPrice * line.quantity,
-      }
-    })
-
-  const remainingQuantity = Math.max(0, passengerCount - allocatedQuantity)
-  if (remainingQuantity > 0) {
-    const unitPrice = Math.max(0, baseUnitPrice)
-    lines.push({
+  const categoryDiscounts = visaSpecialDiscounts.filter(
+    (discount) => discount.category === category,
+  )
+  const consumedDiscountIds = new Set<string>()
+  const lines: PackagePassengerPriceBreakdown['passengerLines'] = []
+  const pushLine = (quantity: number, unitPrice: number) => {
+    if (quantity <= 0) return
+    const normalizedUnitPrice = Math.max(0, unitPrice)
+    const existing = lines?.find((line) => Math.abs(line.unitPrice - normalizedUnitPrice) < 0.005)
+    if (existing) {
+      existing.quantity += quantity
+      existing.total = existing.unitPrice * existing.quantity
+      return
+    }
+    lines?.push({
       category,
       label: getPassengerPriceCategoryLabel(category),
-      quantity: remainingQuantity,
-      unitPrice,
-      total: unitPrice * remainingQuantity,
+      quantity,
+      unitPrice: normalizedUnitPrice,
+      total: normalizedUnitPrice * quantity,
     })
   }
 
-  return lines
+  categoryVisaLines
+    .filter((line) => line.quantity > 0)
+    .forEach((line) => {
+      const matchingDiscounts = categoryDiscounts.filter(
+        (discount) => discount.optionId === line.optionId,
+      )
+      const discountedQuantity = Math.min(
+        line.quantity,
+        matchingDiscounts.reduce((quantity, discount) => Math.max(quantity, discount.quantity), 0),
+      )
+      const discountTotal = matchingDiscounts.reduce(
+        (total, discount) => total + discount.amount,
+        0,
+      )
+      matchingDiscounts.forEach((discount) => consumedDiscountIds.add(discount.offerId))
+
+      if (discountedQuantity > 0 && discountTotal > 0) {
+        pushLine(
+          discountedQuantity,
+          baseUnitPrice + line.unitPrice - discountTotal / discountedQuantity,
+        )
+      }
+      pushLine(line.quantity - discountedQuantity, baseUnitPrice + line.unitPrice)
+    })
+
+  const allocatedQuantity = categoryVisaLines.reduce((sum, line) => sum + line.quantity, 0)
+
+  let remainingQuantity = Math.max(0, passengerCount - allocatedQuantity)
+  const unmatchedDiscounts = categoryDiscounts.filter(
+    (discount) => !consumedDiscountIds.has(discount.offerId),
+  )
+  const unmatchedDiscountQuantity = Math.min(
+    remainingQuantity,
+    unmatchedDiscounts.reduce((quantity, discount) => Math.max(quantity, discount.quantity), 0),
+  )
+  const unmatchedDiscountTotal = unmatchedDiscounts.reduce(
+    (total, discount) => total + discount.amount,
+    0,
+  )
+  if (unmatchedDiscountQuantity > 0 && unmatchedDiscountTotal > 0) {
+    pushLine(
+      unmatchedDiscountQuantity,
+      baseUnitPrice - unmatchedDiscountTotal / unmatchedDiscountQuantity,
+    )
+    remainingQuantity -= unmatchedDiscountQuantity
+  }
+  if (remainingQuantity > 0) {
+    pushLine(remainingQuantity, baseUnitPrice)
+  }
+
+  return lines || []
 }
 
 function getFlightOptionTotal(option: PackageComponentOption | null, payload: PackageQuotePayload) {
@@ -1031,8 +1121,125 @@ export function isLimitedTimeOfferActive(offer: PackageLimitedTimeOffer, now = D
   return Number.isFinite(timestamp) && timestamp > now
 }
 
-function getOfferDiscountTotal(offer: PackageLimitedTimeOffer, payingGuests: number) {
-  return offer.discountAmount * (offer.discountMode === 'per_person' ? payingGuests : 1)
+export function getPackageQuoteDiscountType(offer: PackageLimitedTimeOffer) {
+  return VALID_QUOTE_DISCOUNT_TYPES.has(offer.discountType as PackageQuoteDiscountType)
+    ? (offer.discountType as PackageQuoteDiscountType)
+    : 'early_bird'
+}
+
+export function getPackageQuoteDiscountEligibleServices(offer: PackageLimitedTimeOffer) {
+  if (getPackageQuoteDiscountType(offer) === 'visa_special') {
+    return ['visa'] as PackageDiscountEligibleService[]
+  }
+
+  const services = (offer.eligibleServices || []).filter(
+    (service): service is PackageDiscountEligibleService =>
+      service !== 'visa' && VALID_DISCOUNT_ELIGIBLE_SERVICES.has(service),
+  )
+  return services.length > 0 ? services : [...DEFAULT_PACKAGE_DISCOUNT_SERVICES]
+}
+
+function getVisaSpecialDiscountTarget(
+  offer: PackageLimitedTimeOffer,
+  payload: PackageQuotePayload,
+) {
+  if (getPackageQuoteDiscountType(offer) !== 'visa_special') return null
+
+  const requestedCategory = VALID_VISA_PASSENGER_CATEGORIES.has(
+    offer.visaPassengerCategory as PackageVisaPassengerCategory,
+  )
+    ? (offer.visaPassengerCategory as PackageVisaPassengerCategory)
+    : 'all'
+  const option =
+    payload.visaOptions.find((candidate) => candidate.id === offer.visaOptionId) ||
+    payload.visaOptions.find(
+      (candidate) =>
+        requestedCategory !== 'all' && candidate.visaPassengerCategory === requestedCategory,
+    ) ||
+    payload.visaOptions[0] ||
+    null
+  if (!option) return null
+
+  const optionCategory = option.visaPassengerCategory || 'all'
+  const category = requestedCategory !== 'all' ? requestedCategory : optionCategory
+  const categoryQuantity = getVisaPassengerCategoryCount(payload, category)
+  const optionQuantity = getVisaOptionQuantity(option, payload)
+  const availableQuantity = Math.max(
+    0,
+    Math.min(optionQuantity || categoryQuantity, categoryQuantity || optionQuantity),
+  )
+  const requestedQuantity =
+    offer.visaQuantity && offer.visaQuantity > 0 ? offer.visaQuantity : availableQuantity
+  const quantity = Math.min(availableQuantity, requestedQuantity)
+  if (quantity <= 0) return null
+
+  const optionTotal = getVisaOptionTotal(option, payload)
+  const availableValue = optionQuantity > 0 ? optionTotal * (quantity / optionQuantity) : 0
+  const requestedDiscount =
+    offer.discountAmount * (offer.discountMode === 'per_person' ? quantity : 1)
+  const amount = roundMoney(Math.min(Math.max(0, requestedDiscount), availableValue))
+  if (amount <= 0) return null
+
+  return {
+    offerId: offer.id,
+    title: offer.title,
+    optionId: option.id,
+    category,
+    quantity,
+    amount,
+  }
+}
+
+function getOfferDiscountTotal(offer: PackageLimitedTimeOffer, payload: PackageQuotePayload) {
+  if (getPackageQuoteDiscountType(offer) === 'visa_special') {
+    return getVisaSpecialDiscountTarget(offer, payload)?.amount || 0
+  }
+
+  const payingGuests = getPayingGuestCount(payload)
+  return roundMoney(offer.discountAmount * (offer.discountMode === 'per_person' ? payingGuests : 1))
+}
+
+export function getPackageOfferDiscountTotal(
+  offerInput: PackageLimitedTimeOffer,
+  payloadInput: unknown,
+) {
+  const payload = normalizePackageQuotePayload(payloadInput)
+  const offer = normalizeOffer(offerInput, offerInput.id || 'offer')
+  return offer ? getOfferDiscountTotal(offer, payload) : 0
+}
+
+export function getPackageOfferDiscountBreakdown(
+  payloadInput: unknown,
+  offersInput?: PackageLimitedTimeOffer[],
+) {
+  const payload = normalizePackageQuotePayload(payloadInput)
+  const offers = offersInput ? normalizeOffers(offersInput) : getActiveOffers(payload)
+  return offers.reduce(
+    (totals, offer) => {
+      const amount = getOfferDiscountTotal(offer, payload)
+      const discountType = getPackageQuoteDiscountType(offer)
+      if (discountType === 'visa_special') totals.visaSpecialTotal += amount
+      else if (discountType === 'general_discount') totals.generalDiscountTotal += amount
+      else totals.earlyBirdTotal += amount
+      totals.total += amount
+      return totals
+    },
+    {
+      earlyBirdTotal: 0,
+      generalDiscountTotal: 0,
+      visaSpecialTotal: 0,
+      total: 0,
+    },
+  )
+}
+
+function getVisaSpecialPassengerDiscounts(
+  payload: PackageQuotePayload,
+  offers: PackageLimitedTimeOffer[],
+) {
+  return offers
+    .map((offer) => getVisaSpecialDiscountTarget(offer, payload))
+    .filter((target): target is NonNullable<typeof target> => Boolean(target))
 }
 
 function getActiveOffers(payload: PackageQuotePayload) {
@@ -1093,8 +1300,7 @@ function getSelectedHotelAddonOptions(
 
 function getHotelAddonTotal(staySelections: PackageCombination['staySelections']) {
   return staySelections.reduce(
-    (total, stay) =>
-      total + (stay.addonOptions || []).reduce((sum, addon) => sum + addon.price, 0),
+    (total, stay) => total + (stay.addonOptions || []).reduce((sum, addon) => sum + addon.price, 0),
     0,
   )
 }
@@ -1114,7 +1320,7 @@ export function buildPackageCombinations(payloadInput: unknown, limit = 250): Pa
     payload.transportOptions.length > 0 ? payload.transportOptions : [null]
   const activeOffers = getActiveOffers(payload)
   const offerDiscountTotal = activeOffers.reduce(
-    (sum, offer) => sum + getOfferDiscountTotal(offer, payingGuests),
+    (sum, offer) => sum + getOfferDiscountTotal(offer, payload),
     0,
   )
 
@@ -1433,8 +1639,20 @@ export function getPackagePassengerPriceBreakdown(
     combination.transportOption,
     servicePassengers,
   )
-  const discountUnit =
-    servicePassengers > 0 ? combination.offerDiscountTotal / servicePassengers : 0
+  const appliedOffers = Array.isArray(combination.appliedOffers) ? combination.appliedOffers : []
+  const offerDiscountBreakdown = getPackageOfferDiscountBreakdown(payload, appliedOffers)
+  const visaSpecialDiscounts = getVisaSpecialPassengerDiscounts(payload, appliedOffers)
+  const untargetedVisaSpecialDiscount = visaSpecialDiscounts
+    .filter((discount) => discount.category === 'all')
+    .reduce((total, discount) => total + discount.amount, 0)
+  const targetedVisaSpecialDiscounts = visaSpecialDiscounts.filter(
+    (discount) => discount.category !== 'all',
+  )
+  const sharedDiscountTotal =
+    offerDiscountBreakdown.earlyBirdTotal +
+    offerDiscountBreakdown.generalDiscountTotal +
+    untargetedVisaSpecialDiscount
+  const discountUnit = servicePassengers > 0 ? sharedDiscountTotal / servicePassengers : 0
   const surchargeUnit = payingGuests > 0 ? combination.paymentSurchargeTotal / payingGuests : 0
 
   const adultBase =
@@ -1464,24 +1682,28 @@ export function getPackagePassengerPriceBreakdown(
       passengerCount: payload.adults,
       baseUnitPrice: adultBase,
       visaLines,
+      visaSpecialDiscounts: targetedVisaSpecialDiscounts,
     }),
     ...getPassengerPriceLinesForCategory({
       category: 'child_5_plus',
       passengerCount: payload.childrenPaying,
       baseUnitPrice: childBase,
       visaLines,
+      visaSpecialDiscounts: targetedVisaSpecialDiscounts,
     }),
     ...getPassengerPriceLinesForCategory({
       category: 'child_2_to_4',
       passengerCount: payload.childrenFree,
       baseUnitPrice: childTwoToFourBase,
       visaLines,
+      visaSpecialDiscounts: targetedVisaSpecialDiscounts,
     }),
     ...getPassengerPriceLinesForCategory({
       category: 'infant',
       passengerCount: payload.infants,
       baseUnitPrice: infantBase,
       visaLines,
+      visaSpecialDiscounts: targetedVisaSpecialDiscounts,
     }),
   ]
   const getCategoryTotal = (category: PackageVisaPassengerCategory) =>
@@ -1494,8 +1716,7 @@ export function getPackagePassengerPriceBreakdown(
   const infantTotal = getCategoryTotal('infant')
   const adult = payload.adults > 0 ? adultTotal / payload.adults : 0
   const child = payload.childrenPaying > 0 ? childTotal / payload.childrenPaying : 0
-  const childTwoToFour =
-    payload.childrenFree > 0 ? childTwoToFourTotal / payload.childrenFree : 0
+  const childTwoToFour = payload.childrenFree > 0 ? childTwoToFourTotal / payload.childrenFree : 0
   const infant = payload.infants > 0 ? infantTotal / payload.infants : 0
   const total = passengerLines.reduce((sum, line) => sum + line.total, 0)
 
@@ -1551,10 +1772,7 @@ function getPassengerPriceDisplayLines(breakdown: PackagePassengerPriceBreakdown
   ].filter((line) => line.quantity > 0 && line.total > 0)
 }
 
-function pushPassengerPriceCopyLines(
-  lines: string[],
-  breakdown: PackagePassengerPriceBreakdown,
-) {
+function pushPassengerPriceCopyLines(lines: string[], breakdown: PackagePassengerPriceBreakdown) {
   getPassengerPriceDisplayLines(breakdown).forEach((line) => {
     lines.push(
       `${line.quantity} x ${line.label}: ${formatMoney(line.unitPrice, breakdown.currency)} p.p.`,
@@ -1751,7 +1969,9 @@ export function formatPackageCombinationForCopy(
   }
 
   if (payload.limitedTimeOffers.length > 0) {
-    for (const offer of payload.limitedTimeOffers) {
+    for (const offer of payload.limitedTimeOffers.filter(
+      (candidate) => getPackageQuoteDiscountType(candidate) !== 'visa_special',
+    )) {
       lines.push(`****${offer.title.toUpperCase()}****`)
       if (offer.summary.trim()) {
         lines.push(offer.summary)
@@ -1923,7 +2143,9 @@ export function formatPackageQuoteForCopy(
 
   if (payload.limitedTimeOffers.length > 0) {
     lines.push('')
-    for (const offer of payload.limitedTimeOffers) {
+    for (const offer of payload.limitedTimeOffers.filter(
+      (candidate) => getPackageQuoteDiscountType(candidate) !== 'visa_special',
+    )) {
       lines.push(`****${offer.title.toUpperCase()}****`)
       if (offer.summary.trim()) lines.push(offer.summary)
       if (offer.expiresAt) lines.push(`Valid until ${formatOfferDeadline(offer.expiresAt)}`)
@@ -1968,10 +2190,7 @@ export function resolvePackageSelection(
       option,
     }
   })
-  const staySelections = getSelectedHotelAddonOptions(
-    baseStaySelections,
-    input.hotelAddonOptionIds,
-  )
+  const staySelections = getSelectedHotelAddonOptions(baseStaySelections, input.hotelAddonOptionIds)
   const selectedHotelAddonOptionIds = Object.fromEntries(
     staySelections
       .filter((stay) => (stay.addonOptions || []).length > 0)
@@ -2037,7 +2256,7 @@ export function resolvePackageSelection(
     getOptionTotal(transportOption, servicePassengers)
   const activeOffers = getActiveOffers(payload)
   const offerDiscountTotal = activeOffers.reduce(
-    (sum, offer) => sum + getOfferDiscountTotal(offer, payingGuests),
+    (sum, offer) => sum + getOfferDiscountTotal(offer, payload),
     0,
   )
   const packageSubtotalPrice = Math.max(0, grossPrice - offerDiscountTotal)

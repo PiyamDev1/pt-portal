@@ -45,6 +45,11 @@ const mocks = vi.hoisted(() => {
   const reservationPackageEq = vi.fn(() => ({ single: reservationSingle }))
   const reservationIdEq = vi.fn(() => ({ eq: reservationPackageEq }))
   const reservationSelect = vi.fn(() => ({ eq: reservationIdEq }))
+  const reservationListEq = vi.fn()
+
+  const packageMaybeSingle = vi.fn()
+  const packageIdEq = vi.fn(() => ({ maybeSingle: packageMaybeSingle }))
+  const packageSelect = vi.fn(() => ({ eq: packageIdEq }))
 
   const updateSingle = vi.fn()
   const updateSelect = vi.fn(() => ({ single: updateSingle }))
@@ -64,6 +69,7 @@ const mocks = vi.hoisted(() => {
     if (table === 'travel_package_reservations') {
       return { select: reservationSelect, update: reservationUpdate }
     }
+    if (table === 'travel_packages') return { select: packageSelect }
     if (table === 'travel_package_payments') {
       return { insert: paymentInsert, delete: paymentDelete }
     }
@@ -81,6 +87,9 @@ const mocks = vi.hoisted(() => {
     getUser,
     reservationSingle,
     reservationSelect,
+    reservationIdEq,
+    reservationListEq,
+    packageMaybeSingle,
     reservationUpdate,
     updateSingle,
     paymentInsert,
@@ -124,6 +133,14 @@ describe('travel package reservation refunds', () => {
     vi.clearAllMocks()
     mocks.getUser.mockResolvedValue({ data: { user: { id: 'agent-1' } } })
     mocks.reservationSingle.mockResolvedValue({ data: reservation, error: null })
+    mocks.reservationSelect
+      .mockImplementationOnce(() => ({ eq: mocks.reservationIdEq }))
+      .mockImplementationOnce(() => ({ eq: mocks.reservationListEq }))
+    mocks.reservationListEq.mockResolvedValue({ data: [reservation], error: null })
+    mocks.packageMaybeSingle.mockResolvedValue({
+      data: { selected_quote_snapshot: {} },
+      error: null,
+    })
     mocks.paymentSingle.mockResolvedValue({
       data: { id: 'payment-1', reservation_id: reservation.id },
       error: null,
@@ -190,6 +207,53 @@ describe('travel package reservation refunds', () => {
     )
 
     expect(response.status).toBe(400)
+    expect(mocks.reservationUpdate).not.toHaveBeenCalled()
+  })
+
+  it('deducts the profit-weighted quote discount allocation from customer refund capacity', async () => {
+    const earlyBird = {
+      id: 'early-bird',
+      title: 'Early Bird',
+      summary: '',
+      expiresAt: '',
+      discountAmount: 100,
+      discountMode: 'total',
+      discountType: 'early_bird',
+      eligibleServices: ['hotel'],
+      active: true,
+    }
+    mocks.packageMaybeSingle.mockResolvedValue({
+      data: {
+        selected_quote_snapshot: {
+          payload: {
+            adults: 1,
+            childrenPaying: 0,
+            childrenFree: 0,
+            infants: 0,
+            limitedTimeOffers: [earlyBird],
+          },
+          selection: {
+            combination: {
+              appliedOffers: [earlyBird],
+              offerDiscountTotal: 100,
+            },
+          },
+        },
+      },
+      error: null,
+    })
+
+    const response = await POST(
+      request({
+        refundKind: 'customer',
+        amount: 1100.01,
+        paymentMethod: 'bank_transfer',
+      }) as never,
+      params,
+    )
+
+    expect(response.status).toBe(400)
+    expect(mocks.paymentInsert).not.toHaveBeenCalled()
     expect(mocks.reservationUpdate).not.toHaveBeenCalled()
   })
 })

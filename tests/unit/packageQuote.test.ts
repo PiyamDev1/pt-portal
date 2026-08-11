@@ -81,9 +81,7 @@ describe('package quote calculator', () => {
   })
 
   it('creates package references from quotation reference codes', () => {
-    expect(createTravelPackageReference('H29GPX - Umrah Quotation 31 Jul 2026')).toBe(
-      'PT-H29GPX',
-    )
+    expect(createTravelPackageReference('H29GPX - Umrah Quotation 31 Jul 2026')).toBe('PT-H29GPX')
     expect(createTravelPackageReference('PT-H29GPX')).toBe('PT-H29GPX')
   })
 
@@ -845,22 +843,78 @@ describe('package quote calculator', () => {
 
     expect(resolved.combination.offerDiscountTotal).toBe(125)
     expect(breakdown.total).toBeCloseTo(resolved.combination.totalPrice, 2)
-    expect((undiscountedAdultLine?.unitPrice || 0) - (adultLine?.unitPrice || 0)).toBeCloseTo(
-      25,
-      2,
-    )
+    expect((undiscountedAdultLine?.unitPrice || 0) - (adultLine?.unitPrice || 0)).toBeCloseTo(25, 2)
     expect(
-      (undiscountedChildFivePlusLine?.unitPrice || 0) -
-        (childFivePlusLine?.unitPrice || 0),
+      (undiscountedChildFivePlusLine?.unitPrice || 0) - (childFivePlusLine?.unitPrice || 0),
     ).toBeCloseTo(25, 2)
     expect(
-      (undiscountedChildTwoToFourLine?.unitPrice || 0) -
-        (childTwoToFourLine?.unitPrice || 0),
+      (undiscountedChildTwoToFourLine?.unitPrice || 0) - (childTwoToFourLine?.unitPrice || 0),
     ).toBeCloseTo(25, 2)
     expect((undiscountedInfantLine?.unitPrice || 0) - (infantLine?.unitPrice || 0)).toBeCloseTo(
       25,
       2,
     )
+  })
+
+  it('applies a visa special discount only to the targeted passenger price line', () => {
+    const visaDiscountPayload: PackageQuotePayload = {
+      ...payload,
+      adults: 2,
+      childrenPaying: 0,
+      childrenFree: 0,
+      infants: 0,
+      visaOptions: [
+        {
+          id: 'standard-visa',
+          title: 'Standard visa',
+          summary: '',
+          price: 30,
+          pricingMode: 'per_person',
+          quantity: 1,
+          visaPassengerCategory: 'adult',
+        },
+        {
+          id: 'special-visa',
+          title: 'Alternative visa',
+          summary: '',
+          price: 145,
+          pricingMode: 'per_person',
+          quantity: 1,
+          visaPassengerCategory: 'adult',
+        },
+      ],
+      limitedTimeOffers: [
+        {
+          id: 'visa-saving',
+          title: 'Visa Special Discount',
+          summary: 'Internal visa adjustment.',
+          expiresAt: '2999-01-01T12:00:00.000Z',
+          discountAmount: 45,
+          discountMode: 'total',
+          discountType: 'visa_special',
+          eligibleServices: ['visa'],
+          visaOptionId: 'special-visa',
+          visaPassengerCategory: 'adult',
+          visaQuantity: 1,
+          active: true,
+        },
+      ],
+    }
+
+    const selection = getDefaultPackageSelection(visaDiscountPayload)
+    const resolved = resolvePackageSelection(visaDiscountPayload, selection)
+    const undiscounted = resolvePackageSelection(
+      { ...visaDiscountPayload, limitedTimeOffers: [] },
+      selection,
+    )
+    const breakdown = getPackagePassengerPriceBreakdown(visaDiscountPayload, resolved.combination)
+    const copy = formatPackageQuoteForCopy(visaDiscountPayload)
+
+    expect(resolved.combination.totalPrice).toBe(undiscounted.combination.totalPrice - 45)
+    expect(breakdown.total).toBeCloseTo(resolved.combination.totalPrice, 2)
+    expect(breakdown.passengerLines?.filter((line) => line.category === 'adult')).toHaveLength(2)
+    expect(copy).not.toContain('VISA SPECIAL DISCOUNT')
+    expect(copy).not.toContain('Internal visa adjustment')
   })
 
   it('uses preferred flights and tiered adult child infant pricing', () => {

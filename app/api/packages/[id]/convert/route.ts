@@ -290,6 +290,7 @@ function autoReservationRows({
         source: 'final_quote_selection',
         optionId: option.id,
         quantity: visaQuantity(option, payload),
+        visaPassengerCategory: option.visaPassengerCategory || 'all',
       },
     })
   })

@@ -55,6 +55,7 @@ import type {
   TravelPackageThirdPartyDocumentShare,
 } from '@/app/types/packages'
 import { formatMoney, getLinkedFlightOptionTotal } from '@/lib/packageQuote'
+import { calculateTravelPackageDiscountAllocations } from '@/lib/packageDiscountAllocations'
 import type { TravelPackageGroupDetail } from '@/lib/packageGroups'
 import {
   PACKAGE_DOCUMENT_CATEGORIES,
@@ -200,6 +201,7 @@ type QuoteReservationPrefill = {
   discountTotal?: number
   internalNotes: string
   sourceLabel: string
+  metadata?: Record<string, unknown>
 }
 
 type InvoiceFormState = {
@@ -1238,6 +1240,14 @@ export default function PackageOverviewClient({
       ? packageFolder.current_public_summary.currency
       : undefined
   const reservationCurrency = selectedCombination?.currency || publicSummaryCurrency || 'GBP'
+  const reservationDiscountAllocations = useMemo(
+    () =>
+      calculateTravelPackageDiscountAllocations(
+        reservations,
+        packageFolder?.selected_quote_snapshot,
+      ),
+    [packageFolder?.selected_quote_snapshot, reservations],
+  )
   const reservationTotals = useMemo(() => {
     return reservations.reduce(
       (totals, reservation) => {
@@ -1317,6 +1327,11 @@ export default function PackageOverviewClient({
         soldPriceTotal: getVisaOptionSoldTotal(option, selectedVisaPassengerCounts),
         internalNotes: getReservationSummary(option),
         sourceLabel: 'Visa from final quote',
+        metadata: {
+          optionId: option.id,
+          quantity,
+          visaPassengerCategory: option.visaPassengerCategory || 'all',
+        },
       })
     })
     if (selectedCombination.transportOption) {
@@ -1606,6 +1621,7 @@ Please enter the access code and accept the data handling terms before downloadi
             source: 'final_quote',
             sourceKey: prefill.key,
             sourceLabel: prefill.sourceLabel,
+            ...(prefill.metadata || {}),
           },
         }),
       },
@@ -3884,6 +3900,15 @@ Please enter the access code and accept the data handling terms before downloadi
                   </p>
                 </div>
               </div>
+              {Object.values(reservationDiscountAllocations).some(
+                (allocation) => allocation.total > 0,
+              ) && (
+                <p className="mb-4 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-semibold leading-5 text-sky-900">
+                  Blue quote allocations divide the package discount between refundable services
+                  using current profit weighting. The package discount adjustment remains the
+                  accounting total and is not deducted twice.
+                </p>
+              )}
 
               {quoteReservationPrefills.length > 0 && (
                 <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
@@ -4182,6 +4207,8 @@ Please enter the access code and accept the data handling terms before downloadi
                     const expanded = Boolean(expandedReservationIds[reservation.id])
                     const supplierRefund = Number(reservation.supplier_refund_total || 0)
                     const customerRefund = Number(reservation.customer_refund_total || 0)
+                    const quoteDiscountAllocation = reservationDiscountAllocations[reservation.id]
+                    const allocatedQuoteDiscount = Number(quoteDiscountAllocation?.total || 0)
                     const netBooked = Math.max(
                       0,
                       parseMoneyInput(financialForm.bookedCostTotal) - supplierRefund,
@@ -4189,6 +4216,7 @@ Please enter the access code and accept the data handling terms before downloadi
                     const netSold =
                       parseMoneyInput(financialForm.soldPriceTotal) -
                       parseMoneyInput(financialForm.discountTotal) -
+                      allocatedQuoteDiscount -
                       customerRefund
                     const reservationDifference = netSold - netBooked
                     const reservationWithCommission =
@@ -4260,6 +4288,12 @@ Please enter the access code and accept the data handling terms before downloadi
                                   {customerRefund > 0
                                     ? `Customer refunded ${formatMoney(customerRefund, reservation.currency)}`
                                     : ''}
+                                </p>
+                              )}
+                              {allocatedQuoteDiscount > 0 && (
+                                <p className="mt-1 text-xs font-bold text-sky-700">
+                                  Quote discount allocated:{' '}
+                                  {formatMoney(allocatedQuoteDiscount, reservation.currency)}
                                 </p>
                               )}
                             </div>
@@ -4472,8 +4506,33 @@ Please enter the access code and accept the data handling terms before downloadi
                                     <span className="text-[#8b1e2d]">
                                       {formatMoney(reservationDifference, reservation.currency)}
                                     </span>{' '}
-                                    sold minus discount and booked cost
+                                    sold minus direct and allocated discounts, then booked cost
                                   </p>
+                                  {quoteDiscountAllocation?.sources.length ? (
+                                    <div className="mt-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-semibold text-sky-900">
+                                      <p className="font-black">
+                                        Automatically allocated quote discount
+                                      </p>
+                                      {quoteDiscountAllocation.sources.map((source) => (
+                                        <p
+                                          key={`${source.offerId}-${source.discountType}`}
+                                          className="mt-1"
+                                        >
+                                          {source.title}:{' '}
+                                          {formatMoney(source.amount, reservation.currency)}
+                                        </p>
+                                      ))}
+                                      <p className="mt-1 text-sky-700">
+                                        Profit basis:{' '}
+                                        {formatMoney(
+                                          quoteDiscountAllocation.basisProfit,
+                                          reservation.currency,
+                                        )}
+                                        {' · '}quote discount share:{' '}
+                                        {quoteDiscountAllocation.allocationPercentage.toFixed(2)}%
+                                      </p>
+                                    </div>
+                                  ) : null}
                                   {parseMoneyInput(financialForm.commissionExpectedTotal) > 0 && (
                                     <p className="mt-1 text-xs font-bold text-slate-500">
                                       Profit with commission:{' '}
@@ -4531,7 +4590,7 @@ Please enter the access code and accept the data handling terms before downloadi
                                 </label>
 
                                 <label className="text-xs font-bold uppercase text-slate-500">
-                                  Discount
+                                  Direct / manual discount
                                   <input
                                     value={financialForm.discountTotal}
                                     onChange={(event) =>
@@ -4632,8 +4691,8 @@ Please enter the access code and accept the data handling terms before downloadi
                                   </p>
                                   <p className="mt-1 text-xs font-semibold leading-5 text-slate-600">
                                     Enter a positive amount. Supplier credits reduce booked cost;
-                                    customer refunds reduce sold value and are also added to
-                                    Payments.
+                                    customer refunds are capped after direct and allocated quote
+                                    discounts, then added to Payments.
                                   </p>
                                 </div>
                               </div>
@@ -4662,6 +4721,16 @@ Please enter the access code and accept the data handling terms before downloadi
                                   <input
                                     type="number"
                                     min="0.01"
+                                    max={Math.max(
+                                      0,
+                                      refundForm.refundKind === 'supplier'
+                                        ? parseMoneyInput(financialForm.bookedCostTotal) -
+                                            supplierRefund
+                                        : parseMoneyInput(financialForm.soldPriceTotal) -
+                                            parseMoneyInput(financialForm.discountTotal) -
+                                            allocatedQuoteDiscount -
+                                            customerRefund,
+                                    )}
                                     step="0.01"
                                     required
                                     value={refundForm.amount}
@@ -4739,6 +4808,17 @@ Please enter the access code and accept the data handling terms before downloadi
                                   {formatMoney(supplierRefund, reservation.currency)}
                                   {' · '}customer{' '}
                                   {formatMoney(customerRefund, reservation.currency)}
+                                  {' · '}customer refundable{' '}
+                                  {formatMoney(
+                                    Math.max(
+                                      0,
+                                      parseMoneyInput(financialForm.soldPriceTotal) -
+                                        parseMoneyInput(financialForm.discountTotal) -
+                                        allocatedQuoteDiscount -
+                                        customerRefund,
+                                    ),
+                                    reservation.currency,
+                                  )}
                                 </p>
                                 <button
                                   type="submit"

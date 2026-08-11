@@ -20,6 +20,7 @@ export type PackageWorkflowRisk = {
 
 export type PackagePaymentSummary = {
   completedPayments: number
+  accountCredits: number
   refunds: number
   netPaid: number
   pending: number
@@ -136,7 +137,15 @@ export function calculatePackagePaymentSummary(
       .filter(
         (payment) =>
           payment.payment_status === 'completed' &&
-          ['deposit', 'payment'].includes(payment.payment_type),
+          ['deposit', 'payment', 'account_credit'].includes(payment.payment_type),
+      )
+      .reduce((sum, payment) => sum + Number(payment.amount || 0), 0),
+  )
+  const accountCredits = money(
+    payments
+      .filter(
+        (payment) =>
+          payment.payment_status === 'completed' && payment.payment_type === 'account_credit',
       )
       .reduce((sum, payment) => sum + Number(payment.amount || 0), 0),
   )
@@ -165,6 +174,7 @@ export function calculatePackagePaymentSummary(
 
   return {
     completedPayments,
+    accountCredits,
     refunds,
     netPaid: money(completedPayments - refunds),
     pending,

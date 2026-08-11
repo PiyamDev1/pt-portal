@@ -27,7 +27,6 @@ export function createPublicPackageDocument(
     customer_visible: document.customer_visible,
     released_at: document.released_at,
     public_notes: document.public_notes,
-    metadata: document.metadata || {},
     created_at: document.created_at,
     signed_url: signedUrl,
     preview_url: previewUrl || signedUrl,

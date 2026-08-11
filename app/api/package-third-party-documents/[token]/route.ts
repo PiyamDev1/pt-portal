@@ -6,10 +6,7 @@ import { apiError, apiOk } from '@/lib/api/http'
 import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
 import { createPublicPackageDocument } from '@/lib/packagePortal'
 import { getS3Client } from '@/lib/s3Client'
-import {
-  hashThirdPartyShareCode,
-  hashThirdPartyShareToken,
-} from '@/lib/packageThirdPartyShares'
+import { hashThirdPartyShareCode, hashThirdPartyShareToken } from '@/lib/packageThirdPartyShares'
 import type {
   TravelPackageDocument,
   TravelPackageDocumentCategory,
@@ -113,7 +110,26 @@ async function withSignedUrl(document: TravelPackageDocument) {
     { expiresIn: 15 * 60 },
   )
 
-  return createPublicPackageDocument(document, signedUrl, previewUrl)
+  const publicDocument = createPublicPackageDocument(document, signedUrl, previewUrl)
+  const metadata = document.metadata || {}
+  const documentKind = metadata.documentKind === 'visa_photo' ? 'visa_photo' : undefined
+  const linkedTravelDocumentId =
+    typeof metadata.linkedTravelDocumentId === 'string'
+      ? metadata.linkedTravelDocumentId
+      : undefined
+  const linkedTravelDocumentTitle =
+    typeof metadata.linkedTravelDocumentTitle === 'string'
+      ? metadata.linkedTravelDocumentTitle
+      : undefined
+
+  return {
+    ...publicDocument,
+    metadata: {
+      ...(documentKind ? { documentKind } : {}),
+      ...(linkedTravelDocumentId ? { linkedTravelDocumentId } : {}),
+      ...(linkedTravelDocumentTitle ? { linkedTravelDocumentTitle } : {}),
+    },
+  }
 }
 
 async function recordAccessEvent({
@@ -235,9 +251,7 @@ export async function POST(
     return apiError('Travel package is not available', 404)
   }
 
-  const allowedCategories = Array.isArray(share.allowed_categories)
-    ? share.allowed_categories
-    : []
+  const allowedCategories = Array.isArray(share.allowed_categories) ? share.allowed_categories : []
   const { data: documentData, error: documentError } = await supabase
     .from('travel_package_documents')
     .select(selectPublicDocumentColumns())

@@ -105,6 +105,7 @@ const PAYMENT_METHODS: Array<{ value: TravelPackagePaymentMethod; label: string 
 const PAYMENT_TYPES: Array<{ value: TravelPackagePaymentType; label: string }> = [
   { value: 'deposit', label: 'Deposit' },
   { value: 'payment', label: 'Payment' },
+  { value: 'account_credit', label: 'Previous refund / reimbursement credit' },
   { value: 'refund', label: 'Refund' },
   { value: 'chargeback', label: 'Chargeback' },
   { value: 'commission', label: 'Commission' },
@@ -1866,7 +1867,7 @@ export default function PackageOperationsWorkspace({
 
           {activeTab === 'payments' && (
             <div className="space-y-5">
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
                 <div className="border border-slate-200 p-3">
                   <p className="text-xs font-bold uppercase text-slate-500">Net received</p>
                   <p className="mt-1 text-lg font-black">
@@ -1881,6 +1882,15 @@ export default function PackageOperationsWorkspace({
                   <p className="mt-1 text-lg font-black">
                     {formatMoney(
                       paymentSummary.pending,
+                      invoice?.currency || paymentSummary.currency,
+                    )}
+                  </p>
+                </div>
+                <div className="border border-slate-200 p-3">
+                  <p className="text-xs font-bold uppercase text-slate-500">Prior credit used</p>
+                  <p className="mt-1 text-lg font-black text-sky-700">
+                    {formatMoney(
+                      paymentSummary.accountCredits,
                       invoice?.currency || paymentSummary.currency,
                     )}
                   </p>
@@ -1998,7 +2008,12 @@ export default function PackageOperationsWorkspace({
                   className="border border-slate-300 px-3 py-2 text-sm"
                 />
                 <input
-                  placeholder="Receipt / bank reference"
+                  placeholder={
+                    paymentForm.paymentType === 'account_credit'
+                      ? 'Previous package / refund reference'
+                      : 'Receipt / bank reference'
+                  }
+                  required={paymentForm.paymentType === 'account_credit'}
                   value={paymentForm.receiptReference}
                   onChange={(event) =>
                     setPaymentForm((current) => ({

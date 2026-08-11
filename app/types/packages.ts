@@ -32,6 +32,8 @@ export type TravelPackageFolderStatus =
   | 'archived'
 export type PackagePricingMode = 'total' | 'per_person'
 export type PackageDiscountMode = 'total' | 'per_person'
+export type PackageQuoteDiscountType = 'early_bird' | 'general_discount' | 'visa_special'
+export type PackageDiscountEligibleService = 'flight' | 'hotel' | 'transport' | 'visa'
 export type PackagePaymentMethod = 'cash' | 'bank_transfer' | 'card'
 export type PackagePaymentIntent = 'full_payment' | 'deposit_only' | 'installment_request'
 export type TravelPackageDocumentCategory =
@@ -96,6 +98,7 @@ export type TravelPackagePassengerType = 'adult' | 'child' | 'infant'
 export type TravelPackagePaymentType =
   | 'deposit'
   | 'payment'
+  | 'account_credit'
   | 'refund'
   | 'chargeback'
   | 'commission'
@@ -223,6 +226,11 @@ export interface PackageLimitedTimeOffer {
   expiresAt: string
   discountAmount: number
   discountMode: PackageDiscountMode
+  discountType?: PackageQuoteDiscountType
+  eligibleServices?: PackageDiscountEligibleService[]
+  visaOptionId?: string | null
+  visaPassengerCategory?: PackageVisaPassengerCategory
+  visaQuantity?: number
   active: boolean
 }
 
@@ -666,6 +674,23 @@ export interface TravelPackageReservation {
   created_at: string
   updated_at: string | null
   items?: TravelPackageReservationItem[]
+  discount_allocation?: TravelPackageReservationDiscountAllocation
+}
+
+export interface TravelPackageReservationDiscountAllocation {
+  earlyBirdTotal: number
+  generalDiscountTotal: number
+  visaSpecialTotal: number
+  total: number
+  basisProfit: number
+  remainingProfit: number
+  allocationPercentage: number
+  sources: Array<{
+    offerId: string
+    title: string
+    discountType: PackageQuoteDiscountType
+    amount: number
+  }>
 }
 
 export interface TravelPackageInvoiceLine {

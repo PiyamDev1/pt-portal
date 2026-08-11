@@ -115,6 +115,20 @@ it('nets completed customer payments against completed refunds', () => {
   })
 })
 
+it('uses a previous refund reimbursement as account credit without reducing package revenue', () => {
+  const summary = calculatePackagePaymentSummary([
+    payment({ amount: 500 }),
+    payment({ amount: 300, payment_type: 'account_credit' }),
+  ])
+
+  expect(summary).toMatchObject({
+    completedPayments: 800,
+    accountCredits: 300,
+    refunds: 0,
+    netPaid: 800,
+  })
+})
+
 describe('package lifecycle', () => {
   it('allows operational progress but blocks skipping from selected to closed', () => {
     expect(canTransitionTravelPackageStatus('selected', 'awaiting_passports')).toBe(true)

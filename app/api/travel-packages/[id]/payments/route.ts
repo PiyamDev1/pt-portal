@@ -15,6 +15,7 @@ const SCHEMA_HINT =
 const TYPES = new Set<TravelPackagePaymentType>([
   'deposit',
   'payment',
+  'account_credit',
   'refund',
   'chargeback',
   'commission',
@@ -98,6 +99,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const now = new Date().toISOString()
   const invoiceId = cleanText(body.invoiceId || body.invoice_id) || null
   const reservationId = cleanText(body.reservationId || body.reservation_id) || null
+  const receiptReference = cleanText(body.receiptReference || body.receipt_reference)
+  if (paymentType === 'account_credit' && !receiptReference) {
+    return apiError('Enter the previous package or refund reference for this account credit', 400)
+  }
+  const metadata =
+    body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata)
+      ? body.metadata
+      : {}
   const { data, error } = await supabase
     .from('travel_package_payments')
     .insert({
@@ -117,12 +126,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         cleanText(body.receivedAt || body.received_at) ||
         (paymentStatus === 'completed' ? now : null),
       received_by: paymentStatus === 'completed' ? user.id : null,
-      receipt_reference: cleanText(body.receiptReference || body.receipt_reference) || null,
+      receipt_reference: receiptReference || null,
       notes: cleanText(body.notes) || null,
-      metadata:
-        body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata)
-          ? body.metadata
-          : {},
+      metadata: {
+        ...metadata,
+        ...(paymentType === 'account_credit' ? { source: 'previous_refund_reimbursement' } : {}),
+      },
       created_by: user.id,
       updated_by: user.id,
     })

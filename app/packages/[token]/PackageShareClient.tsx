@@ -39,6 +39,7 @@ import {
   getPackageDepositPaymentSummary,
   getPackagePassengerPriceBreakdown,
   getPackagePaymentBreakdownTotal,
+  getPackageQuoteDiscountType,
   isLimitedTimeOfferActive,
   normalizePackagePaymentBreakdown,
   normalizePackageQuotePayload,
@@ -1208,7 +1209,9 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
 
   const visibleOffers = useMemo(() => {
     if (!payload) return []
-    return payload.limitedTimeOffers.filter((offer) => offer.active)
+    return payload.limitedTimeOffers.filter(
+      (offer) => offer.active && getPackageQuoteDiscountType(offer) !== 'visa_special',
+    )
   }, [payload])
   const packagePresets = useMemo(
     () => (payload ? buildPackagePresetSelections(payload) : []),
