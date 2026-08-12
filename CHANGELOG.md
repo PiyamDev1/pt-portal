@@ -4,8 +4,15 @@ Notable PT-Portal changes are recorded here. This project follows [Keep a Change
 
 ## Unreleased
 
+## 2.0.0 - 2026-08-12
+
 ### Added
 
+- Native travel-package quotation and operations workflows, including linked-family groups, customer quote selection, reservations, invoices, payments, refunds, documents, and transport vouchers.
+- Pakistani passport draft mode with department-scoped assignment and notifications.
+- Application accounting reports and GB passport PEX tracking.
+- Secure ESP32 timeclock integration, signed device activity, manual codes, and operational handoff documentation.
+- Repository metadata, licensing, release history, and maintained documentation navigation.
 - Database-backed fixed-window rate limiting with hashed identities and atomic backup-code replacement.
 - Atomic, idempotent LMS ledger/installment operations and schema-capability checks.
 - PostgreSQL 16 integration workflows for LMS and shared security migrations.
@@ -17,6 +24,7 @@ Notable PT-Portal changes are recorded here. This project follows [Keep a Change
 ### Changed
 
 - Upgraded the application and lint configuration to Next.js 16.3.
+- Reorganized the active product, setup, technical, operations, planning, and archive documentation under `docs/`.
 - Hardened password login, password changes, session revocation, backup-code lifecycle, employee onboarding, administrative password reset, and break-glass 2FA recovery.
 - Standardized protected route authorization around verified cookie-backed staff sessions and narrow role/department checks.
 - Hardened document and package uploads with bounded multipart parsing, scope checks, filename/MIME/extension/signature validation, private delivery, and metadata/object cleanup.
@@ -30,22 +38,6 @@ Notable PT-Portal changes are recorded here. This project follows [Keep a Change
 - Native browser `alert`, `confirm`, and `prompt` usage in application flows; notifications use toasts and decisions/input use app dialogs.
 - Legacy browser-supplied admin Bearer authorization paths.
 - Unused generic hooks, compatibility barrels, constant modules, component wiring, and redundant type stubs identified during cleanup.
-
-## 2.0.0 - 2026-02-01
-
-### Added
-
-- Organized product, setup, technical, operations, planning, and archive documentation under `docs/`.
-- Initial repository metadata, changelog, license, and project documentation navigation.
-
-### Changed
-
-- Updated the package version to 2.0.0.
-- Reorganized documentation links and entry points.
-
-### Fixed
-
-- Pricing loading, missing dashboard-route, and LMS refresh-loop defects documented for the release.
 
 ## 1.0.0 - 2026-01-15
 
