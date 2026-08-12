@@ -253,8 +253,8 @@ export default function EditModal({
                 <input
                   id="delete-auth-code"
                   type="password"
-                  autoComplete="off"
-                  placeholder="Auth Code"
+                  placeholder="Authenticator or backup code"
+                  autoComplete="one-time-code"
                   className="flex-1 p-2 border border-red-200 rounded text-sm bg-white"
                   value={deleteAuthCode}
                   onChange={(e) => setDeleteAuthCode(e.target.value)}

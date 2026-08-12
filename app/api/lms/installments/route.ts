@@ -12,11 +12,15 @@
 import { createClient } from '@supabase/supabase-js'
 import { apiOk, apiError } from '@/lib/api/http'
 import { ensureInstallmentsTableExists } from '@/lib/installmentsDb'
+import { requireLmsStaff } from '@/lib/lms/apiAuth'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: Request) {
   try {
+    const access = await requireLmsStaff()
+    if (!access.authorized) return access.response
+
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY
 

@@ -14,6 +14,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { toErrorMessage } from '@/lib/api/error'
 import { apiError, apiOk } from '@/lib/api/http'
+import { requireStaffSession } from '@/lib/auth/staffSession'
 
 export const dynamic = 'force-dynamic'
 
@@ -36,14 +37,12 @@ const collectReports = (managerId, employees) => {
 }
 
 export async function GET(request) {
+  const access = await requireStaffSession()
+  if (!access.authorized) return access.response
+
   try {
     const supabase = createSupabase()
-    const { searchParams } = new URL(request.url)
-    const userId = searchParams.get('userId')
-
-    if (!userId) {
-      return apiError('Missing userId', 400)
-    }
+    const userId = access.user.id
 
     const { data: employees, error: employeesError } = await supabase
       .from('employees')

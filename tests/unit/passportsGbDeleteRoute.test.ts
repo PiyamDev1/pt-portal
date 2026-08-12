@@ -58,6 +58,7 @@ const mocks = vi.hoisted(() => {
 vi.mock('@supabase/supabase-js', () => ({ createClient: mocks.createClient }))
 
 import { POST } from '@/app/api/passports/gb/delete/route'
+import { verifyFreshSecondFactor } from '@/lib/auth/freshSecondFactor'
 
 const makeRequest = (body: Record<string, unknown>) =>
   new Request('http://localhost/api/passports/gb/delete', {
@@ -88,13 +89,18 @@ describe('POST /api/passports/gb/delete', () => {
       if (table === 'applicants') return { delete: vi.fn(() => ({ eq: mocks.applicantDeleteEq })) }
       return {}
     })
+    vi.mocked(verifyFreshSecondFactor).mockResolvedValue({ verified: true, method: 'totp' })
   })
 
   it('returns 403 when auth code is missing', async () => {
+    vi.mocked(verifyFreshSecondFactor).mockResolvedValueOnce({
+      verified: false,
+      error: 'Verification code required',
+    })
     const res = await POST(makeRequest({ id: 'gb-1', userId: 'u-1' }))
     expect(res.status).toBe(403)
     const body = await res.json()
-    expect(body.error).toMatch(/auth code required/i)
+    expect(body.error).toMatch(/verification code required/i)
   })
 
   it('returns 404 when record is not found', async () => {

@@ -25,6 +25,7 @@ import {
   X,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { useAppDialog } from '@/components/AppDialog'
 import type {
   TravelPackageAuditEvent,
   TravelPackageCommunication,
@@ -55,6 +56,25 @@ import {
   getPackageDocumentPortalUrl,
   renderTransportVoucherHtml,
 } from '@/lib/packageTransportVoucher'
+import {
+  PAYMENT_METHODS,
+  PAYMENT_TYPES,
+  PASSPORT_STATUSES,
+  TABS,
+  TRANSPORT_VEHICLES,
+  dateInput,
+  dateTimeInput,
+  employeeLabel,
+  emptyVoucher,
+  formatDateTime,
+  formatVoucherPassengers,
+  getVehicleCapacity,
+  label,
+  normalizeVoucherVehicleFields,
+  readApiResponse,
+  type OperationsResponse,
+  type WorkspaceTab,
+} from './packageOperationsModel'
 
 type Props = {
   packageFolder: TravelPackageFolder
@@ -64,199 +84,6 @@ type Props = {
   onInvoiceChange?: (invoice: TravelPackageInvoice) => void
 }
 
-type WorkspaceTab = 'control' | 'passengers' | 'payments' | 'activity' | 'voucher' | 'history'
-
-type OperationsResponse = {
-  tasks?: TravelPackageTask[]
-  deadlines?: TravelPackageDeadline[]
-  risks?: TravelPackageRiskFlag[]
-  communications?: TravelPackageCommunication[]
-  auditEvents?: TravelPackageAuditEvent[]
-  setupRequired?: boolean
-  message?: string
-  error?: string
-}
-
-const TABS: Array<{ value: WorkspaceTab; label: string; icon: typeof Users }> = [
-  { value: 'control', label: 'Control', icon: ClipboardList },
-  { value: 'passengers', label: 'Passengers', icon: Users },
-  { value: 'payments', label: 'Payments', icon: CreditCard },
-  { value: 'activity', label: 'Tasks & Notes', icon: MessageSquarePlus },
-  { value: 'voucher', label: 'Transport Voucher', icon: Route },
-  { value: 'history', label: 'Audit', icon: History },
-]
-
-const PASSPORT_STATUSES = [
-  'not_requested',
-  'requested',
-  'received_whatsapp',
-  'checked',
-  'issues_found',
-  'ready',
-] as const
-
-const PAYMENT_METHODS: Array<{ value: TravelPackagePaymentMethod; label: string }> = [
-  { value: 'cash', label: 'Cash' },
-  { value: 'bank_transfer', label: 'Bank transfer' },
-  { value: 'card', label: 'Card' },
-  { value: 'other', label: 'Other' },
-]
-
-const PAYMENT_TYPES: Array<{ value: TravelPackagePaymentType; label: string }> = [
-  { value: 'deposit', label: 'Deposit' },
-  { value: 'payment', label: 'Payment' },
-  { value: 'account_credit', label: 'Previous refund / reimbursement credit' },
-  { value: 'refund', label: 'Refund' },
-  { value: 'chargeback', label: 'Chargeback' },
-  { value: 'commission', label: 'Commission' },
-]
-
-function dateInput(value?: string | null) {
-  if (!value) return ''
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? '' : date.toISOString().slice(0, 10)
-}
-
-function dateTimeInput(value?: string | null) {
-  if (!value) return ''
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return ''
-  return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
-}
-
-function formatDateTime(value?: string | null) {
-  if (!value) return 'Not set'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return 'Not set'
-  return date.toLocaleString('en-GB', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
-
-function label(value: string) {
-  return value.replace(/_/g, ' ').replace(/\b\w/g, (character) => character.toUpperCase())
-}
-
-function employeeLabel(employee: { full_name: string | null; email?: string | null }) {
-  return employee.full_name || employee.email || 'Unnamed employee'
-}
-
-async function readApiResponse<T>(response: Response): Promise<T> {
-  const text = await response.text()
-  if (!text.trim()) return {} as T
-  try {
-    return JSON.parse(text) as T
-  } catch {
-    const htmlTitle = text.match(/<title>(.*?)<\/title>/i)?.[1]
-    return {
-      error:
-        htmlTitle ||
-        (text.trim().startsWith('<!DOCTYPE') || text.trim().startsWith('<html')
-          ? `Unexpected server error (${response.status})`
-          : text.slice(0, 240)) ||
-        'Unexpected server response',
-    } as T
-  }
-}
-
-function emptyVoucher(): TravelPackageTransportVoucherData {
-  return {
-    bookingId: '',
-    adults: 0,
-    children: 0,
-    infants: 0,
-    passengers: '',
-    flightNumber: '',
-    airports: '',
-    landingDate: '',
-    landingTime: '',
-    vehicle: 'H1',
-    maxBags: '6',
-    extraBaggageFee: '50 SAR per bag',
-    providerName: 'Barakat AlMusafar Trading',
-    providerContact: '+966555049005',
-    itinerary: [],
-    routeAssignments: [],
-    sourceTransportOptionId: '',
-    sourceTransportOptionTitle: '',
-    digitalVoucherUrl: '',
-    qrCodeDataUrl: '',
-    quoteSnapshot: {
-      title: '',
-      packageType: '',
-      departureDate: '',
-      returnDate: '',
-      adults: 0,
-      children: 0,
-      infants: 0,
-      flightTitle: '',
-      makkahHotel: '',
-      madinahHotel: '',
-      transportOptionId: '',
-      transportOptionTitle: '',
-      transportProvider: '',
-      routes: [],
-    },
-    arrivalAirport: '',
-    arrivalAt: '',
-    departureAirport: '',
-    departureAt: '',
-    makkahHotel: '',
-    madinahHotel: '',
-    routes: [],
-    vehicleType: '',
-    transportCompany: '',
-    driverContact: '',
-    groundManager: '',
-    publicNotes: '',
-    internalNotes: '',
-  }
-}
-
-const TRANSPORT_VEHICLES = [
-  { name: 'Car', passengers: 4, bags: 3 },
-  { name: 'H1', passengers: 6, bags: 6 },
-  { name: 'Hiace', passengers: 13, bags: 13 },
-  { name: 'Coaster', passengers: 18, bags: 18 },
-  { name: 'Coach', passengers: 52, bags: 52 },
-]
-
-function getVehicleCapacity(vehicle: string | undefined) {
-  return TRANSPORT_VEHICLES.find((item) => item.name === vehicle)
-}
-
-function formatVoucherPassengers(adults = 0, children = 0, infants = 0) {
-  const total = Math.max(0, adults + children + infants)
-  const parts = [
-    `${adults} Adult${adults === 1 ? '' : 's'}`,
-    `${children} Child${children === 1 ? '' : 'ren'}`,
-  ]
-  if (infants > 0) parts.push(`${infants} Infant${infants === 1 ? '' : 's'}`)
-  return `${total} Passenger${total === 1 ? '' : 's'} (${parts.join(', ')})`
-}
-
-function normalizeVoucherVehicleFields(
-  voucherData: TravelPackageTransportVoucherData,
-): TravelPackageTransportVoucherData {
-  const fallbackVehicle = cleanTransportVoucherVehicleLabel(
-    voucherData.vehicleType || voucherData.vehicle,
-    voucherData.vehicle || '',
-  )
-  return {
-    ...voucherData,
-    vehicle: cleanTransportVoucherVehicleLabel(voucherData.vehicle, fallbackVehicle),
-    vehicleType: fallbackVehicle,
-    routeAssignments: (voucherData.routeAssignments || []).map((route) => ({
-      ...route,
-      vehicleType: cleanTransportVoucherVehicleLabel(route.vehicleType, fallbackVehicle),
-    })),
-  }
-}
-
 export default function PackageOperationsWorkspace({
   packageFolder,
   invoice,
@@ -264,6 +91,7 @@ export default function PackageOperationsWorkspace({
   onPackageChange,
   onInvoiceChange,
 }: Props) {
+  const { confirm, prompt, dialog } = useAppDialog()
   const [activeTab, setActiveTab] = useState<WorkspaceTab>('control')
   const [passengers, setPassengers] = useState<TravelPackagePassenger[]>([])
   const [payments, setPayments] = useState<TravelPackagePayment[]>([])
@@ -561,7 +389,14 @@ export default function PackageOperationsWorkspace({
 
   const changePackageStatus = async (status: TravelPackageFolderStatus) => {
     if (status === 'cancelled') {
-      const reason = window.prompt('Enter the cancellation reason:')?.trim()
+      const reason = await prompt({
+        title: 'Cancel package?',
+        message: 'The cancellation reason is recorded in the package audit history.',
+        label: 'Cancellation reason',
+        placeholder: 'Enter the reason for cancellation',
+        confirmLabel: 'Cancel package',
+        required: true,
+      })
       if (!reason) return
       await patchPackage({ status, cancellationReason: reason })
       return
@@ -671,7 +506,13 @@ export default function PackageOperationsWorkspace({
   }
 
   const deletePassenger = async (passenger: TravelPackagePassenger) => {
-    if (!window.confirm('Delete this passenger record?')) return
+    const shouldDelete = await confirm({
+      title: 'Delete passenger?',
+      message: `Delete ${[passenger.first_name, passenger.last_name].filter(Boolean).join(' ') || 'this passenger'} from the package? This cannot be undone.`,
+      confirmLabel: 'Delete passenger',
+      type: 'danger',
+    })
+    if (!shouldDelete) return
     setSaving(passenger.id)
     try {
       const response = await fetch(
@@ -798,7 +639,13 @@ export default function PackageOperationsWorkspace({
   }
 
   const deletePayment = async (payment: TravelPackagePayment) => {
-    if (!window.confirm('Delete this payment record?')) return
+    const shouldDelete = await confirm({
+      title: 'Delete payment?',
+      message: `Delete the ${formatMoney(payment.amount, payment.currency)} payment record? The invoice balance will be recalculated.`,
+      confirmLabel: 'Delete payment',
+      type: 'danger',
+    })
+    if (!shouldDelete) return
     setSaving(payment.id)
     try {
       const response = await fetch(
@@ -1236,6 +1083,7 @@ export default function PackageOperationsWorkspace({
 
   return (
     <section id="package-operations" className="border border-slate-200 bg-white shadow-sm">
+      {dialog}
       <div className="border-b border-slate-200 px-4 py-4 sm:px-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>

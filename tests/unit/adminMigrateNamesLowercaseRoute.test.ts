@@ -1,11 +1,6 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => {
-  const verifyAdminAccess = vi.fn()
-  const unauthorizedResponse = vi.fn((message: string, status = 401) =>
-    Response.json({ error: message }, { status }),
-  )
-
   const select = vi.fn()
   const eq = vi.fn()
   const update = vi.fn(() => ({ eq }))
@@ -13,8 +8,6 @@ const mocks = vi.hoisted(() => {
   const createClient = vi.fn(() => ({ from }))
 
   return {
-    verifyAdminAccess,
-    unauthorizedResponse,
     select,
     eq,
     update,
@@ -23,16 +16,13 @@ const mocks = vi.hoisted(() => {
   }
 })
 
-vi.mock('@/lib/adminAuth', () => ({
-  verifyAdminAccess: mocks.verifyAdminAccess,
-  unauthorizedResponse: mocks.unauthorizedResponse,
-}))
-
 vi.mock('@supabase/supabase-js', () => ({
   createClient: mocks.createClient,
 }))
 
 import { POST } from '@/app/api/admin/migrate-names-lowercase/route'
+import { requireStaffSession } from '@/lib/auth/staffSession'
+import { enforceRateLimit } from '@/lib/security/rateLimit'
 
 describe('POST /api/admin/migrate-names-lowercase', () => {
   const originalEnv = { ...process.env }
@@ -42,9 +32,21 @@ describe('POST /api/admin/migrate-names-lowercase', () => {
     process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co'
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role-key'
 
-    mocks.verifyAdminAccess.mockResolvedValue({
+    vi.mocked(requireStaffSession).mockResolvedValue({
       authorized: true,
       user: { id: 'admin-1', email: 'admin@example.com' },
+      employee: {
+        id: 'admin-1',
+        email: 'admin@example.com',
+        fullName: 'Admin User',
+        role: 'Admin',
+        departments: [],
+      },
+    })
+    vi.mocked(enforceRateLimit).mockResolvedValue({
+      allowed: true,
+      remaining: 2,
+      retryAfterSeconds: 0,
     })
 
     mocks.eq.mockResolvedValue({ error: null })
@@ -62,10 +64,9 @@ describe('POST /api/admin/migrate-names-lowercase', () => {
   })
 
   it('returns unauthorized response when admin verification fails', async () => {
-    mocks.verifyAdminAccess.mockResolvedValueOnce({
+    vi.mocked(requireStaffSession).mockResolvedValueOnce({
       authorized: false,
-      error: 'Forbidden',
-      status: 403,
+      response: Response.json({ error: 'Forbidden' }, { status: 403 }) as never,
     })
 
     const response = await POST(new Request('http://localhost/api/admin/migrate-names-lowercase'))
@@ -73,6 +74,22 @@ describe('POST /api/admin/migrate-names-lowercase', () => {
 
     expect(response.status).toBe(403)
     expect(payload).toEqual({ error: 'Forbidden' })
+    expect(mocks.createClient).not.toHaveBeenCalled()
+  })
+
+  it('passes through a shared rate-limit response', async () => {
+    vi.mocked(enforceRateLimit).mockResolvedValueOnce({
+      allowed: false,
+      remaining: 0,
+      retryAfterSeconds: 60,
+      response: Response.json({ error: 'Too many requests' }, { status: 429 }) as never,
+    })
+
+    const response = await POST(
+      new Request('http://localhost/api/admin/migrate-names-lowercase', { method: 'POST' }),
+    )
+
+    expect(response.status).toBe(429)
     expect(mocks.createClient).not.toHaveBeenCalled()
   })
 

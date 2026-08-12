@@ -5,7 +5,8 @@
 
 import { NextRequest } from 'next/server'
 import { apiOk, apiError } from '@/lib/api/http'
-import { getSignedDocumentPreviewUrl } from '@/lib/services/documentServer'
+import { getSignedDocumentThumbnailUrl } from '@/lib/services/documentServer'
+import { requireStaffSession } from '@/lib/auth/staffSession'
 
 /**
  * GET /api/documents/[documentId]/thumbnail
@@ -16,6 +17,9 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ documentId: string }> },
 ) {
+  const access = await requireStaffSession()
+  if (!access.authorized) return access.response
+
   try {
     const { documentId } = await params
 
@@ -23,9 +27,12 @@ export async function GET(
       return apiError('documentId is required', 400)
     }
 
-    const thumbnailUrl = await getSignedDocumentPreviewUrl(`thumbnails/${documentId}`)
-    return apiOk({ thumbnailUrl })
+    const thumbnailUrl = await getSignedDocumentThumbnailUrl(documentId)
+    return apiOk({ thumbnailUrl }, { headers: { 'Cache-Control': 'private, no-store, max-age=0' } })
   } catch (error) {
+    if (error instanceof Error && error.message === 'Document not found') {
+      return apiError('Document not found', 404)
+    }
     return apiError('Failed to generate thumbnail link', 500)
   }
 }

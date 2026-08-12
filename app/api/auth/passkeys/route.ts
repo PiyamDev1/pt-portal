@@ -1,6 +1,7 @@
 import { apiError, apiOk } from '@/lib/api/http'
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
 import { getSupabaseClient } from '@/lib/supabaseClient'
+import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -32,7 +33,15 @@ export async function DELETE(request: Request) {
 
   if (!user) return apiError('Unauthorized', 401)
 
-  const body = await request.json().catch(() => ({})) as { id?: string }
+  const limit = await enforceRateLimit(request, {
+    scope: 'auth.passkey-delete',
+    limit: 5,
+    windowSeconds: 15 * 60,
+    identities: [`user:${user.id}`, `ip:${getClientIp(request)}`],
+  })
+  if (!limit.allowed) return limit.response
+
+  const body = (await request.json().catch(() => ({}))) as { id?: string }
   if (!body.id) return apiError('Passkey id is required', 400)
 
   const admin = getSupabaseClient()

@@ -3,7 +3,7 @@ import { apiError, apiOk } from '@/lib/api/http'
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
 import { recordPackageAuditEvent } from '@/lib/packageAudit'
 import type { TravelPackagePassenger, TravelPackagePassengerType } from '@/app/types/packages'
-import { selectTravelPackagePassengerColumns } from '../route'
+import { selectTravelPackagePassengerColumns } from '../columns'
 
 const VISA_STATUSES = new Set([
   'not_started',

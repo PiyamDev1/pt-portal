@@ -33,7 +33,8 @@ const mocks = vi.hoisted(() => {
     if (table === 'deletion_logs') return { insert: deletionLogInsert }
     if (table === 'applications') return { delete: appDelete }
     if (table === 'applicants') return { delete: applicantDelete, update: applicantUpdate }
-    if (table === 'nicop_cnic_details') return { upsert: vi.fn().mockResolvedValue({ error: null }) }
+    if (table === 'nicop_cnic_details')
+      return { upsert: vi.fn().mockResolvedValue({ error: null }) }
     return {}
   })
 
@@ -90,7 +91,7 @@ describe('POST /api/nadra/manage-record', () => {
     const res = await POST(makeRequest({ id: 'n-1' }))
     expect(res.status).toBe(400)
     const body = await res.json()
-    expect(body.error).toMatch(/missing action or type/i)
+    expect(body.error).toMatch(/expected one of/i)
   })
 
   it('returns semantic payload for update action', async () => {
@@ -149,5 +150,4 @@ describe('POST /api/nadra/manage-record', () => {
       deletedRecordId: 'n-1',
     })
   })
-}
-)
+})

@@ -17,8 +17,19 @@ import { createClient } from '@supabase/supabase-js'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
 import { tryGenerateReceiptForStatusTrigger } from '@/lib/services/receiptGenerator'
+import { requireStaffSession } from '@/lib/auth/staffSession'
+import { z } from 'zod'
+import { parseBodyWithSchema } from '@/lib/api/request'
+
+const updateStatusSchema = z.object({
+  nadraId: z.string({ error: 'Missing Nadra ID' }).trim().min(1, 'Missing Nadra ID').max(200),
+  status: z.string().trim().min(1, 'Status is required').max(100),
+})
 
 export async function POST(request) {
+  const access = await requireStaffSession()
+  if (!access.authorized) return access.response
+
   try {
     // Use service role key to bypass RLS policies if necessary
     const supabase = createClient(
@@ -26,11 +37,14 @@ export async function POST(request) {
       process.env.SUPABASE_SERVICE_ROLE_KEY,
     )
 
-    const { nadraId, status, userId } = await request.json()
-
-    if (!nadraId) {
-      return apiError('Missing Nadra ID', 400)
-    }
+    const { data: body, error: bodyError } = await parseBodyWithSchema(
+      request,
+      updateStatusSchema,
+      { maxBytes: 8 * 1024 },
+    )
+    if (bodyError || !body) return apiError(bodyError || 'Invalid request payload', 400)
+    const { nadraId, status } = body
+    const userId = access.user.id
 
     const { error } = await supabase
       .from('nadra_services')

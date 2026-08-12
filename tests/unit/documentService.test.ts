@@ -18,13 +18,9 @@ describe('PlaceholderDocumentService', () => {
   })
 
   it('allows oversized images through full validation for automatic compression', () => {
-    const compressible = new File(
-      [new Uint8Array(DOCUMENT_MAX_FILE_SIZE_BYTES + 1)],
-      'scan.png',
-      {
-        type: 'image/png',
-      },
-    )
+    const compressible = new File([new Uint8Array(DOCUMENT_MAX_FILE_SIZE_BYTES + 1)], 'scan.png', {
+      type: 'image/png',
+    })
 
     const result = service.validateFile(compressible)
 
@@ -74,9 +70,7 @@ describe('PlaceholderDocumentService', () => {
     await expect(prepareDocumentUploadFile(file)).rejects.toThrow(/Automatic compression/)
   })
 
-  it('throws server-only error for preview url in browser runtime', async () => {
-    await expect(service.getPreviewUrl('file.pdf')).rejects.toThrow(
-      'Signed URL generation is server-only',
-    )
+  it('does not expose server-side URL signing to browser services', () => {
+    expect('getPreviewUrl' in service).toBe(false)
   })
 })

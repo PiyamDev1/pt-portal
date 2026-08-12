@@ -10,6 +10,7 @@ import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
 import { tryGenerateReceiptForStatusTrigger } from '@/lib/services/receiptGenerator'
 import { findGbPricingRow } from '@/lib/passports/gbPricing'
+import { requireStaffSession } from '@/lib/auth/staffSession'
 
 async function findGbPassportPricing(supabase, { pricingId, ageGroup, pages, serviceType }) {
   if (pricingId) {
@@ -41,6 +42,9 @@ async function findGbPassportPricing(supabase, { pricingId, ageGroup, pages, ser
 }
 
 export async function POST(request) {
+  const access = await requireStaffSession()
+  if (!access.authorized) return access.response
+
   try {
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -52,7 +56,6 @@ export async function POST(request) {
       id,
       status,
       notes,
-      userId,
       applicantName,
       applicantPassport,
       dateOfBirth,
@@ -63,6 +66,7 @@ export async function POST(request) {
       pages,
       serviceType,
     } = body
+    const userId = access.user.id
 
     // Get the applicant ID and current status (BEFORE any updates)
     const { data: gbApp, error: gbErr } = await supabase

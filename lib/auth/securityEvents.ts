@@ -20,6 +20,28 @@ type RecordSecurityEventInput = {
   metadata?: Record<string, unknown>
 }
 
+async function insertAuthSecurityEvent({
+  request,
+  userId,
+  email,
+  eventType,
+  status,
+  metadata = {},
+}: RecordSecurityEventInput) {
+  const admin = getSupabaseClient()
+  const { error } = await admin.from('auth_security_events').insert({
+    user_id: userId || null,
+    email: normalizeSecurityEmail(email),
+    event_type: eventType,
+    status,
+    ip_address: getRequestIp(request),
+    user_agent: request?.headers.get('user-agent') || null,
+    metadata,
+  })
+
+  if (error) throw error
+}
+
 export const LOGIN_FAILURE_WINDOW_MINUTES = 15
 export const LOGIN_FAILURE_LIMIT = 5
 export const LOGIN_LOCKOUT_MINUTES = 15
@@ -48,19 +70,19 @@ export async function recordAuthSecurityEvent({
   metadata = {},
 }: RecordSecurityEventInput) {
   try {
-    const admin = getSupabaseClient()
-    await admin.from('auth_security_events').insert({
-      user_id: userId || null,
-      email: normalizeSecurityEmail(email),
-      event_type: eventType,
-      status,
-      ip_address: getRequestIp(request),
-      user_agent: request?.headers.get('user-agent') || null,
-      metadata,
-    })
+    await insertAuthSecurityEvent({ request, userId, email, eventType, status, metadata })
   } catch {
     // Security telemetry must never break the primary auth flow.
   }
+}
+
+/**
+ * Persist an event that is part of the security control itself. Callers use
+ * this for break-glass actions where proceeding without a durable audit row
+ * would be unsafe.
+ */
+export async function recordAuthSecurityEventStrict(input: RecordSecurityEventInput) {
+  await insertAuthSecurityEvent(input)
 }
 
 export async function getLoginGuard(email: string) {
@@ -77,6 +99,7 @@ export async function getLoginGuard(email: string) {
     .select('status, created_at')
     .eq('event_type', 'password_login')
     .eq('email', normalizedEmail)
+    .in('status', ['failed', 'success'])
     .gte('created_at', since)
     .order('created_at', { ascending: false })
     .limit(20)

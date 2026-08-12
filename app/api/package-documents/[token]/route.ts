@@ -6,6 +6,7 @@ import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
 import { createPublicPackageDocument, createPublicTransportVoucher } from '@/lib/packagePortal'
 import { getS3Client } from '@/lib/s3Client'
 import type { TravelPackageDocument, TravelPackageFolder } from '@/app/types/packages'
+import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
 
 function isExpired(value: string | null | undefined) {
   if (!value) return false
@@ -78,12 +79,20 @@ async function withSignedUrl(document: TravelPackageDocument) {
 }
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ token: string }> },
 ) {
   const { token } = await params
   const cleanToken = token.trim()
   if (!cleanToken) return apiError('Missing document access token', 400)
+
+  const limit = await enforceRateLimit(request, {
+    scope: 'public.package-documents',
+    limit: 60,
+    windowSeconds: 60,
+    identities: [`ip:${getClientIp(request)}`, `token:${cleanToken}`],
+  })
+  if (!limit.allowed) return limit.response
 
   const supabase = getServiceSupabaseClient()
   const { data: packageData, error: packageError } = await supabase

@@ -18,15 +18,12 @@ const INSTALL_DISMISSED_KEY = 'pt-ims-pwa-install-dismissed'
 
 export function PWAInstallPrompt() {
   const pathname = usePathname()
+  const isPublicPackageRoute = pathname?.startsWith('/packages/')
   const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null)
   const [visible, setVisible] = useState(false)
 
   useEffect(() => {
-    if (pathname?.startsWith('/packages/')) {
-      setInstallEvent(null)
-      setVisible(false)
-      return
-    }
+    if (isPublicPackageRoute) return
     if (!isMobileDevice() || isStandalonePwa()) return
     if (window.localStorage.getItem(INSTALL_DISMISSED_KEY) === '1') return
 
@@ -47,7 +44,7 @@ export function PWAInstallPrompt() {
     }
 
     return () => window.removeEventListener('beforeinstallprompt', onBeforeInstallPrompt)
-  }, [pathname])
+  }, [isPublicPackageRoute])
 
   const dismiss = () => {
     window.localStorage.setItem(INSTALL_DISMISSED_KEY, '1')
@@ -63,7 +60,7 @@ export function PWAInstallPrompt() {
     }
   }
 
-  if (!visible) return null
+  if (isPublicPackageRoute || !visible) return null
 
   const ios = isIosDevice()
 

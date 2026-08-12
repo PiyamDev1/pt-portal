@@ -205,7 +205,8 @@ export default function EditModal({
               <h4 className="text-xs font-bold uppercase">Danger Zone</h4>
             </div>
             <p className="text-xs text-red-600 leading-relaxed">
-              Deleting this record is permanent. Please enter your Auth Code to confirm.
+              Deleting this record is permanent. Enter a fresh authenticator or backup code to
+              confirm.
             </p>
             <div className="flex gap-2">
               <label htmlFor="gb-delete-auth" className="sr-only">
@@ -215,7 +216,7 @@ export default function EditModal({
                 id="gb-delete-auth"
                 type="password"
                 autoComplete="off"
-                placeholder="Auth Code"
+                placeholder="Authenticator or backup code"
                 className="flex-1 border border-red-200 rounded p-2 text-sm focus:ring-red-500 bg-white"
                 value={deleteAuthCode}
                 onChange={(e) => setDeleteAuthCode(e.target.value)}

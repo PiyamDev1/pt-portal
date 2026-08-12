@@ -6,13 +6,23 @@
  */
 
 import { verifyMasterAdminSession } from '@/lib/issueReportAuth'
+import { z } from 'zod'
 import { getSupabaseClient } from '@/lib/supabaseClient'
 import { normalizeStatus } from '@/lib/issueReportUtils'
 import { readIssueArtifact } from '@/lib/issueReportStorage'
 import { apiError, apiOk } from '@/lib/api/http'
+import { parseBodyWithSchema } from '@/lib/api/request'
+import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
 import { toErrorMessage } from '@/lib/api/error'
 
 const ARTIFACT_RETENTION_DAYS = 30
+const updateIssueReportSchema = z
+  .object({
+    status: z.string().trim().min(1).max(50).optional(),
+    assignedToUserId: z.string().trim().max(200).nullable().optional(),
+    adminNote: z.string().max(2_000).optional(),
+  })
+  .strict()
 
 export async function GET(_: Request, context: { params: Promise<{ reportId: string }> }) {
   const auth = await verifyMasterAdminSession()
@@ -97,15 +107,27 @@ export async function PATCH(request: Request, context: { params: Promise<{ repor
     return apiError(auth.error ?? 'Unauthorized', auth.status)
   }
 
+  const limit = await enforceRateLimit(request, {
+    scope: 'admin.issue-report-update',
+    limit: 60,
+    windowSeconds: 60 * 60,
+    identities: [`user:${auth.user?.id}`, `ip:${getClientIp(request)}`],
+  })
+  if (!limit.allowed) return limit.response
+
   const { reportId } = await context.params
-  const body = await request.json()
-  const hasStatus = typeof body?.status === 'string' && body.status.trim().length > 0
-  const status = hasStatus ? normalizeStatus(body?.status) : null
-  const hasAssignment = Object.prototype.hasOwnProperty.call(body || {}, 'assignedToUserId')
-  const assignedToUserId = hasAssignment ? body?.assignedToUserId || null : undefined
-  const adminNote = String(body?.adminNote || '')
-    .trim()
-    .slice(0, 2000)
+  const { data: body, error: bodyError } = await parseBodyWithSchema(
+    request,
+    updateIssueReportSchema,
+    { maxBytes: 8 * 1024 },
+  )
+  if (bodyError || !body) return apiError(bodyError || 'Invalid request payload', 400)
+
+  const hasStatus = body.status !== undefined
+  const status = hasStatus ? normalizeStatus(body.status) : null
+  const hasAssignment = Object.prototype.hasOwnProperty.call(body, 'assignedToUserId')
+  const assignedToUserId = hasAssignment ? body.assignedToUserId || null : undefined
+  const adminNote = (body.adminNote || '').trim()
 
   if (!hasStatus && !hasAssignment) {
     return apiError('No status or assignment update was provided.', 400)

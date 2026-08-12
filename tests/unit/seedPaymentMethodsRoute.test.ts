@@ -32,7 +32,7 @@ describe('/api/admin/seed-payment-methods route', () => {
     const payload = await response.json()
 
     expect(response.status).toBe(500)
-    expect(payload).toEqual({ error: 'Supabase not configured' })
+    expect(payload.error).toMatch(/supabase not configured/i)
     expect(mocks.createClient).not.toHaveBeenCalled()
   })
 

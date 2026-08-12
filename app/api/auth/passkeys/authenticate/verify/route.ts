@@ -3,6 +3,7 @@ import { getSupabaseClient } from '@/lib/supabaseClient'
 import { getWebAuthnContext, verifyAuthenticationAssertion } from '@/lib/auth/webauthn'
 import { recordAuthSecurityEvent } from '@/lib/auth/securityEvents'
 import type { JsonWebKey as NodeJsonWebKey } from 'crypto'
+import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -21,6 +22,14 @@ type AuthenticationBody = {
 }
 
 export async function POST(request: Request) {
+  const limit = await enforceRateLimit(request, {
+    scope: 'auth.passkey-verify',
+    limit: 15,
+    windowSeconds: 15 * 60,
+    identities: [`ip:${getClientIp(request)}`],
+  })
+  if (!limit.allowed) return limit.response
+
   const body = (await request.json().catch(() => ({}))) as AuthenticationBody
   const credentialId = body.credential?.rawId || body.credential?.id
 

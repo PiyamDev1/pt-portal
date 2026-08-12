@@ -8,6 +8,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { apiOk, apiError } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
+import { requireStaffSession } from '@/lib/auth/staffSession'
 import {
   mapGbPricingRule,
   normaliseGbPageValue,
@@ -40,6 +41,9 @@ function mergeLookupOptions(lookupRows, pricingRows, lookupLabelKey, pricingLabe
 }
 
 export async function GET() {
+  const access = await requireStaffSession()
+  if (!access.authorized) return access.response
+
   try {
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,

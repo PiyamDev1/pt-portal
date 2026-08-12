@@ -1,72 +1,54 @@
-/**
- * Module: app/api/documents/preview/route.ts
- * API route or server helper for documents/preview/route.ts.
- */
-
 import { NextRequest, NextResponse } from 'next/server'
-import { GetObjectCommand } from '@aws-sdk/client-s3'
 import { Readable } from 'stream'
-import { getS3Client } from '@/lib/s3Client'
-import { getR2Client, isR2Configured } from '@/lib/r2Client'
-import { migrateObjectFromR2ToMinio } from '@/lib/r2Migration'
 import { apiError } from '@/lib/api/http'
-
-const MINIO_BUCKET = process.env.MINIO_BUCKET_NAME || 'portal-documents'
-const R2_BUCKET = process.env.R2_BUCKET_NAME || 'portal-fallback'
+import { requireStaffSession } from '@/lib/auth/staffSession'
+import {
+  findStoredDocumentById,
+  findStoredDocumentByKey,
+  readStoredDocument,
+} from '@/lib/services/documentServer'
+import { documentContentDisposition, isSafeInlineDocumentMimeType } from '@/lib/documentSecurity'
 
 /**
- * GET /api/documents/preview?key=<minio-object-key>
- * Streams the object directly from MinIO to the browser without buffering.
- * Uses 1-year cache for immutable content-addressed objects.
+ * Streams a live document record for an authenticated staff member.
+ * The legacy key parameter is accepted only when it resolves to a non-deleted
+ * database record; arbitrary object-store keys never reach storage.
  */
 export async function GET(request: NextRequest) {
+  const access = await requireStaffSession()
+  if (!access.authorized) return access.response
+
   try {
     const { searchParams } = new URL(request.url)
+    const documentId = searchParams.get('documentId')
     const key = searchParams.get('key')
 
-    if (!key) {
-      return apiError('key is required', 400)
+    if (!documentId && !key) {
+      return apiError('documentId is required', 400)
     }
 
-    let result
+    const document = documentId
+      ? await findStoredDocumentById(documentId)
+      : await findStoredDocumentByKey(key || '')
+    if (!document) return apiError('Document not found', 404)
 
-    try {
-      const s3Client = getS3Client()
-      result = await s3Client.send(
-        new GetObjectCommand({
-          Bucket: MINIO_BUCKET,
-          Key: key,
-        }),
-      )
-    } catch (minioReadError) {
-      if (!isR2Configured()) {
-        throw minioReadError
-      }
+    const result = await readStoredDocument(document)
+    if (!result.Body) return apiError('File body is empty', 404)
 
-      const r2Client = getR2Client()
-      result = await r2Client.send(
-        new GetObjectCommand({
-          Bucket: R2_BUCKET,
-          Key: key,
-        }),
-      )
-
-      // Try to move object back to MinIO for future reads
-      void migrateObjectFromR2ToMinio(key, { trigger: 'read' })
-    }
-
-    if (!result.Body) {
-      return apiError('File body is empty', 404)
-    }
-
-    // Convert AWS SDK stream to Node.js Readable stream for efficient streaming
     const stream = Readable.from(result.Body as AsyncIterable<Uint8Array>)
     const webStream = Readable.toWeb(stream) as ReadableStream<Uint8Array>
+    const disposition = isSafeInlineDocumentMimeType(document.fileType) ? 'inline' : 'attachment'
 
     return new NextResponse(webStream, {
       headers: {
-        'Content-Type': result.ContentType || 'application/octet-stream',
-        'Cache-Control': 'public, max-age=31536000, immutable',
+        'Content-Type': document.fileType,
+        'Content-Disposition': documentContentDisposition(document.fileName, disposition),
+        'Cache-Control': 'private, no-store, max-age=0',
+        Pragma: 'no-cache',
+        Expires: '0',
+        'X-Content-Type-Options': 'nosniff',
+        'Content-Security-Policy': 'sandbox',
+        'Referrer-Policy': 'no-referrer',
       },
     })
   } catch {

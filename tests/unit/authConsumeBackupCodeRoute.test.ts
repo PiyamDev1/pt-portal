@@ -1,45 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => {
-  const compare = vi.fn()
   const getUser = vi.fn()
   const getRouteSupabaseClient = vi.fn(async () => ({ auth: { getUser } }))
+  const recordAuthSecurityEvent = vi.fn()
 
-  const updateEq = vi.fn()
-  const update = vi.fn(() => ({ eq: updateEq }))
-
-  const selectEq = vi.fn()
-  const select = vi.fn(() => ({ eq: selectEq }))
-
-  const from = vi.fn((table: string) => {
-    if (table === 'backup_codes') {
-      return { select, update }
-    }
-    return {}
-  })
-
-  const createClient = vi.fn(() => ({ from }))
-
-  return {
-    compare,
-    getUser,
-    getRouteSupabaseClient,
-    updateEq,
-    update,
-    selectEq,
-    select,
-    from,
-    createClient,
-  }
+  return { getUser, getRouteSupabaseClient, recordAuthSecurityEvent }
 })
 
-vi.mock('@supabase/supabase-js', () => ({ createClient: mocks.createClient }))
-vi.mock('bcryptjs', () => ({ default: { compare: mocks.compare, hash: vi.fn() } }))
 vi.mock('@/lib/api/serverSupabase', () => ({
   getRouteSupabaseClient: mocks.getRouteSupabaseClient,
 }))
+vi.mock('@/lib/auth/securityEvents', () => ({
+  recordAuthSecurityEvent: mocks.recordAuthSecurityEvent,
+}))
 
 import { POST } from '@/app/api/auth/consume-backup-code/route'
+import { consumeBackupCodeAtomically } from '@/lib/auth/freshSecondFactor'
 
 const makeRequest = (body: Record<string, unknown>) =>
   new Request('http://localhost/api/auth/consume-backup-code', {
@@ -51,13 +28,10 @@ const makeRequest = (body: Record<string, unknown>) =>
 describe('POST /api/auth/consume-backup-code', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co'
-    process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-key'
-
-    mocks.createClient.mockReturnValue({ from: mocks.from })
-    mocks.from.mockReturnValue({ select: mocks.select, update: mocks.update })
-    mocks.select.mockReturnValue({ eq: mocks.selectEq })
-    mocks.update.mockReturnValue({ eq: mocks.updateEq })
+    vi.mocked(consumeBackupCodeAtomically).mockResolvedValue({
+      consumed: true,
+      codeId: 'c-2',
+    })
     mocks.getUser.mockResolvedValue({
       data: { user: { id: 'u-1', email: 'user@example.com' } },
       error: null,
@@ -75,36 +49,29 @@ describe('POST /api/auth/consume-backup-code', () => {
     expect(res.status).toBe(400)
   })
 
-  it('returns 500 when backup code query fails', async () => {
-    mocks.selectEq.mockResolvedValue({ data: null, error: { message: 'db fail' } })
+  it('returns 503 when backup code verification is unavailable', async () => {
+    vi.mocked(consumeBackupCodeAtomically).mockResolvedValueOnce({
+      consumed: false,
+      error: 'Unable to verify backup code',
+      unavailable: true,
+    })
     const res = await POST(makeRequest({ code: 'ABCD' }))
-    expect(res.status).toBe(500)
+    expect(res.status).toBe(503)
   })
 
-  it('returns 200 and marks code as used when a valid unused code matches', async () => {
-    mocks.selectEq.mockResolvedValue({
-      data: [
-        { id: 'c-1', code_hash: 'h1', used: true },
-        { id: 'c-2', code_hash: 'h2', used: false },
-      ],
-      error: null,
-    })
-    mocks.compare.mockImplementation(async (_code: string, hash: string) => hash === 'h2')
-    mocks.updateEq.mockResolvedValue({ error: null })
-
+  it('returns 200 after the shared helper atomically consumes a code', async () => {
     const res = await POST(makeRequest({ code: 'ABCD-EFGH' }))
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body).toEqual({ consumedCodeId: 'c-2' })
-    expect(mocks.updateEq).toHaveBeenCalledWith('id', 'c-2')
+    expect(consumeBackupCodeAtomically).toHaveBeenCalledWith('u-1', 'ABCD-EFGH')
   })
 
   it('returns 400 when no valid unused code matches', async () => {
-    mocks.selectEq.mockResolvedValue({
-      data: [{ id: 'c-1', code_hash: 'h1', used: true }],
-      error: null,
+    vi.mocked(consumeBackupCodeAtomically).mockResolvedValueOnce({
+      consumed: false,
+      error: 'Invalid or used backup code',
     })
-    mocks.compare.mockResolvedValue(false)
 
     const res = await POST(makeRequest({ code: 'BAD' }))
     expect(res.status).toBe(400)

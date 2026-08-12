@@ -14,6 +14,19 @@ const mocks = vi.hoisted(() => {
 vi.mock('@supabase/supabase-js', () => ({
   createClient: mocks.createClient,
 }))
+vi.mock('@/lib/lms/apiAuth', () => ({
+  requireLmsMaintenance: vi.fn(async () => ({
+    authorized: true,
+    user: { id: 'user-1', email: 'admin@example.com' },
+    employee: {
+      id: 'admin-1',
+      email: 'admin@example.com',
+      fullName: 'Test Admin',
+      role: 'Master Admin',
+      departments: [],
+    },
+  })),
+}))
 
 import { POST } from '@/app/api/admin/migrate-installment-amounts/route'
 
@@ -32,7 +45,9 @@ describe('POST /api/admin/migrate-installment-amounts', () => {
   })
 
   it('returns semantic migration summary payload', async () => {
-    const response = await POST(new Request('http://localhost/api/admin/migrate-installment-amounts'))
+    const response = await POST(
+      new Request('http://localhost/api/admin/migrate-installment-amounts'),
+    )
     const payload = await response.json()
 
     expect(response.status).toBe(200)
@@ -49,7 +64,9 @@ describe('POST /api/admin/migrate-installment-amounts', () => {
   it('returns 500 when fetching installments fails', async () => {
     mocks.order.mockResolvedValueOnce({ data: null, error: { message: 'fetch failed' } })
 
-    const response = await POST(new Request('http://localhost/api/admin/migrate-installment-amounts'))
+    const response = await POST(
+      new Request('http://localhost/api/admin/migrate-installment-amounts'),
+    )
     const payload = await response.json()
 
     expect(response.status).toBe(500)

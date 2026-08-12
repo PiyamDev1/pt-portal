@@ -12,6 +12,7 @@ import type {
   TravelPackageDocumentCategory,
   TravelPackageFolder,
 } from '@/app/types/packages'
+import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
 
 function cleanText(value: unknown) {
   return typeof value === 'string' ? value.trim() : ''
@@ -168,6 +169,14 @@ export async function POST(
   const { token } = await params
   const cleanToken = token.trim()
   if (!cleanToken) return apiError('Missing third-party document token', 400)
+
+  const limit = await enforceRateLimit(request, {
+    scope: 'public.third-party-documents',
+    limit: 10,
+    windowSeconds: 15 * 60,
+    identities: [`ip:${getClientIp(request)}`, `token:${cleanToken}`],
+  })
+  if (!limit.allowed) return limit.response
 
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null
   if (!body) return apiError('Invalid JSON body', 400)

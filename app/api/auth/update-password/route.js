@@ -22,9 +22,23 @@ import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
 import { recordAuthSecurityEvent } from '@/lib/auth/securityEvents'
+import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
+import { z } from 'zod'
+import { parseBodyWithSchema } from '@/lib/api/request'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
+
+const updatePasswordSchema = z.object({
+  currentPassword: z
+    .string({ error: 'Current password required' })
+    .min(1, 'Current password required')
+    .max(1_000),
+  newPassword: z
+    .string({ error: 'New password required' })
+    .min(1, 'New password required')
+    .max(1_000),
+})
 
 export async function POST(request) {
   try {
@@ -35,20 +49,52 @@ export async function POST(request) {
 
     if (!user) return apiError('Unauthorized', 401)
 
-    // Initialize client inside the function
+    const limit = await enforceRateLimit(request, {
+      scope: 'auth.update-password',
+      limit: 5,
+      windowSeconds: 15 * 60,
+      identities: [`user:${user.id}`, `ip:${getClientIp(request)}`],
+    })
+    if (!limit.allowed) return limit.response
+
+    const { data: body, error: bodyError } = await parseBodyWithSchema(
+      request,
+      updatePasswordSchema,
+      { maxBytes: 4 * 1024 },
+    )
+    if (bodyError || !body) return apiError(bodyError || 'Missing requirements', 400)
+
+    // Reauthenticate on the server. A browser-side password check alone can be
+    // bypassed by calling this route directly with a stolen session cookie.
+    const reauthClient = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+      { auth: { autoRefreshToken: false, persistSession: false } },
+    )
+    const { error: reauthError } = await reauthClient.auth.signInWithPassword({
+      email: user.email || '',
+      password: body.currentPassword,
+    })
+    if (reauthError) {
+      await recordAuthSecurityEvent({
+        request,
+        userId: user.id,
+        email: user.email,
+        eventType: 'password_update',
+        status: 'failed',
+        metadata: { reason: 'reauthentication_failed' },
+      })
+      return apiError('Current password is incorrect', 403)
+    }
+
+    // Initialize service client inside the function
     const supabaseAdmin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
       process.env.SUPABASE_SERVICE_ROLE_KEY,
     )
 
-    const { newPassword } = await request.json().catch(() => ({}))
-
-    if (!newPassword) {
-      return apiError('Missing requirements', 400)
-    }
-
     // Server-side password strength validation
-    const password = newPassword
+    const password = body.newPassword
     const passErrors = []
     if (password.length < 8) passErrors.push('at least 8 characters')
     if (!/[a-z]/.test(password)) passErrors.push('a lowercase letter')
@@ -63,7 +109,7 @@ export async function POST(request) {
 
     // 1. Update Password in Supabase Auth (The real login system)
     const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(user.id, {
-      password: newPassword,
+      password,
     })
 
     if (authError) {

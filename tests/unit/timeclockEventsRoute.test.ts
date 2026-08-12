@@ -5,7 +5,7 @@ const mocks = vi.hoisted(() => {
   process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-key'
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'anon-key'
 
-  const getSession = vi.fn()
+  const getUser = vi.fn()
 
   const empSelect = vi.fn()
   const adminFrom = vi.fn((table: string) => {
@@ -19,10 +19,10 @@ const mocks = vi.hoisted(() => {
   const serverFrom = vi.fn(() => ({ select: profileSelect }))
 
   const createClient = vi.fn(() => ({ from: adminFrom }))
-  const createServerClient = vi.fn(() => ({ auth: { getSession }, from: serverFrom }))
+  const createServerClient = vi.fn(() => ({ auth: { getUser }, from: serverFrom }))
 
   return {
-    getSession,
+    getUser,
     empSelect,
     adminFrom,
     maybeSingle,
@@ -53,7 +53,7 @@ describe('GET /api/timeclock/events', () => {
     vi.clearAllMocks()
     mocks.createClient.mockReturnValue({ from: mocks.adminFrom })
     mocks.createServerClient.mockReturnValue({
-      auth: { getSession: mocks.getSession },
+      auth: { getUser: mocks.getUser },
       from: mocks.serverFrom,
     })
     mocks.adminFrom.mockImplementation((table: string) => {
@@ -66,7 +66,7 @@ describe('GET /api/timeclock/events', () => {
   })
 
   it('returns 401 when there is no session', async () => {
-    mocks.getSession.mockResolvedValue({ data: { session: null } })
+    mocks.getUser.mockResolvedValue({ data: { user: null }, error: null })
     const res = await GET(makeRequest())
     expect(res.status).toBe(401)
     const body = await res.json()
@@ -74,14 +74,14 @@ describe('GET /api/timeclock/events', () => {
   })
 
   it('returns 500 when the employees query fails', async () => {
-    mocks.getSession.mockResolvedValue({ data: { session: { user: { id: 'u-1' } } } })
+    mocks.getUser.mockResolvedValue({ data: { user: { id: 'u-1' } }, error: null })
     mocks.empSelect.mockResolvedValue({ data: null, error: { message: 'db failure' } })
     const res = await GET(makeRequest())
     expect(res.status).toBe(500)
   })
 
   it('returns 403 for team scope when user has no manager access', async () => {
-    mocks.getSession.mockResolvedValue({ data: { session: { user: { id: 'u-1' } } } })
+    mocks.getUser.mockResolvedValue({ data: { user: { id: 'u-1' } }, error: null })
     mocks.empSelect.mockResolvedValue({
       data: [{ id: 'u-1', full_name: 'Test User', manager_id: null, roles: { name: 'Employee' } }],
       error: null,

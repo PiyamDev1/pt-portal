@@ -15,6 +15,10 @@
 import { apiOk, apiError } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
 import { createClient } from '@supabase/supabase-js'
+import { requireLmsStaff } from '@/lib/lms/apiAuth'
+import { z } from 'zod'
+import { parseBodyWithSchema } from '@/lib/api/request'
+import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,17 +26,31 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 const supabase = createClient(supabaseUrl, supabaseKey)
 
-interface AuditLog {
-  user_id: string
-  action: string
-  entity_type: string
-  entity_id: string
-  changes?: Record<string, any>
-}
+const createAuditLogSchema = z.object({
+  action: z
+    .string({ error: 'Missing required fields' })
+    .trim()
+    .min(1, 'Missing required fields')
+    .max(100),
+  entityType: z
+    .string({ error: 'Missing required fields' })
+    .trim()
+    .min(1, 'Missing required fields')
+    .max(100),
+  entityId: z
+    .string({ error: 'Missing required fields' })
+    .trim()
+    .min(1, 'Missing required fields')
+    .max(200),
+  changes: z.record(z.string(), z.unknown()).optional(),
+})
 
 // GET - Fetch audit logs
 export async function GET(request: Request) {
   try {
+    const access = await requireLmsStaff()
+    if (!access.authorized) return access.response
+
     const { searchParams } = new URL(request.url)
     const accountId = searchParams.get('accountId')
     const limit = parseInt(searchParams.get('limit') || '50')
@@ -91,16 +109,29 @@ export async function GET(request: Request) {
 // POST - Create audit log entry
 export async function POST(request: Request) {
   try {
-    const { userId, action, entityType, entityId, changes } = await request.json()
+    const access = await requireLmsStaff()
+    if (!access.authorized) return access.response
 
-    if (!userId || !action || !entityType || !entityId) {
-      return apiError('Missing required fields', 400)
-    }
+    const limitResult = await enforceRateLimit(request, {
+      scope: 'lms.audit-log-create',
+      limit: 120,
+      windowSeconds: 60 * 60,
+      identities: [`user:${access.user.id}`, `ip:${getClientIp(request)}`],
+    })
+    if (!limitResult.allowed) return limitResult.response
+
+    const { data: body, error: bodyError } = await parseBodyWithSchema(
+      request,
+      createAuditLogSchema,
+      { maxBytes: 128 * 1024 },
+    )
+    if (bodyError || !body) return apiError(bodyError || 'Invalid request payload', 400)
+    const { action, entityType, entityId, changes } = body
 
     const { data: log, error } = await supabase
       .from('audit_logs')
       .insert({
-        user_id: userId,
+        user_id: access.employee.id,
         action: action.toUpperCase(),
         entity_type: entityType,
         entity_id: entityId,

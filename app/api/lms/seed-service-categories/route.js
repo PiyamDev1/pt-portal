@@ -14,11 +14,24 @@
 import { createClient } from '@supabase/supabase-js'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
+import { requireLmsMaintenance } from '@/lib/lms/apiAuth'
+import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
 
 export const dynamic = 'force-dynamic'
 
-export async function POST() {
+export async function POST(request) {
   try {
+    const access = await requireLmsMaintenance()
+    if (!access.authorized) return access.response
+
+    const limit = await enforceRateLimit(request, {
+      scope: 'lms.seed-service-categories',
+      limit: 3,
+      windowSeconds: 60 * 60,
+      identities: [`user:${access.user.id}`, `ip:${getClientIp(request)}`],
+    })
+    if (!limit.allowed) return limit.response
+
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY
     if (!url || !key) {
@@ -45,7 +58,8 @@ export async function POST() {
             .from('loan_service_categories')
             .update({ name: lower })
             .eq('id', c.id)
-          if (updateErr) throw new Error(updateErr.message || 'Failed to normalize service category')
+          if (updateErr)
+            throw new Error(updateErr.message || 'Failed to normalize service category')
         }
       }
     }

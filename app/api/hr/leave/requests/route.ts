@@ -39,10 +39,11 @@ async function getSessionUser() {
   )
 
   const {
-    data: { session },
-  } = await authClient.auth.getSession()
+    data: { user },
+    error,
+  } = await authClient.auth.getUser()
 
-  return session?.user || null
+  return error ? null : user
 }
 
 export async function GET() {
@@ -55,7 +56,9 @@ export async function GET() {
     const supabase = getSupabaseClient()
     const { data, error } = await supabase
       .from('leave_requests')
-      .select('id, leave_type_id, from_date, to_date, half_day, half_day_date, requested_days, status, created_at, updated_at')
+      .select(
+        'id, leave_type_id, from_date, to_date, half_day, half_day_date, requested_days, status, created_at, updated_at',
+      )
       .eq('employee_id', user.id)
       .order('created_at', { ascending: false })
       .limit(200)
@@ -95,7 +98,9 @@ export async function POST(request: Request) {
         status: 'pending',
         source_system: 'pt_portal',
       })
-      .select('id, employee_id, leave_type_id, from_date, to_date, half_day, half_day_date, requested_days, status, approver_id, rejection_reason, frappe_docname, sync_version')
+      .select(
+        'id, employee_id, leave_type_id, from_date, to_date, half_day, half_day_date, requested_days, status, approver_id, rejection_reason, frappe_docname, sync_version',
+      )
       .single()
 
     if (insertError || !inserted) {

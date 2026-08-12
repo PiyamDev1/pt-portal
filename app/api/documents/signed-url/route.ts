@@ -1,23 +1,31 @@
-/**
- * Module: app/api/documents/signed-url/route.ts
- * API route or server helper for documents/signed-url/route.ts.
- */
-
-import { getSignedDocumentPreviewUrl } from '@/lib/services/documentServer'
+import {
+  getSignedDocumentPreviewUrl,
+  getSignedDocumentUrlByKey,
+} from '@/lib/services/documentServer'
 import { apiError, apiOk } from '@/lib/api/http'
+import { requireStaffSession } from '@/lib/auth/staffSession'
 
 export async function GET(request: Request) {
+  const access = await requireStaffSession()
+  if (!access.authorized) return access.response
+
   try {
     const { searchParams } = new URL(request.url)
+    const documentId = searchParams.get('documentId')
     const key = searchParams.get('key')
 
-    if (!key) {
-      return apiError('Missing key parameter', 400)
+    if (!documentId && !key) {
+      return apiError('Missing documentId parameter', 400)
     }
 
-    const url = await getSignedDocumentPreviewUrl(key)
-    return apiOk({ url })
+    const url = documentId
+      ? await getSignedDocumentPreviewUrl(documentId)
+      : await getSignedDocumentUrlByKey(key || '')
+    return apiOk({ url }, { headers: { 'Cache-Control': 'private, no-store, max-age=0' } })
   } catch (error) {
-    return apiError(error instanceof Error ? error.message : 'Failed to generate signed URL', 500)
+    if (error instanceof Error && error.message === 'Document not found') {
+      return apiError('Document not found', 404)
+    }
+    return apiError('Failed to generate signed URL', 500)
   }
 }

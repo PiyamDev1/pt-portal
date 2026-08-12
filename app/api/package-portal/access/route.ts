@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server'
 import { apiError, apiOk } from '@/lib/api/http'
 import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
 import { normalizePackagePortalReference } from '@/lib/packagePortal'
+import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
 
 function normalizeLastName(value: unknown) {
   return typeof value === 'string'
@@ -28,21 +29,19 @@ export async function POST(request: NextRequest) {
   const lastName = normalizeLastName(body.lastName || body.last_name)
   if (!reference || !lastName) return apiError('Package reference and surname are required', 400)
 
+  const limit = await enforceRateLimit(request, {
+    scope: 'public.package-portal-access',
+    limit: 10,
+    windowSeconds: 15 * 60,
+    identities: [`ip:${getClientIp(request)}`, `reference:${reference}`],
+  })
+  if (!limit.allowed) return limit.response
+
   const supabase = getServiceSupabaseClient()
   const forwardedFor = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
   const ipHash = createHash('sha256')
     .update(forwardedFor || request.headers.get('x-real-ip') || 'unknown')
     .digest('hex')
-  const attemptWindow = new Date(Date.now() - 15 * 60 * 1000).toISOString()
-  const { count: recentAttempts } = await supabase
-    .from('travel_package_portal_access_attempts')
-    .select('id', { count: 'exact', head: true })
-    .eq('ip_hash', ipHash)
-    .eq('success', false)
-    .gte('created_at', attemptWindow)
-  if ((recentAttempts || 0) >= 10) {
-    return apiError('Too many attempts. Please wait before trying again.', 429)
-  }
   const { data, error } = await supabase
     .from('travel_packages')
     .select(

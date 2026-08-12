@@ -1,29 +1,28 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => {
-  const verifyAdminAccess = vi.fn()
-  const unauthorizedResponse = vi.fn((message: string, status = 401) =>
-    Response.json({ error: message }, { status }),
-  )
+  const requireLmsAdmin = vi.fn()
+  const verifyLmsDestructiveAction = vi.fn()
 
   const neq = vi.fn()
   const deleteFn = vi.fn(() => ({ neq }))
   const from = vi.fn(() => ({ delete: deleteFn }))
-  const createClient = vi.fn(() => ({ from }))
+  const rpc = vi.fn()
+  const createClient = vi.fn(() => ({ from, rpc }))
 
   return {
-    verifyAdminAccess,
-    unauthorizedResponse,
+    requireLmsAdmin,
+    verifyLmsDestructiveAction,
     neq,
     deleteFn,
     from,
     createClient,
+    rpc,
   }
 })
-
-vi.mock('@/lib/adminAuth', () => ({
-  verifyAdminAccess: mocks.verifyAdminAccess,
-  unauthorizedResponse: mocks.unauthorizedResponse,
+vi.mock('@/lib/lms/apiAuth', () => ({
+  requireLmsAdmin: mocks.requireLmsAdmin,
+  verifyLmsDestructiveAction: mocks.verifyLmsDestructiveAction,
 }))
 
 vi.mock('@supabase/supabase-js', () => ({
@@ -39,18 +38,16 @@ describe('POST /api/admin/clear-lms', () => {
     vi.clearAllMocks()
     process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co'
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role-key'
-    mocks.verifyAdminAccess.mockResolvedValue({
+    mocks.requireLmsAdmin.mockResolvedValue({
       authorized: true,
-      user: { id: 'admin-1', email: 'admin@example.com' },
+      user: { id: 'admin-1' },
+      employee: { id: 'admin-1' },
     })
+    mocks.verifyLmsDestructiveAction.mockResolvedValue(null)
 
-    let call = 0
-    mocks.neq.mockImplementation(async () => {
-      call += 1
-      if (call === 1) return { error: null, count: 3 }
-      if (call === 2) return { error: null, count: 5 }
-      if (call === 3) return { error: null, count: 2 }
-      return { error: null, count: 4 }
+    mocks.rpc.mockResolvedValue({
+      data: { installments: 3, transactions: 5, loans: 2, customers: 4 },
+      error: null,
     })
   })
 
@@ -59,10 +56,9 @@ describe('POST /api/admin/clear-lms', () => {
   })
 
   it('returns unauthorized response when admin verification fails', async () => {
-    mocks.verifyAdminAccess.mockResolvedValueOnce({
+    mocks.requireLmsAdmin.mockResolvedValueOnce({
       authorized: false,
-      error: 'Forbidden',
-      status: 403,
+      response: Response.json({ error: 'Forbidden' }, { status: 403 }),
     })
 
     const response = await POST(new Request('http://localhost/api/admin/clear-lms'))

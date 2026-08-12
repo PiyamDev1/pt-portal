@@ -16,15 +16,21 @@
  *
  * Authentication: Current session cookie from the in-progress login session
  */
-import { createClient } from '@supabase/supabase-js'
-import bcrypt from 'bcryptjs'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
 import { recordAuthSecurityEvent } from '@/lib/auth/securityEvents'
+import { consumeBackupCodeAtomically } from '@/lib/auth/freshSecondFactor'
+import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
+import { z } from 'zod'
+import { parseBodyWithSchema } from '@/lib/api/request'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
+
+const consumeBackupCodeSchema = z.object({
+  code: z.string().trim().min(1, 'code required').max(100),
+})
 
 export async function POST(request) {
   try {
@@ -35,38 +41,32 @@ export async function POST(request) {
 
     if (!user) return apiError('Unauthorized', 401)
 
-    // Initialize client inside the function
-    const supabaseAdmin = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY,
+    const { data: body, error: bodyError } = await parseBodyWithSchema(
+      request,
+      consumeBackupCodeSchema,
+      { maxBytes: 2 * 1024 },
     )
+    if (bodyError || !body) return apiError(bodyError || 'Invalid request payload', 400)
+    const { code } = body
 
-    const { code } = await request.json().catch(() => ({}))
-    if (!code) return apiError('code required', 400)
+    const limit = await enforceRateLimit(request, {
+      scope: 'auth.consume-backup-code',
+      limit: 6,
+      windowSeconds: 15 * 60,
+      identities: [`user:${user.id}`, `ip:${getClientIp(request)}`],
+    })
+    if (!limit.allowed) return limit.response
 
-    const { data: rows, error } = await supabaseAdmin
-      .from('backup_codes')
-      .select('*')
-      .eq('employee_id', user.id)
-
-    if (error) {
-      return apiError(error.message, 500)
-    }
-
-    for (const r of rows || []) {
-      const match = await bcrypt.compare(code, r.code_hash)
-      if (match && !r.used) {
-        // mark used
-        await supabaseAdmin.from('backup_codes').update({ used: true }).eq('id', r.id)
-        await recordAuthSecurityEvent({
-          request,
-          userId: user.id,
-          email: user.email,
-          eventType: 'backup_code',
-          status: 'success',
-        })
-        return apiOk({ consumedCodeId: r.id }, { status: 200 })
-      }
+    const result = await consumeBackupCodeAtomically(user.id, code)
+    if (result.consumed) {
+      await recordAuthSecurityEvent({
+        request,
+        userId: user.id,
+        email: user.email,
+        eventType: 'backup_code',
+        status: 'success',
+      })
+      return apiOk({ consumedCodeId: result.codeId }, { status: 200 })
     }
 
     await recordAuthSecurityEvent({
@@ -76,7 +76,7 @@ export async function POST(request) {
       eventType: 'backup_code',
       status: 'failed',
     })
-    return apiError('Invalid or used backup code', 400)
+    return apiError(result.error, result.unavailable ? 503 : 400)
   } catch (e) {
     return apiError(toErrorMessage(e, 'Failed to consume backup code'), 500)
   }

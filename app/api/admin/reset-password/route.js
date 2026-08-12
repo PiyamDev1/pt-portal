@@ -9,20 +9,49 @@ import { createClient } from '@supabase/supabase-js'
 import formData from 'form-data'
 import Mailgun from 'mailgun.js'
 import bcrypt from 'bcryptjs'
+import { randomBytes } from 'node:crypto'
+import { z } from 'zod'
 import { toErrorMessage } from '@/lib/api/error'
 import { apiError, apiOk } from '@/lib/api/http'
-import { verifyAdminAccess, unauthorizedResponse } from '@/lib/adminAuth'
+import { parseBodyWithSchema } from '@/lib/api/request'
+import { requireAdminSession } from '@/lib/adminSessionAuth'
+import { verifyFreshSecondFactor } from '@/lib/auth/freshSecondFactor'
+import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
+const resetPasswordSchema = z
+  .object({
+    employee_id: z.string().trim().uuid('Invalid employee ID').optional(),
+    email: z.string().trim().email('Valid employee email required').max(320).optional(),
+    verificationCode: z.string().trim().max(100).optional(),
+    verificationMethod: z.enum(['totp', 'backup', 'auto']).optional(),
+  })
+  .strict()
+  .refine((body) => Boolean(body.employee_id || body.email), {
+    message: 'employee_id or email is required',
+  })
+
 export async function POST(request) {
   try {
-    // Verify admin access via Google auth
-    const authResult = await verifyAdminAccess(request)
-    if (!authResult.authorized) {
-      return unauthorizedResponse(authResult.error, authResult.status)
-    }
+    const access = await requireAdminSession()
+    if (!access.authorized) return access.response
+
+    const limit = await enforceRateLimit(request, {
+      scope: 'admin.reset-password',
+      limit: 5,
+      windowSeconds: 15 * 60,
+      identities: [`user:${access.user.id}`, `ip:${getClientIp(request)}`],
+    })
+    if (!limit.allowed) return limit.response
+
+    const { data: body, error: bodyError } = await parseBodyWithSchema(
+      request,
+      resetPasswordSchema,
+      { maxBytes: 8 * 1024 },
+    )
+    if (bodyError || !body) return apiError(bodyError || 'Invalid request payload', 400)
 
     // Validate env
     const missingEnv = []
@@ -54,11 +83,15 @@ export async function POST(request) {
       url: mailgunEndpoint,
     })
 
-    const body = await request.json()
-    const { employee_id, email } = body
+    const { employee_id, email, verificationCode, verificationMethod } = body
 
-    if (!employee_id && !email) {
-      return apiError('employee_id or email is required', 400)
+    const verification = await verifyFreshSecondFactor({
+      userId: access.user.id,
+      code: verificationCode,
+      method: verificationMethod,
+    })
+    if (!verification.verified) {
+      return apiError(verification.error, 403)
     }
 
     // Resolve user id
@@ -82,8 +115,7 @@ export async function POST(request) {
     }
 
     // Generate temp password
-    const tempPassword =
-      Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-4) + '!'
+    const tempPassword = `${randomBytes(12).toString('base64url')}Aa1!`
 
     // Check password history to prevent reuse
     try {
@@ -183,7 +215,10 @@ export async function POST(request) {
         text: `Hello,\n\nYour password has been reset by an administrator.\n\nUsername: ${notifyEmail}\nTemporary Password: ${tempPassword}\n\nPlease log in and change your password immediately.\n\nLogin here: https://ims.piyamtravel.com`,
       })
     } catch (mailError) {
-      return apiError(`Failed to send email: ${toErrorMessage(mailError, 'Unknown mail error')}`, 502)
+      return apiError(
+        `Failed to send email: ${toErrorMessage(mailError, 'Unknown mail error')}`,
+        502,
+      )
     }
 
     return apiOk({ resetUserId: userId, message: 'Password reset and emailed' })

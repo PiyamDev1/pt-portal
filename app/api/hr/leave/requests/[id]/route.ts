@@ -38,10 +38,11 @@ async function getSessionUser() {
   )
 
   const {
-    data: { session },
-  } = await authClient.auth.getSession()
+    data: { user },
+    error,
+  } = await authClient.auth.getUser()
 
-  return session?.user || null
+  return error ? null : user
 }
 
 async function isAdminUser(userId: string) {
@@ -81,7 +82,9 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const supabase = getSupabaseClient()
     const { data: existing, error: existingError } = await supabase
       .from('leave_requests')
-      .select('id, employee_id, leave_type_id, from_date, to_date, half_day, half_day_date, requested_days, status, approver_id, rejection_reason, frappe_docname, sync_version')
+      .select(
+        'id, employee_id, leave_type_id, from_date, to_date, half_day, half_day_date, requested_days, status, approver_id, rejection_reason, frappe_docname, sync_version',
+      )
       .eq('id', id)
       .single()
 
@@ -134,7 +137,9 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       .from('leave_requests')
       .update(patch)
       .eq('id', id)
-      .select('id, employee_id, leave_type_id, from_date, to_date, half_day, half_day_date, requested_days, status, approver_id, rejection_reason, frappe_docname, sync_version')
+      .select(
+        'id, employee_id, leave_type_id, from_date, to_date, half_day, half_day_date, requested_days, status, approver_id, rejection_reason, frappe_docname, sync_version',
+      )
       .single()
 
     if (updateError || !updated) {

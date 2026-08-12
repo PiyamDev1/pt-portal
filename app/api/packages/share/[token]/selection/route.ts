@@ -4,6 +4,7 @@ import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
 import { isPackageQuoteExpired, resolvePackageSelection } from '@/lib/packageQuote'
 import type { PackageSelectionInput } from '@/app/types/packages'
 import { recordPackageAuditEvent } from '@/lib/packageAudit'
+import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
 
 export async function POST(
   request: NextRequest,
@@ -12,6 +13,14 @@ export async function POST(
   const { token } = await params
   const cleanToken = token.trim()
   if (!cleanToken) return apiError('Missing share token', 400)
+
+  const limit = await enforceRateLimit(request, {
+    scope: 'public.package-selection',
+    limit: 30,
+    windowSeconds: 15 * 60,
+    identities: [`ip:${getClientIp(request)}`, `token:${cleanToken}`],
+  })
+  if (!limit.allowed) return limit.response
 
   const body = (await request.json().catch(() => null)) as PackageSelectionInput | null
   if (!body || !body.stayOptionIds) return apiError('Missing package selection', 400)

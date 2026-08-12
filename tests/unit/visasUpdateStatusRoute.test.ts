@@ -48,13 +48,13 @@ describe('POST /api/visas/update-status', () => {
     expect(body.error).toMatch(/update failed/i)
   })
 
-  it('returns 500 when request JSON is invalid', async () => {
+  it('returns 400 when request JSON is invalid', async () => {
     const req = new Request('http://localhost/api/visas/update-status', {
       method: 'POST',
       body: '{invalid json',
     })
 
     const res = await POST(req)
-    expect(res.status).toBe(500)
+    expect(res.status).toBe(400)
   })
 })

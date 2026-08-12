@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
 import { getSupabaseClient } from '@/lib/supabaseClient'
+import { requireStaffSession } from '@/lib/auth/staffSession'
 import {
   generatePakPassportDraftId,
   isDuplicateTrackingError,
@@ -180,11 +181,7 @@ function statusForDraftError(error: unknown, message: string) {
   if (code && ['22P02', '23502', '23503', '23514'].includes(code)) {
     return 400
   }
-  if (
-    message.includes('required') ||
-    message.includes('Invalid') ||
-    message.includes('must be')
-  ) {
+  if (message.includes('required') || message.includes('Invalid') || message.includes('must be')) {
     return 400
   }
   return 500
@@ -591,6 +588,9 @@ async function convertDraft(body: Record<string, unknown>) {
 }
 
 export async function GET(request: NextRequest) {
+  const access = await requireStaffSession()
+  if (!access.authorized) return access.response
+
   try {
     const supabase = getSupabaseClient()
     const { searchParams } = new URL(request.url)
@@ -622,8 +622,13 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const access = await requireStaffSession()
+  if (!access.authorized) return access.response
+
   try {
     const body = (await request.json()) as Record<string, unknown>
+    body.currentUserId = access.user.id
+    body.userId = access.user.id
     const action = cleanText(body.action || 'create')
 
     if (action === 'create') return await createDraft(body)

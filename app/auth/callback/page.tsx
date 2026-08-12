@@ -9,7 +9,7 @@
 import AuthCallbackClient from './AuthCallbackClient'
 
 type AuthCallbackPageProps = {
-  searchParams?: Record<string, string | string[] | undefined>
+  searchParams?: Promise<Record<string, string | string[] | undefined>>
 }
 
 function firstSearchParam(value: string | string[] | undefined) {
@@ -23,9 +23,10 @@ function resolveNextPath(value: string | null) {
   return value
 }
 
-export default function AuthCallbackPage({ searchParams }: AuthCallbackPageProps) {
-  const code = firstSearchParam(searchParams?.code)
-  const nextPath = resolveNextPath(firstSearchParam(searchParams?.next))
+export default async function AuthCallbackPage({ searchParams }: AuthCallbackPageProps) {
+  const resolvedSearchParams = await searchParams
+  const code = firstSearchParam(resolvedSearchParams?.code)
+  const nextPath = resolveNextPath(firstSearchParam(resolvedSearchParams?.next))
 
   return <AuthCallbackClient code={code} nextPath={nextPath} />
 }

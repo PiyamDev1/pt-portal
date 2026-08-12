@@ -125,7 +125,10 @@ describe('POST /api/nadra/add-application', () => {
   })
 
   it('returns 409 when tracking number is duplicate', async () => {
-    mocks.applicantMaybeSingle.mockResolvedValue({ data: { id: 'a-1', email: 'x@y.com' }, error: null })
+    mocks.applicantMaybeSingle.mockResolvedValue({
+      data: { id: 'a-1', email: 'x@y.com' },
+      error: null,
+    })
     mocks.appInsertSingle.mockResolvedValue({ data: { id: 'app-1' }, error: null })
     mocks.nadraInsertSingle.mockResolvedValue({
       data: null,
@@ -145,9 +148,15 @@ describe('POST /api/nadra/add-application', () => {
   })
 
   it('returns semantic payload on success', async () => {
-    mocks.applicantMaybeSingle.mockResolvedValue({ data: { id: 'a-1', email: 'x@y.com' }, error: null })
+    mocks.applicantMaybeSingle.mockResolvedValue({
+      data: { id: 'a-1', email: 'x@y.com' },
+      error: null,
+    })
     mocks.appInsertSingle.mockResolvedValue({ data: { id: 'app-1' }, error: null })
-    mocks.nadraInsertSingle.mockResolvedValue({ data: { id: 'n-1', status: 'Pending Submission' }, error: null })
+    mocks.nadraInsertSingle.mockResolvedValue({
+      data: { id: 'n-1', status: 'Pending Submission' },
+      error: null,
+    })
     mocks.nicopInsert.mockResolvedValue({ error: null })
     mocks.historyInsert.mockResolvedValue({ error: null })
 
@@ -165,15 +174,21 @@ describe('POST /api/nadra/add-application', () => {
     expect(mocks.historyInsert).toHaveBeenCalledWith({
       nadra_service_id: 'n-1',
       new_status: 'Pending Submission',
-      changed_by: 'emp-1',
+      changed_by: 'u-1',
       entry_type: 'status',
     })
   })
 
   it('returns 500 when history insert fails', async () => {
-    mocks.applicantMaybeSingle.mockResolvedValue({ data: { id: 'a-1', email: 'x@y.com' }, error: null })
+    mocks.applicantMaybeSingle.mockResolvedValue({
+      data: { id: 'a-1', email: 'x@y.com' },
+      error: null,
+    })
     mocks.appInsertSingle.mockResolvedValue({ data: { id: 'app-1' }, error: null })
-    mocks.nadraInsertSingle.mockResolvedValue({ data: { id: 'n-1', status: 'Pending Submission' }, error: null })
+    mocks.nadraInsertSingle.mockResolvedValue({
+      data: { id: 'n-1', status: 'Pending Submission' },
+      error: null,
+    })
     mocks.historyInsert.mockResolvedValue({ error: { message: 'history failed' } })
 
     const res = await POST(makeRequest(baseBody))

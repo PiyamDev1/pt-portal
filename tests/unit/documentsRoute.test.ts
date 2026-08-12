@@ -11,6 +11,8 @@ const mocks = vi.hoisted(() => {
   const select = vi.fn(() => ({ eq: eqFamily }))
   const from = vi.fn(() => ({ select }))
   const getSupabaseClient = vi.fn(() => ({ from }))
+  const documentScopeExists = vi.fn(() => Promise.resolve(true))
+  const requireStaffSession = vi.fn()
 
   return {
     single,
@@ -23,12 +25,16 @@ const mocks = vi.hoisted(() => {
     select,
     from,
     getSupabaseClient,
+    documentScopeExists,
+    requireStaffSession,
   }
 })
 
 vi.mock('@/lib/supabaseClient', () => ({ getSupabaseClient: mocks.getSupabaseClient }))
+vi.mock('@/lib/documentAccess', () => ({ documentScopeExists: mocks.documentScopeExists }))
+vi.mock('@/lib/auth/staffSession', () => ({ requireStaffSession: mocks.requireStaffSession }))
 
-import { GET } from '@/app/api/documents/route'
+import { GET, POST } from '@/app/api/documents/route'
 
 const makeRequest = (params: Record<string, string> = {}) => {
   const url = new URL('http://localhost/api/documents')
@@ -43,10 +49,32 @@ describe('GET /api/documents', () => {
     mocks.from.mockReturnValue({ select: mocks.select })
     mocks.select.mockReturnValue({ eq: mocks.eqFamily })
     mocks.eqFamily.mockReturnValue({ eq: mocks.eqDeleted })
-    mocks.eqDeleted.mockReturnValue({ eq: mocks.eqCategory, neq: mocks.neqCategory, order: mocks.order })
+    mocks.eqDeleted.mockReturnValue({
+      eq: mocks.eqCategory,
+      neq: mocks.neqCategory,
+      order: mocks.order,
+    })
     mocks.neqCategory.mockReturnValue({ eq: mocks.eqCategory, order: mocks.order })
     mocks.eqCategory.mockReturnValue({ order: mocks.order })
     mocks.order.mockReturnValue({ range: mocks.range })
+    mocks.documentScopeExists.mockResolvedValue(true)
+    mocks.requireStaffSession.mockResolvedValue({
+      authorized: true,
+      user: { id: 'staff-1' },
+      employee: { id: 'staff-1' },
+    })
+  })
+
+  it('rejects unauthenticated callers before querying documents', async () => {
+    mocks.requireStaffSession.mockResolvedValue({
+      authorized: false,
+      response: Response.json({ error: 'Unauthorized' }, { status: 401 }),
+    })
+
+    const res = await GET(makeRequest({ familyHeadId: 'fh-1' }))
+
+    expect(res.status).toBe(401)
+    expect(mocks.getSupabaseClient).not.toHaveBeenCalled()
   })
 
   it('returns 400 when familyHeadId is missing', async () => {
@@ -81,8 +109,19 @@ describe('GET /api/documents', () => {
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.documents).toHaveLength(1)
+    expect(res.headers.get('cache-control')).toContain('no-store')
     expect(body.documents[0].fileName).toBe('passport.pdf')
     expect(body.documents[0].minio.bucket).toBe('docs')
     expect(body.pagination.total).toBe(1)
+  })
+
+  it('rejects standalone caller-provided metadata', async () => {
+    const res = await POST(
+      new Request('http://localhost/api/documents', { method: 'POST', body: '{}' }) as never,
+    )
+    const body = await res.json()
+
+    expect(res.status).toBe(410)
+    expect(body.error).toMatch(/upload-direct/)
   })
 })

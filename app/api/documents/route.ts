@@ -7,7 +7,13 @@ import { NextRequest } from 'next/server'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
 import { getSupabaseClient } from '@/lib/supabaseClient'
-import { DOCUMENT_MAX_FILE_SIZE_BYTES, DOCUMENT_MAX_FILE_SIZE_LABEL } from '@/lib/documentConstraints'
+import { documentScopeExists } from '@/lib/documentAccess'
+import {
+  DOCUMENT_PRIVATE_CACHE_HEADERS,
+  isValidDocumentScopeId,
+  normalizeDocumentUploadCategory,
+} from '@/lib/documentSecurity'
+import { requireStaffSession } from '@/lib/auth/staffSession'
 
 type DocumentRow = {
   id: string
@@ -30,16 +36,31 @@ type DocumentRow = {
  * Only fetches necessary fields to reduce bandwidth.
  */
 export async function GET(request: NextRequest) {
+  const access = await requireStaffSession()
+  if (!access.authorized) return access.response
+
   try {
     const { searchParams } = new URL(request.url)
     const familyHeadId = searchParams.get('familyHeadId')
-    const page = Math.max(1, parseInt(searchParams.get('page') || '1'))
-    const limit = Math.min(100, Math.max(5, parseInt(searchParams.get('limit') || '20')))
-    const category = searchParams.get('category')
+    const requestedPage = Number.parseInt(searchParams.get('page') || '1', 10)
+    const requestedLimit = Number.parseInt(searchParams.get('limit') || '20', 10)
+    const page = Number.isFinite(requestedPage) ? Math.max(1, requestedPage) : 1
+    const limit = Number.isFinite(requestedLimit) ? Math.min(100, Math.max(5, requestedLimit)) : 20
+    const categoryInput = searchParams.get('category')
+    const category = categoryInput ? normalizeDocumentUploadCategory(categoryInput) : null
     const offset = (page - 1) * limit
 
     if (!familyHeadId) {
       return apiError('familyHeadId is required', 400)
+    }
+    if (!isValidDocumentScopeId(familyHeadId)) {
+      return apiError('Invalid document scope', 400)
+    }
+    if (categoryInput && !category) {
+      return apiError('Invalid document category', 400)
+    }
+    if (!(await documentScopeExists(familyHeadId))) {
+      return apiError('Document scope not found', 404)
     }
 
     const supabase = getSupabaseClient()
@@ -80,15 +101,18 @@ export async function GET(request: NextRequest) {
       },
     }))
 
-    return apiOk({
-      documents,
-      pagination: {
-        page,
-        limit,
-        total: count || 0,
-        pages: Math.ceil((count || 0) / limit),
+    return apiOk(
+      {
+        documents,
+        pagination: {
+          page,
+          limit,
+          total: count || 0,
+          pages: Math.ceil((count || 0) / limit),
+        },
       },
-    })
+      { headers: DOCUMENT_PRIVATE_CACHE_HEADERS },
+    )
   } catch (error) {
     return apiError(toErrorMessage(error, 'Failed to fetch documents'), 500)
   }
@@ -99,52 +123,11 @@ export async function GET(request: NextRequest) {
  * Saves document metadata to Supabase after a successful MinIO upload.
  */
 export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json()
-    const {
-      documentId,
-      fileName,
-      fileSize,
-      fileType,
-      category,
-      familyHeadId,
-      minioKey,
-      minioEtag,
-      storageBucket,
-    } = body
+  const access = await requireStaffSession()
+  if (!access.authorized) return access.response
 
-    if (!documentId || !fileName || !familyHeadId || !minioKey) {
-      return apiError('Missing required fields', 400)
-    }
-
-    if (Number(fileSize || 0) > DOCUMENT_MAX_FILE_SIZE_BYTES) {
-      return apiError(`File size exceeds maximum of ${DOCUMENT_MAX_FILE_SIZE_LABEL}`, 413)
-    }
-
-    const bucket = storageBucket || process.env.MINIO_BUCKET_NAME || 'portal-documents'
-    const supabase = getSupabaseClient()
-
-    const { error } = await supabase.from('documents').insert({
-      id: documentId,
-      file_name: fileName,
-      file_size: fileSize || 0,
-      file_type: fileType || 'application/octet-stream',
-      category: category || 'general',
-      uploaded_at: new Date().toISOString(),
-      uploaded_by: 'staff',
-      family_head_id: familyHeadId,
-      minio_bucket: bucket,
-      minio_key: minioKey,
-      minio_etag: minioEtag || '',
-      deleted: false,
-    })
-
-    if (error) throw error
-
-    // has_documents is kept in sync automatically by the
-    // trg_sync_has_documents PostgreSQL trigger on the documents table.
-    return apiOk({ documentId })
-  } catch (error) {
-    return apiError(toErrorMessage(error, 'Failed to save document'), 500)
-  }
+  return apiError(
+    'Standalone metadata creation is disabled. Use POST /api/documents/upload-direct.',
+    410,
+  )
 }

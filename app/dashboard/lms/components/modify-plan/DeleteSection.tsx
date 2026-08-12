@@ -5,6 +5,7 @@
 
 'use client'
 
+import { useState } from 'react'
 import { ConfirmationModal } from '../ConfirmationModal'
 
 interface DeleteSectionProps {
@@ -12,7 +13,7 @@ interface DeleteSectionProps {
   loading: boolean
   showDeleteConfirm: boolean
   onDeleteClick: () => void
-  onConfirmDelete: () => void
+  onConfirmDelete: (verificationCode: string) => void | Promise<void>
   onCancelDelete: () => void
 }
 
@@ -24,6 +25,13 @@ export function DeleteSection({
   onConfirmDelete,
   onCancelDelete,
 }: DeleteSectionProps) {
+  const [verificationCode, setVerificationCode] = useState('')
+
+  const handleCancel = () => {
+    setVerificationCode('')
+    onCancelDelete()
+  }
+
   return (
     <>
       <div className="border-t pt-4">
@@ -49,9 +57,26 @@ export function DeleteSection({
         confirmText="Delete"
         cancelText="Cancel"
         isDangerous={true}
-        onConfirm={onConfirmDelete}
-        onCancel={onCancelDelete}
-      />
+        confirmDisabled={!verificationCode.trim()}
+        onConfirm={() => onConfirmDelete(verificationCode)}
+        onCancel={handleCancel}
+      >
+        <label htmlFor="delete-plan-verification-code" className="block mb-6">
+          <span className="block text-sm font-medium text-slate-700 mb-2">
+            Authenticator or backup code
+          </span>
+          <input
+            id="delete-plan-verification-code"
+            type="password"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            value={verificationCode}
+            onChange={(event) => setVerificationCode(event.target.value)}
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-200"
+            placeholder="Enter verification code"
+          />
+        </label>
+      </ConfirmationModal>
     </>
   )
 }

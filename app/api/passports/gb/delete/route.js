@@ -5,21 +5,44 @@
  * @module app/api/passports/gb/delete
  */
 
+import { z } from 'zod'
 import { createClient } from '@supabase/supabase-js'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
+import { parseBodyWithSchema } from '@/lib/api/request'
+import { requireStaffSession } from '@/lib/auth/staffSession'
+import { verifyFreshSecondFactor } from '@/lib/auth/freshSecondFactor'
+
+const deletePassportSchema = z.object({
+  id: z.string().trim().min(1, 'Passport ID is required'),
+  authCode: z.string().optional(),
+  verificationCode: z.string().optional(),
+  verificationMethod: z.enum(['totp', 'backup', 'auto']).optional(),
+})
 
 export async function POST(request) {
+  const access = await requireStaffSession()
+  if (!access.authorized) return access.response
+
   try {
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
       process.env.SUPABASE_SERVICE_ROLE_KEY,
     )
 
-    const { id, authCode, userId } = await request.json()
-
-    if (!authCode) {
-      return apiError('Auth code required', 403)
+    const { data: body, error: bodyError } = await parseBodyWithSchema(
+      request,
+      deletePassportSchema,
+    )
+    if (bodyError || !body) return apiError(bodyError || 'Invalid request payload', 400)
+    const { id, authCode, verificationCode, verificationMethod } = body
+    const verification = await verifyFreshSecondFactor({
+      userId: access.user.id,
+      code: verificationCode || authCode,
+      method: verificationMethod,
+    })
+    if (!verification.verified) {
+      return apiError(verification.error, 403)
     }
 
     // Get the record to be deleted
@@ -37,8 +60,8 @@ export async function POST(request) {
     const { error: logError } = await supabase.from('deletion_logs').insert({
       record_type: 'GB Passport Application',
       deleted_record_data: gbRecord,
-      deleted_by: userId || null,
-      auth_code_used: authCode,
+      deleted_by: access.user.id,
+      auth_code_used: `verified:${verification.method}`,
     })
 
     if (logError) throw logError

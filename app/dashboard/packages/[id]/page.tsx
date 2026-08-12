@@ -2,7 +2,7 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createServerClient } from '@supabase/auth-helpers-nextjs'
 import PageHeader from '@/app/components/PageHeader.client'
-import type { PackageEmployeeOption } from './PackageOverviewClient'
+import type { PackageEmployeeOption } from './packageOverviewTypes'
 import PackageOverviewClient from './PackageOverviewClient'
 import { getPackagePageHeader } from '../packagePageHeader'
 

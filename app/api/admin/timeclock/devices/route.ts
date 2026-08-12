@@ -1,7 +1,11 @@
 import crypto from 'node:crypto'
+import { z } from 'zod'
 import { requireAdminSession } from '@/lib/adminSessionAuth'
 import { apiError, apiOk } from '@/lib/api/http'
+import { parseBodyWithSchema } from '@/lib/api/request'
 import { getSupabaseClient } from '@/lib/supabaseClient'
+import { verifyFreshSecondFactor } from '@/lib/auth/freshSecondFactor'
+import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -9,15 +13,28 @@ export const runtime = 'nodejs'
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const ONLINE_WINDOW_MS = 180_000
 
-type DeviceMutationBody = {
-  id?: unknown
-  action?: unknown
-  name?: unknown
-  location_id?: unknown
-  qr_interval_sec?: unknown
-  is_active?: unknown
-  confirmation?: unknown
-}
+const createDeviceSchema = z
+  .object({
+    name: z.unknown(),
+    location_id: z.unknown().optional(),
+    qr_interval_sec: z.unknown().optional(),
+    is_active: z.unknown().optional(),
+  })
+  .strict()
+
+const updateDeviceSchema = z
+  .object({
+    id: z.unknown(),
+    action: z.unknown().optional(),
+    name: z.unknown().optional(),
+    location_id: z.unknown().optional(),
+    qr_interval_sec: z.unknown().optional(),
+    is_active: z.unknown().optional(),
+    confirmation: z.unknown().optional(),
+    verificationCode: z.unknown().optional(),
+    verificationMethod: z.unknown().optional(),
+  })
+  .strict()
 
 function parseUuid(value: unknown) {
   if (value === null || value === '') return null
@@ -79,7 +96,18 @@ export async function POST(request: Request) {
   const access = await requireAdminSession()
   if (!access.authorized) return access.response
 
-  const body = (await request.json().catch(() => ({}))) as DeviceMutationBody
+  const limit = await enforceRateLimit(request, {
+    scope: 'admin.timeclock-device-mutate',
+    limit: 10,
+    windowSeconds: 60 * 60,
+    identities: [`user:${access.user.id}`, `ip:${getClientIp(request)}`],
+  })
+  if (!limit.allowed) return limit.response
+
+  const { data: body, error: bodyError } = await parseBodyWithSchema(request, createDeviceSchema, {
+    maxBytes: 8 * 1024,
+  })
+  if (bodyError || !body) return apiError(bodyError || 'Invalid request payload', 400)
   const name = parseName(body.name)
   const locationId = parseUuid(body.location_id)
   const qrInterval = parseQrInterval(body.qr_interval_sec ?? 30)
@@ -125,7 +153,18 @@ export async function PATCH(request: Request) {
   const access = await requireAdminSession()
   if (!access.authorized) return access.response
 
-  const body = (await request.json().catch(() => ({}))) as DeviceMutationBody
+  const limit = await enforceRateLimit(request, {
+    scope: 'admin.timeclock-device-mutate',
+    limit: 10,
+    windowSeconds: 60 * 60,
+    identities: [`user:${access.user.id}`, `ip:${getClientIp(request)}`],
+  })
+  if (!limit.allowed) return limit.response
+
+  const { data: body, error: bodyError } = await parseBodyWithSchema(request, updateDeviceSchema, {
+    maxBytes: 8 * 1024,
+  })
+  if (bodyError || !body) return apiError(bodyError || 'Invalid request payload', 400)
   const id = parseUuid(body.id)
   if (!id) return apiError('Valid device id required', 400)
 
@@ -144,6 +183,13 @@ export async function PATCH(request: Request) {
     if (body.confirmation !== existing.name) {
       return apiError('Type the device name exactly to confirm secret rotation', 400)
     }
+
+    const verification = await verifyFreshSecondFactor({
+      userId: access.user.id,
+      code: body.verificationCode,
+      method: body.verificationMethod,
+    })
+    if (!verification.verified) return apiError(verification.error, 403)
 
     const secret = crypto.randomBytes(32).toString('hex')
     const { error } = await admin

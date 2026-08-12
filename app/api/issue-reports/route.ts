@@ -47,6 +47,12 @@ import {
 import { apiError, apiOk } from '@/lib/api/http'
 import { parseBodyWithSchema } from '@/lib/api/request'
 import { toErrorMessage } from '@/lib/api/error'
+import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
+import { validateImageBytes } from '@/lib/documentSecurity'
+
+const MAX_SCREENSHOT_BYTES = 5 * 1024 * 1024
+const MAX_SCREENSHOT_DATA_URL_CHARS = 4 * Math.ceil(MAX_SCREENSHOT_BYTES / 3) + 64
+const MAX_ISSUE_REPORT_BODY_BYTES = 8 * 1024 * 1024
 
 const reportBodySchema = z.object({
   notes: z.string().optional(),
@@ -56,7 +62,7 @@ const reportBodySchema = z.object({
   includeScreenshot: z.boolean().optional(),
   includeConsoleLog: z.boolean().optional(),
   includeFailedRequests: z.boolean().optional(),
-  screenshotDataUrl: z.string().optional(),
+  screenshotDataUrl: z.string().max(MAX_SCREENSHOT_DATA_URL_CHARS).optional(),
   consoleEntries: z.unknown().optional(),
   failedRequests: z.unknown().optional(),
   browserContext: z
@@ -72,9 +78,23 @@ const reportBodySchema = z.object({
 
 export async function POST(request: Request) {
   try {
-    const { data: body, error: bodyError } = await parseBodyWithSchema(request, reportBodySchema)
+    const limit = await enforceRateLimit(request, {
+      scope: 'public.issue-report',
+      limit: 5,
+      windowSeconds: 60 * 60,
+      identities: [`ip:${getClientIp(request)}`],
+      message: 'Too many issue reports. Please wait before submitting another.',
+    })
+    if (!limit.allowed) return limit.response
+
+    const { data: body, error: bodyError } = await parseBodyWithSchema(request, reportBodySchema, {
+      maxBytes: MAX_ISSUE_REPORT_BODY_BYTES,
+    })
     if (bodyError || !body) {
-      return apiError(bodyError || 'Invalid request payload', 400)
+      return apiError(
+        bodyError || 'Invalid request payload',
+        bodyError === 'Request body is too large' ? 413 : 400,
+      )
     }
 
     const notes = normalizeIssueNotes(body?.notes)
@@ -94,6 +114,35 @@ export async function POST(request: Request) {
     const includeScreenshot = Boolean(body?.includeScreenshot)
     const includeConsoleLog = Boolean(body?.includeConsoleLog)
     const includeFailedRequests = Boolean(body?.includeFailedRequests)
+    let screenshotPayload: { buffer: Buffer; contentType: string } | null = null
+
+    if (includeScreenshot) {
+      if (
+        typeof body.screenshotDataUrl !== 'string' ||
+        !body.screenshotDataUrl.startsWith('data:')
+      ) {
+        return apiError('A screenshot image is required.', 400)
+      }
+
+      try {
+        const parsedScreenshot = parseDataUrl(body.screenshotDataUrl)
+        const screenshotValidation = validateImageBytes(
+          parsedScreenshot.buffer,
+          parsedScreenshot.contentType,
+          { maxBytes: MAX_SCREENSHOT_BYTES, maxSizeLabel: '5 MB' },
+        )
+        if (!screenshotValidation.valid) {
+          return apiError(screenshotValidation.error, screenshotValidation.status)
+        }
+        screenshotPayload = {
+          buffer: parsedScreenshot.buffer,
+          contentType: screenshotValidation.value.fileType,
+        }
+      } catch {
+        return apiError('The screenshot image is invalid.', 400)
+      }
+    }
+
     const failedRequests = includeFailedRequests ? sanitizeFailedRequests(body?.failedRequests) : []
     const browserContext = {
       viewport: body?.browserContext?.viewport || null,
@@ -137,18 +186,13 @@ export async function POST(request: Request) {
 
     const artifactRows: Array<Record<string, unknown>> = []
 
-    if (
-      includeScreenshot &&
-      typeof body?.screenshotDataUrl === 'string' &&
-      body.screenshotDataUrl.startsWith('data:')
-    ) {
+    if (screenshotPayload) {
       try {
-        const screenshot = parseDataUrl(body.screenshotDataUrl)
         const upload = await uploadIssueArtifact({
           ticketId: report.id,
           artifactType: 'screenshot',
-          body: screenshot.buffer,
-          contentType: screenshot.contentType,
+          body: screenshotPayload.buffer,
+          contentType: screenshotPayload.contentType,
         })
 
         artifactRows.push({
@@ -157,7 +201,7 @@ export async function POST(request: Request) {
           storage_provider: upload.provider,
           storage_bucket: upload.bucket,
           storage_key: upload.key,
-          content_type: screenshot.contentType,
+          content_type: screenshotPayload.contentType,
           byte_size: upload.size,
         })
       } catch (error) {

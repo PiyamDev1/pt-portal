@@ -29,20 +29,52 @@ export function ModalWrapper({ children, onClose, title }: ModalWrapperProps) {
   }, [onClose])
 
   useEffect(() => {
+    const previouslyFocused = document.activeElement as HTMLElement | null
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
-    dialogRef.current?.focus()
+    const focusableSelector =
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    const animationFrame = window.requestAnimationFrame(() => {
+      const dialog = dialogRef.current
+      const firstFocusable = dialog?.querySelector<HTMLElement>(focusableSelector)
+      if (firstFocusable) firstFocusable.focus()
+      else dialog?.focus()
+    })
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
+        event.preventDefault()
         onCloseRef.current()
+        return
+      }
+
+      if (event.key !== 'Tab') return
+      const dialog = dialogRef.current
+      if (!dialog) return
+      const focusable = [...dialog.querySelectorAll<HTMLElement>(focusableSelector)]
+      if (focusable.length === 0) {
+        event.preventDefault()
+        dialog.focus()
+        return
+      }
+
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
       }
     }
 
     document.addEventListener('keydown', handleKeyDown)
     return () => {
+      window.cancelAnimationFrame(animationFrame)
       document.body.style.overflow = previousOverflow
       document.removeEventListener('keydown', handleKeyDown)
+      previouslyFocused?.focus()
     }
   }, [])
 

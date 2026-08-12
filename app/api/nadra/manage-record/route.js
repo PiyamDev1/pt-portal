@@ -16,9 +16,13 @@
  *
  * Authentication: Service role key
  */
+import { z } from 'zod'
 import { createClient } from '@supabase/supabase-js'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
+import { parseBodyWithSchema } from '@/lib/api/request'
+import { requireStaffSession } from '@/lib/auth/staffSession'
+import { verifyFreshSecondFactor } from '@/lib/auth/freshSecondFactor'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,19 +32,34 @@ const createSupabase = () =>
 const cleanPayload = (payload) =>
   Object.fromEntries(Object.entries(payload).filter(([_, value]) => value !== undefined))
 
+const manageRecordSchema = z.object({
+  action: z.enum(['update', 'delete']),
+  type: z.enum(['family_head', 'application']),
+  id: z.string().trim().min(1, 'Record ID is required'),
+  data: z.record(z.string(), z.unknown()).optional().default({}),
+  authCode: z.string().optional(),
+  verificationCode: z.string().optional(),
+  verificationMethod: z.enum(['totp', 'backup', 'auto']).optional(),
+})
+
 export async function POST(request) {
+  const access = await requireStaffSession()
+  if (!access.authorized) return access.response
+
   try {
     const supabase = createSupabase()
-    const body = await request.json()
-    const { action, type, id, data = {}, authCode, userId } = body || {}
-
-    if (!action || !type) {
-      return apiError('Missing action or type', 400)
-    }
-
-    if (!id) {
-      return apiError('Missing record id', 400)
-    }
+    const { data: body, error: bodyError } = await parseBodyWithSchema(request, manageRecordSchema)
+    if (bodyError || !body) return apiError(bodyError || 'Invalid request payload', 400)
+    const {
+      action,
+      type,
+      id,
+      data = {},
+      authCode,
+      verificationCode,
+      verificationMethod,
+    } = body || {}
+    const userId = access.user.id
 
     const normalizedType = type === 'family_head' ? 'family_head' : 'application'
 
@@ -48,8 +67,13 @@ export async function POST(request) {
     // HANDLE DELETION
     // ---------------------------------------------------------
     if (action === 'delete') {
-      if (!authCode) {
-        return apiError('Auth code required', 403)
+      const verification = await verifyFreshSecondFactor({
+        userId,
+        code: verificationCode || authCode,
+        method: verificationMethod,
+      })
+      if (!verification.verified) {
+        return apiError(verification.error, 403)
       }
 
       const table = normalizedType === 'family_head' ? 'applicants' : 'nadra_services'
@@ -74,7 +98,7 @@ export async function POST(request) {
         record_type: normalizedType === 'family_head' ? 'Family Head' : 'Nadra Application',
         deleted_record_data: recordToDelete,
         deleted_by: userId || null,
-        auth_code_used: authCode,
+        auth_code_used: `verified:${verification.method}`,
       })
 
       if (logError) throw logError
@@ -210,7 +234,7 @@ export async function POST(request) {
 
           const currentUser = employees?.find((emp) => emp.id === userId)
           if (!currentUser) {
-              return apiError('User not found', 404)
+            return apiError('User not found', 404)
           }
 
           const roleName = Array.isArray(currentUser.roles)

@@ -59,6 +59,7 @@ export function StatementPopup({
     null,
   )
   const [deletePaymentId, setDeletePaymentId] = useState<string | null>(null)
+  const [deleteVerificationCode, setDeleteVerificationCode] = useState('')
   const [skipInstallmentId, setSkipInstallmentId] = useState<string | null>(null)
 
   return (
@@ -120,22 +121,48 @@ export function StatementPopup({
         confirmText="Delete"
         cancelText="Cancel"
         isDangerous={true}
+        confirmDisabled={!deleteVerificationCode.trim()}
         onConfirm={async () => {
           try {
             const res = await fetch(
               `/api/lms/installment-payment?transactionId=${deletePaymentId}&accountId=${account.id}`,
-              { method: 'DELETE' },
+              {
+                method: 'DELETE',
+                headers: {
+                  'X-Verification-Code': deleteVerificationCode,
+                  'X-Verification-Method': 'auto',
+                },
+              },
             )
             if (!res.ok) throw new Error('Failed to delete')
             onRefresh?.()
             toast.success('Payment deleted')
             setDeletePaymentId(null)
-          } catch (err) {
-            toast.error('Failed to delete payment')
+            setDeleteVerificationCode('')
+          } catch (err: unknown) {
+            toast.error(err instanceof Error ? err.message : 'Failed to delete payment')
           }
         }}
-        onCancel={() => setDeletePaymentId(null)}
-      />
+        onCancel={() => {
+          setDeletePaymentId(null)
+          setDeleteVerificationCode('')
+        }}
+      >
+        <label htmlFor="statement-delete-payment-verification" className="block mb-6">
+          <span className="block text-sm font-medium text-slate-700 mb-2">
+            Authenticator or backup code
+          </span>
+          <input
+            id="statement-delete-payment-verification"
+            type="password"
+            autoComplete="one-time-code"
+            value={deleteVerificationCode}
+            onChange={(event) => setDeleteVerificationCode(event.target.value)}
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-200"
+            placeholder="Enter verification code"
+          />
+        </label>
+      </ConfirmationModal>
 
       {/* Skip Installment Confirmation */}
       <ConfirmationModal

@@ -62,9 +62,10 @@ export async function POST(request: Request) {
     })
 
     const {
-      data: { session },
-    } = await supabase.auth.getSession()
-    if (!session) {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
+    if (authError || !user) {
       return apiError('Unauthorized', 401)
     }
 
@@ -116,7 +117,7 @@ export async function POST(request: Request) {
     const { data: lastPunch } = await adminSupabase
       .from('timeclock_events')
       .select('punch_type')
-      .eq('employee_id', session.user.id)
+      .eq('employee_id', user.id)
       .gte('scanned_at', start.toISOString())
       .lte('scanned_at', end.toISOString())
       .order('scanned_at', { ascending: false })
@@ -129,7 +130,7 @@ export async function POST(request: Request) {
     const { data: recentEvent } = await adminSupabase
       .from('timeclock_events')
       .select('id, scanned_at')
-      .eq('employee_id', session.user.id)
+      .eq('employee_id', user.id)
       .eq('device_id', deviceId)
       .gte('scanned_at', duplicateThresholdIso)
       .order('scanned_at', { ascending: false })
@@ -152,7 +153,7 @@ export async function POST(request: Request) {
     const hashMaterial = [
       'ptc1',
       deviceId,
-      session.user.id,
+      user.id,
       'MANUAL',
       punchType,
       nowIso,
@@ -168,7 +169,7 @@ export async function POST(request: Request) {
     const { error: insertError, data: insertedEvent } = await adminSupabase
       .from('timeclock_events')
       .insert({
-        employee_id: session.user.id,
+        employee_id: user.id,
         device_id: deviceId,
         event_type: 'PUNCH',
         punch_type: punchType,
@@ -200,7 +201,7 @@ export async function POST(request: Request) {
     // Delete the used code
     await adminSupabase.from('timeclock_manual_codes').delete().eq('code', code)
 
-    await queueAttendanceSyncForEmployeeDay(session.user.id, nowIso.slice(0, 10))
+    await queueAttendanceSyncForEmployeeDay(user.id, nowIso.slice(0, 10))
 
     return apiOk({
       eventId: insertedEvent?.id,

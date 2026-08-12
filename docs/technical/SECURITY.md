@@ -1,231 +1,128 @@
 # Security Architecture
 
-> PT-Portal security layers: auth, 2FA, sessions, rate limiting, admin access  
-> Last updated: June 2026
+> PT-Portal authentication, authorization, 2FA, abuse protection, document security, and operational logging
+> Last updated: August 12, 2026
 
----
+## Security boundaries
 
-## Table of Contents
+PT-Portal uses Supabase Auth for identity and PostgreSQL-backed employee records for application authorization. A valid Supabase token is only the first check: protected staff routes must also resolve an active employee record before privileged database or storage access.
 
-1. [Authentication](#authentication)
-2. [Two-Factor Authentication (2FA)](#two-factor-authentication-2fa)
-3. [Session Management](#session-management)
-4. [Admin Authorization](#admin-authorization)
-5. [Rate Limiting](#rate-limiting)
-6. [Password Management](#password-management)
-7. [Security Headers & CORS](#security-headers--cors)
-8. [OWASP Considerations](#owasp-considerations)
-
----
+The service-role key bypasses row-level security. It is server-only and never proves who the caller is. A route that uses a service-role client must authenticate and authorize the caller before performing the privileged operation.
 
 ## Authentication
 
-PT-Portal uses **Supabase Auth** (PostgreSQL-backed JWT sessions).
+### Password login
 
-### Login Flow
+Password authentication is mediated by `POST /api/auth/password-login`:
 
-```
-1. User submits email + password on /login
-2. Supabase validates credentials → issues JWT access token + refresh token
-3. Tokens stored as httpOnly cookies by Supabase Auth Helpers
-4. Middleware checks session cookie on all /dashboard/** requests
-5. If 2FA is enabled for the account:
-   → Redirect to /login/verify-2fa
-   → User submits TOTP code or backup code
-   → On success: session fully established, redirect to /dashboard
-```
+1. The route validates a bounded email/password payload.
+2. Shared PostgreSQL rate limits are applied to both the source IP and normalized email.
+3. The server checks the persisted login guard and asks Supabase Auth to verify the password.
+4. Only the server's verified result can update the security-event/login-failure history.
+5. On success, the short-lived token pair is returned with `private, no-store` headers so the browser Supabase client can establish its cookie-backed session.
+6. The login UI checks the active employee, branch assignment, temporary-password state, and required authenticator assurance before opening the dashboard.
 
-### Session Cookie Properties
+The route returns a generic credential error for rejected passwords. It does not reveal whether an email exists.
 
-- **httpOnly**: not accessible via JavaScript
-- **Secure**: only sent over HTTPS (enforced by Vercel)
-- **SameSite**: handled by Supabase Auth Helpers default policy
-- **Expiry**: configurable; Supabase default is 1 hour (access) / 1 week (refresh)
+Passkey and Microsoft SSO flows remain available, but protected API routes use the same server-side session and employee authorization boundary after login.
 
----
+### Canonical staff-session guard
 
-## Two-Factor Authentication (2FA)
+`requireStaffSession()` in `lib/auth/staffSession.ts` is the canonical API guard. It:
 
-### Setup (`/login/setup-2fa`)
+- calls Supabase `auth.getUser()` against the request's cookie-backed session;
+- resolves the employee through the server-only service client;
+- rejects missing and inactive employee records;
+- optionally enforces normalized role and department membership allowlists; and
+- derives the actor ID and email server-side instead of trusting request fields.
 
-1. Server generates a TOTP secret
-2. QR code displayed to user for scanning with authenticator app (Google Authenticator, Authy, etc.)
-3. User confirms with first code to verify setup is correct
-4. Secret stored against the user's profile in Supabase
+Use the role-scoped wrappers in `lib/adminSessionAuth.ts` for administrative routes:
 
-### Verification (`/login/verify-2fa`)
+| Guard                         | Allowed roles                          |
+| ----------------------------- | -------------------------------------- |
+| `requireAdminSession()`       | Admin, Master Admin, Super Admin       |
+| `requireMaintenanceSession()` | Maintenance Admin plus all admin roles |
+| `requireSuperAdminSession()`  | Master Admin, Super Admin              |
 
-- User enters 6-digit TOTP code
-- Server validates against stored secret using time-window comparison
-- Falls through to backup code path if TOTP unavailable or fails
+Feature-specific manager or department permissions still belong in the feature's route guard. A role grants only the capabilities explicitly checked by that route.
 
-### Backup Codes
+## Two-factor authentication
 
-| Endpoint                          | Method | Purpose                              |
-| --------------------------------- | ------ | ------------------------------------ |
-| `/api/auth/generate-backup-codes` | POST   | Generate a fresh set of backup codes |
-| `/api/auth/backup-codes/count`    | GET    | How many unused codes remain         |
-| `/api/auth/consume-backup-code`   | POST   | Use one backup code (single-use)     |
+PT-Portal uses Supabase TOTP factors. Users enroll at `/login/setup-2fa` and complete an AAL2 challenge at `/login/verify-2fa`. Backup codes are a one-time fallback and are stored only as bcrypt hashes.
 
-Backup codes are stored hashed in Supabase. Each code is consumed on use — once all are used, the user must regenerate.
+Sensitive account actions require a fresh TOTP or unused backup code:
 
-### Admin 2FA Reset
+| Endpoint                               | Purpose                                   | Additional proof                                                                 |
+| -------------------------------------- | ----------------------------------------- | -------------------------------------------------------------------------------- |
+| `POST /api/auth/generate-backup-codes` | Replace the caller's backup-code set      | Fresh TOTP or backup code                                                        |
+| `POST /api/auth/reset-2fa`             | Reset the caller's own factors            | Fresh TOTP or backup code                                                        |
+| `POST /api/admin/recover-employee-2fa` | Break-glass recovery for another employee | Master/Super Admin session, fresh admin factor, exact target email, and a reason |
 
-`POST /api/auth/reset-2fa` — Admin-only. Disables 2FA for a user (e.g., locked out). Requires admin Bearer token.
+Backup-code replacement uses the `replace_backup_codes` PostgreSQL function. Deleting the old set and inserting the new hashes happens in one transaction, so a failed insert cannot erase the last valid recovery codes. Consumption performs a conditional `used = false` update, preventing concurrent requests from successfully using the same code twice.
 
----
+The break-glass recovery route cannot target the current administrator. It records durable started/completed security events, removes the target's Auth factors and backup codes, and marks the employee as requiring 2FA setup again.
 
-## Session Management
+## Password management
 
-### Active Sessions
+`POST /api/auth/update-password` requires the current cookie-backed user, rate limiting, `currentPassword`, and `newPassword`. The route reauthenticates the current password server-side before using the Auth admin API. It enforces password strength, clears the temporary-password flag, and retains up to five best-effort password-history hashes.
 
-`GET /api/auth/sessions`
+Administrative password reset is a separate role-protected workflow. It requires a fresh administrator second factor, creates a temporary credential, marks the employee for a password change, and delivers the credential through the configured mail provider.
 
-Returns a list of active sessions for the authenticated user. Useful for detecting concurrent logins or stale sessions.
+PT-Portal does not store a login-capable plaintext password. Supabase Auth owns primary password verification; the local password-history table contains bcrypt hashes used only for reuse checks.
 
-### Session Warning
+## Session management
 
-`useSessionTimeout` hook monitors token expiry time.
+Supabase Auth Helpers maintain the browser session in cookies. API authorization must use `auth.getUser()`, not the unverified contents returned by `getSession()`. The latter may be decoded only after `getUser()` has authenticated the request, for example to identify the current session in the session-management view.
 
-- Computes time remaining from the JWT `exp` claim
-- When below a threshold (default: ~5 minutes), triggers a warning
-- `SessionWarningHeader` displays a countdown banner in the layout
-- User can refresh their session before automatic logout
+`useSessionTimeout` and `SessionWarningHeader` warn before token expiry. API `401` responses indicate that the caller should return to login; `403` means the identity is known but lacks the required employee, role, department, or fresh-factor authorization.
 
-### Session Expiry Handling
+## Shared rate limiting
 
-- `useMinioConnection` and other polling hooks include session-aware error handling
-- 401 responses from any API route return the user to `/login`
+Sensitive routes call `enforceRateLimit()` in `lib/security/rateLimit.ts`. Limits are fixed-window counters stored in `api_rate_limit_buckets` and incremented atomically by `check_api_rate_limit`. This makes decisions shared across application processes and serverless instances.
 
----
+- Each route defines its own scope, window, limit, and applicable identities.
+- Raw emails, IP addresses, tokens, and user IDs are not stored in the bucket table. Identity material is keyed with `RATE_LIMIT_HASH_SECRET` and SHA-256 before persistence.
+- A blocked request returns `429 Too Many Requests`, `Retry-After`, and `private, no-store`.
+- Sensitive routes fail closed with `503 Service Unavailable` if the limiter or hashing secret is unavailable.
+- The request proxy adds an `x-request-id`; it does not keep an in-memory security counter.
 
-## Admin Authorization
+Apply `scripts/migrations/20260812_security_rate_limits.sql` before deploying routes that use the limiter. The migration also installs atomic backup-code replacement and records the `api-security` schema version.
 
-Protected admin routes (under `/api/admin/**`) use `verifyAdminAccess()` from `lib/adminAuth.ts`.
+## Private document vault
 
-### How it works
+Staff-facing document routes require a verified active staff session. The scheduled migration worker instead requires its server-configured cron token. Object-store keys supplied by a caller are never sufficient authorization: legacy key lookups must first resolve to a live, non-deleted `documents` row.
 
-```
-Request → API route handler
-→ verifyAdminAccess(request)
-  1. Read Authorization: Bearer <token> header
-  2. Validate token via Supabase getUser(token)
-  3. Query profiles table: role = 'admin' for this user
-  4. Return { authorized: true, user: { id, email, provider } }
-  5. On any failure: return { authorized: false, error, status: 401|403|500 }
-```
+The upload boundary enforces:
 
-### Roles
+- a known application/applicant/draft scope;
+- a 1.5 MB file limit, including an early multipart `Content-Length` check;
+- allowlisted categories and MIME types;
+- sanitized single-segment filenames; and
+- file-signature, declared MIME type, and filename-extension agreement.
 
-| Role          | Access                                                              |
-| ------------- | ------------------------------------------------------------------- |
-| `admin`       | All admin endpoints, staff management, LMS seeding, data migrations |
-| (standard)    | Dashboard, documents, applications — scoped to own data             |
-| `super_admin` | Implied by Supabase service role — used server-side only            |
+Uploads go to private MinIO storage and can fall back to the private R2 vault. Metadata is written by the same server-side upload request; standalone metadata creation is disabled. If metadata insertion fails, the uploaded object is removed best-effort.
 
-### Usage in a Route
+Preview and download routes resolve the document record first and use private/no-store responses or short-lived signed URLs. Streamed previews set `nosniff`, a sandbox content-security policy, and safe content disposition. Delete revokes the database record first and restores it if object deletion fails.
 
-```typescript
-const { authorized, error, status } = await verifyAdminAccess(request)
-if (!authorized) {
-  return NextResponse.json({ error }, { status })
-}
-```
+Storage credentials and service-role credentials must remain server-only. Do not add `NEXT_PUBLIC_` prefixes to them.
 
----
+## Structured observability
 
-## Rate Limiting
+`lib/observability/server.ts` emits JSON events with timestamps, request IDs, route/method context, bounded error details, and recursive key-based redaction. Authorization headers, cookies, passwords, secrets, tokens, verification codes, backup codes, OTP/TOTP values, API keys, and session fields are redacted.
 
-Implemented in `middleware.ts` applied to all `/api/**` routes.
+High-value failures such as an unavailable shared limiter, LMS ledger errors, and document-storage failures can be sent to the server-only `OBSERVABILITY_ALERT_WEBHOOK_URL`. Webhook delivery has a five-second timeout and never uses a caller-provided destination. Alert failures are logged without replacing the original API response.
 
-### Algorithm: Token Bucket (per IP + User-Agent)
+Do not put request bodies, credentials, raw identity values, or document contents in log context. New sensitive routes should emit stable event names and rely on the shared redaction helper.
 
-| Parameter            | Value                            |
-| -------------------- | -------------------------------- |
-| Window               | 60 seconds                       |
-| Max requests         | 60 per window                    |
-| Key                  | `{x-forwarded-for}:{user-agent}` |
-| Response on breach   | `429 Too Many Requests`          |
-| `Retry-After` header | `60` (seconds)                   |
+## Operational checklist
 
-### Behaviour
+Before deployment:
 
-- First request in a new window: bucket initialised with 59 remaining tokens
-- Each subsequent request: decrements token count by 1
-- After window expires: bucket reset to 60
-- When tokens exhausted: request rejected with 429
+1. Configure `RATE_LIMIT_HASH_SECRET` as a long independent server-only random value.
+2. Apply and verify the `api-security` schema migration.
+3. Configure `OBSERVABILITY_ALERT_WEBHOOK_URL` only to a trusted operations receiver.
+4. Confirm MinIO/R2 buckets are private and credentials are not browser-exposed.
+5. Run unit, smoke, and PostgreSQL integration checks.
+6. Verify privileged routes use a canonical cookie/session guard and a narrowly scoped role or department check.
 
-### Limitations
-
-- Token buckets are **in-memory** — they do not persist across Vercel serverless worker cold starts or restarts
-- Suitable for **brute-force and abuse prevention** on a per-connection basis
-- Not suitable for strict per-user quota enforcement across multiple Vercel edge workers
-- For stricter rate limiting at scale, Vercel's Edge Config or an external Redis store would be needed
-
-### Login Protection
-
-The `/api/auth/**` path is within the rate-limited scope, providing protection against:
-
-- Password brute-force attacks
-- 2FA code enumeration
-- Backup code stuffing
-
----
-
-## Password Management
-
-| Endpoint                    | Purpose                                                           |
-| --------------------------- | ----------------------------------------------------------------- |
-| `/api/auth/update-password` | Authenticated user changes their own password                     |
-| `/api/admin/reset-password` | Admin resets another user's password                              |
-| `/app/auth/new-password`    | Page for password reset via email link (Supabase magic link flow) |
-
-Passwords are not stored by PT-Portal — all password hashing is handled by Supabase Auth (bcrypt internally).
-
----
-
-## Security Headers & CORS
-
-### CORS for MinIO
-
-When MinIO is online, the status endpoint sends `PutBucketCorsCommand` to ensure the MinIO bucket allows browser requests:
-
-```json
-{
-  "AllowedOrigins": ["*"],
-  "AllowedMethods": ["GET", "PUT", "POST", "DELETE", "HEAD"],
-  "AllowedHeaders": ["*"],
-  "ExposeHeaders": ["ETag", "Content-Length"],
-  "MaxAgeSeconds": 3600
-}
-```
-
-This runs non-blocking on every status check that finds MinIO online.
-
-### Next.js / Vercel Headers
-
-Standard Next.js security headers apply. For production hardening, `next.config.js` can be extended with `headers()` to add:
-
-- `X-Content-Type-Options: nosniff`
-- `X-Frame-Options: DENY`
-- `Strict-Transport-Security`
-- `Content-Security-Policy`
-
-These are not currently explicitly set — Vercel's platform provides some defaults.
-
----
-
-## OWASP Considerations
-
-| Threat                        | Mitigation in PT-Portal                                                                                                       |
-| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| **Broken Access Control**     | Supabase RLS policies on all tables; `verifyAdminAccess` on admin routes; session middleware on all dashboard pages           |
-| **Cryptographic Failures**    | HTTPS enforced by Vercel; Supabase manages password hashing; JWT tokens signed by Supabase                                    |
-| **Injection (SQL)**           | Supabase client uses parameterised queries; no raw SQL string interpolation in routes                                         |
-| **Injection (XSS)**           | React's JSX auto-escapes output; no `dangerouslySetInnerHTML` usage                                                           |
-| **Insecure Design**           | Soft deletes preserve audit trail; migration logic is copy-first-then-delete                                                  |
-| **Security Misconfiguration** | `.env.local` is gitignored; service role key never exposed to client; `NEXT_PUBLIC_` prefix only on intentionally public vars |
-| **Vulnerable Components**     | `npm audit` run after each install; `npm audit fix` used to patch dependencies                                                |
-| **Auth Failures**             | 2FA enforced; backup codes single-use; session expiry warnings; rate limiting on auth endpoints                               |
-| **SSRF**                      | Storage endpoints use fixed server-side env var URLs — no user-supplied URLs are fetched                                      |
-| **Logging Failures**          | Server errors logged to Vercel; `[PdfThumbnail]` errors logged client-side for debugging                                      |
+Environment files containing real credentials must remain untracked. Security events and operational logs are evidence, not a substitute for Supabase RLS, route authorization, and storage access checks.

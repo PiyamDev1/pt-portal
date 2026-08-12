@@ -12,27 +12,50 @@
  *
  * Authentication: Service role key
  */
+import { z } from 'zod'
 import { createClient } from '@supabase/supabase-js'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
+import { parseBodyWithSchema } from '@/lib/api/request'
+import { requireStaffSession } from '@/lib/auth/staffSession'
+import { verifyFreshSecondFactor } from '@/lib/auth/freshSecondFactor'
+
+const manageRecordSchema = z.object({
+  action: z.enum(['update', 'delete', 'mark_page_provided']),
+  id: z.string().trim().min(1, 'Record ID is required'),
+  passportId: z.string().optional(),
+  data: z.record(z.string(), z.unknown()).optional(),
+  authCode: z.string().optional(),
+  verificationCode: z.string().optional(),
+  verificationMethod: z.enum(['totp', 'backup', 'auto']).optional(),
+})
 
 export async function POST(request) {
+  const access = await requireStaffSession()
+  if (!access.authorized) return access.response
+
   try {
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
       process.env.SUPABASE_SERVICE_ROLE_KEY,
     )
 
-    const body = await request.json()
-    const { action, id, data, authCode, userId } = body
+    const { data: body, error: bodyError } = await parseBodyWithSchema(request, manageRecordSchema)
+    if (bodyError || !body) return apiError(bodyError || 'Invalid request payload', 400)
+    const { action, id, data, authCode, verificationCode, verificationMethod } = body
+    const userId = access.user.id
 
     // ---------------------------------------------------------
     // HANDLE DELETION
     // ---------------------------------------------------------
     if (action === 'delete') {
-      // 1. Verify Auth Code (Simple check - enhance as needed)
-      if (!authCode) {
-        return apiError('Auth code required', 403)
+      const verification = await verifyFreshSecondFactor({
+        userId,
+        code: verificationCode || authCode,
+        method: verificationMethod,
+      })
+      if (!verification.verified) {
+        return apiError(verification.error, 403)
       }
 
       // 2. Fetch data before deleting (for logging/audit if needed)
@@ -46,9 +69,17 @@ export async function POST(request) {
 
       // 3. Perform Deletion (Cascade will handle the passport details if we delete the parent application)
       // We delete from 'applications' to remove the root of the hierarchy
-      const { error } = await supabase.from('applications').delete().eq('id', id)
+      const parentApplicationId = recordToDelete.application_id || id
+      const { error } = await supabase.from('applications').delete().eq('id', parentApplicationId)
 
       if (error) throw error
+
+      await supabase.from('deletion_logs').insert({
+        record_type: 'Pakistani Passport Application',
+        deleted_record_data: recordToDelete,
+        deleted_by: userId,
+        auth_code_used: `verified:${verification.method}`,
+      })
 
       return apiOk({
         deletedPassportApplicationId: id,
@@ -59,6 +90,7 @@ export async function POST(request) {
     // HANDLE UPDATE
     // ---------------------------------------------------------
     if (action === 'update') {
+      if (!data) return apiError('Update data is required', 400)
       const applicationId = data.applicationId || id
       const passportId = data.passportId || id
 

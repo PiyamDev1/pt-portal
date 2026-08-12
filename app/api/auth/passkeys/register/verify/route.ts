@@ -2,6 +2,7 @@ import { apiError, apiOk } from '@/lib/api/http'
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
 import { getSupabaseClient } from '@/lib/supabaseClient'
 import { getWebAuthnContext, parseRegistrationAttestation } from '@/lib/auth/webauthn'
+import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -27,8 +28,20 @@ export async function POST(request: Request) {
 
   if (!user?.email) return apiError('Unauthorized', 401)
 
-  const body = await request.json().catch(() => ({})) as RegistrationBody
-  if (!body.challenge || !body.credential?.response?.clientDataJSON || !body.credential.response.attestationObject) {
+  const limit = await enforceRateLimit(request, {
+    scope: 'auth.passkey-register-verify',
+    limit: 10,
+    windowSeconds: 15 * 60,
+    identities: [`user:${user.id}`, `ip:${getClientIp(request)}`],
+  })
+  if (!limit.allowed) return limit.response
+
+  const body = (await request.json().catch(() => ({}))) as RegistrationBody
+  if (
+    !body.challenge ||
+    !body.credential?.response?.clientDataJSON ||
+    !body.credential.response.attestationObject
+  ) {
     return apiError('Invalid biometric setup response', 400)
   }
 
@@ -85,6 +98,9 @@ export async function POST(request: Request) {
       name: body.name?.trim() || 'Mobile passkey',
     })
   } catch (error: unknown) {
-    return apiError(error instanceof Error ? error.message : 'Unable to verify biometric setup', 400)
+    return apiError(
+      error instanceof Error ? error.message : 'Unable to verify biometric setup',
+      400,
+    )
   }
 }

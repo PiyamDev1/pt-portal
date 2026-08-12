@@ -171,9 +171,10 @@ export async function POST(request: Request) {
     })
 
     const {
-      data: { session },
-    } = await supabase.auth.getSession()
-    if (!session) {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
+    if (authError || !user) {
       return apiError('Unauthorized', 401)
     }
 
@@ -263,7 +264,7 @@ export async function POST(request: Request) {
     const { data: lastPunch } = await adminSupabase
       .from('timeclock_events')
       .select('punch_type')
-      .eq('employee_id', session.user.id)
+      .eq('employee_id', user.id)
       .gte('scanned_at', start.toISOString())
       .lte('scanned_at', end.toISOString())
       .order('scanned_at', { ascending: false })
@@ -276,7 +277,7 @@ export async function POST(request: Request) {
     const { data: recentEvent } = await adminSupabase
       .from('timeclock_events')
       .select('id, scanned_at')
-      .eq('employee_id', session.user.id)
+      .eq('employee_id', user.id)
       .eq('device_id', payload.device_id)
       .gte('scanned_at', duplicateThresholdIso)
       .order('scanned_at', { ascending: false })
@@ -296,7 +297,7 @@ export async function POST(request: Request) {
     const hashMaterial = [
       PAYLOAD_NAMESPACE.slice(0, -1),
       payload.device_id,
-      session.user.id,
+      user.id,
       'PUNCH',
       punchType,
       deviceTsIso,
@@ -315,7 +316,7 @@ export async function POST(request: Request) {
     const { data: inserted, error: insertError } = await adminSupabase
       .from('timeclock_events')
       .insert({
-        employee_id: session.user.id,
+        employee_id: user.id,
         device_id: payload.device_id,
         event_type: 'PUNCH',
         punch_type: punchType,
@@ -346,7 +347,7 @@ export async function POST(request: Request) {
     }
 
     await queueAttendanceSyncForEmployeeDay(
-      session.user.id,
+      user.id,
       inserted?.scanned_at?.slice(0, 10) || new Date().toISOString().slice(0, 10),
     )
 

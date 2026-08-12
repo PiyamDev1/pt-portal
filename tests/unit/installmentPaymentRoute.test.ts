@@ -7,12 +7,24 @@ const mocks = vi.hoisted(() => {
   const getAll = vi.fn(() => [])
   const cookies = vi.fn(async () => ({ getAll }))
   const ensureInstallmentsTableExists = vi.fn(async () => true)
+  const requireLmsStaff = vi.fn(async () => ({
+    authorized: true,
+    user: { id: 'user-1', email: 'staff@example.com' },
+    employee: {
+      id: 'emp-1',
+      email: 'staff@example.com',
+      fullName: 'Test Staff',
+      role: 'Master Admin',
+      departments: [],
+    },
+  }))
 
   return {
     from,
     createServerClient,
     cookies,
     ensureInstallmentsTableExists,
+    requireLmsStaff,
   }
 })
 
@@ -26,6 +38,14 @@ vi.mock('next/headers', () => ({
 
 vi.mock('@/lib/installmentsDb', () => ({
   ensureInstallmentsTableExists: mocks.ensureInstallmentsTableExists,
+}))
+vi.mock('@/lib/lms/apiAuth', () => ({
+  requireLmsStaff: mocks.requireLmsStaff,
+  getLmsIdempotencyKey: vi.fn(() => null),
+  verifyLmsDestructiveAction: vi.fn(async () => null),
+}))
+vi.mock('@/lib/api/serviceSupabase', () => ({
+  getServiceSupabaseClient: vi.fn(() => ({ from: mocks.from })),
 }))
 
 import {
@@ -51,7 +71,7 @@ describe('/api/lms/installment-payment route validations', () => {
 
     expect(response.status).toBe(400)
     expect(payload.error).toContain('installmentId is required')
-    expect(mocks.ensureInstallmentsTableExists).toHaveBeenCalledTimes(1)
+    expect(mocks.from).not.toHaveBeenCalled()
   })
 
   it('DELETE returns 400 when transactionId/accountId query params are missing', async () => {

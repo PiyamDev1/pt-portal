@@ -1,9 +1,11 @@
 # API Reference
 
-> All PT-Portal API routes — methods, parameters, responses  
-> Last updated: June 2026
+> PT-Portal API routes — methods, parameters, and security-relevant contracts
+> Last updated: August 12, 2026
 
-All routes are under `/api/`. All routes are subject to rate limiting: 60 requests/minute per IP.
+All routes are under `/api/`. Protected staff routes use the Supabase cookie-backed session and verify the user with `auth.getUser()`; administrative routes then apply an employee role/department guard. Do not send service-role credentials or caller-selected employee IDs as identity proof.
+
+Sensitive routes have route-specific PostgreSQL-backed fixed-window limits. A blocked request returns `429` with `Retry-After`; a sensitive route returns `503` and fails closed when the shared limiter is unavailable. Limits are intentionally not one global “requests per IP” value.
 
 ---
 
@@ -24,106 +26,97 @@ All routes are under `/api/`. All routes are subject to rate limiting: 60 reques
 
 ## Documents
 
+All staff-facing document endpoints require a verified active staff session. Document data is private and responses containing metadata, streams, or signed URLs use `private, no-store` semantics unless noted otherwise. The scheduled migration worker is the exception: it accepts only the server-configured cron token and is not a browser API.
+
 ### GET `/api/documents`
 
 List documents for a family with optional filtering and pagination.
 
 **Query parameters:**
 
-| Parameter      | Type   | Required | Default | Description                                                  |
-| -------------- | ------ | -------- | ------- | ------------------------------------------------------------ |
-| `familyHeadId` | string | Yes      | —       | Family head identifier                                       |
-| `page`         | number | No       | `1`     | Page number (1-based)                                        |
-| `limit`        | number | No       | `20`    | Items per page (5–100)                                       |
-| `category`     | string | No       | —       | Filter by category: `main`, `receipts`, `application-review` |
+| Parameter      | Type   | Required | Default | Description                                   |
+| -------------- | ------ | -------- | ------- | --------------------------------------------- |
+| `familyHeadId` | string | Yes      | —       | Family head identifier                        |
+| `page`         | number | No       | `1`     | Page number (1-based)                         |
+| `limit`        | number | No       | `20`    | Items per page (5–100)                        |
+| `category`     | string | No       | —       | `general`, `receipt`, or `application-review` |
 
 **Response:**
 
 ```json
 {
-  "success": true,
-  "data": [
+  "documents": [
     {
-      "id": "uuid",
-      "file_name": "passport.pdf",
-      "file_size": 524288,
-      "file_type": "application/pdf",
-      "category": "main",
-      "uploaded_at": "2026-03-11T14:00:00Z",
-      "minio_key": "family-X/main/1741701600000-passport.pdf",
-      "minio_bucket": "portal-documents"
+      "id": "doc-uuid",
+      "fileName": "passport.pdf",
+      "fileSize": 524288,
+      "fileType": "application/pdf",
+      "category": "general",
+      "uploadedAt": "2026-08-12T14:00:00Z",
+      "uploadedBy": "user-uuid",
+      "familyHeadId": "family-id",
+      "minio": {
+        "bucket": "portal-documents",
+        "key": "family-family-id/general/doc-uuid-passport.pdf",
+        "etag": "etag"
+      }
     }
   ],
-  "total": 14,
-  "page": 1,
-  "limit": 20
+  "pagination": { "page": 1, "limit": 20, "total": 14, "pages": 1 }
 }
 ```
+
+The scope must resolve to an existing applicant, application, or Pakistani-passport draft. Unknown or malformed scopes are rejected.
 
 ---
 
 ### POST `/api/documents`
 
-Save document metadata after upload completes.
-
-**Body (JSON):**
-
-| Field           | Type   | Required | Description                             |
-| --------------- | ------ | -------- | --------------------------------------- |
-| `familyHeadId`  | string | Yes      | Family head identifier                  |
-| `fileName`      | string | Yes      | Original file name                      |
-| `fileType`      | string | Yes      | MIME type                               |
-| `fileSize`      | number | Yes      | Bytes                                   |
-| `minioKey`      | string | Yes      | Object key in storage                   |
-| `minioEtag`     | string | No       | ETag from storage response              |
-| `category`      | string | No       | Document category                       |
-| `storageBucket` | string | No       | Bucket name (defaults to MinIO primary) |
-
-**Response:**
-
-```json
-{ "success": true, "id": "uuid" }
-```
+Standalone metadata creation is disabled. The endpoint returns `410 Gone`; use `/api/documents/upload-direct` so the server owns both object creation and metadata persistence.
 
 ---
 
 ### POST `/api/documents/upload-direct`
 
-Upload a file server-side. Tries MinIO first; falls back to R2 if MinIO is unreachable.
+Upload and persist a document in one server-owned operation. The route is limited to 20 requests per user/IP in ten minutes, tries private MinIO first, and falls back to the private R2 vault when configured.
 
 **Body (multipart/form-data):**
 
-| Field          | Type   | Required | Description                            |
-| -------------- | ------ | -------- | -------------------------------------- |
-| `file`         | File   | Yes      | The file to upload (max 1.5 MB)        |
-| `familyHeadId` | string | Yes      | Family head identifier                 |
-| `category`     | string | No       | Document category (default: `general`) |
+| Field          | Type   | Required | Description                                                      |
+| -------------- | ------ | -------- | ---------------------------------------------------------------- |
+| `file`         | File   | Yes      | PDF, JPEG, PNG, or WebP; max 1.5 MB                              |
+| `familyHeadId` | string | Yes      | Existing applicant/application/draft scope                       |
+| `category`     | string | No       | `general`, `receipt`, or `application-review`; default `general` |
 
 **Response:**
 
 ```json
 {
-  "success": true,
-  "key": "family-X/main/1741701600000-file.pdf",
+  "documentId": "doc-uuid",
+  "minioKey": "family-family-id/general/doc-uuid-file.pdf",
   "etag": "\"abc123\"",
   "storageProvider": "minio",
-  "storageBucket": "portal-documents"
+  "storageBucket": "portal-documents",
+  "fileName": "file.pdf",
+  "fileSize": 524288,
+  "fileType": "application/pdf",
+  "category": "general",
+  "familyHeadId": "family-id"
 }
 ```
 
-`storageProvider` is `"minio"` or `"r2"`. Client uses `storageBucket` in the subsequent metadata POST.
+The route verifies file signatures and requires the declared MIME type and extension to match the detected content. `storageProvider` is `"minio"` or `"r2"`. The client must not submit a second metadata request.
 
 ---
 
 ### GET `/api/documents/status`
 
-Health check for both storage servers. Used by the status banner.
+Authenticated health check for the document vault. It may also run bounded storage maintenance.
 
 **Response:**
 
 ```json
 {
-  "success": true,
   "status": {
     "connected": true,
     "ping": 42,
@@ -150,44 +143,64 @@ Health check for both storage servers. Used by the status banner.
 
 ---
 
+### GET `/api/documents/[documentId]/preview`
+
+Return a short-lived preview URL for a live document record.
+
+**Response:** `{ "url": "https://signed-storage-url" }`
+
+### GET `/api/documents/[documentId]/download`
+
+Redirect to a short-lived download URL for a live document record.
+
 ### GET `/api/documents/preview`
 
-Stream a document to the browser for inline display.
+Compatibility streaming endpoint. Prefer `documentId`; a legacy `key` is accepted only when it first resolves to a live, non-deleted database record.
 
 **Query parameters:**
 
-| Parameter | Type   | Required | Description        |
-| --------- | ------ | -------- | ------------------ |
-| `key`     | string | Yes      | Object storage key |
+| Parameter    | Type   | Required | Description                                         |
+| ------------ | ------ | -------- | --------------------------------------------------- |
+| `documentId` | string | No       | Preferred document identifier                       |
+| `key`        | string | No       | Legacy key; cannot address arbitrary stored objects |
 
-**Response:** Binary file stream with appropriate `Content-Type`.  
-**Cache:** `Cache-Control: public, max-age=31536000, immutable`
+Exactly one resolvable identifier is required. The response is a binary stream with safe content disposition, `X-Content-Type-Options: nosniff`, a sandbox CSP, and `Cache-Control: private, no-store`.
 
-Falls back to R2 if MinIO fails. Triggers background migration on fallback read.
+Storage selection comes from the database record; it is not chosen by the caller.
 
 ---
 
 ### GET `/api/documents/download`
 
-Stream a document to the browser with `Content-Disposition: attachment` (triggers file save).
-
-Same parameters and fallback behaviour as `/api/documents/preview`.
+Compatibility download stream with the same record-resolution rules as `/api/documents/preview` and `Content-Disposition: attachment`.
 
 ---
 
 ### DELETE `/api/documents/[documentId]`
 
-Soft-delete a document. Removes the object from the appropriate store and marks `deleted = true` in Supabase.
+Revoke the live database record, remove its resolved object, and restore the record if storage deletion fails.
 
 **Response:**
 
 ```json
-{ "success": true }
+{ "deletedDocumentId": "doc-uuid" }
 ```
 
 ---
 
 ## Authentication
+
+Authentication responses containing tokens or security material are non-cacheable. Validation failures use `{ "error": "message" }` with an appropriate `4xx` status.
+
+### POST `/api/auth/password-login`
+
+Server-mediated password verification and login-guard accounting.
+
+**Body:** `{ "email": "staff@example.com", "password": "current password" }`
+
+**Success:** `{ "accessToken": "...", "refreshToken": "..." }`
+
+The browser passes the returned pair to the Supabase browser client to establish the cookie-backed session. Rejected credentials return a generic `401`; shared IP/email limits and the login guard return `429` with `Retry-After` when blocked.
 
 ### GET `/api/auth/sessions`
 
@@ -197,26 +210,70 @@ Returns active sessions for the authenticated user. Requires session cookie.
 
 ```json
 {
-  "sessions": [...],
-  "currentSession": { ... }
+  "sessions": [
+    {
+      "id": "session-id",
+      "created_at": "2026-08-12T10:00:00Z",
+      "last_active": "2026-08-12T14:00:00Z",
+      "ip": "192.0.2.1",
+      "user_agent": "browser user agent",
+      "is_current": true,
+      "is_active": true
+    }
+  ]
 }
 ```
+
+The response is deduplicated by device and limited to the six most recent sessions.
+
+### DELETE `/api/auth/sessions`
+
+Revoke one session or sign out all devices. Both forms require the current verified user and share a limit of ten requests per user/IP in 15 minutes.
+
+**Body:** `{ "type": "single", "id": "session-id" }` or `{ "type": "all" }`
 
 ---
 
 ### POST `/api/auth/update-password`
 
-Change the authenticated user's password.
+Change the authenticated user's password after server-side reauthentication.
 
-**Body:** `{ "password": "newpassword" }`
+**Body:**
+
+```json
+{
+  "currentPassword": "current password",
+  "newPassword": "NewStrongPassword!1"
+}
+```
+
+The new password must contain at least eight characters, lowercase and uppercase letters, a number, and a special character.
+
+**Success:**
+
+```json
+{ "updatedUserId": "uuid", "message": "Password updated successfully" }
+```
 
 ---
 
 ### POST `/api/auth/generate-backup-codes`
 
-Generate a new set of 2FA backup codes for the authenticated user.
+Atomically replace the authenticated user's backup-code set. Requires a fresh second factor.
 
-**Response:** `{ "codes": ["XXXX-XXXX", ...] }` — shown once, not stored in plain text.
+**Body:**
+
+```json
+{
+  "count": 10,
+  "verificationCode": "123456",
+  "verificationMethod": "totp"
+}
+```
+
+`count` is 1–10 and `verificationMethod` is `totp`, `backup`, or `auto`.
+
+**Response:** `{ "codes": ["XXXX-XXXX", "..."], "generatedCount": 10 }` — shown once and never stored in plaintext.
 
 ---
 
@@ -230,7 +287,7 @@ Returns the number of unused backup codes remaining.
 
 ### POST `/api/auth/consume-backup-code`
 
-Use a single backup code for authentication (single-use).
+Use a single backup code for the authenticated, in-progress login session. Consumption is conditional and concurrency-safe.
 
 **Body:** `{ "code": "XXXX-XXXX" }`
 
@@ -238,10 +295,15 @@ Use a single backup code for authentication (single-use).
 
 ### POST `/api/auth/reset-2fa`
 
-Admin-only. Disables 2FA for a specified user.
+Self-service reset of the caller's own 2FA factors. Requires a fresh current TOTP or unused backup code; it cannot select another user.
 
-**Body:** `{ "userId": "uuid" }`  
-**Auth:** Requires `Authorization: Bearer <admin-token>`
+**Body:**
+
+```json
+{ "verificationCode": "123456", "verificationMethod": "totp" }
+```
+
+**Success:** `{ "resetUserId": "uuid", "removedFactors": 1 }`
 
 ---
 
@@ -403,16 +465,16 @@ List bookings within a date range for a branch calendar/list view.
 
 **Query parameters:**
 
-| Parameter     | Type   | Required | Description                   |
-| ------------- | ------ | -------- | ----------------------------- |
-| `from`        | string | Yes      | ISO datetime lower bound      |
-| `to`          | string | Yes      | ISO datetime upper bound      |
-| `location_id` | string | No       | Filter to one branch location |
-| `status`      | string | No       | Filter by booking status or `all` |
-| `source`      | string | No       | Filter by booking source or `all` |
-| `service_id`  | string | No       | Filter by booking service or `all` |
-| `q`           | string | No       | Search across name, phone, email, notes |
-| `include_cancelled` | boolean | No | Set `false` to hide cancelled bookings |
+| Parameter           | Type    | Required | Description                             |
+| ------------------- | ------- | -------- | --------------------------------------- |
+| `from`              | string  | Yes      | ISO datetime lower bound                |
+| `to`                | string  | Yes      | ISO datetime upper bound                |
+| `location_id`       | string  | No       | Filter to one branch location           |
+| `status`            | string  | No       | Filter by booking status or `all`       |
+| `source`            | string  | No       | Filter by booking source or `all`       |
+| `service_id`        | string  | No       | Filter by booking service or `all`      |
+| `q`                 | string  | No       | Search across name, phone, email, notes |
+| `include_cancelled` | boolean | No       | Set `false` to hide cancelled bookings  |
 
 ### POST `/api/bookings`
 
@@ -476,11 +538,11 @@ Return available slots for a branch/service/date combination.
 
 **Query parameters:**
 
-| Parameter      | Type   | Required | Description |
-| -------------- | ------ | -------- | ----------- |
-| `date`         | string | Yes      | `YYYY-MM-DD` |
-| `service_id`   | string | Yes      | Service id |
-| `location_id`  | string | Yes      | Branch/location id |
+| Parameter      | Type   | Required | Description             |
+| -------------- | ------ | -------- | ----------------------- |
+| `date`         | string | Yes      | `YYYY-MM-DD`            |
+| `service_id`   | string | Yes      | Service id              |
+| `location_id`  | string | Yes      | Branch/location id      |
 | `person_count` | number | No       | Group size, default `1` |
 
 Slot generation accounts for:
@@ -682,7 +744,7 @@ Returns diagnostics for the manual entry system.
 
 ## Admin
 
-> All admin endpoints require `Authorization: Bearer <admin-token>`.
+Administrative endpoints require the canonical verified staff cookie/session guard. Each route then enforces its own role scope; there is no client-supplied service-role or blanket admin Bearer-token contract. `401` means the session is missing or invalid, while `403` means the authenticated employee lacks the required role or fresh second factor.
 
 ### POST `/api/admin/add-employee`
 
@@ -704,7 +766,36 @@ Toggle employee active/disabled status.
 
 ### POST `/api/admin/reset-password`
 
-Reset a user's password.
+Reset another employee's password. Requires an administrative role and a fresh administrator TOTP or backup code. The generated credential is temporary, the employee is forced through the password-change flow, and delivery uses the configured mail provider.
+
+---
+
+### POST `/api/admin/recover-employee-2fa`
+
+Audited break-glass recovery for another employee. Requires a Master Admin or Super Admin session, the administrator's fresh second factor, the exact target email, and a reason of at least ten characters. Self-recovery is rejected; use `/api/auth/reset-2fa` for the current account.
+
+**Body:**
+
+```json
+{
+  "employeeId": "target-uuid",
+  "confirmEmail": "target@example.com",
+  "reason": "Lost access to registered device",
+  "verificationCode": "123456",
+  "verificationMethod": "totp"
+}
+```
+
+**Success:**
+
+```json
+{
+  "recoveredEmployeeId": "target-uuid",
+  "employeeName": "Employee Name",
+  "removedFactors": 1,
+  "requiresSetup": true
+}
+```
 
 ---
 
@@ -716,7 +807,13 @@ Create installment records for an account.
 
 ### POST `/api/admin/create-installments-table`
 
-One-time migration: create the installments table structure.
+Maintenance-role schema readiness check. This route does not create tables at runtime. It returns `503` until `scripts/migrations/20260812_secure_atomic_lms_operations.sql` has installed a compatible `lms` schema marker and capabilities.
+
+---
+
+### GET|POST `/api/admin/server-control`
+
+Master/Super Admin only. `GET` reads the configured server status. `POST` accepts the allowlisted `start`, `stop`, or `restart` action and requires a fresh TOTP or backup code.
 
 ---
 

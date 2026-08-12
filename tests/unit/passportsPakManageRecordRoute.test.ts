@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => {
 
   const passportUpdateEq = vi.fn()
   const passportUpdate = vi.fn(() => ({ eq: passportUpdateEq }))
+  const logInsert = vi.fn()
 
   const from = vi.fn((table: string) => {
     if (table === 'pakistani_passport_applications') {
@@ -33,6 +34,7 @@ const mocks = vi.hoisted(() => {
     if (table === 'applicants') {
       return { update: applicantUpdate }
     }
+    if (table === 'deletion_logs') return { insert: logInsert }
     return {}
   })
 
@@ -50,6 +52,7 @@ const mocks = vi.hoisted(() => {
     applicantUpdate,
     passportUpdateEq,
     passportUpdate,
+    logInsert,
     from,
     createClient,
   }
@@ -58,6 +61,7 @@ const mocks = vi.hoisted(() => {
 vi.mock('@supabase/supabase-js', () => ({ createClient: mocks.createClient }))
 
 import { POST } from '@/app/api/passports/pak/manage-record/route'
+import { verifyFreshSecondFactor } from '@/lib/auth/freshSecondFactor'
 
 const makeRequest = (body: Record<string, unknown>) =>
   new Request('http://localhost/api/passports/pak/manage-record', {
@@ -79,13 +83,30 @@ describe('POST /api/passports/pak/manage-record', () => {
     mocks.appUpdate.mockReturnValue({ eq: mocks.appUpdateEq })
     mocks.applicantUpdate.mockReturnValue({ eq: mocks.applicantUpdateEq })
     mocks.passportUpdate.mockReturnValue({ eq: mocks.passportUpdateEq })
+    mocks.from.mockImplementation((table: string) => {
+      if (table === 'pakistani_passport_applications') {
+        return { select: mocks.recordSelect, update: mocks.passportUpdate }
+      }
+      if (table === 'applications') {
+        return { delete: mocks.appDelete, update: mocks.appUpdate }
+      }
+      if (table === 'applicants') return { update: mocks.applicantUpdate }
+      if (table === 'deletion_logs') return { insert: mocks.logInsert }
+      return {}
+    })
+    mocks.logInsert.mockResolvedValue({ error: null })
+    vi.mocked(verifyFreshSecondFactor).mockResolvedValue({ verified: true, method: 'totp' })
   })
 
   it('returns 403 when delete auth code is missing', async () => {
+    vi.mocked(verifyFreshSecondFactor).mockResolvedValueOnce({
+      verified: false,
+      error: 'Verification code required',
+    })
     const res = await POST(makeRequest({ action: 'delete', id: 'p-1', userId: 'u-1' }))
     expect(res.status).toBe(403)
     const body = await res.json()
-    expect(body.error).toMatch(/auth code required/i)
+    expect(body.error).toMatch(/verification code required/i)
   })
 
   it('returns semantic payload on delete success', async () => {
@@ -136,7 +157,10 @@ describe('POST /api/passports/pak/manage-record', () => {
   })
 
   it('marks requested page as provided', async () => {
-    mocks.recordSingle.mockResolvedValue({ data: { id: 'p-1', requested_page_number: '72 pages' }, error: null })
+    mocks.recordSingle.mockResolvedValue({
+      data: { id: 'p-1', requested_page_number: '72 pages' },
+      error: null,
+    })
     mocks.passportUpdateEq.mockResolvedValue({ error: null })
 
     const res = await POST(
@@ -165,6 +189,6 @@ describe('POST /api/passports/pak/manage-record', () => {
     const res = await POST(makeRequest({ action: 'noop', id: 'p-1', userId: 'u-1' }))
     expect(res.status).toBe(400)
     const body = await res.json()
-    expect(body.error).toMatch(/invalid action/i)
+    expect(body.error).toMatch(/expected one of/i)
   })
 })

@@ -1,6 +1,7 @@
 import { apiError, apiOk } from '@/lib/api/http'
 import { getSupabaseClient } from '@/lib/supabaseClient'
 import { createWebAuthnChallenge, getChallengeExpiry } from '@/lib/auth/webauthn'
+import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -12,6 +13,14 @@ export async function POST(request: Request) {
   if (!email) {
     return apiError('Enter your email once to unlock biometric login on this device.', 400)
   }
+
+  const limit = await enforceRateLimit(request, {
+    scope: 'auth.passkey-options',
+    limit: 10,
+    windowSeconds: 15 * 60,
+    identities: [`ip:${getClientIp(request)}`, `email:${email}`],
+  })
+  if (!limit.allowed) return limit.response
 
   const admin = getSupabaseClient()
   const passkeysQuery = admin

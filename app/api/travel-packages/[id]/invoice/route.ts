@@ -15,8 +15,10 @@ import type {
   TravelPackageReservation,
   TravelPackageReservationItem,
 } from '@/app/types/packages'
-import { selectTravelPackageReservationItemColumns } from '../reservations/[reservationId]/items/route'
-import { selectTravelPackageReservationColumns } from '../reservations/route'
+import {
+  selectTravelPackageReservationColumns,
+  selectTravelPackageReservationItemColumns,
+} from '../reservations/columns'
 import { recordPackageAuditEvent } from '@/lib/packageAudit'
 
 const SCHEMA_HINT =
@@ -192,10 +194,7 @@ async function syncPackageInvoiceStatus(
     .eq('id', packageId)
 }
 
-export async function GET(
-  _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const supabase = await getRouteSupabaseClient()
   const {
@@ -231,10 +230,7 @@ export async function GET(
   })
 }
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const supabase = await getRouteSupabaseClient()
   const {
@@ -313,8 +309,10 @@ export async function POST(
   const existingTotalPaid = roundPackageInvoiceMoney(
     (existingPaymentData || []).reduce((total, payment) => {
       if (payment.payment_status !== 'completed') return total
-      if (['deposit', 'payment'].includes(payment.payment_type)) return total + Number(payment.amount || 0)
-      if (['refund', 'chargeback'].includes(payment.payment_type)) return total - Number(payment.amount || 0)
+      if (['deposit', 'payment'].includes(payment.payment_type))
+        return total + Number(payment.amount || 0)
+      if (['refund', 'chargeback'].includes(payment.payment_type))
+        return total - Number(payment.amount || 0)
       return total
     }, 0),
   )
@@ -394,10 +392,7 @@ export async function POST(
   )
 }
 
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const supabase = await getRouteSupabaseClient()
   const {
@@ -461,11 +456,11 @@ export async function PATCH(
     : hasBodyKey(body, 'released_to_customer')
       ? Boolean(body.released_to_customer)
       : existingInvoice.released_to_customer
-  if (
-    !existingInvoice.released_to_customer
-    && (releasedToCustomer || status === 'released')
-  ) {
-    return apiError('Use the invoice release action so a customer snapshot and audit event are created', 409)
+  if (!existingInvoice.released_to_customer && (releasedToCustomer || status === 'released')) {
+    return apiError(
+      'Use the invoice release action so a customer snapshot and audit event are created',
+      409,
+    )
   }
   const totalSold = roundPackageInvoiceMoney(subtotalSold - discountTotal)
   const balanceDue = roundPackageInvoiceMoney(totalSold - totalPaid)
@@ -488,9 +483,7 @@ export async function PATCH(
     expected_commission_total: expectedCommissionTotal,
     received_commission_total: receivedCommissionTotal,
     released_to_customer: shouldRelease,
-    released_at: shouldRelease
-      ? existingInvoice.released_at || new Date().toISOString()
-      : null,
+    released_at: shouldRelease ? existingInvoice.released_at || new Date().toISOString() : null,
     released_by: shouldRelease ? existingInvoice.released_by || user.id : null,
     version: releaseStarted ? existingInvoice.version + 1 : existingInvoice.version,
     customer_terms: hasBodyKey(body, 'customerTerms')

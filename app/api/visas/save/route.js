@@ -8,17 +8,45 @@
 import { createClient } from '@supabase/supabase-js'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
+import { requireStaffSession } from '@/lib/auth/staffSession'
+import { z } from 'zod'
+import { parseBodyWithSchema } from '@/lib/api/request'
+
+const visaSaveSchema = z
+  .object({
+    id: z.string().trim().max(200).optional(),
+    applicantName: z.string().trim().min(1, 'Applicant name is required').max(300),
+    applicantPassport: z.string().trim().max(100).optional().nullable(),
+    applicantDob: z.string().trim().max(20).optional().nullable(),
+    applicantNationality: z.string().trim().max(100).optional().nullable(),
+    countryId: z.union([z.number(), z.string()]),
+    visaTypeName: z.string().trim().max(200).optional().nullable(),
+    validity: z.string().trim().max(200).optional().nullable(),
+    internalTrackingNo: z.string().trim().max(200).optional().nullable(),
+    customerPrice: z.coerce.number().nonnegative().max(10_000_000).optional(),
+    basePrice: z.coerce.number().nonnegative().max(10_000_000).optional(),
+    costCurrency: z.string().trim().min(3).max(10).optional(),
+    isPartOfPackage: z.boolean().optional(),
+    status: z.string().trim().max(100).optional(),
+  })
+  .passthrough()
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(request) {
+  const access = await requireStaffSession()
+  if (!access.authorized) return access.response
+
   try {
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
       process.env.SUPABASE_SERVICE_ROLE_KEY,
     )
 
-    const body = await request.json()
+    const { data: body, error: bodyError } = await parseBodyWithSchema(request, visaSaveSchema, {
+      maxBytes: 32 * 1024,
+    })
+    if (bodyError || !body) return apiError(bodyError || 'Invalid request payload', 400)
     const {
       id,
       applicantName,
@@ -33,9 +61,9 @@ export async function POST(request) {
       basePrice,
       costCurrency,
       isPartOfPackage,
-      currentUserId,
       status,
     } = body
+    const currentUserId = access.user.id
 
     const countryIdNum = Number(countryId)
     if (!countryId || Number.isNaN(countryIdNum)) {

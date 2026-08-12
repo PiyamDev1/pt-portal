@@ -109,13 +109,17 @@ export function useInstallmentManagement(transaction: Transaction) {
     setEditedInstallments(JSON.parse(JSON.stringify(installments)))
   }
 
-  const handleDelete = async () => {
+  const handleDelete = async (verificationCode: string) => {
     setLoading(true)
     try {
       const res = await fetch('/api/lms/delete-installment-plan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ transactionId: transaction.id }),
+        body: JSON.stringify({
+          transactionId: transaction.id,
+          verificationCode,
+          verificationMethod: 'auto',
+        }),
       })
 
       const data = await res.json()
@@ -128,7 +132,7 @@ export function useInstallmentManagement(transaction: Transaction) {
       return true
     } catch (err: unknown) {
       console.error('[useInstallmentManagement] Error deleting installment:', err)
-      toast.error('Failed to delete. Please try again or contact support.')
+      toast.error(err instanceof Error ? err.message : 'Failed to delete installment plan')
       setLoading(false)
       return false
     }

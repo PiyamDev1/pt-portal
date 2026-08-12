@@ -7,8 +7,10 @@ import type {
   TravelPackageReservationItemStatus,
   TravelPackageReservationItemType,
 } from '@/app/types/packages'
-import { selectTravelPackageReservationColumns } from '../../../route'
-import { selectTravelPackageReservationItemColumns } from '../route'
+import {
+  selectTravelPackageReservationColumns,
+  selectTravelPackageReservationItemColumns,
+} from '../../../columns'
 
 const SCHEMA_HINT =
   'Travel package reservation item schema is not installed yet. Run scripts/migrations/20260711_create_travel_package_reservations.sql in Supabase SQL editor.'
@@ -45,8 +47,10 @@ function getBodyValue(body: Record<string, unknown>, camelKey: string, snakeKey:
 }
 
 function hasBodyKey(body: Record<string, unknown>, camelKey: string, snakeKey: string) {
-  return Object.prototype.hasOwnProperty.call(body, camelKey)
-    || Object.prototype.hasOwnProperty.call(body, snakeKey)
+  return (
+    Object.prototype.hasOwnProperty.call(body, camelKey) ||
+    Object.prototype.hasOwnProperty.call(body, snakeKey)
+  )
 }
 
 function parseMoney(value: unknown) {

@@ -62,8 +62,8 @@ export function ModifyInstallmentPlanModal({
     setShowSchedule(false)
   }
 
-  const handleDelete = async () => {
-    const success = await hookDelete()
+  const handleDelete = async (verificationCode: string) => {
+    const success = await hookDelete(verificationCode)
     if (success) {
       onClose()
       onRefresh()
@@ -72,12 +72,7 @@ export function ModifyInstallmentPlanModal({
 
   return (
     <ModalWrapper onClose={onClose} title="Modify Installment Plan">
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label="Modify installment plan"
-        className="space-y-4"
-      >
+      <div className="space-y-4">
         <TransactionDetails
           transaction={transaction}
           totalInstallments={totalInstallments}

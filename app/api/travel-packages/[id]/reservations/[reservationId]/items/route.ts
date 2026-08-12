@@ -7,7 +7,10 @@ import type {
   TravelPackageReservationItemStatus,
   TravelPackageReservationItemType,
 } from '@/app/types/packages'
-import { selectTravelPackageReservationColumns } from '../../route'
+import {
+  selectTravelPackageReservationColumns,
+  selectTravelPackageReservationItemColumns,
+} from '../../columns'
 
 const SCHEMA_HINT =
   'Travel package reservation item schema is not installed yet. Run scripts/migrations/20260711_create_travel_package_reservations.sql in Supabase SQL editor.'
@@ -33,33 +36,6 @@ const ITEM_STATUSES = new Set<TravelPackageReservationItemStatus>([
 function isReservationItemSchemaError(error: unknown) {
   const code = (error as { code?: string } | null)?.code
   return code === '42P01' || code === '42703' || code === '42P10' || code === '23503'
-}
-
-export function selectTravelPackageReservationItemColumns() {
-  return `
-    id,
-    reservation_id,
-    package_id,
-    item_type,
-    title,
-    description,
-    quantity,
-    unit_booked_cost,
-    unit_sold_price,
-    discount_amount,
-    commission_expected_amount,
-    commission_received_amount,
-    total_booked_cost,
-    total_sold_price,
-    currency,
-    supplier_reference,
-    status,
-    starts_at,
-    ends_at,
-    metadata,
-    created_at,
-    updated_at
-  `
 }
 
 function cleanText(value: unknown) {
@@ -177,8 +153,8 @@ export async function POST(
   const requestedStatus = cleanText(body.status)
   const itemType = ITEM_TYPES.has(requestedType as TravelPackageReservationItemType)
     ? (requestedType as TravelPackageReservationItemType)
-    : ((parentReservation as { reservation_type?: TravelPackageReservationItemType })
-        .reservation_type || 'other')
+    : (parentReservation as { reservation_type?: TravelPackageReservationItemType })
+        .reservation_type || 'other'
   const status = ITEM_STATUSES.has(requestedStatus as TravelPackageReservationItemStatus)
     ? (requestedStatus as TravelPackageReservationItemStatus)
     : 'draft'

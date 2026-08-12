@@ -15,8 +15,14 @@ jobs:
       SMOKE_USER_BRANCH_CODE: ${{ secrets.SMOKE_USER_BRANCH_CODE }}
       SMOKE_FAMILY_HEAD_ID: ${{ secrets.SMOKE_FAMILY_HEAD_ID }}
       SMOKE_2FA_BACKUP_CODE: ${{ secrets.SMOKE_2FA_BACKUP_CODE }}
+      SMOKE_2FA_TOTP_SECRET: ${{ secrets.SMOKE_2FA_TOTP_SECRET }}
       SMOKE_BASE_URL: ${{ secrets.SMOKE_BASE_URL }}
       PLAYWRIGHT_BASE_URL: ${{ secrets.SMOKE_BASE_URL }}
+      SMOKE_LMS_ACCOUNT_ID: ${{ secrets.SMOKE_LMS_ACCOUNT_ID }}
+      SMOKE_PACKAGE_SHARE_TOKEN: ${{ secrets.SMOKE_PACKAGE_SHARE_TOKEN }}
+      SMOKE_RUN_BATCH: ${{ secrets.SMOKE_RUN_BATCH }}
+      SMOKE_RECEIPT_NADRA_ID: ${{ secrets.SMOKE_RECEIPT_NADRA_ID }}
+      SMOKE_RUN_RECEIPT_MUTATION: ${{ secrets.SMOKE_RUN_RECEIPT_MUTATION }}
 
     steps:
       - name: Checkout
@@ -29,13 +35,12 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts --no-audit
 
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
 
       - name: Validate required smoke secrets
-        id: validate
         run: |
           missing=0
           for v in SMOKE_USER_EMAIL SMOKE_USER_PASSWORD SMOKE_USER_BRANCH_CODE SMOKE_FAMILY_HEAD_ID SMOKE_BASE_URL; do
@@ -45,18 +50,12 @@ jobs:
             fi
           done
           if [ "$missing" -eq 1 ]; then
-            echo "run_smoke=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "run_smoke=true" >> "$GITHUB_OUTPUT"
+            echo "Smoke test configuration is incomplete. Configure every required repository secret."
+            exit 1
           fi
 
       - name: Run smoke tests
-        if: steps.validate.outputs.run_smoke == 'true'
         run: npm run test:smoke
-
-      - name: Skip notice
-        if: steps.validate.outputs.run_smoke != 'true'
-        run: echo "Skipping smoke tests because required secrets are not configured."
 
       - name: Upload Playwright report
         if: always()

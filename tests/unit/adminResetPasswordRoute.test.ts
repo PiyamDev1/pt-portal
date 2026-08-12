@@ -1,11 +1,6 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => {
-  const verifyAdminAccess = vi.fn()
-  const unauthorizedResponse = vi.fn((message: string, status = 401) =>
-    Response.json({ error: message }, { status }),
-  )
-
   const updateUserById = vi.fn()
   const from = vi.fn()
   const createClient = vi.fn(() => ({
@@ -23,8 +18,6 @@ const mocks = vi.hoisted(() => {
   const hash = vi.fn()
 
   return {
-    verifyAdminAccess,
-    unauthorizedResponse,
     from,
     createClient,
     updateUserById,
@@ -34,11 +27,6 @@ const mocks = vi.hoisted(() => {
     hash,
   }
 })
-
-vi.mock('@/lib/adminAuth', () => ({
-  verifyAdminAccess: mocks.verifyAdminAccess,
-  unauthorizedResponse: mocks.unauthorizedResponse,
-}))
 
 vi.mock('@supabase/supabase-js', () => ({
   createClient: mocks.createClient,
@@ -56,6 +44,8 @@ vi.mock('bcryptjs', () => ({
 }))
 
 import { POST } from '@/app/api/admin/reset-password/route'
+import { requireStaffSession } from '@/lib/auth/staffSession'
+import { enforceRateLimit } from '@/lib/security/rateLimit'
 
 describe('POST /api/admin/reset-password', () => {
   const originalEnv = { ...process.env }
@@ -69,9 +59,21 @@ describe('POST /api/admin/reset-password', () => {
     process.env.MAILGUN_DOMAIN = 'mg.example.com'
     process.env.MAILGUN_SENDER_EMAIL = 'no-reply@example.com'
 
-    mocks.verifyAdminAccess.mockResolvedValue({
+    vi.mocked(requireStaffSession).mockResolvedValue({
       authorized: true,
       user: { id: 'admin-1', email: 'admin@example.com' },
+      employee: {
+        id: 'admin-1',
+        email: 'admin@example.com',
+        fullName: 'Admin User',
+        role: 'Admin',
+        departments: [],
+      },
+    })
+    vi.mocked(enforceRateLimit).mockResolvedValue({
+      allowed: true,
+      remaining: 4,
+      retryAfterSeconds: 0,
     })
 
     mocks.compare.mockResolvedValue(false)
@@ -118,10 +120,9 @@ describe('POST /api/admin/reset-password', () => {
   })
 
   it('returns unauthorized response when admin verification fails', async () => {
-    mocks.verifyAdminAccess.mockResolvedValueOnce({
+    vi.mocked(requireStaffSession).mockResolvedValueOnce({
       authorized: false,
-      error: 'Forbidden',
-      status: 403,
+      response: Response.json({ error: 'Forbidden' }, { status: 403 }) as never,
     })
 
     const response = await POST(
@@ -135,6 +136,41 @@ describe('POST /api/admin/reset-password', () => {
 
     expect(response.status).toBe(403)
     expect(payload).toEqual({ error: 'Forbidden' })
+    expect(mocks.createClient).not.toHaveBeenCalled()
+  })
+
+  it('passes through a shared rate-limit response before reading the body', async () => {
+    vi.mocked(enforceRateLimit).mockResolvedValueOnce({
+      allowed: false,
+      remaining: 0,
+      retryAfterSeconds: 60,
+      response: Response.json({ error: 'Too many requests' }, { status: 429 }) as never,
+    })
+
+    const response = await POST(
+      new Request('http://localhost/api/admin/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: 'staff@example.com' }),
+      }),
+    )
+
+    expect(response.status).toBe(429)
+    expect(mocks.createClient).not.toHaveBeenCalled()
+  })
+
+  it('rejects an invalid employee identifier before initializing privileged clients', async () => {
+    const response = await POST(
+      new Request('http://localhost/api/admin/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ employee_id: 'not-a-uuid' }),
+      }),
+    )
+    const payload = await response.json()
+
+    expect(response.status).toBe(400)
+    expect(payload).toEqual({ error: 'Invalid employee ID' })
     expect(mocks.createClient).not.toHaveBeenCalled()
   })
 

@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { NextResponse } from 'next/server'
 
 const mocks = vi.hoisted(() => {
   const getUser = vi.fn()
@@ -39,6 +38,8 @@ vi.mock('next/headers', () => ({
 }))
 
 import { POST } from '@/app/api/admin/delete-employee/route'
+import { requireStaffSession } from '@/lib/auth/staffSession'
+import { verifyFreshSecondFactor } from '@/lib/auth/freshSecondFactor'
 
 const makeRequest = (body: Record<string, unknown> = {}) =>
   new Request('http://localhost/api/admin/delete-employee', {
@@ -65,10 +66,25 @@ describe('DELETE /api/admin/delete-employee', () => {
     mocks.adminSelect.mockReturnValue({ eq: mocks.adminEq })
     mocks.adminEq.mockReturnValue({ single: mocks.adminSingle })
     mocks.adminSingle.mockResolvedValue({ data: null, error: null })
+    vi.mocked(requireStaffSession).mockResolvedValue({
+      authorized: true,
+      user: { id: 'u-1', email: 'admin@test.com' },
+      employee: {
+        id: 'u-1',
+        email: 'admin@test.com',
+        fullName: 'Admin',
+        role: 'Master Admin',
+        departments: [],
+      },
+    })
+    vi.mocked(verifyFreshSecondFactor).mockResolvedValue({ verified: true, method: 'totp' })
   })
 
   it('returns 401 when not authenticated', async () => {
-    mocks.getUser.mockResolvedValue({ data: { user: null }, error: null })
+    vi.mocked(requireStaffSession).mockResolvedValueOnce({
+      authorized: false,
+      response: Response.json({ error: 'Unauthorized' }, { status: 401 }),
+    })
     const res = await POST(makeRequest({ employeeId: 'e-1', confirmEmail: 'a@b.com' }))
     expect(res.status).toBe(401)
     const body = await res.json()
@@ -76,36 +92,27 @@ describe('DELETE /api/admin/delete-employee', () => {
   })
 
   it('returns 400 when required params are missing', async () => {
-    mocks.getUser.mockResolvedValue({
-      data: { user: { id: 'u-1', email: 'admin@test.com' } },
-      error: null,
-    })
     const res = await POST(makeRequest({ employeeId: 'e-1' })) // missing confirmEmail
     expect(res.status).toBe(400)
     const body = await res.json()
-    expect(body.error).toMatch(/missing/i)
+    expect(body.error).toMatch(/required/i)
   })
 
-  it('returns 404 when caller profile is not found', async () => {
-    mocks.getUser.mockResolvedValue({
-      data: { user: { id: 'u-1', email: 'admin@test.com' } },
-      error: null,
+  it('passes through a missing caller profile response from the session guard', async () => {
+    vi.mocked(requireStaffSession).mockResolvedValueOnce({
+      authorized: false,
+      response: Response.json({ error: 'Employee profile not found' }, { status: 403 }),
     })
-    mocks.adminSingle.mockResolvedValueOnce({ data: null, error: { message: 'not found' } })
     const res = await POST(makeRequest({ employeeId: 'e-2', confirmEmail: 'target@test.com' }))
-    expect(res.status).toBe(404)
+    expect(res.status).toBe(403)
     const body = await res.json()
     expect(body.error).toMatch(/profile not found/i)
   })
 
   it('returns 403 when caller is not Master Admin', async () => {
-    mocks.getUser.mockResolvedValue({
-      data: { user: { id: 'u-1', email: 'employee@test.com' } },
-      error: null,
-    })
-    mocks.adminSingle.mockResolvedValueOnce({
-      data: { id: 'u-1', roles: { name: 'Employee' } },
-      error: null,
+    vi.mocked(requireStaffSession).mockResolvedValueOnce({
+      authorized: false,
+      response: Response.json({ error: 'Forbidden' }, { status: 403 }),
     })
     const res = await POST(makeRequest({ employeeId: 'e-2', confirmEmail: 'target@test.com' }))
     expect(res.status).toBe(403)
@@ -114,15 +121,24 @@ describe('DELETE /api/admin/delete-employee', () => {
   })
 
   it('returns 400 when admin tries to delete their own account', async () => {
-    mocks.getUser.mockResolvedValue({
-      data: { user: { id: 'u-admin', email: 'admin@test.com' } },
-      error: null,
+    vi.mocked(requireStaffSession).mockResolvedValueOnce({
+      authorized: true,
+      user: { id: 'u-admin', email: 'admin@test.com' },
+      employee: {
+        id: 'u-admin',
+        email: 'admin@test.com',
+        fullName: 'Admin',
+        role: 'Master Admin',
+        departments: [],
+      },
     })
-    mocks.adminSingle.mockResolvedValueOnce({
-      data: { id: 'u-admin', roles: { name: 'Master Admin' } },
-      error: null,
-    })
-    const res = await POST(makeRequest({ employeeId: 'u-admin', confirmEmail: 'admin@test.com' }))
+    const res = await POST(
+      makeRequest({
+        employeeId: 'u-admin',
+        confirmEmail: 'admin@test.com',
+        verificationCode: '123456',
+      }),
+    )
     expect(res.status).toBe(400)
     const body = await res.json()
     expect(body.error).toMatch(/cannot delete your own/i)

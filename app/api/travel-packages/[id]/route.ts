@@ -42,7 +42,7 @@ const PASSPORT_STATUSES = new Set([
   'ready',
 ])
 
-export function selectTravelPackageColumns() {
+function selectTravelPackageColumns() {
   return `
     id,
     package_reference,
@@ -115,10 +115,7 @@ async function parseBody(request: NextRequest) {
   }
 }
 
-export async function GET(
-  _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const supabase = await getRouteSupabaseClient()
   const {
@@ -143,10 +140,7 @@ export async function GET(
   return apiOk({ package: data as unknown as TravelPackageFolder, setupRequired: false })
 }
 
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const supabase = await getRouteSupabaseClient()
   const {
@@ -178,7 +172,11 @@ export async function PATCH(
     if (!canTransitionTravelPackageStatus(existing.status, status)) {
       return apiError(`Cannot move package from ${existing.status} to ${status}`, 409)
     }
-    if (status === 'cancelled' && !cleanText(body.cancellationReason) && !existing.cancellation_reason) {
+    if (
+      status === 'cancelled' &&
+      !cleanText(body.cancellationReason) &&
+      !existing.cancellation_reason
+    ) {
       return apiError('A cancellation reason is required', 400)
     }
     update.status = status

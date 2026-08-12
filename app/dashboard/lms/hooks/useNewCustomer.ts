@@ -5,7 +5,7 @@
 
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { toast } from 'sonner'
 import type { PaymentMethod, CustomerForm } from '../types'
 import { API_ENDPOINTS } from '../constants'
@@ -25,6 +25,7 @@ interface UseNewCustomerParams {
 }
 
 export function useNewCustomer({ onSave, onClose, employeeId }: UseNewCustomerParams) {
+  const idempotencyKeyRef = useRef('')
   const [form, setForm] = useState<CustomerForm>({
     firstName: '',
     lastName: '',
@@ -73,9 +74,13 @@ export function useNewCustomer({ onSave, onClose, employeeId }: UseNewCustomerPa
 
     setLoading(true)
     try {
+      idempotencyKeyRef.current ||= crypto.randomUUID()
       const res = await fetch(API_ENDPOINTS.LMS, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Idempotency-Key': idempotencyKeyRef.current,
+        },
         body: JSON.stringify({
           action: 'create_customer',
           ...form,
@@ -87,6 +92,7 @@ export function useNewCustomer({ onSave, onClose, employeeId }: UseNewCustomerPa
         const data = await res.json().catch(() => ({}))
         throw new Error(data.error || `Request failed with status ${res.status}`)
       }
+      idempotencyKeyRef.current = ''
       toast.success('Customer created!')
       onSave()
       onClose()

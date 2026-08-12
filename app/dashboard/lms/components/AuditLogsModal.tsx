@@ -83,12 +83,7 @@ export function AuditLogsModal({ accountId, accountName, onClose }: AuditLogsMod
 
   return (
     <ModalWrapper onClose={onClose} title={`Audit Trail - ${accountName}`}>
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label={`Audit Trail for ${accountName}`}
-        className="space-y-4"
-      >
+      <div className="space-y-4">
         {loading ? (
           <div role="status" aria-live="polite" className="flex justify-center py-8">
             <div className="animate-spin h-8 w-8 border-4 border-slate-200 border-t-blue-600 rounded-full"></div>

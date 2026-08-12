@@ -1,34 +1,24 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => {
-  const verifyAdminAccess = vi.fn()
-  const unauthorizedResponse = vi.fn((message: string, status = 401) =>
-    Response.json({ error: message }, { status }),
-  )
-
   const upsert = vi.fn()
   const from = vi.fn(() => ({ upsert }))
   const createClient = vi.fn(() => ({ from }))
 
   return {
-    verifyAdminAccess,
-    unauthorizedResponse,
     upsert,
     from,
     createClient,
   }
 })
 
-vi.mock('@/lib/adminAuth', () => ({
-  verifyAdminAccess: mocks.verifyAdminAccess,
-  unauthorizedResponse: mocks.unauthorizedResponse,
-}))
-
 vi.mock('@supabase/supabase-js', () => ({
   createClient: mocks.createClient,
 }))
 
 import { GET, POST } from '@/app/api/admin/seed-countries/route'
+import { requireStaffSession } from '@/lib/auth/staffSession'
+import { enforceRateLimit } from '@/lib/security/rateLimit'
 
 describe('/api/admin/seed-countries route', () => {
   const originalEnv = { ...process.env }
@@ -38,9 +28,21 @@ describe('/api/admin/seed-countries route', () => {
     process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co'
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role-key'
 
-    mocks.verifyAdminAccess.mockResolvedValue({
+    vi.mocked(requireStaffSession).mockResolvedValue({
       authorized: true,
       user: { id: 'admin-1', email: 'admin@example.com' },
+      employee: {
+        id: 'admin-1',
+        email: 'admin@example.com',
+        fullName: 'Admin User',
+        role: 'Admin',
+        departments: [],
+      },
+    })
+    vi.mocked(enforceRateLimit).mockResolvedValue({
+      allowed: true,
+      remaining: 4,
+      retryAfterSeconds: 0,
     })
 
     mocks.upsert.mockResolvedValue({ error: null })
@@ -51,10 +53,9 @@ describe('/api/admin/seed-countries route', () => {
   })
 
   it('returns unauthorized response when admin verification fails', async () => {
-    mocks.verifyAdminAccess.mockResolvedValueOnce({
+    vi.mocked(requireStaffSession).mockResolvedValueOnce({
       authorized: false,
-      error: 'Forbidden',
-      status: 403,
+      response: Response.json({ error: 'Forbidden' }, { status: 403 }) as never,
     })
 
     const response = await POST(new Request('http://localhost/api/admin/seed-countries'))
@@ -62,6 +63,19 @@ describe('/api/admin/seed-countries route', () => {
 
     expect(response.status).toBe(403)
     expect(payload).toEqual({ error: 'Forbidden' })
+    expect(mocks.createClient).not.toHaveBeenCalled()
+  })
+
+  it('rejects unexpected payload fields before using the service client', async () => {
+    const response = await POST(
+      new Request('http://localhost/api/admin/seed-countries', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ force: true }),
+      }),
+    )
+
+    expect(response.status).toBe(400)
     expect(mocks.createClient).not.toHaveBeenCalled()
   })
 

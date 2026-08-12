@@ -11,6 +11,7 @@ import {
   RECEIPT_PIN_LENGTH,
   RECEIPT_VERIFY_BASE_URL,
 } from '@/lib/constants/receiptConfig'
+import { generateSecureNumericCode } from '@/lib/security/secureRandom.server'
 import { buildReceiptPlainText } from './receiptTemplates'
 import { persistGeneratedReceipt } from './receiptStore'
 
@@ -115,11 +116,7 @@ async function fetchFamilyHeadInfo(
 }
 
 function generatePin(length = RECEIPT_PIN_LENGTH) {
-  let pin = ''
-  for (let i = 0; i < length; i += 1) {
-    pin += Math.floor(Math.random() * 10).toString()
-  }
-  return pin
+  return generateSecureNumericCode(length)
 }
 
 function buildVerificationUrl(trackingNumber: string | null, receiptPin: string) {
@@ -128,7 +125,11 @@ function buildVerificationUrl(trackingNumber: string | null, receiptPin: string)
   return `${base}/receipts/verify?trackingNumber=${encodeURIComponent(trackingNumber)}&pin=${encodeURIComponent(receiptPin)}`
 }
 
-function buildApplicationBoundReceiptNumber(applicationId: string, generatedAt: string, receiptPin: string) {
+function buildApplicationBoundReceiptNumber(
+  applicationId: string,
+  generatedAt: string,
+  receiptPin: string,
+) {
   const appToken = applicationId.replace(/-/g, '').slice(0, 8).toUpperCase() || 'APP'
   const date = new Date(generatedAt)
   const dateToken = Number.isNaN(date.getTime())
@@ -201,7 +202,9 @@ async function resolveNadraData(serviceRecordId: string): Promise<ResolvedSource
     email: applicant?.email || null,
     trackingNumber: data.tracking_number || null,
     applicationPin: data.application_pin || null,
-    serviceDescription: serviceOption ? `${data.service_type || 'NADRA'} - ${serviceOption}` : data.service_type,
+    serviceDescription: serviceOption
+      ? `${data.service_type || 'NADRA'} - ${serviceOption}`
+      : data.service_type,
     costPrice,
     salePrice,
   }

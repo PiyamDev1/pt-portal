@@ -1153,7 +1153,7 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
     const currentIndex = linkedGroup.families.findIndex((family) => family.isCurrent)
     const currentFamily = currentIndex >= 0 ? linkedGroup.families[currentIndex] : null
     setExpandedLinkedFamilyKey(currentFamily ? getLinkedFamilyKey(currentFamily, currentIndex) : '')
-  }, [linkedGroup?.groupId])
+  }, [linkedGroup])
 
   const depositPaymentSummary = useMemo(() => {
     if (!payload) return null

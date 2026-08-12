@@ -19,6 +19,15 @@
 import { createClient } from '@supabase/supabase-js'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
+import { requireLmsStaff } from '@/lib/lms/apiAuth'
+import { z } from 'zod'
+import { parseBodyWithSchema } from '@/lib/api/request'
+import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
+
+const createNoteSchema = z.object({
+  accountId: z.string().trim().min(1).max(200),
+  note: z.string().trim().min(1, 'Missing required fields').max(5_000, 'Note is too long'),
+})
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -41,9 +50,21 @@ const resolveEmployeeName = (employees?: EmployeeRef): string | undefined => {
   return employees?.full_name
 }
 
+async function enforceNotesMutationLimit(request: Request, userId: string) {
+  return enforceRateLimit(request, {
+    scope: 'lms.notes-mutate',
+    limit: 120,
+    windowSeconds: 60 * 60,
+    identities: [`user:${userId}`, `ip:${getClientIp(request)}`],
+  })
+}
+
 // GET - Fetch notes for an account
 export async function GET(request: Request) {
   try {
+    const access = await requireLmsStaff()
+    if (!access.authorized) return access.response
+
     const { searchParams } = new URL(request.url)
     const accountId = searchParams.get('accountId')
 
@@ -84,18 +105,24 @@ export async function GET(request: Request) {
 // POST - Create a new note
 export async function POST(request: Request) {
   try {
-    const { accountId, note, employeeId } = await request.json()
+    const access = await requireLmsStaff()
+    if (!access.authorized) return access.response
 
-    if (!accountId || !note || !employeeId) {
-      return apiError('Missing required fields', 400)
-    }
+    const limit = await enforceNotesMutationLimit(request, access.user.id)
+    if (!limit.allowed) return limit.response
+
+    const { data: body, error: bodyError } = await parseBodyWithSchema(request, createNoteSchema, {
+      maxBytes: 16 * 1024,
+    })
+    if (bodyError || !body) return apiError(bodyError || 'Invalid request payload', 400)
+    const { accountId, note } = body
 
     const { data: newNote, error } = await supabase
       .from('loan_account_notes')
       .insert({
         loan_customer_id: accountId,
         note: note.trim(),
-        created_by: employeeId,
+        created_by: access.employee.id,
         created_at: new Date().toISOString(),
       })
       .select(
@@ -130,10 +157,16 @@ export async function POST(request: Request) {
 // DELETE - Delete a note
 export async function DELETE(request: Request) {
   try {
+    const access = await requireLmsStaff()
+    if (!access.authorized) return access.response
+
+    const limit = await enforceNotesMutationLimit(request, access.user.id)
+    if (!limit.allowed) return limit.response
+
     const { searchParams } = new URL(request.url)
     const noteId = searchParams.get('noteId')
 
-    if (!noteId) {
+    if (!noteId || noteId.length > 200) {
       return apiError('Note ID required', 400)
     }
 

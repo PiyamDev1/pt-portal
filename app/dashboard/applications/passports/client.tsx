@@ -336,7 +336,26 @@ export default function PakPassportClient({
   }
 
   const handleDelete = async () => {
-    // Implement delete logic
+    const passportId = editFormData.passportId
+    if (!passportId || !deleteAuthCode.trim()) {
+      toast.error('Select a passport record and enter a fresh 2FA code')
+      return
+    }
+
+    const result = await pakPassportApi.deleteRecord(
+      passportId,
+      deleteAuthCode.trim(),
+      currentUserId,
+    )
+    if (!result.ok) {
+      toast.error(result.error || 'Delete failed')
+      return
+    }
+
+    toast.success('Passport application deleted')
+    setDeleteAuthCode('')
+    setEditModal(false)
+    router.refresh()
   }
 
   const handleMarkRequestedPageProvided = async (item: Application) => {

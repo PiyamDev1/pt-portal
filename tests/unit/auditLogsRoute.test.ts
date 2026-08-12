@@ -9,6 +9,19 @@ const mocks = vi.hoisted(() => {
 vi.mock('@supabase/supabase-js', () => ({
   createClient: mocks.createClient,
 }))
+vi.mock('@/lib/lms/apiAuth', () => ({
+  requireLmsStaff: vi.fn(async () => ({
+    authorized: true,
+    user: { id: 'auth-user-1', email: 'alex@example.com' },
+    employee: {
+      id: 'u-1',
+      email: 'alex@example.com',
+      fullName: 'Alex Doe',
+      role: 'Staff',
+      departments: [],
+    },
+  })),
+}))
 
 import { GET, POST } from '@/app/api/lms/audit-logs/route'
 
@@ -118,7 +131,7 @@ describe('/api/lms/audit-logs route', () => {
     expect(mocks.from).not.toHaveBeenCalled()
   })
 
-  it('POST inserts audit log and uppercases action', async () => {
+  it('POST inserts audit log with the authenticated employee and uppercases action', async () => {
     const single = vi.fn(async () => ({
       data: { id: 'log-new', action: 'UPDATE' },
       error: null,
@@ -134,7 +147,7 @@ describe('/api/lms/audit-logs route', () => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        userId: 'u-1',
+        userId: 'spoofed-user',
         action: 'update',
         entityType: 'loan',
         entityId: 'acct-1',

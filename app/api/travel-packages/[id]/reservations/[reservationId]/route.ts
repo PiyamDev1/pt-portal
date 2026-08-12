@@ -6,7 +6,7 @@ import type {
   TravelPackageReservationStatus,
   TravelPackageReservationType,
 } from '@/app/types/packages'
-import { selectTravelPackageReservationColumns } from '../route'
+import { selectTravelPackageReservationColumns } from '../columns'
 import { recordPackageAuditEvent } from '@/lib/packageAudit'
 
 const SCHEMA_HINT =

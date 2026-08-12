@@ -8,11 +8,14 @@
 import { createClient } from '@supabase/supabase-js'
 import { toErrorMessage } from '@/lib/api/error'
 import { apiError, apiOk } from '@/lib/api/http'
+import { requireStaffSession } from '@/lib/auth/staffSession'
 
-// Metadata doesn't change often - cache for 1 hour
-export const revalidate = 3600
+export const dynamic = 'force-dynamic'
 
 export async function GET() {
+  const access = await requireStaffSession()
+  if (!access.authorized) return access.response
+
   try {
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -38,9 +41,7 @@ export async function GET() {
         types: types.data || [],
       },
       {
-        headers: {
-          'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=86400',
-        },
+        headers: { 'Cache-Control': 'private, max-age=300' },
       },
     )
   } catch (error) {

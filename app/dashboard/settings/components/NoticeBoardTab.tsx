@@ -238,7 +238,7 @@ export function NoticeBoardTab({ roles, departments, locations }: NoticeBoardTab
             Image
             <input
               type="file"
-              accept="image/*"
+              accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
               onChange={(event) => void uploadImage(event.target.files?.[0] || null)}
               className="mt-2 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
               disabled={uploading}

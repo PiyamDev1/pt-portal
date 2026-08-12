@@ -59,37 +59,6 @@ export default function LoginPage() {
     setFreshLaunchResolved(true)
   }, [])
 
-  const recordClientSecurityEvent = async (
-    status: 'started' | 'success' | 'failed' | 'blocked',
-    eventEmail = email,
-    metadata: Record<string, unknown> = {},
-  ) => {
-    await fetch('/api/auth/security-events', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        eventType: 'password_login',
-        status,
-        email: eventEmail,
-        metadata,
-      }),
-    }).catch(() => undefined)
-  }
-
-  const assertLoginAllowed = async (loginEmail: string) => {
-    const response = await fetch('/api/auth/login-guard', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: loginEmail }),
-    })
-    const data = await response.json().catch(() => ({}))
-    if (!response.ok) return
-    if (data.locked) {
-      const minutes = Math.max(1, Math.ceil(Number(data.remainingSeconds || 0) / 60))
-      throw new Error(`Too many failed attempts. Try again in about ${minutes} minute(s).`)
-    }
-  }
-
   // --- LOGIC: Validate Branch, Password Status & Redirect ---
   const postLoginChecks = async (userId: string, options: { skipMfa?: boolean } = {}) => {
     // 1. Check database for Account Status, Branch Code match AND Temporary Password Flag
@@ -210,7 +179,15 @@ export default function LoginPage() {
     // The biometric launcher should only auto-fire once per page load so the
     // installed app feels like a native sign-in surface on mobile.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [freshLaunchResolved, freshLaunch, checkingExistingSession, passkeyHint, passkeySupported, biometricLoading, loading])
+  }, [
+    freshLaunchResolved,
+    freshLaunch,
+    checkingExistingSession,
+    passkeyHint,
+    passkeySupported,
+    biometricLoading,
+    loading,
+  ])
 
   // --- HANDLER: Standard Login ---
   const handleStandardLogin = async (e: React.FormEvent) => {
@@ -221,24 +198,35 @@ export default function LoginPage() {
     const loginEmail = email.trim().toLowerCase()
 
     try {
-      await assertLoginAllowed(loginEmail)
-      await recordClientSecurityEvent('started', loginEmail)
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: loginEmail,
-        password,
+      const response = await fetch('/api/auth/password-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        cache: 'no-store',
+        body: JSON.stringify({ email: loginEmail, password }),
       })
-      if (error) throw error
-      setPasskeyLastEmail(data.user.email || email)
-      await recordClientSecurityEvent('success', data.user.email || loginEmail, {
-        userId: data.user.id,
+      const result = (await response.json().catch(() => ({}))) as {
+        accessToken?: string
+        refreshToken?: string
+        error?: string
+        remainingSeconds?: number
+      }
+      if (!response.ok || !result.accessToken || !result.refreshToken) {
+        if (response.status === 429 && result.remainingSeconds) {
+          const minutes = Math.max(1, Math.ceil(result.remainingSeconds / 60))
+          throw new Error(`Too many failed attempts. Try again in about ${minutes} minute(s).`)
+        }
+        throw new Error(result.error || 'Login failed')
+      }
+
+      const { data, error } = await supabase.auth.setSession({
+        access_token: result.accessToken,
+        refresh_token: result.refreshToken,
       })
+      if (error || !data.user) throw error || new Error('Unable to establish your login session')
+
+      setPasskeyLastEmail(data.user.email || loginEmail)
       await postLoginChecks(data.user.id)
     } catch (err: any) {
-      await recordClientSecurityEvent(
-        err?.message?.startsWith('Too many failed attempts') ? 'blocked' : 'failed',
-        loginEmail,
-        { reason: err?.message || 'Login failed' },
-      )
       setErrorMsg(err.message || 'Login failed')
       setLoading(false)
     }
@@ -336,7 +324,8 @@ export default function LoginPage() {
               One secure entrance for PT Portal staff.
             </h1>
             <p className="max-w-lg text-lg leading-8 text-slate-700">
-              Authenticate with branch credentials, passkeys, or Microsoft SSO to get to HRMS, bookings, applications, and finance workflows.
+              Authenticate with branch credentials, passkeys, or Microsoft SSO to get to HRMS,
+              bookings, applications, and finance workflows.
             </p>
           </div>
 
@@ -344,15 +333,18 @@ export default function LoginPage() {
             {[
               {
                 label: 'Fast branch validation',
-                description: 'Branch code verification keeps access restricted to assigned locations.',
+                description:
+                  'Branch code verification keeps access restricted to assigned locations.',
               },
               {
                 label: 'Biometric ready',
-                description: 'Passkeys are supported for faster, password-free login on modern devices.',
+                description:
+                  'Passkeys are supported for faster, password-free login on modern devices.',
               },
               {
                 label: '2FA enforced',
-                description: 'Multi-factor security helps protect your IMS session and HRMS handoff.',
+                description:
+                  'Multi-factor security helps protect your IMS session and HRMS handoff.',
               },
             ].map((item) => (
               <div

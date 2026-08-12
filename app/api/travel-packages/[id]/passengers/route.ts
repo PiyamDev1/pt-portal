@@ -3,19 +3,11 @@ import { apiError, apiOk } from '@/lib/api/http'
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
 import { recordPackageAuditEvent } from '@/lib/packageAudit'
 import type { TravelPackagePassenger, TravelPackagePassengerType } from '@/app/types/packages'
+import { selectTravelPackagePassengerColumns } from './columns'
 
 const SCHEMA_HINT =
   'Passenger tracking is not installed yet. Run scripts/migrations/20260712_create_travel_package_documents.sql, scripts/migrations/20260712_create_travel_package_invoices.sql, then scripts/migrations/20260712_finalize_travel_package_workflow.sql.'
 const PASSENGER_TYPES = new Set<TravelPackagePassengerType>(['adult', 'child', 'infant'])
-
-export function selectTravelPackagePassengerColumns() {
-  return `
-    id, package_id, first_name, last_name, date_of_birth, passenger_type,
-    passport_received, passport_checked, passport_issue_note, visa_status,
-    ticket_status, room_allocation, internal_notes, created_by, updated_by,
-    created_at, updated_at
-  `
-}
 
 function isSchemaError(error: unknown) {
   const code = (error as { code?: string } | null)?.code

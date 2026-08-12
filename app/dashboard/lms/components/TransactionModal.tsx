@@ -5,7 +5,7 @@
 
 'use client'
 
-import { useReducer, useEffect, useCallback } from 'react'
+import { useReducer, useEffect, useCallback, useRef } from 'react'
 import { Calendar, Receipt } from 'lucide-react'
 import { toast } from 'sonner'
 import { ModalWrapper } from './ModalWrapper'
@@ -118,6 +118,7 @@ export function TransactionModal({
   onPaymentRecorded,
 }: TransactionModalProps) {
   const { methods } = usePaymentMethods()
+  const idempotencyKeyRef = useRef('')
   const [state, dispatch] = useReducer(transactionModalReducer, {
     form: {
       type: (data.transactionType || TRANSACTION_TYPES.SERVICE) as 'service' | 'payment' | 'fee',
@@ -154,8 +155,8 @@ export function TransactionModal({
     dispatch({
       type: 'setForm',
       payload: {
-      transactionDate: today,
-      firstPaymentDate: firstPaymentDefault,
+        transactionDate: today,
+        firstPaymentDate: firstPaymentDefault,
       },
     })
   }, []) // Empty dependency array means this runs once when component mounts
@@ -324,12 +325,20 @@ export function TransactionModal({
 
     dispatch({ type: 'setLoading', payload: true })
     try {
+      idempotencyKeyRef.current ||= crypto.randomUUID()
       const res = await fetch(API_ENDPOINTS.LMS, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Idempotency-Key': idempotencyKeyRef.current,
+        },
         body: JSON.stringify(payload),
       })
-      if (!res.ok) throw new Error('Failed')
+      if (!res.ok) {
+        const responseBody = await res.json().catch(() => ({}))
+        throw new Error(responseBody.error || 'Failed to save transaction')
+      }
+      idempotencyKeyRef.current = ''
 
       const actionLabel =
         form.type === TRANSACTION_TYPES.SERVICE
@@ -371,13 +380,7 @@ export function TransactionModal({
             : 'Service Fee'
       } - ${data.name}`}
     >
-      <form
-        onSubmit={handleSubmit}
-        role="dialog"
-        aria-modal="true"
-        aria-label={`Record transaction for ${data.name}`}
-        className="space-y-4 max-h-[80vh] overflow-y-auto"
-      >
+      <form onSubmit={handleSubmit} className="space-y-4 max-h-[80vh] overflow-y-auto">
         <TransactionTypeSelector value={form.type} onChange={(type) => updateForm({ type })} />
 
         {/* Amount Field */}

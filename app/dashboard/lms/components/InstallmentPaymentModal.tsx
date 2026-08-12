@@ -7,7 +7,7 @@
 
 'use client'
 
-import { useState, useEffect, memo } from 'react'
+import { useState, useEffect, memo, useRef } from 'react'
 import { ModalWrapper } from './ModalWrapper'
 import { ConfirmationModal } from './ConfirmationModal'
 import { toast } from 'sonner'
@@ -54,6 +54,7 @@ function InstallmentPaymentModalCore({
   onClose,
   onSave,
 }: InstallmentPaymentModalProps) {
+  const idempotencyKeyRef = useRef('')
   const [paymentAmount, setPaymentAmount] = useState(installment.amount.toFixed(2))
   const [paymentMethod, setPaymentMethod] = useState('')
   const [paymentDate, setPaymentDate] = useState('')
@@ -63,6 +64,7 @@ function InstallmentPaymentModalCore({
   const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null)
   const [editingAmount, setEditingAmount] = useState('')
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
+  const [deleteVerificationCode, setDeleteVerificationCode] = useState('')
 
   // Calculate date limits
   // Permanent: Allow up to 7 days old
@@ -89,12 +91,16 @@ function InstallmentPaymentModalCore({
     setDeleteConfirmId(paymentId)
   }
 
-  const executeDeletePayment = async (paymentId: string) => {
+  const executeDeletePayment = async (paymentId: string, verificationCode: string) => {
     try {
       const res = await fetch(
         `/api/lms/installment-payment?transactionId=${paymentId}&accountId=${installment.loanId || accountId}`,
         {
           method: 'DELETE',
+          headers: {
+            'X-Verification-Code': verificationCode,
+            'X-Verification-Method': 'auto',
+          },
         },
       )
 
@@ -105,6 +111,8 @@ function InstallmentPaymentModalCore({
 
       setExistingPayments(existingPayments.filter((p) => p.id !== paymentId))
       toast.success('Payment deleted successfully')
+      setDeleteConfirmId(null)
+      setDeleteVerificationCode('')
       onSave()
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Failed to delete payment')
@@ -140,6 +148,7 @@ function InstallmentPaymentModalCore({
 
     setLoading(true)
     try {
+      idempotencyKeyRef.current ||= crypto.randomUUID()
       const isTempId = installment.id.startsWith('temp__')
       const body: {
         installmentId: string
@@ -169,7 +178,10 @@ function InstallmentPaymentModalCore({
 
       const res = await fetch('/api/lms/installment-payment', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Idempotency-Key': idempotencyKeyRef.current,
+        },
         body: JSON.stringify(body),
       })
 
@@ -178,6 +190,7 @@ function InstallmentPaymentModalCore({
         throw new Error(error.error || error.message || 'Failed to record payment')
       }
 
+      idempotencyKeyRef.current = ''
       toast.success(`Payment of £${amountNum.toFixed(2)} recorded successfully`)
       onSave()
       onClose()
@@ -363,13 +376,32 @@ function InstallmentPaymentModalCore({
         confirmText="Delete"
         cancelText="Cancel"
         isDangerous={true}
+        confirmDisabled={!deleteVerificationCode.trim()}
         onConfirm={async () => {
           if (deleteConfirmId) {
-            await executeDeletePayment(deleteConfirmId)
+            await executeDeletePayment(deleteConfirmId, deleteVerificationCode)
           }
         }}
-        onCancel={() => setDeleteConfirmId(null)}
-      />
+        onCancel={() => {
+          setDeleteConfirmId(null)
+          setDeleteVerificationCode('')
+        }}
+      >
+        <label htmlFor="delete-payment-verification-code" className="block mb-6">
+          <span className="block text-sm font-medium text-slate-700 mb-2">
+            Authenticator or backup code
+          </span>
+          <input
+            id="delete-payment-verification-code"
+            type="password"
+            autoComplete="one-time-code"
+            value={deleteVerificationCode}
+            onChange={(event) => setDeleteVerificationCode(event.target.value)}
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-200"
+            placeholder="Enter verification code"
+          />
+        </label>
+      </ConfirmationModal>
     </ModalWrapper>
   )
 }

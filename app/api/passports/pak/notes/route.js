@@ -8,6 +8,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
+import { requireStaffSession } from '@/lib/auth/staffSession'
 
 function getSupabaseClient() {
   return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
@@ -59,6 +60,9 @@ async function resolvePassportRecord(supabase, applicationId, passportId) {
 }
 
 export async function GET(request) {
+  const access = await requireStaffSession()
+  if (!access.authorized) return access.response
+
   try {
     const { searchParams } = new URL(request.url)
     const applicationId = searchParams.get('applicationId')
@@ -86,9 +90,12 @@ export async function GET(request) {
 }
 
 export async function POST(request) {
+  const access = await requireStaffSession()
+  if (!access.authorized) return access.response
+
   try {
     const body = await request.json()
-    const { applicationId, passportId, notes, userId } = body || {}
+    const { applicationId, passportId, notes } = body || {}
 
     if (!applicationId && !passportId) {
       return apiError('applicationId or passportId is required', 400)
@@ -119,7 +126,7 @@ export async function POST(request) {
       .from('pakistani_passport_applications')
       .update({
         notes: normalizedNotes,
-        employee_id: userId,
+        employee_id: access.user.id,
       })
       .eq('id', existingRecord.id)
       .select('id, notes')

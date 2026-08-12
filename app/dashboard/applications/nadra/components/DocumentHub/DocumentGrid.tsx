@@ -213,13 +213,9 @@ function DocumentGridItem({
       return thumbnail
     }
 
-    // If thumbnail is actually a raw object key, proxy it through the download route.
-    if (thumbnail) {
-      return `/api/documents/preview?key=${encodeURIComponent(thumbnail)}`
-    }
-
-    // Default to the document object key.
-    return `/api/documents/preview?key=${encodeURIComponent(document.minio.key)}`
+    // Unknown legacy thumbnail values are not trusted as storage keys. The
+    // authenticated route resolves the live document record by ID.
+    return `/api/documents/preview?documentId=${encodeURIComponent(document.id)}`
   }
 
   return (

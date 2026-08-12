@@ -9,6 +9,9 @@ import { createClient } from '@supabase/supabase-js'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
 import { tryGenerateReceiptForStatusTrigger } from '@/lib/services/receiptGenerator'
+import { requireStaffSession } from '@/lib/auth/staffSession'
+import { z } from 'zod'
+import { parseBodyWithSchema } from '@/lib/api/request'
 
 // CONFIG: Map UI Status -> Database Status
 // If your DB fails on "Processing", change the right side to "In Progress"
@@ -23,24 +26,33 @@ const DB_STATUS_MAP = {
 }
 
 const ALLOWED_PASSPORT_STATUSES = new Set(Object.keys(DB_STATUS_MAP))
+const updatePassportStatusSchema = z.object({
+  passportId: z.string().trim().min(1).max(200),
+  status: z.string().trim().min(1).max(100),
+  newPassportNo: z.string().trim().max(100).optional(),
+  isCollected: z.boolean().optional(),
+  oldPassportReturned: z.boolean().optional(),
+  isRefunded: z.boolean().optional(),
+})
 
 export async function POST(request) {
+  const access = await requireStaffSession()
+  if (!access.authorized) return access.response
+
   try {
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
       process.env.SUPABASE_SERVICE_ROLE_KEY,
     )
 
-    const body = await request.json()
-    const {
-      passportId,
-      status,
-      userId,
-      newPassportNo,
-      isCollected,
-      oldPassportReturned,
-      isRefunded,
-    } = body
+    const { data: body, error: bodyError } = await parseBodyWithSchema(
+      request,
+      updatePassportStatusSchema,
+      { maxBytes: 16 * 1024 },
+    )
+    if (bodyError || !body) return apiError(bodyError || 'Missing passportId or status', 400)
+    const { passportId, status, newPassportNo, isCollected, oldPassportReturned, isRefunded } = body
+    const userId = access.user.id
 
     if (!passportId || !status) {
       return apiError('Missing passportId or status', 400)

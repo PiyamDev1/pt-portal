@@ -68,6 +68,7 @@ vi.mock('bcryptjs', () => ({
 }))
 
 import { GET, POST } from '@/app/api/admin/server-control/route'
+import { verifyFreshSecondFactor } from '@/lib/auth/freshSecondFactor'
 
 const makeRequest = (body: Record<string, unknown>) =>
   new Request('http://localhost/api/admin/server-control', {
@@ -116,6 +117,7 @@ describe('admin server control route', () => {
       error: null,
     })
     mocks.challengeAndVerify.mockResolvedValue({ error: null })
+    vi.mocked(verifyFreshSecondFactor).mockResolvedValue({ verified: true, method: 'totp' })
   })
 
   it('passes through unauthorized GET response', async () => {
@@ -159,7 +161,7 @@ describe('admin server control route', () => {
 
     expect(response.status).toBe(503)
     expect(payload.error).toBe('Server control is not configured')
-    expect(mocks.compare).not.toHaveBeenCalled()
+    expect(verifyFreshSecondFactor).not.toHaveBeenCalled()
     expect(mocks.runServerControlAction).not.toHaveBeenCalled()
   })
 
@@ -175,8 +177,11 @@ describe('admin server control route', () => {
 
     expect(response.status).toBe(200)
     expect(payload.providerAction.id).toBe(44)
-    expect(mocks.compare).toHaveBeenCalledWith('ABCD-EFGH', 'hash-1')
-    expect(mocks.updateEq).toHaveBeenCalledWith('id', 'backup-1')
+    expect(verifyFreshSecondFactor).toHaveBeenCalledWith({
+      userId: 'super-1',
+      method: 'backup',
+      code: 'ABCD-EFGH',
+    })
     expect(mocks.runServerControlAction).toHaveBeenCalledWith('restart')
   })
 
@@ -190,15 +195,19 @@ describe('admin server control route', () => {
     )
 
     expect(response.status).toBe(200)
-    expect(mocks.challengeAndVerify).toHaveBeenCalledWith({
-      factorId: 'factor-1',
+    expect(verifyFreshSecondFactor).toHaveBeenCalledWith({
+      userId: 'super-1',
+      method: 'totp',
       code: '123456',
     })
     expect(mocks.runServerControlAction).toHaveBeenCalledWith('start')
   })
 
   it('rejects invalid backup codes without running the action', async () => {
-    mocks.compare.mockResolvedValueOnce(false)
+    vi.mocked(verifyFreshSecondFactor).mockResolvedValueOnce({
+      verified: false,
+      error: 'Invalid or used backup code',
+    })
 
     const response = await POST(
       makeRequest({

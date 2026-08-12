@@ -46,7 +46,9 @@ describe('scheduled document migration route', () => {
     mocks.getDocumentStorageStatus.mockResolvedValue({ connected: false })
 
     const response = await GET(
-      makeNextRequest('http://localhost/api/documents/migrate-scheduled?token=cron-secret'),
+      makeNextRequest('http://localhost/api/documents/migrate-scheduled', {
+        headers: { Authorization: 'Bearer cron-secret' },
+      }),
     )
     const payload = await response.json()
 
@@ -84,11 +86,23 @@ describe('scheduled document migration route', () => {
     mocks.migrateFallbackBatch.mockRejectedValue(new Error('batch failure'))
 
     const response = await GET(
-      makeNextRequest('http://localhost/api/documents/migrate-scheduled?token=cron-secret'),
+      makeNextRequest('http://localhost/api/documents/migrate-scheduled', {
+        headers: { 'x-migration-token': 'cron-secret' },
+      }),
     )
     const payload = await response.json()
 
     expect(response.status).toBe(500)
     expect(payload).toEqual({ error: 'batch failure' })
+  })
+
+  it('does not trust a caller-provided Vercel cron marker without a secret', async () => {
+    const response = await GET(
+      makeNextRequest('http://localhost/api/documents/migrate-scheduled', {
+        headers: { 'x-vercel-cron': '1' },
+      }),
+    )
+
+    expect(response.status).toBe(401)
   })
 })

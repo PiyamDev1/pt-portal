@@ -1,8 +1,12 @@
-import { PutObjectCommand } from '@aws-sdk/client-s3'
+import { DeleteObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3'
 import { NextRequest } from 'next/server'
 import { apiError, apiOk } from '@/lib/api/http'
+import { parseMultipartFormDataWithLimit } from '@/lib/api/request'
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
-import { DOCUMENT_MAX_FILE_SIZE_BYTES, DOCUMENT_MAX_FILE_SIZE_LABEL } from '@/lib/documentConstraints'
+import {
+  DOCUMENT_MAX_FILE_SIZE_BYTES,
+  DOCUMENT_MAX_FILE_SIZE_LABEL,
+} from '@/lib/documentConstraints'
 import {
   getPackageBackupStorageClient,
   getPackageBackupStorageConfig,
@@ -20,9 +24,18 @@ import type {
   TravelPackageFolder,
 } from '@/app/types/packages'
 import { recordPackageAuditEvent } from '@/lib/packageAudit'
+import {
+  isUploadedFile,
+  requestContentLengthExceeds,
+  validateDocumentUpload,
+} from '@/lib/documentSecurity'
+import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
+import { requireStaffSession } from '@/lib/auth/staffSession'
+import { reportOperationalError } from '@/lib/observability/server'
 
 const SCHEMA_HINT =
   'Travel package document schema is not installed yet. Run scripts/migrations/20260712_create_travel_package_documents.sql in Supabase SQL editor.'
+const DOCUMENT_MULTIPART_MAX_BYTES = DOCUMENT_MAX_FILE_SIZE_BYTES + 256 * 1024
 
 type PackageLookup = Pick<
   TravelPackageFolder,
@@ -71,7 +84,10 @@ export function selectTravelPackageDocumentColumns() {
   `
 }
 
-async function getPackageFolder(supabase: Awaited<ReturnType<typeof getRouteSupabaseClient>>, id: string) {
+async function getPackageFolder(
+  supabase: Awaited<ReturnType<typeof getRouteSupabaseClient>>,
+  id: string,
+) {
   return supabase
     .from('travel_packages')
     .select('id, package_reference, source_quote_id, minio_bucket, minio_prefix')
@@ -118,17 +134,12 @@ function parseDocumentMetadata(value: unknown) {
   }
 }
 
-export async function GET(
-  _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const supabase = await getRouteSupabaseClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const access = await requireStaffSession()
+  if (!access.authorized) return access.response
 
-  if (!user) return apiError('Unauthorized', 401)
+  const supabase = await getRouteSupabaseClient()
 
   const { data, error } = await supabase
     .from('travel_package_documents')
@@ -150,17 +161,26 @@ export async function GET(
   })
 }
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const supabase = await getRouteSupabaseClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const access = await requireStaffSession()
+  if (!access.authorized) return access.response
 
-  if (!user) return apiError('Unauthorized', 401)
+  const supabase = await getRouteSupabaseClient()
+  const userId = access.user.id
+
+  const limit = await enforceRateLimit(request, {
+    scope: 'travel-packages.document-upload',
+    limit: 20,
+    windowSeconds: 60 * 60,
+    identities: [`user:${userId}`, `ip:${getClientIp(request)}`],
+    message: 'Too many document uploads. Please wait before uploading another file.',
+  })
+  if (!limit.allowed) return limit.response
+
+  if (requestContentLengthExceeds(request, DOCUMENT_MULTIPART_MAX_BYTES)) {
+    return apiError(`File size exceeds maximum of ${DOCUMENT_MAX_FILE_SIZE_LABEL}`, 413)
+  }
 
   const { data: packageFolder, error: packageError } = await getPackageFolder(supabase, id)
   if (packageError || !packageFolder) {
@@ -168,17 +188,27 @@ export async function POST(
     return apiError('Travel package not found', 404)
   }
 
-  const formData = await request.formData().catch(() => null)
-  if (!formData) return apiError('Invalid form data', 400)
+  const parsedForm = await parseMultipartFormDataWithLimit(request, DOCUMENT_MULTIPART_MAX_BYTES)
+  if (!parsedForm.data) {
+    return apiError(
+      parsedForm.status === 413
+        ? `File size exceeds maximum of ${DOCUMENT_MAX_FILE_SIZE_LABEL}`
+        : parsedForm.error,
+      parsedForm.status,
+    )
+  }
+  const formData = parsedForm.data
 
   const file = formData.get('file')
-  if (!(file instanceof File)) return apiError('Document file is required', 400)
-  if (file.size > DOCUMENT_MAX_FILE_SIZE_BYTES) {
-    return apiError(`File size exceeds maximum of ${DOCUMENT_MAX_FILE_SIZE_LABEL}`, 413)
-  }
+  if (!isUploadedFile(file)) return apiError('Document file is required', 400)
+
+  const bytes = new Uint8Array(await file.arrayBuffer())
+  const validation = validateDocumentUpload(file, bytes)
+  if (!validation.valid) return apiError(validation.error, validation.status)
+  const { fileName, fileSize, fileType } = validation.value
 
   const category = normalizePackageDocumentCategory(formData.get('category'))
-  const title = cleanText(formData.get('title')) || file.name
+  const title = cleanText(formData.get('title')) || fileName
   const customerVisible =
     formData.get('customerVisible') === 'true' && !isAgentOnlyPackageDocumentCategory(category)
   const publicNotes = cleanText(formData.get('publicNotes')) || null
@@ -191,21 +221,21 @@ export async function POST(
   const storageKey = buildPackageDocumentStorageKey({
     packagePrefix: prefix,
     category: category as TravelPackageDocumentCategory,
-    fileName: file.name,
+    fileName,
   })
 
-  const arrayBuffer = await file.arrayBuffer()
-  const body = Buffer.from(arrayBuffer)
+  const body = Buffer.from(bytes)
   let etag = ''
+  const primaryStorage = getS3Client()
   const metadata: Record<string, unknown> = { ...documentMetadata }
 
   try {
-    const putResult = await getS3Client().send(
+    const putResult = await primaryStorage.send(
       new PutObjectCommand({
         Bucket: bucket,
         Key: storageKey,
         Body: body,
-        ContentType: file.type || 'application/octet-stream',
+        ContentType: fileType,
       }),
     )
     etag = putResult.ETag || ''
@@ -217,8 +247,11 @@ export async function POST(
   }
 
   const backupConfig = getPackageBackupStorageConfig()
-  let backupStatus: 'pending' | 'copied' | 'failed' | 'skipped' = backupConfig ? 'pending' : 'skipped'
+  let backupStatus: 'pending' | 'copied' | 'failed' | 'skipped' = backupConfig
+    ? 'pending'
+    : 'skipped'
   let backupError: string | null = null
+  let backupUploaded = false
   if (backupConfig) {
     try {
       const backupResult = await getPackageBackupStorageClient().send(
@@ -226,7 +259,7 @@ export async function POST(
           Bucket: backupConfig.bucketName,
           Key: storageKey,
           Body: body,
-          ContentType: file.type || 'application/octet-stream',
+          ContentType: fileType,
         }),
       )
       metadata.backupStorage = {
@@ -238,6 +271,7 @@ export async function POST(
         uploadedAt: new Date().toISOString(),
       }
       backupStatus = 'copied'
+      backupUploaded = true
     } catch (backupFailure) {
       metadata.backupStorage = {
         provider: 'r3',
@@ -259,13 +293,13 @@ export async function POST(
       package_id: id,
       reservation_id: reservationId,
       quote_id: packageData.source_quote_id,
-      uploaded_by: user.id,
-      updated_by: user.id,
+      uploaded_by: userId,
+      updated_by: userId,
       category,
       title,
-      file_name: file.name,
-      file_size: file.size,
-      file_type: file.type || 'application/octet-stream',
+      file_name: fileName,
+      file_size: fileSize,
+      file_type: fileType,
       storage_provider: 'minio',
       storage_bucket: bucket,
       storage_key: storageKey,
@@ -278,7 +312,7 @@ export async function POST(
       status: customerVisible ? 'released' : 'ready_for_review',
       customer_visible: customerVisible,
       released_at: customerVisible ? now : null,
-      released_by: customerVisible ? user.id : null,
+      released_by: customerVisible ? userId : null,
       public_notes: publicNotes,
       internal_notes: internalNotes,
       metadata,
@@ -287,6 +321,24 @@ export async function POST(
     .single()
 
   if (error) {
+    const cleanupResults = await Promise.allSettled([
+      primaryStorage.send(new DeleteObjectCommand({ Bucket: bucket, Key: storageKey })),
+      ...(backupConfig && backupUploaded
+        ? [
+            getPackageBackupStorageClient().send(
+              new DeleteObjectCommand({ Bucket: backupConfig.bucketName, Key: storageKey }),
+            ),
+          ]
+        : []),
+    ])
+    const cleanupFailed = cleanupResults.some((result) => result.status === 'rejected')
+    await reportOperationalError({
+      event: 'package_documents.metadata_insert_failed',
+      request,
+      error,
+      alert: cleanupFailed,
+      context: { packageId: id, cleanupFailed },
+    })
     if (isDocumentSchemaError(error)) return apiError(SCHEMA_HINT, 503)
     return apiError(error.message || 'Failed to save package document metadata', 500)
   }
@@ -298,7 +350,7 @@ export async function POST(
     {
       packageId: id,
       quoteId: packageData.source_quote_id,
-      actorId: user.id,
+      actorId: userId,
       eventType: customerVisible ? 'document_uploaded_and_released' : 'document_uploaded',
       eventSummary: `Document "${title}" uploaded${customerVisible ? ' and released to customer' : ''}.`,
       afterData: data,

@@ -1,340 +1,228 @@
 /**
- * API Route: Record / Update Installment Payment
- *
- * POST /api/lms/installment-payment
- *   Records a payment against a specific installment or loan.
- *   Body: { installmentId?, employeeId?, paymentAmount, paymentMethod?,
- *           paymentDate?, loanId?, serviceTransactionId? }
- *
- * GET  /api/lms/installment-payment?transactionId=<id>
- *   Returns the payment status summary for a loan transaction.
- *
- * PATCH /api/lms/installment-payment
- *   Corrects an existing payment record (amount/date/method).
- *   Body: { transactionId?, paymentAmount?, paymentDate?, paymentMethod? }
- *
- * Authentication: Session cookie (Supabase user auth)
- * Response Errors: 400 Validation failed | 401 Not authenticated | 500 DB error
+ * Authenticated, atomic installment-payment operations.
  */
 import { z } from 'zod'
-import { ensureInstallmentsTableExists } from '@/lib/installmentsDb'
 import { apiError, apiOk } from '@/lib/api/http'
 import { getSearchParam, parseBodyWithSchema } from '@/lib/api/request'
-import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
+import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
+import {
+  getLmsIdempotencyKey,
+  requireLmsStaff,
+  verifyLmsDestructiveAction,
+} from '@/lib/lms/apiAuth'
+import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
 
-const postBodySchema = z.object({
-  installmentId: z.string().optional(),
-  employeeId: z.string().optional(),
-  paymentAmount: z.union([z.string(), z.number()]).optional(),
-  paymentMethod: z.string().optional().nullable(),
-  paymentDate: z.string().optional().nullable(),
-  loanId: z.string().optional(),
-  serviceTransactionId: z.string().optional(),
-})
+const paymentAmountSchema = z.union([z.string().trim().min(1).max(100), z.number().finite()])
+const postBodySchema = z
+  .object({
+    installmentId: z.string().trim().min(1).max(200).optional(),
+    employeeId: z.string().trim().max(200).optional(),
+    paymentAmount: paymentAmountSchema.optional(),
+    paymentMethod: z.string().trim().max(200).optional().nullable(),
+    paymentDate: z.string().trim().max(50).optional().nullable(),
+    loanId: z.string().trim().max(200).optional(),
+    serviceTransactionId: z.string().trim().max(200).optional(),
+    idempotencyKey: z.string().trim().max(200).optional(),
+    idempotency_key: z.string().trim().max(200).optional(),
+  })
+  .strict()
 
-const patchBodySchema = z.object({
-  transactionId: z.string().optional(),
-  paymentAmount: z.union([z.string(), z.number()]).optional(),
-  paymentDate: z.string().optional(),
-  paymentMethod: z.string().optional().nullable(),
-})
+const patchBodySchema = z
+  .object({
+    transactionId: z.string().trim().min(1).max(200).optional(),
+    paymentAmount: paymentAmountSchema.optional(),
+    paymentDate: z.string().trim().max(50).optional(),
+    paymentMethod: z.string().trim().max(200).optional().nullable(),
+  })
+  .strict()
+
+function paymentTimestamp(value?: string | null) {
+  if (!value) return new Date().toISOString()
+  const parsed = new Date(`${value}T00:00:00Z`)
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString()
+}
+
+function rpcErrorStatus(error: { code?: string } | null) {
+  if (error?.code === 'P0002') return 404
+  if (error?.code === '22023') return 400
+  return 500
+}
+
+async function enforcePaymentMutationLimit(request: Request, userId: string) {
+  return enforceRateLimit(request, {
+    scope: 'lms.installment-payment-mutate',
+    limit: 120,
+    windowSeconds: 15 * 60,
+    identities: [`user:${userId}`, `ip:${getClientIp(request)}`],
+  })
+}
 
 export async function POST(request: Request) {
+  const access = await requireLmsStaff()
+  if (!access.authorized) return access.response
+
   try {
-    const supabase = await getRouteSupabaseClient()
+    const limit = await enforcePaymentMutationLimit(request, access.user.id)
+    if (!limit.allowed) return limit.response
 
-    // Ensure table exists
-    await ensureInstallmentsTableExists()
+    const { data: body, error: bodyError } = await parseBodyWithSchema(request, postBodySchema, {
+      maxBytes: 16 * 1024,
+    })
+    if (bodyError || !body) return apiError(bodyError || 'Invalid request payload', 400)
 
-    const { data: body, error: bodyError } = await parseBodyWithSchema(request, postBodySchema)
-    if (bodyError || !body) {
-      return apiError(bodyError || 'Invalid request payload', 400)
+    const { installmentId, paymentAmount, paymentMethod, paymentDate } = body
+    if (!installmentId) return apiError('installmentId is required', 400)
+
+    const amount = Number(paymentAmount)
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return apiError('paymentAmount must be greater than zero', 400)
     }
 
-    const { installmentId, employeeId, paymentAmount, paymentMethod, paymentDate } = body
+    const timestamp = paymentTimestamp(paymentDate)
+    if (!timestamp) return apiError('paymentDate must be a valid date', 400)
 
-    if (!installmentId) {
-      return apiError('installmentId is required', 400)
-    }
-
-    if (paymentAmount === undefined || Number.isNaN(Number(paymentAmount))) {
-      return apiError('paymentAmount must be a valid number', 400)
-    }
-
-    // Handle temporary installment IDs (generated client-side before table exists)
+    const supabase = getServiceSupabaseClient()
     const isTempId = installmentId.startsWith('temp__')
+    const tempInstallmentNumber = isTempId ? Number(installmentId.split('__')[2]) : null
+    if (
+      isTempId &&
+      (tempInstallmentNumber === null ||
+        !Number.isInteger(tempInstallmentNumber) ||
+        tempInstallmentNumber < 1)
+    ) {
+      return apiError('Temporary installment ID is invalid', 400)
+    }
+    let loanId = body.loanId
+    let serviceTransactionId = body.serviceTransactionId
 
-    let loanId: string
-    let serviceTransactionId: string
-    let installment: any = null
-
-    // 1. Get the installment record if using database-backed IDs
     if (!isTempId) {
-      const { data, error: installmentError } = await supabase
+      const { data, error } = await supabase
         .from('loan_installments')
-        .select('*, loan_transactions!inner(loan_id, id)')
+        .select('loan_transaction_id, loan_transactions!inner(loan_id, id)')
         .eq('id', installmentId)
         .single()
 
-      if (installmentError || !data) {
-        return apiError('Installment not found', 404)
-      }
-
-      installment = data
-      loanId = data.loan_transactions.loan_id
-      serviceTransactionId = data.loan_transactions.id
-    } else {
-      // For temporary IDs, extract loan info from request body
-      const { loanId: bodyLoanId, serviceTransactionId: bodyServiceId } = body
-      if (!bodyLoanId || !bodyServiceId) {
-        return apiError(
-          'loanId and serviceTransactionId required for temporary installments',
-          400,
-          {
-            loanId: bodyLoanId || null,
-            serviceTransactionId: bodyServiceId || null,
-          },
-        )
-      }
-      loanId = bodyLoanId
-      serviceTransactionId = bodyServiceId
+      if (error || !data) return apiError('Installment not found', 404)
+      const transaction = Array.isArray(data.loan_transactions)
+        ? data.loan_transactions[0]
+        : data.loan_transactions
+      loanId = transaction?.loan_id
+      serviceTransactionId = transaction?.id
     }
 
-    // 2. Record the payment transaction with installment reference
-    const paymentTimestamp = paymentDate
-      ? new Date(`${paymentDate}T00:00:00Z`).toISOString()
-      : new Date().toISOString()
-
-    const remarkText = installment
-      ? `Service Plan ${serviceTransactionId.substring(0, 8)} - Installment #${installment.installment_number} payment`
-      : `Service Plan ${serviceTransactionId.substring(0, 8)} - Payment against installment`
-
-    const { data: paymentData, error: paymentError } = await supabase
-      .from('loan_transactions')
-      .insert({
-        loan_id: loanId,
-        employee_id: employeeId,
-        transaction_type: 'payment',
-        amount: Number(paymentAmount),
-        remark: remarkText,
-        transaction_timestamp: paymentTimestamp,
-        payment_method_id: paymentMethod || null,
-      })
-      .select()
-      .single()
-
-    if (paymentError) throw paymentError
-
-    // 3. Update the installment record if it exists in DB
-    if (!isTempId && installment) {
-      const newAmountPaid = parseFloat(String(installment.amount_paid || 0)) + parseFloat(String(paymentAmount))
-      const installmentAmount = parseFloat(installment.amount)
-
-      let newStatus = 'pending'
-      if (newAmountPaid >= installmentAmount) {
-        newStatus = 'paid'
-      } else if (newAmountPaid > 0) {
-        newStatus = 'partial'
-      }
-
-      const { error: updateInstallmentError } = await supabase
-        .from('loan_installments')
-        .update({
-          amount_paid: newAmountPaid,
-          status: newStatus,
-        })
-        .eq('id', installmentId)
-
-      if (updateInstallmentError) throw updateInstallmentError
-
-      // Handle skipped installments: mark earlier unpaid installments as 'skipped'
-      if (installment.installment_number > 1) {
-        // Get the service transaction to find all installments
-        const { data: allInstallments, error: allInstallmentsError } = await supabase
-          .from('loan_installments')
-          .select('*')
-          .eq('loan_transaction_id', serviceTransactionId)
-          .lt('installment_number', installment.installment_number)
-          .eq('status', 'pending')
-
-        if (allInstallmentsError) throw allInstallmentsError
-
-        // Mark earlier pending installments as 'skipped' with 0 amount paid
-        if (allInstallments && allInstallments.length > 0) {
-          for (const earlier of allInstallments) {
-            const { error: skipError } = await supabase
-              .from('loan_installments')
-              .update({
-                status: 'skipped',
-                amount_paid: 0,
-              })
-              .eq('id', earlier.id)
-
-            if (skipError) throw skipError
-          }
-        }
-      }
-
-      // Recalculate remaining installments after payment
-
-      // Get total paid so far
-      const { data: allPaymentsNow, error: paymentsNowError } = await supabase
-        .from('loan_transactions')
-        .select('amount')
-        .eq('loan_id', loanId)
-        .eq('transaction_type', 'payment')
-
-      if (paymentsNowError) throw paymentsNowError
-
-      const totalPaidNow = (allPaymentsNow || []).reduce((sum, p) => sum + parseFloat(p.amount), 0)
-
-      // Get service transaction amount
-      const { data: serviceTxNow, error: serviceTxNowError } = await supabase
-        .from('loan_transactions')
-        .select('amount')
-        .eq('id', serviceTransactionId)
-        .single()
-
-      if (serviceTxNowError) throw serviceTxNowError
-
-      const serviceAmount = parseFloat(serviceTxNow.amount)
-      const remainingBalance = serviceAmount - totalPaidNow
-
-      // Get all remaining unpaid/unskipped installments
-      const { data: futureInstallments, error: futureError } = await supabase
-        .from('loan_installments')
-        .select('*')
-        .eq('loan_transaction_id', serviceTransactionId)
-        .gt('installment_number', installment.installment_number)
-        .in('status', ['pending', 'overdue'])
-
-      if (futureError) throw futureError
-
-      if (futureInstallments && futureInstallments.length > 0) {
-        const newAmountPerInstallment = remainingBalance / futureInstallments.length
-
-        for (const future of futureInstallments) {
-          const { error: updateFutureError } = await supabase
-            .from('loan_installments')
-            .update({ amount: newAmountPerInstallment })
-            .eq('id', future.id)
-
-          if (updateFutureError) throw updateFutureError
-        }
-      }
-    } else if (isTempId) {
-      // temp IDs don't need installment updates
+    if (!loanId || !serviceTransactionId) {
+      return apiError(
+        isTempId
+          ? 'loanId and serviceTransactionId required for temporary installments'
+          : 'Installment transaction data is incomplete',
+        400,
+      )
     }
 
-    // 4. Update the loan current balance
-    const { data: allPayments, error: paymentsError } = await supabase
-      .from('loan_transactions')
-      .select('amount')
-      .eq('loan_id', loanId)
-      .eq('transaction_type', 'payment')
+    const { data, error } = await supabase.rpc('lms_record_installment_payment', {
+      p_installment_id: isTempId ? null : installmentId,
+      p_loan_id: loanId,
+      p_service_transaction_id: serviceTransactionId,
+      p_employee_id: access.employee.id,
+      p_amount: amount,
+      p_payment_method_id: paymentMethod || null,
+      p_transaction_timestamp: timestamp,
+      p_idempotency_key: getLmsIdempotencyKey(request, body),
+      p_expected_installment_number: tempInstallmentNumber,
+    })
 
-    if (paymentsError) throw paymentsError
-
-    // Get original service amount
-    const { data: serviceTx, error: serviceTxError } = await supabase
-      .from('loan_transactions')
-      .select('amount')
-      .eq('id', serviceTransactionId)
-      .single()
-
-    if (serviceTxError) throw serviceTxError
-
-    const totalPaid = (allPayments || []).reduce((sum, p) => sum + parseFloat(p.amount), 0)
-    const originalAmount = parseFloat(serviceTx.amount)
-    const newBalance = Math.max(0, originalAmount - totalPaid)
-
-    const { error: updateLoanError } = await supabase
-      .from('loans')
-      .update({
-        current_balance: newBalance,
-      })
-      .eq('id', loanId)
-
-    if (updateLoanError) throw updateLoanError
-
+    if (error) return apiError(error.message || 'Failed to record payment', rpcErrorStatus(error))
     return apiOk({
       recordedPaymentAmount: paymentAmount,
       loanId,
-      newBalance,
+      newBalance: Number(data?.newBalance ?? 0),
     })
-  } catch (err: unknown) {
-    console.error('[Installment Payment]', err)
-    const message = err instanceof Error ? err.message : 'Failed to record payment'
-    return apiError(message, 400)
+  } catch (error) {
+    console.error('[Installment Payment]', error)
+    return apiError(error instanceof Error ? error.message : 'Failed to record payment', 500)
   }
 }
 
-// DELETE - Remove a payment transaction
 export async function DELETE(request: Request) {
+  const access = await requireLmsStaff()
+  if (!access.authorized) return access.response
+
+  const limit = await enforceRateLimit(request, {
+    scope: 'lms.delete-installment-payment',
+    limit: 20,
+    windowSeconds: 60 * 60,
+    identities: [`user:${access.user.id}`, `ip:${getClientIp(request)}`],
+  })
+  if (!limit.allowed) return limit.response
+
+  const transactionId = getSearchParam(request.url, 'transactionId')
+  const accountId = getSearchParam(request.url, 'accountId')
+  if (!transactionId || !accountId) {
+    return apiError('transactionId and accountId are required', 400)
+  }
+
+  const verificationResponse = await verifyLmsDestructiveAction(access, {
+    verificationCode:
+      request.headers.get('x-verification-code') || getSearchParam(request.url, 'verificationCode'),
+    verificationMethod:
+      request.headers.get('x-verification-method') ||
+      getSearchParam(request.url, 'verificationMethod') ||
+      undefined,
+  })
+  if (verificationResponse) return verificationResponse
+
   try {
-    const supabase = await getRouteSupabaseClient()
-
-    const transactionId = getSearchParam(request.url, 'transactionId')
-    const accountId = getSearchParam(request.url, 'accountId')
-
-    if (!transactionId || !accountId) {
-      return apiError('transactionId and accountId are required', 400)
-    }
-
-    // Delete the transaction
-    const { error: deleteError } = await supabase
-      .from('loan_transactions')
-      .delete()
-      .eq('id', transactionId)
-
-    if (deleteError) throw deleteError
-
-    return apiOk({
-      deletedTransactionId: transactionId,
+    const supabase = getServiceSupabaseClient()
+    const { data, error } = await supabase.rpc('lms_delete_payment', {
+      p_transaction_id: transactionId,
     })
-  } catch (err: unknown) {
-    console.error('[Installment Payment Delete]', err)
-    const message = err instanceof Error ? err.message : 'Failed to delete payment'
-    return apiError(message, 400)
+    if (error) return apiError(error.message || 'Failed to delete payment', rpcErrorStatus(error))
+    return apiOk({ deletedTransactionId: data?.deletedTransactionId || transactionId })
+  } catch (error) {
+    console.error('[Installment Payment Delete]', error)
+    return apiError(error instanceof Error ? error.message : 'Failed to delete payment', 500)
   }
 }
 
-// PATCH - Update a payment transaction
 export async function PATCH(request: Request) {
-  try {
-    const supabase = await getRouteSupabaseClient()
+  const access = await requireLmsStaff()
+  if (!access.authorized) return access.response
 
-    const { data: body, error: bodyError } = await parseBodyWithSchema(request, patchBodySchema)
-    if (bodyError || !body) {
-      return apiError(bodyError || 'Invalid request payload', 400)
-    }
+  try {
+    const limit = await enforcePaymentMutationLimit(request, access.user.id)
+    if (!limit.allowed) return limit.response
+
+    const { data: body, error: bodyError } = await parseBodyWithSchema(request, patchBodySchema, {
+      maxBytes: 16 * 1024,
+    })
+    if (bodyError || !body) return apiError(bodyError || 'Invalid request payload', 400)
 
     const { transactionId, paymentAmount, paymentDate, paymentMethod } = body
+    if (!transactionId) return apiError('transactionId is required', 400)
 
-    if (!transactionId) {
-      return apiError('transactionId is required', 400)
+    const amount = paymentAmount === undefined ? null : Number(paymentAmount)
+    if (amount !== null && (!Number.isFinite(amount) || amount <= 0)) {
+      return apiError('paymentAmount must be greater than zero', 400)
     }
 
-    // Convert date string to proper timestamp if provided
-    const updates: Record<string, unknown> = {}
-    if (paymentAmount !== undefined) updates.amount = Number(paymentAmount)
-    if (paymentDate)
-      updates.transaction_timestamp = new Date(`${paymentDate}T00:00:00Z`).toISOString()
-    if (paymentMethod) updates.payment_method_id = paymentMethod
+    const timestamp = paymentDate ? paymentTimestamp(paymentDate) : null
+    if (paymentDate && !timestamp) return apiError('paymentDate must be a valid date', 400)
+    if (amount === null && !timestamp && paymentMethod === undefined) {
+      return apiError('At least one payment field is required', 400)
+    }
 
-    const { error: updateError } = await supabase
-      .from('loan_transactions')
-      .update(updates)
-      .eq('id', transactionId)
-
-    if (updateError) throw updateError
-
-    return apiOk({
-      updatedTransactionId: transactionId,
+    const supabase = getServiceSupabaseClient()
+    const { data, error } = await supabase.rpc('lms_update_payment', {
+      p_transaction_id: transactionId,
+      p_amount: amount,
+      p_payment_method_id: paymentMethod ?? null,
+      p_set_payment_method: paymentMethod !== undefined,
+      p_transaction_timestamp: timestamp,
     })
-  } catch (err: unknown) {
-    console.error('[Installment Payment Update]', err)
-    const message = err instanceof Error ? err.message : 'Failed to update payment'
-    return apiError(message, 400)
+    if (error) return apiError(error.message || 'Failed to update payment', rpcErrorStatus(error))
+    return apiOk({ updatedTransactionId: data?.updatedTransactionId || transactionId })
+  } catch (error) {
+    console.error('[Installment Payment Update]', error)
+    return apiError(error instanceof Error ? error.message : 'Failed to update payment', 500)
   }
 }

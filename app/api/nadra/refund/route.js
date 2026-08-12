@@ -17,21 +17,32 @@ import { createClient } from '@supabase/supabase-js'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
 import { tryGenerateReceiptForStatusTrigger } from '@/lib/services/receiptGenerator'
+import { requireStaffSession } from '@/lib/auth/staffSession'
+import { z } from 'zod'
+import { parseBodyWithSchema } from '@/lib/api/request'
+
+const refundSchema = z.object({
+  nadraId: z.string({ error: 'Missing Nadra ID' }).trim().min(1, 'Missing Nadra ID').max(200),
+})
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(request) {
+  const access = await requireStaffSession()
+  if (!access.authorized) return access.response
+
   try {
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
       process.env.SUPABASE_SERVICE_ROLE_KEY,
     )
 
-    const { nadraId, userId } = await request.json()
-
-    if (!nadraId) {
-      return apiError('Missing Nadra ID', 400)
-    }
+    const { data: body, error: bodyError } = await parseBodyWithSchema(request, refundSchema, {
+      maxBytes: 4 * 1024,
+    })
+    if (bodyError || !body) return apiError(bodyError || 'Invalid request payload', 400)
+    const { nadraId } = body
+    const userId = access.user.id
 
     const { data: current, error: fetchError } = await supabase
       .from('nadra_services')

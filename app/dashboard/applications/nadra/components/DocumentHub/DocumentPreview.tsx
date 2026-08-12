@@ -13,19 +13,10 @@
  * @component
  */
 
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { ConfirmationDialog } from '@/components/ConfirmationDialog'
 import { Document } from './types'
-import {
-  X,
-  Download,
-  Trash2,
-  FileText,
-  ZoomIn,
-  ZoomOut,
-  RotateCcw,
-  RotateCw,
-} from 'lucide-react'
+import { X, Download, Trash2, FileText, ZoomIn, ZoomOut, RotateCcw, RotateCw } from 'lucide-react'
 
 export interface DocumentPreviewProps {
   /**
@@ -58,7 +49,11 @@ export interface DocumentPreviewProps {
  * DocumentPreview Component
  * Shows full preview of selected document with metadata and actions
  */
-export function DocumentPreview({
+export function DocumentPreview({ document, ...props }: DocumentPreviewProps) {
+  return <DocumentPreviewContent key={document?.id || 'empty'} document={document} {...props} />
+}
+
+function DocumentPreviewContent({
   document,
   onClose = () => {},
   onDelete = () => {},
@@ -97,7 +92,7 @@ export function DocumentPreview({
   const isImage = document?.fileType?.startsWith('image/')
   const isPDF = document?.fileType?.includes('pdf')
   const previewSrc = document
-    ? `/api/documents/preview?key=${encodeURIComponent(document.minio.key)}`
+    ? `/api/documents/preview?documentId=${encodeURIComponent(document.id)}`
     : ''
 
   const rotatePreview = (direction: 'left' | 'right') => {
@@ -109,15 +104,6 @@ export function DocumentPreview({
     setRotation(0)
     setPan({ x: 0, y: 0 })
   }
-
-  useEffect(() => {
-    setZoom(100)
-    setRotation(0)
-    setPan({ x: 0, y: 0 })
-    setIsDragging(false)
-    setIsLoading(true)
-    dragStartRef.current = null
-  }, [document?.id])
 
   const startDrag = (event: React.PointerEvent<HTMLDivElement>) => {
     if (zoom <= 100) return

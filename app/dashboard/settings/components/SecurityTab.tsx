@@ -45,6 +45,7 @@ export default function SecurityTab({
   const [confirmPass, setConfirmPass] = useState('')
   const [showCodes, setShowCodes] = useState<string[] | null>(null)
   const [confirmAction, setConfirmAction] = useState<SecurityConfirmAction | null>(null)
+  const [verificationCode, setVerificationCode] = useState('')
   const {
     sessions,
     setSessions,
@@ -63,22 +64,15 @@ export default function SecurityTab({
 
     setLoading(true)
 
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email: currentUser.email,
-      password: currentPass,
+    const updateResponse = await fetch('/api/auth/update-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ currentPassword: currentPass, newPassword: newPass }),
     })
 
-    if (signInError) {
-      setLoading(false)
-      return toast.error('Incorrect current password.')
-    }
-
-    const { error: updateError } = await supabase.auth.updateUser({
-      password: newPass,
-    })
-
-    if (updateError) {
-      toast.error('Failed to update password: ' + updateError.message)
+    const updateResult = await updateResponse.json().catch(() => ({}))
+    if (!updateResponse.ok) {
+      toast.error('Failed to update password', { description: updateResult.error })
     } else {
       toast.success('Password updated successfully!')
       setCurrentPass('')
@@ -98,7 +92,10 @@ export default function SecurityTab({
     const res = await fetch('/api/auth/reset-2fa', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({}),
+      body: JSON.stringify({
+        verificationCode: verificationCode.trim(),
+        verificationMethod: 'auto',
+      }),
     })
     if (res.ok) {
       toast.success('2FA reset successfully')
@@ -107,6 +104,7 @@ export default function SecurityTab({
       const data = await res.json()
       toast.error('Failed to reset 2FA', { description: data?.error })
     }
+    setVerificationCode('')
     setLoading(false)
   }
 
@@ -120,7 +118,11 @@ export default function SecurityTab({
     const res = await fetch('/api/auth/generate-backup-codes', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ count: 10 }),
+      body: JSON.stringify({
+        count: 10,
+        verificationCode: verificationCode.trim(),
+        verificationMethod: 'auto',
+      }),
     })
     const data = await res.json()
     if (res.ok) {
@@ -130,6 +132,7 @@ export default function SecurityTab({
     } else {
       toast.error('Generation failed', { description: data?.error })
     }
+    setVerificationCode('')
     setLoading(false)
   }
 
@@ -334,7 +337,10 @@ export default function SecurityTab({
 
       <ConfirmationDialog
         isOpen={!!confirmAction}
-        onClose={() => setConfirmAction(null)}
+        onClose={() => {
+          setConfirmAction(null)
+          setVerificationCode('')
+        }}
         onConfirm={handleConfirmAction}
         title={confirmTitle}
         message={confirmMessage}
@@ -342,7 +348,31 @@ export default function SecurityTab({
         cancelLabel="Cancel"
         type={confirmAction?.type === 'backup-codes' ? 'warning' : 'danger'}
         isLoading={loading}
-      />
+        confirmDisabled={
+          (confirmAction?.type === 'reset-2fa' || confirmAction?.type === 'backup-codes') &&
+          !verificationCode.trim()
+        }
+      >
+        {(confirmAction?.type === 'reset-2fa' || confirmAction?.type === 'backup-codes') && (
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700">
+              Authenticator or backup code
+            </label>
+            <input
+              type="text"
+              autoFocus
+              autoComplete="one-time-code"
+              value={verificationCode}
+              onChange={(event) => setVerificationCode(event.target.value)}
+              placeholder="Enter a current verification code"
+              className="w-full rounded border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            />
+            <p className="mt-1 text-xs text-slate-500">
+              A valid current code is required immediately before this security change.
+            </p>
+          </div>
+        )}
+      </ConfirmationDialog>
     </>
   )
 }

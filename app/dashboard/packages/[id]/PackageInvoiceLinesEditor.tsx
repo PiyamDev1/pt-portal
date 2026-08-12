@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Eye, EyeOff, Loader2, Plus, Save, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { useAppDialog } from '@/components/AppDialog'
 import type {
   TravelPackageInvoice,
   TravelPackageInvoiceLine,
@@ -59,6 +60,7 @@ export default function PackageInvoiceLinesEditor({
   disabled,
   onInvoiceChange,
 }: Props) {
+  const { confirm, dialog } = useAppDialog()
   const [forms, setForms] = useState<Record<string, LineForm>>({})
   const [newLine, setNewLine] = useState<LineForm>(() => formFromLine())
   const [savingId, setSavingId] = useState<string | null>(null)
@@ -133,7 +135,13 @@ export default function PackageInvoiceLinesEditor({
   }
 
   const deleteLine = async (line: TravelPackageInvoiceLine) => {
-    if (!window.confirm(`Delete invoice line "${line.description}"?`)) return
+    const shouldDelete = await confirm({
+      title: 'Delete invoice line?',
+      message: `Delete invoice line "${line.description}"? This cannot be undone.`,
+      confirmLabel: 'Delete line',
+      type: 'danger',
+    })
+    if (!shouldDelete) return
     setSavingId(line.id)
     try {
       const response = await fetch(`/api/travel-packages/${packageId}/invoice/lines/${line.id}`, {
@@ -232,6 +240,7 @@ export default function PackageInvoiceLinesEditor({
 
   return (
     <div className="mt-4 border border-slate-200">
+      {dialog}
       <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-3 py-2">
         <div>
           <p className="text-sm font-black text-slate-950">Invoice lines</p>

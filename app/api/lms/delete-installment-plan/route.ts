@@ -1,111 +1,59 @@
-/**
- * API Route: Delete Installment Plan
- *
- * POST /api/lms/delete-installment-plan
- *
- * Removes all installment records associated with a given loan transaction,
- * effectively cancelling the repayment schedule. The parent transaction itself
- * is not deleted — only the installment rows.
- *
- * Request Body: { transactionId: string }
- * Response Success (200): { deletedCount }
- * Response Errors: 400 Missing transactionId | 500 DB delete failed
- *
- * Authentication: Service role key
- */
-import { createClient } from '@supabase/supabase-js'
+/** Delete a service transaction and its installment plan atomically. */
+import { z } from 'zod'
 import { apiError, apiOk } from '@/lib/api/http'
-import { toErrorMessage } from '@/lib/api/error'
+import { parseBodyWithSchema } from '@/lib/api/request'
+import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
+import { requireLmsStaff, verifyLmsDestructiveAction } from '@/lib/lms/apiAuth'
+import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
+
+const schema = z
+  .object({
+    transactionId: z
+      .string({ error: 'Transaction ID is required' })
+      .trim()
+      .min(1, 'Transaction ID is required')
+      .max(200),
+    verificationCode: z.string().trim().min(1).max(100),
+    verificationMethod: z.enum(['totp', 'backup', 'auto']).optional(),
+  })
+  .strict()
 
 export async function POST(request: Request) {
+  const access = await requireLmsStaff()
+  if (!access.authorized) return access.response
+
   try {
-    // 1. Initialize Admin Client
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    const limit = await enforceRateLimit(request, {
+      scope: 'lms.delete-installment-plan',
+      limit: 10,
+      windowSeconds: 60 * 60,
+      identities: [`user:${access.user.id}`, `ip:${getClientIp(request)}`],
+    })
+    if (!limit.allowed) return limit.response
+
+    const { data: body, error: bodyError } = await parseBodyWithSchema(request, schema, {
+      maxBytes: 4 * 1024,
+    })
+    if (bodyError || !body) return apiError(bodyError || 'Invalid request payload', 400)
+
+    const verificationResponse = await verifyLmsDestructiveAction(access, body)
+    if (verificationResponse) return verificationResponse
+
+    const { data, error } = await getServiceSupabaseClient().rpc('lms_delete_installment_plan', {
+      p_transaction_id: body.transactionId,
+    })
+    if (error) {
+      return apiError(
+        error.message || 'Failed to delete installment plan',
+        error.code === 'P0002' ? 404 : 500,
+      )
+    }
+
+    return apiOk({ deletedTransactionId: data?.deletedTransactionId || body.transactionId })
+  } catch (error) {
+    return apiError(
+      error instanceof Error ? error.message : 'Failed to delete installment plan',
+      500,
     )
-
-    const { transactionId } = await request.json()
-
-    if (!transactionId) {
-      return apiError('Transaction ID is required', 400)
-    }
-
-    // First, get the transaction to find the loan_id and amount
-    const { data: transaction, error: fetchError } = await supabase
-      .from('loan_transactions')
-      .select('loan_id, amount')
-      .eq('id', transactionId)
-      .single()
-
-    if (fetchError || !transaction) {
-      throw new Error('Transaction not found')
-    }
-
-    const loanId = transaction.loan_id
-    const deletedAmount = parseFloat(transaction.amount || 0)
-
-    // 2. Delete Child Records: Installments
-    // These are the individual payment schedules in 'loan_installments'
-    const { error: instError } = await supabase
-      .from('loan_installments')
-      .delete()
-      .eq('loan_transaction_id', transactionId)
-
-    if (instError) {
-      throw new Error(`Failed to delete installments: ${instError.message}`)
-    }
-
-    // 3. Delete Child Records: Package Links
-    // If the plan was linked to a package, remove that link from 'loan_package_links'
-    const { error: linkError } = await supabase
-      .from('loan_package_links')
-      .delete()
-      .eq('loan_transaction_id', transactionId)
-
-    if (linkError) {
-      throw new Error(`Failed to delete package links: ${linkError.message}`)
-    }
-
-    // 4. Delete Parent Record: The Service Transaction
-    // This removes the service charge from loan_transactions
-    const { error: transError } = await supabase
-      .from('loan_transactions')
-      .delete()
-      .eq('id', transactionId)
-
-    if (transError) {
-      throw new Error(`Failed to delete transaction: ${transError.message}`)
-    }
-
-    // 5. Update the loan's current_balance
-    // Subtract the deleted service amount from the loan balance
-    const { data: loan, error: loanFetchError } = await supabase
-      .from('loans')
-      .select('current_balance, total_debt_amount, status')
-      .eq('id', loanId)
-      .single()
-
-    if (!loanFetchError && loan) {
-      const newBalance = Math.max(0, parseFloat(loan.current_balance || 0) - deletedAmount)
-      const newTotalDebt = Math.max(0, parseFloat(loan.total_debt_amount || 0) - deletedAmount)
-
-      const { error: updateError } = await supabase
-        .from('loans')
-        .update({
-          current_balance: newBalance,
-          total_debt_amount: newTotalDebt,
-          status: newBalance === 0 ? 'Settled' : loan.status || 'Active',
-        })
-        .eq('id', loanId)
-
-      if (updateError) {
-        throw new Error(`Failed to update loan balance: ${updateError.message}`)
-      }
-    }
-
-    return apiOk({ deletedTransactionId: transactionId })
-  } catch (error: unknown) {
-    return apiError(toErrorMessage(error, 'Failed to delete installment plan'), 500)
   }
 }

@@ -19,6 +19,7 @@ vi.mock('@supabase/supabase-js', () => ({
 }))
 
 import { POST } from '@/app/api/admin/seed-pricing/route'
+import { requireStaffSession } from '@/lib/auth/staffSession'
 
 describe('POST /api/admin/seed-pricing', () => {
   const originalEnv = { ...process.env }
@@ -38,7 +39,11 @@ describe('POST /api/admin/seed-pricing', () => {
     process.env = originalEnv
   })
 
-  it('returns 401 when authorization header is missing', async () => {
+  it('passes through an unauthorized maintenance-session response', async () => {
+    vi.mocked(requireStaffSession).mockResolvedValueOnce({
+      authorized: false,
+      response: Response.json({ error: 'Unauthorized' }, { status: 401 }),
+    })
     const request = new Request('http://localhost/api/admin/seed-pricing', { method: 'POST' })
 
     const response = await POST(request as any)

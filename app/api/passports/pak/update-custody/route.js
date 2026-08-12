@@ -8,11 +8,23 @@
 import { createClient } from '@supabase/supabase-js'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
+import { requireStaffSession } from '@/lib/auth/staffSession'
+import { z } from 'zod'
+import { parseBodyWithSchema } from '@/lib/api/request'
+
+const updateCustodySchema = z.object({
+  passportId: z.string().trim().min(1).max(200),
+  action: z.enum(['return_old', 'record_new', 'toggle_fingerprints']),
+  newNumber: z.string().trim().min(1).max(100).optional(),
+})
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
 export async function POST(request) {
+  const access = await requireStaffSession()
+  if (!access.authorized) return access.response
+
   const origin = request.headers.get('origin') || '*'
 
   try {
@@ -21,8 +33,14 @@ export async function POST(request) {
       process.env.SUPABASE_SERVICE_ROLE_KEY,
     )
 
-    const body = await request.json()
-    const { passportId, action, newNumber, userId } = body
+    const { data: body, error: bodyError } = await parseBodyWithSchema(
+      request,
+      updateCustodySchema,
+      { maxBytes: 8 * 1024 },
+    )
+    if (bodyError || !body) return apiError(bodyError || 'Missing fields', 400)
+    const { passportId, action, newNumber } = body
+    const userId = access.user.id
 
     if (!passportId || !action) {
       return apiError('Missing fields', 400)
@@ -105,6 +123,8 @@ export async function POST(request) {
 
     return apiError('Unknown action', 400)
   } catch (error) {
-    return apiError('Internal server error', 500, { details: toErrorMessage(error, 'Unexpected error') })
+    return apiError('Internal server error', 500, {
+      details: toErrorMessage(error, 'Unexpected error'),
+    })
   }
 }

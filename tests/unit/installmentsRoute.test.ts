@@ -14,6 +14,9 @@ vi.mock('@supabase/supabase-js', () => ({
 vi.mock('@/lib/installmentsDb', () => ({
   ensureInstallmentsTableExists: mocks.ensureInstallmentsTableExists,
 }))
+vi.mock('@/lib/lms/apiAuth', () => ({
+  requireLmsStaff: vi.fn(async () => ({ authorized: true, employee: { id: 'emp-1' } })),
+}))
 
 import { GET } from '@/app/api/lms/installments/route'
 

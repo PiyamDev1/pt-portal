@@ -20,8 +20,16 @@ import { apiOk, apiError } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
 import { cookies } from 'next/headers'
 import { recordAuthSecurityEvent } from '@/lib/auth/securityEvents'
+import { z } from 'zod'
+import { parseBodyWithSchema } from '@/lib/api/request'
+import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
 
 export const dynamic = 'force-dynamic'
+
+const revokeSessionSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('all') }).strict(),
+  z.object({ type: z.literal('single'), id: z.string().trim().min(1).max(200) }).strict(),
+])
 
 export async function GET(request: Request) {
   try {
@@ -180,9 +188,22 @@ export async function DELETE(request: Request) {
     } = await supabase.auth.getUser()
     if (!user) return apiError('Unauthorized', 401)
 
-    const { id, type } = await request.json()
+    const limit = await enforceRateLimit(request, {
+      scope: 'auth.sessions-revoke',
+      limit: 10,
+      windowSeconds: 15 * 60,
+      identities: [`user:${user.id}`, `ip:${getClientIp(request)}`],
+    })
+    if (!limit.allowed) return limit.response
 
-    if (type === 'all') {
+    const { data: body, error: bodyError } = await parseBodyWithSchema(
+      request,
+      revokeSessionSchema,
+      { maxBytes: 4 * 1024 },
+    )
+    if (bodyError || !body) return apiError(bodyError || 'Invalid request', 400)
+
+    if (body.type === 'all') {
       // Admin client required for global sign out
       const supabaseAdmin = createClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -199,9 +220,9 @@ export async function DELETE(request: Request) {
         metadata: { type: 'all' },
       })
       return apiOk({ message: 'All devices signed out' })
-    } else if (type === 'single' && id) {
+    } else if (body.type === 'single') {
       // Use the RPC function to revoke a specific session
-      const { error } = await supabase.rpc('revoke_my_session', { session_id: id })
+      const { error } = await supabase.rpc('revoke_my_session', { session_id: body.id })
       if (error) throw error
       await recordAuthSecurityEvent({
         request,
@@ -209,7 +230,7 @@ export async function DELETE(request: Request) {
         email: user.email,
         eventType: 'session_revoke',
         status: 'revoked',
-        metadata: { type: 'single', sessionId: id },
+        metadata: { type: 'single', sessionId: body.id },
       })
       return apiOk({ message: 'Session revoked' })
     }

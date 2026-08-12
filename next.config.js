@@ -36,6 +36,10 @@ const nextConfig = {
   // Enable experimental features for faster builds
   experimental: {
     optimizePackageImports: ['lucide-react', '@supabase/supabase-js'],
+    // Next 16's default CLI checker can lose captured `tsc --showConfig`
+    // output under Node 22. The compiler API supports the same project and
+    // keeps local and CI production builds portable across supported Node LTS.
+    useTypeScriptCli: false,
   },
 
   // Optimize images and static assets

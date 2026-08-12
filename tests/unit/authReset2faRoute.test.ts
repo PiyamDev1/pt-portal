@@ -33,6 +33,7 @@ vi.mock('@/lib/api/serverSupabase', () => ({
 }))
 
 import { POST } from '@/app/api/auth/reset-2fa/route'
+import { verifyFreshSecondFactor } from '@/lib/auth/freshSecondFactor'
 
 const makeRequest = (body: Record<string, unknown>) =>
   new Request('http://localhost/api/auth/reset-2fa', {
@@ -59,6 +60,7 @@ describe('POST /api/auth/reset-2fa', () => {
       data: { user: { id: 'u-1', email: 'user@example.com' } },
       error: null,
     })
+    vi.mocked(verifyFreshSecondFactor).mockResolvedValue({ verified: true, method: 'totp' })
   })
 
   it('returns 401 when the user is not authenticated', async () => {
@@ -69,8 +71,19 @@ describe('POST /api/auth/reset-2fa', () => {
 
   it('returns 500 when factor listing fails', async () => {
     mocks.listFactors.mockResolvedValue({ data: null, error: { message: 'list failed' } })
-    const res = await POST(makeRequest({}))
+    const res = await POST(makeRequest({ verificationCode: '123456' }))
     expect(res.status).toBe(500)
+  })
+
+  it('requires fresh second-factor verification before deleting factors', async () => {
+    vi.mocked(verifyFreshSecondFactor).mockResolvedValueOnce({
+      verified: false,
+      error: 'Invalid authenticator code',
+    })
+
+    const res = await POST(makeRequest({ verificationCode: 'bad' }))
+    expect(res.status).toBe(403)
+    expect(mocks.listFactors).not.toHaveBeenCalled()
   })
 
   it('returns 200 and resets factors + db flag on success', async () => {
@@ -81,7 +94,7 @@ describe('POST /api/auth/reset-2fa', () => {
     mocks.deleteFactor.mockResolvedValue({ error: null })
     mocks.updateEq.mockResolvedValue({ error: null })
 
-    const res = await POST(makeRequest({}))
+    const res = await POST(makeRequest({ verificationCode: '123456' }))
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body).toEqual({ resetUserId: 'u-1', removedFactors: 2 })

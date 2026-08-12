@@ -1,15 +1,12 @@
 'use client'
 
 import Link from 'next/link'
-import Image from 'next/image'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import QRCode from 'qrcode'
 import {
   ArrowLeft,
   BadgePoundSterling,
-  Building2,
   CalendarDays,
-  Car,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
@@ -25,21 +22,15 @@ import {
   Loader2,
   PackageCheck,
   Pencil,
-  Plane,
   Plus,
   RotateCcw,
   ShieldCheck,
-  Stamp,
   Trash2,
   Upload,
   Users,
   X,
 } from 'lucide-react'
 import type {
-  PackageCombination,
-  PackageComponentOption,
-  PackageQuotePayload,
-  PackageVisaPassengerCategory,
   TravelPackageDocument,
   TravelPackageDocumentCategory,
   TravelPackageFolder,
@@ -65,566 +56,71 @@ import {
 } from '@/lib/packageDocuments'
 import PackageOperationsWorkspace from './PackageOperationsWorkspace'
 import PackageInvoiceLinesEditor from './PackageInvoiceLinesEditor'
-
-type PackageWorkspaceTab = 'overview' | 'documents' | 'reservations' | 'invoice'
-
-export type PackageEmployeeOption = {
-  id: string
-  full_name: string | null
-  email?: string | null
-}
-
-type PackageOverviewClientProps = {
-  packageId: string
-  employees?: PackageEmployeeOption[]
-}
-
-type PackageResponse = {
-  package?: TravelPackageFolder | null
-  setupRequired?: boolean
-  message?: string
-  error?: string
-}
-
-type ReservationsResponse = {
-  reservations?: TravelPackageReservation[]
-  reservation?: TravelPackageReservation | null
-  items?: TravelPackageReservationItem[]
-  item?: TravelPackageReservationItem | null
-  setupRequired?: boolean
-  message?: string
-  error?: string
-}
-
-type DocumentsResponse = {
-  documents?: TravelPackageDocument[]
-  document?: TravelPackageDocument | null
-  setupRequired?: boolean
-  message?: string
-  error?: string
-}
-
-type ThirdPartySharesResponse = {
-  shares?: TravelPackageThirdPartyDocumentShare[]
-  share?: TravelPackageThirdPartyDocumentShare | null
-  shareUrl?: string
-  accessCode?: string
-  setupRequired?: boolean
-  message?: string
-  error?: string
-}
-
-type InvoiceResponse = {
-  invoice?: TravelPackageInvoice | null
-  setupRequired?: boolean
-  message?: string
-  error?: string
-}
-
-type PackageGroupsResponse = {
-  groups?: TravelPackageGroup[]
-  setupRequired?: boolean
-  message?: string
-  error?: string
-}
-
-type PackageGroupResponse = {
-  group?: TravelPackageGroupDetail | TravelPackageGroup | null
-  setupRequired?: boolean
-  message?: string
-  error?: string
-}
-
-type ReservationFormState = {
-  reservationType: TravelPackageReservationType
-  title: string
-  status: TravelPackageReservationStatus
-  supplierName: string
-  supplierReference: string
-  bookedCostTotal: string
-  soldPriceTotal: string
-  discountTotal: string
-  commissionExpectedTotal: string
-  depositRequired: boolean
-  depositAmount: string
-  paymentDueAt: string
-  internalNotes: string
-}
-
-type ReservationItemFormState = {
-  itemType: TravelPackageReservationItemType
-  title: string
-  status: TravelPackageReservationItemStatus
-  quantity: string
-  unitBookedCost: string
-  unitSoldPrice: string
-  discountAmount: string
-  commissionExpectedAmount: string
-  supplierReference: string
-  description: string
-}
-
-type ReservationDetailFormState = {
-  reservationType: TravelPackageReservationType
-  title: string
-  status: TravelPackageReservationStatus
-  supplierName: string
-  supplierReference: string
-  bookingReference: string
-  internalNotes: string
-}
-
-type ReservationFinancialFormState = {
-  bookedCostTotal: string
-  soldPriceTotal: string
-  discountTotal: string
-  commissionExpectedTotal: string
-  depositRequired: boolean
-  depositAmount: string
-  paymentDueAt: string
-}
-
-type ReservationRefundFormState = {
-  refundKind: 'supplier' | 'customer'
-  amount: string
-  paymentMethod: 'cash' | 'bank_transfer' | 'card' | 'other'
-  reference: string
-  reason: string
-}
-
-type QuoteReservationPrefill = {
-  key: string
-  reservationType: TravelPackageReservationType
-  title: string
-  bookedCostTotal?: number
-  soldPriceTotal: number
-  discountTotal?: number
-  internalNotes: string
-  sourceLabel: string
-  metadata?: Record<string, unknown>
-}
-
-type InvoiceFormState = {
-  status: TravelPackageInvoiceStatus
-  subtotalSold: string
-  discountTotal: string
-  totalPaid: string
-  totalBookedCost: string
-  expectedCommissionTotal: string
-  receivedCommissionTotal: string
-  releasedToCustomer: boolean
-  customerTerms: string
-  internalNotes: string
-  dueAt: string
-  amendmentReason: string
-}
-
-type ThirdPartyShareFormState = {
-  label: string
-  recipientName: string
-  purpose: string
-  expiresAt: string
-  allowedCategories: TravelPackageDocumentCategory[]
-}
-
-const VISA_PHOTO_DOCUMENT_KIND = 'visa_photo'
-
-function isVisaPhotoDocument(document: TravelPackageDocument) {
-  return document.metadata?.documentKind === VISA_PHOTO_DOCUMENT_KIND
-}
-
-function getLinkedVisaPhotoParentId(document: TravelPackageDocument) {
-  const linkedDocumentId = document.metadata?.linkedTravelDocumentId
-  return typeof linkedDocumentId === 'string' ? linkedDocumentId : ''
-}
-
-const reservationTypeOptions: Array<{ value: TravelPackageReservationType; label: string }> = [
-  { value: 'flight', label: 'Flight' },
-  { value: 'hotel', label: 'Hotel' },
-  { value: 'visa', label: 'Visa' },
-  { value: 'transport', label: 'Transport' },
-  { value: 'other', label: 'Other' },
-]
-
-const reservationStatusOptions: Array<{ value: TravelPackageReservationStatus; label: string }> = [
-  { value: 'not_started', label: 'Not started' },
-  { value: 'quote_requested', label: 'Quote requested' },
-  { value: 'availability_checked', label: 'Availability checked' },
-  { value: 'reservation_pending', label: 'Reservation pending' },
-  { value: 'reserved', label: 'Reserved' },
-  { value: 'deposit_required', label: 'Deposit required' },
-  { value: 'paid', label: 'Paid' },
-  { value: 'confirmed', label: 'Confirmed' },
-  { value: 'changed', label: 'Changed' },
-  { value: 'cancelled', label: 'Cancelled' },
-  { value: 'failed', label: 'Failed' },
-]
-
-const reservationItemTypeOptions: Array<{
-  value: TravelPackageReservationItemType
-  label: string
-}> = [
-  { value: 'flight', label: 'Flight' },
-  { value: 'hotel', label: 'Hotel' },
-  { value: 'visa', label: 'Visa' },
-  { value: 'transport', label: 'Transport' },
-  { value: 'commission', label: 'Commission' },
-  { value: 'discount', label: 'Discount' },
-  { value: 'other', label: 'Other' },
-]
-
-const reservationItemStatusOptions: Array<{
-  value: TravelPackageReservationItemStatus
-  label: string
-}> = [
-  { value: 'draft', label: 'Draft' },
-  { value: 'reserved', label: 'Reserved' },
-  { value: 'confirmed', label: 'Confirmed' },
-  { value: 'changed', label: 'Changed' },
-  { value: 'cancelled', label: 'Cancelled' },
-]
-
-const invoiceStatusOptions: Array<{ value: TravelPackageInvoiceStatus; label: string }> = [
-  { value: 'draft', label: 'Draft' },
-  { value: 'internal_review', label: 'Internal review' },
-  { value: 'finalised', label: 'Finalised' },
-  { value: 'pending_payment', label: 'Pending payment' },
-  { value: 'part_paid', label: 'Part paid' },
-  { value: 'paid', label: 'Paid' },
-  { value: 'released', label: 'Released (customer snapshot live)' },
-  { value: 'amended', label: 'Amended draft' },
-  { value: 'void', label: 'Void' },
-  { value: 'closed', label: 'Closed' },
-]
-
-const CUSTOMER_PORTAL_URL = 'https://bookings.piyamtravel.com'
-
-function toDateTimeLocalValue(value: Date | string = new Date()) {
-  const date = value instanceof Date ? value : new Date(value)
-  if (Number.isNaN(date.getTime())) return ''
-  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60 * 1000)
-  return localDate.toISOString().slice(0, 16)
-}
-
-function createInitialReservationForm(soldPriceTotal = 0): ReservationFormState {
-  return {
-    reservationType: 'flight',
-    title: '',
-    status: 'reservation_pending',
-    supplierName: '',
-    supplierReference: '',
-    bookedCostTotal: '',
-    soldPriceTotal: soldPriceTotal > 0 ? String(soldPriceTotal) : '',
-    discountTotal: '',
-    commissionExpectedTotal: '',
-    depositRequired: false,
-    depositAmount: '',
-    paymentDueAt: toDateTimeLocalValue(),
-    internalNotes: '',
-  }
-}
-
-function createInitialReservationRefundForm(): ReservationRefundFormState {
-  return {
-    refundKind: 'supplier',
-    amount: '',
-    paymentMethod: 'bank_transfer',
-    reference: '',
-    reason: '',
-  }
-}
-
-function createInitialReservationItemForm(
-  itemType: TravelPackageReservationItemType = 'other',
-): ReservationItemFormState {
-  return {
-    itemType,
-    title: '',
-    status: 'draft',
-    quantity: '1',
-    unitBookedCost: '',
-    unitSoldPrice: '',
-    discountAmount: '',
-    commissionExpectedAmount: '',
-    supplierReference: '',
-    description: '',
-  }
-}
-
-function createInitialInvoiceForm(invoice?: TravelPackageInvoice | null): InvoiceFormState {
-  return {
-    status: invoice?.status || 'draft',
-    subtotalSold: invoice ? String(invoice.subtotal_sold || '') : '',
-    discountTotal: invoice ? String(invoice.discount_total || '') : '',
-    totalPaid: invoice ? String(invoice.total_paid || '') : '',
-    totalBookedCost: invoice ? String(invoice.total_booked_cost || '') : '',
-    expectedCommissionTotal: invoice ? String(invoice.expected_commission_total || '') : '',
-    receivedCommissionTotal: invoice ? String(invoice.received_commission_total || '') : '',
-    releasedToCustomer: Boolean(invoice?.released_to_customer),
-    customerTerms: invoice?.customer_terms || '',
-    internalNotes: invoice?.internal_notes || '',
-    dueAt: invoice?.due_at ? toDateTimeLocalValue(invoice.due_at) : toDateTimeLocalValue(),
-    amendmentReason: invoice?.amendment_reason || '',
-  }
-}
-
-function createInitialThirdPartyShareForm(): ThirdPartyShareFormState {
-  const expiresAt = new Date()
-  expiresAt.setDate(expiresAt.getDate() + 7)
-  return {
-    label: 'Third-party document access',
-    recipientName: '',
-    purpose: '',
-    expiresAt: toDateTimeLocalValue(expiresAt),
-    allowedCategories: [...THIRD_PARTY_PACKAGE_DOCUMENT_CATEGORIES],
-  }
-}
-
-function formatDate(value: string | null | undefined) {
-  if (!value) return 'Not set'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return 'Not set'
-  return date.toLocaleDateString('en-GB', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  })
-}
-
-function formatDateTime(value: string | null | undefined) {
-  if (!value) return 'Not set'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return 'Not set'
-  return date.toLocaleString('en-GB', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
-
-function formatReservationStatus(status: string) {
-  return status.replace(/_/g, ' ')
-}
-
-function mapInvoiceToPackageInvoiceStatus(invoice: TravelPackageInvoice) {
-  if (invoice.status === 'void') return 'void'
-  if (invoice.released_to_customer || invoice.status === 'released') return 'released_to_customer'
-  if (invoice.status === 'draft') return 'draft'
-  if (invoice.status === 'amended') return 'amended'
-  if (invoice.status === 'internal_review') return 'internal_review'
-  if (invoice.status === 'closed') return 'closed'
-  return 'finalised'
-}
-
-function formatFileSize(bytes: number) {
-  if (!bytes) return 'Unknown size'
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-}
-
-function formatPaymentMethod(method: string | null | undefined) {
-  if (method === 'cash') return 'Cash'
-  if (method === 'card') return 'Credit Card'
-  return 'Bank transfer'
-}
-
-function parseMoneyInput(value: string | number | null | undefined) {
-  const parsed = Number(value ?? 0)
-  return Number.isFinite(parsed) ? parsed : 0
-}
-
-function normalizeSelectedCombination(
-  combination: PackageCombination | null | undefined,
-): PackageCombination | null {
-  if (!combination) return null
-
-  return {
-    ...combination,
-    staySelections: Array.isArray(combination.staySelections)
-      ? combination.staySelections.filter((stay) => stay?.option)
-      : [],
-    visaOptions: Array.isArray(combination.visaOptions)
-      ? combination.visaOptions.filter(Boolean)
-      : [],
-    appliedOffers: Array.isArray(combination.appliedOffers)
-      ? combination.appliedOffers.filter(Boolean)
-      : [],
-    flightOption: combination.flightOption || null,
-    visaOption: combination.visaOption || null,
-    transportOption: combination.transportOption || null,
-    packageSubtotalPrice: Number(combination.packageSubtotalPrice || 0),
-    paymentSurchargeTotal: Number(combination.paymentSurchargeTotal || 0),
-    totalPrice: Number(combination.totalPrice || 0),
-    grossPrice: Number(combination.grossPrice || combination.totalPrice || 0),
-    offerDiscountTotal: Number(combination.offerDiscountTotal || 0),
-    perPersonPrice: Number(combination.perPersonPrice || 0),
-    payingGuests: Number(combination.payingGuests || 0),
-    servicePassengers: Number(combination.servicePassengers || 0),
-    currency: combination.currency || 'GBP',
-    paymentMethod: combination.paymentMethod || 'bank_transfer',
-  }
-}
-
-type VisaPassengerCounts = Pick<
-  PackageQuotePayload,
-  'adults' | 'childrenPaying' | 'childrenFree' | 'infants'
-> & {
-  servicePassengers: number
-}
-
-function getVisaPassengerCategoryCount(
-  option: { visaPassengerCategory?: PackageVisaPassengerCategory },
-  counts: VisaPassengerCounts,
-) {
-  if (option.visaPassengerCategory === 'adult') return counts.adults
-  if (option.visaPassengerCategory === 'child_5_plus') return counts.childrenPaying
-  if (option.visaPassengerCategory === 'child_2_to_4') return counts.childrenFree
-  if (option.visaPassengerCategory === 'infant') return counts.infants
-  return counts.servicePassengers
-}
-
-function getVisaQuantity(
-  option: { quantity?: number; visaPassengerCategory?: PackageVisaPassengerCategory },
-  counts: VisaPassengerCounts,
-) {
-  return option.quantity && option.quantity > 0
-    ? option.quantity
-    : getVisaPassengerCategoryCount(option, counts)
-}
-
-function getVisaPassengerCategoryLabel(category: PackageVisaPassengerCategory | undefined) {
-  if (category === 'adult') return 'Adult'
-  if (category === 'child_5_plus') return 'Child 5+'
-  if (category === 'child_2_to_4') return 'Child 2-4'
-  if (category === 'infant') return 'Infant'
-  return 'Traveller'
-}
-
-function getOptionSoldTotal(
-  option: PackageComponentOption | null | undefined,
-  servicePassengers: number,
-  passengers?: TravelPackageFolder['passenger_summary'],
-) {
-  if (!option) return 0
-  if (option.adultPrice || option.childPrice || option.infantPrice) {
-    return (
-      Number(option.adultPrice || 0) * Number(passengers?.adults || 0) +
-      Number(option.childPrice || 0) *
-        (Number(passengers?.childrenPaying || 0) + Number(passengers?.childrenFree || 0)) +
-      Number(option.infantPrice || 0) * Number(passengers?.infants || 0)
-    )
-  }
-  if (option.pricingMode === 'per_person') return Number(option.price || 0) * servicePassengers
-  return Number(option.price || 0)
-}
-
-function getVisaOptionSoldTotal(option: PackageComponentOption, counts: VisaPassengerCounts) {
-  if (option.pricingMode === 'total') return Number(option.price || 0)
-  return Number(option.price || 0) * getVisaQuantity(option, counts)
-}
-
-function getStaySelectionSoldTotal(stay: PackageCombination['staySelections'][number]) {
-  const addonTotal = (stay.addonOptions || []).reduce(
-    (total, addon) => total + Number(addon.adjustedPrice ?? addon.price ?? 0),
-    0,
-  )
-  return Number(stay.option.price || 0) + addonTotal
-}
-
-function getReservationSummary(option: PackageComponentOption | null | undefined) {
-  return (
-    option?.summary?.trim() ||
-    'Pulled from the final quote. Agent to complete supplier references, booked cost, and confirmation status.'
-  )
-}
-
-function getTransportReservationSummary(option: PackageComponentOption | null | undefined) {
-  if (!option?.transportRoutes?.length) return getReservationSummary(option)
-  const routeLines = option.transportRoutes.map((route) => {
-    const supplier = route.supplierName ? ` - ${route.supplierName}` : ''
-    const vehicle = route.vehicleLabel ? ` (${route.vehicleLabel})` : ''
-    const gbpCost =
-      route.costPriceGbp && route.costPriceGbp > 0 ? ` - GBP ${route.costPriceGbp.toFixed(2)}` : ''
-    const sourceCost =
-      route.currency !== 'GBP' && route.costPrice > 0
-        ? ` (${route.currency} ${route.costPrice.toFixed(2)} at ${Number(route.exchangeRate || 0).toFixed(4)} SAR/GBP)`
-        : ''
-    return `* ${route.routeName}${supplier}${vehicle}${gbpCost}${sourceCost}`
-  })
-  const netCost =
-    option.transportNetCost && option.transportNetCost > 0
-      ? `Net transport cost: ${option.transportNetCurrency || 'GBP'} ${option.transportNetCost.toFixed(2)}`
-      : ''
-  return [option.summary?.trim(), ...routeLines, netCost].filter(Boolean).join('\n')
-}
-
-function createReservationFinancialForm(
-  reservation: TravelPackageReservation,
-): ReservationFinancialFormState {
-  return {
-    bookedCostTotal: String(reservation.booked_cost_total || ''),
-    soldPriceTotal: String(reservation.sold_price_total || ''),
-    discountTotal: String(reservation.discount_total || ''),
-    commissionExpectedTotal: String(reservation.commission_expected_total || ''),
-    depositRequired: reservation.deposit_required,
-    depositAmount: String(reservation.deposit_amount || ''),
-    paymentDueAt: reservation.payment_due_at
-      ? toDateTimeLocalValue(reservation.payment_due_at)
-      : '',
-  }
-}
-
-function createReservationDetailForm(
-  reservation: TravelPackageReservation,
-): ReservationDetailFormState {
-  return {
-    reservationType: reservation.reservation_type,
-    title: reservation.title,
-    status: reservation.status,
-    supplierName: reservation.supplier_name || '',
-    supplierReference: reservation.supplier_reference || '',
-    bookingReference: reservation.booking_reference || '',
-    internalNotes: reservation.internal_notes || '',
-  }
-}
-
-function getReservationIcon(type: TravelPackageReservationType) {
-  if (type === 'flight') return Plane
-  if (type === 'hotel') return Building2
-  if (type === 'visa') return Stamp
-  if (type === 'transport') return Car
-  return PackageCheck
-}
-
-function StatusCard({
-  icon: Icon,
-  label,
-  value,
-}: {
-  icon: typeof PackageCheck
-  label: string
-  value: string
-}) {
-  return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-xs font-bold uppercase text-slate-500">{label}</p>
-        <Icon className="h-4 w-4 text-slate-400" />
-      </div>
-      <p className="mt-2 text-sm font-black capitalize text-slate-950">
-        {value.replace(/_/g, ' ')}
-      </p>
-    </div>
-  )
-}
+import PackageOverviewDialogs from './PackageOverviewDialogs'
+import PackageFinalQuoteSnapshot from './PackageFinalQuoteSnapshot'
+import PackageGroupPanel from './PackageGroupPanel'
+import type {
+  DocumentsResponse,
+  InvoiceFormState,
+  InvoiceResponse,
+  PackageGroupResponse,
+  PackageGroupsResponse,
+  PackageOverviewClientProps,
+  PackageResponse,
+  PackageWorkspaceTab,
+  QuoteReservationPrefill,
+  ReservationDetailFormState,
+  ReservationFinancialFormState,
+  ReservationFormState,
+  ReservationItemFormState,
+  ReservationRefundFormState,
+  ReservationsResponse,
+  ThirdPartyShareFormState,
+  ThirdPartySharesResponse,
+} from './packageOverviewTypes'
+import {
+  CUSTOMER_PORTAL_URL,
+  VISA_PHOTO_DOCUMENT_KIND,
+  createInitialInvoiceForm,
+  createInitialReservationForm,
+  createInitialReservationItemForm,
+  createInitialReservationRefundForm,
+  createInitialThirdPartyShareForm,
+  createReservationDetailForm,
+  createReservationFinancialForm,
+  formatDate,
+  formatDateTime,
+  formatFileSize,
+  formatPaymentMethod,
+  formatReservationStatus,
+  getLinkedVisaPhotoParentId,
+  getOptionSoldTotal,
+  getReservationSummary,
+  getStaySelectionSoldTotal,
+  getTransportReservationSummary,
+  getVisaOptionSoldTotal,
+  getVisaPassengerCategoryLabel,
+  getVisaQuantity,
+  invoiceStatusOptions,
+  isVisaPhotoDocument,
+  mapInvoiceToPackageInvoiceStatus,
+  normalizeSelectedCombination,
+  parseMoneyInput,
+  reservationItemStatusOptions,
+  reservationItemTypeOptions,
+  reservationStatusOptions,
+  reservationTypeOptions,
+  toDateTimeLocalValue,
+} from './packageOverviewModel'
+import type { VisaPassengerCounts } from './packageOverviewModel'
+import { getReservationIcon, PackageStatusCard } from './PackageOverviewPrimitives'
+import { useAppDialog } from '@/components/AppDialog'
 
 export default function PackageOverviewClient({
   packageId,
   employees = [],
 }: PackageOverviewClientProps) {
+  const { confirm, dialog } = useAppDialog()
   const [packageFolder, setPackageFolder] = useState<TravelPackageFolder | null>(null)
   const [reservations, setReservations] = useState<TravelPackageReservation[]>([])
   const [documents, setDocuments] = useState<TravelPackageDocument[]>([])
@@ -1780,7 +1276,13 @@ Please enter the access code and accept the data handling terms before downloadi
   }
 
   const deleteReservation = async (reservation: TravelPackageReservation) => {
-    if (!window.confirm(`Delete reservation "${reservation.title}"?`)) return
+    const shouldDelete = await confirm({
+      title: 'Delete reservation?',
+      message: `Delete reservation "${reservation.title}" and its operational details? This cannot be undone.`,
+      confirmLabel: 'Delete reservation',
+      type: 'danger',
+    })
+    if (!shouldDelete) return
     setUpdatingReservationId(reservation.id)
     setReservationError(null)
     try {
@@ -2624,6 +2126,7 @@ Please enter the access code and accept the data handling terms before downloadi
 
   return (
     <div className="space-y-5">
+      {dialog}
       <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <Link
           href="/dashboard/packages"
@@ -2676,165 +2179,44 @@ Please enter the access code and accept the data handling terms before downloadi
       </section>
 
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatusCard icon={PackageCheck} label="Package status" value={packageFolder.status} />
-        <StatusCard icon={ShieldCheck} label="Passports" value={packageFolder.passport_status} />
-        <StatusCard icon={CreditCard} label="Payment" value={packageFolder.payment_status} />
-        <StatusCard icon={FileText} label="Invoice" value={packageFolder.invoice_status} />
+        <PackageStatusCard
+          icon={PackageCheck}
+          label="Package status"
+          value={packageFolder.status}
+        />
+        <PackageStatusCard
+          icon={ShieldCheck}
+          label="Passports"
+          value={packageFolder.passport_status}
+        />
+        <PackageStatusCard icon={CreditCard} label="Payment" value={packageFolder.payment_status} />
+        <PackageStatusCard icon={FileText} label="Invoice" value={packageFolder.invoice_status} />
       </section>
 
       {showPackageGroupPanel && (
-        <section className="rounded-xl border border-cyan-200 bg-cyan-50/50 p-4 shadow-sm">
-          <div className="mb-3 flex items-center gap-2">
-            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-cyan-900 text-white">
-              <Link2 className="h-4 w-4" />
-            </span>
-            <div>
-              <h2 className="text-lg font-black text-slate-950">Linked package group</h2>
-              <p className="text-xs font-semibold text-cyan-900">
-                Link family package folders for shared transport without showing internal transport
-                cost to customers.
-              </p>
-            </div>
-          </div>
-          {packageGroupError && (
-            <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm font-bold text-amber-900">
-              {packageGroupError}
-            </div>
-          )}
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-            <div className="rounded-lg border border-cyan-200 bg-white p-3">
-              <p className="text-sm font-black text-slate-950">Create or link group</p>
-              <div className="mt-3 grid gap-3 md:grid-cols-2">
-                <label className="block md:col-span-2">
-                  <span className="mb-1 block text-xs font-bold text-slate-500">Group name</span>
-                  <input
-                    value={packageGroupTitle}
-                    onChange={(event) => setPackageGroupTitle(event.target.value)}
-                    placeholder={`${packageFolder.customer_name || packageFolder.package_reference} linked group`}
-                    className="min-h-11 w-full rounded-lg border border-slate-200 px-3 text-sm font-bold outline-none focus:border-cyan-700"
-                  />
-                </label>
-                <label className="block">
-                  <span className="mb-1 block text-xs font-bold text-slate-500">
-                    This family label
-                  </span>
-                  <input
-                    value={packageGroupFamilyLabel}
-                    onChange={(event) => setPackageGroupFamilyLabel(event.target.value)}
-                    placeholder="Family Ali"
-                    className="min-h-11 w-full rounded-lg border border-slate-200 px-3 text-sm font-bold outline-none focus:border-cyan-700"
-                  />
-                </label>
-                <button
-                  type="button"
-                  onClick={() => void createPackageGroup()}
-                  disabled={packageGroupSaving}
-                  className="self-end min-h-11 rounded-lg bg-cyan-900 px-3 text-sm font-black text-white transition hover:bg-cyan-950 disabled:opacity-50"
-                >
-                  Create Group
-                </button>
-                <label className="block md:col-span-2">
-                  <span className="mb-1 block text-xs font-bold text-slate-500">Find group</span>
-                  <input
-                    value={packageGroupSearch}
-                    onChange={(event) => setPackageGroupSearch(event.target.value)}
-                    placeholder="Search by group ref or name"
-                    className="min-h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-cyan-700"
-                  />
-                </label>
-                <label className="block">
-                  <span className="mb-1 block text-xs font-bold text-slate-500">
-                    Existing group
-                  </span>
-                  <select
-                    value={packageGroupSelectedId}
-                    onChange={(event) => setPackageGroupSelectedId(event.target.value)}
-                    disabled={packageGroupLoading}
-                    className="min-h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold outline-none focus:border-cyan-700 disabled:text-slate-400"
-                  >
-                    <option value="">
-                      {packageGroupLoading ? 'Loading groups...' : 'Select group'}
-                    </option>
-                    {filteredPackageGroups.map((group) => (
-                      <option key={group.id} value={group.id}>
-                        {group.group_reference} - {group.title}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <button
-                  type="button"
-                  onClick={() => void linkPackageToGroup()}
-                  disabled={packageGroupSaving || !packageGroupSelectedId}
-                  className="self-end min-h-11 rounded-lg border border-cyan-200 bg-cyan-50 px-3 text-sm font-black text-cyan-900 transition hover:bg-cyan-100 disabled:opacity-50"
-                >
-                  Link Package
-                </button>
-              </div>
-            </div>
-
-            <div className="rounded-lg border border-cyan-200 bg-white p-3">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <p className="text-sm font-black text-slate-950">
-                    {activePackageGroup
-                      ? `${activePackageGroup.group_reference} - ${activePackageGroup.title}`
-                      : 'No linked group active'}
-                  </p>
-                  <p className="mt-1 text-xs font-semibold text-slate-500">
-                    Customer output uses note-only wording. Internal allocation stays private.
-                  </p>
-                </div>
-                {activePackageGroup && (
-                  <button
-                    type="button"
-                    onClick={() => void unlinkPackageFromGroup()}
-                    disabled={packageGroupSaving}
-                    className="min-h-9 rounded-lg border border-red-200 px-3 text-xs font-black text-red-700 transition hover:bg-red-50 disabled:opacity-50"
-                  >
-                    Unlink
-                  </button>
-                )}
-              </div>
-              {activePackageGroup && activePackageGroup.members.length > 0 && (
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {activePackageGroup.members.map((member) => (
-                    <span
-                      key={member.id}
-                      className={`rounded-lg px-2 py-1 text-xs font-bold ${
-                        member.package_id === packageId
-                          ? 'bg-slate-900 text-white'
-                          : 'bg-slate-100 text-slate-700'
-                      }`}
-                    >
-                      {member.family_label}
-                    </span>
-                  ))}
-                </div>
-              )}
-              <label className="mt-3 block">
-                <span className="mb-1 block text-xs font-bold text-slate-500">
-                  Shared transport customer note
-                </span>
-                <textarea
-                  value={packageGroupTransportNote}
-                  onChange={(event) => setPackageGroupTransportNote(event.target.value)}
-                  placeholder="Transport is shared with Family Hussain / PT-ABC123."
-                  rows={4}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-cyan-700"
-                />
-              </label>
-              <button
-                type="button"
-                onClick={() => void updatePackageGroupTransportNote()}
-                disabled={packageGroupSaving || !activePackageGroup}
-                className="mt-3 min-h-10 rounded-lg bg-slate-900 px-3 text-sm font-black text-white transition hover:bg-black disabled:opacity-50"
-              >
-                Save Transport Note
-              </button>
-            </div>
-          </div>
-        </section>
+        <PackageGroupPanel
+          packageId={packageId}
+          packageFolder={packageFolder}
+          packageGroupError={packageGroupError}
+          packageGroupTitle={packageGroupTitle}
+          setPackageGroupTitle={setPackageGroupTitle}
+          packageGroupFamilyLabel={packageGroupFamilyLabel}
+          setPackageGroupFamilyLabel={setPackageGroupFamilyLabel}
+          packageGroupSearch={packageGroupSearch}
+          setPackageGroupSearch={setPackageGroupSearch}
+          packageGroupSelectedId={packageGroupSelectedId}
+          setPackageGroupSelectedId={setPackageGroupSelectedId}
+          packageGroupLoading={packageGroupLoading}
+          packageGroupSaving={packageGroupSaving}
+          filteredPackageGroups={filteredPackageGroups}
+          activePackageGroup={activePackageGroup}
+          packageGroupTransportNote={packageGroupTransportNote}
+          setPackageGroupTransportNote={setPackageGroupTransportNote}
+          onCreateGroup={() => void createPackageGroup()}
+          onLinkPackage={() => void linkPackageToGroup()}
+          onUnlinkPackage={() => void unlinkPackageFromGroup()}
+          onSaveTransportNote={() => void updatePackageGroupTransportNote()}
+        />
       )}
 
       <nav
@@ -3016,7 +2398,7 @@ Please enter the access code and accept the data handling terms before downloadi
                               <input
                                 type="file"
                                 multiple
-                                accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx"
+                                accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp"
                                 className="sr-only"
                                 disabled={savingDocument}
                                 onChange={(event) => {
@@ -3631,183 +3013,19 @@ Please enter the access code and accept the data handling terms before downloadi
           )}
 
           {activePackageTab === 'overview' && (
-            <>
-              <div className="my-6 h-2 rounded-full bg-[#8b1e2d]" aria-hidden="true" />
-              <div
-                id="final-quote"
-                className="scroll-mt-20 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
-              >
-                <div className="mb-3 flex items-center gap-2">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900 text-white">
-                    <FolderOpen className="h-4 w-4" />
-                  </span>
-                  <h2 className="text-lg font-black text-slate-950">Final quote snapshot</h2>
-                </div>
-                {selectedCombination ? (
-                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                      <div>
-                        <p className="text-xs font-bold uppercase text-slate-500">Selected quote</p>
-                        <p className="mt-1 text-base font-black text-slate-950">{quoteTitle}</p>
-                        <p className="mt-1 text-xs font-bold text-slate-500">
-                          {quoteCustomerName} · {quoteDateRange}
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setShowQuoteSnapshot(true)}
-                        className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:bg-slate-100"
-                      >
-                        <FileText className="h-4 w-4" />
-                        Open Snapshot
-                      </button>
-                    </div>
-
-                    <div className="mt-4 grid gap-3 md:grid-cols-3">
-                      <div>
-                        <p className="text-xs font-bold uppercase text-slate-500">Customer</p>
-                        <p className="mt-1 text-sm font-black text-slate-950">
-                          {quoteCustomerName}
-                        </p>
-                        <p className="mt-1 text-xs text-slate-500">{quoteCustomerPhone}</p>
-                        <p className="mt-1 break-all text-xs text-slate-500">
-                          {quoteCustomerEmail}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs font-bold uppercase text-slate-500">Passengers</p>
-                        <p className="mt-1 text-sm font-black text-slate-950">
-                          {passengerSummary?.totalPassengers ??
-                            selectedCombination.servicePassengers}{' '}
-                          total
-                        </p>
-                        <p className="mt-1 text-xs text-slate-500">
-                          {passengerSummary?.adults ?? selectedPayload?.adults ?? 0} adults ·{' '}
-                          {passengerSummary?.childrenPaying ?? selectedPayload?.childrenPaying ?? 0}{' '}
-                          children 5+ ·{' '}
-                          {passengerSummary?.childrenFree ?? selectedPayload?.childrenFree ?? 0}{' '}
-                          children 2-5 ·{' '}
-                          {passengerSummary?.infants ?? selectedPayload?.infants ?? 0} infants under
-                          2
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs font-bold uppercase text-slate-500">Sold total</p>
-                        <p className="mt-1 text-sm font-black text-slate-950">
-                          {formatMoney(
-                            selectedCombination.totalPrice,
-                            selectedCombination.currency,
-                          )}
-                        </p>
-                        <p className="mt-1 text-xs font-bold text-slate-500">
-                          {formatPaymentMethod(selectedCombination.paymentMethod)}
-                          {selectedCombination.paymentSurchargeTotal > 0
-                            ? ` · ${formatMoney(
-                                selectedCombination.paymentSurchargeTotal,
-                                selectedCombination.currency,
-                              )} processing fee`
-                            : ''}
-                        </p>
-                        <p className="mt-1 text-xs font-bold text-[#8b1e2d]">
-                          {formatMoney(
-                            selectedCombination.perPersonPrice,
-                            selectedCombination.currency,
-                          )}{' '}
-                          avg hotel payer
-                        </p>
-                      </div>
-                    </div>
-
-                    {selectedCombination.offerDiscountTotal > 0 && (
-                      <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700">
-                        Discount applied:{' '}
-                        {formatMoney(
-                          selectedCombination.offerDiscountTotal,
-                          selectedCombination.currency,
-                        )}
-                      </p>
-                    )}
-
-                    <div className="mt-4 grid gap-3 md:grid-cols-2">
-                      {selectedCombination.flightOption && (
-                        <div className="rounded-lg border border-slate-200 bg-white p-3">
-                          <p className="text-xs font-bold uppercase text-slate-500">Flight</p>
-                          <p className="mt-1 text-sm font-black text-slate-950">
-                            {selectedCombination.flightOption.title}
-                          </p>
-                          {selectedCombination.flightOption.summary && (
-                            <p className="mt-1 whitespace-pre-line text-xs leading-5 text-slate-600">
-                              {selectedCombination.flightOption.summary}
-                            </p>
-                          )}
-                        </div>
-                      )}
-                      {selectedCombination.visaOptions.length > 0 && (
-                        <div className="rounded-lg border border-slate-200 bg-white p-3">
-                          <p className="text-xs font-bold uppercase text-slate-500">Visa</p>
-                          <div className="mt-1 space-y-2">
-                            {selectedCombination.visaOptions.map((option) => (
-                              <div key={option.id}>
-                                <p className="text-sm font-black text-slate-950">
-                                  {getVisaQuantity(option, selectedVisaPassengerCounts)} x{' '}
-                                  {getVisaPassengerCategoryLabel(option.visaPassengerCategory)}{' '}
-                                  {option.title}
-                                </p>
-                                {option.summary && (
-                                  <p className="mt-1 whitespace-pre-line text-xs leading-5 text-slate-600">
-                                    {option.summary}
-                                  </p>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                      {selectedCombination.transportOption && (
-                        <div className="rounded-lg border border-slate-200 bg-white p-3">
-                          <p className="text-xs font-bold uppercase text-slate-500">Transport</p>
-                          <p className="mt-1 text-sm font-black text-slate-950">
-                            {selectedCombination.transportOption.title}
-                          </p>
-                          {selectedCombination.transportOption.summary && (
-                            <p className="mt-1 whitespace-pre-line text-xs leading-5 text-slate-600">
-                              {selectedCombination.transportOption.summary}
-                            </p>
-                          )}
-                        </div>
-                      )}
-                      {selectedCombination.staySelections.map((stay) => (
-                        <div
-                          key={stay.groupId}
-                          className="rounded-lg border border-slate-200 bg-white p-3"
-                        >
-                          <p className="text-xs font-bold uppercase text-slate-500">
-                            {stay.groupLabel}
-                          </p>
-                          <p className="mt-1 text-sm font-black text-slate-950">
-                            {stay.option.title}
-                          </p>
-                          {stay.option.summary && (
-                            <p className="mt-1 whitespace-pre-line text-xs leading-5 text-slate-600">
-                              {stay.option.summary}
-                            </p>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-
-                    {quoteSelectionNote && (
-                      <p className="mt-4 rounded-lg bg-white px-3 py-2 text-xs leading-5 text-slate-600">
-                        <span className="font-black text-slate-800">Selection note:</span>{' '}
-                        {quoteSelectionNote}
-                      </p>
-                    )}
-                  </div>
-                ) : (
-                  <p className="text-sm text-slate-500">No selected quote snapshot found.</p>
-                )}
-              </div>
-            </>
+            <PackageFinalQuoteSnapshot
+              selectedCombination={selectedCombination}
+              selectedPayload={selectedPayload}
+              selectedVisaPassengerCounts={selectedVisaPassengerCounts}
+              passengerSummary={passengerSummary}
+              quoteTitle={quoteTitle}
+              quoteCustomerName={quoteCustomerName}
+              quoteCustomerPhone={quoteCustomerPhone}
+              quoteCustomerEmail={quoteCustomerEmail}
+              quoteDateRange={quoteDateRange}
+              quoteSelectionNote={quoteSelectionNote}
+              onOpenSnapshot={() => setShowQuoteSnapshot(true)}
+            />
           )}
 
           {activePackageTab === 'reservations' && (
@@ -5551,580 +4769,55 @@ Please enter the access code and accept the data handling terms before downloadi
         )}
       </section>
 
-      {showAccessVoucher && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4">
-          <div className="relative w-full max-w-3xl rounded-2xl bg-white p-6 shadow-2xl sm:p-8">
-            <button
-              type="button"
-              onClick={() => setShowAccessVoucher(false)}
-              className="absolute right-4 top-4 text-slate-400 transition hover:text-slate-800"
-              aria-label="Close access voucher"
-            >
-              <X className="h-6 w-6" />
-            </button>
-            <h2 className="text-2xl font-black text-slate-950">Share Customer Access</h2>
-            <p className="mt-2 text-sm text-slate-500">
-              Share these details with your customer to access their portal.
-            </p>
-
-            <div className="mt-6 grid gap-5 rounded-lg border border-slate-200 bg-slate-50 p-6 md:grid-cols-[1fr_1.35fr_1fr] md:items-center">
-              <div className="flex items-center justify-center md:border-r md:border-slate-200 md:pr-6">
-                <Image
-                  src="/logo.png"
-                  alt="Piyam Travel Logo"
-                  width={128}
-                  height={64}
-                  className="h-auto w-32 object-contain"
-                />
-              </div>
-
-              <div className="text-center md:border-r md:border-slate-200 md:px-6">
-                <p className="text-sm text-slate-500">Customer</p>
-                <p className="text-xl font-black text-slate-950">
-                  {quoteCustomerFirstName} {quoteCustomerLastName}
-                </p>
-                <p className="mt-4 text-sm text-slate-500">Reference Number</p>
-                <p className="inline-block rounded-md border border-red-200 bg-red-50 px-2 py-1 font-mono text-xl text-[#8b1e2d]">
-                  {packageFolder.package_reference}
-                </p>
-                <p className="mt-4 text-sm text-slate-500">Login Website</p>
-                <p className="text-lg font-black text-slate-950">
-                  {CUSTOMER_PORTAL_URL.replace('https://', '')}
-                </p>
-              </div>
-
-              <div className="flex items-center justify-center">
-                <div className="rounded-md border bg-white p-2 shadow-sm">
-                  {accessVoucherQr ? (
-                    <Image
-                      src={accessVoucherQr}
-                      alt="Customer portal QR code"
-                      width={128}
-                      height={128}
-                      unoptimized
-                      className="h-32 w-32"
-                    />
-                  ) : (
-                    <div className="flex h-32 w-32 items-center justify-center text-xs font-bold text-slate-500">
-                      QR loading
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-6 grid gap-4 md:grid-cols-2">
-              <button
-                type="button"
-                onClick={() => void copyAccessVoucherText(CUSTOMER_PORTAL_URL, 'Link copied')}
-                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-slate-200 px-4 text-sm font-black text-slate-800 transition hover:bg-slate-300"
-              >
-                <Link2 className="h-5 w-5" />
-                Copy Link
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  void copyAccessVoucherText(accessVoucherDetailsText, 'Details copied')
-                }
-                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-[#a1171d] px-4 text-sm font-black text-white shadow-md transition hover:bg-[#861116]"
-              >
-                <Copy className="h-5 w-5" />
-                Copy Details as Text
-              </button>
-            </div>
-
-            {accessVoucherCopyMessage && (
-              <p className="mt-4 text-center text-sm font-black text-emerald-600">
-                {accessVoucherCopyMessage}
-              </p>
-            )}
-          </div>
-        </div>
-      )}
-
-      {showQuoteSnapshot && selectedCombination && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/60 p-4">
-          <div className="my-8 w-full max-w-4xl rounded-xl bg-white shadow-2xl">
-            <div className="flex items-start justify-between gap-4 border-b border-slate-200 p-5">
-              <div>
-                <p className="text-xs font-bold uppercase text-slate-500">Final quotation</p>
-                <h2 className="mt-1 text-xl font-black text-slate-950">{quoteTitle}</h2>
-                <p className="mt-1 text-sm font-bold text-slate-600">
-                  {packageFolder.package_reference} · {quoteDateRange}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowQuoteSnapshot(false)}
-                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition hover:bg-slate-100 hover:text-slate-950"
-                aria-label="Close final quotation snapshot"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="space-y-5 p-5">
-              <div className="grid gap-3 md:grid-cols-3">
-                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                  <p className="text-xs font-bold uppercase text-slate-500">Customer</p>
-                  <p className="mt-1 text-sm font-black text-slate-950">{quoteCustomerName}</p>
-                  <p className="mt-1 text-xs text-slate-500">{quoteCustomerPhone}</p>
-                  <p className="mt-1 break-all text-xs text-slate-500">{quoteCustomerEmail}</p>
-                </div>
-                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                  <p className="text-xs font-bold uppercase text-slate-500">Passengers</p>
-                  <p className="mt-1 text-sm font-black text-slate-950">
-                    {passengerSummary?.totalPassengers ?? selectedCombination.servicePassengers}{' '}
-                    total
-                  </p>
-                  <p className="mt-1 text-xs text-slate-500">
-                    {passengerSummary?.adults ?? selectedPayload?.adults ?? 0} adults ·{' '}
-                    {passengerSummary?.childrenPaying ?? selectedPayload?.childrenPaying ?? 0}{' '}
-                    children 5+ ·{' '}
-                    {passengerSummary?.childrenFree ?? selectedPayload?.childrenFree ?? 0} children
-                    2-5 · {passengerSummary?.infants ?? selectedPayload?.infants ?? 0} infants under
-                    2
-                  </p>
-                </div>
-                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                  <p className="text-xs font-bold uppercase text-slate-500">Final sold total</p>
-                  <p className="mt-1 text-sm font-black text-slate-950">
-                    {formatMoney(selectedCombination.totalPrice, selectedCombination.currency)}
-                  </p>
-                  <p className="mt-1 text-xs font-bold text-slate-500">
-                    {formatPaymentMethod(selectedCombination.paymentMethod)}
-                    {selectedCombination.paymentSurchargeTotal > 0
-                      ? ` · ${formatMoney(
-                          selectedCombination.paymentSurchargeTotal,
-                          selectedCombination.currency,
-                        )} processing fee`
-                      : ''}
-                  </p>
-                  <p className="mt-1 text-xs font-bold text-[#8b1e2d]">
-                    {formatMoney(selectedCombination.perPersonPrice, selectedCombination.currency)}{' '}
-                    avg hotel payer
-                  </p>
-                </div>
-              </div>
-
-              <div className="grid gap-3 md:grid-cols-2">
-                {selectedCombination.flightOption && (
-                  <div className="rounded-lg border border-slate-200 p-3">
-                    <p className="text-xs font-bold uppercase text-slate-500">Flight</p>
-                    <p className="mt-1 text-sm font-black text-slate-950">
-                      {selectedCombination.flightOption.title}
-                    </p>
-                    {selectedCombination.flightOption.summary && (
-                      <p className="mt-1 whitespace-pre-line text-xs leading-5 text-slate-600">
-                        {selectedCombination.flightOption.summary}
-                      </p>
-                    )}
-                  </div>
-                )}
-                {selectedCombination.visaOptions.length > 0 && (
-                  <div className="rounded-lg border border-slate-200 p-3">
-                    <p className="text-xs font-bold uppercase text-slate-500">Visa</p>
-                    <div className="mt-1 space-y-2">
-                      {selectedCombination.visaOptions.map((option) => (
-                        <div key={option.id}>
-                          <p className="text-sm font-black text-slate-950">
-                            {getVisaQuantity(option, selectedVisaPassengerCounts)} x{' '}
-                            {getVisaPassengerCategoryLabel(option.visaPassengerCategory)}{' '}
-                            {option.title}
-                          </p>
-                          {option.summary && (
-                            <p className="mt-1 whitespace-pre-line text-xs leading-5 text-slate-600">
-                              {option.summary}
-                            </p>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {selectedCombination.transportOption && (
-                  <div className="rounded-lg border border-slate-200 p-3">
-                    <p className="text-xs font-bold uppercase text-slate-500">Transport</p>
-                    <p className="mt-1 text-sm font-black text-slate-950">
-                      {selectedCombination.transportOption.title}
-                    </p>
-                    {selectedCombination.transportOption.summary && (
-                      <p className="mt-1 whitespace-pre-line text-xs leading-5 text-slate-600">
-                        {selectedCombination.transportOption.summary}
-                      </p>
-                    )}
-                  </div>
-                )}
-                {selectedCombination.staySelections.map((stay) => (
-                  <div key={stay.groupId} className="rounded-lg border border-slate-200 p-3">
-                    <p className="text-xs font-bold uppercase text-slate-500">{stay.groupLabel}</p>
-                    <p className="mt-1 text-sm font-black text-slate-950">{stay.option.title}</p>
-                    {stay.option.summary && (
-                      <p className="mt-1 whitespace-pre-line text-xs leading-5 text-slate-600">
-                        {stay.option.summary}
-                      </p>
-                    )}
-                  </div>
-                ))}
-              </div>
-
-              {selectedCombination.offerDiscountTotal > 0 && (
-                <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-700">
-                  Discount applied:{' '}
-                  {formatMoney(
-                    selectedCombination.offerDiscountTotal,
-                    selectedCombination.currency,
-                  )}
-                </p>
-              )}
-
-              {quoteSelectionNote && (
-                <p className="rounded-lg bg-slate-50 px-3 py-2 text-sm leading-6 text-slate-600">
-                  <span className="font-black text-slate-800">Selection note:</span>{' '}
-                  {quoteSelectionNote}
-                </p>
-              )}
-            </div>
-
-            {packageFolder.source_quote_id && (
-              <div className="flex flex-col gap-2 border-t border-slate-200 p-5 sm:flex-row sm:justify-end">
-                <Link
-                  href={`/dashboard/packages/quotations/${packageFolder.source_quote_id}/edit`}
-                  className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 text-sm font-black text-slate-700 transition hover:bg-slate-100"
-                >
-                  <Pencil className="h-4 w-4" />
-                  Edit Quote
-                </Link>
-                <Link
-                  href={`/dashboard/packages/quotations/${packageFolder.source_quote_id}/sales`}
-                  className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-black text-white transition hover:bg-slate-800"
-                >
-                  <PackageCheck className="h-4 w-4" />
-                  Sales Mode
-                </Link>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {showInvoicePreview && invoice && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4">
-          <div className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
-            <div className="flex flex-col gap-3 border-b border-slate-200 p-5 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <p className="text-xs font-bold uppercase text-slate-500">
-                  Customer invoice preview
-                </p>
-                <h3 className="mt-1 text-xl font-black text-slate-950">{invoice.invoice_number}</h3>
-                <p className="mt-1 text-sm font-bold text-slate-500">
-                  Preview only. Internal costs, margin, and commission are hidden.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowInvoicePreview(false)}
-                className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg bg-slate-900 px-3 text-xs font-black text-white transition hover:bg-slate-800"
-              >
-                <X className="h-4 w-4" />
-                Close
-              </button>
-            </div>
-
-            <div className="min-h-0 flex-1 overflow-y-auto bg-slate-100 p-4">
-              <div className="mx-auto max-w-3xl rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-                <div className="flex flex-col gap-4 border-b border-slate-200 pb-5 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <p className="text-xs font-bold uppercase text-slate-500">Bill to</p>
-                    <p className="mt-1 text-lg font-black text-slate-950">{quoteCustomerName}</p>
-                    {packageFolder.customer_email && (
-                      <p className="mt-1 text-sm font-bold text-slate-500">
-                        {packageFolder.customer_email}
-                      </p>
-                    )}
-                    {packageFolder.customer_phone && (
-                      <p className="mt-1 text-sm font-bold text-slate-500">
-                        {packageFolder.customer_phone}
-                      </p>
-                    )}
-                  </div>
-                  <div className="text-left sm:text-right">
-                    <p className="text-xs font-bold uppercase text-slate-500">Package reference</p>
-                    <p className="mt-1 text-lg font-black text-[#8b1e2d]">
-                      {packageFolder.package_reference}
-                    </p>
-                    <p className="mt-2 text-xs font-bold uppercase text-slate-500">Due</p>
-                    <p className="mt-1 text-sm font-black text-slate-950">
-                      {invoicePreviewDueDate}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="mt-5 overflow-hidden rounded-lg border border-slate-200">
-                  <div className="grid grid-cols-[minmax(0,1fr)_7rem_8rem] gap-3 bg-slate-900 px-4 py-3 text-xs font-black uppercase text-white">
-                    <span>Description</span>
-                    <span className="text-right">Qty</span>
-                    <span className="text-right">Amount</span>
-                  </div>
-                  {invoicePreviewLines.length > 0 ? (
-                    <div className="divide-y divide-slate-100">
-                      {invoicePreviewLines.map((line) => (
-                        <div
-                          key={line.id}
-                          className="grid grid-cols-[minmax(0,1fr)_7rem_8rem] gap-3 px-4 py-3 text-sm text-slate-700"
-                        >
-                          <div className="min-w-0">
-                            <p className="font-black text-slate-950">{line.description}</p>
-                            <p className="mt-1 text-xs font-bold capitalize text-slate-500">
-                              {line.line_type}
-                            </p>
-                          </div>
-                          <p className="text-right font-bold">
-                            {Number(line.quantity || 0).toLocaleString('en-GB')}
-                          </p>
-                          <div className="text-right">
-                            <p className="font-black text-slate-950">
-                              {formatMoney(
-                                line.total_sold_price - line.discount_amount,
-                                invoiceCurrency,
-                              )}
-                            </p>
-                            {line.discount_amount > 0 && (
-                              <p className="mt-1 text-xs font-bold text-emerald-700">
-                                Discount {formatMoney(line.discount_amount, invoiceCurrency)}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="px-4 py-6 text-center text-sm font-bold text-slate-500">
-                      No customer-visible invoice lines yet.
-                    </p>
-                  )}
-                </div>
-
-                <div className="mt-5 ml-auto max-w-sm space-y-2 rounded-lg bg-slate-50 p-4">
-                  <div className="flex items-center justify-between gap-4 text-sm">
-                    <span className="font-bold text-slate-500">Subtotal</span>
-                    <span className="font-black text-slate-950">
-                      {formatMoney(invoiceSubtotalSold, invoiceCurrency)}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between gap-4 text-sm">
-                    <span className="font-bold text-slate-500">Discount</span>
-                    <span className="font-black text-emerald-700">
-                      -{formatMoney(invoiceDiscountTotal, invoiceCurrency)}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between gap-4 border-t border-slate-200 pt-2 text-base">
-                    <span className="font-black text-slate-950">Total</span>
-                    <span className="font-black text-slate-950">
-                      {formatMoney(invoiceTotalSold, invoiceCurrency)}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between gap-4 text-sm">
-                    <span className="font-bold text-slate-500">Paid</span>
-                    <span className="font-black text-slate-950">
-                      {formatMoney(invoiceTotalPaid, invoiceCurrency)}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between gap-4 rounded-lg bg-[#8b1e2d] px-3 py-2 text-base text-white">
-                    <span className="font-black">Balance due</span>
-                    <span className="font-black">
-                      {formatMoney(invoiceBalanceDue, invoiceCurrency)}
-                    </span>
-                  </div>
-                </div>
-
-                {invoiceForm.customerTerms.trim() && (
-                  <div className="mt-5 rounded-lg border border-slate-200 bg-white p-4">
-                    <p className="text-xs font-bold uppercase text-slate-500">Terms</p>
-                    <p className="mt-2 whitespace-pre-line text-sm leading-6 text-slate-700">
-                      {invoiceForm.customerTerms}
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {photoLinkDocument && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4">
-          <div className="w-full max-w-xl overflow-hidden rounded-2xl bg-white shadow-2xl">
-            <div className="flex items-start justify-between gap-3 border-b border-slate-200 p-4">
-              <div className="min-w-0">
-                <p className="text-xs font-bold uppercase text-slate-500">Link visa photo</p>
-                <h3 className="mt-1 truncate text-lg font-black text-slate-950">
-                  {photoLinkDocument.title}
-                </h3>
-                <p className="mt-1 break-all text-xs font-bold text-slate-500">
-                  Photos uploaded here stay in Travel Documents and link back to this file.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setPhotoLinkDocument(null)}
-                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600 transition hover:bg-slate-200"
-                aria-label="Close photo upload"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <div className="p-4">
-              <label
-                onDragOver={(event) => {
-                  event.preventDefault()
-                  setDraggingDocumentCategory('travel_documents')
-                }}
-                onDragLeave={() => setDraggingDocumentCategory(null)}
-                onDrop={(event) => {
-                  event.preventDefault()
-                  setDraggingDocumentCategory(null)
-                  const files = event.dataTransfer.files
-                  if (files?.length) {
-                    void uploadVisaPhotoFiles(files, photoLinkDocument)
-                  }
-                }}
-                className={`flex min-h-48 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed p-6 text-center transition ${
-                  draggingDocumentCategory === 'travel_documents'
-                    ? 'border-indigo-500 bg-indigo-50'
-                    : 'border-indigo-200 bg-indigo-50/60 hover:border-indigo-400'
-                }`}
-              >
-                <input
-                  type="file"
-                  multiple
-                  accept=".jpg,.jpeg,.png,.webp"
-                  className="sr-only"
-                  disabled={savingDocument}
-                  onChange={(event) => {
-                    const files = Array.from(event.currentTarget.files || [])
-                    event.currentTarget.value = ''
-                    if (files.length) {
-                      void uploadVisaPhotoFiles(files, photoLinkDocument)
-                    }
-                  }}
-                />
-                <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-900 text-white">
-                  {savingDocument ? (
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                  ) : (
-                    <FileImage className="h-5 w-5" />
-                  )}
-                </span>
-                <span className="mt-3 block text-sm font-black text-slate-950">
-                  Upload photo for this travel document
-                </span>
-                <span className="mt-1 block text-xs font-semibold leading-5 text-slate-600">
-                  Drop image files here or click to select photos.
-                </span>
-              </label>
-              {(visaPhotosByTravelDocumentId[photoLinkDocument.id] || []).length > 0 && (
-                <div className="mt-4 rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2">
-                  <p className="text-xs font-black uppercase text-indigo-700">Already linked</p>
-                  <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                    {(visaPhotosByTravelDocumentId[photoLinkDocument.id] || []).map((photo) => (
-                      <div key={photo.id} className="min-w-0 rounded-lg bg-white px-3 py-2">
-                        <p
-                          className="truncate text-xs font-black text-indigo-950"
-                          title={photo.title}
-                        >
-                          {photo.title}
-                        </p>
-                        <p
-                          className="mt-0.5 truncate text-[11px] font-bold text-indigo-700"
-                          title={photo.file_name}
-                        >
-                          {photo.file_name}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {previewDocument && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4">
-          <div className="flex h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
-            <div className="flex flex-col gap-3 border-b border-slate-200 p-4 sm:flex-row sm:items-start sm:justify-between">
-              <div className="min-w-0">
-                <p className="text-xs font-bold uppercase text-slate-500">Document preview</p>
-                <h3 className="mt-1 truncate text-lg font-black text-slate-950">
-                  {previewDocument.title}
-                </h3>
-                <p className="mt-1 break-all text-xs font-bold text-slate-500">
-                  {previewDocument.file_name} · {formatFileSize(previewDocument.file_size)}
-                </p>
-              </div>
-              <div className="flex shrink-0 flex-wrap gap-2">
-                {previewDocumentUrl && (
-                  <button
-                    type="button"
-                    onClick={() => window.open(previewDocumentUrl, '_blank', 'noopener,noreferrer')}
-                    className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:bg-slate-100"
-                  >
-                    <Download className="h-4 w-4" />
-                    Open
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPreviewDocument(null)
-                    setPreviewDocumentUrl('')
-                  }}
-                  className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg bg-slate-900 px-3 text-xs font-black text-white transition hover:bg-slate-800"
-                >
-                  <X className="h-4 w-4" />
-                  Close
-                </button>
-              </div>
-            </div>
-            <div className="min-h-0 flex-1 overflow-hidden bg-slate-100 p-4">
-              {previewDocumentLoading ? (
-                <div className="flex h-full items-center justify-center rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-500">
-                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                  Preparing preview
-                </div>
-              ) : previewDocumentUrl && previewDocumentIsImage ? (
-                <div className="flex h-full items-center justify-center rounded-xl border border-slate-200 bg-white p-3">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={previewDocumentUrl}
-                    alt={previewDocument.title}
-                    className="max-h-full max-w-full object-contain"
-                  />
-                </div>
-              ) : previewDocumentUrl && previewDocumentIsPdf ? (
-                <iframe
-                  title={`Preview ${previewDocument.title}`}
-                  src={previewDocumentUrl}
-                  className="h-full w-full rounded-xl border border-slate-200 bg-white"
-                />
-              ) : (
-                <div className="flex h-full flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white p-6 text-center">
-                  <FileText className="h-10 w-10 text-slate-400" />
-                  <p className="mt-3 text-sm font-black text-slate-900">
-                    Preview is not available for this file type.
-                  </p>
-                  <p className="mt-1 text-xs font-semibold text-slate-500">
-                    Use Open to view or download the document.
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      <PackageOverviewDialogs
+        showAccessVoucher={showAccessVoucher}
+        setShowAccessVoucher={setShowAccessVoucher}
+        accessVoucherQr={accessVoucherQr}
+        accessVoucherCopyMessage={accessVoucherCopyMessage}
+        accessVoucherDetailsText={accessVoucherDetailsText}
+        copyAccessVoucherText={copyAccessVoucherText}
+        quoteCustomerFirstName={quoteCustomerFirstName}
+        quoteCustomerLastName={quoteCustomerLastName}
+        showQuoteSnapshot={showQuoteSnapshot}
+        setShowQuoteSnapshot={setShowQuoteSnapshot}
+        selectedCombination={selectedCombination}
+        selectedPayload={selectedPayload}
+        selectedVisaPassengerCounts={selectedVisaPassengerCounts}
+        passengerSummary={passengerSummary}
+        quoteTitle={quoteTitle}
+        quoteDateRange={quoteDateRange}
+        quoteCustomerName={quoteCustomerName}
+        quoteCustomerPhone={quoteCustomerPhone}
+        quoteCustomerEmail={quoteCustomerEmail}
+        quoteSelectionNote={quoteSelectionNote}
+        packageFolder={packageFolder}
+        showInvoicePreview={showInvoicePreview}
+        setShowInvoicePreview={setShowInvoicePreview}
+        invoice={invoice}
+        invoicePreviewLines={invoicePreviewLines}
+        invoicePreviewDueDate={invoicePreviewDueDate}
+        invoiceCurrency={invoiceCurrency}
+        invoiceSubtotalSold={invoiceSubtotalSold}
+        invoiceDiscountTotal={invoiceDiscountTotal}
+        invoiceTotalSold={invoiceTotalSold}
+        invoiceTotalPaid={invoiceTotalPaid}
+        invoiceBalanceDue={invoiceBalanceDue}
+        invoiceForm={invoiceForm}
+        photoLinkDocument={photoLinkDocument}
+        setPhotoLinkDocument={setPhotoLinkDocument}
+        savingDocument={savingDocument}
+        draggingDocumentCategory={draggingDocumentCategory}
+        setDraggingDocumentCategory={setDraggingDocumentCategory}
+        uploadVisaPhotoFiles={uploadVisaPhotoFiles}
+        visaPhotosByTravelDocumentId={visaPhotosByTravelDocumentId}
+        previewDocument={previewDocument}
+        setPreviewDocument={setPreviewDocument}
+        previewDocumentUrl={previewDocumentUrl}
+        setPreviewDocumentUrl={setPreviewDocumentUrl}
+        previewDocumentLoading={previewDocumentLoading}
+        previewDocumentIsImage={previewDocumentIsImage}
+        previewDocumentIsPdf={previewDocumentIsPdf}
+      />
     </div>
   )
 }

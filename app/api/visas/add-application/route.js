@@ -8,8 +8,12 @@
 import { createClient } from '@supabase/supabase-js'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
+import { requireStaffSession } from '@/lib/auth/staffSession'
 
 export async function POST(request) {
+  const access = await requireStaffSession()
+  if (!access.authorized) return access.response
+
   try {
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -27,8 +31,8 @@ export async function POST(request) {
       costCurrency,
       notes,
       internalTrackingNo,
-      currentUserId,
     } = body
+    const currentUserId = access.user.id
 
     // 1. Find or Create Applicant
     // We search by Passport Number for Visas (usually more reliable than Name)

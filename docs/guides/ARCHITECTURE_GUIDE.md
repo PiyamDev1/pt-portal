@@ -1,7 +1,7 @@
 # Architecture Guide
 
-> PT-Portal — Next.js 16 + Supabase + MinIO + Cloudflare R2  
-> Last updated: June 2026
+> PT-Portal — Next.js 16 + Supabase + MinIO + Cloudflare R2
+> Last updated: August 12, 2026
 
 ---
 
@@ -32,8 +32,8 @@ PT-Portal is an internal business portal for Piyam Travels, managing travel docu
 └─────────────────────┬──────────────────────────────────────┘
                       │ HTTPS
 ┌─────────────────────▼──────────────────────────────────────┐
-│              Next.js 16.1.6 (Vercel)                       │
-│   App Router · Turbopack · Middleware (rate limiting)      │
+│              Next.js 16.3 (Vercel)                         │
+│   App Router · Turbopack · Proxy (request correlation)     │
 │                                                            │
 │   /app/api/**        ← Server-side API routes              │
 │   /app/dashboard/**  ← Protected SSR/RSC pages             │
@@ -59,7 +59,7 @@ PT-Portal is an internal business portal for Piyam Travels, managing travel docu
 
 | Layer               | Technology            | Version |
 | ------------------- | --------------------- | ------- |
-| Framework           | Next.js               | 16.1.6  |
+| Framework           | Next.js               | 16.3    |
 | UI Runtime          | React                 | 18.3    |
 | Language            | TypeScript            | 5.3     |
 | Styling             | Tailwind CSS          | 3.4     |
@@ -81,8 +81,8 @@ PT-Portal is an internal business portal for Piyam Travels, managing travel docu
 ### Authenticated Page Request
 
 ```
-Browser → Next.js Middleware (rate check) → RSC/SSR Page
-→ Supabase session cookie validated
+Browser → Next.js request proxy (correlation ID) → RSC/SSR Page
+→ Supabase cookie-backed user validated server-side
 → Page renders with server data
 ```
 
@@ -90,9 +90,10 @@ Browser → Next.js Middleware (rate check) → RSC/SSR Page
 
 ```
 Browser XHR → POST /api/documents/upload-direct
-→ Middleware: rate limit (60 req/min per IP)
-→ Route handler: parse multipart form
-→ Try MinIO PutObjectCommand (2.5s timeout)
+→ Canonical active-staff session guard
+→ Shared Postgres limit (user + IP; 20 requests / 10 minutes)
+→ Validate scope, size, filename, signature, MIME type, and extension
+→ Try private MinIO PutObjectCommand
   ✓ Success → save metadata to Supabase → return { storageProvider: 'minio' }
   ✗ Fail → Try R2 PutObjectCommand
     ✓ Success → save metadata with minio_bucket=portal-fallback → return { storageProvider: 'r2' }
@@ -163,7 +164,12 @@ pt-portal/
 │   └── useTableFilters.ts
 │
 ├── lib/                        Server-side singletons & utilities
-│   ├── adminAuth.ts            Admin Bearer-token verification
+│   ├── adminSessionAuth.ts     Role-scoped staff-session wrappers
+│   ├── auth/staffSession.ts    Canonical verified staff-session guard
+│   ├── security/rateLimit.ts   Shared PostgreSQL rate-limit client
+│   ├── observability/server.ts Redacted structured server events
+│   ├── documentAccess.ts       Database-backed document scope validation
+│   ├── documentSecurity.ts     Upload/stream validation and safe headers
 │   ├── installmentsDb.ts       Installment DB helpers
 │   ├── r2Client.ts             Cloudflare R2 singleton client
 │   ├── r2Migration.ts          R2 → MinIO migration logic
@@ -173,7 +179,7 @@ pt-portal/
 │   └── services/
 │       └── documentService.ts  Client-side document service layer
 │
-├── middleware.ts               Rate limiting (60 req/min per IP)
+├── proxy.ts                    Correlation IDs for API requests/responses
 ├── next.config.js
 ├── tailwind.config.js
 └── vercel.json
@@ -186,11 +192,12 @@ pt-portal/
 ### Login Flow
 
 ```
-1. User enters credentials → POST /api/auth (Supabase)
-2. Supabase validates → returns session JWT
-3. If 2FA enabled → redirect to /login/verify-2fa
+1. User enters credentials → POST /api/auth/password-login
+2. The server validates limits/login guard and verifies with Supabase
+3. Browser establishes the returned cookie-backed Supabase session
+4. If 2FA enabled → redirect to /login/verify-2fa
    - User enters TOTP code or backup code
-4. Session cookie set → redirect to /dashboard
+5. Active employee and branch checks pass → redirect to /dashboard
 ```
 
 ### 2FA Implementation
@@ -200,23 +207,28 @@ pt-portal/
 - Verify via `/login/verify-2fa`
 - Backup codes available via `/api/auth/generate-backup-codes`
 - Consumed one-time via `/api/auth/consume-backup-code`
-- Admin reset via `/api/auth/reset-2fa`
+- Self-reset via `/api/auth/reset-2fa`, with a fresh TOTP or backup code
+- Master/Super Admin break-glass recovery via `/api/admin/recover-employee-2fa`
+- Backup-code replacement is atomic in PostgreSQL
 
 ### Session Management
 
-- Session stored as Supabase JWT cookie (httpOnly)
+- Session stored through the Supabase browser/auth-helper cookie integration
 - `useSessionTimeout` hook warns user before expiry
 - `SessionWarningHeader` component shows countdown banner
 - Active sessions tracked: `GET /api/auth/sessions`
 
 ### Admin Authorization
 
-Protected admin routes use `verifyAdminAccess()` from `lib/adminAuth.ts`:
+Protected API routes use `requireStaffSession()` from `lib/auth/staffSession.ts`. It verifies the cookie-backed user with `auth.getUser()`, resolves an active employee server-side, and optionally checks roles and `employee_departments` membership.
 
-1. Reads `Authorization: Bearer <token>` header
-2. Validates JWT with Supabase service role
-3. Checks `role = 'admin'` in `profiles` table
-4. Returns 401/403 if unauthorized
+Administrative routes use wrappers from `lib/adminSessionAuth.ts`:
+
+- `requireAdminSession()`: Admin, Master Admin, or Super Admin
+- `requireMaintenanceSession()`: Maintenance Admin plus admin roles
+- `requireSuperAdminSession()`: Master Admin or Super Admin
+
+The service-role client is created only after this authorization boundary; possession of a caller-supplied employee ID is never identity proof.
 
 ---
 
@@ -350,13 +362,16 @@ All storage/database clients are module-level singletons — instantiated once p
 
 ## Rate Limiting
 
-Implemented in `middleware.ts` using a token-bucket algorithm:
+Sensitive routes call `enforceRateLimit()` in `lib/security/rateLimit.ts`:
 
-- **Window**: 60 seconds
-- **Limit**: 60 requests per IP + User-Agent combination
-- **Applies to**: All `/api/**` routes
-- **Response on breach**: `429 Too Many Requests` with `Retry-After: 60`
-- **Note**: Token buckets are in-memory — ephemeral across Vercel serverless worker restarts. Suitable for brute-force prevention, not strict quota enforcement.
+- Limits are fixed-window counters persisted in PostgreSQL and shared by all application replicas.
+- Each route selects its own scope, window, limit, and identity combination (for example user, normalized email, or IP).
+- Identity material is keyed with `RATE_LIMIT_HASH_SECRET` and hashed before storage.
+- A blocked request returns `429 Too Many Requests` with an exact `Retry-After` value.
+- Sensitive routes fail closed with `503` if the shared limiter is unavailable.
+- `proxy.ts` propagates `x-request-id` for correlation; it deliberately does not keep an in-memory limiter.
+
+Deploy `scripts/migrations/20260812_security_rate_limits.sql` before code that uses the shared limiter.
 
 ---
 
@@ -376,6 +391,7 @@ The app is deployed on Vercel with:
 NEXT_PUBLIC_SUPABASE_URL
 NEXT_PUBLIC_SUPABASE_ANON_KEY
 SUPABASE_SERVICE_ROLE_KEY
+RATE_LIMIT_HASH_SECRET    # long independent server-only random value
 
 MINIO_ENDPOINT            # https://eu49v2.piyamtravel.com
 MINIO_ACCESS_KEY
@@ -388,6 +404,8 @@ R2_PING_URL               # https://eu45v5.piyamtravel.com  (display only)
 R2_ACCESS_KEY
 R2_SECRET_KEY
 R2_BUCKET_NAME            # portal-fallback
+
+OBSERVABILITY_ALERT_WEBHOOK_URL # optional trusted receiver for redacted operational alerts
 ```
 
 ### Build Command
@@ -442,15 +460,15 @@ npm run lint    # eslint
 
 ```typescript
 // Example: Page.tsx (Server Component)
-import { createServerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
+import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
 
 export default async function DashboardPage() {
-  const cookieStore = await cookies()
-  const supabase = createServerClient(...)
-  const { data } = await supabase.auth.getSession()
+  const supabase = await getRouteSupabaseClient()
+  const { data } = await supabase.auth.getUser()
 
-  return <div>Welcome {data.session?.user.email}</div>
+  if (!data.user) redirect('/login')
+
+  return <div>Welcome {data.user.email}</div>
 }
 ````
 
@@ -637,47 +655,33 @@ app/api/my-feature/route.js (or route.ts for TypeScript)
 **Example: Get Loan Accounts**
 
 ```javascript
-import { createServerClient } from '@supabase/auth-helpers-nextjs'
-import { NextResponse } from 'next/server'
+import { apiError, apiOk } from '@/lib/api/http'
+import { requireStaffSession } from '@/lib/auth/staffSession'
+import { getSupabaseClient } from '@/lib/supabaseClient'
 
 export async function GET(req) {
-  // 1. Create Supabase client
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-  )
+  // 1. Authenticate and resolve the active employee before a service-role query.
+  const access = await requireStaffSession()
+  if (!access.authorized) return access.response
 
   try {
-    // 2. Authenticate
-    const {
-      data: { session },
-    } = await supabase.auth.getSession()
-    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-    // 3. Get parameters from URL
+    // 2. Get bounded parameters from URL
     const { searchParams } = new URL(req.url)
     const page = parseInt(searchParams.get('page') || '1')
-    const limit = parseInt(searchParams.get('limit') || '50')
+    const limit = Math.min(100, Math.max(5, parseInt(searchParams.get('limit') || '50')))
     const offset = (page - 1) * limit
 
-    // 4. Query database
-    const { data, error, count } = await supabase
+    // 3. Perform the privileged query only after authorization.
+    const { data, error, count } = await getSupabaseClient()
       .from('accounts')
       .select('*', { count: 'exact' })
       .range(offset, offset + limit - 1)
 
     if (error) throw error
 
-    // 5. Return response
-    return NextResponse.json({
-      data,
-      total: count,
-      page,
-      limit,
-    })
+    return apiOk({ data, total: count, page, limit })
   } catch (error) {
-    console.error('API Error:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return apiError('Unable to load accounts', 500)
   }
 }
 ```
@@ -769,7 +773,7 @@ export function Button({ variant = 'primary', children }) {
 2. Enters email/password
 3. Supabase verifies credentials
 4. Session token created
-5. Token stored in HTTP-only cookie (secure)
+5. Supabase browser client establishes its cookie-backed session
 6. User redirected to dashboard
 7. On protected pages: session verified server-side
 8. If no session: redirect to /login
@@ -780,13 +784,13 @@ export function Button({ variant = 'primary', children }) {
 ```typescript
 // Server component - check auth
 export default async function ProtectedPage() {
-  const { data: { session } } = await supabase.auth.getSession()
+  const { data: { user } } = await supabase.auth.getUser()
 
-  if (!session) {
+  if (!user) {
     redirect('/login')  // Force login
   }
 
-  return <Content userId={session.user.id} />
+  return <Content userId={user.id} />
 }
 ```
 

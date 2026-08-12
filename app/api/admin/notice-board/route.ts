@@ -1,6 +1,9 @@
 import { createClient } from '@supabase/supabase-js'
+import { z } from 'zod'
 import { apiError, apiOk } from '@/lib/api/http'
-import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
+import { parseBodyWithSchema } from '@/lib/api/request'
+import { requireMaintenanceSession } from '@/lib/adminSessionAuth'
+import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -9,28 +12,35 @@ function getAdminClient() {
   return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 }
 
-async function requireAdmin() {
-  const supabase = await getRouteSupabaseClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+const slideFields = {
+  title: z.string().max(120),
+  body: z.string().max(500),
+  image_url: z.string().max(1_000),
+  image_storage_provider: z.string().max(40),
+  image_storage_bucket: z.string().max(200),
+  image_storage_key: z.string().max(1_000),
+  hyperlink_url: z.string().max(1_000),
+  display_seconds: z.number().finite().min(2).max(60),
+  sort_order: z.number().finite().min(-100_000).max(100_000),
+  is_active: z.boolean(),
+  target_role: z.string().max(120),
+  target_department_id: z.string().max(200),
+  target_location_id: z.string().max(200),
+}
 
-  if (!user) return { error: apiError('Unauthorized', 401), user: null }
+const createSlideSchema = z.object(slideFields).strict()
+const updateSlideSchema = z
+  .object({ id: z.string().trim().min(1).max(200), ...slideFields })
+  .strict()
+const deleteSlideSchema = z.object({ id: z.string().trim().min(1).max(200) }).strict()
 
-  const { data: employee, error } = await supabase
-    .from('employees')
-    .select('roles(name)')
-    .eq('id', user.id)
-    .single()
-
-  if (error) return { error: apiError(error.message, 500), user: null }
-
-  const role = Array.isArray(employee?.roles) ? employee.roles[0] : employee?.roles
-  if (!['Admin', 'Master Admin', 'Maintenance Admin'].includes(role?.name || '')) {
-    return { error: apiError('Forbidden', 403), user: null }
-  }
-
-  return { error: null, user }
+async function enforceMutationLimit(request: Request, userId: string) {
+  return enforceRateLimit(request, {
+    scope: 'admin.notice-board-mutate',
+    limit: 30,
+    windowSeconds: 60 * 60,
+    identities: [`user:${userId}`, `ip:${getClientIp(request)}`],
+  })
 }
 
 function sanitizeUuid(value: unknown) {
@@ -66,8 +76,8 @@ function sanitizeSlide(input: Record<string, unknown>, userId?: string) {
 }
 
 export async function GET() {
-  const auth = await requireAdmin()
-  if (auth.error) return auth.error
+  const access = await requireMaintenanceSession()
+  if (!access.authorized) return access.response
 
   const admin = getAdminClient()
   const { data, error } = await admin
@@ -106,13 +116,19 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const auth = await requireAdmin()
-  if (auth.error) return auth.error
+  const access = await requireMaintenanceSession()
+  if (!access.authorized) return access.response
 
-  const body = (await request.json().catch(() => ({}))) as Record<string, unknown>
+  const limit = await enforceMutationLimit(request, access.user.id)
+  if (!limit.allowed) return limit.response
+
+  const { data: body, error: bodyError } = await parseBodyWithSchema(request, createSlideSchema, {
+    maxBytes: 16 * 1024,
+  })
+  if (bodyError || !body) return apiError(bodyError || 'Invalid request payload', 400)
   const { data, error } = await getAdminClient()
     .from('notice_board_slides')
-    .insert(sanitizeSlide(body, auth.user?.id))
+    .insert(sanitizeSlide(body, access.user.id))
     .select('*')
     .single()
 
@@ -121,11 +137,16 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const auth = await requireAdmin()
-  if (auth.error) return auth.error
+  const access = await requireMaintenanceSession()
+  if (!access.authorized) return access.response
 
-  const body = (await request.json().catch(() => ({}))) as Record<string, unknown> & { id?: string }
-  if (!body.id) return apiError('id required', 400)
+  const limit = await enforceMutationLimit(request, access.user.id)
+  if (!limit.allowed) return limit.response
+
+  const { data: body, error: bodyError } = await parseBodyWithSchema(request, updateSlideSchema, {
+    maxBytes: 16 * 1024,
+  })
+  if (bodyError || !body) return apiError(bodyError || 'Invalid request payload', 400)
 
   const { data, error } = await getAdminClient()
     .from('notice_board_slides')
@@ -139,11 +160,16 @@ export async function PATCH(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const auth = await requireAdmin()
-  if (auth.error) return auth.error
+  const access = await requireMaintenanceSession()
+  if (!access.authorized) return access.response
 
-  const body = (await request.json().catch(() => ({}))) as { id?: string }
-  if (!body.id) return apiError('id required', 400)
+  const limit = await enforceMutationLimit(request, access.user.id)
+  if (!limit.allowed) return limit.response
+
+  const { data: body, error: bodyError } = await parseBodyWithSchema(request, deleteSlideSchema, {
+    maxBytes: 4 * 1024,
+  })
+  if (bodyError || !body) return apiError(bodyError || 'Invalid request payload', 400)
 
   const { error } = await getAdminClient().from('notice_board_slides').delete().eq('id', body.id)
   if (error) return apiError(error.message, 500)

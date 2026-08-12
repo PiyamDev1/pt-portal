@@ -57,12 +57,7 @@ export function AdvancedSearchModal({
 
   return (
     <ModalWrapper onClose={onClose} title="Advanced Search">
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label="Advanced Search Filters"
-        className="space-y-4"
-      >
+      <div className="space-y-4">
         {/* Date Range */}
         <div className="bg-slate-50 p-4 rounded-lg">
           <div className="flex items-center gap-2 mb-3">

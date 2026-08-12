@@ -9,6 +9,9 @@ const mocks = vi.hoisted(() => {
 vi.mock('@supabase/supabase-js', () => ({
   createClient: mocks.createClient,
 }))
+vi.mock('@/lib/lms/apiAuth', () => ({
+  requireLmsStaff: vi.fn(async () => ({ authorized: true, employee: { id: 'emp-1' } })),
+}))
 
 import { GET } from '@/app/api/lms/payment-methods/route'
 

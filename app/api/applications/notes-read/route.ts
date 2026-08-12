@@ -27,10 +27,11 @@ const getSessionUserId = async () => {
   })
 
   const {
-    data: { session },
-  } = await supabase.auth.getSession()
+    data: { user },
+    error,
+  } = await supabase.auth.getUser()
 
-  return session?.user?.id || null
+  return error ? null : user?.id || null
 }
 
 const getAdminClient = () => createClient(supabaseUrl, serviceKey)

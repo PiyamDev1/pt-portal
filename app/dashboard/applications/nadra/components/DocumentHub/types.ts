@@ -33,8 +33,6 @@ export interface Document {
  */
 export interface MinioConfig {
   endpoint: string
-  accessKey: string
-  secretKey: string
   bucket: string
   region: string
   useSSL: boolean

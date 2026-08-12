@@ -11,9 +11,13 @@
  */
 import { apiOk } from '@/lib/api/http'
 import { createClient } from '@supabase/supabase-js'
+import { requireLmsStaff } from '@/lib/lms/apiAuth'
 
 export async function GET(request) {
   try {
+    const access = await requireLmsStaff()
+    if (!access.authorized) return access.response
+
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY
 

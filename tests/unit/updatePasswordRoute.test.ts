@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => {
   const getUser = vi.fn()
   const getRouteSupabaseClient = vi.fn(async () => ({ auth: { getUser } }))
   const updateUserById = vi.fn()
+  const signInWithPassword = vi.fn()
   const updateEq = vi.fn(async () => ({ error: null }))
   const update = vi.fn(() => ({ eq: updateEq }))
   const insertFn = vi.fn(async () => ({ error: null }))
@@ -19,7 +20,7 @@ const mocks = vi.hoisted(() => {
     return { insert: insertFn, select: selectHistory, delete: deleteFn }
   })
   const createClient = vi.fn(() => ({
-    auth: { admin: { updateUserById } },
+    auth: { signInWithPassword, admin: { updateUserById } },
     from,
   }))
   const hash = vi.fn(async () => 'hashed-pw')
@@ -27,6 +28,7 @@ const mocks = vi.hoisted(() => {
     getUser,
     getRouteSupabaseClient,
     updateUserById,
+    signInWithPassword,
     update,
     updateEq,
     from,
@@ -54,9 +56,13 @@ describe('POST /api/auth/update-password', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.createClient.mockReturnValue({
-      auth: { admin: { updateUserById: mocks.updateUserById } },
+      auth: {
+        signInWithPassword: mocks.signInWithPassword,
+        admin: { updateUserById: mocks.updateUserById },
+      },
       from: mocks.from,
     })
+    mocks.signInWithPassword.mockResolvedValue({ data: { user: { id: 'u-1' } }, error: null })
     mocks.updateEq.mockResolvedValue({ error: null })
     mocks.getUser.mockResolvedValue({
       data: { user: { id: 'u-1', email: 'user@example.com' } },
@@ -66,7 +72,9 @@ describe('POST /api/auth/update-password', () => {
 
   it('returns 401 when the user is not authenticated', async () => {
     mocks.getUser.mockResolvedValueOnce({ data: { user: null }, error: null })
-    const res = await POST(makeRequest({ newPassword: 'StrongPass1!' }))
+    const res = await POST(
+      makeRequest({ currentPassword: 'CurrentPass1!', newPassword: 'StrongPass1!' }),
+    )
     expect(res.status).toBe(401)
   })
 
@@ -74,18 +82,20 @@ describe('POST /api/auth/update-password', () => {
     const res = await POST(makeRequest({}))
     expect(res.status).toBe(400)
     const body = await res.json()
-    expect(body.error).toMatch(/missing/i)
+    expect(body.error).toMatch(/required/i)
   })
 
   it('returns 400 for a weak password (too short)', async () => {
-    const res = await POST(makeRequest({ newPassword: 'short' }))
+    const res = await POST(makeRequest({ currentPassword: 'CurrentPass1!', newPassword: 'short' }))
     expect(res.status).toBe(400)
     const body = await res.json()
     expect(body.error).toMatch(/password must contain/i)
   })
 
   it('returns 400 for a password missing uppercase', async () => {
-    const res = await POST(makeRequest({ newPassword: 'alllower1!' }))
+    const res = await POST(
+      makeRequest({ currentPassword: 'CurrentPass1!', newPassword: 'alllower1!' }),
+    )
     expect(res.status).toBe(400)
     const body = await res.json()
     expect(body.error).toMatch(/uppercase/i)
@@ -93,7 +103,9 @@ describe('POST /api/auth/update-password', () => {
 
   it('returns 400 when Supabase auth update fails', async () => {
     mocks.updateUserById.mockResolvedValue({ error: { message: 'auth error' } })
-    const res = await POST(makeRequest({ newPassword: 'StrongPass1!' }))
+    const res = await POST(
+      makeRequest({ currentPassword: 'CurrentPass1!', newPassword: 'StrongPass1!' }),
+    )
     expect(res.status).toBe(400)
     const body = await res.json()
     expect(body.error).toBe('auth error')
@@ -114,9 +126,25 @@ describe('POST /api/auth/update-password', () => {
         delete: vi.fn(() => ({ eq: vi.fn(() => ({ not: vi.fn(async () => ({})) })) })),
       }
     })
-    const res = await POST(makeRequest({ newPassword: 'StrongPass1!' }))
+    const res = await POST(
+      makeRequest({ currentPassword: 'CurrentPass1!', newPassword: 'StrongPass1!' }),
+    )
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body).toEqual({ updatedUserId: 'u-1', message: 'Password updated successfully' })
+  })
+
+  it('rejects the change when server-side password reauthentication fails', async () => {
+    mocks.signInWithPassword.mockResolvedValueOnce({
+      data: { user: null },
+      error: { message: 'invalid credentials' },
+    })
+
+    const res = await POST(
+      makeRequest({ currentPassword: 'WrongPassword1!', newPassword: 'StrongPass1!' }),
+    )
+
+    expect(res.status).toBe(403)
+    expect(mocks.updateUserById).not.toHaveBeenCalled()
   })
 })

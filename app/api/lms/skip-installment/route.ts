@@ -1,142 +1,55 @@
-/**
- * API Route: Skip Installment
- *
- * POST /api/lms/skip-installment
- *
- * Marks a scheduled installment as skipped (status = 'skipped'), recording
- * the reason. The outstanding balance is redistributed or carried forward
- * to the next installment depending on loan configuration.
- *
- * Request Body: { installmentId: string, reason?: string }
- * Response Success (200): { skippedInstallmentId }
- * Response Errors: 400 Missing installmentId | 401 Not authenticated | 500 DB error
- *
- * Authentication: Session cookie
- */
-import { createServerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
+/** Atomically skip an installment and redistribute the remaining plan. */
+import { z } from 'zod'
 import { apiError, apiOk } from '@/lib/api/http'
-import { toErrorMessage } from '@/lib/api/error'
+import { parseBodyWithSchema } from '@/lib/api/request'
+import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
+import { requireLmsStaff, verifyLmsDestructiveAction } from '@/lib/lms/apiAuth'
+import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
 
-type LoanTransaction = {
-  loan_id: string
-  amount: string | number
-}
-
-type InstallmentLookupRow = {
-  loan_transaction_id: string
-  loan_transactions: LoanTransaction
-}
-
-type InstallmentRow = {
-  id: string
-  status: string | null
-}
+const schema = z
+  .object({
+    installmentId: z
+      .string({ error: 'installmentId is required' })
+      .trim()
+      .min(1, 'installmentId is required')
+      .max(200),
+    verificationCode: z.string().trim().min(1).max(100),
+    verificationMethod: z.enum(['totp', 'backup', 'auto']).optional(),
+  })
+  .strict()
 
 export async function POST(request: Request) {
+  const access = await requireLmsStaff()
+  if (!access.authorized) return access.response
+
+  const limit = await enforceRateLimit(request, {
+    scope: 'lms.skip-installment',
+    limit: 20,
+    windowSeconds: 60 * 60,
+    identities: [`user:${access.user.id}`, `ip:${getClientIp(request)}`],
+  })
+  if (!limit.allowed) return limit.response
+
+  const { data: body, error: bodyError } = await parseBodyWithSchema(request, schema, {
+    maxBytes: 4 * 1024,
+  })
+  if (bodyError || !body) return apiError(bodyError || 'Invalid request payload', 400)
+
+  const verificationResponse = await verifyLmsDestructiveAction(access, body)
+  if (verificationResponse) return verificationResponse
+
   try {
-    const cookieStore = await cookies()
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return cookieStore.getAll()
-          },
-          setAll() {},
-        },
-      },
-    )
-
-    const body = (await request.json()) as { installmentId?: string }
-    const { installmentId } = body
-
-    if (!installmentId) {
-      return apiError('installmentId is required', 400)
-    }
-
-    // 1. Get the installment and its transaction
-    const { data: installment, error: installmentError } = await supabase
-      .from('loan_installments')
-      .select('*, loan_transactions!inner(id, loan_id, amount)')
-      .eq('id', installmentId)
-      .single()
-
-    if (installmentError || !installment) {
-      return apiError('Installment not found', 404)
-    }
-
-    const typedInstallment = installment as InstallmentLookupRow
-    const transactionId = typedInstallment.loan_transaction_id
-    const loanId = typedInstallment.loan_transactions.loan_id
-    const serviceAmount = Number(typedInstallment.loan_transactions.amount)
-
-    // 2. Mark this installment as skipped
-    const { error: skipError } = await supabase
-      .from('loan_installments')
-      .update({
-        status: 'skipped',
-        amount_paid: 0,
-      })
-      .eq('id', installmentId)
-
-    if (skipError) throw skipError
-
-    // 3. Get all installments for this transaction
-    const { data: allInstallments, error: allInstallmentsError } = await supabase
-      .from('loan_installments')
-      .select('*')
-      .eq('loan_transaction_id', transactionId)
-      .order('installment_number', { ascending: true })
-
-    if (allInstallmentsError) throw allInstallmentsError
-
-    // 4. Calculate total paid so far (including initial deposit)
-    const { data: allPayments, error: paymentsError } = await supabase
-      .from('loan_transactions')
-      .select('amount')
-      .eq('loan_id', loanId)
-      .eq('transaction_type', 'payment')
-
-    if (paymentsError) throw paymentsError
-
-    const totalPaid = (allPayments || []).reduce(
-      (sum, p: { amount: string | number }) => sum + Number(p.amount),
-      0,
-    )
-    const remainingBalance = serviceAmount - totalPaid
-
-    // 5. Find remaining installments that are not paid/partial/skipped
-    const remainingInstallments = (allInstallments || []).filter((inst: InstallmentRow) => {
-      const status = inst.status ?? ''
-      return status !== 'paid' && status !== 'partial' && status !== 'skipped'
+    const { data, error } = await getServiceSupabaseClient().rpc('lms_skip_installment', {
+      p_installment_id: body.installmentId,
     })
-
-    // 6. Recalculate amounts for remaining installments
-    if (remainingInstallments.length > 0) {
-      const newAmountPerInstallment = remainingBalance / remainingInstallments.length
-
-      for (const inst of remainingInstallments) {
-        const { error: updateError } = await supabase
-          .from('loan_installments')
-          .update({
-            amount: newAmountPerInstallment,
-          })
-          .eq('id', inst.id)
-
-        if (updateError) throw updateError
-      }
+    if (error) {
+      return apiError(
+        error.message || 'Failed to skip installment',
+        error.code === 'P0002' ? 404 : 500,
+      )
     }
-
-    return apiOk({
-      skippedInstallmentId: installmentId,
-      remainingBalance,
-      remainingInstallments: remainingInstallments.length,
-      newAmountPerInstallment:
-        remainingInstallments.length > 0 ? remainingBalance / remainingInstallments.length : 0,
-    })
+    return apiOk(data)
   } catch (error) {
-    return apiError(toErrorMessage(error, 'Failed to skip installment'), 400)
+    return apiError(error instanceof Error ? error.message : 'Failed to skip installment', 500)
   }
 }

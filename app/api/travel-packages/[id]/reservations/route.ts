@@ -7,6 +7,7 @@ import type {
   TravelPackageReservationType,
 } from '@/app/types/packages'
 import { recordPackageAuditEvent } from '@/lib/packageAudit'
+import { selectTravelPackageReservationColumns } from './columns'
 
 const SCHEMA_HINT =
   'Travel package reservation schema is not installed yet. Run scripts/migrations/20260711_create_travel_package_reservations.sql in Supabase SQL editor.'
@@ -36,45 +37,6 @@ const RESERVATION_STATUSES = new Set<TravelPackageReservationStatus>([
 function isReservationSchemaError(error: unknown) {
   const code = (error as { code?: string } | null)?.code
   return code === '42P01' || code === '42703' || code === '42P10'
-}
-
-export function selectTravelPackageReservationColumns() {
-  return `
-    id,
-    package_id,
-    quote_id,
-    created_by,
-    updated_by,
-    reservation_type,
-    title,
-    status,
-    supplier_name,
-    supplier_reference,
-    booking_reference,
-    currency,
-    booked_cost_total,
-    sold_price_total,
-    discount_total,
-    commission_expected_total,
-    commission_received_total,
-    supplier_refund_total,
-    customer_refund_total,
-    last_refund_reason,
-    last_refunded_at,
-    deposit_required,
-    deposit_amount,
-    deposit_due_at,
-    payment_due_at,
-    reserved_at,
-    confirmed_at,
-    cancelled_at,
-    customer_visible,
-    public_notes,
-    internal_notes,
-    metadata,
-    created_at,
-    updated_at
-  `
 }
 
 function cleanText(value: unknown) {

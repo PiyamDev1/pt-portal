@@ -7,15 +7,15 @@ const mocks = vi.hoisted(() => {
   process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role-key'
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'anon-key'
 
-  const getSession = vi.fn()
-  const supabaseAnonInstance = { auth: { getSession } }
+  const getUser = vi.fn()
+  const supabaseAnonInstance = { auth: { getUser } }
   const createServerClient = vi.fn(() => supabaseAnonInstance)
   const adminFrom = vi.fn()
   const createClient = vi.fn(() => ({ from: adminFrom }))
   const cookies = vi.fn(async () => ({ getAll: () => [] }))
   const queueAttendanceSyncForEmployeeDay = vi.fn(async () => undefined)
   return {
-    getSession,
+    getUser,
     createServerClient,
     adminFrom,
     createClient,
@@ -155,11 +155,11 @@ describe('/api/timeclock/scan route', () => {
     vi.clearAllMocks()
     // Restore createClient and createServerClient implementations after clearAllMocks
     mocks.createClient.mockReturnValue({ from: mocks.adminFrom })
-    mocks.createServerClient.mockReturnValue({ auth: { getSession: mocks.getSession } })
+    mocks.createServerClient.mockReturnValue({ auth: { getUser: mocks.getUser } })
   })
 
   it('returns 401 when session is missing', async () => {
-    mocks.getSession.mockResolvedValue({ data: { session: null } })
+    mocks.getUser.mockResolvedValue({ data: { user: null }, error: null })
 
     const response = await POST(makeRequest(validPayload))
     const payload = await response.json()
@@ -170,9 +170,7 @@ describe('/api/timeclock/scan route', () => {
   })
 
   it('returns 400 when qrText is empty (unparseable)', async () => {
-    mocks.getSession.mockResolvedValue({
-      data: { session: { user: { id: 'u-1' } } },
-    })
+    mocks.getUser.mockResolvedValue({ data: { user: { id: 'u-1' } }, error: null })
 
     const response = await POST(makeRequest(JSON.stringify({ qrText: '' })))
     const payload = await response.json()
@@ -183,9 +181,7 @@ describe('/api/timeclock/scan route', () => {
   })
 
   it('returns 400 when QR payload is missing required fields', async () => {
-    mocks.getSession.mockResolvedValue({
-      data: { session: { user: { id: 'u-1' } } },
-    })
+    mocks.getUser.mockResolvedValue({ data: { user: { id: 'u-1' } }, error: null })
     const bad = JSON.stringify({ v: 2, device_id: 'dev-1', ts: 0, nonce: 'x', sig: 'y' })
 
     const response = await POST(makeRequest(JSON.stringify({ qrText: bad })))
@@ -197,9 +193,7 @@ describe('/api/timeclock/scan route', () => {
   })
 
   it('returns 400 when device timestamp is invalid', async () => {
-    mocks.getSession.mockResolvedValue({
-      data: { session: { user: { id: 'u-1' } } },
-    })
+    mocks.getUser.mockResolvedValue({ data: { user: { id: 'u-1' } }, error: null })
     const bad = JSON.stringify({ v: 1, device_id: 'dev-1', ts: NaN, nonce: 'x', sig: 'y' })
 
     const response = await POST(makeRequest(JSON.stringify({ qrText: bad })))
@@ -211,9 +205,7 @@ describe('/api/timeclock/scan route', () => {
   })
 
   it('returns 404 when device is not found in DB', async () => {
-    mocks.getSession.mockResolvedValue({
-      data: { session: { user: { id: 'u-1' } } },
-    })
+    mocks.getUser.mockResolvedValue({ data: { user: { id: 'u-1' } }, error: null })
     const single = vi.fn(async () => ({ data: null, error: { message: 'not found' } }))
     const eq = vi.fn(() => ({ single }))
     const select = vi.fn(() => ({ eq }))
@@ -230,9 +222,7 @@ describe('/api/timeclock/scan route', () => {
   })
 
   it('accepts a valid ptc1 payload and records the punch', async () => {
-    mocks.getSession.mockResolvedValue({
-      data: { session: { user: { id: 'u-1' } } },
-    })
+    mocks.getUser.mockResolvedValue({ data: { user: { id: 'u-1' } }, error: null })
     configureScanDatabase()
 
     const response = await POST(makeRequest(JSON.stringify({ qrText: buildQrText() })))
@@ -249,9 +239,7 @@ describe('/api/timeclock/scan route', () => {
   })
 
   it('rejects an inactive device', async () => {
-    mocks.getSession.mockResolvedValue({
-      data: { session: { user: { id: 'u-1' } } },
-    })
+    mocks.getUser.mockResolvedValue({ data: { user: { id: 'u-1' } }, error: null })
     configureScanDatabase({ deviceRow: { ...device, is_active: false } })
 
     const response = await POST(makeRequest(JSON.stringify({ qrText: buildQrText() })))
@@ -261,9 +249,7 @@ describe('/api/timeclock/scan route', () => {
   })
 
   it('rejects an expired QR timestamp', async () => {
-    mocks.getSession.mockResolvedValue({
-      data: { session: { user: { id: 'u-1' } } },
-    })
+    mocks.getUser.mockResolvedValue({ data: { user: { id: 'u-1' } }, error: null })
     configureScanDatabase()
 
     const qrText = buildQrText({ timestamp: Math.floor(Date.now() / 1000) - 121 })
@@ -274,9 +260,7 @@ describe('/api/timeclock/scan route', () => {
   })
 
   it('rejects an invalid QR signature', async () => {
-    mocks.getSession.mockResolvedValue({
-      data: { session: { user: { id: 'u-1' } } },
-    })
+    mocks.getUser.mockResolvedValue({ data: { user: { id: 'u-1' } }, error: null })
     configureScanDatabase()
 
     const response = await POST(
@@ -288,9 +272,7 @@ describe('/api/timeclock/scan route', () => {
   })
 
   it('rejects a QR nonce that has already been used', async () => {
-    mocks.getSession.mockResolvedValue({
-      data: { session: { user: { id: 'u-1' } } },
-    })
+    mocks.getUser.mockResolvedValue({ data: { user: { id: 'u-1' } }, error: null })
     configureScanDatabase({ nonceError: { code: '23505' } })
 
     const response = await POST(makeRequest(JSON.stringify({ qrText: buildQrText() })))

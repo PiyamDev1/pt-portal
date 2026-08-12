@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => {
 vi.mock('@supabase/supabase-js', () => ({ createClient: mocks.createClient }))
 
 import { GET } from '@/app/api/nadra/agent-options/route'
+import { requireStaffSession } from '@/lib/auth/staffSession'
 
 const makeRequest = (params: Record<string, string> = {}) => {
   const url = new URL('http://localhost/api/nadra/agent-options')
@@ -33,13 +34,29 @@ describe('GET /api/nadra/agent-options', () => {
       if (table === 'employees') return { select: mocks.selectEmployees }
       return {}
     })
+    vi.mocked(requireStaffSession).mockResolvedValue({
+      authorized: true,
+      user: { id: 'u-1', email: 'manager@example.com' },
+      employee: {
+        id: 'u-1',
+        email: 'manager@example.com',
+        fullName: 'Manager One',
+        role: 'Manager',
+        departments: [],
+      },
+    })
   })
 
-  it('returns 400 when userId is missing', async () => {
+  it('derives the caller from the authenticated session when userId is omitted', async () => {
+    mocks.selectEmployees.mockResolvedValue({
+      data: [{ id: 'u-1', full_name: 'Manager One', manager_id: null, roles: { name: 'Manager' } }],
+      error: null,
+    })
+
     const res = await GET(makeRequest())
-    expect(res.status).toBe(400)
+    expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body.error).toMatch(/missing userid/i)
+    expect(body.agentOptions).toEqual([{ id: 'u-1', name: 'Manager One' }])
   })
 
   it('returns 404 when user is not found', async () => {
@@ -48,7 +65,7 @@ describe('GET /api/nadra/agent-options', () => {
       error: null,
     })
 
-    const res = await GET(makeRequest({ userId: 'u-1' }))
+    const res = await GET(makeRequest({ userId: 'm-1' }))
     expect(res.status).toBe(404)
     const body = await res.json()
     expect(body.error).toMatch(/user not found/i)
@@ -65,7 +82,7 @@ describe('GET /api/nadra/agent-options', () => {
       error: null,
     })
 
-    const res = await GET(makeRequest({ userId: 'u-1' }))
+    const res = await GET(makeRequest({ userId: 'm-1' }))
     expect(res.status).toBe(200)
     const body = await res.json()
 
@@ -79,6 +96,17 @@ describe('GET /api/nadra/agent-options', () => {
   })
 
   it('returns all employees for Master Admin', async () => {
+    vi.mocked(requireStaffSession).mockResolvedValueOnce({
+      authorized: true,
+      user: { id: 'm-1', email: 'master@example.com' },
+      employee: {
+        id: 'm-1',
+        email: 'master@example.com',
+        fullName: 'Master',
+        role: 'Master Admin',
+        departments: [],
+      },
+    })
     mocks.selectEmployees.mockResolvedValue({
       data: [
         { id: 'm-1', full_name: 'Master', manager_id: null, roles: { name: 'Master Admin' } },

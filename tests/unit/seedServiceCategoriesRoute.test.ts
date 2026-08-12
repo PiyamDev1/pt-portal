@@ -9,11 +9,26 @@ const mocks = vi.hoisted(() => {
 vi.mock('@supabase/supabase-js', () => ({
   createClient: mocks.createClient,
 }))
+vi.mock('@/lib/lms/apiAuth', () => ({
+  requireLmsMaintenance: vi.fn(async () => ({
+    authorized: true,
+    user: { id: 'user-1', email: 'admin@example.com' },
+    employee: {
+      id: 'emp-1',
+      email: 'admin@example.com',
+      fullName: 'Test Admin',
+      role: 'Master Admin',
+      departments: [],
+    },
+  })),
+}))
 
 import { POST } from '@/app/api/lms/seed-service-categories/route'
 
 describe('/api/lms/seed-service-categories route', () => {
   const originalEnv = { ...process.env }
+  const request = () =>
+    new Request('http://localhost/api/lms/seed-service-categories', { method: 'POST' })
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -25,7 +40,7 @@ describe('/api/lms/seed-service-categories route', () => {
     process.env.NEXT_PUBLIC_SUPABASE_URL = ''
     process.env.SUPABASE_SERVICE_ROLE_KEY = ''
 
-    const response = await POST()
+    const response = await POST(request())
     const payload = await response.json()
 
     expect(response.status).toBe(500)
@@ -43,7 +58,7 @@ describe('/api/lms/seed-service-categories route', () => {
       return { select }
     })
 
-    const response = await POST()
+    const response = await POST(request())
     const payload = await response.json()
 
     expect(response.status).toBe(500)
@@ -59,7 +74,9 @@ describe('/api/lms/seed-service-categories route', () => {
       error: null,
     }))
 
-      const upsert = vi.fn<(rows: Array<{ name: string }>) => Promise<{ data?: null; error: null }>>(async () => ({ error: null }))
+    const upsert = vi.fn<(rows: Array<{ name: string }>) => Promise<{ data?: null; error: null }>>(
+      async () => ({ error: null }),
+    )
 
     const updateEq = vi.fn(async () => ({ error: null }))
     const update = vi.fn(() => ({ eq: updateEq }))
@@ -90,7 +107,7 @@ describe('/api/lms/seed-service-categories route', () => {
       }
     })
 
-    const response = await POST()
+    const response = await POST(request())
     const payload = await response.json()
 
     expect(response.status).toBe(200)
@@ -103,7 +120,7 @@ describe('/api/lms/seed-service-categories route', () => {
     expect(updateEq).toHaveBeenCalledWith('id', '1')
     expect(upsert).toHaveBeenCalledTimes(1)
 
-      const upsertPayload = upsert.mock.calls.at(0)?.[0] ?? []
+    const upsertPayload = upsert.mock.calls.at(0)?.[0] ?? []
     expect(upsertPayload).toEqual([
       { name: 'nadra' },
       { name: 'passport' },
@@ -120,7 +137,7 @@ describe('/api/lms/seed-service-categories route', () => {
 
     mocks.from.mockImplementation(() => ({ select, upsert }))
 
-    const response = await POST()
+    const response = await POST(request())
     const payload = await response.json()
 
     expect(response.status).toBe(500)

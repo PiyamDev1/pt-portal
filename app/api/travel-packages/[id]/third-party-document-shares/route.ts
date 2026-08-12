@@ -13,21 +13,10 @@ import {
   hashThirdPartyShareToken,
 } from '@/lib/packageThirdPartyShares'
 import type { TravelPackageThirdPartyDocumentShare } from '@/app/types/packages'
+import { isThirdPartyShareSchemaError, selectThirdPartyShareColumns } from './helpers'
 
 const SCHEMA_HINT =
   'Third-party package document sharing is not installed yet. Run scripts/migrations/20260803_create_travel_package_third_party_document_shares.sql in Supabase SQL editor.'
-
-export function isThirdPartyShareSchemaError(error: unknown) {
-  const code = (error as { code?: string } | null)?.code
-  return (
-    code === '42P01' ||
-    code === '42703' ||
-    code === '42P10' ||
-    code === '42501' ||
-    code === 'PGRST200' ||
-    code === 'PGRST204'
-  )
-}
 
 function getDefaultExpiry() {
   const expiry = new Date()
@@ -46,38 +35,7 @@ function cleanText(value: unknown) {
   return typeof value === 'string' ? value.trim() : ''
 }
 
-export function selectThirdPartyShareColumns() {
-  return `
-    id,
-    package_id,
-    created_by,
-    updated_by,
-    label,
-    recipient_name,
-    purpose,
-    status,
-    access_code_hint,
-    allowed_categories,
-    expires_at,
-    terms_text,
-    terms_accepted_at,
-    terms_accepted_by,
-    last_accessed_at,
-    last_access_ip_hash,
-    failed_access_count,
-    last_failed_at,
-    revoked_at,
-    revoked_by,
-    metadata,
-    created_at,
-    updated_at
-  `
-}
-
-export async function GET(
-  _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const supabase = await getRouteSupabaseClient()
   const {
@@ -108,10 +66,7 @@ export async function GET(
   })
 }
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const supabase = await getRouteSupabaseClient()
   const {

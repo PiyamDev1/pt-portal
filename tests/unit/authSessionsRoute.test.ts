@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => {
   const getUser = vi.fn()
   const getSession = vi.fn()
   const rpc = vi.fn()
+  const signOut = vi.fn()
   const serverClient = vi.fn(() => ({ auth: { getUser, getSession }, rpc }))
 
   const limit = vi.fn()
@@ -11,9 +12,21 @@ const mocks = vi.hoisted(() => {
   const eq = vi.fn(() => ({ order }))
   const select = vi.fn(() => ({ eq }))
   const from = vi.fn(() => ({ select }))
-  const adminClient = vi.fn(() => ({ from }))
+  const adminClient = vi.fn(() => ({ from, auth: { admin: { signOut } } }))
 
-  return { getUser, getSession, rpc, serverClient, limit, order, eq, select, from, adminClient }
+  return {
+    getUser,
+    getSession,
+    rpc,
+    signOut,
+    serverClient,
+    limit,
+    order,
+    eq,
+    select,
+    from,
+    adminClient,
+  }
 })
 
 vi.mock('@supabase/auth-helpers-nextjs', () => ({ createServerClient: mocks.serverClient }))
@@ -22,7 +35,7 @@ vi.mock('next/headers', () => ({
   cookies: vi.fn(async () => ({ getAll: () => [] })),
 }))
 
-import { GET } from '@/app/api/auth/sessions/route'
+import { DELETE, GET } from '@/app/api/auth/sessions/route'
 
 const makeRequest = () => new Request('http://localhost/api/auth/sessions')
 
@@ -33,7 +46,10 @@ describe('GET /api/auth/sessions', () => {
       auth: { getUser: mocks.getUser, getSession: mocks.getSession },
       rpc: mocks.rpc,
     })
-    mocks.adminClient.mockReturnValue({ from: mocks.from })
+    mocks.adminClient.mockReturnValue({
+      from: mocks.from,
+      auth: { admin: { signOut: mocks.signOut } },
+    })
     mocks.from.mockReturnValue({ select: mocks.select })
     mocks.select.mockReturnValue({ eq: mocks.eq })
     mocks.eq.mockReturnValue({ order: mocks.order })
@@ -90,5 +106,44 @@ describe('GET /api/auth/sessions', () => {
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.sessions[0].id).toBe('rpc-sess-1')
+  })
+})
+
+describe('DELETE /api/auth/sessions', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.getUser.mockResolvedValue({
+      data: { user: { id: 'u-1', email: 'user@example.com' } },
+      error: null,
+    })
+    mocks.serverClient.mockReturnValue({
+      auth: { getUser: mocks.getUser, getSession: mocks.getSession },
+      rpc: mocks.rpc,
+    })
+    mocks.adminClient.mockReturnValue({
+      from: mocks.from,
+      auth: { admin: { signOut: mocks.signOut } },
+    })
+  })
+
+  const deleteRequest = (body: unknown) =>
+    new Request('http://localhost/api/auth/sessions', {
+      method: 'DELETE',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+
+  it('rejects malformed session revocation payloads', async () => {
+    const response = await DELETE(deleteRequest({ type: 'single' }))
+    expect(response.status).toBe(400)
+    expect(mocks.rpc).not.toHaveBeenCalled()
+  })
+
+  it('revokes a bounded session identifier through the caller-scoped RPC', async () => {
+    mocks.rpc.mockResolvedValue({ error: null })
+    const response = await DELETE(deleteRequest({ type: 'single', id: 'session-1' }))
+
+    expect(response.status).toBe(200)
+    expect(mocks.rpc).toHaveBeenCalledWith('revoke_my_session', { session_id: 'session-1' })
   })
 })

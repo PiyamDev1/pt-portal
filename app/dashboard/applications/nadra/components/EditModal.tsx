@@ -315,8 +315,8 @@ function EditModalContent({
                 <input
                   id="nadra-delete-auth"
                   type="password"
-                  autoComplete="off"
-                  placeholder="Auth Code"
+                  placeholder="Authenticator or backup code"
+                  autoComplete="one-time-code"
                   className="flex-1 border border-red-200 rounded p-2 text-sm focus:ring-red-500 bg-white"
                   value={deleteAuthCode}
                   onChange={(e) => onAuthCodeChange(e.target.value)}

@@ -13,10 +13,14 @@
 import { createClient } from '@supabase/supabase-js'
 import { toErrorMessage } from '@/lib/api/error'
 import { apiError, apiOk } from '@/lib/api/http'
+import { requireStaffSession } from '@/lib/auth/staffSession'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(request) {
+  const access = await requireStaffSession()
+  if (!access.authorized) return access.response
+
   try {
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,

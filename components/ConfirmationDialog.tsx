@@ -19,6 +19,7 @@ export interface ConfirmationDialogProps {
   cancelLabel?: string
   type?: ConfirmationType
   isLoading?: boolean
+  confirmDisabled?: boolean
   description?: string
   children?: React.ReactNode
 }
@@ -47,6 +48,7 @@ export function ConfirmationDialog({
   cancelLabel = 'Cancel',
   type = 'danger',
   isLoading = false,
+  confirmDisabled = false,
   description,
   children,
 }: ConfirmationDialogProps) {
@@ -70,6 +72,7 @@ export function ConfirmationDialog({
       isOpen={isOpen}
       onClose={onClose}
       size="sm"
+      ariaLabel={title}
       showCloseButton={false}
       isLoading={isLoading}
     >
@@ -98,6 +101,7 @@ export function ConfirmationDialog({
         {/* Buttons */}
         <div className="flex gap-3 justify-center">
           <button
+            type="button"
             onClick={onClose}
             disabled={isLoading}
             className="px-4 py-2 rounded font-medium text-slate-700 border border-slate-300 hover:bg-slate-50 transition disabled:opacity-50"
@@ -105,8 +109,9 @@ export function ConfirmationDialog({
             {cancelLabel}
           </button>
           <button
+            type="button"
             onClick={handleConfirm}
-            disabled={isLoading}
+            disabled={isLoading || confirmDisabled}
             className={`px-4 py-2 rounded font-medium text-white transition disabled:opacity-50 ${buttonColor}`}
           >
             {isLoading ? 'Please wait...' : confirmLabel}

@@ -4,13 +4,22 @@ const mocks = vi.hoisted(() => {
   const neq = vi.fn()
   const deleteFn = vi.fn(() => ({ neq }))
   const from = vi.fn(() => ({ delete: deleteFn }))
-  const createClient = vi.fn(() => ({ from }))
+  const rpc = vi.fn()
+  const createClient = vi.fn(() => ({ from, rpc }))
 
-  return { neq, deleteFn, from, createClient }
+  return { neq, deleteFn, from, rpc, createClient }
 })
 
 vi.mock('@supabase/supabase-js', () => ({
   createClient: mocks.createClient,
+}))
+vi.mock('@/lib/lms/apiAuth', () => ({
+  requireLmsAdmin: vi.fn(async () => ({
+    authorized: true,
+    user: { id: 'admin-1', email: 'admin@example.com' },
+    employee: { id: 'admin-1' },
+  })),
+  verifyLmsDestructiveAction: vi.fn(async () => null),
 }))
 
 import { POST } from '@/app/api/admin/clear-lms-data/route'
@@ -19,6 +28,7 @@ describe('POST /api/admin/clear-lms-data', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.neq.mockResolvedValue({ error: null })
+    mocks.rpc.mockResolvedValue({ data: {}, error: null })
   })
 
   it('returns semantic success payload when all tables are cleared', async () => {
@@ -27,38 +37,24 @@ describe('POST /api/admin/clear-lms-data', () => {
 
     expect(response.status).toBe(200)
     expect(payload).toEqual({
-      clearedTables: [
-        'loan_installments',
-        'loan_transactions',
-        'loan_payment_methods',
-        'loan_terms',
-        'loans',
-        'loan_accounts',
-      ],
-      clearedTableCount: 6,
+      clearedTables: ['loan_installments', 'loan_transactions', 'loans', 'loan_customers'],
+      clearedTableCount: 4,
     })
-    expect(mocks.from).toHaveBeenCalledTimes(6)
+    expect(mocks.rpc).toHaveBeenCalledWith('lms_clear_all_data')
   })
 
   it('returns 500 with specific table failure', async () => {
-    let call = 0
-    mocks.neq.mockImplementation(async () => {
-      call += 1
-      if (call === 3) {
-        return { error: { message: 'fk violation' } }
-      }
-      return { error: null }
-    })
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'fk violation' } })
 
     const response = await POST(new Request('http://localhost/api/admin/clear-lms-data'))
     const payload = await response.json()
 
     expect(response.status).toBe(500)
-    expect(payload).toEqual({ error: 'Failed to clear loan_payment_methods' })
+    expect(payload).toEqual({ error: 'fk violation' })
   })
 
   it('returns fallback 500 for thrown errors', async () => {
-    mocks.from.mockImplementationOnce(() => {
+    mocks.createClient.mockImplementationOnce(() => {
       throw new Error('unexpected')
     })
 

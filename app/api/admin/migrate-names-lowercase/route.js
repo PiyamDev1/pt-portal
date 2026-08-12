@@ -6,22 +6,39 @@
  */
 
 import { createClient } from '@supabase/supabase-js'
+import { z } from 'zod'
 import { toErrorMessage } from '@/lib/api/error'
 import { apiError, apiOk } from '@/lib/api/http'
-import { verifyAdminAccess, unauthorizedResponse } from '@/lib/adminAuth'
+import { parseBodyWithSchema } from '@/lib/api/request'
+import { requireAdminSession } from '@/lib/adminSessionAuth'
+import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
+
+const emptyMigrationSchema = z.object({}).strict()
 
 /**
  * One-time migration endpoint to convert all existing applicant names to lowercase
- * Requires Google authentication and admin role
+ * Requires an active staff session with an admin role.
  */
 
 export async function POST(request) {
   try {
-    // Verify admin access via Google auth
-    const authResult = await verifyAdminAccess(request)
-    if (!authResult.authorized) {
-      return unauthorizedResponse(authResult.error, authResult.status)
-    }
+    const access = await requireAdminSession()
+    if (!access.authorized) return access.response
+
+    const limit = await enforceRateLimit(request, {
+      scope: 'admin.migrate-names-lowercase',
+      limit: 3,
+      windowSeconds: 60 * 60,
+      identities: [`user:${access.user.id}`, `ip:${getClientIp(request)}`],
+    })
+    if (!limit.allowed) return limit.response
+
+    const { data: body, error: bodyError } = await parseBodyWithSchema(
+      request,
+      emptyMigrationSchema,
+      { maxBytes: 1024 },
+    )
+    if (bodyError || !body) return apiError(bodyError || 'Invalid request payload', 400)
 
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY

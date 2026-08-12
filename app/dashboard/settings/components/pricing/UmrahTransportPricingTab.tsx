@@ -21,6 +21,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { useAppDialog } from '@/components/AppDialog'
 import type {
   UmrahTransportGuideRate,
   UmrahTransportRate,
@@ -113,10 +114,14 @@ function formatAmount(amount: number, currency: string) {
 }
 
 function normaliseLabel(value: string) {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
 }
 
 function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProps) {
+  const { confirm, dialog } = useAppDialog()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [schemaMissing, setSchemaMissing] = useState(false)
@@ -147,8 +152,9 @@ function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProp
   const [damageRecoveryMarginMode, setDamageRecoveryMarginMode] = useState<'percent' | 'fixed'>(
     'fixed',
   )
-  const [originalDamageRecoveryMarginMode, setOriginalDamageRecoveryMarginMode] =
-    useState<'percent' | 'fixed'>('fixed')
+  const [originalDamageRecoveryMarginMode, setOriginalDamageRecoveryMarginMode] = useState<
+    'percent' | 'fixed'
+  >('fixed')
   const [damageRecoveryMarginValue, setDamageRecoveryMarginValue] = useState('')
   const [originalDamageRecoveryMarginValue, setOriginalDamageRecoveryMarginValue] = useState('')
   const [newSupplierName, setNewSupplierName] = useState('')
@@ -170,42 +176,42 @@ function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProp
         supplierVehicleLabelRes,
         settingRes,
       ] = await Promise.all([
-          supabase
-            .from('umrah_transport_suppliers')
-            .select('*')
-            .order('sort_order', { ascending: true })
-            .order('name', { ascending: true }),
-          supabase
-            .from('umrah_transport_vehicle_types')
-            .select('*')
-            .order('sort_order', { ascending: true })
-            .order('label', { ascending: true }),
-          supabase
-            .from('umrah_transport_routes')
-            .select('*')
-            .order('sort_order', { ascending: true })
-            .order('route_name', { ascending: true }),
-          supabase
-            .from('umrah_transport_route_plans')
-            .select('*')
-            .order('sort_order', { ascending: true })
-            .order('plan_name', { ascending: true }),
-          supabase
-            .from('umrah_transport_route_plan_segments')
-            .select('*')
-            .order('sort_order', { ascending: true }),
-          supabase.from('umrah_transport_rates').select('*'),
-          supabase.from('umrah_transport_guide_rates').select('*'),
-          supabase.from('umrah_transport_supplier_vehicle_labels').select('*'),
-          supabase
-            .from('umrah_transport_settings')
-            .select('*')
-            .in('setting_key', [
-              'sar_to_gbp_exchange_rate',
-              'damage_recovery_margin_mode',
-              'damage_recovery_margin_value',
-            ]),
-        ])
+        supabase
+          .from('umrah_transport_suppliers')
+          .select('*')
+          .order('sort_order', { ascending: true })
+          .order('name', { ascending: true }),
+        supabase
+          .from('umrah_transport_vehicle_types')
+          .select('*')
+          .order('sort_order', { ascending: true })
+          .order('label', { ascending: true }),
+        supabase
+          .from('umrah_transport_routes')
+          .select('*')
+          .order('sort_order', { ascending: true })
+          .order('route_name', { ascending: true }),
+        supabase
+          .from('umrah_transport_route_plans')
+          .select('*')
+          .order('sort_order', { ascending: true })
+          .order('plan_name', { ascending: true }),
+        supabase
+          .from('umrah_transport_route_plan_segments')
+          .select('*')
+          .order('sort_order', { ascending: true }),
+        supabase.from('umrah_transport_rates').select('*'),
+        supabase.from('umrah_transport_guide_rates').select('*'),
+        supabase.from('umrah_transport_supplier_vehicle_labels').select('*'),
+        supabase
+          .from('umrah_transport_settings')
+          .select('*')
+          .in('setting_key', [
+            'sar_to_gbp_exchange_rate',
+            'damage_recovery_margin_mode',
+            'damage_recovery_margin_value',
+          ]),
+      ])
 
       const firstError =
         supplierRes.error ||
@@ -232,8 +238,8 @@ function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProp
       const nextPlanSegments = (planSegmentRes.data || []) as UmrahTransportRoutePlanSegment[]
       const nextRates = (rateRes.data || []) as UmrahTransportRate[]
       const nextGuideRates = (guideRes.data || []) as UmrahTransportGuideRate[]
-      const nextSupplierVehicleLabels =
-        (supplierVehicleLabelRes.data || []) as UmrahTransportSupplierVehicleLabel[]
+      const nextSupplierVehicleLabels = (supplierVehicleLabelRes.data ||
+        []) as UmrahTransportSupplierVehicleLabel[]
       const nextSettings = (settingRes.data || []) as UmrahTransportSetting[]
       const exchangeRateSetting = nextSettings.find(
         (setting) => setting.setting_key === 'sar_to_gbp_exchange_rate',
@@ -340,10 +346,7 @@ function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProp
     [vehicleTypes],
   )
 
-  const activeRoutePlans = useMemo(
-    () => routePlans.filter((plan) => plan.is_active),
-    [routePlans],
-  )
+  const activeRoutePlans = useMemo(() => routePlans.filter((plan) => plan.is_active), [routePlans])
 
   const routeById = useMemo(() => {
     return new Map(routes.map((route) => [route.id, route]))
@@ -512,8 +515,12 @@ function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProp
     if (!draggingVehicleId || draggingVehicleId === targetVehicleId) return
     const activeVehicles = vehicleTypes.filter((vehicleType) => vehicleType.is_active)
     const inactiveVehicles = vehicleTypes.filter((vehicleType) => !vehicleType.is_active)
-    const draggedIndex = activeVehicles.findIndex((vehicleType) => vehicleType.id === draggingVehicleId)
-    const targetIndex = activeVehicles.findIndex((vehicleType) => vehicleType.id === targetVehicleId)
+    const draggedIndex = activeVehicles.findIndex(
+      (vehicleType) => vehicleType.id === draggingVehicleId,
+    )
+    const targetIndex = activeVehicles.findIndex(
+      (vehicleType) => vehicleType.id === targetVehicleId,
+    )
     if (draggedIndex < 0 || targetIndex < 0) return
 
     const reordered = [...activeVehicles]
@@ -555,11 +562,7 @@ function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProp
   )
 
   const getRouteTotal = useCallback(
-    (
-      segments: UmrahTransportRoutePlanSegment[],
-      supplierId: string,
-      vehicleTypeId: string,
-    ) => {
+    (segments: UmrahTransportRoutePlanSegment[], supplierId: string, vehicleTypeId: string) => {
       return segments.reduce((total, segment) => {
         return total + parseAmount(rateDrafts[rateKey(segment.route_id, supplierId, vehicleTypeId)])
       }, 0)
@@ -642,7 +645,13 @@ function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProp
 
   const removeSupplier = async (supplierId: string) => {
     const supplierName = supplierDrafts[supplierId]?.name || 'this supplier'
-    if (!window.confirm(`Remove ${supplierName} from active transport pricing?`)) return
+    const shouldRemove = await confirm({
+      title: 'Remove transport supplier?',
+      message: `Remove ${supplierName} from active transport pricing?`,
+      confirmLabel: 'Remove supplier',
+      type: 'danger',
+    })
+    if (!shouldRemove) return
     setSaving(true)
     try {
       const { error } = await supabase
@@ -912,6 +921,7 @@ function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProp
 
   return (
     <div className="space-y-4">
+      {dialog}
       <div className="rounded-lg border border-slate-200 bg-white p-4">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
           <div>
@@ -1012,303 +1022,325 @@ function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProp
                   </div>
                   {!isCollapsed && (
                     <>
-                  <div className="flex flex-col gap-2 border-b border-slate-200 bg-slate-50 px-3 py-2 lg:flex-row lg:items-center lg:justify-between">
-                    <label className="flex flex-wrap items-center gap-2 text-xs font-black uppercase text-slate-500">
-                      Fixed supplier
-                      <select
-                        value={fixedSupplierId}
-                        onChange={(event) =>
-                          updatePlanDraft(plan.id, {
-                            preferred_supplier_id: event.target.value,
-                          })
-                        }
-                        className="min-h-8 rounded-md border border-slate-200 bg-white px-2 text-xs font-black normal-case text-slate-900 outline-none focus:border-slate-900"
-                      >
-                        <option value="">Not fixed</option>
-                        {activeSuppliers.map((supplier) => (
-                          <option key={supplier.id} value={supplier.id}>
-                            {supplierDrafts[supplier.id]?.name || supplier.name}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <input
-                      value={draft?.notes || ''}
-                      onChange={(event) => updatePlanDraft(plan.id, { notes: event.target.value })}
-                      placeholder="Route notes"
-                      className="min-h-8 min-w-0 flex-1 rounded-md border border-transparent bg-white px-2 text-xs font-semibold text-slate-700 outline-none focus:border-slate-300 lg:max-w-xl"
-                    />
-                  </div>
+                      <div className="flex flex-col gap-2 border-b border-slate-200 bg-slate-50 px-3 py-2 lg:flex-row lg:items-center lg:justify-between">
+                        <label className="flex flex-wrap items-center gap-2 text-xs font-black uppercase text-slate-500">
+                          Fixed supplier
+                          <select
+                            value={fixedSupplierId}
+                            onChange={(event) =>
+                              updatePlanDraft(plan.id, {
+                                preferred_supplier_id: event.target.value,
+                              })
+                            }
+                            className="min-h-8 rounded-md border border-slate-200 bg-white px-2 text-xs font-black normal-case text-slate-900 outline-none focus:border-slate-900"
+                          >
+                            <option value="">Not fixed</option>
+                            {activeSuppliers.map((supplier) => (
+                              <option key={supplier.id} value={supplier.id}>
+                                {supplierDrafts[supplier.id]?.name || supplier.name}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <input
+                          value={draft?.notes || ''}
+                          onChange={(event) =>
+                            updatePlanDraft(plan.id, { notes: event.target.value })
+                          }
+                          placeholder="Route notes"
+                          className="min-h-8 min-w-0 flex-1 rounded-md border border-transparent bg-white px-2 text-xs font-semibold text-slate-700 outline-none focus:border-slate-300 lg:max-w-xl"
+                        />
+                      </div>
 
-                  <div className="overflow-x-auto 2xl:overflow-x-visible">
-                    <table className="w-full min-w-[1080px] table-fixed border-collapse text-[11px] 2xl:min-w-0">
-                      <thead>
-                        <tr>
-                          <th
-                            colSpan={3}
-                            className="border-r border-slate-300 bg-white px-1 py-1 text-left font-semibold text-slate-500"
-                          />
-                          <th
-                            colSpan={segments.length + 1}
-                            className="border-r border-slate-400 bg-white px-1 py-1 text-center font-semibold text-slate-900"
-                          >
-                            Transportation route / cost
-                          </th>
-                          <th
-                            colSpan={2}
-                            className="border-r border-slate-400 bg-white px-1 py-1 text-center font-semibold text-slate-900"
-                          >
-                            Ziyarat by Transport company
-                          </th>
-                          <th
-                            colSpan={3}
-                            className="bg-white px-1 py-1 text-center font-semibold text-slate-900"
-                          >
-                            Molana guide Cost
-                          </th>
-                        </tr>
-                        <tr className="border-b border-slate-300 align-bottom">
-                          <th className="w-20 border-r border-slate-200 px-1 py-2 text-left font-semibold text-slate-900">
-                            Suppliers
-                          </th>
-                          <th className="w-14 border-r border-slate-200 px-1 py-2 text-left font-semibold text-slate-900">
-                            Vehicle
-                          </th>
-                          <th className="w-28 border-r border-slate-300 px-1 py-2 text-left font-semibold text-slate-900">
-                            PAX
-                          </th>
-                          {segments.map((segment) => (
-                            (() => {
-                              const usageCount = routeUsageCountById.get(segment.route_id) || 0
-                              return (
-                                <th
-                                  key={segment.id}
-                                  className="w-24 border-r border-slate-200 px-1 py-2 text-left font-black leading-4 text-slate-950"
-                                >
-                                  <div>
-                                    {segment.segment_label ||
-                                      routeById.get(segment.route_id)?.route_name ||
-                                      'Route segment'}
-                                  </div>
-                                  {usageCount > 1 && (
-                                    <span className="mt-1 inline-flex rounded-sm bg-slate-100 px-1 py-0.5 text-[9px] font-black uppercase text-slate-500">
-                                      linked x{usageCount}
-                                    </span>
-                                  )}
-                                </th>
-                              )
-                            })()
-                          ))}
-                          <th className="w-28 border-r border-slate-400 px-1 py-2 text-left font-black text-slate-950">
-                            Total per route
-                          </th>
-                          <th className="w-24 border-r border-slate-200 px-1 py-2 text-left font-black text-slate-950">
-                            Makkah
-                          </th>
-                          <th className="w-24 border-r border-slate-400 px-1 py-2 text-left font-black text-slate-950">
-                            Madinah
-                          </th>
-                          {GUIDE_SERVICES.map((service) => (
-                            <th
-                              key={service.key}
-                              className="w-20 border-r border-slate-200 px-1 py-2 text-left font-semibold text-slate-900 last:border-r-0"
-                            >
-                              {service.label}
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {activeSuppliers.length === 0 || activeVehicleTypes.length === 0 ? (
-                          <tr>
-                            <td
-                              colSpan={tableColumnCount}
-                              className="px-3 py-8 text-center text-sm font-semibold text-slate-500"
-                            >
-                              Add at least one active supplier and one vehicle type.
-                            </td>
-                          </tr>
-                        ) : (
-                          activeSuppliers.map((supplier, supplierIndex) => {
-                            const supplierName = supplierDrafts[supplier.id]?.name || supplier.name
-                            const supplierIsFixed = fixedSupplierId === supplier.id
-                            const dividerClass =
-                              SUPPLIER_DIVIDER_CLASSES[
-                                supplierIndex % SUPPLIER_DIVIDER_CLASSES.length
-                              ]
-                            return (
-                              <Fragment key={supplier.id}>
-                                {supplierIndex > 0 && (
-                                  <tr aria-hidden="true">
-                                    <td colSpan={tableColumnCount} className={`h-1.5 p-0 ${dividerClass}`} />
-                                  </tr>
-                                )}
-                                {activeVehicleTypes.map((vehicleType, vehicleIndex) => {
-                                  const vehicleDraft = vehicleDrafts[vehicleType.id]
-                                  const transportLabelKey = supplierVehicleLabelKey(
-                                    supplier.id,
-                                    vehicleType.id,
-                                  )
-                                  const transportLabel =
-                                    supplierVehicleLabelDrafts[transportLabelKey] ??
-                                    vehicleDraft?.label ??
-                                    ''
-                                  const total = getRouteTotal(segments, supplier.id, vehicleType.id)
-                                  const cheapestTotal =
-                                    cheapestTotalByPlanVehicle.get(`${plan.id}:${vehicleType.id}`) ||
-                                    0
-                                  const isCheapestTotal = total > 0 && total === cheapestTotal
+                      <div className="overflow-x-auto 2xl:overflow-x-visible">
+                        <table className="w-full min-w-[1080px] table-fixed border-collapse text-[11px] 2xl:min-w-0">
+                          <thead>
+                            <tr>
+                              <th
+                                colSpan={3}
+                                className="border-r border-slate-300 bg-white px-1 py-1 text-left font-semibold text-slate-500"
+                              />
+                              <th
+                                colSpan={segments.length + 1}
+                                className="border-r border-slate-400 bg-white px-1 py-1 text-center font-semibold text-slate-900"
+                              >
+                                Transportation route / cost
+                              </th>
+                              <th
+                                colSpan={2}
+                                className="border-r border-slate-400 bg-white px-1 py-1 text-center font-semibold text-slate-900"
+                              >
+                                Ziyarat by Transport company
+                              </th>
+                              <th
+                                colSpan={3}
+                                className="bg-white px-1 py-1 text-center font-semibold text-slate-900"
+                              >
+                                Molana guide Cost
+                              </th>
+                            </tr>
+                            <tr className="border-b border-slate-300 align-bottom">
+                              <th className="w-20 border-r border-slate-200 px-1 py-2 text-left font-semibold text-slate-900">
+                                Suppliers
+                              </th>
+                              <th className="w-14 border-r border-slate-200 px-1 py-2 text-left font-semibold text-slate-900">
+                                Vehicle
+                              </th>
+                              <th className="w-28 border-r border-slate-300 px-1 py-2 text-left font-semibold text-slate-900">
+                                PAX
+                              </th>
+                              {segments.map((segment) =>
+                                (() => {
+                                  const usageCount = routeUsageCountById.get(segment.route_id) || 0
                                   return (
-                                    <tr
-                                      key={`${supplier.id}:${vehicleType.id}`}
-                                      className={`border-b border-slate-100 ${
-                                        supplierIsFixed ? 'bg-red-50/40' : ''
-                                      }`}
+                                    <th
+                                      key={segment.id}
+                                      className="w-24 border-r border-slate-200 px-1 py-2 text-left font-black leading-4 text-slate-950"
                                     >
-                                      {vehicleIndex === 0 && (
+                                      <div>
+                                        {segment.segment_label ||
+                                          routeById.get(segment.route_id)?.route_name ||
+                                          'Route segment'}
+                                      </div>
+                                      {usageCount > 1 && (
+                                        <span className="mt-1 inline-flex rounded-sm bg-slate-100 px-1 py-0.5 text-[9px] font-black uppercase text-slate-500">
+                                          linked x{usageCount}
+                                        </span>
+                                      )}
+                                    </th>
+                                  )
+                                })(),
+                              )}
+                              <th className="w-28 border-r border-slate-400 px-1 py-2 text-left font-black text-slate-950">
+                                Total per route
+                              </th>
+                              <th className="w-24 border-r border-slate-200 px-1 py-2 text-left font-black text-slate-950">
+                                Makkah
+                              </th>
+                              <th className="w-24 border-r border-slate-400 px-1 py-2 text-left font-black text-slate-950">
+                                Madinah
+                              </th>
+                              {GUIDE_SERVICES.map((service) => (
+                                <th
+                                  key={service.key}
+                                  className="w-20 border-r border-slate-200 px-1 py-2 text-left font-semibold text-slate-900 last:border-r-0"
+                                >
+                                  {service.label}
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {activeSuppliers.length === 0 || activeVehicleTypes.length === 0 ? (
+                              <tr>
+                                <td
+                                  colSpan={tableColumnCount}
+                                  className="px-3 py-8 text-center text-sm font-semibold text-slate-500"
+                                >
+                                  Add at least one active supplier and one vehicle type.
+                                </td>
+                              </tr>
+                            ) : (
+                              activeSuppliers.map((supplier, supplierIndex) => {
+                                const supplierName =
+                                  supplierDrafts[supplier.id]?.name || supplier.name
+                                const supplierIsFixed = fixedSupplierId === supplier.id
+                                const dividerClass =
+                                  SUPPLIER_DIVIDER_CLASSES[
+                                    supplierIndex % SUPPLIER_DIVIDER_CLASSES.length
+                                  ]
+                                return (
+                                  <Fragment key={supplier.id}>
+                                    {supplierIndex > 0 && (
+                                      <tr aria-hidden="true">
                                         <td
-                                          rowSpan={activeVehicleTypes.length}
-                                          className={`border-r border-slate-200 px-1 py-2 text-center align-middle text-xs font-semibold text-slate-950 ${
-                                            supplierIsFixed
-                                              ? 'shadow-[inset_4px_0_0_0_#8b1e2d]'
-                                              : ''
+                                          colSpan={tableColumnCount}
+                                          className={`h-1.5 p-0 ${dividerClass}`}
+                                        />
+                                      </tr>
+                                    )}
+                                    {activeVehicleTypes.map((vehicleType, vehicleIndex) => {
+                                      const vehicleDraft = vehicleDrafts[vehicleType.id]
+                                      const transportLabelKey = supplierVehicleLabelKey(
+                                        supplier.id,
+                                        vehicleType.id,
+                                      )
+                                      const transportLabel =
+                                        supplierVehicleLabelDrafts[transportLabelKey] ??
+                                        vehicleDraft?.label ??
+                                        ''
+                                      const total = getRouteTotal(
+                                        segments,
+                                        supplier.id,
+                                        vehicleType.id,
+                                      )
+                                      const cheapestTotal =
+                                        cheapestTotalByPlanVehicle.get(
+                                          `${plan.id}:${vehicleType.id}`,
+                                        ) || 0
+                                      const isCheapestTotal = total > 0 && total === cheapestTotal
+                                      return (
+                                        <tr
+                                          key={`${supplier.id}:${vehicleType.id}`}
+                                          className={`border-b border-slate-100 ${
+                                            supplierIsFixed ? 'bg-red-50/40' : ''
                                           }`}
                                         >
-                                          {supplierName}
-                                        </td>
-                                      )}
-                                      <td className="border-r border-slate-200 px-1 py-1">
-                                        <input
-                                          value={transportLabel}
-                                          onChange={(event) =>
-                                            updateSupplierVehicleLabelDraft(
-                                              supplier.id,
-                                              vehicleType.id,
-                                              event.target.value,
-                                            )
-                                          }
-                                          className="h-7 w-full rounded-none border-0 bg-transparent text-center text-[11px] font-semibold text-slate-950 outline-none focus:bg-white focus:ring-2 focus:ring-red-900/30"
-                                          placeholder={vehicleDraft?.label || 'Label'}
-                                        />
-                                      </td>
-                                      <td className="border-r border-slate-300 px-1 py-1">
-                                        <input
-                                          value={vehicleDraft?.passenger_capacity || ''}
-                                          onChange={(event) =>
-                                            updateVehicleDraft(vehicleType.id, {
-                                              passenger_capacity: event.target.value,
-                                            })
-                                          }
-                                          className="h-7 w-full rounded-none border-0 bg-transparent text-[11px] font-semibold text-slate-950 outline-none focus:bg-white focus:ring-2 focus:ring-red-900/30"
-                                          placeholder="PAX"
-                                        />
-                                      </td>
-                                      {segments.map((segment) => (
-                                        <td
-                                          key={segment.id}
-                                          className="border-r border-slate-200 px-1 py-1"
-                                        >
-                                          {renderRateInput(
-                                            segment.route_id,
-                                            supplier.id,
-                                            vehicleType.id,
+                                          {vehicleIndex === 0 && (
+                                            <td
+                                              rowSpan={activeVehicleTypes.length}
+                                              className={`border-r border-slate-200 px-1 py-2 text-center align-middle text-xs font-semibold text-slate-950 ${
+                                                supplierIsFixed
+                                                  ? 'shadow-[inset_4px_0_0_0_#8b1e2d]'
+                                                  : ''
+                                              }`}
+                                            >
+                                              {supplierName}
+                                            </td>
                                           )}
-                                        </td>
-                                      ))}
-                                      <td
-                                        className={`border-r border-slate-400 px-1 py-1 text-right text-[11px] font-black ${
-                                          isCheapestTotal
-                                            ? 'bg-emerald-50 text-emerald-800'
-                                            : 'text-purple-700'
-                                        }`}
-                                      >
-                                        <div className="flex items-center justify-end gap-1">
-                                          {isCheapestTotal && (
-                                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                                          )}
-                                          {isCheapestTotal && (
-                                            <span className="rounded-sm bg-emerald-100 px-1 text-[9px] font-black uppercase text-emerald-700">
-                                              selected
-                                            </span>
-                                          )}
-                                          {formatAmount(total, getSupplierCurrency(supplier.id))}
-                                        </div>
-                                      </td>
-                                      {[
-                                        { route: makkahZiyaratRoute, border: 'border-slate-200' },
-                                        { route: madinahZiyaratRoute, border: 'border-slate-400' },
-                                      ].map(({ route, border }) => {
-                                        const amount = getRouteAmount(
-                                          route?.id,
-                                          supplier.id,
-                                          vehicleType.id,
-                                        )
-                                        const cheapestAmount = route?.id
-                                          ? cheapestZiyaratByRouteVehicle.get(
-                                              `${route.id}:${vehicleType.id}`,
-                                            ) || 0
-                                          : 0
-                                        const isSelected =
-                                          amount > 0 && cheapestAmount > 0 && amount === cheapestAmount
-                                        return (
-                                          <td
-                                            key={route?.id || border}
-                                            className={`border-r ${border} px-1 py-1 ${
-                                              isSelected ? 'bg-emerald-50' : ''
-                                            }`}
-                                          >
-                                            <div className="flex items-center justify-between gap-1">
+                                          <td className="border-r border-slate-200 px-1 py-1">
+                                            <input
+                                              value={transportLabel}
+                                              onChange={(event) =>
+                                                updateSupplierVehicleLabelDraft(
+                                                  supplier.id,
+                                                  vehicleType.id,
+                                                  event.target.value,
+                                                )
+                                              }
+                                              className="h-7 w-full rounded-none border-0 bg-transparent text-center text-[11px] font-semibold text-slate-950 outline-none focus:bg-white focus:ring-2 focus:ring-red-900/30"
+                                              placeholder={vehicleDraft?.label || 'Label'}
+                                            />
+                                          </td>
+                                          <td className="border-r border-slate-300 px-1 py-1">
+                                            <input
+                                              value={vehicleDraft?.passenger_capacity || ''}
+                                              onChange={(event) =>
+                                                updateVehicleDraft(vehicleType.id, {
+                                                  passenger_capacity: event.target.value,
+                                                })
+                                              }
+                                              className="h-7 w-full rounded-none border-0 bg-transparent text-[11px] font-semibold text-slate-950 outline-none focus:bg-white focus:ring-2 focus:ring-red-900/30"
+                                              placeholder="PAX"
+                                            />
+                                          </td>
+                                          {segments.map((segment) => (
+                                            <td
+                                              key={segment.id}
+                                              className="border-r border-slate-200 px-1 py-1"
+                                            >
                                               {renderRateInput(
-                                                route?.id,
+                                                segment.route_id,
                                                 supplier.id,
                                                 vehicleType.id,
-                                                !route,
                                               )}
-                                              {isSelected && (
-                                                <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
-                                              )}
-                                            </div>
-                                          </td>
-                                        )
-                                      })}
-                                      {GUIDE_SERVICES.map((service) => {
-                                        const key = guideKey(supplier.id, service.key)
-                                        return (
+                                            </td>
+                                          ))}
                                           <td
-                                            key={service.key}
-                                            className="border-r border-slate-200 px-1 py-1 last:border-r-0"
+                                            className={`border-r border-slate-400 px-1 py-1 text-right text-[11px] font-black ${
+                                              isCheapestTotal
+                                                ? 'bg-emerald-50 text-emerald-800'
+                                                : 'text-purple-700'
+                                            }`}
                                           >
-                                            <div className="flex min-h-8 items-center gap-0.5">
-                                              <span className="w-7 text-[10px] font-black text-slate-500">
-                                                {getSupplierCurrency(supplier.id)}
-                                              </span>
-                                              <input
-                                                value={guideDrafts[key] || ''}
-                                                inputMode="decimal"
-                                                onChange={(event) =>
-                                                  updateGuideDraft(
-                                                    supplier.id,
-                                                    service.key,
-                                                    event.target.value,
-                                                  )
-                                                }
-                                                className="h-7 w-14 rounded-none border-0 bg-transparent px-1 text-right text-[11px] font-semibold text-slate-950 outline-none focus:bg-white focus:ring-2 focus:ring-red-900/30"
-                                                placeholder="-"
-                                              />
+                                            <div className="flex items-center justify-end gap-1">
+                                              {isCheapestTotal && (
+                                                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                                              )}
+                                              {isCheapestTotal && (
+                                                <span className="rounded-sm bg-emerald-100 px-1 text-[9px] font-black uppercase text-emerald-700">
+                                                  selected
+                                                </span>
+                                              )}
+                                              {formatAmount(
+                                                total,
+                                                getSupplierCurrency(supplier.id),
+                                              )}
                                             </div>
                                           </td>
-                                        )
-                                      })}
-                                    </tr>
-                                  )
-                                })}
-                              </Fragment>
-                            )
-                          })
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
+                                          {[
+                                            {
+                                              route: makkahZiyaratRoute,
+                                              border: 'border-slate-200',
+                                            },
+                                            {
+                                              route: madinahZiyaratRoute,
+                                              border: 'border-slate-400',
+                                            },
+                                          ].map(({ route, border }) => {
+                                            const amount = getRouteAmount(
+                                              route?.id,
+                                              supplier.id,
+                                              vehicleType.id,
+                                            )
+                                            const cheapestAmount = route?.id
+                                              ? cheapestZiyaratByRouteVehicle.get(
+                                                  `${route.id}:${vehicleType.id}`,
+                                                ) || 0
+                                              : 0
+                                            const isSelected =
+                                              amount > 0 &&
+                                              cheapestAmount > 0 &&
+                                              amount === cheapestAmount
+                                            return (
+                                              <td
+                                                key={route?.id || border}
+                                                className={`border-r ${border} px-1 py-1 ${
+                                                  isSelected ? 'bg-emerald-50' : ''
+                                                }`}
+                                              >
+                                                <div className="flex items-center justify-between gap-1">
+                                                  {renderRateInput(
+                                                    route?.id,
+                                                    supplier.id,
+                                                    vehicleType.id,
+                                                    !route,
+                                                  )}
+                                                  {isSelected && (
+                                                    <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
+                                                  )}
+                                                </div>
+                                              </td>
+                                            )
+                                          })}
+                                          {GUIDE_SERVICES.map((service) => {
+                                            const key = guideKey(supplier.id, service.key)
+                                            return (
+                                              <td
+                                                key={service.key}
+                                                className="border-r border-slate-200 px-1 py-1 last:border-r-0"
+                                              >
+                                                <div className="flex min-h-8 items-center gap-0.5">
+                                                  <span className="w-7 text-[10px] font-black text-slate-500">
+                                                    {getSupplierCurrency(supplier.id)}
+                                                  </span>
+                                                  <input
+                                                    value={guideDrafts[key] || ''}
+                                                    inputMode="decimal"
+                                                    onChange={(event) =>
+                                                      updateGuideDraft(
+                                                        supplier.id,
+                                                        service.key,
+                                                        event.target.value,
+                                                      )
+                                                    }
+                                                    className="h-7 w-14 rounded-none border-0 bg-transparent px-1 text-right text-[11px] font-semibold text-slate-950 outline-none focus:bg-white focus:ring-2 focus:ring-red-900/30"
+                                                    placeholder="-"
+                                                  />
+                                                </div>
+                                              </td>
+                                            )
+                                          })}
+                                        </tr>
+                                      )
+                                    })}
+                                  </Fragment>
+                                )
+                              })
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
                     </>
                   )}
                 </section>
@@ -1349,7 +1381,9 @@ function UmrahTransportPricingTabCore({ supabase }: UmrahTransportPricingTabProp
                   <select
                     value={damageRecoveryMarginMode}
                     onChange={(event) =>
-                      setDamageRecoveryMarginMode(event.target.value === 'percent' ? 'percent' : 'fixed')
+                      setDamageRecoveryMarginMode(
+                        event.target.value === 'percent' ? 'percent' : 'fixed',
+                      )
                     }
                     className="min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-black outline-none focus:border-slate-900"
                   >

@@ -2,12 +2,14 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => {
   const from = vi.fn()
-  const createClient = vi.fn(() => ({ from }))
+  const rpc = vi.fn()
+  const createClient = vi.fn(() => ({ from, rpc }))
   const ensureInstallmentsTableExists = vi.fn(async () => undefined)
   const createInstallmentRecords = vi.fn(async () => undefined)
   const createDetailedInstallmentRecords = vi.fn(async () => undefined)
   return {
     from,
+    rpc,
     createClient,
     ensureInstallmentsTableExists,
     createInstallmentRecords,
@@ -23,6 +25,19 @@ vi.mock('@/lib/installmentsDb', () => ({
   ensureInstallmentsTableExists: mocks.ensureInstallmentsTableExists,
   createInstallmentRecords: mocks.createInstallmentRecords,
   createDetailedInstallmentRecords: mocks.createDetailedInstallmentRecords,
+}))
+vi.mock('@/lib/lms/apiAuth', () => ({
+  requireLmsStaff: vi.fn(async () => ({
+    authorized: true,
+    user: { id: 'emp-server' },
+    employee: { id: 'emp-server' },
+  })),
+  getLmsIdempotencyKey: vi.fn(() => null),
+  verifyLmsDestructiveAction: vi.fn(async (_access, input) =>
+    input.verificationCode
+      ? null
+      : Response.json({ error: 'Verification code required' }, { status: 403 }),
+  ),
 }))
 
 import { POST } from '@/app/api/lms/route'
@@ -87,29 +102,9 @@ describe('/api/lms route POST actions', () => {
   })
 
   it('records payment and updates loan balance', async () => {
-    const txInsert = vi.fn(async (_row: Record<string, unknown>) => ({ error: null }))
-
-    const loanSingle = vi.fn(async () => ({
-      data: { current_balance: 500 },
+    mocks.rpc.mockResolvedValue({
+      data: { recordedPaymentLoanId: 'loan-1' },
       error: null,
-    }))
-    const loanSelectEq = vi.fn(() => ({ single: loanSingle }))
-    const loanSelect = vi.fn(() => ({ eq: loanSelectEq }))
-
-    const loanUpdateEq = vi.fn(async () => ({ error: null }))
-    const loanUpdate = vi.fn(() => ({ eq: loanUpdateEq }))
-
-    mocks.from.mockImplementation((table: string) => {
-      if (table === 'loan_transactions') {
-        return { insert: txInsert }
-      }
-      if (table === 'loans') {
-        return {
-          select: loanSelect,
-          update: loanUpdate,
-        }
-      }
-      throw new Error(`Unexpected table: ${table}`)
     })
 
     const request = new Request('http://localhost/api/lms', {
@@ -130,29 +125,20 @@ describe('/api/lms route POST actions', () => {
 
     expect(response.status).toBe(200)
     expect(payload).toEqual({ recordedPaymentLoanId: 'loan-1' })
-    expect(txInsert).toHaveBeenCalledTimes(1)
-
-    const insertedPayment =
-      (txInsert.mock.calls.at(0)?.[0] ?? null) as Record<string, unknown> | null
-    expect(insertedPayment).not.toBeNull()
-    expect(insertedPayment?.loan_id).toBe('loan-1')
-    expect(insertedPayment?.transaction_type).toBe('payment')
-    expect(insertedPayment?.amount).toBe(100)
-
-    expect(loanSelectEq).toHaveBeenCalledWith('id', 'loan-1')
-    expect(loanUpdate).toHaveBeenCalledWith({ current_balance: 400, status: 'Active' })
-    expect(loanUpdateEq).toHaveBeenCalledWith('id', 'loan-1')
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      'lms_record_payment',
+      expect.objectContaining({
+        p_loan_id: 'loan-1',
+        p_employee_id: 'emp-server',
+        p_amount: 100,
+      }),
+    )
   })
 
   it('update_customer succeeds', async () => {
-    const updateEq = vi.fn(async () => ({ error: null }))
-    const update = vi.fn(() => ({ eq: updateEq }))
-
-    mocks.from.mockImplementation((table: string) => {
-      if (table !== 'loan_customers') {
-        throw new Error(`Unexpected table: ${table}`)
-      }
-      return { update }
+    mocks.rpc.mockResolvedValue({
+      data: { updatedCustomerId: 'cust-1' },
+      error: null,
     })
 
     const request = new Request('http://localhost/api/lms', {
@@ -172,14 +158,16 @@ describe('/api/lms route POST actions', () => {
 
     expect(response.status).toBe(200)
     expect(payload).toEqual({ updatedCustomerId: 'cust-1' })
-    expect(update).toHaveBeenCalledWith({
-      phone_number: '07700',
-      email: 'a@example.com',
-      address: '1 Road',
-      date_of_birth: undefined,
-      notes: undefined,
+    expect(mocks.rpc).toHaveBeenCalledWith('lms_update_customer', {
+      p_customer_id: 'cust-1',
+      p_actor_id: 'emp-server',
+      p_updates: {
+        phone: '07700',
+        email: 'a@example.com',
+        address: '1 Road',
+      },
+      p_note: null,
     })
-    expect(updateEq).toHaveBeenCalledWith('id', 'cust-1')
   })
 
   it('delete_customer returns 403 when authCode is missing', async () => {
@@ -196,25 +184,14 @@ describe('/api/lms route POST actions', () => {
     const payload = await response.json()
 
     expect(response.status).toBe(403)
-    expect(payload).toEqual({ error: 'Auth code required' })
+    expect(payload).toEqual({ error: 'Verification code required' })
     expect(mocks.from).not.toHaveBeenCalled()
   })
 
   it('create_customer inserts a new customer and returns customerId', async () => {
-    const single = vi.fn(async () => ({
-      data: { id: 'cust-new' },
+    mocks.rpc.mockResolvedValue({
+      data: { customerId: 'cust-new' },
       error: null,
-    }))
-    const select = vi.fn(() => ({ single }))
-    const insert = vi.fn((row: Record<string, unknown>) => ({
-      select,
-    }))
-
-    mocks.from.mockImplementation((table: string) => {
-      if (table !== 'loan_customers') {
-        throw new Error(`Unexpected table: ${table}`)
-      }
-      return { insert }
     })
 
     const request = new Request('http://localhost/api/lms', {
@@ -236,12 +213,14 @@ describe('/api/lms route POST actions', () => {
 
     expect(response.status).toBe(200)
     expect(payload).toEqual({ customerId: 'cust-new' })
-    expect(insert).toHaveBeenCalledTimes(1)
-    const inserted = (insert.mock.calls.at(0)?.[0] ?? null) as Record<string, unknown> | null
-    expect(inserted).not.toBeNull()
-    expect(inserted?.first_name).toBe('Jane')
-    expect(inserted?.last_name).toBe('Smith')
-    expect(inserted?.link_status).toBe('New Entry')
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      'lms_create_customer',
+      expect.objectContaining({
+        p_actor_id: 'emp-server',
+        p_first_name: 'Jane',
+        p_last_name: 'Smith',
+      }),
+    )
   })
 
   afterAll(() => {

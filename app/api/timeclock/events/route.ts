@@ -87,9 +87,10 @@ export async function GET(request: Request) {
     })
 
     const {
-      data: { session },
-    } = await supabase.auth.getSession()
-    if (!session) {
+      data: { user: authUser },
+      error: authError,
+    } = await supabase.auth.getUser()
+    if (authError || !authUser) {
       return apiError('Unauthorized', 401)
     }
 
@@ -112,16 +113,16 @@ export async function GET(request: Request) {
     if (employeesError) throw employeesError
 
     const employeeRows = (employees || []) as EmployeeRow[]
-    const currentUser = employeeRows.find((emp) => emp.id === session.user.id) || null
+    const currentUser = employeeRows.find((emp) => emp.id === authUser.id) || null
     const { data: profile } = await supabase
       .from('profiles')
       .select('role')
-      .eq('id', session.user.id)
+      .eq('id', authUser.id)
       .maybeSingle()
 
     const roleName = pickRoleName(getRoleName(currentUser), profile?.role)
     const isMasterAdmin = normalizeRoleName(roleName) === 'master admin'
-    const subtreeIds = collectReports(session.user.id, employeeRows)
+    const subtreeIds = collectReports(authUser.id, employeeRows)
     const hasManagerAccess = hasManagerTimeclockAccess(roleName, subtreeIds.length)
     const hasMaintenanceAccess = hasMaintenanceTimeclockAccess(roleName)
     const canAdjustTime = isMasterAdmin || hasMaintenanceAccess
@@ -147,7 +148,7 @@ export async function GET(request: Request) {
         `,
           { count: 'exact' },
         )
-        .eq('employee_id', session.user.id)
+        .eq('employee_id', authUser.id)
 
       if (from) {
         query = query.gte('scanned_at', from)
@@ -179,7 +180,7 @@ export async function GET(request: Request) {
       const allowedIds = new Set(
         hasMaintenanceAccess || isMasterAdmin
           ? employeeRows.map((emp) => emp.id)
-          : [session.user.id, ...subtreeIds],
+          : [authUser.id, ...subtreeIds],
       )
 
       if (!hasMaintenanceAccess && !isMasterAdmin && !hasManagerAccess) {

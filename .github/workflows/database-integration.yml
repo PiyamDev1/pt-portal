@@ -1,0 +1,50 @@
+name: Database Integration
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'scripts/migrations/**'
+      - 'scripts/ci/test-lms-migration.sh'
+      - 'scripts/ci/test-security-migration.sh'
+      - 'tests/integration/**'
+      - '.github/workflows/database-integration.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/migrations/**'
+      - 'scripts/ci/test-lms-migration.sh'
+      - 'scripts/ci/test-security-migration.sh'
+      - 'tests/integration/**'
+      - '.github/workflows/database-integration.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  lms-migration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: pt_portal_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d pt_portal_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_TEST_URL: postgresql://postgres:postgres@127.0.0.1:5432/pt_portal_test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run atomic LMS migration tests
+        run: bash scripts/ci/test-lms-migration.sh
+      - name: Run shared security migration tests
+        run: bash scripts/ci/test-security-migration.sh

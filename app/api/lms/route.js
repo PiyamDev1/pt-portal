@@ -21,18 +21,143 @@
  * Response Errors: 500 Supabase not configured | 400 Validation | 500 DB error
  */
 import { createClient } from '@supabase/supabase-js'
+import { z } from 'zod'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
+import { parseBodyWithSchema } from '@/lib/api/request'
 import {
-  ensureInstallmentsTableExists,
-  createInstallmentRecords,
-  createDetailedInstallmentRecords,
-} from '@/lib/installmentsDb'
+  getLmsIdempotencyKey,
+  requireLmsStaff,
+  verifyLmsDestructiveAction,
+} from '@/lib/lms/apiAuth'
+import { reportOperationalError, responseWithRequestId } from '@/lib/observability/server'
+import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
+
+const numericInput = z.union([z.number(), z.string().trim().min(1)])
+const installmentPlanItemSchema = z
+  .object({
+    dueDate: z.string().trim().min(1),
+    amount: numericInput,
+  })
+  .passthrough()
+const initialTransactionSchema = z
+  .object({
+    type: z.enum(['service', 'fee', 'payment']),
+    amount: numericInput,
+    paymentMethodId: z.string().optional(),
+    notes: z.string().optional(),
+  })
+  .passthrough()
+const lmsActionSchema = z.discriminatedUnion('action', [
+  z
+    .object({
+      action: z.literal('record_payment'),
+      loanId: z.string().optional(),
+      amount: numericInput.optional(),
+      paymentMethodId: z.string().optional().nullable(),
+      notes: z.string().optional(),
+      transactionDate: z.string().optional(),
+      idempotencyKey: z.string().optional(),
+    })
+    .passthrough(),
+  z
+    .object({
+      action: z.literal('add_service'),
+      customerId: z.string().optional(),
+      serviceAmount: numericInput.optional(),
+      initialDeposit: numericInput.optional(),
+      installmentTerms: numericInput.optional(),
+      installmentPlan: z.array(installmentPlanItemSchema).optional(),
+      paymentFrequency: z.string().optional(),
+      notes: z.string().optional(),
+      transactionDate: z.string().optional(),
+      idempotencyKey: z.string().optional(),
+    })
+    .passthrough(),
+  z
+    .object({
+      action: z.literal('add_fee'),
+      customerId: z.string().optional(),
+      loanId: z.string().optional(),
+      amount: numericInput.optional(),
+      notes: z.string().optional(),
+      transactionDate: z.string().optional(),
+      idempotencyKey: z.string().optional(),
+    })
+    .passthrough(),
+  z
+    .object({
+      action: z.literal('create_customer'),
+      firstName: z.string().optional(),
+      lastName: z.string().optional(),
+      phone: z.string().optional(),
+      email: z.string().optional(),
+      address: z.string().optional(),
+      initialTransaction: initialTransactionSchema.nullish(),
+      idempotencyKey: z.string().optional(),
+    })
+    .passthrough(),
+  z
+    .object({
+      action: z.literal('update_customer'),
+      customerId: z.string().optional(),
+      phone: z.string().optional(),
+      email: z.string().optional(),
+      address: z.string().optional(),
+      dateOfBirth: z.string().optional(),
+      notes: z.string().optional(),
+    })
+    .passthrough(),
+  z
+    .object({
+      action: z.literal('delete_customer'),
+      customerId: z.string().optional(),
+      authCode: z.string().optional(),
+      verificationCode: z.string().optional(),
+      verificationMethod: z.enum(['totp', 'backup', 'auto']).optional(),
+    })
+    .passthrough(),
+])
+
+function lmsRpcErrorStatus(error) {
+  if (error?.code === 'P0002') return 404
+  if (error?.code === '22023' || error?.code === '23503') return 400
+  if (error?.code === '42501') return 403
+  return 500
+}
+
+async function lmsFailureResponse(request, operation, error, fallbackMessage) {
+  const requestId = await reportOperationalError({
+    event: 'lms.rpc_failed',
+    request,
+    error,
+    alert: true,
+    context: { operation, databaseCode: error?.code },
+  })
+  return responseWithRequestId(
+    apiError(error?.message || fallbackMessage, lmsRpcErrorStatus(error)),
+    requestId,
+  )
+}
+
+function parseOptionalTimestamp(value) {
+  if (!value) return new Date().toISOString()
+  const parsed = new Date(value)
+  return Number.isFinite(parsed.getTime()) ? parsed.toISOString() : null
+}
+
+function isOptionalIsoDate(value) {
+  if (!value) return true
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(`${value}T00:00:00Z`))
+}
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(request) {
   try {
+    const access = await requireLmsStaff()
+    if (!access.authorized) return access.response
+
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY
     if (!url || !key) {
@@ -46,16 +171,26 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url)
     const filter = searchParams.get('filter') || 'active' // active, overdue, all, settled
     const accountId = searchParams.get('accountId') // If provided, return this account regardless of filter
-    const page = parseInt(searchParams.get('page') || '1')
-    const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 100) // Max 100, default 50
+    const requestedPage = Number.parseInt(searchParams.get('page') || '1', 10)
+    const requestedLimit = Number.parseInt(searchParams.get('limit') || '50', 10)
+    const page = Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1
+    const limit = Number.isFinite(requestedLimit) ? Math.min(Math.max(requestedLimit, 1), 100) : 50
     const offset = (page - 1) * limit
 
-    // Fetch customers with pagination
-    const {
-      data: customers,
-      error: custError,
-      count: totalCount,
-    } = await supabase
+    const { data: accountPage, error: accountPageError } = await supabase.rpc('lms_list_accounts', {
+      p_filter: filter,
+      p_account_id: accountId,
+      p_page: page,
+      p_limit: limit,
+    })
+
+    if (accountPageError) throw accountPageError
+    if (accountPage) return apiOk(accountPage)
+
+    // Defensive fallback for a null RPC result: still calculate all metrics
+    // globally before filtering and pagination.
+    // Fetch all customers so filters, stats, and accountId work globally.
+    const { data: customers, error: custError } = await supabase
       .from('loan_customers')
       .select(
         `
@@ -67,16 +202,14 @@ export async function GET(request) {
         address,
         created_at
       `,
-        { count: 'exact' },
       )
       .order('created_at', { ascending: false })
-      .range(offset, offset + limit - 1)
 
     if (custError) throw custError
 
     const customerIds = customers.map((c) => c.id)
 
-    // Only fetch loans/transactions/installments for the customers on this page
+    // Fetch loans/transactions/installments for all customers before filtering.
     const { data: allLoans, error: loansError } = await supabase
       .from('loans')
       .select('*')
@@ -86,7 +219,7 @@ export async function GET(request) {
 
     const loanIds = allLoans.map((l) => l.id)
 
-    // Fetch transactions only for loans on this page
+    // Fetch transactions for all matching loans.
     const { data: allTransactions, error: txError } = await supabase
       .from('loan_transactions')
       .select(
@@ -99,7 +232,7 @@ export async function GET(request) {
 
     if (txError) throw txError
 
-    // Fetch installments only for transactions on this page
+    // Fetch installments for all matching transactions.
     const transactionIds = allTransactions.map((t) => t.id)
     const { data: allInstallments, error: installmentsError } = await supabase
       .from('loan_installments')
@@ -277,7 +410,7 @@ export async function GET(request) {
       }
     })
 
-    // Calculate stats only from current page for quick response
+    // Stats describe the complete account population, not just the current page.
     const stats = {
       totalOutstanding: accounts.reduce((sum, a) => sum + a.balance, 0),
       activeAccounts: accounts.filter((a) => a.balance > 0).length,
@@ -300,8 +433,11 @@ export async function GET(request) {
       filtered = accounts.filter((a) => a.balance <= 0 && a.totalLoans > 0)
     }
 
+    const totalCount = filtered.length
+    const paginated = accountId ? filtered : filtered.slice(offset, offset + limit)
+
     return apiOk({
-      accounts: filtered,
+      accounts: paginated,
       stats,
       pagination: {
         page,
@@ -311,14 +447,30 @@ export async function GET(request) {
       },
     })
   } catch (error) {
-    console.error('LMS API Error:', error)
-    return apiError(toErrorMessage(error, 'LMS API failed'), 500)
+    const requestId = await reportOperationalError({
+      event: 'lms.account_list_failed',
+      request,
+      error,
+      alert: true,
+    })
+    return responseWithRequestId(apiError(toErrorMessage(error, 'LMS API failed'), 500), requestId)
   }
 }
 
 // POST - Quick Actions
 export async function POST(request) {
   try {
+    const access = await requireLmsStaff()
+    if (!access.authorized) return access.response
+
+    const limit = await enforceRateLimit(request, {
+      scope: 'lms.account-action',
+      limit: 120,
+      windowSeconds: 15 * 60,
+      identities: [`user:${access.user.id}`, `ip:${getClientIp(request)}`],
+    })
+    if (!limit.allowed) return limit.response
+
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY
     if (!url || !key) {
@@ -329,367 +481,198 @@ export async function POST(request) {
     }
     const supabase = createClient(url, key)
 
-    const body = await request.json()
     const {
-      action,
-      customerId,
-      loanId,
-      amount,
-      paymentMethodId,
-      notes,
-      employeeId,
-      transactionDate,
-    } = body
+      data: body,
+      error: bodyError,
+      issues,
+    } = await parseBodyWithSchema(request, lmsActionSchema, { maxBytes: 256 * 1024 })
+    if (bodyError || !body) {
+      const invalidAction = issues?.some((issue) => issue.path[0] === 'action')
+      return apiError(
+        invalidAction ? 'Invalid action' : bodyError || 'Invalid request payload',
+        400,
+      )
+    }
+    const idempotencyKey = getLmsIdempotencyKey(request, body)
+    const { action, customerId, loanId, amount, paymentMethodId, notes, transactionDate } = body
 
     if (action === 'record_payment') {
-      // Use provided transaction date or default to now
-      const txTimestamp = transactionDate
-        ? new Date(transactionDate).toISOString()
-        : new Date().toISOString()
+      const paymentAmount = Number(amount)
+      if (!loanId || !Number.isFinite(paymentAmount) || paymentAmount <= 0) {
+        return apiError('Valid loan and payment amount required', 400)
+      }
 
-      // Record payment transaction
-      const { error } = await supabase.from('loan_transactions').insert({
-        loan_id: loanId,
-        employee_id: employeeId,
-        transaction_type: 'payment',
-        amount: parseFloat(amount),
-        payment_method_id: paymentMethodId,
-        remark: notes,
-        transaction_timestamp: txTimestamp,
+      // Use provided transaction date or default to now
+      const txTimestamp = parseOptionalTimestamp(transactionDate)
+      if (!txTimestamp) return apiError('Invalid transaction date', 400)
+
+      const { data, error } = await supabase.rpc('lms_record_payment', {
+        p_loan_id: loanId,
+        p_employee_id: access.employee.id,
+        p_amount: paymentAmount,
+        p_payment_method_id: paymentMethodId || null,
+        p_remark: notes || null,
+        p_transaction_timestamp: txTimestamp,
+        p_idempotency_key: idempotencyKey,
       })
 
       if (error) throw error
-
-      // Update loan current_balance
-      const { data: loan } = await supabase
-        .from('loans')
-        .select('current_balance')
-        .eq('id', loanId)
-        .single()
-
-      await supabase
-        .from('loans')
-        .update({
-          current_balance: Math.max(0, loan.current_balance - parseFloat(amount)),
-          status: loan.current_balance - parseFloat(amount) <= 0 ? 'Settled' : 'Active',
-        })
-        .eq('id', loanId)
-
-      return apiOk({ recordedPaymentLoanId: loanId })
+      return apiOk({ recordedPaymentLoanId: data?.recordedPaymentLoanId || loanId })
     } else if (action === 'add_service') {
-      const {
-        serviceAmount,
-        initialDeposit,
-        installmentTerms,
-        installmentPlan,
-        paymentFrequency,
-        transactionDate,
-      } = body
-
-      // Ensure installments table exists
-      await ensureInstallmentsTableExists()
+      const { serviceAmount, initialDeposit, installmentTerms, installmentPlan, transactionDate } =
+        body
 
       const totalAmount = parseFloat(serviceAmount)
       const deposit = parseFloat(initialDeposit) || 0
-      const remainingAmount = totalAmount - deposit
+      if (!customerId || !Number.isFinite(totalAmount) || totalAmount <= 0) {
+        return apiError('Valid customer and service amount required', 400)
+      }
+      if (!Number.isFinite(deposit) || deposit < 0 || deposit > totalAmount) {
+        return apiError('Initial deposit must be between zero and the service amount', 400)
+      }
 
       // Use provided transaction date or default to now
-      const txTimestamp = transactionDate
-        ? new Date(transactionDate).toISOString()
-        : new Date().toISOString()
+      const txTimestamp = parseOptionalTimestamp(transactionDate)
+      if (!txTimestamp) return apiError('Invalid transaction date', 400)
 
-      // Create loan
-      const { data: newLoan, error: loanError } = await supabase
-        .from('loans')
-        .insert({
-          loan_customer_id: customerId,
-          employee_id: employeeId,
-          total_debt_amount: totalAmount,
-          current_balance: remainingAmount, // Balance after deposit
-          term_months: parseInt(installmentTerms),
-          next_due_date: installmentPlan?.[0]?.dueDate || new Date().toISOString().split('T')[0],
-          status: 'Active',
-        })
-        .select()
-        .single()
-
-      if (loanError) throw loanError
-
-      // Create initial service transaction (full amount) with installment plan summary
       const planSummary =
         notes ||
         (installmentPlan && installmentPlan.length > 0
-          ? `${installmentPlan.length} installments - ${paymentFrequency || 'monthly'}`
+          ? `${installmentPlan.length} installments - ${body.paymentFrequency || 'monthly'}`
           : `${installmentTerms} installments`)
-
-      const { data: serviceTransaction, error: serviceTxError } = await supabase
-        .from('loan_transactions')
-        .insert({
-          loan_id: newLoan.id,
-          employee_id: employeeId,
-          transaction_type: 'service',
-          amount: totalAmount,
-          remark: notes || planSummary,
-          transaction_timestamp: txTimestamp,
-        })
-        .select()
-        .single()
-
-      if (serviceTxError) throw serviceTxError
-
-      // Auto-create installment records using detailed plan from frontend
-      try {
-        if (installmentPlan && installmentPlan.length > 0) {
-          // Use the detailed plan provided from frontend
-          await createDetailedInstallmentRecords(
-            serviceTransaction.id,
-            installmentPlan,
-            paymentFrequency,
-          )
-        } else {
-          // Fallback to simple generation
-          const numberOfTerms = parseInt(installmentTerms) || 3
-          await createInstallmentRecords(
-            serviceTransaction.id,
-            remainingAmount,
-            new Date().toISOString(),
-            numberOfTerms,
-          )
-        }
-      } catch (installmentError) {
-        console.error('Error creating installments (continuing without them):', installmentError)
-        // Don't throw - allow the service creation to succeed even if installments fail
+      const normalizedPlan = (installmentPlan || []).map((installment) => ({
+        dueDate: installment.dueDate,
+        amount: Number(installment.amount),
+      }))
+      if (normalizedPlan.some((item) => !Number.isFinite(item.amount) || item.amount <= 0)) {
+        return apiError('Installment dates and amounts must be valid', 400)
       }
 
-      // If deposit provided, record it as a payment transaction
-      if (deposit > 0) {
-        const { data: depositTx } = await supabase
-          .from('loan_transactions')
-          .insert({
-            loan_id: newLoan.id,
-            employee_id: employeeId,
-            transaction_type: 'payment',
-            amount: deposit,
-            remark: `Initial deposit - Loan #${serviceTransaction.id.substring(0, 8)}`,
-            transaction_timestamp: txTimestamp,
-          })
-          .select()
-          .single()
-      }
-
-      // Create future installment plan transactions (optional - for visibility)
-      // Store them as scheduled/pending payments in the installment plan
-      // This allows manual entry of payments against them
-      // For now, we'll log them as remarks in transaction history
-      // The UI will display the installment schedule separately
-
-      return apiOk({ createdLoanId: newLoan.id })
+      const { data, error } = await supabase.rpc('lms_add_service', {
+        p_customer_id: customerId,
+        p_actor_id: access.employee.id,
+        p_service_amount: totalAmount,
+        p_initial_deposit: deposit,
+        p_term_months: Number.parseInt(String(installmentTerms || '3'), 10) || 3,
+        p_next_due_date: installmentPlan?.[0]?.dueDate || new Date().toISOString().split('T')[0],
+        p_remark: planSummary,
+        p_transaction_timestamp: txTimestamp,
+        p_installment_plan: normalizedPlan,
+        p_idempotency_key: idempotencyKey,
+      })
+      if (error) return lmsFailureResponse(request, action, error, 'Failed to add service')
+      return apiOk({ createdLoanId: data?.createdLoanId })
     } else if (action === 'add_fee') {
       const { loanId, amount, notes, customerId, transactionDate } = body
 
       // Use provided transaction date or default to now
-      const txTimestamp = transactionDate
-        ? new Date(transactionDate).toISOString()
-        : new Date().toISOString()
+      const txTimestamp = parseOptionalTimestamp(transactionDate)
+      if (!txTimestamp) return apiError('Invalid transaction date', 400)
 
       const feeAmount = parseFloat(amount)
       if (Number.isNaN(feeAmount) || feeAmount <= 0) {
         return apiError('Valid fee amount required', 400)
       }
-
-      let targetLoanId = loanId || null
-
-      // Find an existing loan for this customer if none provided
-      if (!targetLoanId && customerId) {
-        const { data: existingLoan } = await supabase
-          .from('loans')
-          .select('id, current_balance, total_debt_amount')
-          .eq('loan_customer_id', customerId)
-          .order('created_at', { ascending: false })
-          .maybeSingle()
-
-        if (existingLoan) {
-          targetLoanId = existingLoan.id
-        }
-      }
-
-      // If still no loan, create a minimal loan to attach the fee
-      if (!targetLoanId && customerId) {
-        const { data: newLoan, error: newLoanError } = await supabase
-          .from('loans')
-          .insert({
-            loan_customer_id: customerId,
-            employee_id: employeeId,
-            total_debt_amount: feeAmount,
-            current_balance: feeAmount,
-            term_months: 12,
-            status: 'Active',
-            next_due_date: new Date().toISOString().split('T')[0],
-          })
-          .select()
-          .single()
-
-        if (newLoanError) throw newLoanError
-        targetLoanId = newLoan.id
-      }
-
-      if (!targetLoanId) {
+      if (!loanId && !customerId) {
         return apiError('No loan found or created for fee', 400)
       }
 
-      // Add fee transaction
-      await supabase.from('loan_transactions').insert({
-        loan_id: targetLoanId,
-        employee_id: employeeId,
-        transaction_type: 'fee',
-        amount: feeAmount,
-        remark: notes || 'Additional fee',
-        transaction_timestamp: txTimestamp,
+      const { data, error } = await supabase.rpc('lms_add_fee', {
+        p_customer_id: customerId || null,
+        p_loan_id: loanId || null,
+        p_actor_id: access.employee.id,
+        p_amount: feeAmount,
+        p_remark: notes || 'Additional fee',
+        p_transaction_timestamp: txTimestamp,
+        p_idempotency_key: idempotencyKey,
       })
-
-      // Update loan balance
-      const { data: loan } = await supabase
-        .from('loans')
-        .select('current_balance, total_debt_amount')
-        .eq('id', targetLoanId)
-        .single()
-
-      await supabase
-        .from('loans')
-        .update({
-          current_balance: (loan?.current_balance || 0) + feeAmount,
-          total_debt_amount: (loan?.total_debt_amount || 0) + feeAmount,
-        })
-        .eq('id', targetLoanId)
-
-      return apiOk({ loanId: targetLoanId, feeAdded: feeAmount })
+      if (error) return lmsFailureResponse(request, action, error, 'Failed to add fee')
+      return apiOk({ loanId: data?.loanId, feeAdded: Number(data?.feeAdded ?? feeAmount) })
     } else if (action === 'create_customer') {
       const { firstName, lastName, phone, email, address, initialTransaction } = body
-
-      const { data: newCustomer, error } = await supabase
-        .from('loan_customers')
-        .insert({
-          first_name: firstName,
-          last_name: lastName,
-          phone_number: phone,
-          email,
-          address,
-          created_by_employee_id: employeeId,
-          link_status: 'New Entry',
-        })
-        .select()
-        .single()
-
-      if (error) throw error
-
-      // If initial transaction provided, create loan and transaction
-      if (initialTransaction && initialTransaction.amount) {
-        const txType = initialTransaction.type
-        const txAmount = parseFloat(initialTransaction.amount)
-
-        if (txType === 'service' || txType === 'fee') {
-          // Create loan for debt
-          const { data: newLoan, error: loanError } = await supabase
-            .from('loans')
-            .insert({
-              loan_customer_id: newCustomer.id,
-              employee_id: employeeId,
-              total_debt_amount: txAmount,
-              current_balance: txAmount,
-              term_months: 12, // Default
-              status: 'Active',
-            })
-            .select()
-            .single()
-
-          if (loanError) throw loanError
-
-          // Create transaction
-          await supabase.from('loan_transactions').insert({
-            loan_id: newLoan.id,
-            employee_id: employeeId,
-            transaction_type: txType === 'service' ? 'service' : 'fee',
-            amount: txAmount,
-            remark: initialTransaction.notes || 'Initial transaction',
-            transaction_timestamp: new Date().toISOString(),
-          })
-        } else if (txType === 'payment') {
-          // Cannot add payment without a loan - need to create a dummy loan first
-          // OR skip payment-only for initial transaction
-          // For now, we'll skip pure payment as it doesn't make sense without debt
-        }
+      if (!String(firstName || '').trim() || !String(lastName || '').trim()) {
+        return apiError('First and last name are required', 400)
+      }
+      if (initialTransaction?.type === 'payment') {
+        return apiError('Initial transaction must be a service or fee', 400)
       }
 
-      return apiOk({ customerId: newCustomer.id })
+      const normalizedInitialTransaction = initialTransaction
+        ? { ...initialTransaction, amount: Number(initialTransaction.amount) }
+        : null
+      if (
+        normalizedInitialTransaction &&
+        (!Number.isFinite(normalizedInitialTransaction.amount) ||
+          normalizedInitialTransaction.amount <= 0)
+      ) {
+        return apiError('Initial transaction amount must be greater than zero', 400)
+      }
+
+      const { data, error } = await supabase.rpc('lms_create_customer', {
+        p_actor_id: access.employee.id,
+        p_first_name: String(firstName).trim(),
+        p_last_name: String(lastName).trim(),
+        p_phone: phone || null,
+        p_email: email || null,
+        p_address: address || null,
+        p_initial_transaction: normalizedInitialTransaction,
+        p_idempotency_key: idempotencyKey,
+      })
+      if (error) {
+        return lmsFailureResponse(request, action, error, 'Failed to create customer')
+      }
+      return apiOk({ customerId: data?.customerId })
     } else if (action === 'update_customer') {
       const { customerId, phone, email, address, dateOfBirth, notes } = body
+      if (!customerId) return apiError('Customer ID required', 400)
+      if (!isOptionalIsoDate(dateOfBirth)) return apiError('Invalid date of birth', 400)
 
-      const { error } = await supabase
-        .from('loan_customers')
-        .update({
-          phone_number: phone,
-          email,
-          address,
-          date_of_birth: dateOfBirth,
-          notes,
-        })
-        .eq('id', customerId)
-
-      if (error) throw error
-
-      return apiOk({ updatedCustomerId: customerId })
-    } else if (action === 'delete_customer') {
-      const { customerId, authCode, userId } = body
-
-      if (!authCode) {
-        return apiError('Auth code required', 403)
-      }
-
-      // Get customer data for logging before deletion
-      const { data: customerData } = await supabase
-        .from('loan_customers')
-        .select('*')
-        .eq('id', customerId)
-        .single()
-
-      if (!customerData) {
-        return apiError('Customer not found', 404)
-      }
-
-      // Log deletion (similar to NADRA)
-      await supabase.from('deletion_logs').insert({
-        record_type: 'LMS Customer',
-        deleted_record_data: customerData,
-        deleted_by: userId || null,
-        auth_code_used: authCode,
+      const { data, error } = await supabase.rpc('lms_update_customer', {
+        p_customer_id: customerId,
+        p_actor_id: access.employee.id,
+        p_updates: Object.fromEntries(
+          Object.entries({ phone, email, address, dateOfBirth }).filter(
+            ([, value]) => value !== undefined,
+          ),
+        ),
+        p_note: notes || null,
       })
+      if (error) {
+        return lmsFailureResponse(request, action, error, 'Failed to update customer')
+      }
+      return apiOk({ updatedCustomerId: data?.updatedCustomerId || customerId })
+    } else if (action === 'delete_customer') {
+      const { customerId } = body
+      if (!customerId) return apiError('Customer ID required', 400)
 
-      // First, delete all transactions associated with customer's loans
-      const { data: customerLoans } = await supabase
-        .from('loans')
-        .select('id')
-        .eq('loan_customer_id', customerId)
+      const verificationResponse = await verifyLmsDestructiveAction(access, {
+        verificationCode: body.verificationCode ?? body.authCode,
+        verificationMethod: body.verificationMethod,
+      })
+      if (verificationResponse) return verificationResponse
 
-      if (customerLoans && customerLoans.length > 0) {
-        const loanIds = customerLoans.map((l) => l.id)
-
-        // Delete transactions
-        await supabase.from('loan_transactions').delete().in('loan_id', loanIds)
-
-        // Delete loans
-        await supabase.from('loans').delete().eq('loan_customer_id', customerId)
+      const { data, error } = await supabase.rpc('lms_delete_customer', {
+        p_customer_id: customerId,
+        p_actor_id: access.employee.id,
+      })
+      if (error) {
+        return lmsFailureResponse(request, action, error, 'Failed to delete customer')
       }
 
-      // Finally delete customer
-      const { error } = await supabase.from('loan_customers').delete().eq('id', customerId)
-
-      if (error) throw error
-
-      return apiOk({ deletedCustomerId: customerId })
+      return apiOk({ deletedCustomerId: data?.deletedCustomerId || customerId })
     }
 
     return apiError('Invalid action', 400)
   } catch (error) {
-    return apiError(toErrorMessage(error, 'LMS action failed'), 500)
+    const requestId = await reportOperationalError({
+      event: 'lms.action_failed',
+      request,
+      error,
+      alert: true,
+    })
+    return responseWithRequestId(
+      apiError(toErrorMessage(error, 'LMS action failed'), 500),
+      requestId,
+    )
   }
 }

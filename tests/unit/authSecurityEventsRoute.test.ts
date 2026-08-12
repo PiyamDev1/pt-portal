@@ -46,7 +46,7 @@ describe('POST /api/auth/security-events', () => {
   it('records a valid security event with the session user id', async () => {
     const res = await POST(
       makeRequest({
-        eventType: 'password_login',
+        eventType: 'two_factor',
         status: 'success',
         email: 'user@example.com',
         userId: 'spoofed-user',
@@ -59,10 +59,29 @@ describe('POST /api/auth/security-events', () => {
       expect.objectContaining({
         userId: 'u-1',
         email: 'user@example.com',
-        eventType: 'password_login',
+        eventType: 'two_factor',
         status: 'success',
         metadata: { source: 'unit-test' },
       }),
     )
   })
+
+  it.each(['failed', 'success'])(
+    'rejects browser-authored password login %s events',
+    async (status) => {
+      mocks.getUser.mockResolvedValueOnce({ data: { user: null }, error: null })
+
+      const res = await POST(
+        makeRequest({
+          eventType: 'password_login',
+          status,
+          email: 'victim@example.com',
+        }),
+      )
+
+      expect(res.status).toBe(403)
+      expect(mocks.getUser).not.toHaveBeenCalled()
+      expect(mocks.recordAuthSecurityEvent).not.toHaveBeenCalled()
+    },
+  )
 })

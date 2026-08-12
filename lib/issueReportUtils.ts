@@ -1,7 +1,7 @@
 /**
  * Issue Report Utilities
  * Helper functions for issue report processing, validation, and enrichment
- * 
+ *
  * @module lib/issueReportUtils
  */
 
@@ -86,14 +86,23 @@ export function deriveModuleFromPath(pathname: string) {
 }
 
 export function parseDataUrl(input: string) {
-  const match = /^data:(.+);base64,(.+)$/u.exec(input)
-  if (!match) {
+  const match =
+    /^data:([a-z0-9][a-z0-9.+-]*\/[a-z0-9][a-z0-9.+-]*);base64,([a-z0-9+/]*={0,2})$/iu.exec(input)
+  const encoded = match?.[2] || ''
+  if (!match || !encoded || encoded.length % 4 !== 0) {
     throw new Error('Invalid data URL payload')
   }
 
+  const buffer = Buffer.from(encoded, 'base64')
+  const canonicalInput = encoded.replace(/=+$/u, '')
+  const canonicalOutput = buffer.toString('base64').replace(/=+$/u, '')
+  if (!buffer.length || canonicalInput !== canonicalOutput) {
+    throw new Error('Invalid base64 data URL payload')
+  }
+
   return {
-    contentType: match[1],
-    buffer: Buffer.from(match[2], 'base64'),
+    contentType: match[1].toLowerCase(),
+    buffer,
   }
 }
 

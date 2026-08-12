@@ -16,6 +16,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
+import { requireStaffSession } from '@/lib/auth/staffSession'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -65,6 +66,9 @@ const getDuplicateConflict = (error) => {
 }
 
 export async function POST(request) {
+  const access = await requireStaffSession()
+  if (!access.authorized) return access.response
+
   let normalizedTrackingNumber = ''
   try {
     const supabase = createClient(
@@ -84,8 +88,8 @@ export async function POST(request) {
       serviceOption,
       trackingNumber,
       pin,
-      currentUserId,
     } = body
+    const currentUserId = access.user.id
     normalizedTrackingNumber = String(trackingNumber || '')
       .trim()
       .toUpperCase()

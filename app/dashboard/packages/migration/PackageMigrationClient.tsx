@@ -12,6 +12,7 @@ import {
   ShieldAlert,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { useAppDialog } from '@/components/AppDialog'
 
 type MigrationStatus = {
   configuration?: { firebase: boolean; sourceStorage: boolean }
@@ -27,6 +28,7 @@ type MigrationStatus = {
 }
 
 export default function PackageMigrationClient() {
+  const { confirm, dialog } = useAppDialog()
   const [status, setStatus] = useState<MigrationStatus | null>(null)
   const [scan, setScan] = useState<Record<string, unknown> | null>(null)
   const [running, setRunning] = useState<string | null>(null)
@@ -69,13 +71,16 @@ export default function PackageMigrationClient() {
   }
 
   const runImport = async (mode: 'dry_run' | 'sample' | 'full' | 'retry') => {
-    if (
-      mode === 'full' &&
-      !window.confirm(
-        'Import this batch into live package folders? Existing imported records will be skipped.',
-      )
-    )
-      return
+    if (mode === 'full') {
+      const shouldImport = await confirm({
+        title: 'Import live package folders?',
+        message:
+          'Import this batch into live package folders? Existing imported records will be skipped.',
+        confirmLabel: 'Import batch',
+        type: 'warning',
+      })
+      if (!shouldImport) return
+    }
     setRunning(mode)
     try {
       const response = await fetch('/api/travel-packages/migration/import', {
@@ -140,6 +145,7 @@ export default function PackageMigrationClient() {
   const counts = status?.counts
   return (
     <div className="space-y-5">
+      {dialog}
       <section className="border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>

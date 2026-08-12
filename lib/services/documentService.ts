@@ -11,9 +11,6 @@
  * @module lib/services/documentService
  */
 
-import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3'
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
-import { getS3Client } from '@/lib/s3Client'
 import {
   DOCUMENT_ALLOWED_MIME_TYPES,
   DOCUMENT_MAX_FILE_SIZE_BYTES,
@@ -73,7 +70,6 @@ export interface DocumentService {
 
   // Preview & Thumbnails
   generateThumbnail(document: Document): Promise<string>
-  getPreviewUrl(fileName: string): Promise<string>
 
   // Validation
   validateFile(file: File): ValidationResult
@@ -88,16 +84,6 @@ export interface DocumentService {
  * without binding itself directly to transport details.
  */
 class PlaceholderDocumentService implements DocumentService {
-  private getServerS3Client(): S3Client {
-    if (typeof window !== 'undefined') {
-      throw new Error('Signed URL generation is server-only')
-    }
-
-    // Reuse the shared MinIO/S3 client so signing and direct object reads
-    // always use identical endpoint, region, and credentials.
-    return getS3Client()
-  }
-
   /**
    * Check storage health via the server-side status endpoint.
    *
@@ -158,8 +144,6 @@ class PlaceholderDocumentService implements DocumentService {
   async getMinioConfig(): Promise<MinioConfig> {
     return {
       endpoint: MINIO_ENDPOINT,
-      accessKey: process.env.NEXT_PUBLIC_MINIO_ACCESS_KEY || 'minioadmin',
-      secretKey: '***',
       bucket: MINIO_BUCKET,
       region: MINIO_REGION,
       useSSL: MINIO_ENDPOINT.startsWith('https'),
@@ -194,9 +178,6 @@ class PlaceholderDocumentService implements DocumentService {
     }
 
     try {
-      // Guarantee we have a type to send
-      const safeFileType = uploadFile.type || 'application/octet-stream'
-
       // Upload through our server as a reliable fallback when presigned PUT is
       // unstable across environments and mobile browsers.
       const uploadResult = await new Promise<{
@@ -204,6 +185,10 @@ class PlaceholderDocumentService implements DocumentService {
         minioKey: string
         etag: string
         storageBucket?: string
+        fileName: string
+        fileSize: number
+        fileType: string
+        category: string
       }>((resolve, reject) => {
         const xhr = new XMLHttpRequest()
         xhr.open('POST', `${API_BASE}/documents/upload-direct`)
@@ -218,7 +203,12 @@ class PlaceholderDocumentService implements DocumentService {
 
         xhr.onload = () => {
           if (xhr.status < 200 || xhr.status >= 300) {
-            reject(new Error(`Upload failed (HTTP ${xhr.status})`))
+            try {
+              const payload = JSON.parse(xhr.responseText)
+              reject(new Error(payload?.error || `Upload failed (HTTP ${xhr.status})`))
+            } catch {
+              reject(new Error(`Upload failed (HTTP ${xhr.status})`))
+            }
             return
           }
 
@@ -235,6 +225,10 @@ class PlaceholderDocumentService implements DocumentService {
               minioKey: result.minioKey,
               etag: result.etag || `unknown-${result.documentId}`,
               storageBucket: result.storageBucket,
+              fileName: result.fileName,
+              fileSize: result.fileSize,
+              fileType: result.fileType,
+              category: result.category,
             })
           } catch {
             reject(new Error('Invalid upload response'))
@@ -252,37 +246,28 @@ class PlaceholderDocumentService implements DocumentService {
         xhr.send(formData)
       })
 
-      const { documentId, minioKey, etag, storageBucket } = uploadResult
+      const {
+        documentId,
+        minioKey,
+        etag,
+        storageBucket,
+        fileName,
+        fileSize,
+        fileType,
+        category: storedCategory,
+      } = uploadResult
 
       if (onProgress) onProgress(98)
-
-      // Persist metadata only after storage succeeds so the database does not
-      // claim a document exists when the underlying object write failed.
-      await fetch(`${API_BASE}/documents`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          documentId,
-          fileName: uploadFile.name,
-          fileSize: uploadFile.size,
-          fileType: safeFileType,
-          category,
-          familyHeadId,
-          minioKey,
-          minioEtag: etag,
-          storageBucket,
-        }),
-      })
 
       if (onProgress) onProgress(100)
 
       // Return the normalized document shape expected by the UI layer.
       return {
         id: documentId,
-        fileName: uploadFile.name,
-        fileSize: uploadFile.size,
-        fileType: safeFileType,
-        category,
+        fileName,
+        fileSize,
+        fileType,
+        category: storedCategory,
         uploadedAt: new Date().toISOString(),
         uploadedBy: 'staff',
         familyHeadId,
@@ -426,18 +411,6 @@ class PlaceholderDocumentService implements DocumentService {
       console.error('Error generating thumbnail:', error)
       return ''
     }
-  }
-
-  /**
-   * Generate a 10-minute presigned URL to VIEW a document from MinIO/S3
-   */
-  async getPreviewUrl(fileName: string): Promise<string> {
-    const s3Client = this.getServerS3Client()
-    const command = new GetObjectCommand({
-      Bucket: MINIO_BUCKET,
-      Key: fileName,
-    })
-    return await getSignedUrl(s3Client, command, { expiresIn: 600 })
   }
 
   /**

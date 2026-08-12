@@ -2,7 +2,12 @@ import { apiError, apiOk } from '@/lib/api/http'
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
 import { getSupabaseClient } from '@/lib/supabaseClient'
 import { bufferToBase64url } from '@/lib/auth/base64url'
-import { createWebAuthnChallenge, getChallengeExpiry, getWebAuthnContext } from '@/lib/auth/webauthn'
+import {
+  createWebAuthnChallenge,
+  getChallengeExpiry,
+  getWebAuthnContext,
+} from '@/lib/auth/webauthn'
+import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -14,6 +19,14 @@ export async function POST(request: Request) {
   } = await supabase.auth.getUser()
 
   if (!user?.email) return apiError('Unauthorized', 401)
+
+  const limit = await enforceRateLimit(request, {
+    scope: 'auth.passkey-register-options',
+    limit: 10,
+    windowSeconds: 15 * 60,
+    identities: [`user:${user.id}`, `ip:${getClientIp(request)}`],
+  })
+  if (!limit.allowed) return limit.response
 
   const admin = getSupabaseClient()
   const context = getWebAuthnContext(request)
@@ -54,9 +67,7 @@ export async function POST(request: Request) {
         name: user.email,
         displayName: user.user_metadata?.full_name || user.email,
       },
-      pubKeyCredParams: [
-        { type: 'public-key', alg: -7 },
-      ],
+      pubKeyCredParams: [{ type: 'public-key', alg: -7 }],
       timeout: 60000,
       attestation: 'none',
       authenticatorSelection: {

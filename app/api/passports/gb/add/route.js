@@ -9,6 +9,7 @@ import { createClient } from '@supabase/supabase-js'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
 import { findGbPricingRow } from '@/lib/passports/gbPricing'
+import { requireStaffSession } from '@/lib/auth/staffSession'
 
 async function findGbPassportPricing(supabase, { pricingId, ageGroup, pages, serviceType }) {
   if (pricingId) {
@@ -40,6 +41,9 @@ async function findGbPassportPricing(supabase, { pricingId, ageGroup, pages, ser
 }
 
 export async function POST(request) {
+  const access = await requireStaffSession()
+  if (!access.authorized) return access.response
+
   try {
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -57,13 +61,18 @@ export async function POST(request) {
       ageGroup,
       serviceType,
       pages,
-      currentUserId,
     } = body
+    const currentUserId = access.user.id
 
     // 1. LOOKUP FINANCIALS FROM DB (Secure)
     // Prefer an exact pricing record when the frontend already resolved one.
     // Fall back to tolerant matching only when we do not have a pricing ID.
-    const pricing = await findGbPassportPricing(supabase, { pricingId, ageGroup, pages, serviceType })
+    const pricing = await findGbPassportPricing(supabase, {
+      pricingId,
+      ageGroup,
+      pages,
+      serviceType,
+    })
 
     // 2. Find or Create Applicant
     let applicantId = null

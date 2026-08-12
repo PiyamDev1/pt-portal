@@ -8,18 +8,34 @@ import { toErrorMessage } from '@/lib/api/error'
 import { apiError, apiOk } from '@/lib/api/http'
 import { getDocumentStorageStatus } from '@/lib/documentStorageStatus'
 import { migrateFallbackBatch } from '@/lib/r2Migration'
+import { timingSafeEqual } from 'crypto'
+import { z } from 'zod'
+import { parseBodyWithSchema } from '@/lib/api/request'
+
+const scheduledMigrationSchema = z.object({
+  token: z.string().max(1_000).optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional(),
+})
+
+function tokensMatch(provided: string, expected: string) {
+  const providedBytes = Buffer.from(provided)
+  const expectedBytes = Buffer.from(expected)
+  return (
+    providedBytes.length === expectedBytes.length && timingSafeEqual(providedBytes, expectedBytes)
+  )
+}
 
 function isAuthorizedCronRequest(request: NextRequest, bodyToken?: string) {
-  const cronHeader = request.headers.get('x-vercel-cron')
-  const expectedToken = process.env.DOCUMENT_MIGRATION_CRON_TOKEN || ''
-  const token = request.nextUrl.searchParams.get('token') || ''
+  const expectedToken = process.env.DOCUMENT_MIGRATION_CRON_TOKEN || process.env.CRON_SECRET || ''
+  if (!expectedToken) return false
+
+  const authorization = request.headers.get('authorization') || ''
+  const bearerToken = authorization.startsWith('Bearer ') ? authorization.slice(7) : ''
   const headerToken = request.headers.get('x-migration-token') || ''
 
-  if (cronHeader === '1') return true
-  if (expectedToken && token === expectedToken) return true
-  if (expectedToken && headerToken === expectedToken) return true
-  if (expectedToken && bodyToken === expectedToken) return true
-  return false
+  return [bearerToken, headerToken, bodyToken || ''].some(
+    (provided) => provided && tokensMatch(provided, expectedToken),
+  )
 }
 
 async function runScheduledMigration(
@@ -59,6 +75,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const body = await request.json().catch(() => ({}))
+  const { data: body, error } = await parseBodyWithSchema(request, scheduledMigrationSchema, {
+    maxBytes: 4 * 1024,
+  })
+  if (error || !body) return apiError(error || 'Invalid request payload', 400)
   return runScheduledMigration(request, body)
 }

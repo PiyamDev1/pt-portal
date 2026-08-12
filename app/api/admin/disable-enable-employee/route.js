@@ -5,13 +5,25 @@
  * @module app/api/admin/disable-enable-employee
  */
 
-import { createClient } from '@supabase/supabase-js'
-import { createServerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
+import { z } from 'zod'
 import { apiOk, apiError } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
+import { verifyFreshSecondFactor } from '@/lib/auth/freshSecondFactor'
+import { requireStaffSession } from '@/lib/auth/staffSession'
+import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
+import { parseBodyWithSchema } from '@/lib/api/request'
+import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
 
 export const dynamic = 'force-dynamic'
+
+const statusChangeSchema = z
+  .object({
+    employeeId: z.string().trim().min(1, 'employeeId is required').max(200),
+    isActive: z.boolean(),
+    verificationCode: z.string().trim().max(100).optional(),
+    verificationMethod: z.enum(['totp', 'backup', 'auto']).optional(),
+  })
+  .strict()
 
 /**
  * API endpoint to disable/enable employees
@@ -22,76 +34,60 @@ export const dynamic = 'force-dynamic'
  * - isActive: boolean - desired status
  */
 export async function POST(request) {
+  const access = await requireStaffSession()
+  if (!access.authorized) return access.response
+
   try {
-    // Initialize clients
-    const cookieStore = await cookies()
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-      {
-        cookies: {
-          getAll() {
-            return cookieStore.getAll()
-          },
-          setAll() {},
-        },
-      },
-    )
+    const limit = await enforceRateLimit(request, {
+      scope: 'admin.employee-status',
+      limit: 20,
+      windowSeconds: 60 * 60,
+      identities: [`user:${access.user.id}`, `ip:${getClientIp(request)}`],
+    })
+    if (!limit.allowed) return limit.response
 
-    const supabaseAdmin = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY,
-    )
-
-    // 1. Verify caller is authenticated
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return apiError('Unauthorized', 401)
-    }
+    const supabaseAdmin = getServiceSupabaseClient()
 
     // 2. Get request body
-    const body = await request.json()
-    const { employeeId, isActive } = body
+    const { data: body, error: bodyError } = await parseBodyWithSchema(
+      request,
+      statusChangeSchema,
+      { maxBytes: 4 * 1024 },
+    )
+    if (bodyError || !body) return apiError(bodyError || 'Invalid request payload', 400)
+    const { employeeId, isActive, verificationCode, verificationMethod } = body
 
-    if (!employeeId || typeof isActive !== 'boolean') {
-      return apiError('Missing or invalid parameters: employeeId and isActive required', 400)
+    if (!isActive) {
+      const verification = await verifyFreshSecondFactor({
+        userId: access.user.id,
+        code: verificationCode,
+        method: verificationMethod,
+      })
+      if (!verification.verified) {
+        return apiError(verification.error, 403)
+      }
     }
 
-    // 3. Get current user's role and manager info
-    const { data: currentUser, error: userError } = await supabaseAdmin
-      .from('employees')
-      .select('id, manager_id, roles(name)')
-      .eq('id', user.id)
-      .single()
-
-    if (userError || !currentUser) {
-      return apiError('User profile not found', 404)
-    }
-
-    const role = Array.isArray(currentUser.roles)
-      ? currentUser.roles[0]?.name
-      : currentUser.roles?.name
-
-    const isSuperAdmin = role === 'Master Admin'
+    const isSuperAdmin = ['Master Admin', 'Super Admin'].includes(access.employee.role)
 
     // 4. Authorization check
     // Only Super Admin or a manager of the employee can disable/enable
     if (!isSuperAdmin) {
       // Check if caller is a manager of this employee
-      const isManager = await checkIfManager(supabaseAdmin, user.id, employeeId)
+      const isManager = await checkIfManager(supabaseAdmin, access.user.id, employeeId)
       if (!isManager) {
         console.warn(
-          `[disable-enable-employee] Unauthorized: ${user.email} tried to modify ${employeeId}`,
+          `[disable-enable-employee] Unauthorized: ${access.user.email} tried to modify ${employeeId}`,
         )
-        return apiError('Unauthorized: Only managers or super admin can disable/enable employees', 403)
+        return apiError(
+          'Unauthorized: Only managers or super admin can disable/enable employees',
+          403,
+        )
       }
     }
 
     // 5. Don't allow disabling yourself
-    if (user.id === employeeId && !isActive) {
+    if (access.user.id === employeeId && !isActive) {
       return apiError('Cannot disable your own account', 400)
     }
 
@@ -104,7 +100,7 @@ export async function POST(request) {
     if (updateError) throw updateError
 
     const status = isActive ? 'enabled' : 'disabled'
-    console.warn(`[disable-enable-employee] ${user.email} ${status} employee ${employeeId}`)
+    console.warn(`[disable-enable-employee] ${access.user.email} ${status} employee ${employeeId}`)
 
     return apiOk({
       updatedEmployeeId: employeeId,

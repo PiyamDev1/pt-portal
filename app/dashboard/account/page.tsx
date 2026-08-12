@@ -35,6 +35,7 @@ export default function MyAccountPage() {
   const [newPass, setNewPass] = useState('')
   const [confirmPass, setConfirmPass] = useState('')
   const [confirmAction, setConfirmAction] = useState<'reset-2fa' | 'backup-codes' | null>(null)
+  const [verificationCode, setVerificationCode] = useState('')
 
   useEffect(() => {
     async function getUser() {
@@ -71,25 +72,16 @@ export default function MyAccountPage() {
 
     setLoading(true)
 
-    // 1. Verify Current Password first (Re-Auth)
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email: user.email,
-      password: currentPass,
+    // The server reauthenticates the current password immediately before the change.
+    const updateResponse = await fetch('/api/auth/update-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ currentPassword: currentPass, newPassword: newPass }),
     })
 
-    if (signInError) {
-      setLoading(false)
-      toast.error('Incorrect current password')
-      return
-    }
-
-    // 2. Update to New Password
-    const { error: updateError } = await supabase.auth.updateUser({
-      password: newPass,
-    })
-
-    if (updateError) {
-      toast.error('Failed to update password: ' + updateError.message)
+    const updateResult = await updateResponse.json().catch(() => ({}))
+    if (!updateResponse.ok) {
+      toast.error('Failed to update password: ' + (updateResult.error || 'Unknown'))
     } else {
       toast.success('Password updated successfully!')
       setCurrentPass('')
@@ -115,7 +107,10 @@ export default function MyAccountPage() {
     const res = await fetch('/api/auth/reset-2fa', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({}),
+      body: JSON.stringify({
+        verificationCode: verificationCode.trim(),
+        verificationMethod: 'auto',
+      }),
     })
 
     if (res.ok) {
@@ -125,6 +120,7 @@ export default function MyAccountPage() {
       const data = await res.json()
       toast.error('Failed to reset 2FA: ' + (data?.error || 'Unknown'))
     }
+    setVerificationCode('')
     setLoading(false)
   }
 
@@ -158,7 +154,11 @@ export default function MyAccountPage() {
     const res = await fetch('/api/auth/generate-backup-codes', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ count: 10 }),
+      body: JSON.stringify({
+        count: 10,
+        verificationCode: verificationCode.trim(),
+        verificationMethod: 'auto',
+      }),
     })
     const data = await res.json()
     if (res.ok) {
@@ -173,6 +173,7 @@ export default function MyAccountPage() {
     } else {
       toast.error('Failed to generate backup codes: ' + (data?.error || 'Unknown'))
     }
+    setVerificationCode('')
     setLoading(false)
   }
 
@@ -368,7 +369,10 @@ export default function MyAccountPage() {
 
       <ConfirmationDialog
         isOpen={!!confirmAction}
-        onClose={() => setConfirmAction(null)}
+        onClose={() => {
+          setConfirmAction(null)
+          setVerificationCode('')
+        }}
         onConfirm={handleConfirmAction}
         title={confirmAction === 'reset-2fa' ? 'Reset 2FA' : 'Generate Backup Codes'}
         message={
@@ -380,7 +384,26 @@ export default function MyAccountPage() {
         cancelLabel="Cancel"
         type={confirmAction === 'reset-2fa' ? 'danger' : 'warning'}
         isLoading={loading}
-      />
+        confirmDisabled={!verificationCode.trim()}
+      >
+        <div>
+          <label className="mb-1 block text-sm font-medium text-slate-700">
+            Authenticator or backup code
+          </label>
+          <input
+            type="text"
+            autoFocus
+            autoComplete="one-time-code"
+            value={verificationCode}
+            onChange={(event) => setVerificationCode(event.target.value)}
+            placeholder="Enter a current verification code"
+            className="w-full rounded border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+          />
+          <p className="mt-1 text-xs text-slate-500">
+            A valid current code is required immediately before this security change.
+          </p>
+        </div>
+      </ConfirmationDialog>
     </>
   )
 }

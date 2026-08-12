@@ -2,3 +2,6 @@ node_modules
 .next
 build
 out
+
+# Generated verbatim by pdfjs-dist during install.
+public/pdf.worker.min.mjs

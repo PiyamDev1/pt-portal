@@ -9,6 +9,19 @@ const mocks = vi.hoisted(() => {
 vi.mock('@supabase/supabase-js', () => ({
   createClient: mocks.createClient,
 }))
+vi.mock('@/lib/lms/apiAuth', () => ({
+  requireLmsStaff: vi.fn(async () => ({
+    authorized: true,
+    user: { id: 'user-1', email: 'staff@example.com' },
+    employee: {
+      id: 'emp-1',
+      email: 'staff@example.com',
+      fullName: 'Test Staff',
+      role: 'Master Admin',
+      departments: [],
+    },
+  })),
+}))
 
 import { POST } from '@/app/api/lms/update-installments/route'
 
@@ -32,7 +45,7 @@ describe('/api/lms/update-installments route', () => {
     expect(mocks.from).not.toHaveBeenCalled()
   })
 
-  it('updates valid installments and skips invalid entries', async () => {
+  it('updates every validated installment entry', async () => {
     const eq = vi.fn(async () => ({ error: null }))
     const update = vi.fn(() => ({ eq }))
 
@@ -48,7 +61,6 @@ describe('/api/lms/update-installments route', () => {
         installments: [
           { id: 'i-1', due_date: '2026-04-01', amount: '100.50' },
           { id: 'i-2', due_date: '2026-05-01', amount: 125 },
-          { id: '', due_date: '2026-06-01', amount: 80 },
         ],
       }),
     })

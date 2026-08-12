@@ -7,7 +7,7 @@
  * use the QR scanner (e.g. field workers without camera access).
  *
  * The generated code is a signed payload stored in timeclock_manual_codes
- * with a 5-minute expiry and a single-use nonce. A 6-digit numeric code
+ * with a 30-second expiry and a single-use nonce. An 8-digit numeric code
  * is also produced for human-readable display.
  *
  * Access control:
@@ -28,9 +28,10 @@
 import { createServerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies, headers } from 'next/headers'
 import { createClient } from '@supabase/supabase-js'
-import crypto from 'crypto'
+import { createHmac, randomBytes, randomUUID } from 'node:crypto'
 import { apiOk, apiError } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
+import { generateSecureNumericCode } from '@/lib/security/secureRandom.server'
 import {
   getRoleName,
   hasMaintenanceTimeclockAccess,
@@ -44,14 +45,11 @@ const adminSupabase = createClient(supabaseUrl, serviceKey)
 const PAYLOAD_NAMESPACE = 'ptc1:'
 
 function generateNonce() {
-  return crypto.randomBytes(16).toString('hex')
+  return randomBytes(16).toString('hex')
 }
 
 function generateNumericCode() {
-  // Generate random 8-digit numeric code
-  return Math.floor(Math.random() * 100000000)
-    .toString()
-    .padStart(8, '0')
+  return generateSecureNumericCode(8)
 }
 
 function formatCodeDisplay(code: string) {
@@ -64,7 +62,7 @@ function generateQrPayload(deviceId: string, secret: string): string {
   const nonce = generateNonce()
 
   const signatureBase = `${deviceId}.${ts}.${nonce}`
-  const sig = crypto.createHmac('sha256', secret).update(signatureBase).digest('base64url')
+  const sig = createHmac('sha256', secret).update(signatureBase).digest('base64url')
 
   const payload = {
     v: 1,
@@ -93,20 +91,21 @@ export async function POST(request: Request) {
     })
 
     const {
-      data: { session },
-    } = await supabase.auth.getSession()
-    if (!session) {
+      data: { user: authUser },
+      error: authError,
+    } = await supabase.auth.getUser()
+    if (authError || !authUser) {
       return apiError('Unauthorized', 401)
     }
 
     // Check if user has manager-level or maintenance-level timeclock access.
     const [{ data: user }, { count: reportCount }, { data: profile }] = await Promise.all([
-      supabase.from('employees').select('roles(name)').eq('id', session.user.id).single(),
+      supabase.from('employees').select('roles(name)').eq('id', authUser.id).single(),
       supabase
         .from('employees')
         .select('id', { count: 'exact', head: true })
-        .eq('manager_id', session.user.id),
-      supabase.from('profiles').select('role').eq('id', session.user.id).maybeSingle(),
+        .eq('manager_id', authUser.id),
+      supabase.from('profiles').select('role').eq('id', authUser.id).maybeSingle(),
     ])
 
     const roleName = pickRoleName(getRoleName(user?.roles), profile?.role)
@@ -118,7 +117,7 @@ export async function POST(request: Request) {
     }
 
     // Get or create a virtual device for manual entry
-    const manualDeviceName = `Manual Entry (${session.user.id.slice(0, 8)})`
+    const manualDeviceName = `Manual Entry (${authUser.id.slice(0, 8)})`
     const { data: device, error: deviceError } = await adminSupabase
       .from('timeclock_devices')
       .select('id, secret')
@@ -137,8 +136,8 @@ export async function POST(request: Request) {
       deviceSecret = device.secret
     } else {
       // Create virtual device if it doesn't exist
-      deviceId = crypto.randomUUID()
-      deviceSecret = crypto.randomBytes(32).toString('hex')
+      deviceId = randomUUID()
+      deviceSecret = randomBytes(32).toString('hex')
 
       const { error: insertDeviceError } = await adminSupabase
         .from('timeclock_devices')
@@ -170,7 +169,7 @@ export async function POST(request: Request) {
       code: numericCode,
       device_id: deviceId,
       qr_payload: qrPayload,
-      user_id: session.user.id,
+      user_id: authUser.id,
       expires_at: new Date(expiresAt).toISOString(),
     }
 

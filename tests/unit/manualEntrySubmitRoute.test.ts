@@ -5,7 +5,7 @@ const mocks = vi.hoisted(() => {
   process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-key'
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'anon-key'
 
-  const getSession = vi.fn()
+  const getUser = vi.fn()
 
   // adminSupabase chains
   const adminMaybeSingle = vi.fn()
@@ -41,10 +41,10 @@ const mocks = vi.hoisted(() => {
   })
 
   const createClient = vi.fn(() => ({ from: adminFrom }))
-  const createServerClient = vi.fn(() => ({ auth: { getSession } }))
+  const createServerClient = vi.fn(() => ({ auth: { getUser } }))
 
   return {
-    getSession,
+    getUser,
     adminMaybeSingle,
     adminSelectCode,
     adminEqCode,
@@ -89,7 +89,7 @@ describe('POST /api/timeclock/manual-entry/submit', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.createClient.mockReturnValue({ from: mocks.adminFrom })
-    mocks.createServerClient.mockReturnValue({ auth: { getSession: mocks.getSession } })
+    mocks.createServerClient.mockReturnValue({ auth: { getUser: mocks.getUser } })
     mocks.adminFrom.mockImplementation(((table: string) => {
       if (table === 'timeclock_manual_codes') {
         return {
@@ -111,7 +111,7 @@ describe('POST /api/timeclock/manual-entry/submit', () => {
   })
 
   it('returns 401 when not authenticated', async () => {
-    mocks.getSession.mockResolvedValue({ data: { session: null } })
+    mocks.getUser.mockResolvedValue({ data: { user: null }, error: null })
     const res = await POST(makeRequest({ code: '12345678' }))
     expect(res.status).toBe(401)
     const body = await res.json()
@@ -119,7 +119,7 @@ describe('POST /api/timeclock/manual-entry/submit', () => {
   })
 
   it('returns 400 for invalid code format', async () => {
-    mocks.getSession.mockResolvedValue({ data: { session: { user: { id: 'u-1' } } } })
+    mocks.getUser.mockResolvedValue({ data: { user: { id: 'u-1' } }, error: null })
     const res = await POST(makeRequest({ code: 'abc' }))
     expect(res.status).toBe(400)
     const body = await res.json()
@@ -127,7 +127,7 @@ describe('POST /api/timeclock/manual-entry/submit', () => {
   })
 
   it('returns 404 when code is not found in database', async () => {
-    mocks.getSession.mockResolvedValue({ data: { session: { user: { id: 'u-1' } } } })
+    mocks.getUser.mockResolvedValue({ data: { user: { id: 'u-1' } }, error: null })
     mocks.adminSelectCode.mockResolvedValue({ data: null, error: null })
     const res = await POST(makeRequest({ code: '12345678' }))
     expect(res.status).toBe(404)
@@ -136,7 +136,7 @@ describe('POST /api/timeclock/manual-entry/submit', () => {
   })
 
   it('returns 400 when code has expired', async () => {
-    mocks.getSession.mockResolvedValue({ data: { session: { user: { id: 'u-1' } } } })
+    mocks.getUser.mockResolvedValue({ data: { user: { id: 'u-1' } }, error: null })
     const pastTime = new Date(Date.now() - 60_000).toISOString()
     mocks.adminSelectCode.mockResolvedValue({
       data: { device_id: 'dev-1', qr_payload: '{}', expires_at: pastTime },

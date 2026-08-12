@@ -1,89 +1,110 @@
 # Database Schema Overview
 
-Last updated: June 6, 2026
+Last updated: August 12, 2026
 
-## Purpose
+## Purpose and source of truth
 
-This document provides a high-level map of database domains used by PT-Portal and where to find authoritative migration history.
-
-## Source of Truth
-
-Database structure is defined by SQL migrations in:
+This document maps the main PT-Portal database domains and the schema verification workflow. Executable SQL migrations are authoritative:
 
 - `scripts/migrations/`
-- root-level SQL utility scripts in `scripts/`
-- booking bootstrap schema in `scripts/bootstrap/create-bookings-schema.sql`
+- root-level SQL utilities in `scripts/`
+- `scripts/bootstrap/create-bookings-schema.sql` for booking bootstrap
 
-Always treat migration files as authoritative over secondary documentation.
+Do not create or mutate schema from an API request. Runtime “setup” endpoints may report readiness, but deployment migrations own DDL.
 
-## Core Domains
+## Core domains
 
-### Authentication and User Profiles
+### Authentication and employees
 
-Primary concern:
+- Supabase Auth identities and factors
+- `employees`, `roles`, locations, and `employee_departments`
+- bcrypt-hashed one-time `backup_codes`
+- security-event and login-guard records
+- `api_rate_limit_buckets` for shared abuse-control counters
 
-- User identity, role, and profile metadata used for route authorization and dashboard scoping.
+### Applications
 
-### Applications Domain
-
-Primary concern:
-
-- NADRA applications
+- NADRA applications and applicants
 - Visa applications
-- Passport applications (PAK and GB flows)
-- Status history and complaint/notes timelines
+- Submitted Pakistani/GB passport applications
+- Pre-tracking Pakistani-passport drafts
+- Status, complaint, note, assignment, and receipt history
 
-### LMS Domain
+### LMS
 
-Primary concern:
+- Customers and loan accounts
+- Service, fee, and payment ledger entries
+- Installment plans and payment methods
+- Audit logs, operational notes, and idempotency keys
 
-- Customer accounts
-- Transactions
-- Installment plans
-- Payment methods
-- Audit logs and operational notes
+The ledger is the source of truth for derived balances. LMS mutations use service-role-only PostgreSQL functions so the ledger write, installment synchronization, and account recalculation occur in one transaction.
 
-### Bookings Domain
+### Bookings
 
-Primary concern:
+- Branch-aware schedules and services
+- Appointment records and slot rules
+- Reminder events, no-show flags, and booking audit records
 
-- Branch-aware appointment schedules
-- Booking services and slot rules
-- Customer appointment records
-- Reminder events, no-show flags, and booking audit logs
+### Documents
 
-### Documents Domain
+- Private-vault metadata tied to an applicant, application, or draft scope
+- Storage provider/bucket, object key, MIME type, size, and ETag
+- Logical deletion and listing metadata
 
-Primary concern:
+The object store is not the authorization source. Routes first resolve a live database record before preview, download, or delete operations.
 
-- Document metadata records tied to family heads/applications
-- Storage keys, buckets/providers, MIME and size metadata
-- Logical delete flags and listing support
-
-### Timeclock Domain
-
-Primary concern:
+### Timeclock
 
 - Device registry
-- Scan events
-- Team event views and manual/adjustment workflows
+- Signed scan events
+- Team views, manual codes, and adjustment workflows
 
-## Data Access Patterns
+## Versioned security and LMS migrations
 
-- API routes use Supabase server clients for all privileged reads/writes.
-- Route handlers validate required params/body before mutation.
-- Error responses are standardized through shared API helper utilities.
+`portal_schema_versions` records deployed component capabilities. It is RLS-enabled and readable only by the service role.
 
-## Operational Notes
+| Migration                                   | Marker                      | Main capabilities                                                                                                              |
+| ------------------------------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `20260812_secure_atomic_lms_operations.sql` | `lms` / `20260812`          | Atomic ledger functions, idempotent retries, installment synchronization, global account pagination, and `lms_schema_status()` |
+| `20260812_security_rate_limits.sql`         | `api-security` / `20260812` | Shared fixed-window rate limiting and atomic backup-code replacement                                                           |
 
-- Keep schema changes additive where possible.
-- Pair any schema change with route/test updates in the same change set.
-- Add migration comments for destructive operations or data backfills.
+`POST /api/admin/create-installments-table` is retained as a maintenance readiness check. It calls `lms_schema_status()` and returns `503` when the required migration/version is absent; it does not execute DDL.
 
-## Maintenance Checklist for Schema Changes
+The security migration installs:
 
-1. Add migration SQL in `scripts/migrations/`.
-2. Update route code and shared types if payload shape changes.
-3. Add or update unit tests covering new behavior.
-4. Validate local lint/type/test/build before merge.
-5. Update `docs/technical/API_REFERENCE.md` if endpoint contracts changed.
+- `api_rate_limit_buckets`, with hashed identities and no grants to `anon` or `authenticated`;
+- `check_api_rate_limit`, an atomic service-role-only fixed-window increment/decision function; and
+- `replace_backup_codes`, a service-role-only transaction that preserves the previous code set if replacement fails.
+
+## Data-access rules
+
+- Authenticate the request with the cookie-backed Supabase user before creating a service-role client.
+- Resolve actor identity from the verified session, never from body/query employee IDs.
+- Apply route-specific role or department checks before privileged reads and writes.
+- Validate and bound mutation payloads before database calls.
+- Prefer generated Supabase types and typed shared accessors for new code.
+- Keep transactionally related writes inside a PostgreSQL function instead of coordinating partial writes from a route.
+
+## Real-PostgreSQL integration checks
+
+`.github/workflows/database-integration.yml` starts PostgreSQL 16 for migration tests. It runs:
+
+```bash
+npm run test:db:lms
+npm run test:db:security
+```
+
+The LMS check applies a minimal production-shaped fixture, proves the migration can roll back cleanly, installs it, exercises ledger/installment/fee/update behavior, validates idempotent replay and pagination, and runs simultaneous retries from separate sessions.
+
+The security check applies the security migration, verifies rate-limit window decisions and backup-code replacement behavior, and runs concurrent limiter calls to prove that exactly one request passes a limit of one.
+
+Set `DATABASE_TEST_URL` to a disposable database. Never run these integration fixtures against production or a database containing data that must be preserved.
+
+## Schema-change checklist
+
+1. Add an idempotent migration in `scripts/migrations/`.
+2. Revoke public/anon/authenticated access to privileged tables and functions; grant the minimum service-role capability.
+3. Add or update a `portal_schema_versions` marker when runtime code depends on the migration.
+4. Update routes, generated types, and contract documentation together.
+5. Add unit tests and a real-PostgreSQL integration assertion for concurrency or transaction behavior.
+6. Run lint, typecheck, unit tests, build, and both applicable database integration scripts before merge.

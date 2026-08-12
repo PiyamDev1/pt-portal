@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   AlertTriangle,
   Archive,
@@ -332,17 +332,20 @@ export default function PackagesDashboardClient({
     }
   }, [quotes])
 
-  const quoteMatchesView = (quote: TravelPackageQuote) => {
-    const expired = isPackageQuoteExpired(quote.expires_at)
-    const live = quote.share_enabled && quote.status === 'shared' && !expired
-    return (
-      quoteView === 'all' ||
-      (quoteView === 'live' && live) ||
-      (quoteView === 'draft' && (quote.status === 'draft' || !quote.share_enabled)) ||
-      (quoteView === 'selected' && Boolean(quote.selected_at)) ||
-      (quoteView === 'expired' && expired)
-    )
-  }
+  const quoteMatchesView = useCallback(
+    (quote: TravelPackageQuote) => {
+      const expired = isPackageQuoteExpired(quote.expires_at)
+      const live = quote.share_enabled && quote.status === 'shared' && !expired
+      return (
+        quoteView === 'all' ||
+        (quoteView === 'live' && live) ||
+        (quoteView === 'draft' && (quote.status === 'draft' || !quote.share_enabled)) ||
+        (quoteView === 'selected' && Boolean(quote.selected_at)) ||
+        (quoteView === 'expired' && expired)
+      )
+    },
+    [quoteView],
+  )
 
   const quoteMatchesSearch = (quote: TravelPackageQuote, query: string) => {
     if (!query) return true
@@ -398,7 +401,7 @@ export default function PackagesDashboardClient({
       .map((quote) => ({ type: 'quote' as const, quote }))
 
     return [...groupRows, ...quoteRows]
-  }, [packageGroups, quoteView, quotes, searchTerm])
+  }, [packageGroups, quoteMatchesView, quoteView, quotes, searchTerm])
 
   const filteredPackages = useMemo(() => {
     const query = searchTerm.trim().toLowerCase()

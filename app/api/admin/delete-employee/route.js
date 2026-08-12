@@ -5,13 +5,37 @@
  * @module app/api/admin/delete-employee
  */
 
-import { createClient } from '@supabase/supabase-js'
-import { createServerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
+import { z } from 'zod'
 import { apiOk, apiError } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
+import { parseBodyWithSchema } from '@/lib/api/request'
+import { requireStaffSession } from '@/lib/auth/staffSession'
+import { verifyFreshSecondFactor } from '@/lib/auth/freshSecondFactor'
+import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
+import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
 
 export const dynamic = 'force-dynamic'
+
+const deleteEmployeeSchema = z
+  .object({
+    employeeId: z
+      .string({ error: 'employeeId is required' })
+      .trim()
+      .min(1, 'employeeId is required')
+      .max(200),
+    confirmEmail: z
+      .string({ error: 'confirmEmail is required' })
+      .trim()
+      .email('A valid confirmation email is required')
+      .max(320),
+    verificationCode: z
+      .string({ error: 'Verification code required' })
+      .trim()
+      .min(1, 'Verification code required')
+      .max(100),
+    verificationMethod: z.enum(['totp', 'backup', 'auto']).optional(),
+  })
+  .strict()
 
 /**
  * API endpoint to DELETE employees permanently
@@ -30,70 +54,40 @@ export const dynamic = 'force-dynamic'
  * - confirmEmail: string - Email address to confirm deletion (must match employee email)
  */
 export async function POST(request) {
+  const access = await requireStaffSession({ roles: ['Master Admin', 'Super Admin'] })
+  if (!access.authorized) return access.response
+
   try {
-    // Initialize clients
-    const cookieStore = await cookies()
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-      {
-        cookies: {
-          getAll() {
-            return cookieStore.getAll()
-          },
-          setAll() {},
-        },
-      },
-    )
+    const limit = await enforceRateLimit(request, {
+      scope: 'admin.delete-employee',
+      limit: 3,
+      windowSeconds: 60 * 60,
+      identities: [`user:${access.user.id}`, `ip:${getClientIp(request)}`],
+    })
+    if (!limit.allowed) return limit.response
 
-    const supabaseAdmin = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY,
-    )
-
-    // 1. Verify caller is authenticated
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return apiError('Unauthorized', 401)
-    }
+    const supabaseAdmin = getServiceSupabaseClient()
 
     // 2. Get request body
-    const body = await request.json()
-    const { employeeId, confirmEmail } = body
+    const { data: body, error: bodyError } = await parseBodyWithSchema(
+      request,
+      deleteEmployeeSchema,
+      { maxBytes: 4 * 1024 },
+    )
+    if (bodyError || !body) return apiError(bodyError || 'Invalid request payload', 400)
+    const { employeeId, confirmEmail, verificationCode, verificationMethod } = body
 
-    if (!employeeId || !confirmEmail) {
-      return apiError('Missing required parameters: employeeId and confirmEmail', 400)
-    }
-
-    // 3. Verify caller is SUPER ADMIN
-    const { data: currentUser, error: userError } = await supabaseAdmin
-      .from('employees')
-      .select('id, roles(name)')
-      .eq('id', user.id)
-      .single()
-
-    if (userError || !currentUser) {
-      return apiError('Your profile not found', 404)
-    }
-
-    const role = Array.isArray(currentUser.roles)
-      ? currentUser.roles[0]?.name
-      : currentUser.roles?.name
-
-    const isSuperAdmin = role === 'Master Admin'
-
-    if (!isSuperAdmin) {
-      console.warn(
-        `[delete-employee] SECURITY: Non-super-admin ${user.email} attempted deletion of ${employeeId}`,
-      )
-      return apiError('Forbidden: Only Super Admin can delete employees', 403)
+    const verification = await verifyFreshSecondFactor({
+      userId: access.user.id,
+      code: verificationCode,
+      method: verificationMethod,
+    })
+    if (!verification.verified) {
+      return apiError(verification.error, 403)
     }
 
     // 4. Prevent self-deletion
-    if (user.id === employeeId) {
+    if (access.user.id === employeeId) {
       return apiError('Cannot delete your own account', 400)
     }
 
@@ -136,7 +130,7 @@ export async function POST(request) {
     }
 
     console.warn(
-      `🗑️  [delete-employee] SUPER ADMIN ${user.email} deleted employee ${targetEmployee.email} (${targetEmployee.full_name})`,
+      `🗑️  [delete-employee] SUPER ADMIN ${access.user.email} deleted employee ${targetEmployee.email} (${targetEmployee.full_name})`,
     )
 
     return apiOk({

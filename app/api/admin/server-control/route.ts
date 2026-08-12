@@ -5,123 +5,27 @@
  * server power action after a fresh TOTP or backup-code verification.
  */
 
-import bcrypt from 'bcryptjs'
+import { z } from 'zod'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
-import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
+import { parseBodyWithSchema } from '@/lib/api/request'
 import { requireSuperAdminSession } from '@/lib/adminSessionAuth'
-import { getSupabaseClient } from '@/lib/supabaseClient'
+import { verifyFreshSecondFactor } from '@/lib/auth/freshSecondFactor'
+import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
 import {
   getServerControlConfig,
   getServerControlStatus,
   runServerControlAction,
-  type ServerControlAction,
 } from '@/lib/serverControl'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-type VerificationMethod = 'totp' | 'backup'
-
-type ServerActionBody = {
-  action?: unknown
-  verificationCode?: unknown
-  verificationMethod?: unknown
-}
-
-type BackupCodeRow = {
-  id: string
-  code_hash: string | null
-  used: boolean | null
-}
-
-const SERVER_ACTIONS = new Set(['start', 'stop', 'restart'])
-const VERIFICATION_METHODS = new Set(['totp', 'backup'])
-
-function isServerControlAction(value: unknown): value is ServerControlAction {
-  return typeof value === 'string' && SERVER_ACTIONS.has(value)
-}
-
-function isVerificationMethod(value: unknown): value is VerificationMethod {
-  return typeof value === 'string' && VERIFICATION_METHODS.has(value)
-}
-
-async function verifyTotpCode(code: string) {
-  const supabase = await getRouteSupabaseClient()
-  const { data, error } = await supabase.auth.mfa.listFactors()
-
-  if (error) {
-    return { verified: false, error: 'Unable to load 2FA factors' }
-  }
-
-  const factors = data as {
-    all?: Array<{ id: string; factor_type?: string; status?: string }>
-    totp?: Array<{ id: string; status?: string }>
-  }
-  const factor =
-    factors.totp?.find((item) => item.status === 'verified') ||
-    factors.all?.find((item) => item.factor_type === 'totp' && item.status === 'verified') ||
-    factors.totp?.[0] ||
-    factors.all?.find((item) => item.factor_type === 'totp')
-
-  if (!factor?.id) {
-    return { verified: false, error: 'No verified authenticator factor found' }
-  }
-
-  const { error: verifyError } = await supabase.auth.mfa.challengeAndVerify({
-    factorId: factor.id,
-    code,
-  })
-
-  if (verifyError) {
-    return { verified: false, error: 'Invalid authenticator code' }
-  }
-
-  return { verified: true }
-}
-
-async function consumeBackupCode(userId: string, code: string) {
-  const supabase = getSupabaseClient()
-  const { data, error } = await supabase
-    .from('backup_codes')
-    .select('id, code_hash, used')
-    .eq('employee_id', userId)
-
-  if (error) {
-    return { verified: false, error: 'Unable to verify backup code' }
-  }
-
-  let matchingUnusedCodeId: string | null = null
-  for (const row of (data || []) as BackupCodeRow[]) {
-    const matches = row.code_hash ? await bcrypt.compare(code, row.code_hash) : false
-    if (matches && !row.used && !matchingUnusedCodeId) {
-      matchingUnusedCodeId = row.id
-    }
-  }
-
-  if (!matchingUnusedCodeId) {
-    return { verified: false, error: 'Invalid or used backup code' }
-  }
-
-  const { error: updateError } = await supabase
-    .from('backup_codes')
-    .update({ used: true })
-    .eq('id', matchingUnusedCodeId)
-
-  if (updateError) {
-    return { verified: false, error: 'Unable to consume backup code' }
-  }
-
-  return { verified: true }
-}
-
-async function verifyPowerActionCode(userId: string, method: VerificationMethod, code: string) {
-  if (method === 'totp') {
-    return verifyTotpCode(code)
-  }
-
-  return consumeBackupCode(userId, code)
-}
+const serverActionSchema = z.object({
+  action: z.enum(['start', 'stop', 'restart'], { error: 'Invalid server action' }),
+  verificationCode: z.string().trim().min(1, 'Verification code required'),
+  verificationMethod: z.enum(['totp', 'backup'], { error: 'Invalid verification method' }),
+})
 
 export async function GET() {
   const access = await requireSuperAdminSession()
@@ -139,30 +43,29 @@ export async function POST(request: Request) {
   const access = await requireSuperAdminSession()
   if (!access.authorized) return access.response
 
-  const body = (await request.json().catch(() => ({}))) as ServerActionBody
-  if (!isServerControlAction(body.action)) {
-    return apiError('Invalid server action', 400)
-  }
+  const limit = await enforceRateLimit(request, {
+    scope: 'admin.server-control',
+    limit: 5,
+    windowSeconds: 60 * 60,
+    identities: [`user:${access.user.id}`, `ip:${getClientIp(request)}`],
+  })
+  if (!limit.allowed) return limit.response
 
-  if (!isVerificationMethod(body.verificationMethod)) {
-    return apiError('Invalid verification method', 400)
-  }
-
-  const verificationCode = String(body.verificationCode || '').trim()
-  if (!verificationCode) {
-    return apiError('Verification code required', 400)
-  }
+  const { data: body, error: bodyError } = await parseBodyWithSchema(request, serverActionSchema, {
+    maxBytes: 4 * 1024,
+  })
+  if (bodyError || !body) return apiError(bodyError || 'Invalid request payload', 400)
 
   const config = getServerControlConfig()
   if (!config.configured) {
     return apiError('Server control is not configured', 503)
   }
 
-  const verification = await verifyPowerActionCode(
-    access.user.id,
-    body.verificationMethod,
-    verificationCode,
-  )
+  const verification = await verifyFreshSecondFactor({
+    userId: access.user.id,
+    method: body.verificationMethod,
+    code: body.verificationCode,
+  })
 
   if (!verification.verified) {
     console.warn('[server-control] Power action verification failed', {

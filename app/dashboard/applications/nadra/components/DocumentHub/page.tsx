@@ -84,7 +84,7 @@ export function DocumentHub({
 
   // ZIP state
   const [zipStatus, setZipStatus] = useState<ZipStatus>('unknown')
-  const [zipMinioKey, setZipMinioKey] = useState<string | null>(null)
+  const [zipDocumentId, setZipDocumentId] = useState<string | null>(null)
   const [zipCreatedFileName, setZipCreatedFileName] = useState<string | null>(null)
 
   const categorizedDocuments = useMemo(
@@ -217,9 +217,8 @@ export function DocumentHub({
       const doc = documents.find((d) => d.id === documentId)
       if (!doc) return
 
-      const encodedKey = encodeURIComponent(doc.minio.key)
       const anchor = window.document.createElement('a')
-      anchor.href = `/api/documents/download?key=${encodedKey}`
+      anchor.href = `/api/documents/${encodeURIComponent(doc.id)}/download`
       anchor.download = doc.fileName
       anchor.target = '_blank'
       anchor.rel = 'noopener noreferrer'
@@ -237,9 +236,9 @@ export function DocumentHub({
     try {
       const res = await fetch(`/api/documents/zip?familyHeadId=${encodeURIComponent(familyHeadId)}`)
       const json = await res.json()
-      const { status, minioKey, fileName } = json?.data ?? json
+      const { status, documentId, fileName } = json?.data ?? json
       setZipStatus((status as ZipStatus) || 'none')
-      setZipMinioKey(minioKey ?? null)
+      setZipDocumentId(documentId ?? null)
       setZipCreatedFileName(fileName ?? null)
     } catch {
       setZipStatus('none')
@@ -270,8 +269,8 @@ export function DocumentHub({
       if (!res.ok) {
         throw new Error(json?.error || 'Failed to create ZIP')
       }
-      const { minioKey, fileName } = json?.data ?? json
-      setZipMinioKey(minioKey)
+      const { documentId, fileName } = json?.data ?? json
+      setZipDocumentId(documentId)
       setZipCreatedFileName(fileName)
       setZipStatus('ready')
     } catch (err) {
@@ -284,14 +283,14 @@ export function DocumentHub({
    * Download the pre-generated ZIP from MinIO
    */
   const handleDownloadZip = useCallback(() => {
-    if (!zipMinioKey) return
+    if (!zipDocumentId) return
     const anchor = window.document.createElement('a')
-    anchor.href = `/api/documents/download?key=${encodeURIComponent(zipMinioKey)}`
+    anchor.href = `/api/documents/${encodeURIComponent(zipDocumentId)}/download`
     anchor.download = zipCreatedFileName || `${zipFileName || familyHeadId}.zip`
     window.document.body.appendChild(anchor)
     anchor.click()
     anchor.remove()
-  }, [zipMinioKey, zipCreatedFileName, zipFileName, familyHeadId])
+  }, [zipDocumentId, zipCreatedFileName, zipFileName, familyHeadId])
 
   /**
    * Dismiss error
@@ -340,7 +339,11 @@ export function DocumentHub({
                 onClick={() => void handleCreateZip()}
                 disabled={zipStatus === 'unknown'}
                 className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 disabled:bg-slate-400 disabled:cursor-not-allowed transition-colors"
-                title={zipStatus === 'stale' ? 'Documents changed – regenerate ZIP' : 'Package all documents into a ZIP file'}
+                title={
+                  zipStatus === 'stale'
+                    ? 'Documents changed – regenerate ZIP'
+                    : 'Package all documents into a ZIP file'
+                }
               >
                 <Archive className="w-4 h-4" />
                 {zipStatus === 'stale' ? 'Update ZIP' : 'Create ZIP to Download'}

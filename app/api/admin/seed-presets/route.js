@@ -8,6 +8,8 @@
 import { createClient } from '@supabase/supabase-js'
 import { toErrorMessage } from '@/lib/api/error'
 import { apiError, apiOk } from '@/lib/api/http'
+import { requireMaintenanceSession } from '@/lib/adminSessionAuth'
+import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
 
 export const dynamic = 'force-dynamic'
 
@@ -222,7 +224,18 @@ const PRESETS = [
   },
 ]
 
-export async function GET() {
+export async function GET(request) {
+  const access = await requireMaintenanceSession()
+  if (!access.authorized) return access.response
+
+  const limit = await enforceRateLimit(request, {
+    scope: 'admin.seed-presets',
+    limit: 3,
+    windowSeconds: 60 * 60,
+    identities: [`user:${access.user.id}`, `ip:${getClientIp(request)}`],
+  })
+  if (!limit.allowed) return limit.response
+
   try {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -231,10 +244,7 @@ export async function GET() {
       return apiError('Supabase not configured', 500)
     }
 
-    const supabase = createClient(
-      url,
-      key,
-    )
+    const supabase = createClient(url, key)
 
     const logs = []
 

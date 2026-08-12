@@ -48,7 +48,7 @@ interface StaffTabProps {
 }
 
 type ConfirmAction = {
-  type: 'disable' | 'reset'
+  type: 'disable' | 'reset' | 'recover-2fa'
   emp: Employee
 }
 
@@ -115,6 +115,8 @@ export default function StaffTab({
   const [employees, setEmployees] = useState<Employee[]>(initialEmployees)
   const [showAddForm, setShowAddForm] = useState(false)
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null)
+  const [verificationCode, setVerificationCode] = useState('')
+  const [recoveryReason, setRecoveryReason] = useState('')
   const [uiState, dispatchUi] = useReducer(staffUiReducer, initialUiState)
   const [newEmployee, setNewEmployee] = useState({
     firstName: '',
@@ -208,31 +210,31 @@ export default function StaffTab({
   const adminResetPassword = async ({
     employee_id,
     email,
+    verificationCode,
   }: {
     employee_id?: string
     email?: string
+    verificationCode: string
   }) => {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession()
-    if (!session?.access_token) {
-      throw new Error('Not authenticated')
-    }
-
     const res = await fetch('/api/admin/reset-password', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${session.access_token}`,
-      },
-      body: JSON.stringify(employee_id ? { employee_id } : { email }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...(employee_id ? { employee_id } : { email }),
+        verificationCode,
+        verificationMethod: 'auto',
+      }),
     })
     const data = await res.json()
     if (!res.ok) throw new Error(data.error || 'Failed to reset password')
     return data
   }
 
-  const performDisableEnable = async (emp: Employee, newStatus: boolean) => {
+  const performDisableEnable = async (
+    emp: Employee,
+    newStatus: boolean,
+    freshVerificationCode = '',
+  ) => {
     try {
       dispatchUi({ type: 'setTogglingId', payload: emp.id })
       const res = await fetch('/api/admin/disable-enable-employee', {
@@ -241,6 +243,8 @@ export default function StaffTab({
         body: JSON.stringify({
           employeeId: emp.id,
           isActive: newStatus,
+          verificationCode: freshVerificationCode,
+          verificationMethod: 'auto',
         }),
       })
       const data = await res.json()
@@ -263,6 +267,7 @@ export default function StaffTab({
   const handleDisableEnable = async (emp: Employee) => {
     const newStatus = !emp.is_active
     if (!newStatus) {
+      setVerificationCode('')
       dispatchUi({ type: 'setConfirmAction', payload: { type: 'disable', emp } })
       return
     }
@@ -270,10 +275,13 @@ export default function StaffTab({
     await performDisableEnable(emp, newStatus)
   }
 
-  const handleSendTempPassword = async (emp: Employee) => {
+  const handleSendTempPassword = async (emp: Employee, freshVerificationCode: string) => {
     try {
       dispatchUi({ type: 'setResettingId', payload: emp.id })
-      const resp = await adminResetPassword({ employee_id: emp.id })
+      const resp = await adminResetPassword({
+        employee_id: emp.id,
+        verificationCode: freshVerificationCode,
+      })
       toast.success(resp.message || 'Temporary password emailed')
     } catch (err: unknown) {
       toast.error('Error: ' + (err instanceof Error ? err.message : String(err)))
@@ -282,23 +290,72 @@ export default function StaffTab({
     }
   }
 
+  const handleRecoverTwoFactor = async (emp: Employee, freshVerificationCode: string) => {
+    const reason = recoveryReason.trim()
+    if (reason.length < 10) {
+      toast.error('Enter a recovery reason of at least 10 characters')
+      throw new Error('Recovery reason is required')
+    }
+
+    try {
+      dispatchUi({ type: 'setResettingId', payload: emp.id })
+      const response = await fetch('/api/admin/recover-employee-2fa', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          employeeId: emp.id,
+          confirmEmail: emp.email,
+          reason,
+          verificationCode: freshVerificationCode,
+          verificationMethod: 'auto',
+        }),
+      })
+      const result = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(result.error || '2FA recovery failed')
+      toast.success(`2FA recovery completed for ${emp.full_name}`, {
+        description: 'Their factors were removed; they must set up 2FA at next sign-in.',
+      })
+    } catch (error: unknown) {
+      toast.error('Unable to recover employee 2FA', {
+        description: error instanceof Error ? error.message : String(error),
+      })
+      throw error
+    } finally {
+      dispatchUi({ type: 'setResettingId', payload: null })
+    }
+  }
+
   const handleConfirmAction = async () => {
     if (!uiState.confirmAction) return
+    if (!verificationCode.trim()) {
+      toast.error('Enter your authenticator or backup code')
+      throw new Error('Fresh 2FA verification is required')
+    }
 
     if (uiState.confirmAction.type === 'disable') {
-      await performDisableEnable(uiState.confirmAction.emp, false)
+      await performDisableEnable(uiState.confirmAction.emp, false, verificationCode.trim())
     }
 
     if (uiState.confirmAction.type === 'reset') {
-      await handleSendTempPassword(uiState.confirmAction.emp)
+      await handleSendTempPassword(uiState.confirmAction.emp, verificationCode.trim())
     }
 
+    if (uiState.confirmAction.type === 'recover-2fa') {
+      await handleRecoverTwoFactor(uiState.confirmAction.emp, verificationCode.trim())
+    }
+
+    setVerificationCode('')
+    setRecoveryReason('')
     dispatchUi({ type: 'setConfirmAction', payload: null })
   }
 
   const handleDeleteEmployee = async (emp: Employee) => {
     if (uiState.deleteConfirmEmail !== emp.email) {
       toast.error('Email does not match')
+      return
+    }
+    if (!verificationCode.trim()) {
+      toast.error('Enter your authenticator or backup code')
       return
     }
 
@@ -310,6 +367,8 @@ export default function StaffTab({
         body: JSON.stringify({
           employeeId: emp.id,
           confirmEmail: emp.email,
+          verificationCode: verificationCode.trim(),
+          verificationMethod: 'auto',
         }),
       })
       const data = await res.json()
@@ -317,6 +376,7 @@ export default function StaffTab({
         setEmployees((currentEmployees) => currentEmployees.filter((e) => e.id !== emp.id))
         toast.success(`${emp.full_name} has been permanently deleted`)
         dispatchUi({ type: 'setDeleteConfirm', payload: { id: null, email: '' } })
+        setVerificationCode('')
       } else {
         toast.error(data.error || 'Failed to delete employee')
       }
@@ -567,14 +627,35 @@ export default function StaffTab({
                           Edit
                         </button>
                         <button
-                          onClick={() =>
-                            dispatchUi({ type: 'setConfirmAction', payload: { type: 'reset', emp } })
-                          }
+                          onClick={() => {
+                            setVerificationCode('')
+                            dispatchUi({
+                              type: 'setConfirmAction',
+                              payload: { type: 'reset', emp },
+                            })
+                          }}
                           disabled={loading || uiState.resettingId === emp.id}
                           className="text-orange-600 hover:text-orange-800 font-medium disabled:opacity-50"
                         >
-                          {uiState.resettingId === emp.id ? 'Sending...' : 'Reset'}
+                          {uiState.resettingId === emp.id ? 'Working...' : 'Reset password'}
                         </button>
+
+                        {isSuperAdmin && (
+                          <button
+                            onClick={() => {
+                              setVerificationCode('')
+                              setRecoveryReason('')
+                              dispatchUi({
+                                type: 'setConfirmAction',
+                                payload: { type: 'recover-2fa', emp },
+                              })
+                            }}
+                            disabled={loading || uiState.resettingId === emp.id}
+                            className="font-medium text-violet-700 hover:text-violet-900 disabled:opacity-50"
+                          >
+                            Recover 2FA
+                          </button>
+                        )}
 
                         <button
                           onClick={() => handleDisableEnable(emp)}
@@ -614,12 +695,23 @@ export default function StaffTab({
                                   }
                                   className="w-full p-2 border border-red-300 rounded mb-2 text-sm"
                                 />
+                                <input
+                                  type="password"
+                                  autoComplete="one-time-code"
+                                  inputMode="numeric"
+                                  placeholder="Authenticator or backup code"
+                                  value={verificationCode}
+                                  onChange={(event) => setVerificationCode(event.target.value)}
+                                  className="w-full p-2 border border-red-300 rounded mb-2 text-sm"
+                                  aria-label="Fresh 2FA verification code"
+                                />
                                 <div className="flex gap-2">
                                   <button
                                     onClick={() => handleDeleteEmployee(emp)}
                                     disabled={
                                       uiState.deletingId === emp.id ||
-                                      uiState.deleteConfirmEmail !== emp.email
+                                      uiState.deleteConfirmEmail !== emp.email ||
+                                      !verificationCode.trim()
                                     }
                                     className="px-3 py-1 bg-red-600 text-white rounded text-sm font-bold hover:bg-red-700 disabled:opacity-50"
                                   >
@@ -628,12 +720,13 @@ export default function StaffTab({
                                       : 'Permanently Delete'}
                                   </button>
                                   <button
-                                    onClick={() =>
+                                    onClick={() => {
                                       dispatchUi({
                                         type: 'setDeleteConfirm',
                                         payload: { id: null, email: '' },
                                       })
-                                    }
+                                      setVerificationCode('')
+                                    }}
                                     className="px-3 py-1 bg-slate-300 text-slate-700 rounded text-sm font-bold hover:bg-slate-400"
                                   >
                                     Cancel
@@ -642,12 +735,13 @@ export default function StaffTab({
                               </div>
                             ) : (
                               <button
-                                onClick={() =>
+                                onClick={() => {
+                                  setVerificationCode('')
                                   dispatchUi({
                                     type: 'setDeleteConfirm',
                                     payload: { id: emp.id, email: '' },
                                   })
-                                }
+                                }}
                                 className="text-red-600 hover:text-red-800 font-medium"
                               >
                                 Delete
@@ -666,21 +760,71 @@ export default function StaffTab({
       </div>
       <ConfirmationDialog
         isOpen={!!uiState.confirmAction}
-        onClose={() => dispatchUi({ type: 'setConfirmAction', payload: null })}
+        onClose={() => {
+          dispatchUi({ type: 'setConfirmAction', payload: null })
+          setVerificationCode('')
+          setRecoveryReason('')
+        }}
         onConfirm={handleConfirmAction}
         title={
-          uiState.confirmAction?.type === 'disable' ? 'Disable Employee' : 'Send Temporary Password'
+          uiState.confirmAction?.type === 'disable'
+            ? 'Disable Employee'
+            : uiState.confirmAction?.type === 'recover-2fa'
+              ? 'Recover Employee 2FA'
+              : 'Send Temporary Password'
         }
         message={
           uiState.confirmAction?.type === 'disable'
             ? `Disable ${uiState.confirmAction?.emp?.full_name}? They will not be able to log in.`
-            : `Send a temporary password to ${uiState.confirmAction?.emp?.email}?`
+            : uiState.confirmAction?.type === 'recover-2fa'
+              ? `Remove all registered factors and backup codes for ${uiState.confirmAction?.emp?.full_name}? This audited recovery path is only for a user who is locked out.`
+              : `Send a temporary password to ${uiState.confirmAction?.emp?.email}?`
         }
-        confirmLabel={uiState.confirmAction?.type === 'disable' ? 'Disable' : 'Send'}
+        confirmLabel={
+          uiState.confirmAction?.type === 'disable'
+            ? 'Disable'
+            : uiState.confirmAction?.type === 'recover-2fa'
+              ? 'Recover 2FA'
+              : 'Send'
+        }
         cancelLabel="Cancel"
-        type={uiState.confirmAction?.type === 'disable' ? 'danger' : 'warning'}
+        type={
+          uiState.confirmAction?.type === 'disable' || uiState.confirmAction?.type === 'recover-2fa'
+            ? 'danger'
+            : 'warning'
+        }
         isLoading={!!uiState.resettingId || !!uiState.togglingId || loading}
-      />
+        confirmDisabled={
+          !verificationCode.trim() ||
+          (uiState.confirmAction?.type === 'recover-2fa' && recoveryReason.trim().length < 10)
+        }
+      >
+        {uiState.confirmAction?.type === 'recover-2fa' && (
+          <label className="mb-4 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Recovery reason
+            <textarea
+              value={recoveryReason}
+              onChange={(event) => setRecoveryReason(event.target.value)}
+              rows={3}
+              maxLength={1_000}
+              placeholder="Explain why the employee cannot use any registered factor"
+              className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm normal-case tracking-normal text-slate-900"
+            />
+          </label>
+        )}
+        <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500">
+          Fresh 2FA verification
+          <input
+            type="password"
+            autoComplete="one-time-code"
+            inputMode="numeric"
+            placeholder="Authenticator or backup code"
+            value={verificationCode}
+            onChange={(event) => setVerificationCode(event.target.value)}
+            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm normal-case tracking-normal text-slate-900"
+          />
+        </label>
+      </ConfirmationDialog>
     </div>
   )
 }

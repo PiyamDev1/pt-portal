@@ -7,7 +7,7 @@
 
 'use client'
 
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { AlertTriangle, Check, X } from 'lucide-react'
 
 interface ConfirmationModalProps {
@@ -17,6 +17,8 @@ interface ConfirmationModalProps {
   confirmText?: string
   cancelText?: string
   isDangerous?: boolean
+  confirmDisabled?: boolean
+  children?: ReactNode
   onConfirm: () => void | Promise<void>
   onCancel: () => void
 }
@@ -28,6 +30,8 @@ export function ConfirmationModal({
   confirmText = 'Confirm',
   cancelText = 'Cancel',
   isDangerous = false,
+  confirmDisabled = false,
+  children,
   onConfirm,
   onCancel,
 }: ConfirmationModalProps) {
@@ -36,27 +40,64 @@ export function ConfirmationModal({
   const messageId = useId()
   const dialogRef = useRef<HTMLDivElement>(null)
   const onCancelRef = useRef(onCancel)
+  const loadingRef = useRef(loading)
 
   useEffect(() => {
     onCancelRef.current = onCancel
   }, [onCancel])
 
   useEffect(() => {
+    loadingRef.current = loading
+  }, [loading])
+
+  useEffect(() => {
     if (!isOpen) return
+    const previouslyFocused = document.activeElement as HTMLElement | null
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
-    dialogRef.current?.focus()
+    const focusableSelector =
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    const animationFrame = window.requestAnimationFrame(() => {
+      const dialog = dialogRef.current
+      const firstFocusable = dialog?.querySelector<HTMLElement>(focusableSelector)
+      if (firstFocusable) firstFocusable.focus()
+      else dialog?.focus()
+    })
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
+      if (event.key === 'Escape' && !loadingRef.current) {
+        event.preventDefault()
         onCancelRef.current()
+        return
+      }
+
+      if (event.key !== 'Tab') return
+      const dialog = dialogRef.current
+      if (!dialog) return
+      const focusable = [...dialog.querySelectorAll<HTMLElement>(focusableSelector)]
+      if (focusable.length === 0) {
+        event.preventDefault()
+        dialog.focus()
+        return
+      }
+
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
       }
     }
 
     document.addEventListener('keydown', handleKeyDown)
     return () => {
+      window.cancelAnimationFrame(animationFrame)
       document.body.style.overflow = previousOverflow
       document.removeEventListener('keydown', handleKeyDown)
+      previouslyFocused?.focus()
     }
   }, [isOpen])
 
@@ -75,7 +116,7 @@ export function ConfirmationModal({
     <div
       className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
       onMouseDown={(event) => {
-        if (event.target === event.currentTarget) {
+        if (event.target === event.currentTarget && !loading) {
           onCancel()
         }
       }}
@@ -86,6 +127,7 @@ export function ConfirmationModal({
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={messageId}
+        aria-busy={loading || undefined}
         tabIndex={-1}
         className="bg-white rounded-lg shadow-lg max-w-sm w-full mx-4 p-6"
       >
@@ -111,6 +153,8 @@ export function ConfirmationModal({
           {message}
         </p>
 
+        {children}
+
         {/* Buttons */}
         <div className="flex gap-3 justify-end">
           <button
@@ -124,7 +168,7 @@ export function ConfirmationModal({
           </button>
           <button
             onClick={handleConfirm}
-            disabled={loading}
+            disabled={loading || confirmDisabled}
             className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
               isDangerous
                 ? 'bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white'

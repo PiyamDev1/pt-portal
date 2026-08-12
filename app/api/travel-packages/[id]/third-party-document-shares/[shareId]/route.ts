@@ -2,10 +2,7 @@ import { NextRequest } from 'next/server'
 import { apiError, apiOk } from '@/lib/api/http'
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
 import type { TravelPackageThirdPartyDocumentShare } from '@/app/types/packages'
-import {
-  isThirdPartyShareSchemaError,
-  selectThirdPartyShareColumns,
-} from '../route'
+import { isThirdPartyShareSchemaError, selectThirdPartyShareColumns } from '../helpers'
 
 const SCHEMA_HINT =
   'Third-party package document sharing is not installed yet. Run scripts/migrations/20260803_create_travel_package_third_party_document_shares.sql in Supabase SQL editor.'
