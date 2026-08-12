@@ -18,7 +18,6 @@
  *
  * Authentication: Session cookie, maintenance role required
  */
-import { NextResponse } from 'next/server'
 import { requireMaintenanceSession } from '@/lib/adminSessionAuth'
 import { getSupabaseClient } from '@/lib/supabaseClient'
 import { apiError, apiOk } from '@/lib/api/http'

@@ -1,5 +1,7 @@
 # Codebase Structure & Best Practices Guide
 
+> **Superseded structure snapshot.** The directory/barrel/hook examples below are historical and include modules removed during later cleanup. Use [Architecture](../guides/ARCHITECTURE_GUIDE.md), [Developer Guide](../guides/DEVELOPER_GUIDE.md), and current source.
+
 ## New Directory Structure
 
 This document outlines the refactored codebase structure and guidelines for using new utilities and components.

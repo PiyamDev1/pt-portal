@@ -2,13 +2,12 @@
  * Statement Filters Hook
  * Filters and totals LMS transactions by type and date range
  * Provides helper for date input formatting
- * 
+ *
  * @module hooks/useStatementFilters
  */
 
 import { useMemo, useState } from 'react'
-import { formatToISODate } from '@/lib/dateFormatter'
-import { handleDateInput as coreHandleDateInput } from '@/lib/utils'
+import { formatToISODate, handleDateInput } from '@/lib/dateFormatter'
 import type { Account, Transaction } from '@/app/types/lms'
 
 type StatementFilterState = {
@@ -23,10 +22,11 @@ type StatementFilterState = {
  * @returns Object with filter state and filtered results
  */
 export const useStatementFilters = (account: Account | null) => {
-  const [filter, setFilter] = useState({ type: '', dateFrom: '', dateTo: '' })
-
-  // Re-export core utility for backward compatibility
-  const handleDateInput = coreHandleDateInput
+  const [filter, setFilter] = useState<StatementFilterState>({
+    type: '',
+    dateFrom: '',
+    dateTo: '',
+  })
 
   const filteredTransactions = useMemo<Transaction[]>(() => {
     if (!account?.transactions) return []

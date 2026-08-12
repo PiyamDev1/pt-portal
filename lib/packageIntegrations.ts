@@ -28,22 +28,11 @@ export function getPackageMinioBucketName() {
   return cleanEnv(process.env.MINIO_PACKAGES_BUCKET_NAME) || 'pt-packages'
 }
 
-export function getPackageMailgunSenderEmail() {
-  return (
-    cleanEnv(process.env.TRAVEL_PACKAGES_MAILGUN_SENDER_EMAIL)
-    || cleanEnv(process.env.MAILGUN_SENDER_EMAIL)
-    || 'Piyam Travel <bookings.noreply@piyamtravel.com>'
-  )
-}
-
 export function getPackageBackupStorageConfig(): PackageBackupStorageConfig | null {
   const endpoint = cleanEnv(process.env.R3_ENDPOINT)
-  const accessKeyId =
-    cleanEnv(process.env.R3_ACCESS_KEY_ID)
-    || cleanEnv(process.env.R3_ACCESS_KEY)
+  const accessKeyId = cleanEnv(process.env.R3_ACCESS_KEY_ID) || cleanEnv(process.env.R3_ACCESS_KEY)
   const secretAccessKey =
-    cleanEnv(process.env.R3_SECRET_ACCESS_KEY)
-    || cleanEnv(process.env.R3_SECRET_KEY)
+    cleanEnv(process.env.R3_SECRET_ACCESS_KEY) || cleanEnv(process.env.R3_SECRET_KEY)
   const bucketName = cleanEnv(process.env.R3_BUCKET_NAME)
 
   if (!endpoint || !accessKeyId || !secretAccessKey || !bucketName) return null
@@ -55,10 +44,6 @@ export function getPackageBackupStorageConfig(): PackageBackupStorageConfig | nu
     secretAccessKey,
     bucketName,
   }
-}
-
-export function isPackageBackupStorageConfigured() {
-  return Boolean(getPackageBackupStorageConfig())
 }
 
 export function getPackageBackupStorageClient() {
@@ -98,8 +83,4 @@ export function getLegacyBookingsFirebaseConfig(): LegacyBookingsFirebaseConfig 
     clientEmail,
     privateKey: normalizePrivateKey(privateKey),
   }
-}
-
-export function isLegacyBookingsFirebaseConfigured() {
-  return Boolean(getLegacyBookingsFirebaseConfig())
 }

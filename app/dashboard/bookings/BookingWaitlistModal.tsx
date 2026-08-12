@@ -98,58 +98,120 @@ export default function BookingWaitlistModal({
         <div className="flex items-start justify-between gap-4">
           <div>
             <h2 className="text-xl font-semibold text-slate-900">Add to waitlist</h2>
-            <p className="mt-1 text-sm text-slate-600">Keep the customer in queue when no appointment slot fits.</p>
+            <p className="mt-1 text-sm text-slate-600">
+              Keep the customer in queue when no appointment slot fits.
+            </p>
           </div>
-          <button onClick={onClose} className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-600">Close</button>
+          <button
+            onClick={onClose}
+            className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-600"
+          >
+            Close
+          </button>
         </div>
 
         <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2">
           <label className="text-sm text-slate-700">
             Customer name
-            <input value={form.customer_name} onChange={(e) => setForm((p) => ({ ...p, customer_name: e.target.value }))} className="mt-1 w-full rounded border border-slate-300 px-3 py-2" />
+            <input
+              value={form.customer_name}
+              onChange={(e) => setForm((p) => ({ ...p, customer_name: e.target.value }))}
+              className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+            />
           </label>
           <label className="text-sm text-slate-700">
             Phone
-            <input value={form.customer_phone} onChange={(e) => setForm((p) => ({ ...p, customer_phone: e.target.value }))} className="mt-1 w-full rounded border border-slate-300 px-3 py-2" />
+            <input
+              value={form.customer_phone}
+              onChange={(e) => setForm((p) => ({ ...p, customer_phone: e.target.value }))}
+              className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+            />
           </label>
           <label className="text-sm text-slate-700">
             Email
-            <input value={form.customer_email} onChange={(e) => setForm((p) => ({ ...p, customer_email: e.target.value }))} className="mt-1 w-full rounded border border-slate-300 px-3 py-2" />
+            <input
+              value={form.customer_email}
+              onChange={(e) => setForm((p) => ({ ...p, customer_email: e.target.value }))}
+              className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+            />
           </label>
           <label className="text-sm text-slate-700">
             Service
-            <select value={form.service_id} onChange={(e) => setForm((p) => ({ ...p, service_id: e.target.value }))} className="mt-1 w-full rounded border border-slate-300 px-3 py-2">
+            <select
+              value={form.service_id}
+              onChange={(e) => setForm((p) => ({ ...p, service_id: e.target.value }))}
+              className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+            >
               <option value="">Any service</option>
               {serviceOptions.map((service) => (
-                <option key={service.id} value={service.id}>{service.name}</option>
+                <option key={service.id} value={service.id}>
+                  {service.name}
+                </option>
               ))}
             </select>
           </label>
           <label className="text-sm text-slate-700">
             Preferred date
-            <input type="date" value={form.preferred_date} onChange={(e) => setForm((p) => ({ ...p, preferred_date: e.target.value }))} className="mt-1 w-full rounded border border-slate-300 px-3 py-2" />
+            <input
+              type="date"
+              value={form.preferred_date}
+              onChange={(e) => setForm((p) => ({ ...p, preferred_date: e.target.value }))}
+              className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+            />
           </label>
           <label className="text-sm text-slate-700">
             People
-            <input type="number" min={1} value={form.person_count} onChange={(e) => setForm((p) => ({ ...p, person_count: Math.max(1, Number(e.target.value) || 1) }))} className="mt-1 w-full rounded border border-slate-300 px-3 py-2" />
+            <input
+              type="number"
+              min={1}
+              value={form.person_count}
+              onChange={(e) =>
+                setForm((p) => ({ ...p, person_count: Math.max(1, Number(e.target.value) || 1) }))
+              }
+              className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+            />
           </label>
           <label className="text-sm text-slate-700">
             Preferred start
-            <input type="time" value={form.preferred_time_start} onChange={(e) => setForm((p) => ({ ...p, preferred_time_start: e.target.value }))} className="mt-1 w-full rounded border border-slate-300 px-3 py-2" />
+            <input
+              type="time"
+              value={form.preferred_time_start}
+              onChange={(e) => setForm((p) => ({ ...p, preferred_time_start: e.target.value }))}
+              className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+            />
           </label>
           <label className="text-sm text-slate-700">
             Preferred end
-            <input type="time" value={form.preferred_time_end} onChange={(e) => setForm((p) => ({ ...p, preferred_time_end: e.target.value }))} className="mt-1 w-full rounded border border-slate-300 px-3 py-2" />
+            <input
+              type="time"
+              value={form.preferred_time_end}
+              onChange={(e) => setForm((p) => ({ ...p, preferred_time_end: e.target.value }))}
+              className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+            />
           </label>
           <label className="text-sm text-slate-700 md:col-span-2">
             Notes
-            <textarea value={form.notes} onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))} rows={3} className="mt-1 w-full rounded border border-slate-300 px-3 py-2" />
+            <textarea
+              value={form.notes}
+              onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))}
+              rows={3}
+              className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+            />
           </label>
         </div>
 
         <div className="mt-5 flex justify-end gap-2">
-          <button onClick={onClose} className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-700">Cancel</button>
-          <button onClick={submit} disabled={saving} className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
+          <button
+            onClick={onClose}
+            className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-700"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={submit}
+            disabled={saving}
+            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+          >
             {saving ? 'Saving...' : 'Add to waitlist'}
           </button>
         </div>

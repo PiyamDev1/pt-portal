@@ -4,7 +4,7 @@ import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
 import { recordPackageAuditEvent } from '@/lib/packageAudit'
 import { syncPackagePaymentFinancials } from '@/lib/packagePaymentsServer'
 import type { TravelPackagePayment, TravelPackagePaymentType } from '@/app/types/packages'
-import { selectTravelPackagePaymentColumns } from '../route'
+import { selectTravelPackagePaymentColumns } from '../columns'
 
 const TYPES = new Set<TravelPackagePaymentType>([
   'deposit',

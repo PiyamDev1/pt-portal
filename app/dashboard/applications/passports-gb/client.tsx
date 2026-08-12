@@ -63,7 +63,6 @@ export default function GbPassportsClient({ initialData, currentUserId }: GbPass
     status: 'Pending Submission',
   })
   const [isEditSaving, setIsEditSaving] = useState(false)
-  const [deleteAuthCode, setDeleteAuthCode] = useState('')
   const { generateReceipt } = useReceipt()
   const [receiptViewerOpen, setReceiptViewerOpen] = useState(false)
   const [activeReceipt, setActiveReceipt] = useState<GeneratedReceipt | null>(null)
@@ -272,7 +271,6 @@ export default function GbPassportsClient({ initialData, currentUserId }: GbPass
         pexNumber: '',
         status: 'Pending Submission',
       })
-      setDeleteAuthCode('')
       router.refresh()
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Failed to delete')
@@ -348,11 +346,11 @@ export default function GbPassportsClient({ initialData, currentUserId }: GbPass
         formData={formData}
         isSubmitting={isSubmitting}
         onInputChange={handleInputChange}
-      onSubmit={handleSubmit}
-      onToggle={() => setShowForm(!showForm)}
-      metadata={metadata}
-      onResolvedPricing={setResolvedPricingId}
-    />
+        onSubmit={handleSubmit}
+        onToggle={() => setShowForm(!showForm)}
+        metadata={metadata}
+        onResolvedPricing={setResolvedPricingId}
+      />
 
       {/* Ledger Table */}
       <LedgerTable
@@ -380,7 +378,6 @@ export default function GbPassportsClient({ initialData, currentUserId }: GbPass
             pexNumber: '',
             status: 'Pending Submission',
           })
-          setDeleteAuthCode('')
         }}
         isSaving={isEditSaving}
         onDelete={handleDeleteRecord}

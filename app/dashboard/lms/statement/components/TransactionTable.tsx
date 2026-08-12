@@ -112,8 +112,7 @@ function TransactionTableComponent({
                   ? account.loans.find(
                       (l: ServiceLoan) =>
                         l.created_at &&
-                        new Date(l.created_at).toDateString() ===
-                          new Date(txTs).toDateString(),
+                        new Date(l.created_at).toDateString() === new Date(txTs).toDateString(),
                     )
                   : null
 
@@ -229,7 +228,8 @@ function TransactionTableComponent({
                       .filter(
                         (t: Transaction) =>
                           (t.transaction_type || '').toLowerCase() === 'payment' &&
-                          new Date(t.transaction_timestamp || t.created_at || '').toDateString() === sameDay,
+                          new Date(t.transaction_timestamp || t.created_at || '').toDateString() ===
+                            sameDay,
                       )
                       .reduce((sum: number, t: Transaction) => sum + parseAmount(t.amount), 0)
 

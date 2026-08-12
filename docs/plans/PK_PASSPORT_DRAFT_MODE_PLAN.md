@@ -1,5 +1,7 @@
 # Pakistani Passport Draft Mode Plan
 
+> **Completed design snapshot.** Draft mode is implemented and has evolved beyond this plan. Use [Usage Guide](../guides/USAGE_GUIDE.md), [API Reference](../technical/API_REFERENCE.md), current migrations, and source for operational behavior.
+
 ## Purpose
 
 Create a draft workflow for Pakistani passport applications before the official tracking number exists. Drafts let internal and external staff organize applicant details, required documents, payment/refund notes, and processing status inside PT-Portal instead of WhatsApp threads.

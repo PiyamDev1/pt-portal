@@ -1,5 +1,7 @@
 # Plant Growth Gamification System - Detailed Plan
 
+> **Unimplemented proposal.** PT-Portal has training and timeclock workflows, but this gamification design is not a current product contract. Verify current source and [Usage Guide](../../guides/USAGE_GUIDE.md).
+
 ## 1. Feature Overview
 
 A gamified attendance tracking system where employees' "attendance health" is represented by a growing virtual plant. Success earns points and grows the plant; tardiness damages it and triggers warnings. The plant visual provides immediate, engaging feedback on performance.

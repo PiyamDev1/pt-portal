@@ -56,7 +56,10 @@ function toReason(error: unknown) {
   return 'failed to persist generated receipt'
 }
 
-export async function persistGeneratedReceipt({ receipt, serviceRecordId }: PersistParams): Promise<PersistResult> {
+export async function persistGeneratedReceipt({
+  receipt,
+  serviceRecordId,
+}: PersistParams): Promise<PersistResult> {
   try {
     const supabase = getSupabaseAdminClient()
     const { error } = await supabase.from('generated_receipts').insert({

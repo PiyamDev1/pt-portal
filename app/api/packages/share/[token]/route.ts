@@ -14,6 +14,13 @@ import type {
   TravelPackageQuote,
 } from '@/app/types/packages'
 import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
+import {
+  createPublicPackageQuotePayload,
+  createPublicResolvedPackageSelection,
+} from '@/lib/packagePublicQuote'
+
+const LINKED_PACKAGE_NOTICE =
+  'This package shares travel arrangements with another family or group.'
 
 type PublicGroupRow = {
   id: string
@@ -24,40 +31,45 @@ type PublicGroupRow = {
 }
 
 type PublicGroupMemberRow = {
-  id: string
-  group_id: string
-  package_id: string | null
   quote_id: string | null
   family_label: string | null
-  customer_display_name: string | null
   customer_visible: boolean
-  sort_order: number
   metadata: Record<string, unknown> | null
 }
 
-function selectPublicPackageColumns() {
+type PublicQuoteSource = Pick<
+  TravelPackageQuote,
+  'id' | 'title' | 'payload' | 'expires_at' | 'selected_option'
+> &
+  Partial<
+    Pick<
+      TravelPackageQuote,
+      'customer_name' | 'customer_phone' | 'customer_email' | 'share_token' | 'share_enabled'
+    >
+  >
+
+function selectCurrentQuoteColumns() {
   return `
     id,
     title,
-    package_type,
-    status,
-    currency,
     customer_name,
     customer_phone,
     customer_email,
     payload,
+    expires_at,
+    selected_option
+  `
+}
+
+function selectLinkedQuoteColumns() {
+  return `
+    id,
+    title,
+    payload,
     share_token,
     share_enabled,
-    shared_at,
     expires_at,
-    selected_option,
-    selected_at,
-    selection_note,
-    converted_package_id,
-    converted_at,
-    created_by,
-    created_at,
-    updated_at
+    selected_option
   `
 }
 
@@ -78,26 +90,22 @@ function selectPublicGroupColumns() {
 
 function selectPublicGroupMemberColumns() {
   return `
-    id,
-    group_id,
-    package_id,
     quote_id,
     family_label,
-    customer_display_name,
     customer_visible,
     sort_order,
     metadata
   `
 }
 
-function getSharePath(quote: TravelPackageQuote) {
-  return quote.share_enabled && !isPackageQuoteExpired(quote.expires_at)
+function getSharePath(quote: PublicQuoteSource) {
+  return quote.share_enabled && quote.share_token && !isPackageQuoteExpired(quote.expires_at)
     ? `/packages/${quote.share_token}`
     : null
 }
 
 function buildPublicFamilySummary(
-  quote: TravelPackageQuote,
+  quote: PublicQuoteSource,
   familyLabel: string,
   isCurrent: boolean,
 ) {
@@ -107,13 +115,11 @@ function buildPublicFamilySummary(
   const breakdown = getPackagePassengerPriceBreakdown(payload, resolved.combination)
 
   return {
-    quoteId: quote.id,
     familyLabel,
     quoteTitle: quote.title,
-    customerName: quote.customer_name || payload.customerName || null,
     sharePath: getSharePath(quote),
     isCurrent,
-    payload,
+    payload: createPublicPackageQuotePayload(payload),
     baseSelection,
     pricing: {
       grossPrice: resolved.combination.grossPrice,
@@ -126,7 +132,7 @@ function buildPublicFamilySummary(
 }
 
 function buildPublicBaseSelection(
-  quote: TravelPackageQuote,
+  quote: PublicQuoteSource,
   payload: PackageQuotePayload,
 ): PackageSelectionInput {
   const defaultSelection = getDefaultPackageSelection(payload)
@@ -147,7 +153,7 @@ function buildPublicBaseSelection(
 
 async function loadPublicLinkedGroup(
   supabase: ReturnType<typeof getServiceSupabaseClient>,
-  quote: TravelPackageQuote,
+  quote: PublicQuoteSource,
 ) {
   const payload = normalizePackageQuotePayload(quote.payload)
   const savedGroupId = payload.linkedPackageGroup?.groupId
@@ -165,25 +171,29 @@ async function loadPublicLinkedGroup(
 
     if (!groupId) return null
 
-    const [groupResult, membersResult] = await Promise.all([
-      supabase
-        .from('travel_package_groups')
-        .select(selectPublicGroupColumns())
-        .eq('id', groupId)
-        .single(),
-      supabase
-        .from('travel_package_group_members')
-        .select(selectPublicGroupMemberColumns())
-        .eq('group_id', groupId)
-        .order('sort_order', { ascending: true })
-        .order('created_at', { ascending: true }),
-    ])
+    const groupResult = await supabase
+      .from('travel_package_groups')
+      .select(selectPublicGroupColumns())
+      .eq('id', groupId)
+      .single()
 
     if (groupResult.error) throw groupResult.error
-    if (membersResult.error) throw membersResult.error
     if (!groupResult.data) return null
 
     const group = groupResult.data as unknown as PublicGroupRow
+    if (group.customer_visibility_mode === 'private') return null
+    if (group.customer_visibility_mode !== 'shared_group_view') {
+      return { notice: LINKED_PACKAGE_NOTICE }
+    }
+
+    const membersResult = await supabase
+      .from('travel_package_group_members')
+      .select(selectPublicGroupMemberColumns())
+      .eq('group_id', groupId)
+      .order('sort_order', { ascending: true })
+      .order('created_at', { ascending: true })
+    if (membersResult.error) throw membersResult.error
+
     const members = ((membersResult.data || []) as unknown as PublicGroupMemberRow[]).filter(
       (member) => member.customer_visible || member.quote_id === quote.id,
     )
@@ -192,14 +202,14 @@ async function loadPublicLinkedGroup(
 
     const { data: linkedQuotes, error: linkedQuotesError } = await supabase
       .from('travel_package_quotes')
-      .select(selectPublicPackageColumns())
+      .select(selectLinkedQuoteColumns())
       .in('id', quoteIds)
       .neq('status', 'archived')
 
     if (linkedQuotesError) throw linkedQuotesError
 
     const quoteMap = new Map(
-      ((linkedQuotes || []) as unknown as TravelPackageQuote[]).map((linkedQuote) => [
+      ((linkedQuotes || []) as unknown as PublicQuoteSource[]).map((linkedQuote) => [
         linkedQuote.id,
         linkedQuote,
       ]),
@@ -213,22 +223,14 @@ async function loadPublicLinkedGroup(
       const canShowQuote = Boolean(
         linkedQuote &&
         (isCurrent ||
-          (linkedQuote.share_enabled &&
-            linkedQuote.status !== 'archived' &&
-            !isPackageQuoteExpired(linkedQuote.expires_at))),
+          (linkedQuote.share_enabled && !isPackageQuoteExpired(linkedQuote.expires_at))),
       )
 
       if (!linkedQuote || !canShowQuote) {
         return {
-          quoteId: member.quote_id,
           familyLabel,
           quoteTitle:
             typeof member.metadata?.quoteTitle === 'string' ? member.metadata.quoteTitle : null,
-          customerName:
-            member.customer_display_name ||
-            (typeof member.metadata?.customerName === 'string'
-              ? member.metadata.customerName
-              : null),
           sharePath: null,
           isCurrent,
           pricing: null,
@@ -239,10 +241,8 @@ async function loadPublicLinkedGroup(
     })
 
     return {
-      groupId: group.id,
       groupReference: group.group_reference,
       title: group.title,
-      visibilityMode: group.customer_visibility_mode,
       sharedFlightSelection: group.metadata?.sharedFlightSelection === true,
       families,
     }
@@ -271,7 +271,7 @@ export async function GET(
   const supabase = getServiceSupabaseClient()
   const { data, error } = await supabase
     .from('travel_package_quotes')
-    .select(selectPublicPackageColumns())
+    .select(selectCurrentQuoteColumns())
     .eq('share_token', cleanToken)
     .eq('share_enabled', true)
     .neq('status', 'archived')
@@ -281,7 +281,7 @@ export async function GET(
     return apiError('Package quote not found or no longer available', 404)
   }
 
-  const quote = data as unknown as TravelPackageQuote
+  const quote = data as unknown as PublicQuoteSource
   if (isPackageQuoteExpired(quote.expires_at)) {
     return apiError(
       'This package quote has expired. Please contact your agent for an updated quote.',
@@ -290,6 +290,15 @@ export async function GET(
   }
 
   const linkedGroup = await loadPublicLinkedGroup(supabase, quote)
+  const payload = normalizePackageQuotePayload(quote.payload)
+  const publicQuote = {
+    payload: createPublicPackageQuotePayload(payload),
+    expires_at: quote.expires_at,
+    customer_name: quote.customer_name || payload.customerName || null,
+    customer_phone: quote.customer_phone || payload.customerPhone || null,
+    customer_email: quote.customer_email || payload.customerEmail || null,
+    selected_option: createPublicResolvedPackageSelection(quote.selected_option),
+  }
 
-  return apiOk({ quote, linkedGroup })
+  return apiOk({ quote: publicQuote, linkedGroup })
 }

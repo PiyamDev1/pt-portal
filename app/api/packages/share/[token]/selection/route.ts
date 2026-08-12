@@ -1,10 +1,63 @@
 import { NextRequest } from 'next/server'
+import { z } from 'zod'
 import { apiError, apiOk } from '@/lib/api/http'
+import { parseBodyWithSchema } from '@/lib/api/request'
 import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
 import { isPackageQuoteExpired, resolvePackageSelection } from '@/lib/packageQuote'
 import type { PackageSelectionInput } from '@/app/types/packages'
 import { recordPackageAuditEvent } from '@/lib/packageAudit'
 import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
+import { createPublicResolvedPackageSelection } from '@/lib/packagePublicQuote'
+
+const PUBLIC_SELECTION_BODY_LIMIT_BYTES = 64 * 1024
+const MAX_SELECTION_GROUPS = 50
+const MAX_ADDONS_PER_STAY = 50
+const selectionIdSchema = z.string().min(1).max(200)
+
+const selectedOptionIdsSchema = z
+  .record(selectionIdSchema, selectionIdSchema)
+  .refine((value) => Object.keys(value).length <= MAX_SELECTION_GROUPS, {
+    message: `A selection can contain at most ${MAX_SELECTION_GROUPS} groups`,
+  })
+
+const selectedAddonIdsSchema = z
+  .record(selectionIdSchema, z.array(selectionIdSchema).max(MAX_ADDONS_PER_STAY))
+  .refine((value) => Object.keys(value).length <= MAX_SELECTION_GROUPS, {
+    message: `A selection can contain add-ons for at most ${MAX_SELECTION_GROUPS} stays`,
+  })
+
+const packageSelectionSchema = z
+  .object({
+    stayOptionIds: selectedOptionIdsSchema,
+    hotelAddonOptionIds: selectedAddonIdsSchema.optional(),
+    flightOptionId: selectionIdSchema.nullable().optional(),
+    linkedFlightOptionIds: selectedOptionIdsSchema.optional(),
+    visaOptionId: selectionIdSchema.nullable().optional(),
+    transportOptionId: selectionIdSchema.nullable().optional(),
+    paymentMethod: z.enum(['cash', 'bank_transfer', 'card']).nullable().optional(),
+    paymentBreakdown: z
+      .object({
+        cash: z.number().optional(),
+        bankTransfer: z.number().optional(),
+        card: z.number().optional(),
+      })
+      .strip()
+      .nullable()
+      .optional(),
+    paymentIntent: z
+      .enum(['full_payment', 'deposit_only', 'installment_request'])
+      .nullable()
+      .optional(),
+    installmentRequested: z.boolean().optional(),
+    depositPaymentMethod: z.enum(['cash', 'bank_transfer', 'card']).nullable().optional(),
+    termsAccepted: z.boolean().optional(),
+    saveOnly: z.boolean().optional(),
+    customerName: z.string().max(200).optional(),
+    customerPhone: z.string().max(64).optional(),
+    customerEmail: z.string().max(320).optional(),
+    note: z.string().max(8000).optional(),
+  })
+  .strip()
 
 export async function POST(
   request: NextRequest,
@@ -22,10 +75,24 @@ export async function POST(
   })
   if (!limit.allowed) return limit.response
 
-  const body = (await request.json().catch(() => null)) as PackageSelectionInput | null
-  if (!body || !body.stayOptionIds) return apiError('Missing package selection', 400)
+  const {
+    data: body,
+    error: bodyError,
+    issues,
+  } = await parseBodyWithSchema(request, packageSelectionSchema, {
+    maxBytes: PUBLIC_SELECTION_BODY_LIMIT_BYTES,
+  })
+  if (bodyError || !body) {
+    const missingSelection = issues?.some(
+      (issue) => issue.path[0] === 'stayOptionIds' && issue.code === 'invalid_type',
+    )
+    return apiError(
+      missingSelection ? 'Missing package selection' : bodyError || 'Invalid package selection',
+      bodyError === 'Request body is too large' ? 413 : 400,
+    )
+  }
   const saveOnly = body.saveOnly === true
-  const selectionInput = { ...body }
+  const selectionInput: PackageSelectionInput = { ...body }
   delete selectionInput.saveOnly
   if (!saveOnly && !body.termsAccepted) {
     return apiError('Please confirm that you have read the terms and conditions.', 400)
@@ -107,5 +174,5 @@ export async function POST(
     },
   )
 
-  return apiOk({ selected: resolved, saveOnly })
+  return apiOk({ selected: createPublicResolvedPackageSelection(resolved), saveOnly })
 }

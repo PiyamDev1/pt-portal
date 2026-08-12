@@ -4,7 +4,7 @@ import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
 import { normalizePackageInvoiceLineType, roundPackageInvoiceMoney } from '@/lib/packageInvoices'
 import { recalculatePackageInvoice } from '@/lib/packageInvoiceServer'
 import { recordPackageAuditEvent } from '@/lib/packageAudit'
-import { selectTravelPackageInvoiceLineColumns } from '../route'
+import { selectTravelPackageInvoiceLineColumns } from '../columns'
 
 function cleanText(value: unknown) {
   return typeof value === 'string' ? value.trim() : ''

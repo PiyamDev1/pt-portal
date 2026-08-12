@@ -58,7 +58,10 @@ type TrainingRequestBody = {
   answers?: Record<string, string | string[] | number | number[]>
 }
 
-async function getCurrentEmployee(supabase: Awaited<ReturnType<typeof getRouteSupabaseClient>>, userId: string) {
+async function getCurrentEmployee(
+  supabase: Awaited<ReturnType<typeof getRouteSupabaseClient>>,
+  userId: string,
+) {
   const { data, error } = await supabase
     .from('employees')
     .select('id, full_name, email, roles(name), locations(name, branch_code)')
@@ -94,7 +97,10 @@ function normaliseQuestionType(type: unknown): TrainingQuestionType {
   return 'single_choice'
 }
 
-function normaliseOptions(options: unknown, questionType: TrainingQuestionType): TrainingQuestionOption[] {
+function normaliseOptions(
+  options: unknown,
+  questionType: TrainingQuestionType,
+): TrainingQuestionOption[] {
   const source =
     questionType === 'true_false'
       ? [
@@ -179,14 +185,19 @@ function getSubmittedAnswerIds(answer: unknown, question: Record<string, unknown
   const optionByIndex = new Map(options.map((option, index) => [index, option.id]))
   const values = Array.isArray(answer) ? answer : typeof answer !== 'undefined' ? [answer] : []
 
-  return [...new Set(values
-    .map((value) => {
-      if (typeof value === 'number') return optionByIndex.get(value) || String(value)
-      const asNumber = Number(value)
-      if (Number.isInteger(asNumber) && optionByIndex.has(asNumber)) return optionByIndex.get(asNumber)!
-      return String(value)
-    })
-    .filter(Boolean))]
+  return [
+    ...new Set(
+      values
+        .map((value) => {
+          if (typeof value === 'number') return optionByIndex.get(value) || String(value)
+          const asNumber = Number(value)
+          if (Number.isInteger(asNumber) && optionByIndex.has(asNumber))
+            return optionByIndex.get(asNumber)!
+          return String(value)
+        })
+        .filter(Boolean),
+    ),
+  ]
 }
 
 function answersMatch(expected: string[], actual: string[]) {
@@ -209,7 +220,9 @@ export async function GET() {
 
     const enrollmentQuery = supabase
       .from('training_enrollments')
-      .select('*, training_courses(*, training_lessons(*), training_quiz_questions(*)), training_certificates(*)')
+      .select(
+        '*, training_courses(*, training_lessons(*), training_quiz_questions(*)), training_certificates(*)',
+      )
       .order('updated_at', { ascending: false })
 
     const [coursesResult, enrollmentsResult, employeesResult] = await Promise.all([
@@ -316,7 +329,10 @@ export async function POST(request: Request) {
         Number(body.correctOptionIndex || 0),
       )
       if (correctAnswerIds.length === 0) return apiError('Select at least one correct answer', 400)
-      const correctIndex = Math.max(0, options.findIndex((option) => option.id === correctAnswerIds[0]))
+      const correctIndex = Math.max(
+        0,
+        options.findIndex((option) => option.id === correctAnswerIds[0]),
+      )
 
       const { data, error } = await supabase
         .from('training_quiz_questions')
@@ -414,14 +430,18 @@ export async function POST(request: Request) {
       const earnedPoints = (questions || []).reduce((total, question) => {
         const expected = getQuestionCorrectIds(question)
         const actual = getSubmittedAnswerIds(answers[question.id], question)
-        return answersMatch(expected, actual) ? total + Math.max(1, Number(question.points || 1)) : total
+        return answersMatch(expected, actual)
+          ? total + Math.max(1, Number(question.points || 1))
+          : total
       }, 0)
       const score = hasQuiz
         ? normaliseScore((earnedPoints / Math.max(1, totalPoints)) * 100)
         : normaliseScore(body.score)
       const passed = score >= Number(course.passing_score || 80)
       const certificateExpiresAt = course.certificate_valid_days
-        ? new Date(Date.now() + Number(course.certificate_valid_days) * 24 * 60 * 60 * 1000).toISOString()
+        ? new Date(
+            Date.now() + Number(course.certificate_valid_days) * 24 * 60 * 60 * 1000,
+          ).toISOString()
         : null
 
       const { data: enrollment, error: enrollmentError } = await supabase
@@ -455,16 +475,14 @@ export async function POST(request: Request) {
 
       if (passed) {
         const certificateNumber = `PT-${new Date().getUTCFullYear()}-${String(enrollment.id).slice(0, 8).toUpperCase()}`
-        const { error: certificateError } = await supabase
-          .from('training_certificates')
-          .upsert(
-            {
-              enrollment_id: enrollment.id,
-              certificate_number: certificateNumber,
-              expires_at: certificateExpiresAt,
-            },
-            { onConflict: 'enrollment_id' },
-          )
+        const { error: certificateError } = await supabase.from('training_certificates').upsert(
+          {
+            enrollment_id: enrollment.id,
+            certificate_number: certificateNumber,
+            expires_at: certificateExpiresAt,
+          },
+          { onConflict: 'enrollment_id' },
+        )
 
         if (certificateError) throw certificateError
       }

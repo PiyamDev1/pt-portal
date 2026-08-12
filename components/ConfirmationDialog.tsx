@@ -121,34 +121,3 @@ export function ConfirmationDialog({
     </ModalBase>
   )
 }
-
-/**
- * Hook to manage confirmation dialog state
- */
-export function useConfirmation(onConfirm?: () => void | Promise<void>) {
-  const [isOpen, setIsOpen] = React.useState(false)
-  const [isLoading, setIsLoading] = React.useState(false)
-
-  const open = React.useCallback(() => setIsOpen(true), [])
-  const close = React.useCallback(() => setIsOpen(false), [])
-
-  const handleConfirm = React.useCallback(async () => {
-    setIsLoading(true)
-    try {
-      if (onConfirm) {
-        await onConfirm()
-      }
-      close()
-    } finally {
-      setIsLoading(false)
-    }
-  }, [onConfirm, close])
-
-  return {
-    isOpen,
-    isLoading,
-    open,
-    close,
-    handleConfirm,
-  }
-}

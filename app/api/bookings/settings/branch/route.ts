@@ -1,13 +1,14 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getRouteSupabaseClient } from '@/lib/api/serverSupabase';
-import { getSupabaseClient } from '@/lib/supabaseClient';
+import { NextRequest, NextResponse } from 'next/server'
+import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
+import { getSupabaseClient } from '@/lib/supabaseClient'
+import { requireAdminSession } from '@/lib/adminSessionAuth'
 
 const SCHEMA_HINT =
   'Booking schema is out of date. Run scripts/bootstrap/create-bookings-schema.sql in Supabase SQL editor.'
 
 function isSchemaError(error: unknown): boolean {
-  const code = (error as { code?: string } | null)?.code;
-  return code === '42P01' || code === '42703' || code === '42P10';
+  const code = (error as { code?: string } | null)?.code
+  return code === '42P01' || code === '42703' || code === '42P10'
 }
 
 /**
@@ -20,60 +21,60 @@ function isSchemaError(error: unknown): boolean {
 
 export async function GET(request: NextRequest) {
   try {
-    const locationId = request.nextUrl.searchParams.get('location_id');
-    const supabase = await getRouteSupabaseClient();
+    const locationId = request.nextUrl.searchParams.get('location_id')
+    const supabase = await getRouteSupabaseClient()
 
-    let query = supabase
-      .from('branch_settings')
-      .select('*')
-      .order('day_of_week');
+    let query = supabase.from('branch_settings').select('*').order('day_of_week')
 
     if (locationId) {
-      query = query.eq('location_id', locationId);
+      query = query.eq('location_id', locationId)
     }
 
-    const { data, error } = await query;
+    const { data, error } = await query
 
     if (error) {
       if (isSchemaError(error)) {
-        return NextResponse.json({ settings: [], warning: SCHEMA_HINT }, { status: 200 });
+        return NextResponse.json({ settings: [], warning: SCHEMA_HINT }, { status: 200 })
       }
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    return NextResponse.json({ settings: data });
+    return NextResponse.json({ settings: data })
   } catch {
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
 export async function PATCH(request: NextRequest) {
   try {
-    const body = await request.json();
+    const access = await requireAdminSession()
+    if (!access.authorized) return access.response
+
+    const body = await request.json()
     const { location_id, settings } = body as {
-      location_id: string;
+      location_id: string
       settings: {
-        id: string;
-        location_id: string;
-        day_of_week: number;
-        open_time: string;
-        close_time: string;
-        lunch_start_time: string | null;
-        lunch_end_time: string | null;
-        prayer_start_time: string | null;
-        prayer_end_time: string | null;
-        is_closed: boolean;
-        concurrent_staff: number;
-        slot_interval_minutes: number;
-      }[];
-    };
+        id: string
+        location_id: string
+        day_of_week: number
+        open_time: string
+        close_time: string
+        lunch_start_time: string | null
+        lunch_end_time: string | null
+        prayer_start_time: string | null
+        prayer_end_time: string | null
+        is_closed: boolean
+        concurrent_staff: number
+        slot_interval_minutes: number
+      }[]
+    }
 
     if (!location_id) {
-      return NextResponse.json({ error: 'location_id is required' }, { status: 400 });
+      return NextResponse.json({ error: 'location_id is required' }, { status: 400 })
     }
 
     if (!Array.isArray(settings) || settings.length === 0) {
-      return NextResponse.json({ error: 'settings array is required' }, { status: 400 });
+      return NextResponse.json({ error: 'settings array is required' }, { status: 400 })
     }
 
     // Basic validation
@@ -81,26 +82,19 @@ export async function PATCH(request: NextRequest) {
       if (row.concurrent_staff < 1) {
         return NextResponse.json(
           { error: `concurrent_staff must be at least 1 for day ${row.day_of_week}` },
-          { status: 400 }
-        );
+          { status: 400 },
+        )
       }
       if (row.slot_interval_minutes < 5) {
         return NextResponse.json(
           { error: `slot_interval_minutes must be at least 5 for day ${row.day_of_week}` },
-          { status: 400 }
-        );
+          { status: 400 },
+        )
       }
     }
 
-    // Auth check with session client
-    const sessionClient = await getRouteSupabaseClient();
-    const { data: { user } } = await sessionClient.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     // Use service-role client to bypass RLS
-    const supabase = getSupabaseClient();
+    const supabase = getSupabaseClient()
 
     const payload = settings.map((row) => ({
       location_id,
@@ -114,21 +108,21 @@ export async function PATCH(request: NextRequest) {
       is_closed: row.is_closed,
       concurrent_staff: row.concurrent_staff,
       slot_interval_minutes: row.slot_interval_minutes,
-    }));
+    }))
 
     const { error } = await supabase
       .from('branch_settings')
-      .upsert(payload, { onConflict: 'location_id,day_of_week' });
+      .upsert(payload, { onConflict: 'location_id,day_of_week' })
 
     if (error) {
       if (isSchemaError(error)) {
-        return NextResponse.json({ error: SCHEMA_HINT }, { status: 503 });
+        return NextResponse.json({ error: SCHEMA_HINT }, { status: 503 })
       }
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true })
   } catch {
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

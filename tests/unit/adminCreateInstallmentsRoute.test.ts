@@ -141,7 +141,9 @@ describe('POST /api/admin/create-installments', () => {
     const payload = await response.json()
 
     expect(response.status).toBe(400)
-    expect(payload.error).toContain('Table does not exist. Please create the loan_installments table first')
+    expect(payload.error).toContain(
+      'Table does not exist. Please create the loan_installments table first',
+    )
     expect(payload.requiresManualSetup).toBe(true)
     expect(payload.sql).toContain('CREATE TABLE IF NOT EXISTS public.loan_installments')
   })

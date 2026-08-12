@@ -3,12 +3,18 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => {
   const rpc = vi.fn()
   const getServiceSupabaseClient = vi.fn(() => ({ rpc }))
-  return { rpc, getServiceSupabaseClient }
+  const logServerEvent = vi.fn()
+  const reportOperationalError = vi.fn()
+  return { rpc, getServiceSupabaseClient, logServerEvent, reportOperationalError }
 })
 
 vi.unmock('@/lib/security/rateLimit')
 vi.mock('@/lib/api/serviceSupabase', () => ({
   getServiceSupabaseClient: mocks.getServiceSupabaseClient,
+}))
+vi.mock('@/lib/observability/server', () => ({
+  logServerEvent: mocks.logServerEvent,
+  reportOperationalError: mocks.reportOperationalError,
 }))
 
 import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
@@ -86,5 +92,22 @@ describe('shared API rate limiting', () => {
     if (result.allowed) throw new Error('Expected blocked rate limit')
     expect(result.response.status).toBe(503)
     expect(result.response.headers.get('Retry-After')).toBe('30')
+  })
+
+  it('can fail open without alert delivery for noncritical telemetry', async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: 'rpc unavailable' } })
+
+    const result = await enforceRateLimit(new Request('http://localhost/api/vitals'), {
+      scope: 'public.performance-metrics',
+      limit: 120,
+      windowSeconds: 60,
+      unavailable: 'allow',
+    })
+
+    expect(result).toEqual({ allowed: true, remaining: 0, retryAfterSeconds: 0 })
+    expect(mocks.logServerEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ event: 'telemetry.rate_limit_unavailable', level: 'warn' }),
+    )
+    expect(mocks.reportOperationalError).not.toHaveBeenCalled()
   })
 })

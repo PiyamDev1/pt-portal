@@ -2,7 +2,7 @@
  * Server-Side Supabase Client Factory
  * Creates authenticated Supabase clients in server components and API routes
  * Uses cookies for session management
- * 
+ *
  * @module lib/api/serverSupabase
  */
 

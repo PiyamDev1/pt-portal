@@ -97,9 +97,17 @@ type IssueReportsTabState = {
 }
 
 type IssueReportsTabAction =
-  | { type: 'setFilter'; payload: Partial<Pick<IssueReportsTabState, 'statusFilter' | 'moduleFilter' | 'assigneeFilter' | 'search'>> }
+  | {
+      type: 'setFilter'
+      payload: Partial<
+        Pick<IssueReportsTabState, 'statusFilter' | 'moduleFilter' | 'assigneeFilter' | 'search'>
+      >
+    }
   | { type: 'setLoading'; payload: boolean }
-  | { type: 'setReportsData'; payload: { reports: IssueReport[]; assignees: Assignee[]; currentAdminId: string | null } }
+  | {
+      type: 'setReportsData'
+      payload: { reports: IssueReport[]; assignees: Assignee[]; currentAdminId: string | null }
+    }
   | { type: 'selectReport'; payload: string | null }
   | { type: 'setDetailLoading'; payload: boolean }
   | { type: 'setDetail'; payload: { detail: IssueReportDetail | null; assigneeId?: string } }
@@ -173,10 +181,21 @@ export function IssueReportsTab() {
     expandedScreenshotUrl: null,
   })
   const {
-    statusFilter, moduleFilter, assigneeFilter, search,
-    reports, assignees, currentAdminId,
-    selectedReportId, detail, selectedAssigneeId, expandedScreenshotUrl,
-    loading, detailLoading, statusUpdating, assignmentUpdating,
+    statusFilter,
+    moduleFilter,
+    assigneeFilter,
+    search,
+    reports,
+    assignees,
+    currentAdminId,
+    selectedReportId,
+    detail,
+    selectedAssigneeId,
+    expandedScreenshotUrl,
+    loading,
+    detailLoading,
+    statusUpdating,
+    assignmentUpdating,
   } = state
 
   // Use a ref so fetchReports always reads the latest search value without
@@ -372,7 +391,10 @@ export function IssueReportsTab() {
           <select
             value={statusFilter}
             onChange={(event) =>
-              dispatch({ type: 'setFilter', payload: { statusFilter: event.target.value as (typeof statusOptions)[number] } })
+              dispatch({
+                type: 'setFilter',
+                payload: { statusFilter: event.target.value as (typeof statusOptions)[number] },
+              })
             }
             className="rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700"
           >
@@ -385,7 +407,9 @@ export function IssueReportsTab() {
 
           <select
             value={moduleFilter}
-            onChange={(event) => dispatch({ type: 'setFilter', payload: { moduleFilter: event.target.value } })}
+            onChange={(event) =>
+              dispatch({ type: 'setFilter', payload: { moduleFilter: event.target.value } })
+            }
             className="rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700"
           >
             {modules.map((module) => (
@@ -397,7 +421,9 @@ export function IssueReportsTab() {
 
           <select
             value={assigneeFilter}
-            onChange={(event) => dispatch({ type: 'setFilter', payload: { assigneeFilter: event.target.value } })}
+            onChange={(event) =>
+              dispatch({ type: 'setFilter', payload: { assigneeFilter: event.target.value } })
+            }
             className="rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700"
           >
             <option value="all">All owners</option>
@@ -413,7 +439,9 @@ export function IssueReportsTab() {
           <input
             type="text"
             value={search}
-            onChange={(event) => dispatch({ type: 'setFilter', payload: { search: event.target.value } })}
+            onChange={(event) =>
+              dispatch({ type: 'setFilter', payload: { search: event.target.value } })
+            }
             placeholder="Search notes, page URL, or reporter"
             className="rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700"
           />
@@ -455,7 +483,9 @@ export function IssueReportsTab() {
           getAgeMeta={getAgeMeta}
           getSeverityClasses={getSeverityClasses}
           formatDate={formatDate}
-          setExpandedScreenshotUrl={(url) => dispatch({ type: 'setExpandedScreenshotUrl', payload: url })}
+          setExpandedScreenshotUrl={(url) =>
+            dispatch({ type: 'setExpandedScreenshotUrl', payload: url })
+          }
         />
       </section>
 

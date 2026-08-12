@@ -1,144 +1,54 @@
 # Changelog
 
-All notable changes to PT-Portal will be documented in this file.
+Notable PT-Portal changes are recorded here. This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and uses semantic versioning for releases.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+## Unreleased
 
----
+### Added
 
-## [Unreleased] - 2026-06-06
+- Database-backed fixed-window rate limiting with hashed identities and atomic backup-code replacement.
+- Atomic, idempotent LMS ledger/installment operations and schema-capability checks.
+- PostgreSQL 16 integration workflows for LMS and shared security migrations.
+- Authenticated Playwright smoke coverage for security, document storage, LMS, packages, and receipts.
+- Structured server observability with request correlation, secret redaction, and optional trusted alert delivery.
+- App-native promise-based dialogs for confirmations and prompts.
+- Field-level API contracts for every exported handler, with an exact route/method documentation coverage check in CI.
 
 ### Changed
 
-- Documentation refreshed to reflect the current project direction and active work areas.
-- Storage docs now reflect recent minor reliability work on the dual-storage document system.
-- Application docs now reflect ongoing small operational fixes rather than a major new applications rewrite.
-- Added dedicated appointment bookings documentation covering current implementation, APIs, schema footprint, and the fact that the feature is still unfinished.
+- Upgraded the application and lint configuration to Next.js 16.3.
+- Hardened password login, password changes, session revocation, backup-code lifecycle, employee onboarding, administrative password reset, and break-glass 2FA recovery.
+- Standardized protected route authorization around verified cookie-backed staff sessions and narrow role/department checks.
+- Hardened document and package uploads with bounded multipart parsing, scope checks, filename/MIME/extension/signature validation, private delivery, and metadata/object cleanup.
+- Required fresh 2FA and shared abuse limits for destructive administrative and LMS operations.
+- Split large bookings and package screens into smaller feature components/models without changing product contracts.
+- Expanded CI to cover dependency audit, lint, types, API validation boundaries, unit tests, formatting, production build, database migrations, smoke tests, docs publishing, backup, and document migration.
+- Reconciled active setup, architecture, API, database, security, storage, deployment, and contributor documentation with current source.
 
-### In Progress
+### Removed
 
-- Appointment bookings system remains under active development.
-- Current work includes branch schedules, service timing rules, reminder emails, attendance confirmation, no-show penalties, and audit logging, but the overall module should still be treated as unfinished.
+- Native browser `alert`, `confirm`, and `prompt` usage in application flows; notifications use toasts and decisions/input use app dialogs.
+- Legacy browser-supplied admin Bearer authorization paths.
+- Unused generic hooks, compatibility barrels, constant modules, component wiring, and redundant type stubs identified during cleanup.
 
-## [2.0.0] - 2026-02-01
+## 2.0.0 - 2026-02-01
 
-### 🎉 Major Release - Codebase Organization & Branding Update
+### Added
 
-#### Added
+- Organized product, setup, technical, operations, planning, and archive documentation under `docs/`.
+- Initial repository metadata, changelog, license, and project documentation navigation.
 
-- Comprehensive documentation structure in `docs/` directory
-- Documentation organized into logical categories:
-  - `docs/guides/` - User and developer guides
-  - `docs/technical/` - Technical documentation
-  - `docs/archive/` - Historical documentation
-  - `docs/database/` - Database schemas and documentation
-- Company branding: Rathobixz Inc. throughout project
-- Enhanced README.md with proper structure and badges
-- CHANGELOG.md for version tracking
-- LICENSE file (MIT)
-- Improved .gitignore with comprehensive rules
-- docs/README.md for documentation navigation
+### Changed
 
-#### Changed
+- Updated the package version to 2.0.0.
+- Reorganized documentation links and entry points.
 
-- Updated package.json to version 2.0.0
-- Reorganized all documentation files into structured directories
-- Updated all documentation links to reflect new structure
-- Enhanced DOCUMENTATION_INDEX.md with new paths
-- Improved documentation cross-references
+### Fixed
 
-#### Fixed
+- Pricing loading, missing dashboard-route, and LMS refresh-loop defects documented for the release.
 
-- Pricing tab infinite loading issue (memoization fix)
-- Console errors from missing dashboard routes
-- Infinite refresh loops in LMS page
-- TypeScript errors in stub pages
+## 1.0.0 - 2026-01-15
 
-### Technical Improvements
+### Added
 
-- React.memo optimization for components
-- useCallback memoization for hook functions
-- Ref-based filter tracking to prevent effect cycles
-- Backend pagination (50 items/page, max 100)
-- O(1) lookup maps instead of nested filters
-- 90% memory reduction (500MB → 50MB)
-- 15x faster initial load (15-30s → 1-2s)
-
----
-
-## [1.0.0] - 2026-01-15
-
-### Initial Release
-
-#### Features
-
-- **Application Management**
-  - NADRA services (CNICs, family registration, forms, reports)
-  - Pakistani passport applications
-  - GB passport services
-  - Visa applications
-
-- **Loan Management System (LMS)**
-  - Account management
-  - Payment processing
-  - Installment plans
-  - Transaction history
-
-- **Pricing Management**
-  - Service pricing configuration
-  - Cost and sale price tracking
-  - Margin calculation
-  - Multi-service support
-
-- **User Management**
-  - Authentication with Supabase
-  - Role-based access control (Admin/Manager/User)
-  - Two-factor authentication (2FA)
-  - Session management
-
-- **Dashboard**
-  - Statistics and analytics
-  - Quick actions
-  - Recent activities
-  - Status overview
-
-#### Technical Stack
-
-- Next.js 14.2 (App Router)
-- React 18
-- TypeScript 5
-- Supabase (PostgreSQL, Auth)
-- Tailwind CSS
-- Lucide React Icons
-
----
-
-## Version History Summary
-
-| Version | Date       | Major Changes                                                  |
-| ------- | ---------- | -------------------------------------------------------------- |
-| 2.0.0   | 2026-02-01 | Documentation organization, branding update, performance fixes |
-| 1.0.0   | 2026-01-15 | Initial release with core features                             |
-
----
-
-## Upgrade Guide
-
-### From 1.0.0 to 2.0.0
-
-**Documentation Links:**
-
-- All documentation has moved to `docs/` directory
-- Update bookmarks and internal links
-- See [DOCUMENTATION_INDEX.md](DOCUMENTATION_INDEX.md) for new structure
-
-**No Database Migrations Required**
-**No Breaking API Changes**
-**No Code Changes Required**
-
----
-
-**Maintained by Rathobixz Inc.**
-
-For detailed information about any release, see the [GitHub Releases](https://github.com/PiyamDev1/pt-portal/releases) page.
+- Initial NADRA, Pakistani passport, GB passport, visa, LMS, pricing, authentication, and dashboard features.

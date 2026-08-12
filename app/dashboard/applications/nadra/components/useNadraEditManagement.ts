@@ -53,65 +53,71 @@ export default function useNadraEditManagement({
   const [editFormData, setEditFormData] = useState<NadraEditFormData>({})
   const [deleteAuthCode, setDeleteAuthCode] = useState('')
 
-  const openEditModal = useCallback((record: NadraApplication | NadraPerson, type: NadraEditType) => {
-    setEditType(type)
-    setEditingRecord(record)
-    setDeleteAuthCode('')
+  const openEditModal = useCallback(
+    (record: NadraApplication | NadraPerson, type: NadraEditType) => {
+      setEditType(type)
+      setEditingRecord(record)
+      setDeleteAuthCode('')
 
-    if (type === 'family_head') {
-      const familyHead = record as NadraPerson
+      if (type === 'family_head') {
+        const familyHead = record as NadraPerson
+        setEditFormData({
+          id: familyHead.id,
+          firstName: familyHead.first_name || '',
+          lastName: familyHead.last_name || '',
+          cnic: familyHead.citizen_number || '',
+          phone: familyHead.phone_number || '',
+        })
+        return
+      }
+
+      const application = record as NadraApplication
+      const nadra = getNadraRecord(application)
+      const details = getDetails(nadra)
+      const rawCnic = application.applicants?.citizen_number
+      const isNewBorn = !rawCnic || rawCnic.startsWith('00000')
+
       setEditFormData({
-        id: familyHead.id,
-        firstName: familyHead.first_name || '',
-        lastName: familyHead.last_name || '',
-        cnic: familyHead.citizen_number || '',
-        phone: familyHead.phone_number || '',
+        id: nadra?.id,
+        applicationId: application.id || undefined,
+        applicantId: application.applicants?.id,
+        firstName: application.applicants?.first_name || '',
+        lastName: application.applicants?.last_name || '',
+        cnic: isNewBorn ? '' : rawCnic,
+        newBorn: isNewBorn,
+        email: application.applicants?.email || '',
+        serviceType: nadra?.service_type || undefined,
+        serviceOption: details?.service_option || 'Normal',
+        trackingNumber: application.tracking_number || '',
+        pin: nadra?.application_pin || undefined,
+        employeeId: nadra?.employee_id || '',
+        employeeName:
+          (Array.isArray(nadra?.employees)
+            ? nadra?.employees[0]?.full_name
+            : nadra?.employees?.full_name) || '',
+        notes: nadra?.notes || '',
       })
-      return
-    }
+    },
+    [],
+  )
 
-    const application = record as NadraApplication
-    const nadra = getNadraRecord(application)
-    const details = getDetails(nadra)
-    const rawCnic = application.applicants?.citizen_number
-    const isNewBorn = !rawCnic || rawCnic.startsWith('00000')
+  const handleEditInputChange = useCallback(
+    (name: keyof NadraEditFormData, value: string | boolean) => {
+      if (name === 'newBorn') {
+        setEditFormData((prev) => ({
+          ...prev,
+          newBorn: Boolean(value),
+          cnic: value ? '' : prev.cnic,
+        }))
+        return
+      }
 
-    setEditFormData({
-      id: nadra?.id,
-      applicationId: application.id || undefined,
-      applicantId: application.applicants?.id,
-      firstName: application.applicants?.first_name || '',
-      lastName: application.applicants?.last_name || '',
-      cnic: isNewBorn ? '' : rawCnic,
-      newBorn: isNewBorn,
-      email: application.applicants?.email || '',
-      serviceType: nadra?.service_type || undefined,
-      serviceOption: details?.service_option || 'Normal',
-      trackingNumber: application.tracking_number || '',
-      pin: nadra?.application_pin || undefined,
-      employeeId: nadra?.employee_id || '',
-      employeeName:
-        (Array.isArray(nadra?.employees)
-          ? nadra?.employees[0]?.full_name
-          : nadra?.employees?.full_name) || '',
-      notes: nadra?.notes || '',
-    })
-  }, [])
-
-  const handleEditInputChange = useCallback((name: keyof NadraEditFormData, value: string | boolean) => {
-    if (name === 'newBorn') {
-      setEditFormData((prev) => ({
-        ...prev,
-        newBorn: Boolean(value),
-        cnic: value ? '' : prev.cnic,
-      }))
-      return
-    }
-
-    const normalizedValue =
-      name === 'trackingNumber' && typeof value === 'string' ? value.toUpperCase() : value
-    setEditFormData((prev) => ({ ...prev, [name]: normalizedValue }))
-  }, [])
+      const normalizedValue =
+        name === 'trackingNumber' && typeof value === 'string' ? value.toUpperCase() : value
+      setEditFormData((prev) => ({ ...prev, [name]: normalizedValue }))
+    },
+    [],
+  )
 
   const handleEditSubmit = useCallback(async () => {
     if (!editType || !editFormData.id) {

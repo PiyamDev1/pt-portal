@@ -35,11 +35,14 @@ export async function GET(request: NextRequest) {
 
   if (!token || (status !== 'present' && status !== 'missed')) {
     return new NextResponse(
-      renderHtml('Invalid Response Link', 'This attendance confirmation link is invalid or incomplete.'),
+      renderHtml(
+        'Invalid Response Link',
+        'This attendance confirmation link is invalid or incomplete.',
+      ),
       {
         status: 400,
         headers: { 'content-type': 'text/html; charset=utf-8' },
-      }
+      },
     )
   }
 
@@ -54,29 +57,72 @@ export async function GET(request: NextRequest) {
 
     if (eventError || !event) {
       return new NextResponse(
-        renderHtml('Link Expired', 'We could not find this reminder confirmation link. Please contact the branch.'),
+        renderHtml(
+          'Link Expired',
+          'We could not find this reminder confirmation link. Please contact the branch.',
+        ),
         {
           status: 404,
           headers: { 'content-type': 'text/html; charset=utf-8' },
-        }
+        },
       )
     }
 
-    await supabase
+    if (event.response_status === 'present' || event.response_status === 'missed') {
+      return new NextResponse(
+        renderHtml(
+          'Response Already Recorded',
+          'Your attendance response was already recorded. No further changes were made.',
+        ),
+        {
+          status: 200,
+          headers: { 'content-type': 'text/html; charset=utf-8' },
+        },
+      )
+    }
+
+    const respondedAt = new Date().toISOString()
+    const { data: claimedEvent, error: claimError } = await supabase
       .from('booking_reminder_events')
       .update({
         response_status: status,
-        responded_at: new Date().toISOString(),
+        responded_at: respondedAt,
         confirmation_source: 'customer_link',
       })
       .eq('id', event.id)
+      .eq('response_status', 'unknown')
+      .select('id')
+      .maybeSingle()
 
-    await supabase
+    if (claimError) throw claimError
+    if (!claimedEvent) {
+      return new NextResponse(
+        renderHtml(
+          'Response Already Recorded',
+          'Your attendance response was already recorded. No further changes were made.',
+        ),
+        {
+          status: 200,
+          headers: { 'content-type': 'text/html; charset=utf-8' },
+        },
+      )
+    }
+
+    const { error: bookingUpdateError } = await supabase
       .from('bookings')
       .update({
         attendance_status: status === 'present' ? 'present' : 'missed',
       })
       .eq('id', event.booking_id)
+
+    if (bookingUpdateError) {
+      await supabase
+        .from('booking_reminder_events')
+        .update({ response_status: 'unknown', responded_at: null, confirmation_source: null })
+        .eq('id', event.id)
+        .eq('responded_at', respondedAt)
+      throw bookingUpdateError
+    }
 
     if (status === 'missed') {
       const { data: booking } = await supabase
@@ -98,9 +144,10 @@ export async function GET(request: NextRequest) {
     }
 
     const title = status === 'present' ? 'Thanks for Confirming' : 'Missed Appointment Noted'
-    const message = status === 'present'
-      ? 'Your attendance has been confirmed. We look forward to seeing you.'
-      : 'We have marked this appointment as missed. Please contact the branch to rebook if needed.'
+    const message =
+      status === 'present'
+        ? 'Your attendance has been confirmed. We look forward to seeing you.'
+        : 'We have marked this appointment as missed. Please contact the branch to rebook if needed.'
 
     return new NextResponse(renderHtml(title, message), {
       status: 200,
@@ -108,11 +155,14 @@ export async function GET(request: NextRequest) {
     })
   } catch {
     return new NextResponse(
-      renderHtml('Error', 'Something went wrong while recording your response. Please contact the branch.'),
+      renderHtml(
+        'Error',
+        'Something went wrong while recording your response. Please contact the branch.',
+      ),
       {
         status: 500,
         headers: { 'content-type': 'text/html; charset=utf-8' },
-      }
+      },
     )
   }
 }

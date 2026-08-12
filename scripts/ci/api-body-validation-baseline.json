@@ -19,7 +19,6 @@
     "app/api/bookings/settings/reminders/route.ts": 1,
     "app/api/bookings/settings/services/[id]/route.ts": 1,
     "app/api/bookings/settings/services/route.ts": 1,
-    "app/api/bookings/telemetry/route.ts": 1,
     "app/api/bookings/waitlist/route.ts": 2,
     "app/api/dashboard/modules/route.ts": 1,
     "app/api/dashboard/notice-board/read/route.ts": 1,
@@ -35,14 +34,11 @@
     "app/api/packages/[id]/route.ts": 1,
     "app/api/packages/[id]/selection/route.ts": 1,
     "app/api/packages/route.ts": 1,
-    "app/api/packages/share/[token]/selection/route.ts": 1,
     "app/api/passports/gb/add/route.js": 1,
     "app/api/passports/gb/update/route.js": 1,
     "app/api/passports/pak/add-application/route.js": 1,
     "app/api/passports/pak/drafts/route.ts": 1,
     "app/api/passports/pak/notes/route.js": 1,
-    "app/api/receipts/generate/route.ts": 1,
-    "app/api/receipts/share/route.ts": 1,
     "app/api/receipts/verify/route.ts": 1,
     "app/api/timeclock/events/[eventId]/adjust/route.ts": 1,
     "app/api/timeclock/manual-entry/submit/route.ts": 1,
@@ -78,7 +74,6 @@
     "app/api/travel-packages/backups/reconcile/route.ts": 1,
     "app/api/travel-packages/migration/import/route.ts": 1,
     "app/api/travel-packages/migration/scan/route.ts": 1,
-    "app/api/visas/add-application/route.js": 1,
-    "app/api/vitals/route.ts": 1
+    "app/api/visas/add-application/route.js": 1
   }
 }

@@ -35,11 +35,10 @@ export default function NotesModal({
   const hasCapturedOriginalNotes = useRef(false)
   const [originalNotes, setOriginalNotes] = useState('')
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false)
-  const hasUnsavedChanges = useMemo(() => !isLoading && notes !== originalNotes, [
-    isLoading,
-    notes,
-    originalNotes,
-  ])
+  const hasUnsavedChanges = useMemo(
+    () => !isLoading && notes !== originalNotes,
+    [isLoading, notes, originalNotes],
+  )
 
   // Track original notes when modal opens
   useEffect(() => {

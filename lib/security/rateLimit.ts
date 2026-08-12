@@ -15,6 +15,7 @@ export type RateLimitOptions = {
   windowSeconds: number
   identities?: Array<string | null | undefined>
   message?: string
+  unavailable?: 'deny' | 'allow'
 }
 
 export type RateLimitResult =
@@ -124,6 +125,17 @@ export async function enforceRateLimit(
 
     return { allowed: true, remaining, retryAfterSeconds: 0 }
   } catch (error) {
+    if (options.unavailable === 'allow') {
+      logServerEvent({
+        event: 'telemetry.rate_limit_unavailable',
+        level: 'warn',
+        request,
+        error,
+        context: { scope: options.scope },
+      })
+      return { allowed: true, remaining: 0, retryAfterSeconds: 0 }
+    }
+
     await reportOperationalError({
       event: 'security.rate_limit_unavailable',
       request,

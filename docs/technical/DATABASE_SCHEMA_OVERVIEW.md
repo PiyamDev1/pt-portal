@@ -1,110 +1,93 @@
 # Database Schema Overview
 
-Last updated: August 12, 2026
+Last verified against the repository: August 12, 2026.
 
-## Purpose and source of truth
+## Sources of truth
 
-This document maps the main PT-Portal database domains and the schema verification workflow. Executable SQL migrations are authoritative:
+PT-Portal uses Supabase PostgreSQL. Use these artifacts together:
 
-- `scripts/migrations/`
-- root-level SQL utilities in `scripts/`
-- `scripts/bootstrap/create-bookings-schema.sql` for booking bootstrap
+1. `scripts/migrations/` is the ordered, executable history for repository-owned schema changes.
+2. `types/supabase.generated.ts` is the last checked-in snapshot of the linked public schema; `types/supabase.ts` adds a narrow current overlay for committed migrations not yet present in that snapshot.
+3. Runtime route/service code defines which columns, functions, grants, and version markers a deployed release actually requires.
+4. `scripts/bootstrap/` and `scripts/manual/` contain feature bootstrap or repair utilities; they are not a substitute for applying the ordered migration history.
 
-Do not create or mutate schema from an API request. Runtime “setup” endpoints may report readiness, but deployment migrations own DDL.
+Do not create or mutate production schema from an HTTP request. Maintenance endpoints may report readiness or invoke an already-deployed function, but deployment owns DDL.
 
-## Core domains
+## Domain map
 
-### Authentication and employees
+| Domain                        | Principal tables and relationships                                                                                                                                                                                                                                                                                                     |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Identity and access           | Supabase Auth users/sessions/factors; `employees`, `roles`, `locations`, `departments`, `employee_departments`, `password_history`, `backup_codes`, `user_passkeys`, `user_passkey_challenges`, `user_security_preferences`, `auth_security_events`                                                                                    |
+| Applications                  | `applicants`, `applications`, NADRA detail/pricing/history tables, `pakistani_passport_applications`, `pakistani_passport_drafts`, Pakistani-passport metadata/history, GB-passport applications/pricing/history, visa applications/metadata/history, `application_note_reads`                                                         |
+| Accounting and LMS            | application accounting views derive from application sources; LMS persists `loan_customers`, `loans`, `loan_transactions`, `loan_installments`, methods/categories, notes, collection/audit records, and idempotency keys                                                                                                              |
+| Bookings                      | `bookings`, branch/service schedule configuration, capacity reservations, waitlist, drafts/preferences, reminder/email/idempotency events, contact flags, and audit logs                                                                                                                                                               |
+| Quotes and package operations | `travel_package_quotes`, converted `travel_packages`, versions, passengers, reservations/items/refunds, invoices/lines, payments/plans/installments, documents, tasks/deadlines/risk flags/communications/audit, transport vouchers, group/member/shared-service allocation, third-party shares/access, and legacy migration maps/runs |
+| Documents and receipts        | `documents`, `document_migration_runs`, `generated_receipts`; object bytes live in private object stores while PostgreSQL owns metadata and access scope                                                                                                                                                                               |
+| Timeclock                     | `timeclock_devices`, signed events, QR/request nonces, physical-device manual codes and limit records, attendance records, and adjustment audit fields                                                                                                                                                                                 |
+| Frappe/HR                     | identity maps, inbox/outbox, conflicts, sync state, handoff events, leave requests/types/balances, and retained payroll/employee-history tables                                                                                                                                                                                        |
+| Training and dashboard        | courses, lessons, quiz questions, enrollments, attempts, certificates, dashboard module preferences, notice-board slides/reads, issue reports/events/artifacts                                                                                                                                                                         |
+| Pricing and commercial data   | central service pricing, NADRA/passport/visa pricing, Umrah transport suppliers/vehicles/routes/plans/rates/settings, commissions, ticket ledger, loyalty, accounting categories, closeout and P&L data                                                                                                                                |
 
-- Supabase Auth identities and factors
-- `employees`, `roles`, locations, and `employee_departments`
-- bcrypt-hashed one-time `backup_codes`
-- security-event and login-guard records
-- `api_rate_limit_buckets` for shared abuse-control counters
+This is a domain map, not a column-level substitute for generated types or SQL. See [Travel Packages](../guides/TRAVEL_PACKAGES_GUIDE.md), [Bookings](../guides/BOOKINGS_GUIDE.md), and [Storage](STORAGE_SYSTEM.md) for lifecycle rules.
 
-### Applications
+## Migration families
 
-- NADRA applications and applicants
-- Visa applications
-- Submitted Pakistani/GB passport applications
-- Pre-tracking Pakistani-passport drafts
-- Status, complaint, note, assignment, and receipt history
+| Migration range                                   | Capability                                                                                                                                                                                                          |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `20260214`–`20260328`                             | application notes/status/refunds, employee activation, document vault/migration tracking, timeclock adjustments, issue reporting                                                                                    |
+| `20260414`–`20260418`                             | employee/payroll foundation and Frappe bidirectional-integration foundation                                                                                                                                         |
+| `20260602`–`20260702`                             | booking operations/capacity/waitlist/drafts/preferences, security preferences/passkeys/events, Frappe identity/handoff, notice board, training, manual overrides                                                    |
+| `20260708`–`20260811`                             | quote-to-package workflow, reservations/documents/invoices/groups/transport pricing, timeclock hardware security, Pakistani-passport drafts, third-party document shares, responsibility agents, refunds, discounts |
+| `20260812_secure_atomic_lms_operations.sql`       | atomic LMS ledger/installment functions, idempotency, global account pagination, grants, and readiness marker                                                                                                       |
+| `20260812_security_rate_limits.sql`               | shared PostgreSQL rate-limit buckets/function, atomic backup-code replacement, grants, and readiness marker                                                                                                         |
+| `20260812_update_lms_installments_atomically.sql` | atomic, bounded batch updates for LMS installment due dates and amounts, with service-role-only execution                                                                                                           |
 
-### LMS
+Apply files in filename order. A feature deployment may also require an earlier bootstrap noted by its active guide—for example bookings, receipts, or timeclock—but do not re-run historical repair scripts blindly against production.
 
-- Customers and loan accounts
-- Service, fee, and payment ledger entries
-- Installment plans and payment methods
-- Audit logs, operational notes, and idempotency keys
+## Required runtime capabilities
 
-The ledger is the source of truth for derived balances. LMS mutations use service-role-only PostgreSQL functions so the ledger write, installment synchronization, and account recalculation occur in one transaction.
+The two August 12 capability migrations share the service-role-only `portal_schema_versions` table. The LMS installment-batch migration extends that baseline without changing its version marker. Current runtime code expects:
 
-### Bookings
+- component `lms`, version `20260812`, plus `lms_schema_status()`, the main `lms_*` transactional functions, and `lms_update_installments(jsonb)` from the follow-up migration;
+- component `api-security`, version `20260812`, plus `check_api_rate_limit(...)` and `replace_backup_codes(...)`.
 
-- Branch-aware schedules and services
-- Appointment records and slot rules
-- Reminder events, no-show flags, and booking audit records
+The LMS readiness endpoint returns `503` when the expected migration/capability is absent; it does not execute DDL. Security-sensitive routes also fail closed when the shared limiter is unavailable or incorrectly configured.
 
-### Documents
+Privileged tables/functions revoke access from `public`, `anon`, and `authenticated` and grant only the needed service-role operations. Preserve that posture in follow-up migrations.
 
-- Private-vault metadata tied to an applicant, application, or draft scope
-- Storage provider/bucket, object key, MIME type, size, and ETag
-- Logical deletion and listing metadata
+## Access rules
 
-The object store is not the authorization source. Routes first resolve a live database record before preview, download, or delete operations.
+- Validate the cookie-backed Supabase user before creating a service-role client.
+- Resolve actor identity from the verified user, never from a client-provided employee ID.
+- Enforce active employee, role, department, branch, ownership, and public-token scope as required by the route.
+- Keep RLS enabled and use narrowly scoped policies where browser/authenticated clients query directly.
+- Treat service-role access as an explicit bypass that requires an application-level authorization check.
+- Put transactionally coupled writes in a PostgreSQL function, with an idempotency key where retrying could duplicate money or events.
+- Store object metadata/access state in PostgreSQL; never authorize an object-store read from a raw object key alone.
 
-### Timeclock
+## Change workflow
 
-- Device registry
-- Signed scan events
-- Team views, manual codes, and adjustment workflows
+1. Add an idempotent migration in `scripts/migrations/` with explicit grants and RLS decisions.
+2. Add/update a capability marker when runtime code depends on the change.
+3. Apply the migration to the intended Supabase project before deploying dependent code.
+4. Regenerate and review the linked schema types:
 
-## Versioned security and LMS migrations
+   ```bash
+   npm run types:supabase
+   ```
 
-`portal_schema_versions` records deployed component capabilities. It is RLS-enabled and readable only by the service role.
+5. Update route contracts, domain types, tests, `.env.example`, and active documentation together.
+6. Test rollback/upgrade semantics and concurrency on disposable PostgreSQL when the change is transactional or security-sensitive.
 
-| Migration                                   | Marker                      | Main capabilities                                                                                                              |
-| ------------------------------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `20260812_secure_atomic_lms_operations.sql` | `lms` / `20260812`          | Atomic ledger functions, idempotent retries, installment synchronization, global account pagination, and `lms_schema_status()` |
-| `20260812_security_rate_limits.sql`         | `api-security` / `20260812` | Shared fixed-window rate limiting and atomic backup-code replacement                                                           |
+The type generator preserves the existing checked-in file if Supabase CLI generation fails. A migration that is not yet applied to the linked project will not appear in generated types. Use only a narrow, reviewed pending-migration overlay in `types/supabase.ts`, then remove it after deployment and regeneration; do not hand-edit generated output to simulate deployment.
 
-`POST /api/admin/create-installments-table` is retained as a maintenance readiness check. It calls `lms_schema_status()` and returns `503` when the required migration/version is absent; it does not execute DDL.
+## Database integration checks
 
-The security migration installs:
-
-- `api_rate_limit_buckets`, with hashed identities and no grants to `anon` or `authenticated`;
-- `check_api_rate_limit`, an atomic service-role-only fixed-window increment/decision function; and
-- `replace_backup_codes`, a service-role-only transaction that preserves the previous code set if replacement fails.
-
-## Data-access rules
-
-- Authenticate the request with the cookie-backed Supabase user before creating a service-role client.
-- Resolve actor identity from the verified session, never from body/query employee IDs.
-- Apply route-specific role or department checks before privileged reads and writes.
-- Validate and bound mutation payloads before database calls.
-- Prefer generated Supabase types and typed shared accessors for new code.
-- Keep transactionally related writes inside a PostgreSQL function instead of coordinating partial writes from a route.
-
-## Real-PostgreSQL integration checks
-
-`.github/workflows/database-integration.yml` starts PostgreSQL 16 for migration tests. It runs:
+`.github/workflows/database-integration.yml` starts PostgreSQL 16 and runs:
 
 ```bash
 npm run test:db:lms
 npm run test:db:security
 ```
 
-The LMS check applies a minimal production-shaped fixture, proves the migration can roll back cleanly, installs it, exercises ledger/installment/fee/update behavior, validates idempotent replay and pagination, and runs simultaneous retries from separate sessions.
-
-The security check applies the security migration, verifies rate-limit window decisions and backup-code replacement behavior, and runs concurrent limiter calls to prove that exactly one request passes a limit of one.
-
-Set `DATABASE_TEST_URL` to a disposable database. Never run these integration fixtures against production or a database containing data that must be preserved.
-
-## Schema-change checklist
-
-1. Add an idempotent migration in `scripts/migrations/`.
-2. Revoke public/anon/authenticated access to privileged tables and functions; grant the minimum service-role capability.
-3. Add or update a `portal_schema_versions` marker when runtime code depends on the migration.
-4. Update routes, generated types, and contract documentation together.
-5. Add unit tests and a real-PostgreSQL integration assertion for concurrency or transaction behavior.
-6. Run lint, typecheck, unit tests, build, and both applicable database integration scripts before merge.
+The suites validate migration installation and rollback behavior, grants, readiness markers, LMS ledger/installment/idempotency semantics, all-or-nothing installment-batch updates, limiter windows, atomic backup-code replacement, and concurrent requests. Locally, set `DATABASE_TEST_URL` to a disposable database. Never point these fixtures at production or any database containing data that must be preserved.

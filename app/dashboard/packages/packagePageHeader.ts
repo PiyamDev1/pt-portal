@@ -18,11 +18,11 @@ export async function getPackagePageHeader(
   userId: string,
   fallbackName?: string | null,
 ) {
-  const { data } = await supabase
+  const { data } = (await supabase
     .from('employees')
     .select('full_name, roles(name), locations(name, branch_code)')
     .eq('id', userId)
-    .single() as { data: EmployeeHeaderRow | null }
+    .single()) as { data: EmployeeHeaderRow | null }
 
   const role = firstRelated(data?.roles)
   const location = firstRelated(data?.locations)

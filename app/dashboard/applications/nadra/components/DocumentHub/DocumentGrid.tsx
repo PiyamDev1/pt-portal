@@ -14,9 +14,9 @@
  */
 
 import Image from 'next/image'
-import React, { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Document } from './types'
-import { FileText, Trash2, Download, Eye, File } from 'lucide-react'
+import { FileText, Trash2, Download, Eye } from 'lucide-react'
 
 type PdfJsModule = typeof import('pdfjs-dist')
 

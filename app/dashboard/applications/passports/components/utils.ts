@@ -3,16 +3,11 @@
  * Dashboard module for applications/passports/components/utils.ts.
  */
 
-import { formatCNIC as coreFormatCNIC, getStatusColor as coreGetStatusColor } from '@/lib/utils'
+import { formatCNIC as coreFormatCNIC } from '@/lib/utils'
 import type { Application, Applicant, PassportRecord, TrackingStep } from './types'
 
 // Re-export from central location for backward compatibility
 export const formatCNIC = coreFormatCNIC
-
-// Wrapper to provide context for passport-specific statuses
-export const getStatusColor = (status: string) => {
-  return coreGetStatusColor(status, 'passport')
-}
 
 export const getPassportRecord = (item: Application): PassportRecord | undefined => {
   const value = item?.pakistani_passport_applications

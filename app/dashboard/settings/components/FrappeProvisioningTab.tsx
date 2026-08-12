@@ -7,7 +7,16 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { AlertTriangle, CheckCircle2, Link2, RefreshCw, Search, Send, UserPlus, UsersRound } from 'lucide-react'
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Link2,
+  RefreshCw,
+  Search,
+  Send,
+  UserPlus,
+  UsersRound,
+} from 'lucide-react'
 import { toast } from 'sonner'
 
 type CandidateStatus = 'linked' | 'ready_for_transfer' | 'missing_email'
@@ -135,7 +144,8 @@ export function FrappeProvisioningTab() {
   const [search, setSearch] = useState('')
   const [candidates, setCandidates] = useState<ProvisioningCandidate[]>([])
   const [options, setOptions] = useState<ProvisioningOptions>(emptyOptions)
-  const [employeeProvisioning, setEmployeeProvisioning] = useState<EmployeeProvisioningReadiness | null>(null)
+  const [employeeProvisioning, setEmployeeProvisioning] =
+    useState<EmployeeProvisioningReadiness | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [form, setForm] = useState<TransferForm>(initialForm)
 
@@ -190,19 +200,24 @@ export function FrappeProvisioningTab() {
       const nextCandidates = (data.candidates || []) as ProvisioningCandidate[]
       setCandidates(nextCandidates)
       setOptions((data.options || emptyOptions) as ProvisioningOptions)
-      setEmployeeProvisioning((data.employee_provisioning || null) as EmployeeProvisioningReadiness | null)
+      setEmployeeProvisioning(
+        (data.employee_provisioning || null) as EmployeeProvisioningReadiness | null,
+      )
       const defaultCompany = String(data.default_company || FALLBACK_DEFAULT_COMPANY)
       setForm((current) => ({
         ...current,
         company: defaultCompany,
       }))
 
-      const preferred = nextCandidates.find((candidate) => candidate.status === 'ready_for_transfer')
-        || nextCandidates[0]
-        || null
+      const preferred =
+        nextCandidates.find((candidate) => candidate.status === 'ready_for_transfer') ||
+        nextCandidates[0] ||
+        null
       setSelectedId((current) => current || preferred?.employee_id || null)
     } catch (error: unknown) {
-      toast.error(error instanceof Error ? error.message : 'Unable to load Frappe transfer candidates')
+      toast.error(
+        error instanceof Error ? error.message : 'Unable to load Frappe transfer candidates',
+      )
     } finally {
       setLoading(false)
     }
@@ -272,9 +287,7 @@ export function FrappeProvisioningTab() {
       }
 
       toast.success(
-        data.linked
-          ? 'Existing Frappe employee linked'
-          : 'Employee transferred to Frappe HRMS',
+        data.linked ? 'Existing Frappe employee linked' : 'Employee transferred to Frappe HRMS',
       )
     } catch (error: unknown) {
       toast.error(error instanceof Error ? error.message : 'Unable to transfer employee to Frappe')
@@ -318,7 +331,8 @@ export function FrappeProvisioningTab() {
               <div>
                 <p className="font-semibold">Frappe Employee provisioning is not ready</p>
                 <p className="mt-1 text-sm">
-                  {employeeProvisioning.error || 'The Frappe Employee DocType could not be verified.'}
+                  {employeeProvisioning.error ||
+                    'The Frappe Employee DocType could not be verified.'}
                 </p>
               </div>
             </div>
@@ -375,9 +389,13 @@ export function FrappeProvisioningTab() {
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="font-semibold text-slate-900">{candidate.full_name}</p>
-                        <p className="mt-0.5 text-xs text-slate-500">{candidate.email || 'No email'}</p>
+                        <p className="mt-0.5 text-xs text-slate-500">
+                          {candidate.email || 'No email'}
+                        </p>
                       </div>
-                      <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusBadge(candidate.status)}`}>
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusBadge(candidate.status)}`}
+                      >
                         {statusLabel(candidate.status)}
                       </span>
                     </div>
@@ -408,7 +426,8 @@ export function FrappeProvisioningTab() {
                 <CheckCircle2 className="h-8 w-8" />
                 <h3 className="mt-4 text-lg font-bold">{selected.full_name} is already linked</h3>
                 <p className="mt-2 text-sm">
-                  Frappe Employee ID: <span className="font-mono">{selected.frappe_employee_id}</span>
+                  Frappe Employee ID:{' '}
+                  <span className="font-mono">{selected.frappe_employee_id}</span>
                 </p>
                 {selected.frappe_user_id ? (
                   <p className="mt-1 text-sm">
@@ -550,7 +569,9 @@ export function FrappeProvisioningTab() {
                       <input
                         type="checkbox"
                         checked={form.send_welcome_email}
-                        onChange={(event) => updateForm({ send_welcome_email: event.target.checked })}
+                        onChange={(event) =>
+                          updateForm({ send_welcome_email: event.target.checked })
+                        }
                         className="rounded border-blue-300 text-blue-700 focus:ring-blue-600"
                       />
                       Send Frappe welcome email
@@ -560,7 +581,11 @@ export function FrappeProvisioningTab() {
 
                 <button
                   onClick={() => void transferSelected()}
-                  disabled={transferring || selected.status === 'missing_email' || employeeProvisioning?.ready === false}
+                  disabled={
+                    transferring ||
+                    selected.status === 'missing_email' ||
+                    employeeProvisioning?.ready === false
+                  }
                   className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-emerald-700 disabled:opacity-50"
                 >
                   {transferring ? (

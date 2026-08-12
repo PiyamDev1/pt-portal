@@ -37,7 +37,9 @@ export default function PassportsToolbar({
   setShowForm,
 }: PassportsToolbarProps) {
   const trimmedSearch = searchQuery.trim()
-  const hasActiveFilters = Boolean(trimmedSearch || statusFilter !== 'All' || speedFilter !== 'All' || startDate || endDate)
+  const hasActiveFilters = Boolean(
+    trimmedSearch || statusFilter !== 'All' || speedFilter !== 'All' || startDate || endDate,
+  )
 
   return (
     <div className="space-y-3">
@@ -144,7 +146,8 @@ export default function PassportsToolbar({
 
       {!!trimmedSearch && (
         <div className="text-xs text-slate-500">
-          Search checks applicant details, tracking, passport numbers, status, speed, requested-page text, and notes.
+          Search checks applicant details, tracking, passport numbers, status, speed, requested-page
+          text, and notes.
         </div>
       )}
     </div>

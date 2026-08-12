@@ -7,7 +7,5 @@ export function hashThirdPartyShareToken(token: string) {
 }
 
 export function hashThirdPartyShareCode(token: string, code: string) {
-  return createHash('sha256')
-    .update(`${token}:${code.trim().toUpperCase()}`)
-    .digest('hex')
+  return createHash('sha256').update(`${token}:${code.trim().toUpperCase()}`).digest('hex')
 }

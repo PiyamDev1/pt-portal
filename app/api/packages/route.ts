@@ -120,5 +120,8 @@ export async function POST(request: NextRequest) {
     return apiError(error.message || 'Failed to create package quote', 500)
   }
 
-  return apiOk({ quote: data as unknown as TravelPackageQuote, setupRequired: false }, { status: 201 })
+  return apiOk(
+    { quote: data as unknown as TravelPackageQuote, setupRequired: false },
+    { status: 201 },
+  )
 }

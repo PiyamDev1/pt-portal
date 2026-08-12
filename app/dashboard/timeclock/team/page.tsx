@@ -1,18 +1,18 @@
 /**
  * Team Timeclock Management Page
- * 
+ *
  * Manager view for team attendance tracking:
  * - View all team member attendance and punch records
  * - Approve or reject time adjustment requests
  * - Bulk time adjustments for team members
  * - Team attendance analytics and reports
  * - Filter by date range and employee
- * 
+ *
  * Server component that:
  * - Authenticates manager-level access
  * - Loads team member time records
  * - Renders team management interface
- * 
+ *
  * @module app/dashboard/timeclock/team/page
  */
 import { createServerClient } from '@supabase/auth-helpers-nextjs'

@@ -114,9 +114,8 @@ export default function HierarchyTab({
             <p className="text-sm font-bold text-slate-800">{employee.full_name}</p>
             <p className="text-xs text-slate-500">
               {(employee.role_id ? roleNameById.get(employee.role_id) : undefined) || '-'} •{' '}
-              {(employee.location_id
-                ? locationNameById.get(employee.location_id)
-                : undefined) || 'No Branch'}
+              {(employee.location_id ? locationNameById.get(employee.location_id) : undefined) ||
+                'No Branch'}
             </p>
           </div>
 

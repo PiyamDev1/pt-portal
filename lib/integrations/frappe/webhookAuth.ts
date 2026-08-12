@@ -18,9 +18,10 @@ function timingSafeEqualHex(a: string, b: string) {
 export function verifyFrappeWebhookSignature(rawBody: string, providedSignature: string | null) {
   const secret = process.env.FRAPPE_WEBHOOK_SECRET
 
-  // Development fallback: if no secret is configured, accept payload.
+  // Webhook authentication must fail closed in every environment. Local
+  // development can use any explicit shared value, but never an unsigned path.
   if (!secret) {
-    return true
+    return false
   }
 
   if (!providedSignature) {

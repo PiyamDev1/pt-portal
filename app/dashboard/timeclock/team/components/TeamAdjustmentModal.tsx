@@ -72,7 +72,9 @@ export function TeamAdjustmentModal({
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Corrected recorded time</label>
+            <label className="mb-1 block text-sm font-medium text-slate-700">
+              Corrected recorded time
+            </label>
             <input
               type="datetime-local"
               value={adjustedTimeInput}

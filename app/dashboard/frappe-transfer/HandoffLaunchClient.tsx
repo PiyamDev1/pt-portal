@@ -72,12 +72,15 @@ export function FrappeHandoffLaunchClient({
   useEffect(() => {
     if (!platformReady) return undefined
 
-    const timeout = window.setTimeout(() => {
-      setLaunchState('ready')
-      if (!mobileMode) {
-        window.location.replace(buildHandoffEndpoint('redirect'))
-      }
-    }, mobileMode ? 900 : 650)
+    const timeout = window.setTimeout(
+      () => {
+        setLaunchState('ready')
+        if (!mobileMode) {
+          window.location.replace(buildHandoffEndpoint('redirect'))
+        }
+      },
+      mobileMode ? 900 : 650,
+    )
 
     return () => window.clearTimeout(timeout)
   }, [mobileMode, platformReady])

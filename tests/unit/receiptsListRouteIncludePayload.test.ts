@@ -8,6 +8,13 @@ const mocks = vi.hoisted(() => {
 vi.mock('@/lib/services/receiptStore', () => ({
   listPersistedReceipts: mocks.listPersistedReceipts,
 }))
+vi.mock('@/lib/auth/staffSession', () => ({
+  requireStaffSession: vi.fn(async () => ({
+    authorized: true,
+    user: { id: 'auth-user' },
+    employee: { id: 'employee-server' },
+  })),
+}))
 
 import { GET } from '@/app/api/receipts/list/route'
 

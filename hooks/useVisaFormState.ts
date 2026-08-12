@@ -2,7 +2,7 @@
  * Visa Form State Hook
  * Manages visa application form state with edit, batch update, and reset capabilities
  * Supports both new applications and editing existing ones
- * 
+ *
  * @module hooks/useVisaFormState
  */
 

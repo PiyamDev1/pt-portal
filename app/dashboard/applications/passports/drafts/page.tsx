@@ -116,7 +116,11 @@ export default async function PakPassportDraftsPage() {
       .order('updated_at', { ascending: false })
       .limit(1000),
     serviceSupabase.from('departments').select('id, name').order('name'),
-    serviceSupabase.from('pk_passport_categories').select('name').eq('is_active', true).order('name'),
+    serviceSupabase
+      .from('pk_passport_categories')
+      .select('name')
+      .eq('is_active', true)
+      .order('name'),
     serviceSupabase.from('pk_passport_speeds').select('name').eq('is_active', true).order('name'),
     serviceSupabase
       .from('pk_passport_application_types')
@@ -162,8 +166,7 @@ export default async function PakPassportDraftsPage() {
       : { data: [] }
 
   const employeeOptions = (applicationEmployees || []).filter(
-    (employee) =>
-      employee.is_active !== false || assignedDraftEmployeeIds.includes(employee.id),
+    (employee) => employee.is_active !== false || assignedDraftEmployeeIds.includes(employee.id),
   )
 
   const draftDocumentCounts: Record<string, number> = {}

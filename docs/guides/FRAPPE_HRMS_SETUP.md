@@ -495,18 +495,19 @@ At minimum, watch:
 - `integration_outbox` dead-letter count
 - `integration_conflicts` open count
 
-## Known Current Gap
+## Current Rollout Boundaries
 
-Current repo state is strongest for:
+Current source implements:
 
-- leave push
-- webhook ingestion
-- sync infrastructure
+- leave push plus bounded leave pull and inbox reconciliation;
+- webhook ingestion and integration health/outbox infrastructure;
+- employee provisioning and signed browser handoff; and
+- timeclock punch aggregation, attendance-summary queueing, and Frappe outbox delivery.
 
-Still staged:
+The remaining boundaries are narrower than the earlier staged plan:
 
-- full pull reconciliation logic
-- richer conflict resolution UI
-- complete attendance/timeclock mapping workflow
+- pull and inbound reconciliation are leave-specific rather than a generic all-domain sync;
+- conflict handling exposes summaries and records but not a rich interactive resolution workflow; and
+- attendance maps portal punches into daily present/half-day summaries, while advanced schedule and payroll interpretation remains a Frappe responsibility.
 
-That is acceptable for rollout if we start with leave first and treat attendance as phase 2.
+Validate leave and attendance separately during rollout, including the employee identity mapping required by both domains.

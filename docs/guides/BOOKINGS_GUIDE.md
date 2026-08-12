@@ -1,147 +1,81 @@
 # Appointment Bookings Guide
 
-> PT-Portal appointment bookings system status: active development, not finished yet  
-> Last updated: June 2026
+Last verified against the repository: August 12, 2026.
 
-## Overview
+PT-Portal's booking module is an implemented branch-aware appointment system at `/dashboard/bookings`. It combines schedule/service configuration, capacity-safe booking operations, draft/waitlist tools, email reminders, attendance/no-show handling, and audit/reporting.
 
-The bookings module is the newest major feature in PT-Portal. It is a branch-aware appointment scheduling system with service rules, slot generation, reminder emails, attendance confirmation links, and no-show tracking.
+## Operator workflow
 
-Current route surface:
+1. Select an appointment-enabled branch (administrators can switch; other staff use their effective location).
+2. Choose an active service, date, and group size to load server-calculated availability.
+3. Enter customer/contact/source/notes/tags and create the appointment, or add the customer to the waitlist.
+4. Edit, reschedule, change status, or resend email from the dashboard; conflict checks protect against overwriting a newer edit.
+5. Review the booking's activity/email history and use report/export views for operations.
+6. Mark a no-show through the app confirmation flow when policy requires it; the contact flag remains subject to staff review.
 
-- Dashboard: `/dashboard/bookings`
-- Core API namespace: `/api/bookings/*`
+The form saves a per-user/per-branch draft. Saved view preferences are also user-scoped.
 
-This module is usable for development and internal rollout work, but it should still be treated as **unfinished**.
+## Scheduling contract
 
-## What Exists Today
+Availability combines:
 
-### Core booking flow
+- `locations.appointments_enabled` and the selected location;
+- weekly `branch_settings`, lunch/break windows, and one-off `branch_schedule_overrides`;
+- `booking_services` duration, buffer, allowed weekdays, optional service window, group-size increments, family-head counting, closing tolerance, and concurrent capacity;
+- existing active bookings and short-lived `booking_capacity_reservations`; and
+- group size/person count.
 
-- Create bookings with customer name, phone, email, service, date/time, source, notes, and person count
-- Calculate slot availability from branch hours, service duration, buffers, and concurrent staff capacity
-- Prevent overlapping bookings beyond branch/service tolerance rules
-- Reschedule and amend existing bookings
-- Update status between `pending`, `confirmed`, `completed`, and `cancelled`
-- Enforce stricter status transition rules and explicit reschedule tracking
-- Use optimistic conflict protection with `updated_at` checks on booking edits
-- Support internal tags, booking history, and manual re-send actions
+Create/reschedule reserves capacity through PostgreSQL before the final write so concurrent callers cannot claim the same last slot. Standard operations use generated slots. A manual date/time override is an explicit recorded choice; it still requires valid bounded dates/times and appropriate access.
 
-### Branch-aware scheduling
+Status transitions and reschedules are recorded in `booking_audit_logs`. Update requests use the known `updated_at` value for optimistic conflict protection. Idempotency records prevent accidental duplicate creates.
 
-- Branch appointment access is controlled with `locations.appointments_enabled`
-- Weekly branch schedules are stored in `branch_settings`
-- One-off closure/time overrides are stored in `branch_schedule_overrides`
-- A default fallback schedule is generated in code if branch settings are missing
+## Email and reminders
 
-### Service-aware slot logic
+Mailgun sends confirmation, modification, cancellation, resend, advance-reminder, and same-day-reminder messages. Service templates use only the supported placeholders defined by the booking email helpers. A persisted booking can succeed while email delivery returns a warning; the UI surfaces that distinction.
 
-- Services are stored in `booking_services`
-- Services support:
-  - Base duration
-  - Buffer minutes
-  - Allowed weekdays
-  - Optional daily service start/end window
-  - Extra minutes per additional person
-  - Whether family head counts toward person total
-  - Close overrun tolerance near end of day
+Branch reminder settings control enablement, hours, subject/template, same-day behavior, and repeat-no-show policy. `/api/cron/bookings/reminders` runs daily at 06:00 UTC and requires exact `Authorization: Bearer <CRON_SECRET>`. It fails closed when the secret is not configured. The optional `BOOKING_REMINDER_CRON_LOOKBACK_MINUTES` catch-up window is clamped to 15–1,440 minutes.
 
-### Email, reminder, and penalty work
+Customer attendance links are one-shot transitions: the first valid present or missed response claims the reminder event, and repeated/concurrent visits do not reapply attendance or no-show penalties.
 
-- Booking confirmation, modification, and cancellation emails are supported
-- Service-level email templates can be customized with approved placeholders
-- Reminder settings are stored per branch
-- Reminder settings now support both advance reminders and same-day reminders
-- Reminder cron exists at `/api/cron/bookings/reminders`
-- Attendance confirmation links are handled through `/api/bookings/attendance/respond`
-- Repeat no-shows can be flagged through `booking_contact_flags`
+Attendance links are built from `APP_BASE_URL`, then `NEXT_PUBLIC_SITE_URL`, then legacy `NEXT_PUBLIC_APP_URL`. A per-event response token records `present` or `missed`; a missed response can update the contact penalty record. SMS delivery is not implemented.
 
-### Operations and audit
+## Current UI and API
 
-- Booking telemetry events are logged via `/api/bookings/telemetry`
-- Booking audit trail is stored in `booking_audit_logs`
-- Booking email delivery attempts are stored in `booking_email_logs`
-- Booking idempotency keys are stored in `booking_idempotency_keys`
+The dashboard includes day/week/list views, search and status/service/source filters, saved views, appointment editing, history, waitlist, draft state, CSV export, and summary reporting. Booking settings manage branch hours, one-off overrides, services, capacity rules, and reminder templates. Settings mutations require an active `Admin`, `Master Admin`, or `Super Admin` employee session before any service-role write.
 
-## Current UI Surface
+The public booking-telemetry beacon accepts only the booking UI's allowlisted events and metadata in an 8 KiB body. It is limited to 120 events per IP per minute, with fail-open limiter behavior because telemetry must never interrupt appointment work.
 
-The bookings dashboard currently includes:
+The complete current method inventory—including drafts, preferences, waitlist, settings child routes, no-show, resend, telemetry, and attendance—is in [API Reference](../technical/API_REFERENCE.md#bookings).
 
-- Day/week/list operational views
-- Appointment creation form
-- Slot lookup by branch, service, date, and group size
-- Status update actions
-- Reschedule/amend flows
-- Manual email re-send from the dashboard
-- Booking activity/email history modal
-- Search, status/service/source filters, saved views, CSV export, and summary reporting
-- Admin access to booking settings through the shared booking settings tab
+## Database deployment
 
-Admins can switch between appointment-enabled branches. Non-admin users are scoped to their effective branch location.
-
-## Current API Surface
-
-Main routes currently implemented:
-
-- `GET /api/bookings`
-- `POST /api/bookings`
-- `PATCH /api/bookings/[id]`
-- `GET /api/bookings/[id]/history`
-- `POST /api/bookings/[id]/resend`
-- `GET /api/bookings/available-slots`
-- `GET /api/bookings/export`
-- `GET /api/bookings/report`
-- `GET|PATCH /api/bookings/settings/branch`
-- `GET|POST /api/bookings/settings/overrides`
-- `GET|POST /api/bookings/settings/services`
-- `GET|PATCH /api/bookings/settings/reminders`
-- `GET /api/bookings/attendance/respond`
-- `POST /api/bookings/telemetry`
-- `GET /api/cron/bookings/reminders`
-
-See [API_REFERENCE.md](../technical/API_REFERENCE.md) for endpoint details.
-
-## Database Footprint
-
-Main tables involved:
-
-- `bookings`
-- `booking_services`
-- `branch_settings`
-- `branch_schedule_overrides`
-- `booking_email_logs`
-- `booking_idempotency_keys`
-- `booking_reminder_settings`
-- `booking_reminder_events`
-- `booking_contact_flags`
-- `booking_audit_logs`
-
-Bootstrap schema:
+Install the booking bootstrap for a new environment, then apply incremental migrations in order:
 
 - `scripts/bootstrap/create-bookings-schema.sql`
-
-Recent incremental booking migrations:
-
 - `scripts/migrations/20260602_add_booking_audit_logs.sql`
 - `scripts/migrations/20260602_add_booking_reminders_and_penalties.sql`
 - `scripts/migrations/20260606_upgrade_booking_operations.sql`
+- `scripts/migrations/20260608_add_booking_capacity_waitlist_drafts.sql`
+- `scripts/migrations/20260702_add_manual_override_to_bookings.sql`
 
-## Known Current State
+Main tables include `bookings`, `booking_services`, `branch_settings`, `branch_schedule_overrides`, capacity reservations, waitlist entries, drafts/preferences, email/idempotency/reminder records, contact flags, and audit logs.
 
-The most important caveats right now are:
+Compatibility guards may return setup warnings when the base schema or a newer column/function is absent. Apply the missing SQL before enabling the corresponding workflow; do not rely on runtime setup calls to create schema.
 
-- The module is still being actively built out
-- Schema compatibility guards are present in the API and may return warnings/setup hints when booking tables or newer columns are missing
-- Reminder and no-show flows exist, but operational policy around manual review is still being refined
-- SMS delivery is still not implemented; reminder and resend flows are email-only right now
-- The UI is substantial, but it should still be treated as an active work area rather than a fully settled module
+## Operational checks
 
-## Related Files
+- Confirm the branch is appointment-enabled and schedules/overrides are correct.
+- Confirm service duration, buffer, group rules, window, and capacity before diagnosing “no slots”.
+- Treat a `409` as a capacity/edit conflict and reload before deciding whether to retry.
+- Check Mailgun configuration and `booking_email_logs` when the booking succeeded with an email warning.
+- Check `CRON_SECRET`, base URL, reminder settings/events, and recent Vercel cron execution when reminders or attendance links fail.
+- Review no-show/contact flags manually before refusing or changing service to a customer.
 
-- `app/dashboard/bookings/`
-- `app/api/bookings/`
-- `app/api/cron/bookings/reminders/route.ts`
-- `app/types/bookings.ts`
-- `lib/bookingBranchSchedule.ts`
-- `lib/bookingEmail.ts`
-- `lib/bookingReminders.ts`
+## Source and tests
+
+- UI: `app/dashboard/bookings/`
+- Routes: `app/api/bookings/` and `app/api/cron/bookings/reminders/route.ts`
+- Types: `app/types/bookings.ts`
+- Scheduling/capacity: `lib/bookingBranchSchedule.ts`, `lib/bookingCapacity.ts`
+- Operations/email/reminders: `lib/bookingOperations.ts`, `lib/bookingEmail.ts`, `lib/bookingReminders.ts`
+- Focused tests: `tests/unit/booking*.test.ts` and `tests/unit/bookings*.test.ts`; there is currently no booking-specific Playwright smoke specification

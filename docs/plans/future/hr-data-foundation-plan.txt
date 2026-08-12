@@ -1,3 +1,5 @@
+HISTORICAL PROPOSAL — Frappe HRMS is now the active HR boundary. Verify current source and docs/guides/FRAPPE_HRMS_SETUP.md; this file is not implementation authority.
+
 HR DATA FOUNDATION & EMPLOYEE MANAGEMENT - DETAILED PLAN
 
 1) SCOPE SUMMARY

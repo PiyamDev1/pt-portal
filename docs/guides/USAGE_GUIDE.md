@@ -1,169 +1,86 @@
 # Usage Guide
 
-This guide explains the main product areas in PT-Portal from an operator or admin point of view.
+Last verified against the repository: August 12, 2026.
 
-## What PT-Portal is used for
+PT-Portal is an internal operations application. Navigation and available actions depend on the signed-in employee's role, departments, location, and feature-specific permissions.
 
-PT-Portal supports the daily internal workflows for:
+## Sign in and feedback
 
-- travel document applications
-- branch appointment bookings
-- pricing and service configuration
-- LMS and payment tracking
-- employee/admin settings
-- document upload and storage review
-- Frappe HRMS handoff and provisioning
+Sign in with password, passkey, or Microsoft SSO. Password sign-in can require a matching branch code, a temporary-password change, and TOTP or a one-use backup code. If a valid session can be resumed, the login page still reruns employee, branch, and second-factor checks.
 
-The exact menu you see depends on your role.
+The interface uses in-app dialogs for decisions and Sonner toast notifications for success, warning, and failure feedback. Native browser `alert`, `confirm`, and `prompt` windows are not part of the supported interaction pattern.
 
-## Main navigation
+The browser SDK refreshes an eligible Supabase session. When it can no longer do so, return to login; there is no separate session-expiry countdown warning. Account settings include passkeys, 2FA/backup codes, and recent-session revocation.
 
-Most users work from the left-side dashboard navigation.
+## Dashboard and personal modules
 
-Primary sections:
+The dashboard presents enabled modules and a notice board. A user can personalize dashboard module visibility; administrators manage shared notice slides. Common routes include Applications, Bookings, Packages, LMS, Accounting, Pricing, Timeclock, Training, Employee Module, Settings, and Account.
 
-- `Dashboard`
-- `Applications`
-- `Bookings`
-- `LMS`
-- `Pricing`
-- `Settings`
-- `Timeclock`
+Ticketing and Commissions currently show coming-soon pages. Do not treat their database tables or historical plans as a finished operator workflow.
 
-Admins and maintenance roles see more settings and operational tools than standard staff.
+## Applications and receipts
 
-## Applications
+Applications covers NADRA, Pakistani passports (including pre-tracking drafts), GB passports, and visas. Depending on service and access, staff can create/search/filter applications, change status, manage notes/complaints/refunds/custody, assign responsibility, and open the document vault.
 
-The applications area is split by service type:
+Receipts are implemented for NADRA, Pakistani-passport, and GB-passport workflows. NADRA receipts include PIN verification; the passport variants do not. History and share audit are available from the receipt UI, and Settings exposes receipt metrics. See [Receipt Operations](RECEIPT_OPERATIONS_GUIDE.md).
 
-- NADRA services
-- Pakistani passports
-- GB passports
-- visa applications
+## Packages
 
-Common actions across these modules:
+Packages is an implemented quote-to-operations workflow:
 
-- create a new application
-- search and filter existing records
-- update statuses
-- add notes
-- review or attach supporting documents
-- generate or review receipts when enabled
+1. Build a quotation with passenger-aware flight, hotel, visa, transport, and extra options.
+2. Share the tokenized customer view and let the customer save a selection.
+3. Convert the accepted quotation once into an operational package folder.
+4. Manage passengers, reservations/items/refunds, invoice releases/amendments, payments/plans, operations, tasks, documents, transport vouchers, and package groups.
+5. Release only approved invoice/document/voucher content to the surname-and-reference customer portal or a narrower third-party document share.
 
-The UI pattern varies a little by module, but the operational idea is consistent: staff create or update service records, then track their lifecycle through the application dashboard.
+Customer views show sale totals and allocations, never internal component costs. Visa cost is allocated to the affected passenger without exposing the agent's underlying visa cost. See [Travel Packages](TRAVEL_PACKAGES_GUIDE.md).
 
 ## Bookings
 
-The bookings module is the newest large operational area and is still evolving.
+Bookings provides branch/service-aware availability, day/week/list operations, drafts, saved preferences, waitlist, create/edit/reschedule/status flows, manual time overrides, email confirmations/resends/reminders, attendance links, no-show tracking, history, CSV export, and reporting.
 
-Current capabilities include:
+Capacity and schedule rules are enforced server-side. Manual override is an explicit staff choice, not a way to silently bypass validation. Reminder and attendance links are email-based; SMS delivery is not implemented. See [Bookings](BOOKINGS_GUIDE.md).
 
-- branch-aware appointment scheduling
-- service-based slot generation
-- appointment rescheduling and edits
-- reminder emails
-- waitlist support
-- no-show flags and penalties
-- operational history and audit visibility
+## LMS and accounting
 
-For the current implementation state and limitations, use [BOOKINGS_GUIDE.md](BOOKINGS_GUIDE.md).
+LMS manages customer accounts, service/fee/payment ledger entries, installment plans, payment methods, notes, audit history, statements, and derived balances. Financial changes are persistent: verify the customer, amount, method, date, and remark before submitting.
 
-## LMS and payments
+The current ledger/installment mutations are atomic and idempotency-aware when the required `20260812` schema capability is deployed. A `503` readiness response means an administrator must apply the migration; retrying a partial browser workflow is not a schema fix.
 
-The LMS section is used for account and transaction management.
-
-Typical workflows:
-
-- review customer balances
-- add transactions
-- manage installment plans
-- view payment history
-- print or export statements
-
-This is operational data, so staff should treat edits carefully and use the built-in review steps before finalizing changes.
+Accounting currently includes the Applications report, with monthly source/category totals and operational analysis. It is separate from the coming-soon Commissions module.
 
 ## Pricing
 
-The pricing section is for service pricing administration.
+Authorized staff manage service pricing for NADRA, Pakistani/GB passports, visas, and Umrah transport. Package quotations consume configured pricing plus deliberate quote-specific sale choices. Review both cost and sale fields carefully; customer-facing surfaces must receive only intended sale values.
 
-Typical actions:
+## Timeclock and training
 
-- update service sale prices
-- maintain cost price data
-- manage price variants by service
-- review current configured values before operational use
+Timeclock supports signed QR scans, event history, team/manager views, corrections, staff manual entry, physical-device activity/health, and device-specific manual codes. Device setup/secret rotation is administrative; never copy device secrets into tickets, chat, or screenshots.
 
-Pricing changes affect downstream staff workflows, so this area is usually limited to authorized admin roles.
+Training provides internal courses, lessons, quizzes, enrollment/attempt progress, and certifications. Course administration is permission-scoped.
 
-## Settings
+## Employee Module and HRMS
 
-Settings is the main admin console. It covers:
+The Employee Module provisions missing HRMS identity data and launches a short-lived signed handoff into the separate Frappe/Frio deployment. Administrators use Frappe Transfer and Maintenance for provisioning, health, reconciliation, and sync/outbox visibility. PT-Portal remains the authentication entry point for this flow. See [Frappe HRMS Setup](FRAPPE_HRMS_SETUP.md).
 
-- account security
-- staff management
-- branches and locations
-- hierarchy
-- issue reports
-- maintenance operations
-- Frappe transfer/provisioning
+## Documents
 
-Important operational panels:
+Application and package documents are private, server-owned uploads. Use the in-app uploader, preview/download by record, and app confirmation before deletion. Application-vault uploads accept PDF/JPEG/PNG/WebP up to 1.5 MB; package uploads use the same size/type limit but different categories/release rules.
 
-- `Frappe Transfer`
-- `Data Maintenance`
-- `Document Storage`
-- `Receipt Metrics`
+An object key is not authorization. If storage reports fallback/offline state or a migration is in progress, use the Document Storage maintenance view and [Document Management](DOCUMENT_MANAGEMENT_GUIDE.md)—do not upload directly to a bucket as a workaround.
 
-## Employee module and Frappe HRMS
+## Settings and administration
 
-The employee-facing HRMS path is intentionally IMS-controlled.
+Settings can include staff/department/location hierarchy, booking configuration, service pricing, notice board, account security, physical timeclock devices, receipt metrics, maintenance, document storage, issue reports, and Super Admin server controls.
 
-Expected flow:
+Destructive or infrastructure actions may require a fresh TOTP/backup code and explicit in-app confirmation. Role visibility alone does not grant an API operation; the server rechecks authorization.
 
-1. The user opens `Employee Module` inside IMS.
-2. If it is the first time, PT-Portal collects the missing HRMS fields it needs.
-3. If the user is already linked, IMS signs a short-lived handoff into Frio HRMS.
-4. Direct Frio guest access is not the primary login path once enforcement is enabled.
+## When something fails
 
-Admins can also manage transfer readiness from the `Frappe Transfer` settings area.
-
-For the underlying implementation and deployment details, use [FRAPPE_HRMS_SETUP.md](FRAPPE_HRMS_SETUP.md) and [INTEGRATIONS_GUIDE.md](INTEGRATIONS_GUIDE.md).
-
-## Document management
-
-Document flows exist both inside service modules and in dedicated maintenance/preview views.
-
-Typical operations:
-
-- upload files
-- preview files
-- generate thumbnails for PDFs
-- categorize or re-check stored items
-- diagnose storage/provider status
-
-For document-specific behavior, use [DOCUMENT_MANAGEMENT_GUIDE.md](DOCUMENT_MANAGEMENT_GUIDE.md).
-
-## Security and login
-
-The portal supports:
-
-- Supabase-backed login
-- 2FA setup and verification
-- backup codes
-- session warnings
-- mobile passkeys/biometric login
-- PWA install prompts
-
-The login and account experience can differ slightly between desktop, normal mobile browser, and installed PWA mode.
-
-## What is still evolving
-
-Some parts of the system are stable and established. Others are still being refined operationally.
-
-Areas to treat as active work:
-
-- branch bookings rules and operational policy details
-- paired IMS and Frio mobile/PWA behavior
-- some Frappe synchronization and handoff monitoring workflows
-
-That does not mean these features are unusable. It means the docs reflect the current state honestly so staff and developers know where process and code may still move.
+- Read the toast/error and note the request ID when provided.
+- Do not repeatedly retry a `429`; wait for `Retry-After`.
+- Report a `503` readiness/security dependency error to an administrator.
+- For application documents, verify scope, type, and 1.5 MB limit.
+- For customer package access, verify release state, expiry, reference/surname, or third-party code/terms.
+- Submit the built-in issue report without including passwords, codes, tokens, customer document contents, or other secrets.

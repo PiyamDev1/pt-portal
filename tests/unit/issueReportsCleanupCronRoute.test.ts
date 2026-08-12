@@ -63,6 +63,30 @@ describe('GET /api/cron/issue-reports/cleanup', () => {
     expect(payload).toEqual({ error: 'Unauthorized' })
   })
 
+  it('returns 503 when cron secret is not configured', async () => {
+    delete process.env.CRON_SECRET
+
+    const response = await GET(new Request('http://localhost/api/cron/issue-reports/cleanup'))
+    const payload = await response.json()
+
+    expect(response.status).toBe(503)
+    expect(payload).toEqual({ error: 'Scheduled job authentication is not configured' })
+    expect(mocks.from).not.toHaveBeenCalled()
+  })
+
+  it('does not accept x-vercel-cron without the configured Bearer credential', async () => {
+    process.env.CRON_SECRET = 'cron-secret'
+
+    const response = await GET(
+      new Request('http://localhost/api/cron/issue-reports/cleanup', {
+        headers: { 'x-vercel-cron': '1' },
+      }),
+    )
+
+    expect(response.status).toBe(401)
+    expect(mocks.from).not.toHaveBeenCalled()
+  })
+
   it('returns semantic cleanup summary when authorized', async () => {
     process.env.CRON_SECRET = 'cron-secret'
 

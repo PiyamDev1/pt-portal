@@ -78,17 +78,15 @@ export default function ThirdPartyDocumentShareClient({
 
   const groupedDocuments = useMemo(() => groupPackageDocumentsByCategory(documents), [documents])
   const visaPhotosByTravelDocumentId = useMemo(() => {
-    return documents
-      .filter(isVisaPhotoDocument)
-      .reduce(
-        (photosByDocument, document) => {
-          const parentId = getLinkedVisaPhotoParentId(document)
-          if (!parentId) return photosByDocument
-          photosByDocument[parentId] = [...(photosByDocument[parentId] || []), document]
-          return photosByDocument
-        },
-        {} as Record<string, TravelPackageDocument[]>,
-      )
+    return documents.filter(isVisaPhotoDocument).reduce(
+      (photosByDocument, document) => {
+        const parentId = getLinkedVisaPhotoParentId(document)
+        if (!parentId) return photosByDocument
+        photosByDocument[parentId] = [...(photosByDocument[parentId] || []), document]
+        return photosByDocument
+      },
+      {} as Record<string, TravelPackageDocument[]>,
+    )
   }, [documents])
   const renderDocumentCard = (document: TravelPackageDocument, nested = false) => (
     <article
@@ -101,8 +99,10 @@ export default function ThirdPartyDocumentShareClient({
             {document.title || document.file_name}
           </p>
           <p className="mt-1 text-xs font-semibold text-slate-500">
-            {isVisaPhotoDocument(document) ? 'Photo' : getPackageDocumentCategoryLabel(document.category)} ·{' '}
-            {formatFileSize(document.file_size)}
+            {isVisaPhotoDocument(document)
+              ? 'Photo'
+              : getPackageDocumentCategoryLabel(document.category)}{' '}
+            · {formatFileSize(document.file_size)}
           </p>
         </div>
         <div className="flex shrink-0 gap-2">
@@ -233,7 +233,11 @@ export default function ThirdPartyDocumentShareClient({
               disabled={loading}
               className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#8b1e2d] px-4 text-sm font-black text-white transition hover:bg-[#751827] disabled:opacity-50"
             >
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+              {loading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <ShieldCheck className="h-4 w-4" />
+              )}
               Access documents
             </button>
           </div>

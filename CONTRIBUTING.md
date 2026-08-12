@@ -1,492 +1,104 @@
 # Contributing to PT-Portal
 
-> **Developed by Rathobixz Inc.**
+PT-Portal is an operational system. Changes should preserve data integrity, authorization boundaries, external-service contracts, and clear operator feedback.
 
-Thank you for your interest in contributing to PT-Portal! This document provides guidelines and instructions for contributing.
+## Setup
 
----
-
-## 📋 Table of Contents
-
-- [Code of Conduct](#code-of-conduct)
-- [Getting Started](#getting-started)
-- [Development Process](#development-process)
-- [Coding Standards](#coding-standards)
-- [Submitting Changes](#submitting-changes)
-- [Reporting Bugs](#reporting-bugs)
-- [Feature Requests](#feature-requests)
-
----
-
-## 📜 Code of Conduct
-
-### Our Pledge
-
-We are committed to providing a welcoming and inclusive environment for all contributors.
-
-### Our Standards
-
-✅ **Do:**
-
-- Be respectful and inclusive
-- Provide constructive feedback
-- Focus on what is best for the project
-- Show empathy towards others
-
-❌ **Don't:**
-
-- Use inappropriate language
-- Engage in personal attacks
-- Harass or discriminate
-- Publish others' private information
-
----
-
-## 🚀 Getting Started
-
-### Prerequisites
-
-- Node.js 18+ installed
-- Git installed
-- GitHub account
-- VS Code (recommended)
-
-### Setup
-
-1. **Fork the repository**
-
-   ```bash
-   # Click "Fork" on GitHub
-   ```
-
-2. **Clone your fork**
-
-   ```bash
-   git clone https://github.com/YOUR_USERNAME/pt-portal.git
-   cd pt-portal
-   ```
-
-3. **Add upstream remote**
-
-   ```bash
-   git remote add upstream https://github.com/PiyamDev1/pt-portal.git
-   ```
-
-4. **Install dependencies**
-
-   ```bash
-   npm install
-   ```
-
-5. **Create environment file**
-
-   ```bash
-   cp .env.example .env.local
-   # Add your Supabase credentials
-   ```
-
-6. **Start development server**
-   ```bash
-   npm run dev
-   ```
-
----
-
-## 🔄 Development Process
-
-### 1. Create a Branch
-
-Always create a new branch for your work:
+Use Node.js 20.9 or newer.
 
 ```bash
-# For new features
-git checkout -b feature/your-feature-name
-
-# For bug fixes
-git checkout -b fix/bug-description
-
-# For documentation
-git checkout -b docs/what-you-are-documenting
-```
-
-### 2. Make Changes
-
-- Write clean, readable code
-- Follow existing code style
-- Add comments for complex logic
-- Update documentation if needed
-
-### 3. Test Your Changes
-
-```bash
-# Run linter
-npm run lint
-
-# Run unit tests
-npm run test:unit
-
-# Verify formatting
-npm run format:check
-
-# Build the project
-npm run build
-
-# Test locally
+git clone https://github.com/PiyamDev1/pt-portal.git
+cd pt-portal
+npm ci
+cp .env.example .env.local
 npm run dev
 ```
 
-### 4. Commit Your Changes
+Use `npm install` instead of `npm ci` only when intentionally changing dependencies. Never commit real secrets. See [Getting Started](docs/guides/GETTING_STARTED.md) for environment and integration requirements.
 
-Use clear, descriptive commit messages:
+## Make a focused change
+
+- Keep route/page-specific code under `app/` and demonstrably shared logic under `lib/` or `hooks/`.
+- Prefer direct module imports over new wide barrel exports.
+- Update active documentation when behavior, commands, routes, schemas, or environment variables change.
+- Preserve unrelated worktree changes; stage only the intended files.
+- Use clear commit messages that describe the outcome, for example `fix: make LMS payment retries atomic`.
+
+## Security and data rules
+
+- Authenticate protected APIs with `requireStaffSession()` or the narrow admin wrapper.
+- Derive actor identity from the verified session; do not trust caller-supplied user IDs, roles, or storage keys as authorization.
+- Keep service-role, storage, Mailgun, cron, rate-limit, and webhook credentials server-only.
+- Parse new or changed mutation bodies with bounded helpers from `lib/api/request.ts` and a Zod schema.
+- Apply shared database-backed rate limiting to sensitive or abuse-prone routes.
+- Require fresh 2FA for destructive or security-recovery actions where the existing workflow does.
+- Put transactionally related writes in PostgreSQL functions rather than coordinating partial writes from route code.
+- Use structured/redacted observability; do not log credentials, bodies, documents, codes, tokens, or raw rate-limit identities.
+
+Read [Security Architecture](docs/technical/SECURITY.md), [Authentication Flow](docs/technical/AUTHENTICATION_FLOW.md), and [Database Schema Overview](docs/technical/DATABASE_SCHEMA_OVERVIEW.md) before altering those boundaries.
+
+## UI rules
+
+- Use Sonner toasts for notifications.
+- Use `AppDialog`, `ConfirmationDialog`, or `ModalBase` for user decisions and input.
+- Do not add `window.alert`, `window.confirm`, or `window.prompt`.
+- Keep dialogs keyboard accessible with focus management and explicit button types.
+- Preserve the existing responsive behavior and terminology of the feature being changed.
+
+## Database migrations and types
+
+Schema changes belong in an idempotent file under `scripts/migrations/`. Runtime setup routes may report readiness; they must not own production DDL.
+
+When a migration is deployed, regenerate the checked-in schema contract:
 
 ```bash
-# Good commit messages
-git commit -m "Add payment receipt export feature"
-git commit -m "Fix infinite loop in LMS pagination"
-git commit -m "Update USAGE_GUIDE with new features"
-
-# Bad commit messages
-git commit -m "Fixed stuff"
-git commit -m "Updates"
-git commit -m "WIP"
+npm run types:supabase
 ```
 
-**Commit Message Format:**
+Add PostgreSQL integration assertions for transactions, grants, or concurrency. Never run the integration fixtures against production or persistent data.
 
-```
-<type>: <subject>
+## Required verification
 
-<body (optional)>
+Run the checks proportional to the change:
 
-<footer (optional)>
-```
-
-**Types:**
-
-- `feat`: New feature
-- `fix`: Bug fix
-- `docs`: Documentation changes
-- `style`: Code style changes (formatting, etc.)
-- `refactor`: Code refactoring
-- `perf`: Performance improvements
-- `test`: Adding tests
-- `chore`: Maintenance tasks
-
-**Example:**
-
-```
-feat: Add export to Excel functionality in LMS
-
-- Added ExcelJS dependency
-- Created export hook
-- Added export button to UI
-- Updated documentation
-
-Closes #123
+```bash
+npm run lint
+npm run typecheck
+npm run test:unit
+npm run format:check
+npm run docs:check
+npm run docs:check-api
+npm run api:check-boundaries
+npm run build
 ```
 
----
+Additional suites:
 
-## 💻 Coding Standards
-
-### Commenting and Developer Guidance
-
-Comments in this repo should explain intent, constraints, and operational context.
-
-✅ Add comments when:
-
-- business rules are not obvious from the code alone
-- an implementation exists because of an external system limitation
-- a flow is security-sensitive or audit-sensitive
-- a fallback or workaround exists and future developers need to know why
-- a module acts as infrastructure for multiple features
-
-❌ Avoid comments that only restate the next line of code.
-
-Good examples:
-
-- why a Frappe handoff token is short-lived
-- why bookings use idempotency keys
-- why document uploads go through a server fallback instead of direct browser PUT
-- why a module reads from Supabase in a specific order
-
-Preferred places for explanation:
-
-- file-level module docblocks for shared infrastructure
-- short inline comments above non-obvious branches or data transformations
-- guide documents under `docs/guides/`, `docs/technical/`, and `docs/operations/`
-
-If you are changing architecture or workflow behavior, update the relevant docs in `docs/` in the same change.
-
-### TypeScript
-
-✅ **Do:**
-
-```typescript
-// Use explicit types
-interface User {
-  id: string
-  name: string
-  email: string
-}
-
-function getUser(id: string): Promise<User> {
-  // ...
-}
-
-// Use const for variables that won't change
-const MAX_RETRIES = 3
+```bash
+npm run test:db:lms
+npm run test:db:security
+npm run test:smoke:install
+npm run test:smoke
 ```
 
-❌ **Don't:**
+The PostgreSQL suites need a disposable `DATABASE_TEST_URL`. The smoke suite needs a configured deployment and `SMOKE_*` secrets. If a relevant suite cannot run, state why in the handoff or pull request.
 
-```typescript
-// Don't use 'any'
-function getData(): any {}
+Do not run `npm run api:update-boundary-baseline` merely to silence CI. A baseline update must accompany a reviewed, intentional request-parsing exception or migration.
 
-// Don't use var
-var count = 0
-```
+## CI expectations
 
-### React Components
+The main quality workflow runs dependency audit, repository-wide lint, TypeScript, API-boundary checks, unit tests, changed-file formatting, documentation-link checks, and a production build. Database migration tests run on PostgreSQL 16 when their paths change. Authenticated smoke tests run on pull requests and manual dispatch when repository secrets are configured.
 
-✅ **Do:**
+Documentation-only changes should still pass Markdown formatting and link/path checks. GitHub Pages publishes from `docs/` after changes reach `main`.
 
-```typescript
-// Use functional components
-export default function MyComponent({ prop1, prop2 }: Props) {
-  return <div>{prop1}</div>
-}
+## Pull-request checklist
 
-// Use React.memo for performance
-export default memo(MyComponent)
+- [ ] Scope is focused and unrelated changes are excluded.
+- [ ] Authorization and persistent-data effects were reviewed.
+- [ ] Input is bounded and runtime validated where applicable.
+- [ ] Unit/integration/smoke coverage was added or updated as appropriate.
+- [ ] Lint, types, tests, formatting, API boundaries, and build were run as applicable.
+- [ ] Active documentation, `.env.example`, migrations, and generated types are synchronized.
+- [ ] No credentials, sensitive payloads, generated reports, or local auth state are committed.
 
-// Use proper hooks
-const [state, setState] = useState<Type>(initialValue)
-const memoizedValue = useMemo(() => computeValue(), [deps])
-```
-
-❌ **Don't:**
-
-```typescript
-// Don't use class components (unless necessary)
-class MyComponent extends React.Component {}
-
-// Don't ignore useEffect dependencies
-useEffect(() => {
-  doSomething(value)
-}, []) // Missing 'value' dependency
-```
-
-### File Organization
-
-```
-app/
-├── api/              # API routes
-├── components/       # Reusable components
-├── hooks/            # Custom hooks
-├── lib/              # Utilities
-├── types/            # Type definitions
-└── [feature]/        # Feature-specific code
-    ├── page.tsx      # Page component
-    ├── client.tsx    # Client component
-    └── components/   # Feature components
-```
-
-### Naming Conventions
-
-- **Files**: `kebab-case.ts` or `PascalCase.tsx` for components
-- **Components**: `PascalCase`
-- **Functions**: `camelCase`
-- **Constants**: `UPPER_SNAKE_CASE`
-- **Types/Interfaces**: `PascalCase`
-
----
-
-## 📤 Submitting Changes
-
-### Pull Request Process
-
-1. **Update your branch**
-
-   ```bash
-   git fetch upstream
-   git rebase upstream/main
-   ```
-
-2. **Push to your fork**
-
-   ```bash
-   git push origin feature/your-feature-name
-   ```
-
-3. **Create Pull Request**
-   - Go to GitHub
-   - Click "New Pull Request"
-   - Select your branch
-   - Fill out the PR template
-
-### Pull Request Template
-
-```markdown
-## Description
-
-Brief description of changes
-
-## Type of Change
-
-- [ ] Bug fix
-- [ ] New feature
-- [ ] Breaking change
-- [ ] Documentation update
-
-## Testing
-
-- [ ] Tested locally
-- [ ] Build passes
-- [ ] No TypeScript errors
-- [ ] Linter passes
-
-## Screenshots (if applicable)
-
-Add screenshots here
-
-## Checklist
-
-- [ ] Code follows project style
-- [ ] Documentation updated
-- [ ] No console errors
-- [ ] Tested on different browsers
-```
-
-### Code Review
-
-- Be responsive to feedback
-- Make requested changes promptly
-- Ask questions if unclear
-- Be patient and respectful
-
----
-
-## 🐛 Reporting Bugs
-
-### Before Reporting
-
-1. Check existing issues
-2. Try latest version
-3. Search documentation
-
-### Bug Report Template
-
-```markdown
-**Describe the bug**
-A clear description of what the bug is.
-
-**To Reproduce**
-Steps to reproduce:
-
-1. Go to '...'
-2. Click on '...'
-3. See error
-
-**Expected behavior**
-What you expected to happen.
-
-**Screenshots**
-Add screenshots if applicable.
-
-**Environment:**
-
-- OS: [e.g., Windows 11]
-- Browser: [e.g., Chrome 120]
-- Node version: [e.g., 18.17.0]
-
-**Additional context**
-Any other information about the problem.
-```
-
----
-
-## 💡 Feature Requests
-
-### Before Requesting
-
-1. Check existing feature requests
-2. Consider if it fits the project scope
-3. Think about implementation
-
-### Feature Request Template
-
-```markdown
-**Is your feature request related to a problem?**
-A clear description of the problem.
-
-**Describe the solution you'd like**
-Clear description of what you want to happen.
-
-**Describe alternatives considered**
-Other solutions or features you've considered.
-
-**Additional context**
-Any other context or screenshots.
-```
-
----
-
-## 📝 Documentation
-
-### When to Update Docs
-
-- Adding new features
-- Changing existing features
-- Fixing bugs that affect usage
-- Improving setup process
-
-### Documentation Files
-
-- `README.md` - Project overview
-- `docs/guides/USAGE_GUIDE.md` - User guide
-- `docs/guides/ARCHITECTURE_GUIDE.md` - Technical docs
-- `docs/guides/WINDOWS_SETUP_GUIDE.md` - Setup guide
-- `CHANGELOG.md` - Version history
-
----
-
-## 🎯 Good First Issues
-
-Look for issues tagged with:
-
-- `good first issue`
-- `help wanted`
-- `documentation`
-
----
-
-## 📞 Questions?
-
-- **Documentation**: Check [docs/](docs/)
-- **GitHub Discussions**: Ask questions
-- **Issues**: Report bugs/requests
-- **Email**: support@ptportal.com
-
----
-
-## 🙏 Recognition
-
-Contributors are recognized in:
-
-- GitHub contributors list
-- CHANGELOG.md for significant contributions
-- README.md for major features
-
----
-
-## 📜 License
-
-By contributing, you agree that your contributions will be licensed under the MIT License.
-
----
-
-**© 2026 Rathobixz Inc. All rights reserved.**
-
-Thank you for contributing to PT-Portal! 🎉
+By contributing, you agree that your contribution is licensed under the repository's MIT License.

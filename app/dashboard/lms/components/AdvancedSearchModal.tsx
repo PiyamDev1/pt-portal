@@ -8,9 +8,8 @@
 'use client'
 
 import { useState } from 'react'
-import { X, Calendar, DollarSign, Filter } from 'lucide-react'
-import { handleDateInput as coreHandleDateInput } from '@/lib/utils'
-import { formatToISODate } from '@/lib/dateFormatter'
+import { Calendar, DollarSign, Filter } from 'lucide-react'
+import { formatToDisplayDate, formatToISODate, handleDateInput } from '@/lib/dateFormatter'
 import { ModalWrapper } from './ModalWrapper'
 
 interface AdvancedSearchModalProps {
@@ -34,15 +33,6 @@ export function AdvancedSearchModal({
   currentFilters,
 }: AdvancedSearchModalProps) {
   const [filters, setFilters] = useState<SearchFilters>(currentFilters)
-
-  // Use centralized handleDateInput utility
-  const handleDateInput = coreHandleDateInput
-
-  const formatToDisplayDate = (isoDate: string): string => {
-    if (!isoDate) return ''
-    const [year, month, day] = isoDate.split('-')
-    return `${day}/${month}/${year}`
-  }
 
   const handleApply = () => {
     onApplyFilters(filters)

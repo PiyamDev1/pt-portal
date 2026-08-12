@@ -2,7 +2,7 @@
  * Statement Data Hook
  * Loads LMS account data and associated installment payment schedules
  * Handles parallel fetching of account and installment records
- * 
+ *
  * @module hooks/useStatementData
  */
 

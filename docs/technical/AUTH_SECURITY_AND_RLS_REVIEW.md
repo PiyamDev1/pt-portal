@@ -1,5 +1,7 @@
 # Auth Security and RLS Review
 
+> **Point-in-time review.** This checklist records an earlier security assessment and may not cover later shared rate limits, fresh-factor guards, or migrations. Use [Security Architecture](SECURITY.md) and current source for the active contract.
+
 This note documents the current IMS authentication hardening model and what developers should verify before changing auth-sensitive code.
 
 ## Current Model

@@ -9,6 +9,7 @@ import type {
   TravelPackagePaymentStatus,
   TravelPackagePaymentType,
 } from '@/app/types/packages'
+import { selectTravelPackagePaymentColumns } from './columns'
 
 const SCHEMA_HINT =
   'Package payment tracking is not installed yet. Run scripts/migrations/20260712_create_travel_package_documents.sql, scripts/migrations/20260712_create_travel_package_invoices.sql, then scripts/migrations/20260712_finalize_travel_package_workflow.sql.'
@@ -28,15 +29,6 @@ const STATUSES = new Set<TravelPackagePaymentStatus>([
   'cancelled',
   'refunded',
 ])
-
-export function selectTravelPackagePaymentColumns() {
-  return `
-    id, package_id, invoice_id, reservation_id, amount, currency, payment_type, payment_method,
-    payment_status, requested_at, due_at, received_at, received_by,
-    receipt_reference, receipt_document_id, notes, metadata, created_by,
-    updated_by, created_at, updated_at
-  `
-}
 
 function isSchemaError(error: unknown) {
   const code = (error as { code?: string } | null)?.code

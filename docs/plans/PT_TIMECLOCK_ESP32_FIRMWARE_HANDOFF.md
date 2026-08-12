@@ -1,5 +1,7 @@
 # PT TimeClock ESP32 Firmware Integration Handoff
 
+> **External firmware handoff snapshot.** The protocol remains security-sensitive; verify the current timeclock routes, migrations, deployment URL, and device configuration before implementation. This file is not the portal's current API authority.
+
 This document is the implementation brief for the firmware developer working in:
 
 - Repository: `PiyamDev1/PT-TimeClock-ESP32`

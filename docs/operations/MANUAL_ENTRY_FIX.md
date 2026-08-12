@@ -1,83 +1,36 @@
-# Manual Entry Timeclock Fix
+# Manual Entry Timeclock Troubleshooting
 
-## Issue
+Last verified against the repository: August 12, 2026.
 
-The `/timeclock/manual-entry` page returns a 500 error when trying to generate codes.
+This is a supporting runbook, not schema authority. Use current migrations/source and perform checks in a non-production environment before changing access policies.
 
-## Root Causes
+## Current surface
 
-1. Missing `timeclock_devices` table
-2. Missing `timeclock_manual_codes` table
-3. RLS (Row Level Security) policies blocking service role operations
+- Staff page: `/dashboard/timeclock/manual-entry`
+- Generate: `POST /api/timeclock/manual-entry/generate`
+- Submit: `POST /api/timeclock/manual-entry/submit`
+- Super Admin diagnostics: `GET /api/timeclock/manual-entry/diagnostics`
 
-## Quick Diagnosis
+Generation is limited to a manager with direct reports or a maintenance/admin timeclock role. It creates a signed `ptc1` QR payload plus an eight-digit, 30-second code tied to a virtual manual device. Submission requires an authenticated user, atomically claims the unused code, validates expiry, prevents rapid duplicate punches, creates the hash-linked event, and queues attendance synchronization.
 
-Visit this URL to check your setup:
+## Required schema
 
-```
-https://ims.piyamtravel.com/api/timeclock/manual-entry/diagnostics
-```
+For a new environment, review/apply:
 
-This will show:
+1. `scripts/bootstrap/create-timeclock-tables.sql`
+2. `scripts/bootstrap/create-timeclock-manual-codes-table.sql`
+3. `scripts/migrations/20260720_secure_timeclock_esp32_integration.sql`
+4. `scripts/migrations/20260721_add_physical_timeclock_manual_codes.sql`
 
-- ✅ Table existence checks
-- ✅ Permission checks
-- ✅ Test insert operations
-- ❌ Any errors with details
+`timeclock_manual_codes` and `timeclock_device_manual_code_limits` must have RLS enabled, no `anon`/`authenticated` table grants, and service-role access for the server routes. `scripts/manual/fix-timeclock-manual-codes-rls.sql` reapplies that posture. Do not disable RLS as a troubleshooting shortcut.
 
-## Complete Fix
+## Diagnosis
 
-### Option 1: Use the Comprehensive Setup Script (RECOMMENDED)
+1. Confirm the caller is authenticated and has manager/maintenance access.
+2. As Super Admin, call the diagnostics route and check that `timeclock_devices` and `timeclock_manual_codes` are accessible to the server client.
+3. Confirm the three Supabase variables exist without printing their values.
+4. Verify the migrations/grants against the target database.
+5. Check the returned status: `401` session, `403` role/report scope, `404` invalid/claimed code, `409` duplicate punch, `500` schema/database/crypto failure.
+6. Correlate logs using the request time/route without copying QR payloads, numeric codes, cookies, or device secrets.
 
-Run this script in your **Supabase SQL Editor**:
-
-Copy the entire contents of: [`scripts/bootstrap/create-timeclock-tables.sql`](../../scripts/bootstrap/create-timeclock-tables.sql)
-
-This will:
-
-- Create `timeclock_devices` table
-- Create `timeclock_manual_codes` table
-- Disable RLS on both tables
-- Drop any blocking policies
-- Set up cleanup functions
-
-### Option 2: Quick Manual Fix
-
-If you already have the tables, just disable RLS:
-
-```sql
--- Disable RLS on both tables
-ALTER TABLE IF EXISTS timeclock_devices DISABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS timeclock_manual_codes DISABLE ROW LEVEL SECURITY;
-
--- Drop any blocking policies
-DROP POLICY IF EXISTS "Users can view their own codes" ON timeclock_manual_codes;
-DROP POLICY IF EXISTS "Users can insert their own codes" ON timeclock_manual_codes;
-DROP POLICY IF EXISTS "Users can delete their own codes" ON timeclock_manual_codes;
-```
-
-## After Running the Fix
-
-1. Visit the diagnostics URL to verify everything is working: `/api/timeclock/manual-entry/diagnostics`
-2. Refresh the `/timeclock/manual-entry` page
-3. Click "Generate Code"
-4. You should see an 8-digit numeric code and QR code
-
-## Files Involved
-
-- `/app/api/timeclock/manual-entry/generate/route.ts` - API endpoint
-- `/app/api/timeclock/manual-entry/diagnostics/route.ts` - Diagnostics endpoint (NEW)
-- `/scripts/bootstrap/create-timeclock-tables.sql` - Complete table setup (NEW)
-- `/scripts/bootstrap/create-timeclock-manual-codes-table.sql` - Manual codes table only
-- `/scripts/manual/fix-timeclock-manual-codes-rls.sql` - RLS fix script
-
-## Why RLS is Disabled
-
-The `timeclock_manual_codes` and `timeclock_devices` tables store temporary data accessed only through authenticated API endpoints. Access control is handled at the API level:
-
-- Only managers and Master Admins can access `/timeclock/manual-entry` page
-- API endpoints check user permissions before allowing code generation
-- Codes expire in 30 seconds
-- RLS would redundantly block service role operations needed for cleanup and expiry
-
-Therefore, RLS is disabled on these tables for operational simplicity.
+The page refreshes its code every 30 seconds and pauses after two minutes. An expired code is expected behavior, not evidence that the storage table is broken.

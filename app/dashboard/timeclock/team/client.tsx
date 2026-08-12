@@ -246,43 +246,46 @@ export default function TimeclockTeamClient() {
     return params.toString()
   }, [selectedEmployee, dateFrom, dateTo, page, pageSize])
 
-  const loadEvents = useCallback(async (nextPage = page) => {
-    setLoading(true)
-    setError('')
-    try {
-      const params = new URLSearchParams({
-        scope: 'team',
-        page: `${nextPage}`,
-        pageSize: `${pageSize}`,
-      })
-      if (selectedEmployee) {
-        params.set('employeeId', selectedEmployee)
-      }
-      if (dateFrom) {
-        params.set('from', new Date(`${dateFrom}T00:00:00`).toISOString())
-      }
-      if (dateTo) {
-        params.set('to', new Date(`${dateTo}T23:59:59.999`).toISOString())
-      }
+  const loadEvents = useCallback(
+    async (nextPage = page) => {
+      setLoading(true)
+      setError('')
+      try {
+        const params = new URLSearchParams({
+          scope: 'team',
+          page: `${nextPage}`,
+          pageSize: `${pageSize}`,
+        })
+        if (selectedEmployee) {
+          params.set('employeeId', selectedEmployee)
+        }
+        if (dateFrom) {
+          params.set('from', new Date(`${dateFrom}T00:00:00`).toISOString())
+        }
+        if (dateTo) {
+          params.set('to', new Date(`${dateTo}T23:59:59.999`).toISOString())
+        }
 
-      const response = await fetch(`/api/timeclock/events?${params.toString()}`)
-      const data: EventsResponse = await response.json()
-      if (!response.ok) {
-        setError(data?.error || 'Unable to load events.')
-        return
+        const response = await fetch(`/api/timeclock/events?${params.toString()}`)
+        const data: EventsResponse = await response.json()
+        if (!response.ok) {
+          setError(data?.error || 'Unable to load events.')
+          return
+        }
+        setEvents(data.events || [])
+        setEmployees(data.employees || [])
+        setTotal(data.total || 0)
+        setPage(data.page || nextPage)
+        setPageSize(data.pageSize || pageSize)
+        setCanAdjustTime(Boolean(data.canAdjustTime))
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : 'Unable to load events.')
+      } finally {
+        setLoading(false)
       }
-      setEvents(data.events || [])
-      setEmployees(data.employees || [])
-      setTotal(data.total || 0)
-      setPage(data.page || nextPage)
-      setPageSize(data.pageSize || pageSize)
-      setCanAdjustTime(Boolean(data.canAdjustTime))
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Unable to load events.')
-    } finally {
-      setLoading(false)
-    }
-  }, [dateFrom, dateTo, page, pageSize, selectedEmployee])
+    },
+    [dateFrom, dateTo, page, pageSize, selectedEmployee],
+  )
 
   const openAdjustmentDialog = (event: TimeclockEvent) => {
     setEditingEvent(event)
@@ -457,9 +460,7 @@ export default function TimeclockTeamClient() {
 
       sortedDailyTotals.forEach(({ employeeName, date, totalMinutes }) => {
         const totalHours = (totalMinutes / 60).toFixed(2)
-        csvRows.push(
-          `${escapeCsv(employeeName)},${escapeCsv(date)},${escapeCsv(totalHours)} hours`,
-        )
+        csvRows.push(`${escapeCsv(employeeName)},${escapeCsv(date)},${escapeCsv(totalHours)} hours`)
       })
 
       // Add employee summary
@@ -468,8 +469,9 @@ export default function TimeclockTeamClient() {
       csvRows.push('Employee,Total Hours')
 
       const employeeTotals = calculateEmployeeTotals(data.events || [])
-      const sortedEmployees = Array.from(employeeTotals.entries())
-        .sort((a, b) => a[0].localeCompare(b[0]))
+      const sortedEmployees = Array.from(employeeTotals.entries()).sort((a, b) =>
+        a[0].localeCompare(b[0]),
+      )
 
       sortedEmployees.forEach(([_employeeId, totalMinutes]) => {
         // Find employee name from daily totals
@@ -522,9 +524,7 @@ export default function TimeclockTeamClient() {
         <>
           {selectedEmployee && (
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-              <h3 className="text-sm font-semibold text-blue-900 mb-3">
-                📊 Employee Time Summary
-              </h3>
+              <h3 className="text-sm font-semibold text-blue-900 mb-3">📊 Employee Time Summary</h3>
               {(() => {
                 const dailyTotals = calculateDailyTotals(events)
                 const employeeData = dailyTotals.filter((dt) => dt.employeeId === selectedEmployee)
@@ -559,7 +559,10 @@ export default function TimeclockTeamClient() {
                         <p className="text-xs text-blue-700 font-medium mb-2">Daily Breakdown:</p>
                         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
                           {employeeData.map((dt) => (
-                            <div key={dt.date} className="bg-white p-2 rounded text-xs border border-blue-100">
+                            <div
+                              key={dt.date}
+                              className="bg-white p-2 rounded text-xs border border-blue-100"
+                            >
                               <div className="font-medium text-blue-900">{dt.date}</div>
                               <div className="text-blue-600">{formatDuration(dt.totalMinutes)}</div>
                             </div>

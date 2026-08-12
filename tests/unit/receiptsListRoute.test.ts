@@ -2,11 +2,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => {
   const listPersistedReceipts = vi.fn()
-  return { listPersistedReceipts }
+  const requireStaffSession = vi.fn()
+  return { listPersistedReceipts, requireStaffSession }
 })
 
 vi.mock('@/lib/services/receiptStore', () => ({
   listPersistedReceipts: mocks.listPersistedReceipts,
+}))
+vi.mock('@/lib/auth/staffSession', () => ({
+  requireStaffSession: mocks.requireStaffSession,
 }))
 
 import { GET } from '@/app/api/receipts/list/route'
@@ -17,6 +21,23 @@ const makeRequest = (query = '') =>
 describe('GET /api/receipts/list', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.requireStaffSession.mockResolvedValue({
+      authorized: true,
+      user: { id: 'auth-user' },
+      employee: { id: 'employee-server' },
+    })
+  })
+
+  it('requires an active staff session', async () => {
+    mocks.requireStaffSession.mockResolvedValue({
+      authorized: false,
+      response: Response.json({ error: 'Unauthorized' }, { status: 401 }),
+    })
+
+    const res = await GET(makeRequest('applicantId=a-1'))
+
+    expect(res.status).toBe(401)
+    expect(mocks.listPersistedReceipts).not.toHaveBeenCalled()
   })
 
   it('returns 400 when no filters are provided', async () => {

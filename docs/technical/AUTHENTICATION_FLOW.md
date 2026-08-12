@@ -1,65 +1,69 @@
 # Authentication Flow
 
-Last updated: March 18, 2026
+Last verified against the repository: August 12, 2026.
 
-## Overview
+PT-Portal uses Supabase Auth sessions stored in browser/server cookies. Authentication proves the Supabase user; authorization additionally resolves the corresponding active employee, role, departments, branch, resource scope, and—where required—a freshly verified second factor.
 
-PT-Portal uses Supabase Auth with cookie-based sessions for dashboard users and role-based authorization for admin-only actions.
+## Sign-in paths
 
-Authentication patterns used in the codebase:
+### Password
 
-- Server route session checks via Supabase server clients.
-- Dashboard route protection with middleware/session checks.
-- Optional bearer-token checks for select admin recovery operations.
-- Two-factor support with backup-code lifecycle endpoints.
+1. The browser submits a bounded email/password body to `POST /api/auth/password-login`.
+2. The route applies shared PostgreSQL-backed IP and normalized-email limits and checks the login-failure guard.
+3. Supabase validates the credentials server-side. On success the browser receives the short-lived token pair needed to establish its cookie-backed Supabase session.
+4. The login page verifies that the employee is active, checks an optional typed branch code against the assigned location, and redirects temporary-password users to the password-change flow.
+5. If Supabase reports that AAL2 is required, the user completes TOTP or consumes a single-use backup code before entering the dashboard.
 
-## Login and Session Lifecycle
+Login, 2FA, backup-code, and session-revocation outcomes are recorded as security events. Auth responses are private and non-cacheable. The shared limiter fails closed if its required database migration or secret is unavailable.
 
-1. User signs in through the login flow.
-2. Supabase issues session cookies.
-3. Protected pages and API routes validate the active session.
-4. Session metadata can be listed via API for account visibility.
-5. Logout invalidates session and removes access to protected surfaces.
+### Passkey
 
-Related route:
+`/api/auth/passkeys/authenticate/options` and `/verify` implement the WebAuthn challenge/verification flow. Registration uses `/api/auth/passkeys/register/options` and `/verify`; `GET|DELETE /api/auth/passkeys` lists or removes credentials for the authenticated account. A verified passkey session can satisfy the login page's second-factor step for that session.
 
-- `GET /api/auth/sessions`
+### Microsoft OAuth
 
-## Password and Recovery
+The login page starts Supabase OAuth and the `/auth/callback` flow exchanges the callback data before running the same employee/branch/second-factor checks. OAuth is not a bypass around employee status or portal authorization.
 
-- Password update flow is handled by:
-  - `POST /api/auth/update-password`
-- 2FA backup-code generation and consumption:
-  - `POST /api/auth/generate-backup-codes`
-  - `POST /api/auth/consume-backup-code`
-  - `GET /api/auth/backup-codes/count`
-- 2FA reset path for administrative recovery:
-  - `POST /api/auth/reset-2fa`
+## Session behavior
 
-## Authorization Model
+- Protected server pages read the cookie-backed Supabase session and redirect to `/login` when no session exists.
+- Protected API routes must validate the user with `auth.getUser()`; sensitive staff routes should use `requireStaffSession()` to resolve the employee server-side before a service-role client is used.
+- The browser Supabase client refreshes valid sessions. If refresh is no longer possible, the next protected navigation or request requires login again; there is no separate countdown-warning component.
+- `GET /api/auth/sessions` returns up to six deduplicated recent sessions. `DELETE /api/auth/sessions` revokes one session or signs the account out globally, subject to rate limiting.
+- Explicit logout calls Supabase sign-out and returns to `/login`.
 
-Authorization is role-based and enforced server-side in route handlers.
+## Two-factor and account recovery
 
-Typical role levels:
+| Route                                  | Purpose                                                                                |
+| -------------------------------------- | -------------------------------------------------------------------------------------- | -------------------------------------------- |
+| `POST /api/auth/generate-backup-codes` | Replace the account's bcrypt-hashed one-use backup-code set after a fresh factor check |
+| `POST /api/auth/consume-backup-code`   | Consume one code during sign-in                                                        |
+| `GET /api/auth/backup-codes/count`     | Return the unused-code count                                                           |
+| `POST /api/auth/reset-2fa`             | Self-service factor reset after fresh TOTP/backup verification                         |
+| `POST /api/admin/recover-employee-2fa` | Admin recovery with role checks, fresh admin factor, and target restrictions           |
+| `POST /api/auth/update-password`       | Update the authenticated user's password and password history                          |
+| `GET                                   | PATCH /api/auth/security-preferences`                                                  | Read/update backup-code reminder preferences |
 
-- Employee/basic user
-- Manager/team scope role
-- Master admin/system-level role
+Generating a replacement backup-code set is atomic: the previous set remains valid if the database operation fails. Never store or log plaintext backup codes, TOTP values, passkey challenges, passwords, session tokens, or cookies.
 
-Sensitive routes require both:
+## Authorization boundary
 
-- Valid authenticated session
-- Matching authorization level for requested operation
+The request proxy only adds/carries an `x-request-id`; it is not an authentication middleware. Each page or route owns its access check.
 
-## Security Notes
+For a route that uses the service-role key:
 
-- Do not trust client-provided role/user identifiers without server verification.
-- Return normalized API errors for all auth failures.
-- Keep admin token usage scoped only to designated recovery endpoints.
-- Preserve auditability for state-changing auth operations.
+1. Validate the cookie-backed user.
+2. Resolve the employee from the verified user ID, not from a body/query employee ID.
+3. Reject inactive/missing employees.
+4. Enforce the required role, department, branch, and record ownership/scope.
+5. Require a fresh TOTP or backup code immediately before destructive security/infrastructure actions where the route contract calls for it.
+6. Only then create/use the service-role client.
 
-## Related Documentation
+`401` means no valid authenticated identity. `403` means an authenticated caller lacks the required access. `429` means a security limit was exceeded. `503` is used when a required security dependency or schema capability is unavailable.
 
-- `docs/technical/SECURITY.md`
-- `docs/technical/API_REFERENCE.md`
-- `docs/guides/ARCHITECTURE_GUIDE.md`
+## Related documentation
+
+- [Security Architecture](SECURITY.md)
+- [API Reference](API_REFERENCE.md)
+- [Architecture](../guides/ARCHITECTURE_GUIDE.md)
+- [Database Schema Overview](DATABASE_SCHEMA_OVERVIEW.md)

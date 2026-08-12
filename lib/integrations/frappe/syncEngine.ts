@@ -84,7 +84,9 @@ function getFrappeEndpoint(row: OutboxRow) {
 }
 
 function getEffectivePunchTime(row: TimeclockEventRow) {
-  return row.adjusted_scanned_at || row.scanned_at || row.adjusted_device_ts || row.device_ts || null
+  return (
+    row.adjusted_scanned_at || row.scanned_at || row.adjusted_device_ts || row.device_ts || null
+  )
 }
 
 function getAttendanceDate(iso: string) {
@@ -92,7 +94,9 @@ function getAttendanceDate(iso: string) {
 }
 
 function getPunchType(row: TimeclockEventRow) {
-  return String(row.punch_type || '').trim().toUpperCase()
+  return String(row.punch_type || '')
+    .trim()
+    .toUpperCase()
 }
 
 function calculateAttendanceSummary(rows: TimeclockEventRow[]): AttendanceSummary | null {
@@ -101,7 +105,9 @@ function calculateAttendanceSummary(rows: TimeclockEventRow[]): AttendanceSummar
       ...row,
       effectiveTime: getEffectivePunchTime(row),
     }))
-    .filter((row): row is TimeclockEventRow & { effectiveTime: string } => Boolean(row.effectiveTime))
+    .filter((row): row is TimeclockEventRow & { effectiveTime: string } =>
+      Boolean(row.effectiveTime),
+    )
     .sort((a, b) => new Date(a.effectiveTime).getTime() - new Date(b.effectiveTime).getTime())
 
   if (ordered.length === 0) return null
@@ -222,7 +228,9 @@ async function listAttendancePunchesForDay(employeeId: string, attendanceDate: s
   const end = `${attendanceDate}T23:59:59.999Z`
   const { data, error } = await supabase
     .from('timeclock_events')
-    .select('employee_id, punch_type, scanned_at, adjusted_scanned_at, device_ts, adjusted_device_ts')
+    .select(
+      'employee_id, punch_type, scanned_at, adjusted_scanned_at, device_ts, adjusted_device_ts',
+    )
     .eq('employee_id', employeeId)
     .gte('scanned_at', start)
     .lte('scanned_at', end)
@@ -261,7 +269,10 @@ async function enqueueAttendanceSummary(summary: AttendanceSummary) {
   if (error) throw error
 }
 
-export async function queueAttendanceSyncForEmployeeDay(employeeId: string, attendanceDate: string) {
+export async function queueAttendanceSyncForEmployeeDay(
+  employeeId: string,
+  attendanceDate: string,
+) {
   const rows = await listAttendancePunchesForDay(employeeId, attendanceDate)
   const summary = calculateAttendanceSummary(rows)
   if (!summary) return { queued: false, reason: 'No punches found for day' }
@@ -286,7 +297,11 @@ export async function queueRecentTimeclockAttendance(daysBack = 3) {
   if (error) throw error
 
   const buckets = new Map<string, Set<string>>()
-  for (const row of (data || []) as Array<{ employee_id: string; scanned_at: string; adjusted_scanned_at?: string | null }>) {
+  for (const row of (data || []) as Array<{
+    employee_id: string
+    scanned_at: string
+    adjusted_scanned_at?: string | null
+  }>) {
     const effective = row.adjusted_scanned_at || row.scanned_at
     if (!effective) continue
     const key = `${row.employee_id}:${effective.slice(0, 10)}`
@@ -327,7 +342,11 @@ export async function enqueueIntegrationEvent(params: {
 
   if (error) {
     // Ignore duplicate dedupe key insert races and keep operation idempotent.
-    if (!String(error.message || '').toLowerCase().includes('duplicate')) {
+    if (
+      !String(error.message || '')
+        .toLowerCase()
+        .includes('duplicate')
+    ) {
       throw error
     }
   }
@@ -452,7 +471,11 @@ export async function ingestInboundEvent(params: {
   })
 
   if (error) {
-    if (String(error.message || '').toLowerCase().includes('duplicate')) {
+    if (
+      String(error.message || '')
+        .toLowerCase()
+        .includes('duplicate')
+    ) {
       return { accepted: false, reason: 'duplicate' as const }
     }
     throw error
@@ -484,19 +507,20 @@ export async function pullLeaveEvents(limit = 100) {
     'modified',
   ])
 
-  const filters = lastPullAt
-    ? JSON.stringify([['modified', '>=', lastPullAt]])
-    : undefined
+  const filters = lastPullAt ? JSON.stringify([['modified', '>=', lastPullAt]]) : undefined
 
-  const response = await frappeRequest<{ data?: FrappeLeaveRecord[] }>('/api/resource/Leave Application', {
-    method: 'GET',
-    query: {
-      fields,
-      filters,
-      order_by: 'modified asc',
-      limit_page_length: limit,
+  const response = await frappeRequest<{ data?: FrappeLeaveRecord[] }>(
+    '/api/resource/Leave Application',
+    {
+      method: 'GET',
+      query: {
+        fields,
+        filters,
+        order_by: 'modified asc',
+        limit_page_length: limit,
+      },
     },
-  })
+  )
 
   const rows = response.data || []
   let accepted = 0
@@ -514,14 +538,17 @@ export async function pullLeaveEvents(limit = 100) {
     else duplicates += 1
   }
 
-  await supabase.from('integration_sync_state').upsert({
-    domain: 'leave',
-    last_pull_at: new Date().toISOString(),
-    health_status: 'healthy',
-    details: {
-      last_pull_batch_size: rows.length,
+  await supabase.from('integration_sync_state').upsert(
+    {
+      domain: 'leave',
+      last_pull_at: new Date().toISOString(),
+      health_status: 'healthy',
+      details: {
+        last_pull_batch_size: rows.length,
+      },
     },
-  }, { onConflict: 'domain' })
+    { onConflict: 'domain' },
+  )
 
   return {
     fetched: rows.length,
@@ -572,15 +599,18 @@ export async function reconcileInboundLeaveEvents(limit = 100) {
     }
   }
 
-  await supabase.from('integration_sync_state').upsert({
-    domain: 'leave',
-    health_status: failed > 0 ? 'degraded' : 'healthy',
-    details: {
-      last_reconcile_processed: processed,
-      last_reconcile_failed: failed,
-      last_reconcile_conflicts: conflicts,
+  await supabase.from('integration_sync_state').upsert(
+    {
+      domain: 'leave',
+      health_status: failed > 0 ? 'degraded' : 'healthy',
+      details: {
+        last_reconcile_processed: processed,
+        last_reconcile_failed: failed,
+        last_reconcile_conflicts: conflicts,
+      },
     },
-  }, { onConflict: 'domain' })
+    { onConflict: 'domain' },
+  )
 
   return {
     processed,
@@ -617,7 +647,9 @@ async function applyInboundLeaveEvent(row: InboxRow) {
   const { data: leaveType } = await supabase
     .from('leave_types')
     .select('id, name, code')
-    .or(`name.ilike.${escapeSupabaseLike(leaveTypeName)},code.ilike.${escapeSupabaseLike(slugifyCode(leaveTypeName))}`)
+    .or(
+      `name.ilike.${escapeSupabaseLike(leaveTypeName)},code.ilike.${escapeSupabaseLike(slugifyCode(leaveTypeName))}`,
+    )
     .maybeSingle()
 
   if (!leaveType?.id) {
@@ -645,7 +677,11 @@ async function applyInboundLeaveEvent(row: InboxRow) {
     .eq('frappe_docname', frappeDocname)
     .maybeSingle()
 
-  if (existing && existing.source_system === 'pt_portal' && Number(existing.sync_version || 1) > 1) {
+  if (
+    existing &&
+    existing.source_system === 'pt_portal' &&
+    Number(existing.sync_version || 1) > 1
+  ) {
     await supabase.from('integration_conflicts').insert({
       domain: 'leave',
       entity_id: existing.id,
@@ -666,12 +702,10 @@ async function applyInboundLeaveEvent(row: InboxRow) {
     return { conflictCreated: false }
   }
 
-  const { error: insertError } = await supabase
-    .from('leave_requests')
-    .insert({
-      ...nextState,
-      sync_version: 1,
-    })
+  const { error: insertError } = await supabase.from('leave_requests').insert({
+    ...nextState,
+    sync_version: 1,
+  })
   if (insertError) throw insertError
 
   return { conflictCreated: false }

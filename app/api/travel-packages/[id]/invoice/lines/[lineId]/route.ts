@@ -5,7 +5,7 @@ import { normalizePackageInvoiceLineType, roundPackageInvoiceMoney } from '@/lib
 import { recalculatePackageInvoice } from '@/lib/packageInvoiceServer'
 import { recordPackageAuditEvent } from '@/lib/packageAudit'
 import type { TravelPackageInvoiceLine } from '@/app/types/packages'
-import { selectTravelPackageInvoiceLineColumns } from '../../route'
+import { selectTravelPackageInvoiceLineColumns } from '../../columns'
 
 function cleanText(value: unknown) {
   return typeof value === 'string' ? value.trim() : ''

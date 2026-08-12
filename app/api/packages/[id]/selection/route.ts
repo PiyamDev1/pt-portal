@@ -10,10 +10,7 @@ function isPackageSchemaError(error: unknown) {
   return code === '42P01' || code === '42703' || code === '42P10'
 }
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const supabase = await getRouteSupabaseClient()
   const {

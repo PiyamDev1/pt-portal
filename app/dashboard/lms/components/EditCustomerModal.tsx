@@ -8,6 +8,7 @@
 import { memo } from 'react'
 import { Save } from 'lucide-react'
 import { toast } from 'sonner'
+import { formatToDisplayDate, formatToISODate, handleDateInput } from '@/lib/dateFormatter'
 import { ModalWrapper } from './ModalWrapper'
 import { LoadingSpinner } from './Skeletons'
 import { Account } from '../types'
@@ -23,29 +24,6 @@ interface EditCustomerModalProps {
 }
 
 function EditCustomerModalCore({ customer, onClose, onSave, employeeId }: EditCustomerModalProps) {
-  // Date format conversion utilities
-  const formatToDisplayDate = (isoDate: string): string => {
-    if (!isoDate) return ''
-    const [year, month, day] = isoDate.split('-')
-    return `${day}/${month}/${year}`
-  }
-
-  const formatToISODate = (displayDate: string): string => {
-    if (!displayDate) return ''
-    const parts = displayDate.split('/')
-    if (parts.length !== 3) return ''
-    const [day, month, year] = parts
-    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`
-  }
-
-  // Auto-format date input (DD/MM/YYYY)
-  const handleDateInput = (value: string): string => {
-    const digits = value.replace(/\D/g, '')
-    if (digits.length <= 2) return digits
-    if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`
-    return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4, 8)}`
-  }
-
   // Validate date format (DD/MM/YYYY)
   const isValidDateFormat = (dateString: string): boolean => {
     if (!dateString) return true

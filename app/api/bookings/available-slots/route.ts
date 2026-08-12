@@ -1,33 +1,36 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getRouteSupabaseClient } from '@/lib/api/serverSupabase';
-import { AvailableSlot, AvailableSlotsResponse } from '@/app/types/bookings';
-import { buildDefaultBranchSchedule } from '@/lib/bookingBranchSchedule';
+import { NextRequest, NextResponse } from 'next/server'
+import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
+import { AvailableSlot, AvailableSlotsResponse } from '@/app/types/bookings'
+import { buildDefaultBranchSchedule } from '@/lib/bookingBranchSchedule'
 
 const SCHEMA_HINT =
   'Booking schema is out of date. Run scripts/bootstrap/create-bookings-schema.sql in Supabase SQL editor.'
-const CANDIDATE_SLOT_STEP_MINUTES = 5;
+const CANDIDATE_SLOT_STEP_MINUTES = 5
 
 function isSchemaError(error: unknown): boolean {
-  const code = (error as { code?: string } | null)?.code;
-  return code === '42P01' || code === '42703' || code === '42P10';
+  const code = (error as { code?: string } | null)?.code
+  return code === '42P01' || code === '42703' || code === '42P10'
 }
 
-function getServicePersonUnits(service: { person_count_excludes_family_head?: boolean }, personCount: number): number {
+function getServicePersonUnits(
+  service: { person_count_excludes_family_head?: boolean },
+  personCount: number,
+): number {
   if (service.person_count_excludes_family_head === false) {
-    return Math.max(0, personCount - 1);
+    return Math.max(0, personCount - 1)
   }
-  return Math.max(0, personCount);
+  return Math.max(0, personCount)
 }
 
 function hasServiceRuleFields(service: unknown): boolean {
   const candidate = service as {
-    person_count_excludes_family_head?: unknown;
-    close_overrun_tolerance_minutes?: unknown;
-  } | null;
+    person_count_excludes_family_head?: unknown
+    close_overrun_tolerance_minutes?: unknown
+  } | null
   return (
     typeof candidate?.person_count_excludes_family_head === 'boolean' &&
     typeof candidate?.close_overrun_tolerance_minutes === 'number'
-  );
+  )
 }
 
 /**
@@ -37,34 +40,31 @@ function hasServiceRuleFields(service: unknown): boolean {
  */
 export async function GET(request: NextRequest) {
   try {
-    const searchParams = request.nextUrl.searchParams;
-    const date = searchParams.get('date');
-    const service_id = searchParams.get('service_id');
-    const location_id = searchParams.get('location_id');
-    const rawPersonCount = searchParams.get('person_count');
-    const personCount = Math.max(1, parseInt(rawPersonCount ?? '1', 10) || 1);
+    const searchParams = request.nextUrl.searchParams
+    const date = searchParams.get('date')
+    const service_id = searchParams.get('service_id')
+    const location_id = searchParams.get('location_id')
+    const rawPersonCount = searchParams.get('person_count')
+    const personCount = Math.max(1, parseInt(rawPersonCount ?? '1', 10) || 1)
 
     // Validate inputs
     if (!date || !service_id || !location_id) {
       return NextResponse.json(
         { error: 'Missing required parameters: date, service_id and location_id' },
-        { status: 400 }
-      );
+        { status: 400 },
+      )
     }
 
     // Validate date format (YYYY-MM-DD)
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      return NextResponse.json(
-        { error: 'Invalid date format. Use YYYY-MM-DD' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Invalid date format. Use YYYY-MM-DD' }, { status: 400 })
     }
 
-    const supabase = await getRouteSupabaseClient();
+    const supabase = await getRouteSupabaseClient()
 
     // Parse the date and get day of week (0=Sunday, 1=Monday, etc.)
-    const dateObj = new Date(`${date}T00:00:00Z`);
-    const dayOfWeek = dateObj.getUTCDay();
+    const dateObj = new Date(`${date}T00:00:00Z`)
+    const dayOfWeek = dateObj.getUTCDay()
 
     // Step 1: Fetch branch settings for this day and location
     const { data: branchSettingsRow, error: settingsError } = await supabase
@@ -72,7 +72,7 @@ export async function GET(request: NextRequest) {
       .select('*')
       .eq('location_id', location_id)
       .eq('day_of_week', dayOfWeek)
-      .maybeSingle();
+      .maybeSingle()
 
     if (settingsError) {
       if (isSchemaError(settingsError)) {
@@ -83,13 +83,13 @@ export async function GET(request: NextRequest) {
             slots: [],
             warning: SCHEMA_HINT,
           },
-          { status: 200 }
-        );
+          { status: 200 },
+        )
       }
-      return NextResponse.json({ error: 'Failed to load branch settings' }, { status: 500 });
+      return NextResponse.json({ error: 'Failed to load branch settings' }, { status: 500 })
     }
 
-    const branchSettings = branchSettingsRow ?? buildDefaultBranchSchedule(dayOfWeek);
+    const branchSettings = branchSettingsRow ?? buildDefaultBranchSchedule(dayOfWeek)
 
     // Check if branch is closed
     if (branchSettings.is_closed) {
@@ -97,7 +97,7 @@ export async function GET(request: NextRequest) {
         date,
         service_id,
         slots: [],
-      } as AvailableSlotsResponse);
+      } as AvailableSlotsResponse)
     }
 
     // Optional one-off override (per location + specific date)
@@ -106,13 +106,13 @@ export async function GET(request: NextRequest) {
       .select('*')
       .eq('location_id', location_id)
       .eq('date', date)
-      .maybeSingle();
+      .maybeSingle()
 
     if (overrideError) {
       if (isSchemaError(overrideError)) {
-        return NextResponse.json({ error: SCHEMA_HINT }, { status: 503 });
+        return NextResponse.json({ error: SCHEMA_HINT }, { status: 503 })
       }
-      return NextResponse.json({ error: 'Failed to load branch overrides' }, { status: 500 });
+      return NextResponse.json({ error: 'Failed to load branch overrides' }, { status: 500 })
     }
 
     if (override?.is_closed) {
@@ -120,16 +120,16 @@ export async function GET(request: NextRequest) {
         date,
         service_id,
         slots: [],
-      } as AvailableSlotsResponse);
+      } as AvailableSlotsResponse)
     }
 
-    const openTime = override?.open_time ?? branchSettings.open_time;
-    const closeTime = override?.close_time ?? branchSettings.close_time;
-    const lunchStartTime = override?.lunch_start_time ?? branchSettings.lunch_start_time;
-    const lunchEndTime = override?.lunch_end_time ?? branchSettings.lunch_end_time;
-    const prayerStartTime = override?.prayer_start_time ?? branchSettings.prayer_start_time;
-    const prayerEndTime = override?.prayer_end_time ?? branchSettings.prayer_end_time;
-    const concurrentStaff = override?.concurrent_staff ?? branchSettings.concurrent_staff;
+    const openTime = override?.open_time ?? branchSettings.open_time
+    const closeTime = override?.close_time ?? branchSettings.close_time
+    const lunchStartTime = override?.lunch_start_time ?? branchSettings.lunch_start_time
+    const lunchEndTime = override?.lunch_end_time ?? branchSettings.lunch_end_time
+    const prayerStartTime = override?.prayer_start_time ?? branchSettings.prayer_start_time
+    const prayerEndTime = override?.prayer_end_time ?? branchSettings.prayer_end_time
+    const concurrentStaff = override?.concurrent_staff ?? branchSettings.concurrent_staff
 
     // Step 2: Fetch service details
     const { data: service, error: serviceError } = await supabase
@@ -137,16 +137,13 @@ export async function GET(request: NextRequest) {
       .select('*')
       .eq('id', service_id)
       .eq('location_id', location_id)
-      .single();
+      .single()
 
     if (serviceError || !service) {
       if (isSchemaError(serviceError)) {
-        return NextResponse.json({ error: SCHEMA_HINT }, { status: 503 });
+        return NextResponse.json({ error: SCHEMA_HINT }, { status: 503 })
       }
-      return NextResponse.json(
-        { error: 'Service not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: 'Service not found' }, { status: 404 })
     }
 
     if (!service.is_active) {
@@ -154,11 +151,11 @@ export async function GET(request: NextRequest) {
         date,
         service_id,
         slots: [],
-      } as AvailableSlotsResponse);
+      } as AvailableSlotsResponse)
     }
 
     if (!hasServiceRuleFields(service)) {
-      return NextResponse.json({ error: SCHEMA_HINT }, { status: 503 });
+      return NextResponse.json({ error: SCHEMA_HINT }, { status: 503 })
     }
 
     if (
@@ -170,27 +167,28 @@ export async function GET(request: NextRequest) {
         date,
         service_id,
         slots: [],
-      } as AvailableSlotsResponse);
+      } as AvailableSlotsResponse)
     }
 
-    const effectiveOpenTime = maxTime(openTime, service.service_start_time);
-    const effectiveCloseTime = minTime(closeTime, service.service_end_time);
+    const effectiveOpenTime = maxTime(openTime, service.service_start_time)
+    const effectiveCloseTime = minTime(closeTime, service.service_end_time)
 
     if (!effectiveOpenTime || !effectiveCloseTime || effectiveOpenTime >= effectiveCloseTime) {
       return NextResponse.json({
         date,
         service_id,
         slots: [],
-      } as AvailableSlotsResponse);
+      } as AvailableSlotsResponse)
     }
 
     // Step 3: Fetch all non-cancelled bookings for this date
-    const startOfDay = new Date(`${date}T00:00:00Z`).toISOString();
-    const endOfDay = new Date(`${date}T23:59:59Z`).toISOString();
+    const startOfDay = new Date(`${date}T00:00:00Z`).toISOString()
+    const endOfDay = new Date(`${date}T23:59:59Z`).toISOString()
 
     const { data: existingBookings, error: bookingsError } = await supabase
       .from('bookings')
-      .select(`
+      .select(
+        `
         id,
         service_id,
         person_count,
@@ -202,28 +200,27 @@ export async function GET(request: NextRequest) {
           duration_per_additional_person_minutes,
           person_count_excludes_family_head
         )
-      `)
+      `,
+      )
       .eq('location_id', location_id)
       .gte('start_time', startOfDay)
       .lte('start_time', endOfDay)
-      .neq('status', 'cancelled');
+      .neq('status', 'cancelled')
 
     if (bookingsError) {
-      console.error('Error fetching bookings:', bookingsError);
+      console.error('Error fetching bookings:', bookingsError)
       if (isSchemaError(bookingsError)) {
-        return NextResponse.json({ error: SCHEMA_HINT }, { status: 503 });
+        return NextResponse.json({ error: SCHEMA_HINT }, { status: 503 })
       }
-      return NextResponse.json(
-        { error: 'Failed to fetch bookings' },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: 'Failed to fetch bookings' }, { status: 500 })
     }
 
     // Step 4: Generate available slots
     // Compute effective duration for the requested group size.
     const groupDuration =
       service.duration_minutes +
-      getServicePersonUnits(service, personCount) * (service.duration_per_additional_person_minutes ?? 0);
+      getServicePersonUnits(service, personCount) *
+        (service.duration_per_additional_person_minutes ?? 0)
 
     const slots = generateAvailableSlots(
       date,
@@ -237,20 +234,17 @@ export async function GET(request: NextRequest) {
       service.buffer_minutes,
       concurrentStaff,
       Math.max(0, service.close_overrun_tolerance_minutes),
-      existingBookings || []
-    );
+      existingBookings || [],
+    )
 
     return NextResponse.json({
       date,
       service_id,
       slots,
-    } as AvailableSlotsResponse);
+    } as AvailableSlotsResponse)
   } catch (error) {
-    console.error('Error fetching available slots:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    console.error('Error fetching available slots:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
@@ -270,70 +264,82 @@ function generateAvailableSlots(
   bufferMinutes: number,
   concurrentStaff: number,
   boundaryToleranceMinutes: number,
-  existingBookings: any[]
+  existingBookings: any[],
 ): AvailableSlot[] {
-  const slots: AvailableSlot[] = [];
+  const slots: AvailableSlot[] = []
 
   // Parse times (HH:MM:SS)
-  const [openHour, openMin] = openTime.split(':').map(Number);
-  const [closeHour, closeMin] = closeTime.split(':').map(Number);
+  const [openHour, openMin] = openTime.split(':').map(Number)
+  const [closeHour, closeMin] = closeTime.split(':').map(Number)
 
   // Convert everything to minutes from midnight
-  const openMinutes = openHour * 60 + openMin;
-  const closeMinutes = closeHour * 60 + closeMin;
-  const lunchStartMinutes = lunchStartTime ? timeToMinutes(lunchStartTime) : null;
-  const lunchEndMinutes = lunchEndTime ? timeToMinutes(lunchEndTime) : null;
-  const prayerStartMinutes = prayerStartTime ? timeToMinutes(prayerStartTime) : null;
-  const prayerEndMinutes = prayerEndTime ? timeToMinutes(prayerEndTime) : null;
+  const openMinutes = openHour * 60 + openMin
+  const closeMinutes = closeHour * 60 + closeMin
+  const lunchStartMinutes = lunchStartTime ? timeToMinutes(lunchStartTime) : null
+  const lunchEndMinutes = lunchEndTime ? timeToMinutes(lunchEndTime) : null
+  const prayerStartMinutes = prayerStartTime ? timeToMinutes(prayerStartTime) : null
+  const prayerEndMinutes = prayerEndTime ? timeToMinutes(prayerEndTime) : null
 
   // Duration + buffer defines how long a booking occupies staff capacity.
-  const occupancyMinutes = Math.max(5, durationMinutes + Math.max(0, bufferMinutes));
-  const intervalMinutes = CANDIDATE_SLOT_STEP_MINUTES;
+  const occupancyMinutes = Math.max(5, durationMinutes + Math.max(0, bufferMinutes))
+  const intervalMinutes = CANDIDATE_SLOT_STEP_MINUTES
 
-  let currentMinutes = openMinutes;
+  let currentMinutes = openMinutes
 
   while (currentMinutes + durationMinutes <= closeMinutes + boundaryToleranceMinutes) {
-    const occupiedUntilMinutes = currentMinutes + occupancyMinutes;
+    const occupiedUntilMinutes = currentMinutes + occupancyMinutes
 
     // Allow slight overrun past breaks and service end; larger overruns are blocked.
     if (occupiedUntilMinutes > closeMinutes + boundaryToleranceMinutes) {
-      break;
+      break
     }
 
-    if (overlapsBreakBeyondTolerance(currentMinutes, occupiedUntilMinutes, lunchStartMinutes, lunchEndMinutes, boundaryToleranceMinutes)) {
-      currentMinutes += intervalMinutes;
-      continue;
+    if (
+      overlapsBreakBeyondTolerance(
+        currentMinutes,
+        occupiedUntilMinutes,
+        lunchStartMinutes,
+        lunchEndMinutes,
+        boundaryToleranceMinutes,
+      )
+    ) {
+      currentMinutes += intervalMinutes
+      continue
     }
 
-    if (overlapsBreakBeyondTolerance(currentMinutes, occupiedUntilMinutes, prayerStartMinutes, prayerEndMinutes, boundaryToleranceMinutes)) {
-      currentMinutes += intervalMinutes;
-      continue;
+    if (
+      overlapsBreakBeyondTolerance(
+        currentMinutes,
+        occupiedUntilMinutes,
+        prayerStartMinutes,
+        prayerEndMinutes,
+        boundaryToleranceMinutes,
+      )
+    ) {
+      currentMinutes += intervalMinutes
+      continue
     }
 
     // Count overlapping bookings at this slot time
-    const slotStartISO = minutesToISO(date, currentMinutes);
-    const slotEndISO = minutesToISO(date, occupiedUntilMinutes);
+    const slotStartISO = minutesToISO(date, currentMinutes)
+    const slotEndISO = minutesToISO(date, occupiedUntilMinutes)
 
-    const overlappingCount = countOverlappingBookings(
-      existingBookings,
-      slotStartISO,
-      slotEndISO
-    );
+    const overlappingCount = countOverlappingBookings(existingBookings, slotStartISO, slotEndISO)
 
     // Slot is available if overlap count < concurrent_staff
     if (overlappingCount < concurrentStaff) {
       slots.push({
         time: minutesToHHMM(currentMinutes),
         isoString: slotStartISO,
-      });
+      })
     }
 
     // Move to the next candidate start time in small increments so valid times
     // (for example 17:05) are not skipped due to coarse stepping.
-    currentMinutes += intervalMinutes;
+    currentMinutes += intervalMinutes
   }
 
-  return slots;
+  return slots
 }
 
 function overlapsBreakBeyondTolerance(
@@ -341,97 +347,93 @@ function overlapsBreakBeyondTolerance(
   occupiedUntilMinutes: number,
   breakStartMinutes: number | null,
   breakEndMinutes: number | null,
-  toleranceMinutes: number
+  toleranceMinutes: number,
 ): boolean {
   if (breakStartMinutes === null || breakEndMinutes === null) {
-    return false;
+    return false
   }
 
   // No overlap with break window.
   if (occupiedUntilMinutes <= breakStartMinutes || startMinutes >= breakEndMinutes) {
-    return false;
+    return false
   }
 
   // Starting inside a break is always invalid.
   if (startMinutes >= breakStartMinutes && startMinutes < breakEndMinutes) {
-    return true;
+    return true
   }
 
   // Crossing into a break is allowed only up to the tolerance.
-  const overrunMinutes = occupiedUntilMinutes - breakStartMinutes;
-  return overrunMinutes > toleranceMinutes;
+  const overrunMinutes = occupiedUntilMinutes - breakStartMinutes
+  return overrunMinutes > toleranceMinutes
 }
 
 /**
  * Convert HH:MM:SS time string to minutes from midnight
  */
 function timeToMinutes(time: string): number {
-  const [hours, minutes] = time.split(':').map(Number);
-  return hours * 60 + minutes;
+  const [hours, minutes] = time.split(':').map(Number)
+  return hours * 60 + minutes
 }
 
 function maxTime(a: string | null, b: string | null): string | null {
-  if (!a) return b;
-  if (!b) return a;
-  return timeToMinutes(a) >= timeToMinutes(b) ? a : b;
+  if (!a) return b
+  if (!b) return a
+  return timeToMinutes(a) >= timeToMinutes(b) ? a : b
 }
 
 function minTime(a: string | null, b: string | null): string | null {
-  if (!a) return b;
-  if (!b) return a;
-  return timeToMinutes(a) <= timeToMinutes(b) ? a : b;
+  if (!a) return b
+  if (!b) return a
+  return timeToMinutes(a) <= timeToMinutes(b) ? a : b
 }
 
 /**
  * Convert minutes from midnight to ISO 8601 timestamp for a given date
  */
 function minutesToISO(date: string, minutes: number): string {
-  const hours = Math.floor(minutes / 60);
-  const mins = minutes % 60;
-  const timeString = `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}:00Z`;
-  return new Date(`${date}T${timeString}`).toISOString();
+  const hours = Math.floor(minutes / 60)
+  const mins = minutes % 60
+  const timeString = `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}:00Z`
+  return new Date(`${date}T${timeString}`).toISOString()
 }
 
 /**
  * Convert minutes from midnight to HH:MM format
  */
 function minutesToHHMM(minutes: number): string {
-  const hours = Math.floor(minutes / 60);
-  const mins = minutes % 60;
-  return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+  const hours = Math.floor(minutes / 60)
+  const mins = minutes % 60
+  return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`
 }
 
 /**
  * Count how many existing bookings overlap with the given time slot
  */
-function countOverlappingBookings(
-  bookings: any[],
-  startISO: string,
-  endISO: string
-): number {
-  const slotStart = new Date(startISO).getTime();
-  const slotEnd = new Date(endISO).getTime();
+function countOverlappingBookings(bookings: any[], startISO: string, endISO: string): number {
+  const slotStart = new Date(startISO).getTime()
+  const slotEnd = new Date(endISO).getTime()
 
   return bookings.filter((booking) => {
-    const bookingStart = new Date(booking.start_time).getTime();
-    const bookingEnd = getBookingOccupiedUntilMs(booking);
+    const bookingStart = new Date(booking.start_time).getTime()
+    const bookingEnd = getBookingOccupiedUntilMs(booking)
 
     // Check if there's any overlap
-    return bookingStart < slotEnd && bookingEnd > slotStart;
-  }).length;
+    return bookingStart < slotEnd && bookingEnd > slotStart
+  }).length
 }
 
 function getBookingOccupiedUntilMs(booking: any): number {
-  const bookingEndMs = new Date(booking.end_time).getTime();
+  const bookingEndMs = new Date(booking.end_time).getTime()
   if (Number.isNaN(bookingEndMs)) {
-    return new Date(booking.start_time).getTime();
+    return new Date(booking.start_time).getTime()
   }
 
-  const service = booking?.booking_services ?? null;
+  const service = booking?.booking_services ?? null
   if (!service) {
-    return bookingEndMs;
+    return bookingEndMs
   }
 
-  const bufferMinutes = Math.max(0, Number(service.buffer_minutes ?? 0));
-  return bookingEndMs + bufferMinutes * 60 * 1000;
+  const bufferMinutes = Math.max(0, Number(service.buffer_minutes ?? 0))
+  return bookingEndMs + bufferMinutes * 60 * 1000
 }

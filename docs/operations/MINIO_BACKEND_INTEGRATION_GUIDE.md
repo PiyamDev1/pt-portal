@@ -1,5 +1,7 @@
 # MinIO Backend Integration Guide
 
+> **Superseded and unsafe as a current runbook.** The document backend is already implemented server-side. The historical snippets below use obsolete routes and expose credential-like values through `NEXT_PUBLIC_*`; do not copy them. Use [Document Management](../guides/DOCUMENT_MANAGEMENT_GUIDE.md), [Storage System](../technical/STORAGE_SYSTEM.md), and `.env.example`.
+
 Quick reference for completing the MinIO integration when the VM is ready.
 
 ## 📋 Pre-Implementation Checklist

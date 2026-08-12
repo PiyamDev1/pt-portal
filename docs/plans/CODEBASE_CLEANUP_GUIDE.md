@@ -1,5 +1,7 @@
 # Codebase Cleanup & Maintenance Guide
 
+> **Superseded cleanup snapshot.** This file records an earlier refactor and names hooks/constants that have since been removed. Use the current source plus [Developer Guide](../guides/DEVELOPER_GUIDE.md) and [Architecture](../guides/ARCHITECTURE_GUIDE.md).
+
 This document provides guidelines for maintaining a clean, organized codebase.
 
 ## Completed Cleanup Tasks ✅

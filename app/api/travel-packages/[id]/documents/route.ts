@@ -32,6 +32,7 @@ import {
 import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
 import { requireStaffSession } from '@/lib/auth/staffSession'
 import { reportOperationalError } from '@/lib/observability/server'
+import { selectTravelPackageDocumentColumns } from './columns'
 
 const SCHEMA_HINT =
   'Travel package document schema is not installed yet. Run scripts/migrations/20260712_create_travel_package_documents.sql in Supabase SQL editor.'
@@ -45,43 +46,6 @@ type PackageLookup = Pick<
 function isDocumentSchemaError(error: unknown) {
   const code = (error as { code?: string } | null)?.code
   return code === '42P01' || code === '42703' || code === '42P10'
-}
-
-export function selectTravelPackageDocumentColumns() {
-  return `
-    id,
-    package_id,
-    reservation_id,
-    quote_id,
-    uploaded_by,
-    updated_by,
-    category,
-    title,
-    file_name,
-    file_size,
-    file_type,
-    storage_provider,
-    storage_bucket,
-    storage_key,
-    storage_etag,
-    backup_provider,
-    backup_bucket,
-    backup_key,
-    backup_status,
-    backup_error,
-    status,
-    customer_visible,
-    released_at,
-    released_by,
-    revoked_at,
-    revoked_by,
-    public_notes,
-    internal_notes,
-    metadata,
-    created_at,
-    updated_at,
-    deleted_at
-  `
 }
 
 async function getPackageFolder(

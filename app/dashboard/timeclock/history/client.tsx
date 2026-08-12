@@ -64,40 +64,43 @@ export default function TimeclockHistoryClient() {
   const [pageSize, setPageSize] = useState(25)
   const [total, setTotal] = useState(0)
 
-  const loadEvents = useCallback(async (nextPage = page) => {
-    setLoading(true)
-    setError('')
-    try {
-      const params = new URLSearchParams({
-        scope: 'self',
-        page: `${nextPage}`,
-        pageSize: `${pageSize}`,
-      })
+  const loadEvents = useCallback(
+    async (nextPage = page) => {
+      setLoading(true)
+      setError('')
+      try {
+        const params = new URLSearchParams({
+          scope: 'self',
+          page: `${nextPage}`,
+          pageSize: `${pageSize}`,
+        })
 
-      if (dateFrom) {
-        params.set('from', new Date(`${dateFrom}T00:00:00`).toISOString())
-      }
+        if (dateFrom) {
+          params.set('from', new Date(`${dateFrom}T00:00:00`).toISOString())
+        }
 
-      if (dateTo) {
-        params.set('to', new Date(`${dateTo}T23:59:59.999`).toISOString())
-      }
+        if (dateTo) {
+          params.set('to', new Date(`${dateTo}T23:59:59.999`).toISOString())
+        }
 
-      const response = await fetch(`/api/timeclock/events?${params.toString()}`)
-      const data: EventsResponse = await response.json()
-      if (!response.ok) {
-        setError(data?.error || 'Unable to load events.')
-        return
+        const response = await fetch(`/api/timeclock/events?${params.toString()}`)
+        const data: EventsResponse = await response.json()
+        if (!response.ok) {
+          setError(data?.error || 'Unable to load events.')
+          return
+        }
+        setEvents(data.events || [])
+        setTotal(data.total || 0)
+        setPage(data.page || nextPage)
+        setPageSize(data.pageSize || pageSize)
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : 'Unable to load events.')
+      } finally {
+        setLoading(false)
       }
-      setEvents(data.events || [])
-      setTotal(data.total || 0)
-      setPage(data.page || nextPage)
-      setPageSize(data.pageSize || pageSize)
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Unable to load events.')
-    } finally {
-      setLoading(false)
-    }
-  }, [dateFrom, dateTo, page, pageSize])
+    },
+    [dateFrom, dateTo, page, pageSize],
+  )
 
   useEffect(() => {
     void loadEvents()

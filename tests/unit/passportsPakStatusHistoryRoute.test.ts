@@ -16,7 +16,9 @@ const mocks = vi.hoisted(() => {
   const from = vi.fn((table: string) => {
     if (table === 'pakistani_passport_applications') {
       // First call is link lookup, second call is direct fallback.
-      const callCount = from.mock.calls.filter((c) => c[0] === 'pakistani_passport_applications').length
+      const callCount = from.mock.calls.filter(
+        (c) => c[0] === 'pakistani_passport_applications',
+      ).length
       if (callCount <= 1) return { select: linkSelect }
       return { select: directSelect }
     }

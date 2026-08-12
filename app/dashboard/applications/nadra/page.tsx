@@ -1,18 +1,18 @@
 /**
  * NADRA Applications Page
- * 
+ *
  * National Database and Registration Authority (NADRA) operations:
  * - Family registration and head of family procedures
  * - NADRA B-Form issuance tracking
  * - Relationship and identity verification
  * - NADRA record updates and corrections
  * - Family tree and member documentation
- * 
+ *
  * Server component that:
  * - Authenticates user access to NADRA records
  * - Loads family registration data from NADRA system
  * - Renders family tree and status dashboard
- * 
+ *
  * @module app/dashboard/applications/nadra/page
  */
 import { createServerClient } from '@supabase/auth-helpers-nextjs'
@@ -100,7 +100,9 @@ export default async function NadraPage() {
     id: app.id,
     tracking_number: app.tracking_number,
     family_head_id: app.family_head_id,
-    family_heads: Array.isArray(app.family_heads) ? (app.family_heads[0] ?? null) : app.family_heads,
+    family_heads: Array.isArray(app.family_heads)
+      ? (app.family_heads[0] ?? null)
+      : app.family_heads,
     applicants: Array.isArray(app.applicants) ? (app.applicants[0] ?? null) : app.applicants,
     nadra_services: app.nadra_services ?? null,
   }))

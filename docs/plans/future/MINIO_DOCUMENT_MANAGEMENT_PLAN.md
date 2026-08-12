@@ -1,6 +1,8 @@
 # MinIO Document Management Integration Plan
 
-**Status**: Planning Phase  
+> **Superseded pre-implementation design.** The private, server-owned MinIO/R2 document vault is implemented and differs from several placeholder/direct-upload ideas below. Use [Document Management](../../guides/DOCUMENT_MANAGEMENT_GUIDE.md) and [Storage System](../../technical/STORAGE_SYSTEM.md).
+
+**Original status**: Planning Phase
 **Created**: March 5, 2026  
 **Target Module**: Nadra Applications
 
@@ -252,7 +254,7 @@ Right-side Panel:
 
 #### 2.5 Document Hub Page Layout
 
-**File**: `app/dashboard/applications/nadra/components/DocumentHub/page.tsx`
+**Historical file name**: `app/dashboard/applications/nadra/components/DocumentHub/page.tsx` (the current component is `DocumentHub.tsx`)
 
 ```
 Layout:

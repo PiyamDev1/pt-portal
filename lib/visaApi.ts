@@ -2,7 +2,7 @@
  * Visa Application API Client
  * Client-side API calls for visa application operations
  * Provides typed wrappers around fetch calls to visa endpoints
- * 
+ *
  * @module lib/visaApi
  */
 

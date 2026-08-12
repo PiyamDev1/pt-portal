@@ -1,6 +1,6 @@
 /**
- * Module: app/dashboard/applications/nadra/components/DocumentHub/page.tsx
- * Dashboard module for applications/nadra/components/DocumentHub/page.tsx.
+ * Module: app/dashboard/applications/nadra/components/DocumentHub/DocumentHub.tsx
+ * Family-scoped document management workspace.
  */
 
 'use client'
@@ -13,7 +13,7 @@
  * @page /dashboard/applications/nadra/documents/[familyHeadId]
  */
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Document } from './types'
 import { documentClient } from '@/lib/services/documentClient'
 import { MinioStatus } from './MinioStatus'

@@ -20,7 +20,7 @@ export function getS3Client(): S3Client {
       : `https://${rawEndpoint}`
 
     s3Client = new S3Client({
-      region: 'eu-west-1',
+      region: process.env.MINIO_REGION || 'eu-west-1',
       endpoint: formattedEndpoint,
       credentials: {
         accessKeyId: process.env.MINIO_ACCESS_KEY!,
@@ -32,14 +32,4 @@ export function getS3Client(): S3Client {
     })
   }
   return s3Client
-}
-
-/**
- * Close the S3 client (for cleanup)
- */
-export async function closeS3Client(): Promise<void> {
-  if (s3Client) {
-    await s3Client.destroy()
-    s3Client = null
-  }
 }

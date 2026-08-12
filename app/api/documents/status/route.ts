@@ -11,8 +11,8 @@ import { DOCUMENT_PRIVATE_CACHE_HEADERS } from '@/lib/documentSecurity'
 
 /**
  * GET /api/documents/status
- * Authenticated check using HeadBucketCommand — verifies the bucket is reachable.
- * Also ensures CORS is configured so direct browser PUT uploads can succeed.
+ * Authenticated status check that reports primary and fallback storage
+ * reachability and capabilities. It may run one bounded fallback migration.
  */
 export async function GET(request: NextRequest) {
   const access = await requireStaffSession()

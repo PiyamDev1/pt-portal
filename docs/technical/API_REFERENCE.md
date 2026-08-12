@@ -1,868 +1,319 @@
-# API Reference
-
-> PT-Portal API routes — methods, parameters, and security-relevant contracts
-> Last updated: August 12, 2026
-
-All routes are under `/api/`. Protected staff routes use the Supabase cookie-backed session and verify the user with `auth.getUser()`; administrative routes then apply an employee role/department guard. Do not send service-role credentials or caller-selected employee IDs as identity proof.
-
-Sensitive routes have route-specific PostgreSQL-backed fixed-window limits. A blocked request returns `429` with `Retry-After`; a sensitive route returns `503` and fails closed when the shared limiter is unavailable. Limits are intentionally not one global “requests per IP” value.
-
----
-
-## Table of Contents
-
-1. [Documents](#documents)
-2. [Authentication](#authentication)
-3. [NADRA](#nadra)
-4. [Pakistani Passports](#pakistani-passports)
-5. [GB Passports](#gb-passports)
-6. [Visas](#visas)
-7. [LMS (Loan Management)](#lms-loan-management)
-8. [Timeclock](#timeclock)
-9. [Admin](#admin)
-10. [Vitals](#vitals)
-
----
-
-## Documents
-
-All staff-facing document endpoints require a verified active staff session. Document data is private and responses containing metadata, streams, or signed URLs use `private, no-store` semantics unless noted otherwise. The scheduled migration worker is the exception: it accepts only the server-configured cron token and is not a browser API.
-
-### GET `/api/documents`
-
-List documents for a family with optional filtering and pagination.
-
-**Query parameters:**
-
-| Parameter      | Type   | Required | Default | Description                                   |
-| -------------- | ------ | -------- | ------- | --------------------------------------------- |
-| `familyHeadId` | string | Yes      | —       | Family head identifier                        |
-| `page`         | number | No       | `1`     | Page number (1-based)                         |
-| `limit`        | number | No       | `20`    | Items per page (5–100)                        |
-| `category`     | string | No       | —       | `general`, `receipt`, or `application-review` |
-
-**Response:**
-
-```json
-{
-  "documents": [
-    {
-      "id": "doc-uuid",
-      "fileName": "passport.pdf",
-      "fileSize": 524288,
-      "fileType": "application/pdf",
-      "category": "general",
-      "uploadedAt": "2026-08-12T14:00:00Z",
-      "uploadedBy": "user-uuid",
-      "familyHeadId": "family-id",
-      "minio": {
-        "bucket": "portal-documents",
-        "key": "family-family-id/general/doc-uuid-passport.pdf",
-        "etag": "etag"
-      }
-    }
-  ],
-  "pagination": { "page": 1, "limit": 20, "total": 14, "pages": 1 }
-}
-```
-
-The scope must resolve to an existing applicant, application, or Pakistani-passport draft. Unknown or malformed scopes are rejected.
-
----
-
-### POST `/api/documents`
-
-Standalone metadata creation is disabled. The endpoint returns `410 Gone`; use `/api/documents/upload-direct` so the server owns both object creation and metadata persistence.
-
----
-
-### POST `/api/documents/upload-direct`
-
-Upload and persist a document in one server-owned operation. The route is limited to 20 requests per user/IP in ten minutes, tries private MinIO first, and falls back to the private R2 vault when configured.
-
-**Body (multipart/form-data):**
-
-| Field          | Type   | Required | Description                                                      |
-| -------------- | ------ | -------- | ---------------------------------------------------------------- |
-| `file`         | File   | Yes      | PDF, JPEG, PNG, or WebP; max 1.5 MB                              |
-| `familyHeadId` | string | Yes      | Existing applicant/application/draft scope                       |
-| `category`     | string | No       | `general`, `receipt`, or `application-review`; default `general` |
-
-**Response:**
-
-```json
-{
-  "documentId": "doc-uuid",
-  "minioKey": "family-family-id/general/doc-uuid-file.pdf",
-  "etag": "\"abc123\"",
-  "storageProvider": "minio",
-  "storageBucket": "portal-documents",
-  "fileName": "file.pdf",
-  "fileSize": 524288,
-  "fileType": "application/pdf",
-  "category": "general",
-  "familyHeadId": "family-id"
-}
-```
-
-The route verifies file signatures and requires the declared MIME type and extension to match the detected content. `storageProvider` is `"minio"` or `"r2"`. The client must not submit a second metadata request.
-
----
-
-### GET `/api/documents/status`
-
-Authenticated health check for the document vault. It may also run bounded storage maintenance.
-
-**Response:**
-
-```json
-{
-  "status": {
-    "connected": true,
-    "ping": 42,
-    "timestamp": "2026-03-11T14:00:00.000Z",
-    "endpoint": "https://eu49v2.piyamtravel.com",
-    "mode": "primary",
-    "fallback": {
-      "configured": true,
-      "connected": true,
-      "endpoint": "https://eu45v5.piyamtravel.com",
-      "bucket": "portal-fallback",
-      "ping": 110
-    },
-    "capabilities": {
-      "upload": true,
-      "previewDownload": true,
-      "uploadOnlyFallback": false
-    }
-  }
-}
-```
-
-`mode` values: `"primary"` | `"fallback-upload-only"` | `"offline"`
-
----
-
-### GET `/api/documents/[documentId]/preview`
-
-Return a short-lived preview URL for a live document record.
-
-**Response:** `{ "url": "https://signed-storage-url" }`
-
-### GET `/api/documents/[documentId]/download`
-
-Redirect to a short-lived download URL for a live document record.
-
-### GET `/api/documents/preview`
-
-Compatibility streaming endpoint. Prefer `documentId`; a legacy `key` is accepted only when it first resolves to a live, non-deleted database record.
-
-**Query parameters:**
-
-| Parameter    | Type   | Required | Description                                         |
-| ------------ | ------ | -------- | --------------------------------------------------- |
-| `documentId` | string | No       | Preferred document identifier                       |
-| `key`        | string | No       | Legacy key; cannot address arbitrary stored objects |
-
-Exactly one resolvable identifier is required. The response is a binary stream with safe content disposition, `X-Content-Type-Options: nosniff`, a sandbox CSP, and `Cache-Control: private, no-store`.
-
-Storage selection comes from the database record; it is not chosen by the caller.
-
----
-
-### GET `/api/documents/download`
-
-Compatibility download stream with the same record-resolution rules as `/api/documents/preview` and `Content-Disposition: attachment`.
-
----
-
-### DELETE `/api/documents/[documentId]`
-
-Revoke the live database record, remove its resolved object, and restore the record if storage deletion fails.
-
-**Response:**
-
-```json
-{ "deletedDocumentId": "doc-uuid" }
-```
-
----
-
-## Authentication
-
-Authentication responses containing tokens or security material are non-cacheable. Validation failures use `{ "error": "message" }` with an appropriate `4xx` status.
-
-### POST `/api/auth/password-login`
-
-Server-mediated password verification and login-guard accounting.
-
-**Body:** `{ "email": "staff@example.com", "password": "current password" }`
-
-**Success:** `{ "accessToken": "...", "refreshToken": "..." }`
-
-The browser passes the returned pair to the Supabase browser client to establish the cookie-backed session. Rejected credentials return a generic `401`; shared IP/email limits and the login guard return `429` with `Retry-After` when blocked.
-
-### GET `/api/auth/sessions`
-
-Returns active sessions for the authenticated user. Requires session cookie.
-
-**Response:**
-
-```json
-{
-  "sessions": [
-    {
-      "id": "session-id",
-      "created_at": "2026-08-12T10:00:00Z",
-      "last_active": "2026-08-12T14:00:00Z",
-      "ip": "192.0.2.1",
-      "user_agent": "browser user agent",
-      "is_current": true,
-      "is_active": true
-    }
-  ]
-}
-```
-
-The response is deduplicated by device and limited to the six most recent sessions.
-
-### DELETE `/api/auth/sessions`
-
-Revoke one session or sign out all devices. Both forms require the current verified user and share a limit of ten requests per user/IP in 15 minutes.
-
-**Body:** `{ "type": "single", "id": "session-id" }` or `{ "type": "all" }`
-
----
-
-### POST `/api/auth/update-password`
-
-Change the authenticated user's password after server-side reauthentication.
-
-**Body:**
-
-```json
-{
-  "currentPassword": "current password",
-  "newPassword": "NewStrongPassword!1"
-}
-```
-
-The new password must contain at least eight characters, lowercase and uppercase letters, a number, and a special character.
-
-**Success:**
-
-```json
-{ "updatedUserId": "uuid", "message": "Password updated successfully" }
-```
-
----
-
-### POST `/api/auth/generate-backup-codes`
-
-Atomically replace the authenticated user's backup-code set. Requires a fresh second factor.
-
-**Body:**
-
-```json
-{
-  "count": 10,
-  "verificationCode": "123456",
-  "verificationMethod": "totp"
-}
-```
-
-`count` is 1–10 and `verificationMethod` is `totp`, `backup`, or `auto`.
-
-**Response:** `{ "codes": ["XXXX-XXXX", "..."], "generatedCount": 10 }` — shown once and never stored in plaintext.
-
----
-
-### GET `/api/auth/backup-codes/count`
-
-Returns the number of unused backup codes remaining.
-
-**Response:** `{ "count": 5 }`
-
----
-
-### POST `/api/auth/consume-backup-code`
-
-Use a single backup code for the authenticated, in-progress login session. Consumption is conditional and concurrency-safe.
-
-**Body:** `{ "code": "XXXX-XXXX" }`
-
----
-
-### POST `/api/auth/reset-2fa`
-
-Self-service reset of the caller's own 2FA factors. Requires a fresh current TOTP or unused backup code; it cannot select another user.
-
-**Body:**
-
-```json
-{ "verificationCode": "123456", "verificationMethod": "totp" }
-```
-
-**Success:** `{ "resetUserId": "uuid", "removedFactors": 1 }`
-
----
-
-## NADRA
-
-### POST `/api/nadra/add-application`
-
-Create a new NADRA service application.
-
-**Key body fields:** `applicantCnic`, `applicantName`, `familyHeadCnic`, `familyHeadName`, `serviceType`, `serviceOption`, `agentId`
-
----
-
-### GET `/api/nadra/metadata`
-
-Fetch metadata for the NADRA ledger (service types, statuses, agents).
-
----
-
-### GET `/api/nadra/agent-options`
-
-Returns available agent options for the NADRA form.
-
----
-
-### POST `/api/nadra/update-status`
-
-Update the status of a NADRA application.
-
-**Body:** `{ "applicationId": "...", "status": "...", "notes": "..." }`
-
----
-
-### GET `/api/nadra/status-history`
-
-Returns status history for a NADRA application.
-
-**Query:** `?applicationId=`
-
----
-
-### POST `/api/nadra/manage-record`
-
-Create, update or delete a NADRA record.
-
----
-
-## Pakistani Passports
-
-### POST `/api/passports/pak/add-application`
-
-Add a new Pakistani passport application.
-
----
-
-### GET `/api/passports/pak/metadata`
-
-Fetch metadata for passport forms.
-
----
-
-### POST `/api/passports/pak/update-status`
-
-Update passport application status.
-
----
-
-### GET `/api/passports/pak/status-history`
-
-Status change history for a passport application.
-
-**Query:** `?applicationId=`
-
----
-
-### POST `/api/passports/pak/update-custody`
-
-Update passport custody status (received / dispatched).
-
----
-
-### GET|POST `/api/passports/pak/notes`
-
-Get or add notes for a passport application.
-
----
-
-### POST `/api/passports/pak/manage-record`
-
-Create, update or delete a passport record.
-
----
-
-## GB Passports
-
-### POST `/api/passports/gb/add`
-
-Add a new GB passport application.
-
----
-
-### GET `/api/passports/gb/metadata`
-
-Fetch GB passport form metadata.
-
----
-
-### POST `/api/passports/gb/update`
-
-Update a GB passport application.
-
----
-
-### GET `/api/passports/gb/status-history`
-
-Status change history for a GB passport.
-
----
-
-### DELETE `/api/passports/gb/delete`
-
-Delete a GB passport application.
-
----
-
-## Visas
-
-### POST `/api/visas/add-application`
-
-Create a new visa application.
-
----
-
-### GET `/api/visas/metadata`
-
-Returns visa types, countries, and form metadata.
-
----
-
-### POST `/api/visas/save`
-
-Save/update a visa application.
-
----
-
-### POST `/api/visas/update-status`
-
-Update visa application status.
-
----
+# API Route Inventory
+
+Last verified against `app/api/**/route.{ts,js}`: August 12, 2026.
+
+This compact reference inventories every current API route and records cross-cutting contracts. The [detailed API documentation](../api/README.md) provides field-level access, input, success, error, side-effect, and example contracts for every exported handler. The route implementation, its schemas, and focused tests remain authoritative when a deployment has moved ahead of these documents.
+
+## Protocol conventions
+
+- Routes use the Next.js App Router under `/api`.
+- JSON successes normally return the payload directly. They are not globally wrapped in `{ data: ... }`.
+- JSON failures should return `{ "error": "message" }` with an appropriate status. Some routes add bounded structured fields such as `Retry-After`, readiness hints, or validation details.
+- `400` is invalid input, `401` unauthenticated/invalid credential, `403` authenticated but unauthorized, `404` unavailable scope/record, `409` state conflict, `410` retired/expired, `413` body too large, `429` limited, and `503` required security/schema/provider capability unavailable.
+- `proxy.ts` adds or propagates `x-request-id`; it does not authenticate. Each handler owns its security boundary.
+- Protected staff routes use the cookie-backed Supabase user. Service-role access must follow server-side employee/role/department/resource checks.
+- Sensitive routes use shared PostgreSQL fixed-window limits. A block returns `429` plus `Retry-After`; a required limiter that is unavailable fails closed with `503`.
+- New/changed JSON mutations use a bounded Zod schema with `parseBodyWithSchema()`. The API-boundary baseline tracks remaining legacy parsing; it is not an approved pattern for new routes.
+- Private/security responses should be `private, no-store`. Binary, redirect, HTML callback, and signed-URL routes document their own content behavior.
+
+## Public, integration, and scheduled boundaries
+
+These endpoints do not use an ordinary staff cookie and must not be made broader:
+
+| Surface                          | Authentication/scope                                                                                                                                    |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Quote share and selection        | Unpredictable quote token, quote expiry/state, public DTO, shared IP/token limits                                                                       |
+| Customer package portal          | Package reference plus normalized surname yields an enabled, unexpired document token; released/customer-visible data only                              |
+| Third-party package documents    | Hashed share token plus access code, recipient identity, accepted terms, allowed categories, expiry/revocation, shared limits                           |
+| Receipt verification             | Tracking number plus receipt PIN, with IP/tracking limits; unsupported services return a non-valid result                                               |
+| Booking attendance link          | Per-reminder response token and bounded status query; returns HTML rather than JSON                                                                     |
+| Frappe webhook                   | Raw-body signature in `x-frappe-signature`, deduplicated source event ID                                                                                |
+| Physical timeclock device routes | Device-specific signature/secret, nonce/replay, timestamp, and active-device checks as defined by the route                                             |
+| `/api/cron/*`                    | Exact `Authorization: Bearer <CRON_SECRET>`; missing configuration returns `503`, invalid/absent bearer returns `401`; `x-vercel-cron` alone is ignored |
+| Document migration worker        | `DOCUMENT_MIGRATION_CRON_TOKEN` when configured, otherwise `CRON_SECRET`; accepts the matching bearer, `x-migration-token`, or bounded body token       |
+
+## Authentication and account security
+
+| Methods         | Route                                     |
+| --------------- | ----------------------------------------- |
+| `POST`          | `/api/auth/password-login`                |
+| `POST`          | `/api/auth/login-guard`                   |
+| `GET`, `DELETE` | `/api/auth/sessions`                      |
+| `POST`          | `/api/auth/update-password`               |
+| `GET`, `PATCH`  | `/api/auth/security-preferences`          |
+| `POST`          | `/api/auth/security-events`               |
+| `GET`           | `/api/auth/backup-codes/count`            |
+| `POST`          | `/api/auth/generate-backup-codes`         |
+| `POST`          | `/api/auth/consume-backup-code`           |
+| `POST`          | `/api/auth/reset-2fa`                     |
+| `GET`, `DELETE` | `/api/auth/passkeys`                      |
+| `POST`          | `/api/auth/passkeys/register/options`     |
+| `POST`          | `/api/auth/passkeys/register/verify`      |
+| `POST`          | `/api/auth/passkeys/authenticate/options` |
+| `POST`          | `/api/auth/passkeys/authenticate/verify`  |
+
+Password login accepts a bounded normalized email/password body, applies IP and email limits, checks the persisted login guard, and returns the minimal token pair the browser SDK needs to establish a session. Token/security-material responses are non-cacheable. Backup-code generation and 2FA reset require a fresh factor; backup-code replacement is atomic. See [Authentication Flow](AUTHENTICATION_FLOW.md).
+
+## Applications, passports, visas, and receipts
+
+| Methods                 | Route                                |
+| ----------------------- | ------------------------------------ |
+| `POST`                  | `/api/nadra/add-application`         |
+| `GET`                   | `/api/nadra/agent-options`           |
+| `POST`                  | `/api/nadra/complaint`               |
+| `POST`                  | `/api/nadra/manage-record`           |
+| `GET`                   | `/api/nadra/metadata`                |
+| `POST`                  | `/api/nadra/refund`                  |
+| `GET`                   | `/api/nadra/status-history`          |
+| `POST`                  | `/api/nadra/update-status`           |
+| `GET`, `POST`, `DELETE` | `/api/applications/notes-read`       |
+| `POST`                  | `/api/passports/pak/add-application` |
+| `GET`, `POST`           | `/api/passports/pak/drafts`          |
+| `POST`                  | `/api/passports/pak/manage-record`   |
+| `GET`                   | `/api/passports/pak/metadata`        |
+| `GET`, `POST`           | `/api/passports/pak/notes`           |
+| `GET`                   | `/api/passports/pak/status-history`  |
+| `POST`                  | `/api/passports/pak/update-custody`  |
+| `POST`                  | `/api/passports/pak/update-status`   |
+| `POST`                  | `/api/passports/gb/add`              |
+| `POST`                  | `/api/passports/gb/delete`           |
+| `GET`                   | `/api/passports/gb/metadata`         |
+| `GET`                   | `/api/passports/gb/status-history`   |
+| `POST`                  | `/api/passports/gb/update`           |
+| `POST`                  | `/api/visas/add-application`         |
+| `GET`                   | `/api/visas/metadata`                |
+| `POST`                  | `/api/visas/save`                    |
+| `POST`                  | `/api/visas/update-status`           |
+| `POST`                  | `/api/receipts/generate`             |
+| `GET`                   | `/api/receipts/list`                 |
+| `POST`                  | `/api/receipts/share`                |
+| `POST`                  | `/api/receipts/verify`               |
+
+Application mutations are staff workflows and must derive the actor from the session. Receipt generation/list/share are protected; verification is the limited public exception. Receipt availability and fields differ by service—use [Receipt Operations](../guides/RECEIPT_OPERATIONS_GUIDE.md).
+
+## Application document vault
+
+| Methods       | Route                                   |
+| ------------- | --------------------------------------- |
+| `GET`, `POST` | `/api/documents`                        |
+| `POST`        | `/api/documents/upload-direct`          |
+| `POST`        | `/api/documents/upload`                 |
+| `GET`         | `/api/documents/status`                 |
+| `GET`         | `/api/documents/[documentId]/preview`   |
+| `GET`         | `/api/documents/[documentId]/download`  |
+| `GET`         | `/api/documents/[documentId]/thumbnail` |
+| `DELETE`      | `/api/documents/[documentId]`           |
+| `GET`         | `/api/documents/preview`                |
+| `GET`         | `/api/documents/download`               |
+| `GET`         | `/api/documents/signed-url`             |
+| `GET`, `POST` | `/api/documents/zip`                    |
+| `GET`         | `/api/documents/download-all`           |
+| `GET`, `POST` | `/api/documents/migrate-scheduled`      |
+| `GET`, `POST` | `/api/documents/migration-overview`     |
+
+`POST /api/documents/upload-direct` is the supported server-owned upload: active staff, existing scope, maximum 1,500,000-byte file, PDF/JPEG/PNG/WebP, safe category/name, and matching signature/MIME/extension. Standalone metadata creation and the old upload path return `410`; download-all is also retired. Preview/download/delete/ZIP routes resolve a live database record before accessing an object key. See [Document Management](../guides/DOCUMENT_MANAGEMENT_GUIDE.md).
 
 ## Bookings
 
-The bookings subsystem is still under active development. Routes include schema guards and may return warnings or setup hints when the booking schema is not fully deployed.
-
-### GET `/api/bookings`
-
-List bookings within a date range for a branch calendar/list view.
-
-**Query parameters:**
-
-| Parameter           | Type    | Required | Description                             |
-| ------------------- | ------- | -------- | --------------------------------------- |
-| `from`              | string  | Yes      | ISO datetime lower bound                |
-| `to`                | string  | Yes      | ISO datetime upper bound                |
-| `location_id`       | string  | No       | Filter to one branch location           |
-| `status`            | string  | No       | Filter by booking status or `all`       |
-| `source`            | string  | No       | Filter by booking source or `all`       |
-| `service_id`        | string  | No       | Filter by booking service or `all`      |
-| `q`                 | string  | No       | Search across name, phone, email, notes |
-| `include_cancelled` | boolean | No       | Set `false` to hide cancelled bookings  |
-
-### POST `/api/bookings`
-
-Create a new booking.
-
-**Key body fields:**
-
-- `location_id`
-- `customer_name`
-- `customer_phone`
-- `customer_email`
-- `service_id`
-- `start_time`
-- `person_count`
-- `tags`
-- `notes`
-- `manual_override`
-- `source`
-- `idempotency_key`
-
-Creates the booking, computes effective duration from service rules, writes audit/email records, supports idempotency replay, and may reject the request if the slot conflicts or the customer is blocked by no-show penalty settings.
-
-### PATCH `/api/bookings/[id]`
-
-Update a booking's status or appointment details.
-
-Supported changes include:
-
-- `status`
-- `customer_name`
-- `customer_phone`
-- `customer_email`
-- `service_id`
-- `start_time`
-- `notes`
-- `tags`
-- `person_count`
-- `idempotency_key`
-
-Optional concurrency guard:
-
-- `if_unmodified_since`: previous `updated_at` value; returns `409` on conflict
-
-Notes-only or tags-only edits stay internal and do not send customer-facing email. State transitions are now validated server-side.
-
-### GET `/api/bookings/[id]/history`
-
-Return the booking audit timeline and email delivery log.
-
-### POST `/api/bookings/[id]/resend`
-
-Manual staff action to re-send booking email details. Optional body fields:
-
-- `kind`: `confirmation` | `modification` | `cancellation`
-- `reason`
-- `idempotency_key`
-
-### GET `/api/bookings/available-slots`
-
-Return available slots for a branch/service/date combination.
-
-**Query parameters:**
-
-| Parameter      | Type   | Required | Description             |
-| -------------- | ------ | -------- | ----------------------- |
-| `date`         | string | Yes      | `YYYY-MM-DD`            |
-| `service_id`   | string | Yes      | Service id              |
-| `location_id`  | string | Yes      | Branch/location id      |
-| `person_count` | number | No       | Group size, default `1` |
-
-Slot generation accounts for:
-
-- Branch opening hours
-- Lunch and prayer windows
-- One-off schedule overrides
-- Concurrent staff capacity
-- Service duration and buffer
-- Extra per-person duration
-- End-of-day overrun tolerance
-
-### GET `/api/bookings/settings/branch`
-
-Return weekly branch schedule rows from `branch_settings`.
-
-### PATCH `/api/bookings/settings/branch`
-
-Upsert weekly branch schedule rows for a branch.
-
-### GET `/api/bookings/settings/overrides`
-
-List one-off schedule overrides.
-
-### POST `/api/bookings/settings/overrides`
-
-Create or replace a one-off branch schedule override for a specific date.
-
-### GET `/api/bookings/settings/services`
-
-List booking services for a branch.
-
-### POST `/api/bookings/settings/services`
-
-Create a booking service with timing rules and email templates.
-
-Service configuration currently supports:
-
-- `duration_minutes`
-- `buffer_minutes`
-- `available_days`
-- `service_start_time`
-- `service_end_time`
-- `duration_per_additional_person_minutes`
-- `person_count_excludes_family_head`
-- `close_overrun_tolerance_minutes`
-- `confirmation_template`
-- `modification_template`
-- `cancellation_template`
-
-### GET `/api/bookings/settings/reminders`
-
-Return reminder/no-show settings for a branch. If the reminder schema is not yet deployed, this returns defaults plus a warning.
-
-### PATCH `/api/bookings/settings/reminders`
-
-Update reminder settings including:
-
-- `reminders_enabled`
-- `reminder_hours_before`
-- `same_day_reminder_enabled`
-- `same_day_reminder_hours_before`
-- `reminder_subject`
-- `reminder_template`
-- `attendance_confirmation_required`
-- `penalty_enabled`
-- `penalty_threshold`
-- `penalty_action`
-- `penalty_note`
-
-### GET `/api/bookings/attendance/respond`
-
-Customer-facing response link for reminder attendance confirmation.
-
-**Query parameters:**
-
-- `token`
-- `status=present|missed`
-
-Marks the reminder response and, for `missed`, increments branch-scoped contact flags.
-
-### POST `/api/bookings/telemetry`
-
-Best-effort operational telemetry endpoint for booking UI events.
-
-### GET `/api/cron/bookings/reminders`
-
-Cron endpoint that sends both advance reminder emails and same-day reminder emails for upcoming bookings, writes reminder event state, appends attendance confirmation links when enabled, and records delivery attempts in `booking_email_logs`.
-
-### GET `/api/bookings/export`
-
-Export matching bookings as CSV.
-
-### GET `/api/bookings/report`
-
-Return summary metrics for the selected range, including totals by status/source/service and recently modified count.
-
----
-
-## LMS (Loan Management)
-
-### GET `/api/lms`
-
-List loan accounts with pagination.
-
-**Query parameters:** `filter` (`active`|`overdue`|`all`|`settled`), `accountId`, `page`, `limit` (max 100)
-
----
-
-### POST `/api/lms`
-
-Create a new loan account with installment plan.
-
----
-
-### GET `/api/lms/installments`
-
-Get installments for an account.
-
-**Query:** `?accountId=`
-
----
-
-### POST `/api/lms/installment-payment`
-
-Record a payment against an installment.
-
----
-
-### POST `/api/lms/skip-installment`
-
-Mark an installment as skipped.
-
----
-
-### POST `/api/lms/update-installments`
-
-Bulk update installment records.
-
----
-
-### GET|POST `/api/lms/notes`
-
-Get or add notes for a loan account.
-
----
-
-### GET `/api/lms/audit-logs`
-
-Audit log for a loan account.
-
----
-
-### GET `/api/lms/payment-methods`
-
-Returns available payment methods.
-
----
-
-### DELETE `/api/lms/delete-installment-plan`
-
-Delete all installments for an account.
-
----
+| Methods                  | Route                                   |
+| ------------------------ | --------------------------------------- |
+| `GET`, `POST`            | `/api/bookings`                         |
+| `PATCH`                  | `/api/bookings/[id]`                    |
+| `GET`                    | `/api/bookings/[id]/history`            |
+| `POST`                   | `/api/bookings/[id]/no-show`            |
+| `POST`                   | `/api/bookings/[id]/resend`             |
+| `GET`                    | `/api/bookings/available-slots`         |
+| `GET`, `PATCH`, `DELETE` | `/api/bookings/drafts`                  |
+| `GET`, `PATCH`           | `/api/bookings/preferences`             |
+| `GET`, `POST`, `PATCH`   | `/api/bookings/waitlist`                |
+| `GET`                    | `/api/bookings/export`                  |
+| `GET`                    | `/api/bookings/report`                  |
+| `GET`                    | `/api/bookings/attendance/respond`      |
+| `POST`                   | `/api/bookings/telemetry`               |
+| `GET`, `PATCH`           | `/api/bookings/settings/branch`         |
+| `GET`, `POST`            | `/api/bookings/settings/overrides`      |
+| `DELETE`                 | `/api/bookings/settings/overrides/[id]` |
+| `GET`, `POST`            | `/api/bookings/settings/services`       |
+| `PATCH`, `DELETE`        | `/api/bookings/settings/services/[id]`  |
+| `GET`, `PATCH`           | `/api/bookings/settings/reminders`      |
+
+Availability derives from branch schedules/overrides, active service rules, capacity, group size, and existing/reserved bookings. Settings mutations require an active Admin, Master Admin, or Super Admin session before service-role access. The attendance-response route is a public tokenized, one-shot HTML flow; repeated or concurrent requests cannot apply a missed-attendance penalty twice. Public booking telemetry is schema-bound, size-bound, and rate-limited. See [Bookings](../guides/BOOKINGS_GUIDE.md).
+
+## LMS and accounting
+
+| Methods                   | Route                              |
+| ------------------------- | ---------------------------------- |
+| `GET`                     | `/api/accounting/applications`     |
+| `GET`, `POST`             | `/api/lms`                         |
+| `GET`                     | `/api/lms/installments`            |
+| `POST`, `PATCH`, `DELETE` | `/api/lms/installment-payment`     |
+| `POST`                    | `/api/lms/skip-installment`        |
+| `POST`                    | `/api/lms/update-installments`     |
+| `POST`                    | `/api/lms/delete-installment-plan` |
+| `GET`, `POST`, `DELETE`   | `/api/lms/notes`                   |
+| `GET`, `POST`             | `/api/lms/audit-logs`              |
+| `GET`                     | `/api/lms/payment-methods`         |
+| `POST`                    | `/api/lms/seed-service-categories` |
+
+Current LMS money/installment mutations require the `20260812` schema capability and execute through service-role-only atomic PostgreSQL functions. Apply `scripts/migrations/20260812_update_lms_installments_atomically.sql` after the main secure LMS migration so batch due-date/amount edits also commit as one transaction. Retryable operations use idempotency keys; account pagination is global at the database layer. Routes fail when required schema capabilities are absent rather than falling back to partial multi-write behavior.
+
+## Quotes, package folders, and groups
+
+### Quotation routes
+
+| Methods        | Route                                   |
+| -------------- | --------------------------------------- |
+| `GET`, `POST`  | `/api/packages`                         |
+| `GET`, `PATCH` | `/api/packages/[id]`                    |
+| `POST`         | `/api/packages/[id]/selection`          |
+| `POST`         | `/api/packages/[id]/convert`            |
+| `GET`          | `/api/packages/share/[token]`           |
+| `POST`         | `/api/packages/share/[token]/selection` |
+
+### Operational package routes
+
+| Methods                | Route                                                                   |
+| ---------------------- | ----------------------------------------------------------------------- |
+| `GET`                  | `/api/travel-packages`                                                  |
+| `GET`, `PATCH`         | `/api/travel-packages/[id]`                                             |
+| `GET`, `POST`, `PATCH` | `/api/travel-packages/[id]/operations`                                  |
+| `POST`                 | `/api/travel-packages/[id]/operations/sync`                             |
+| `GET`, `POST`          | `/api/travel-packages/[id]/passengers`                                  |
+| `PATCH`, `DELETE`      | `/api/travel-packages/[id]/passengers/[passengerId]`                    |
+| `GET`, `POST`          | `/api/travel-packages/[id]/reservations`                                |
+| `PATCH`, `DELETE`      | `/api/travel-packages/[id]/reservations/[reservationId]`                |
+| `GET`, `POST`          | `/api/travel-packages/[id]/reservations/[reservationId]/items`          |
+| `PATCH`                | `/api/travel-packages/[id]/reservations/[reservationId]/items/[itemId]` |
+| `POST`                 | `/api/travel-packages/[id]/reservations/[reservationId]/refunds`        |
+| `GET`, `POST`, `PATCH` | `/api/travel-packages/[id]/invoice`                                     |
+| `POST`                 | `/api/travel-packages/[id]/invoice/amend`                               |
+| `POST`                 | `/api/travel-packages/[id]/invoice/release`                             |
+| `POST`                 | `/api/travel-packages/[id]/invoice/lines`                               |
+| `PATCH`, `DELETE`      | `/api/travel-packages/[id]/invoice/lines/[lineId]`                      |
+| `GET`, `POST`          | `/api/travel-packages/[id]/payments`                                    |
+| `PATCH`, `DELETE`      | `/api/travel-packages/[id]/payments/[paymentId]`                        |
+| `GET`, `POST`          | `/api/travel-packages/[id]/payment-plan`                                |
+| `GET`, `POST`          | `/api/travel-packages/[id]/documents`                                   |
+| `PATCH`, `DELETE`      | `/api/travel-packages/[id]/documents/[documentId]`                      |
+| `GET`                  | `/api/travel-packages/[id]/documents/[documentId]/signed-url`           |
+| `PATCH`                | `/api/travel-packages/[id]/documents/access`                            |
+| `GET`, `POST`          | `/api/travel-packages/[id]/third-party-document-shares`                 |
+| `PATCH`                | `/api/travel-packages/[id]/third-party-document-shares/[shareId]`       |
+| `GET`, `POST`          | `/api/travel-packages/[id]/transport-vouchers`                          |
+| `PATCH`                | `/api/travel-packages/[id]/transport-vouchers/[voucherId]`              |
+| `GET`                  | `/api/travel-packages/[id]/transport-vouchers/[voucherId]/preview`      |
+| `GET`, `POST`          | `/api/travel-packages/backups/reconcile`                                |
+| `GET`                  | `/api/travel-packages/migration/status`                                 |
+| `POST`                 | `/api/travel-packages/migration/scan`                                   |
+| `POST`                 | `/api/travel-packages/migration/import`                                 |
+| `GET`                  | `/api/package-documents/[token]`                                        |
+| `POST`                 | `/api/package-portal/access`                                            |
+| `POST`                 | `/api/package-third-party-documents/[token]`                            |
+
+### Group routes
+
+| Methods                          | Route                                             |
+| -------------------------------- | ------------------------------------------------- |
+| `GET`, `POST`                    | `/api/travel-package-groups`                      |
+| `GET`, `PATCH`                   | `/api/travel-package-groups/[id]`                 |
+| `POST`, `PATCH`, `DELETE`        | `/api/travel-package-groups/[id]/members`         |
+| `POST`, `PUT`, `PATCH`, `DELETE` | `/api/travel-package-groups/[id]/shared-services` |
+
+Internal quote/folder/group operations require an authenticated staff context and feature-specific permissions; backup reconciliation and legacy migration controls require Super Admin. Public serializers exclude internal component costs, internal notes, storage keys, and agent-only documents. Customer visibility is release-based, not inferred from object existence. See [Travel Packages](../guides/TRAVEL_PACKAGES_GUIDE.md).
 
 ## Timeclock
 
-### GET|POST `/api/timeclock/events`
-
-Get or create timeclock events (clock-in/clock-out).
-
----
-
-### POST `/api/timeclock/scan`
-
-Process a QR code scan for clock-in/out.
-
-**Body:** `{ "qrData": "...", "employeeId": "..." }`
-
----
-
-### POST `/api/timeclock/manual-entry/generate`
-
-Generate a manual entry code.
-
----
-
-### POST `/api/timeclock/manual-entry/submit`
-
-Submit a manual clock entry with a generated code.
-
----
-
-### GET `/api/timeclock/manual-entry/diagnostics`
-
-Returns diagnostics for the manual entry system.
-
----
-
-## Admin
-
-Administrative endpoints require the canonical verified staff cookie/session guard. Each route then enforces its own role scope; there is no client-supplied service-role or blanket admin Bearer-token contract. `401` means the session is missing or invalid, while `403` means the authenticated employee lacks the required role or fresh second factor.
-
-### POST `/api/admin/add-employee`
-
-Create a new employee record.
-
----
-
-### DELETE `/api/admin/delete-employee`
-
-Delete an employee.
-
----
-
-### POST `/api/admin/disable-enable-employee`
-
-Toggle employee active/disabled status.
-
----
-
-### POST `/api/admin/reset-password`
-
-Reset another employee's password. Requires an administrative role and a fresh administrator TOTP or backup code. The generated credential is temporary, the employee is forced through the password-change flow, and delivery uses the configured mail provider.
-
----
-
-### POST `/api/admin/recover-employee-2fa`
-
-Audited break-glass recovery for another employee. Requires a Master Admin or Super Admin session, the administrator's fresh second factor, the exact target email, and a reason of at least ten characters. Self-recovery is rejected; use `/api/auth/reset-2fa` for the current account.
-
-**Body:**
-
-```json
-{
-  "employeeId": "target-uuid",
-  "confirmEmail": "target@example.com",
-  "reason": "Lost access to registered device",
-  "verificationCode": "123456",
-  "verificationMethod": "totp"
-}
-```
-
-**Success:**
-
-```json
-{
-  "recoveredEmployeeId": "target-uuid",
-  "employeeName": "Employee Name",
-  "removedFactors": 1,
-  "requiresSetup": true
-}
-```
-
----
-
-### POST `/api/admin/create-installments`
-
-Create installment records for an account.
-
----
-
-### POST `/api/admin/create-installments-table`
-
-Maintenance-role schema readiness check. This route does not create tables at runtime. It returns `503` until `scripts/migrations/20260812_secure_atomic_lms_operations.sql` has installed a compatible `lms` schema marker and capabilities.
-
----
-
-### GET|POST `/api/admin/server-control`
-
-Master/Super Admin only. `GET` reads the configured server status. `POST` accepts the allowlisted `start`, `stop`, or `restart` action and requires a fresh TOTP or backup code.
-
----
-
-### POST `/api/admin/seed-pricing`
-
-Seed initial pricing data.
-
----
-
-### POST `/api/admin/seed-countries`
-
-Seed country reference data.
-
----
-
-### POST `/api/admin/seed-payment-methods`
-
-Seed payment method reference data.
-
----
-
-### POST `/api/admin/seed-presets`
-
-Seed pricing presets.
-
----
-
-### POST `/api/admin/migrate-installment-amounts`
-
-Data migration: normalise installment amount fields.
-
----
-
-### POST `/api/admin/migrate-names-lowercase`
-
-Data migration: normalise name casing to lowercase.
-
----
-
-### POST `/api/admin/clear-lms`
-
-Clear all LMS data (destructive — use with caution).
-
----
-
-## Vitals
-
-### POST `/api/vitals`
-
-Receives Web Vitals metrics (CLS, LCP, FID, etc.) from the client for logging.
-
-Powered by the `WebVitalsReporter` component using the `web-vitals` library.
+| Methods | Route                                     |
+| ------- | ----------------------------------------- |
+| `GET`   | `/api/timeclock/events`                   |
+| `PATCH` | `/api/timeclock/events/[eventId]/adjust`  |
+| `POST`  | `/api/timeclock/scan`                     |
+| `GET`   | `/api/timeclock/notices`                  |
+| `GET`   | `/api/timeclock/manual-entry/diagnostics` |
+| `POST`  | `/api/timeclock/manual-entry/generate`    |
+| `POST`  | `/api/timeclock/manual-entry/submit`      |
+| `GET`   | `/api/timeclock/devices/activity`         |
+| `GET`   | `/api/timeclock/devices/config`           |
+| `POST`  | `/api/timeclock/devices/heartbeat`        |
+| `POST`  | `/api/timeclock/devices/manual-code`      |
+
+The staff QR-scan route validates the authenticated user and signed device QR payload. Physical-device endpoints use the signed `ptc1` device contract, nonce/timestamp replay controls, and active-device checks. Never expose device secrets or log signed payload material.
+
+## Frappe, HR, training, and dashboard services
+
+| Methods       | Route                                              |
+| ------------- | -------------------------------------------------- |
+| `GET`         | `/api/integrations/frappe/health`                  |
+| `GET`         | `/api/integrations/frappe/handoff`                 |
+| `GET`         | `/api/integrations/frappe/provisioning/candidates` |
+| `GET`, `POST` | `/api/integrations/frappe/provisioning/me`         |
+| `POST`        | `/api/integrations/frappe/provisioning/transfer`   |
+| `POST`        | `/api/integrations/frappe/reconcile`               |
+| `POST`        | `/api/integrations/frappe/sync/pull`               |
+| `POST`        | `/api/integrations/frappe/sync/push`               |
+| `POST`        | `/api/integrations/frappe/webhook`                 |
+| `GET`, `POST` | `/api/hr/leave/requests`                           |
+| `PATCH`       | `/api/hr/leave/requests/[id]`                      |
+| `GET`, `POST` | `/api/training`                                    |
+| `GET`, `POST` | `/api/dashboard/modules`                           |
+| `GET`         | `/api/dashboard/notice-board`                      |
+| `GET`         | `/api/dashboard/notice-board/image`                |
+| `POST`        | `/api/dashboard/notice-board/read`                 |
+| `POST`        | `/api/issue-reports`                               |
+| `POST`        | `/api/vitals`                                      |
+| `GET`         | `/api/pricing/umrah-transport`                     |
+
+Frappe staff routes require portal authorization; the webhook is signature-authenticated. Handoff tokens are short-lived and server-signed. See [Integrations](../guides/INTEGRATIONS_GUIDE.md) and [Frappe HRMS Setup](../guides/FRAPPE_HRMS_SETUP.md).
+
+## Administration
+
+| Methods                          | Route                                                        |
+| -------------------------------- | ------------------------------------------------------------ |
+| `GET`, `OPTIONS`, `POST`         | `/api/admin/add-employee`                                    |
+| `POST`                           | `/api/admin/delete-employee`                                 |
+| `POST`                           | `/api/admin/disable-enable-employee`                         |
+| `POST`                           | `/api/admin/reset-password`                                  |
+| `POST`                           | `/api/admin/recover-employee-2fa`                            |
+| `GET`, `POST`, `PATCH`           | `/api/admin/timeclock/devices`                               |
+| `GET`, `POST`                    | `/api/admin/server-control`                                  |
+| `GET`, `POST`, `PATCH`, `DELETE` | `/api/admin/notice-board`                                    |
+| `POST`                           | `/api/admin/notice-board/upload`                             |
+| `GET`                            | `/api/admin/receipt-metrics`                                 |
+| `GET`                            | `/api/admin/issue-reports`                                   |
+| `GET`, `PATCH`                   | `/api/admin/issue-reports/[reportId]`                        |
+| `GET`                            | `/api/admin/issue-reports/[reportId]/artifacts/[artifactId]` |
+| `POST`                           | `/api/admin/create-installments`                             |
+| `POST`                           | `/api/admin/create-installments-table`                       |
+| `POST`                           | `/api/admin/clear-lms`                                       |
+| `POST`                           | `/api/admin/clear-lms-data`                                  |
+| `POST`                           | `/api/admin/wipe-installments`                               |
+| `POST`                           | `/api/admin/migrate-installment-amounts`                     |
+| `POST`                           | `/api/admin/migrate-names-lowercase`                         |
+| `GET`, `POST`                    | `/api/admin/seed-countries`                                  |
+| `POST`                           | `/api/admin/seed-payment-methods`                            |
+| `GET`                            | `/api/admin/seed-presets`                                    |
+| `POST`                           | `/api/admin/seed-pricing`                                    |
+
+Admin route names include legacy verbs and are not a promise of REST semantics. Destructive security and infrastructure operations add stricter roles, target restrictions, confirmation fields, rate limits, and fresh TOTP/backup verification as defined by each route. `POST /api/admin/create-installments-table` is a schema-readiness check and returns `503` if the required LMS migration is absent; it does not create tables at runtime.
+
+## Scheduled jobs
+
+| Methods | Route                                                | Schedule in `vercel.json` |
+| ------- | ---------------------------------------------------- | ------------------------- |
+| `GET`   | `/api/cron/bookings/reminders`                       | Daily 06:00 UTC           |
+| `GET`   | `/api/cron/issue-reports/cleanup`                    | Daily 03:00 UTC           |
+| `GET`   | `/api/cron/passports/pak/drafts-cleanup`             | Daily 03:30 UTC           |
+| `GET`   | `/api/cron/integrations/frappe/outbox`               | Daily 04:00 UTC           |
+| `GET`   | `/api/cron/integrations/frappe/timeclock-attendance` | Daily 04:30 UTC           |
+
+All five routes use the shared fail-closed cron authorization helper. Manual calls must send the same bearer header. Booking reminder links use `APP_BASE_URL`, then `NEXT_PUBLIC_SITE_URL`, then legacy `NEXT_PUBLIC_APP_URL`; the optional lookback is clamped to 15–1,440 minutes.
+
+## Updating this reference
+
+When adding, deleting, or changing a route:
+
+1. Update the relevant table and cross-cutting contract here.
+2. Add/update bounded validation and focused tests.
+3. Update the corresponding field-level entry under `docs/api/`.
+4. Run `npm run api:check-boundaries`, `npm run docs:check`, and `npm run docs:check-api`.
+5. Update the feature guide when behavior, permissions, limits, environment values, or customer-visible fields changed.

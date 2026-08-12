@@ -6,22 +6,11 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo, memo } from 'react'
-import {
-  Search,
-  Plus,
-  Users,
-  Banknote,
-  AlertTriangle,
-  Clock,
-  Filter,
-  StickyNote,
-  History,
-} from 'lucide-react'
+import { Search, Plus, Users, Banknote, AlertTriangle, Clock, Filter } from 'lucide-react'
 
 // Imports from extracted components
 import { StatCard } from './components/StatCard'
 import { AccountRow } from './components/AccountRow'
-import { ModalWrapper } from './components/ModalWrapper'
 import { NewCustomerModal } from './components/NewCustomerModal'
 import { TransactionModal } from './components/TransactionModal'
 import { StatementPopup } from './components/StatementPopup'

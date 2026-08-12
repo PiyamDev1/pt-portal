@@ -108,7 +108,10 @@ function buildTemplatePreviewHtml(rawTemplate: string | null | undefined): strin
   }
 
   if (!base) {
-    return buildBookingEmailHtmlFromTemplate('Start typing a template to preview it here.', sampleValues)
+    return buildBookingEmailHtmlFromTemplate(
+      'Start typing a template to preview it here.',
+      sampleValues,
+    )
   }
 
   return buildBookingEmailHtmlFromTemplate(base, sampleValues)
@@ -199,7 +202,8 @@ function buildDefaultReminderSettings(locationId: string): BookingReminderSettin
     penalty_enabled: true,
     penalty_threshold: 3,
     penalty_action: 'block_until_manual_review',
-    penalty_note: 'Repeat no-show profile. Staff review required before accepting another appointment.',
+    penalty_note:
+      'Repeat no-show profile. Staff review required before accepting another appointment.',
   }
 }
 
@@ -209,13 +213,7 @@ interface BookingSettingsTabProps {
   onLocationChange: (locationId: string) => void
 }
 
-function LabeledInput({
-  label,
-  children,
-}: {
-  label: string
-  children: ReactNode
-}) {
+function LabeledInput({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="space-y-1 block">
       <span className="text-xs font-medium text-slate-600">{label}</span>
@@ -233,7 +231,9 @@ function TemplatePreview({
 }) {
   return (
     <div className="mt-2 rounded border border-slate-200 bg-white p-2">
-      <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">{title} Preview</p>
+      <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+        {title} Preview
+      </p>
       <iframe
         title={`${title} preview`}
         srcDoc={buildTemplatePreviewHtml(template)}
@@ -253,7 +253,9 @@ function TemplatePresetButtons({
 }) {
   return (
     <div className="mb-2 flex flex-wrap items-center gap-1.5">
-      <span className="text-[11px] font-medium uppercase tracking-wide text-slate-400">Presets</span>
+      <span className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
+        Presets
+      </span>
       {TEMPLATE_PRESETS[field].map((preset) => (
         <button
           key={`${field}-${preset.label}`}
@@ -306,20 +308,24 @@ export default function BookingSettingsTab({
   onLocationChange,
 }: BookingSettingsTabProps) {
   const [loading, setLoading] = useState(false)
-  const [activeSection, setActiveSection] = useState<'overrides' | 'services' | 'reminders'>('overrides')
+  const [activeSection, setActiveSection] = useState<'overrides' | 'services' | 'reminders'>(
+    'overrides',
+  )
 
   const [weeklySettings, setWeeklySettings] = useState<BranchSettingRow[]>([])
   const [overrides, setOverrides] = useState<BranchScheduleOverride[]>([])
   const [services, setServices] = useState<BookingServiceRow[]>([])
   const [reminderSettings, setReminderSettings] = useState<BookingReminderSettings>(
-    buildDefaultReminderSettings(selectedLocationId)
+    buildDefaultReminderSettings(selectedLocationId),
   )
 
   const [newService, setNewService] = useState(() => buildNewServiceDraft())
   const [showAddService, setShowAddService] = useState(false)
   const [editingService, setEditingService] = useState<BookingServiceRow | null>(null)
-  const [activeNewTemplateField, setActiveNewTemplateField] = useState<TemplateField>('confirmation_template')
-  const [activeEditTemplateField, setActiveEditTemplateField] = useState<TemplateField>('confirmation_template')
+  const [activeNewTemplateField, setActiveNewTemplateField] =
+    useState<TemplateField>('confirmation_template')
+  const [activeEditTemplateField, setActiveEditTemplateField] =
+    useState<TemplateField>('confirmation_template')
   const newTemplateRefs = useRef<Record<TemplateField, HTMLTextAreaElement | null>>({
     confirmation_template: null,
     modification_template: null,
@@ -332,7 +338,9 @@ export default function BookingSettingsTab({
   })
 
   const [newOverrideDate, setNewOverrideDate] = useState('')
-  const [newOverride, setNewOverride] = useState<Omit<BranchScheduleOverride, 'id' | 'location_id' | 'date'>>({
+  const [newOverride, setNewOverride] = useState<
+    Omit<BranchScheduleOverride, 'id' | 'location_id' | 'date'>
+  >({
     open_time: '09:00',
     close_time: '17:00',
     lunch_start_time: '13:00',
@@ -347,7 +355,7 @@ export default function BookingSettingsTab({
 
   const selectedBranch = useMemo(
     () => branchLocations.find((l) => l.id === selectedLocationId),
-    [branchLocations, selectedLocationId]
+    [branchLocations, selectedLocationId],
   )
 
   const loadAll = async (locationId: string) => {
@@ -361,7 +369,9 @@ export default function BookingSettingsTab({
 
       const [weeklyRes, overridesRes, servicesRes, remindersRes] = await Promise.all([
         fetch(`/api/bookings/settings/branch?location_id=${locationId}`),
-        fetch(`/api/bookings/settings/overrides?location_id=${locationId}&from=${from.toISOString().slice(0, 10)}&to=${to.toISOString().slice(0, 10)}`),
+        fetch(
+          `/api/bookings/settings/overrides?location_id=${locationId}&from=${from.toISOString().slice(0, 10)}&to=${to.toISOString().slice(0, 10)}`,
+        ),
         fetch(`/api/bookings/settings/services?location_id=${locationId}`),
         fetch(`/api/bookings/settings/reminders?location_id=${locationId}`),
       ])
@@ -380,7 +390,10 @@ export default function BookingSettingsTab({
       setWeeklySettings(rows.length > 0 ? rows : buildDefaultWeek(locationId))
       setOverrides((overridesJson.overrides || []) as BranchScheduleOverride[])
       setServices(((servicesJson.services || []) as BookingServiceRow[]).map(normalizeServiceRow))
-      setReminderSettings((remindersJson.settings || buildDefaultReminderSettings(locationId)) as BookingReminderSettings)
+      setReminderSettings(
+        (remindersJson.settings ||
+          buildDefaultReminderSettings(locationId)) as BookingReminderSettings,
+      )
     } catch (error) {
       toast.error('Failed to load booking settings', {
         description: error instanceof Error ? error.message : 'Unknown error',
@@ -403,10 +416,10 @@ export default function BookingSettingsTab({
   const updateDay = (
     day: number,
     field: keyof BranchSettingRow,
-    value: string | number | boolean | null
+    value: string | number | boolean | null,
   ) => {
     setWeeklySettings((prev) =>
-      prev.map((row) => (row.day_of_week === day ? { ...row, [field]: value } : row))
+      prev.map((row) => (row.day_of_week === day ? { ...row, [field]: value } : row)),
     )
   }
 
@@ -421,7 +434,7 @@ export default function BookingSettingsTab({
   const insertTokenAtSelection = (
     currentValue: string,
     token: string,
-    textarea: HTMLTextAreaElement | null
+    textarea: HTMLTextAreaElement | null,
   ) => {
     if (!textarea) {
       return `${currentValue}${currentValue.endsWith(' ') || currentValue.length === 0 ? '' : ' '}${token}`
@@ -481,7 +494,10 @@ export default function BookingSettingsTab({
   const buildTemplateErrorMessage = (json: any): string => {
     if (!Array.isArray(json?.template_errors)) return json?.error || 'Invalid template variables'
     const details = json.template_errors
-      .map((entry: { field: string; invalidTokens: string[] }) => `${entry.field}: ${entry.invalidTokens.join(', ')}`)
+      .map(
+        (entry: { field: string; invalidTokens: string[] }) =>
+          `${entry.field}: ${entry.invalidTokens.join(', ')}`,
+      )
       .join(' | ')
     return `${json.error || 'Template contains unsupported placeholders'} (${details})`
   }
@@ -620,14 +636,19 @@ export default function BookingSettingsTab({
           confirmation_template: editingService.confirmation_template,
           modification_template: editingService.modification_template,
           cancellation_template: editingService.cancellation_template,
-          duration_per_additional_person_minutes: editingService.duration_per_additional_person_minutes,
+          duration_per_additional_person_minutes:
+            editingService.duration_per_additional_person_minutes,
           person_count_excludes_family_head: editingService.person_count_excludes_family_head,
           close_overrun_tolerance_minutes: editingService.close_overrun_tolerance_minutes,
         }),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(buildTemplateErrorMessage(json))
-      setServices((prev) => prev.map((s) => (s.id === editingService.id ? normalizeServiceRow(json.service as BookingServiceRow) : s)))
+      setServices((prev) =>
+        prev.map((s) =>
+          s.id === editingService.id ? normalizeServiceRow(json.service as BookingServiceRow) : s,
+        ),
+      )
       setEditingService(null)
       toast.success('Service updated')
     } catch (error) {
@@ -649,7 +670,11 @@ export default function BookingSettingsTab({
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error)
-      setServices((prev) => prev.map((s) => (s.id === service.id ? normalizeServiceRow(json.service as BookingServiceRow) : s)))
+      setServices((prev) =>
+        prev.map((s) =>
+          s.id === service.id ? normalizeServiceRow(json.service as BookingServiceRow) : s,
+        ),
+      )
     } catch (error) {
       toast.error('Failed to update service', {
         description: error instanceof Error ? error.message : 'Unknown error',
@@ -715,12 +740,14 @@ export default function BookingSettingsTab({
         >
           {branchLocations.map((location) => (
             <option key={location.id} value={location.id}>
-              {location.name}{location.branch_code ? ` (${location.branch_code})` : ''}
+              {location.name}
+              {location.branch_code ? ` (${location.branch_code})` : ''}
             </option>
           ))}
         </select>
         <p className="text-xs text-slate-500">
-          Settings apply to: <span className="font-semibold">{selectedBranch?.name || 'Branch'}</span>
+          Settings apply to:{' '}
+          <span className="font-semibold">{selectedBranch?.name || 'Branch'}</span>
         </p>
       </div>
 
@@ -748,60 +775,161 @@ export default function BookingSettingsTab({
       {activeSection === 'overrides' && (
         <div className="space-y-4">
           <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-3">
-            <h3 className="text-sm font-semibold text-slate-700">Add One-off Schedule (special date)</h3>
+            <h3 className="text-sm font-semibold text-slate-700">
+              Add One-off Schedule (special date)
+            </h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <LabeledInput label="Date">
-                <input type="date" value={newOverrideDate} onChange={(e) => setNewOverrideDate(e.target.value)} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
+                <input
+                  type="date"
+                  value={newOverrideDate}
+                  onChange={(e) => setNewOverrideDate(e.target.value)}
+                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
+                />
               </LabeledInput>
               <LabeledInput label="Branch Open Time">
-                <input type="time" value={newOverride.open_time || ''} onChange={(e) => setNewOverride((p) => ({ ...p, open_time: e.target.value || null }))} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
+                <input
+                  type="time"
+                  value={newOverride.open_time || ''}
+                  onChange={(e) =>
+                    setNewOverride((p) => ({ ...p, open_time: e.target.value || null }))
+                  }
+                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
+                />
               </LabeledInput>
               <LabeledInput label="Branch Close Time">
-                <input type="time" value={newOverride.close_time || ''} onChange={(e) => setNewOverride((p) => ({ ...p, close_time: e.target.value || null }))} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
+                <input
+                  type="time"
+                  value={newOverride.close_time || ''}
+                  onChange={(e) =>
+                    setNewOverride((p) => ({ ...p, close_time: e.target.value || null }))
+                  }
+                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
+                />
               </LabeledInput>
               <LabeledInput label="Lunch Break Start">
-                <input type="time" value={newOverride.lunch_start_time || ''} onChange={(e) => setNewOverride((p) => ({ ...p, lunch_start_time: e.target.value || null }))} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
+                <input
+                  type="time"
+                  value={newOverride.lunch_start_time || ''}
+                  onChange={(e) =>
+                    setNewOverride((p) => ({ ...p, lunch_start_time: e.target.value || null }))
+                  }
+                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
+                />
               </LabeledInput>
               <LabeledInput label="Lunch Break End">
-                <input type="time" value={newOverride.lunch_end_time || ''} onChange={(e) => setNewOverride((p) => ({ ...p, lunch_end_time: e.target.value || null }))} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
+                <input
+                  type="time"
+                  value={newOverride.lunch_end_time || ''}
+                  onChange={(e) =>
+                    setNewOverride((p) => ({ ...p, lunch_end_time: e.target.value || null }))
+                  }
+                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
+                />
               </LabeledInput>
               <LabeledInput label="Prayer Break Start">
-                <input type="time" value={newOverride.prayer_start_time || ''} onChange={(e) => setNewOverride((p) => ({ ...p, prayer_start_time: e.target.value || null }))} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
+                <input
+                  type="time"
+                  value={newOverride.prayer_start_time || ''}
+                  onChange={(e) =>
+                    setNewOverride((p) => ({ ...p, prayer_start_time: e.target.value || null }))
+                  }
+                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
+                />
               </LabeledInput>
               <LabeledInput label="Prayer Break End">
-                <input type="time" value={newOverride.prayer_end_time || ''} onChange={(e) => setNewOverride((p) => ({ ...p, prayer_end_time: e.target.value || null }))} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
+                <input
+                  type="time"
+                  value={newOverride.prayer_end_time || ''}
+                  onChange={(e) =>
+                    setNewOverride((p) => ({ ...p, prayer_end_time: e.target.value || null }))
+                  }
+                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
+                />
               </LabeledInput>
               <LabeledInput label="Concurrent Staff (all services)">
-                <input type="number" min={1} value={newOverride.concurrent_staff} onChange={(e) => setNewOverride((p) => ({ ...p, concurrent_staff: Math.max(1, Number(e.target.value)) }))} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
+                <input
+                  type="number"
+                  min={1}
+                  value={newOverride.concurrent_staff}
+                  onChange={(e) =>
+                    setNewOverride((p) => ({
+                      ...p,
+                      concurrent_staff: Math.max(1, Number(e.target.value)),
+                    }))
+                  }
+                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
+                />
               </LabeledInput>
               <LabeledInput label="Slot Interval (deprecated: use service slots)">
-                <select value={newOverride.slot_interval_minutes} onChange={(e) => setNewOverride((p) => ({ ...p, slot_interval_minutes: Number(e.target.value) }))} className="w-full border border-slate-300 rounded px-3 py-2 text-sm">
-                  {INTERVAL_OPTIONS.map((v) => <option key={v} value={v}>{v} min interval</option>)}
+                <select
+                  value={newOverride.slot_interval_minutes}
+                  onChange={(e) =>
+                    setNewOverride((p) => ({ ...p, slot_interval_minutes: Number(e.target.value) }))
+                  }
+                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
+                >
+                  {INTERVAL_OPTIONS.map((v) => (
+                    <option key={v} value={v}>
+                      {v} min interval
+                    </option>
+                  ))}
                 </select>
               </LabeledInput>
             </div>
-            <p className="text-xs text-slate-500">Concurrent staff is shared across all booking services. If one person handles appointments, keep this at 1 so services cannot overlap.</p>
+            <p className="text-xs text-slate-500">
+              Concurrent staff is shared across all booking services. If one person handles
+              appointments, keep this at 1 so services cannot overlap.
+            </p>
             <div className="flex items-center gap-3">
-              <label className="inline-flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" checked={newOverride.is_closed} onChange={(e) => setNewOverride((p) => ({ ...p, is_closed: e.target.checked }))} /> Closed all day</label>
-              <button onClick={saveOverride} disabled={loading} className="px-4 py-2 rounded bg-indigo-600 text-white text-sm font-medium disabled:opacity-50">{loading ? 'Saving...' : 'Save One-off Schedule'}</button>
+              <label className="inline-flex items-center gap-2 text-sm text-slate-600">
+                <input
+                  type="checkbox"
+                  checked={newOverride.is_closed}
+                  onChange={(e) => setNewOverride((p) => ({ ...p, is_closed: e.target.checked }))}
+                />{' '}
+                Closed all day
+              </label>
+              <button
+                onClick={saveOverride}
+                disabled={loading}
+                className="px-4 py-2 rounded bg-indigo-600 text-white text-sm font-medium disabled:opacity-50"
+              >
+                {loading ? 'Saving...' : 'Save One-off Schedule'}
+              </button>
             </div>
           </div>
 
           <div className="rounded-lg border border-slate-200 bg-white">
-            <div className="px-4 py-3 border-b border-slate-100 text-sm font-semibold text-slate-700">Upcoming One-off Schedules</div>
+            <div className="px-4 py-3 border-b border-slate-100 text-sm font-semibold text-slate-700">
+              Upcoming One-off Schedules
+            </div>
             {overrides.length === 0 ? (
-              <div className="px-4 py-8 text-sm text-slate-400 text-center">No one-off schedules configured</div>
+              <div className="px-4 py-8 text-sm text-slate-400 text-center">
+                No one-off schedules configured
+              </div>
             ) : (
               <div className="divide-y divide-slate-100">
                 {overrides.map((row) => (
                   <div key={row.id} className="px-4 py-3 flex items-center justify-between gap-4">
                     <div>
-                      <p className="text-sm font-medium text-slate-700">{row.date}{row.is_closed ? ' (Closed)' : ''}</p>
+                      <p className="text-sm font-medium text-slate-700">
+                        {row.date}
+                        {row.is_closed ? ' (Closed)' : ''}
+                      </p>
                       <p className="text-xs text-slate-500">
-                        {row.open_time || '--'}-{row.close_time || '--'} | Lunch {row.lunch_start_time || '--'}-{row.lunch_end_time || '--'} | Prayer {row.prayer_start_time || '--'}-{row.prayer_end_time || '--'} | Staff {row.concurrent_staff}
+                        {row.open_time || '--'}-{row.close_time || '--'} | Lunch{' '}
+                        {row.lunch_start_time || '--'}-{row.lunch_end_time || '--'} | Prayer{' '}
+                        {row.prayer_start_time || '--'}-{row.prayer_end_time || '--'} | Staff{' '}
+                        {row.concurrent_staff}
                       </p>
                     </div>
-                    <button onClick={() => deleteOverride(row.id)} className="px-3 py-1.5 text-xs rounded border border-red-200 text-red-600 bg-red-50">Delete</button>
+                    <button
+                      onClick={() => deleteOverride(row.id)}
+                      className="px-3 py-1.5 text-xs rounded border border-red-200 text-red-600 bg-red-50"
+                    >
+                      Delete
+                    </button>
                   </div>
                 ))}
               </div>
@@ -813,16 +941,34 @@ export default function BookingSettingsTab({
       {activeSection === 'services' && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <p className="text-sm text-slate-600">Define service-specific duration, buffer before next appointment, service hours, and customer email templates for booked/modified/cancelled events.</p>
-            <button onClick={() => { setNewService(buildNewServiceDraft()); setShowAddService(true) }} className="px-4 py-2 rounded bg-indigo-600 text-white text-sm font-medium">+ Add Service</button>
+            <p className="text-sm text-slate-600">
+              Define service-specific duration, buffer before next appointment, service hours, and
+              customer email templates for booked/modified/cancelled events.
+            </p>
+            <button
+              onClick={() => {
+                setNewService(buildNewServiceDraft())
+                setShowAddService(true)
+              }}
+              className="px-4 py-2 rounded bg-indigo-600 text-white text-sm font-medium"
+            >
+              + Add Service
+            </button>
           </div>
 
           <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
             <p className="font-semibold">Template Variables</p>
-            <p className="mt-1">Use square brackets exactly as shown, for example: Dear [Customer Name].</p>
+            <p className="mt-1">
+              Use square brackets exactly as shown, for example: Dear [Customer Name].
+            </p>
             <div className="mt-2 flex flex-wrap gap-2">
               {TEMPLATE_VARIABLES.map((token) => (
-                <span key={token} className="rounded bg-white border border-blue-200 px-2 py-1 text-xs text-blue-800">{token}</span>
+                <span
+                  key={token}
+                  className="rounded bg-white border border-blue-200 px-2 py-1 text-xs text-blue-800"
+                >
+                  {token}
+                </span>
               ))}
             </div>
           </div>
@@ -830,34 +976,101 @@ export default function BookingSettingsTab({
           {showAddService && (
             <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
               <LabeledInput label="Service Name">
-                <input type="text" value={newService.name} onChange={(e) => setNewService((p) => ({ ...p, name: e.target.value }))} placeholder="e.g. Medical" className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
+                <input
+                  type="text"
+                  value={newService.name}
+                  onChange={(e) => setNewService((p) => ({ ...p, name: e.target.value }))}
+                  placeholder="e.g. Medical"
+                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
+                />
               </LabeledInput>
               <LabeledInput label="Duration (minutes)">
-                <input type="number" min={5} value={newService.duration_minutes} onChange={(e) => setNewService((p) => ({ ...p, duration_minutes: Number(e.target.value) }))} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
+                <input
+                  type="number"
+                  min={5}
+                  value={newService.duration_minutes}
+                  onChange={(e) =>
+                    setNewService((p) => ({ ...p, duration_minutes: Number(e.target.value) }))
+                  }
+                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
+                />
               </LabeledInput>
               <LabeledInput label="Buffer (minutes)">
-                <input type="number" min={0} value={newService.buffer_minutes} onChange={(e) => setNewService((p) => ({ ...p, buffer_minutes: Number(e.target.value) }))} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
+                <input
+                  type="number"
+                  min={0}
+                  value={newService.buffer_minutes}
+                  onChange={(e) =>
+                    setNewService((p) => ({ ...p, buffer_minutes: Number(e.target.value) }))
+                  }
+                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
+                />
               </LabeledInput>
               <LabeledInput label="Service Start Time">
-                <input type="time" value={newService.service_start_time} onChange={(e) => setNewService((p) => ({ ...p, service_start_time: e.target.value }))} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
+                <input
+                  type="time"
+                  value={newService.service_start_time}
+                  onChange={(e) =>
+                    setNewService((p) => ({ ...p, service_start_time: e.target.value }))
+                  }
+                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
+                />
               </LabeledInput>
               <LabeledInput label="Service End Time">
-                <input type="time" value={newService.service_end_time} onChange={(e) => setNewService((p) => ({ ...p, service_end_time: e.target.value }))} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
+                <input
+                  type="time"
+                  value={newService.service_end_time}
+                  onChange={(e) =>
+                    setNewService((p) => ({ ...p, service_end_time: e.target.value }))
+                  }
+                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
+                />
               </LabeledInput>
               <LabeledInput label="Extra Time per Additional Person (minutes)">
-                <input type="number" min={0} value={newService.duration_per_additional_person_minutes} onChange={(e) => setNewService((p) => ({ ...p, duration_per_additional_person_minutes: Math.max(0, Number(e.target.value)) }))} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
-                <p className="mt-1 text-[11px] text-slate-400">e.g. 22 mins → 3 people ≈ 2.5 slots</p>
+                <input
+                  type="number"
+                  min={0}
+                  value={newService.duration_per_additional_person_minutes}
+                  onChange={(e) =>
+                    setNewService((p) => ({
+                      ...p,
+                      duration_per_additional_person_minutes: Math.max(0, Number(e.target.value)),
+                    }))
+                  }
+                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
+                />
+                <p className="mt-1 text-[11px] text-slate-400">
+                  e.g. 22 mins → 3 people ≈ 2.5 slots
+                </p>
               </LabeledInput>
               <LabeledInput label="Close-Time Overrun Allowed (minutes)">
-                <input type="number" min={0} value={newService.close_overrun_tolerance_minutes} onChange={(e) => setNewService((p) => ({ ...p, close_overrun_tolerance_minutes: Math.max(0, Number(e.target.value)) }))} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
-                <p className="mt-1 text-[11px] text-slate-400">Allows an appointment to finish this many minutes after service close time.</p>
+                <input
+                  type="number"
+                  min={0}
+                  value={newService.close_overrun_tolerance_minutes}
+                  onChange={(e) =>
+                    setNewService((p) => ({
+                      ...p,
+                      close_overrun_tolerance_minutes: Math.max(0, Number(e.target.value)),
+                    }))
+                  }
+                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
+                />
+                <p className="mt-1 text-[11px] text-slate-400">
+                  Allows an appointment to finish this many minutes after service close time.
+                </p>
               </LabeledInput>
               <LabeledInput label="Person Count Rule">
                 <label className="inline-flex items-center gap-2 text-sm text-slate-700">
                   <input
                     type="checkbox"
                     checked={newService.person_count_excludes_family_head}
-                    onChange={(e) => setNewService((p) => ({ ...p, person_count_excludes_family_head: e.target.checked }))}
+                    onChange={(e) =>
+                      setNewService((p) => ({
+                        ...p,
+                        person_count_excludes_family_head: e.target.checked,
+                      }))
+                    }
                   />
                   Person count excludes family head
                 </label>
@@ -871,7 +1084,12 @@ export default function BookingSettingsTab({
                       <button
                         key={name}
                         type="button"
-                        onClick={() => setNewService((p) => ({ ...p, available_days: toggleServiceDay(p.available_days, day) }))}
+                        onClick={() =>
+                          setNewService((p) => ({
+                            ...p,
+                            available_days: toggleServiceDay(p.available_days, day),
+                          }))
+                        }
                         className={`px-2 py-1 rounded text-xs border ${active ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-300'}`}
                       >
                         {name.slice(0, 3)}
@@ -883,44 +1101,136 @@ export default function BookingSettingsTab({
               <div className="md:col-span-5 grid grid-cols-1 md:grid-cols-3 gap-3">
                 <LabeledInput label="Booking Confirmation Email Template">
                   <>
-                    <TemplatePresetButtons field="confirmation_template" onApply={(template) => applyTemplatePreset('new', 'confirmation_template', template)} />
+                    <TemplatePresetButtons
+                      field="confirmation_template"
+                      onApply={(template) =>
+                        applyTemplatePreset('new', 'confirmation_template', template)
+                      }
+                    />
                     <div className="mb-2 flex flex-wrap gap-1.5">
                       {TEMPLATE_VARIABLES.map((token) => (
-                        <button key={`new-confirmation-${token}`} type="button" onClick={() => insertTemplateToken('new', token)} className="rounded border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] text-blue-800">{token}</button>
+                        <button
+                          key={`new-confirmation-${token}`}
+                          type="button"
+                          onClick={() => insertTemplateToken('new', token)}
+                          className="rounded border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] text-blue-800"
+                        >
+                          {token}
+                        </button>
                       ))}
                     </div>
-                    <textarea ref={(el) => { newTemplateRefs.current.confirmation_template = el }} value={newService.confirmation_template} onFocus={() => setActiveNewTemplateField('confirmation_template')} onChange={(e) => setNewService((p) => ({ ...p, confirmation_template: e.target.value }))} rows={6} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" placeholder="Dear [Customer Name],\n\nYour appointment has been booked for [date booked] at [time booked] for [service booked]." />
-                    <TemplatePreview title="Confirmation" template={newService.confirmation_template} />
+                    <textarea
+                      ref={(el) => {
+                        newTemplateRefs.current.confirmation_template = el
+                      }}
+                      value={newService.confirmation_template}
+                      onFocus={() => setActiveNewTemplateField('confirmation_template')}
+                      onChange={(e) =>
+                        setNewService((p) => ({ ...p, confirmation_template: e.target.value }))
+                      }
+                      rows={6}
+                      className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
+                      placeholder="Dear [Customer Name],\n\nYour appointment has been booked for [date booked] at [time booked] for [service booked]."
+                    />
+                    <TemplatePreview
+                      title="Confirmation"
+                      template={newService.confirmation_template}
+                    />
                   </>
                 </LabeledInput>
                 <LabeledInput label="Booking Modification Email Template">
                   <>
-                    <TemplatePresetButtons field="modification_template" onApply={(template) => applyTemplatePreset('new', 'modification_template', template)} />
+                    <TemplatePresetButtons
+                      field="modification_template"
+                      onApply={(template) =>
+                        applyTemplatePreset('new', 'modification_template', template)
+                      }
+                    />
                     <div className="mb-2 flex flex-wrap gap-1.5">
                       {TEMPLATE_VARIABLES.map((token) => (
-                        <button key={`new-modification-${token}`} type="button" onClick={() => insertTemplateToken('new', token)} className="rounded border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] text-blue-800">{token}</button>
+                        <button
+                          key={`new-modification-${token}`}
+                          type="button"
+                          onClick={() => insertTemplateToken('new', token)}
+                          className="rounded border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] text-blue-800"
+                        >
+                          {token}
+                        </button>
                       ))}
                     </div>
-                    <textarea ref={(el) => { newTemplateRefs.current.modification_template = el }} value={newService.modification_template} onFocus={() => setActiveNewTemplateField('modification_template')} onChange={(e) => setNewService((p) => ({ ...p, modification_template: e.target.value }))} rows={6} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" placeholder="Dear [Customer Name],\n\nYour appointment has been updated to [date booked] at [time booked] for [service booked]." />
-                    <TemplatePreview title="Modification" template={newService.modification_template} />
+                    <textarea
+                      ref={(el) => {
+                        newTemplateRefs.current.modification_template = el
+                      }}
+                      value={newService.modification_template}
+                      onFocus={() => setActiveNewTemplateField('modification_template')}
+                      onChange={(e) =>
+                        setNewService((p) => ({ ...p, modification_template: e.target.value }))
+                      }
+                      rows={6}
+                      className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
+                      placeholder="Dear [Customer Name],\n\nYour appointment has been updated to [date booked] at [time booked] for [service booked]."
+                    />
+                    <TemplatePreview
+                      title="Modification"
+                      template={newService.modification_template}
+                    />
                   </>
                 </LabeledInput>
                 <LabeledInput label="Booking Cancellation Email Template">
                   <>
-                    <TemplatePresetButtons field="cancellation_template" onApply={(template) => applyTemplatePreset('new', 'cancellation_template', template)} />
+                    <TemplatePresetButtons
+                      field="cancellation_template"
+                      onApply={(template) =>
+                        applyTemplatePreset('new', 'cancellation_template', template)
+                      }
+                    />
                     <div className="mb-2 flex flex-wrap gap-1.5">
                       {TEMPLATE_VARIABLES.map((token) => (
-                        <button key={`new-cancellation-${token}`} type="button" onClick={() => insertTemplateToken('new', token)} className="rounded border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] text-blue-800">{token}</button>
+                        <button
+                          key={`new-cancellation-${token}`}
+                          type="button"
+                          onClick={() => insertTemplateToken('new', token)}
+                          className="rounded border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] text-blue-800"
+                        >
+                          {token}
+                        </button>
                       ))}
                     </div>
-                    <textarea ref={(el) => { newTemplateRefs.current.cancellation_template = el }} value={newService.cancellation_template} onFocus={() => setActiveNewTemplateField('cancellation_template')} onChange={(e) => setNewService((p) => ({ ...p, cancellation_template: e.target.value }))} rows={6} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" placeholder="Dear [Customer Name],\n\nYour appointment for [service booked] on [date booked] at [time booked] has been cancelled." />
-                    <TemplatePreview title="Cancellation" template={newService.cancellation_template} />
+                    <textarea
+                      ref={(el) => {
+                        newTemplateRefs.current.cancellation_template = el
+                      }}
+                      value={newService.cancellation_template}
+                      onFocus={() => setActiveNewTemplateField('cancellation_template')}
+                      onChange={(e) =>
+                        setNewService((p) => ({ ...p, cancellation_template: e.target.value }))
+                      }
+                      rows={6}
+                      className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
+                      placeholder="Dear [Customer Name],\n\nYour appointment for [service booked] on [date booked] at [time booked] has been cancelled."
+                    />
+                    <TemplatePreview
+                      title="Cancellation"
+                      template={newService.cancellation_template}
+                    />
                   </>
                 </LabeledInput>
               </div>
               <div className="flex gap-2">
-                <button onClick={addService} disabled={loading} className="px-3 py-2 rounded bg-indigo-600 text-white text-sm disabled:opacity-50">Add</button>
-                <button onClick={() => setShowAddService(false)} className="px-3 py-2 rounded border border-slate-300 text-sm">Cancel</button>
+                <button
+                  onClick={addService}
+                  disabled={loading}
+                  className="px-3 py-2 rounded bg-indigo-600 text-white text-sm disabled:opacity-50"
+                >
+                  Add
+                </button>
+                <button
+                  onClick={() => setShowAddService(false)}
+                  className="px-3 py-2 rounded border border-slate-300 text-sm"
+                >
+                  Cancel
+                </button>
               </div>
             </div>
           )}
@@ -931,34 +1241,123 @@ export default function BookingSettingsTab({
                 {editingService?.id === service.id ? (
                   <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
                     <LabeledInput label="Service Name">
-                      <input type="text" value={editingService.name} onChange={(e) => setEditingService((p) => (p ? { ...p, name: e.target.value } : p))} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
+                      <input
+                        type="text"
+                        value={editingService.name}
+                        onChange={(e) =>
+                          setEditingService((p) => (p ? { ...p, name: e.target.value } : p))
+                        }
+                        className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
+                      />
                     </LabeledInput>
                     <LabeledInput label="Duration (minutes)">
-                      <input type="number" min={5} value={editingService.duration_minutes} onChange={(e) => setEditingService((p) => (p ? { ...p, duration_minutes: Number(e.target.value) } : p))} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
+                      <input
+                        type="number"
+                        min={5}
+                        value={editingService.duration_minutes}
+                        onChange={(e) =>
+                          setEditingService((p) =>
+                            p ? { ...p, duration_minutes: Number(e.target.value) } : p,
+                          )
+                        }
+                        className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
+                      />
                     </LabeledInput>
                     <LabeledInput label="Buffer (minutes)">
-                      <input type="number" min={0} value={editingService.buffer_minutes} onChange={(e) => setEditingService((p) => (p ? { ...p, buffer_minutes: Number(e.target.value) } : p))} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
+                      <input
+                        type="number"
+                        min={0}
+                        value={editingService.buffer_minutes}
+                        onChange={(e) =>
+                          setEditingService((p) =>
+                            p ? { ...p, buffer_minutes: Number(e.target.value) } : p,
+                          )
+                        }
+                        className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
+                      />
                     </LabeledInput>
                     <LabeledInput label="Service Start Time">
-                      <input type="time" value={editingService.service_start_time || ''} onChange={(e) => setEditingService((p) => (p ? { ...p, service_start_time: e.target.value || null } : p))} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
+                      <input
+                        type="time"
+                        value={editingService.service_start_time || ''}
+                        onChange={(e) =>
+                          setEditingService((p) =>
+                            p ? { ...p, service_start_time: e.target.value || null } : p,
+                          )
+                        }
+                        className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
+                      />
                     </LabeledInput>
                     <LabeledInput label="Service End Time">
-                      <input type="time" value={editingService.service_end_time || ''} onChange={(e) => setEditingService((p) => (p ? { ...p, service_end_time: e.target.value || null } : p))} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
+                      <input
+                        type="time"
+                        value={editingService.service_end_time || ''}
+                        onChange={(e) =>
+                          setEditingService((p) =>
+                            p ? { ...p, service_end_time: e.target.value || null } : p,
+                          )
+                        }
+                        className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
+                      />
                     </LabeledInput>
                     <LabeledInput label="Extra Time per Additional Person (minutes)">
-                      <input type="number" min={0} value={editingService.duration_per_additional_person_minutes ?? 0} onChange={(e) => setEditingService((p) => (p ? { ...p, duration_per_additional_person_minutes: Math.max(0, Number(e.target.value)) } : p))} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
-                      <p className="mt-1 text-[11px] text-slate-400">e.g. 22 mins → 3 people ≈ 2.5 slots</p>
+                      <input
+                        type="number"
+                        min={0}
+                        value={editingService.duration_per_additional_person_minutes ?? 0}
+                        onChange={(e) =>
+                          setEditingService((p) =>
+                            p
+                              ? {
+                                  ...p,
+                                  duration_per_additional_person_minutes: Math.max(
+                                    0,
+                                    Number(e.target.value),
+                                  ),
+                                }
+                              : p,
+                          )
+                        }
+                        className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
+                      />
+                      <p className="mt-1 text-[11px] text-slate-400">
+                        e.g. 22 mins → 3 people ≈ 2.5 slots
+                      </p>
                     </LabeledInput>
                     <LabeledInput label="Close-Time Overrun Allowed (minutes)">
-                      <input type="number" min={0} value={editingService.close_overrun_tolerance_minutes ?? 15} onChange={(e) => setEditingService((p) => (p ? { ...p, close_overrun_tolerance_minutes: Math.max(0, Number(e.target.value)) } : p))} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
-                      <p className="mt-1 text-[11px] text-slate-400">Allows an appointment to finish this many minutes after service close time.</p>
+                      <input
+                        type="number"
+                        min={0}
+                        value={editingService.close_overrun_tolerance_minutes ?? 15}
+                        onChange={(e) =>
+                          setEditingService((p) =>
+                            p
+                              ? {
+                                  ...p,
+                                  close_overrun_tolerance_minutes: Math.max(
+                                    0,
+                                    Number(e.target.value),
+                                  ),
+                                }
+                              : p,
+                          )
+                        }
+                        className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
+                      />
+                      <p className="mt-1 text-[11px] text-slate-400">
+                        Allows an appointment to finish this many minutes after service close time.
+                      </p>
                     </LabeledInput>
                     <LabeledInput label="Person Count Rule">
                       <label className="inline-flex items-center gap-2 text-sm text-slate-700">
                         <input
                           type="checkbox"
                           checked={editingService.person_count_excludes_family_head}
-                          onChange={(e) => setEditingService((p) => (p ? { ...p, person_count_excludes_family_head: e.target.checked } : p))}
+                          onChange={(e) =>
+                            setEditingService((p) =>
+                              p ? { ...p, person_count_excludes_family_head: e.target.checked } : p,
+                            )
+                          }
                         />
                         Person count excludes family head
                       </label>
@@ -967,12 +1366,23 @@ export default function BookingSettingsTab({
                       <p className="text-xs font-medium text-slate-500 mb-2">Available days</p>
                       <div className="flex flex-wrap gap-2">
                         {DAY_NAMES.map((name, day) => {
-                          const active = Array.isArray(editingService.available_days) && editingService.available_days.includes(day)
+                          const active =
+                            Array.isArray(editingService.available_days) &&
+                            editingService.available_days.includes(day)
                           return (
                             <button
                               key={name}
                               type="button"
-                              onClick={() => setEditingService((p) => (p ? { ...p, available_days: toggleServiceDay(p.available_days, day) } : p))}
+                              onClick={() =>
+                                setEditingService((p) =>
+                                  p
+                                    ? {
+                                        ...p,
+                                        available_days: toggleServiceDay(p.available_days, day),
+                                      }
+                                    : p,
+                                )
+                              }
                               className={`px-2 py-1 rounded text-xs border ${active ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-300'}`}
                             >
                               {name.slice(0, 3)}
@@ -984,44 +1394,138 @@ export default function BookingSettingsTab({
                     <div className="md:col-span-5 grid grid-cols-1 md:grid-cols-3 gap-3">
                       <LabeledInput label="Booking Confirmation Email Template">
                         <>
-                          <TemplatePresetButtons field="confirmation_template" onApply={(template) => applyTemplatePreset('edit', 'confirmation_template', template)} />
+                          <TemplatePresetButtons
+                            field="confirmation_template"
+                            onApply={(template) =>
+                              applyTemplatePreset('edit', 'confirmation_template', template)
+                            }
+                          />
                           <div className="mb-2 flex flex-wrap gap-1.5">
                             {TEMPLATE_VARIABLES.map((token) => (
-                              <button key={`edit-confirmation-${service.id}-${token}`} type="button" onClick={() => insertTemplateToken('edit', token)} className="rounded border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] text-blue-800">{token}</button>
+                              <button
+                                key={`edit-confirmation-${service.id}-${token}`}
+                                type="button"
+                                onClick={() => insertTemplateToken('edit', token)}
+                                className="rounded border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] text-blue-800"
+                              >
+                                {token}
+                              </button>
                             ))}
                           </div>
-                          <textarea ref={(el) => { editTemplateRefs.current.confirmation_template = el }} value={editingService.confirmation_template || ''} onFocus={() => setActiveEditTemplateField('confirmation_template')} onChange={(e) => setEditingService((p) => (p ? { ...p, confirmation_template: e.target.value || null } : p))} rows={6} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
-                          <TemplatePreview title="Confirmation" template={editingService.confirmation_template} />
+                          <textarea
+                            ref={(el) => {
+                              editTemplateRefs.current.confirmation_template = el
+                            }}
+                            value={editingService.confirmation_template || ''}
+                            onFocus={() => setActiveEditTemplateField('confirmation_template')}
+                            onChange={(e) =>
+                              setEditingService((p) =>
+                                p ? { ...p, confirmation_template: e.target.value || null } : p,
+                              )
+                            }
+                            rows={6}
+                            className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
+                          />
+                          <TemplatePreview
+                            title="Confirmation"
+                            template={editingService.confirmation_template}
+                          />
                         </>
                       </LabeledInput>
                       <LabeledInput label="Booking Modification Email Template">
                         <>
-                          <TemplatePresetButtons field="modification_template" onApply={(template) => applyTemplatePreset('edit', 'modification_template', template)} />
+                          <TemplatePresetButtons
+                            field="modification_template"
+                            onApply={(template) =>
+                              applyTemplatePreset('edit', 'modification_template', template)
+                            }
+                          />
                           <div className="mb-2 flex flex-wrap gap-1.5">
                             {TEMPLATE_VARIABLES.map((token) => (
-                              <button key={`edit-modification-${service.id}-${token}`} type="button" onClick={() => insertTemplateToken('edit', token)} className="rounded border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] text-blue-800">{token}</button>
+                              <button
+                                key={`edit-modification-${service.id}-${token}`}
+                                type="button"
+                                onClick={() => insertTemplateToken('edit', token)}
+                                className="rounded border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] text-blue-800"
+                              >
+                                {token}
+                              </button>
                             ))}
                           </div>
-                          <textarea ref={(el) => { editTemplateRefs.current.modification_template = el }} value={editingService.modification_template || ''} onFocus={() => setActiveEditTemplateField('modification_template')} onChange={(e) => setEditingService((p) => (p ? { ...p, modification_template: e.target.value || null } : p))} rows={6} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
-                          <TemplatePreview title="Modification" template={editingService.modification_template} />
+                          <textarea
+                            ref={(el) => {
+                              editTemplateRefs.current.modification_template = el
+                            }}
+                            value={editingService.modification_template || ''}
+                            onFocus={() => setActiveEditTemplateField('modification_template')}
+                            onChange={(e) =>
+                              setEditingService((p) =>
+                                p ? { ...p, modification_template: e.target.value || null } : p,
+                              )
+                            }
+                            rows={6}
+                            className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
+                          />
+                          <TemplatePreview
+                            title="Modification"
+                            template={editingService.modification_template}
+                          />
                         </>
                       </LabeledInput>
                       <LabeledInput label="Booking Cancellation Email Template">
                         <>
-                          <TemplatePresetButtons field="cancellation_template" onApply={(template) => applyTemplatePreset('edit', 'cancellation_template', template)} />
+                          <TemplatePresetButtons
+                            field="cancellation_template"
+                            onApply={(template) =>
+                              applyTemplatePreset('edit', 'cancellation_template', template)
+                            }
+                          />
                           <div className="mb-2 flex flex-wrap gap-1.5">
                             {TEMPLATE_VARIABLES.map((token) => (
-                              <button key={`edit-cancellation-${service.id}-${token}`} type="button" onClick={() => insertTemplateToken('edit', token)} className="rounded border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] text-blue-800">{token}</button>
+                              <button
+                                key={`edit-cancellation-${service.id}-${token}`}
+                                type="button"
+                                onClick={() => insertTemplateToken('edit', token)}
+                                className="rounded border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] text-blue-800"
+                              >
+                                {token}
+                              </button>
                             ))}
                           </div>
-                          <textarea ref={(el) => { editTemplateRefs.current.cancellation_template = el }} value={editingService.cancellation_template || ''} onFocus={() => setActiveEditTemplateField('cancellation_template')} onChange={(e) => setEditingService((p) => (p ? { ...p, cancellation_template: e.target.value || null } : p))} rows={6} className="w-full border border-slate-300 rounded px-3 py-2 text-sm" />
-                          <TemplatePreview title="Cancellation" template={editingService.cancellation_template} />
+                          <textarea
+                            ref={(el) => {
+                              editTemplateRefs.current.cancellation_template = el
+                            }}
+                            value={editingService.cancellation_template || ''}
+                            onFocus={() => setActiveEditTemplateField('cancellation_template')}
+                            onChange={(e) =>
+                              setEditingService((p) =>
+                                p ? { ...p, cancellation_template: e.target.value || null } : p,
+                              )
+                            }
+                            rows={6}
+                            className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
+                          />
+                          <TemplatePreview
+                            title="Cancellation"
+                            template={editingService.cancellation_template}
+                          />
                         </>
                       </LabeledInput>
                     </div>
                     <div className="flex gap-2">
-                      <button onClick={saveService} className="px-3 py-2 rounded bg-indigo-600 text-white text-sm">Save</button>
-                      <button onClick={() => setEditingService(null)} className="px-3 py-2 rounded border border-slate-300 text-sm">Cancel</button>
+                      <button
+                        onClick={saveService}
+                        className="px-3 py-2 rounded bg-indigo-600 text-white text-sm"
+                      >
+                        Save
+                      </button>
+                      <button
+                        onClick={() => setEditingService(null)}
+                        className="px-3 py-2 rounded border border-slate-300 text-sm"
+                      >
+                        Cancel
+                      </button>
                     </div>
                   </div>
                 ) : (
@@ -1029,35 +1533,66 @@ export default function BookingSettingsTab({
                     <div>
                       <p className="text-sm font-semibold text-slate-700">{service.name}</p>
                       <p className="text-xs text-slate-500">
-                        Duration {service.duration_minutes} min · Buffer {service.buffer_minutes} min
+                        Duration {service.duration_minutes} min · Buffer {service.buffer_minutes}{' '}
+                        min
                       </p>
                       <p className="text-xs text-slate-400 mt-1">
-                        Days: {Array.isArray(service.available_days) && service.available_days.length > 0 ? service.available_days.map((d) => DAY_NAMES[d].slice(0, 3)).join(', ') : 'All'} ·
-                        Time: {service.service_start_time || 'Branch open'} - {service.service_end_time || 'Branch close'}
+                        Days:{' '}
+                        {Array.isArray(service.available_days) && service.available_days.length > 0
+                          ? service.available_days.map((d) => DAY_NAMES[d].slice(0, 3)).join(', ')
+                          : 'All'}{' '}
+                        · Time: {service.service_start_time || 'Branch open'} -{' '}
+                        {service.service_end_time || 'Branch close'}
                       </p>
                       <p className="text-xs text-slate-400 mt-1">
-                        Additional person time: +{service.duration_per_additional_person_minutes ?? 0} min per person entered
+                        Additional person time: +
+                        {service.duration_per_additional_person_minutes ?? 0} min per person entered
                       </p>
                       <p className="text-xs text-slate-400 mt-1">
-                        Person count rule: {service.person_count_excludes_family_head ? 'Excludes family head' : 'Includes family head'}
+                        Person count rule:{' '}
+                        {service.person_count_excludes_family_head
+                          ? 'Excludes family head'
+                          : 'Includes family head'}
                       </p>
                       <p className="text-xs text-slate-400 mt-1">
-                        Close-time overrun allowed: {service.close_overrun_tolerance_minutes ?? 15} min
+                        Close-time overrun allowed: {service.close_overrun_tolerance_minutes ?? 15}{' '}
+                        min
                       </p>
                       <p className="text-xs text-slate-400 mt-1">
-                        Templates: {service.confirmation_template ? 'Booked' : '--'} / {service.modification_template ? 'Modified' : '--'} / {service.cancellation_template ? 'Cancelled' : '--'}
+                        Templates: {service.confirmation_template ? 'Booked' : '--'} /{' '}
+                        {service.modification_template ? 'Modified' : '--'} /{' '}
+                        {service.cancellation_template ? 'Cancelled' : '--'}
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
-                      <button onClick={() => setEditingService(normalizeServiceRow(service))} className="px-3 py-1.5 rounded border border-slate-300 text-xs">Edit</button>
-                      <button onClick={() => toggleService(service)} className={`px-3 py-1.5 rounded text-xs ${service.is_active ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'}`}>{service.is_active ? 'Deactivate' : 'Activate'}</button>
-                      <button onClick={() => removeService(service.id)} className="px-3 py-1.5 rounded bg-red-50 text-red-600 text-xs">Delete</button>
+                      <button
+                        onClick={() => setEditingService(normalizeServiceRow(service))}
+                        className="px-3 py-1.5 rounded border border-slate-300 text-xs"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => toggleService(service)}
+                        className={`px-3 py-1.5 rounded text-xs ${service.is_active ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'}`}
+                      >
+                        {service.is_active ? 'Deactivate' : 'Activate'}
+                      </button>
+                      <button
+                        onClick={() => removeService(service.id)}
+                        className="px-3 py-1.5 rounded bg-red-50 text-red-600 text-xs"
+                      >
+                        Delete
+                      </button>
                     </div>
                   </div>
                 )}
               </div>
             ))}
-            {services.length === 0 && <div className="py-8 text-center text-sm text-slate-400">No services for this branch yet</div>}
+            {services.length === 0 && (
+              <div className="py-8 text-center text-sm text-slate-400">
+                No services for this branch yet
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1067,7 +1602,8 @@ export default function BookingSettingsTab({
           <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
             <h3 className="text-sm font-semibold text-slate-700">24-Hour Reminder Configuration</h3>
             <p className="mt-1 text-xs text-slate-500">
-              These reminders are sent by cron. Include placeholder tokens such as [Customer Name], [service booked], [date booked], [time booked], and [branch name].
+              These reminders are sent by cron. Include placeholder tokens such as [Customer Name],
+              [service booked], [date booked], [time booked], and [branch name].
             </p>
 
             <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -1076,7 +1612,9 @@ export default function BookingSettingsTab({
                   <input
                     type="checkbox"
                     checked={reminderSettings.reminders_enabled}
-                    onChange={(e) => setReminderSettings((p) => ({ ...p, reminders_enabled: e.target.checked }))}
+                    onChange={(e) =>
+                      setReminderSettings((p) => ({ ...p, reminders_enabled: e.target.checked }))
+                    }
                   />
                   Send reminder emails automatically
                 </label>
@@ -1088,7 +1626,15 @@ export default function BookingSettingsTab({
                   min={1}
                   max={168}
                   value={reminderSettings.reminder_hours_before}
-                  onChange={(e) => setReminderSettings((p) => ({ ...p, reminder_hours_before: Math.min(168, Math.max(1, Number(e.target.value) || 24)) }))}
+                  onChange={(e) =>
+                    setReminderSettings((p) => ({
+                      ...p,
+                      reminder_hours_before: Math.min(
+                        168,
+                        Math.max(1, Number(e.target.value) || 24),
+                      ),
+                    }))
+                  }
                   className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
                 />
               </LabeledInput>
@@ -1098,7 +1644,12 @@ export default function BookingSettingsTab({
                   <input
                     type="checkbox"
                     checked={reminderSettings.same_day_reminder_enabled}
-                    onChange={(e) => setReminderSettings((p) => ({ ...p, same_day_reminder_enabled: e.target.checked }))}
+                    onChange={(e) =>
+                      setReminderSettings((p) => ({
+                        ...p,
+                        same_day_reminder_enabled: e.target.checked,
+                      }))
+                    }
                   />
                   Send a second reminder on the same day
                 </label>
@@ -1110,7 +1661,15 @@ export default function BookingSettingsTab({
                   min={1}
                   max={12}
                   value={reminderSettings.same_day_reminder_hours_before}
-                  onChange={(e) => setReminderSettings((p) => ({ ...p, same_day_reminder_hours_before: Math.min(12, Math.max(1, Number(e.target.value) || 2)) }))}
+                  onChange={(e) =>
+                    setReminderSettings((p) => ({
+                      ...p,
+                      same_day_reminder_hours_before: Math.min(
+                        12,
+                        Math.max(1, Number(e.target.value) || 2),
+                      ),
+                    }))
+                  }
                   className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
                 />
               </LabeledInput>
@@ -1119,7 +1678,9 @@ export default function BookingSettingsTab({
                 <input
                   type="text"
                   value={reminderSettings.reminder_subject}
-                  onChange={(e) => setReminderSettings((p) => ({ ...p, reminder_subject: e.target.value }))}
+                  onChange={(e) =>
+                    setReminderSettings((p) => ({ ...p, reminder_subject: e.target.value }))
+                  }
                   className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
                 />
               </LabeledInput>
@@ -1129,7 +1690,12 @@ export default function BookingSettingsTab({
                   <input
                     type="checkbox"
                     checked={reminderSettings.attendance_confirmation_required}
-                    onChange={(e) => setReminderSettings((p) => ({ ...p, attendance_confirmation_required: e.target.checked }))}
+                    onChange={(e) =>
+                      setReminderSettings((p) => ({
+                        ...p,
+                        attendance_confirmation_required: e.target.checked,
+                      }))
+                    }
                   />
                   Ask customer to confirm Present/Missed from reminder email
                 </label>
@@ -1140,7 +1706,9 @@ export default function BookingSettingsTab({
                   <textarea
                     rows={8}
                     value={reminderSettings.reminder_template}
-                    onChange={(e) => setReminderSettings((p) => ({ ...p, reminder_template: e.target.value }))}
+                    onChange={(e) =>
+                      setReminderSettings((p) => ({ ...p, reminder_template: e.target.value }))
+                    }
                     className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
                   />
                 </LabeledInput>
@@ -1149,9 +1717,12 @@ export default function BookingSettingsTab({
           </div>
 
           <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
-            <h3 className="text-sm font-semibold text-amber-900">Repeat Missed Appointment Penalty Rules</h3>
+            <h3 className="text-sm font-semibold text-amber-900">
+              Repeat Missed Appointment Penalty Rules
+            </h3>
             <p className="mt-1 text-xs text-amber-800">
-              Matching is done by phone or email. Name is intentionally ignored to reduce false matches from common names.
+              Matching is done by phone or email. Name is intentionally ignored to reduce false
+              matches from common names.
             </p>
 
             <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -1160,7 +1731,9 @@ export default function BookingSettingsTab({
                   <input
                     type="checkbox"
                     checked={reminderSettings.penalty_enabled}
-                    onChange={(e) => setReminderSettings((p) => ({ ...p, penalty_enabled: e.target.checked }))}
+                    onChange={(e) =>
+                      setReminderSettings((p) => ({ ...p, penalty_enabled: e.target.checked }))
+                    }
                   />
                   Track missed appointments and enforce penalties
                 </label>
@@ -1172,7 +1745,12 @@ export default function BookingSettingsTab({
                   min={1}
                   max={20}
                   value={reminderSettings.penalty_threshold}
-                  onChange={(e) => setReminderSettings((p) => ({ ...p, penalty_threshold: Math.min(20, Math.max(1, Number(e.target.value) || 3)) }))}
+                  onChange={(e) =>
+                    setReminderSettings((p) => ({
+                      ...p,
+                      penalty_threshold: Math.min(20, Math.max(1, Number(e.target.value) || 3)),
+                    }))
+                  }
                   className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
                 />
               </LabeledInput>
@@ -1180,7 +1758,12 @@ export default function BookingSettingsTab({
               <LabeledInput label="Penalty Action">
                 <select
                   value={reminderSettings.penalty_action}
-                  onChange={(e) => setReminderSettings((p) => ({ ...p, penalty_action: e.target.value as 'warn_only' | 'block_until_manual_review' }))}
+                  onChange={(e) =>
+                    setReminderSettings((p) => ({
+                      ...p,
+                      penalty_action: e.target.value as 'warn_only' | 'block_until_manual_review',
+                    }))
+                  }
                   className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
                 >
                   <option value="warn_only">Warn only (allow bookings)</option>
@@ -1192,7 +1775,9 @@ export default function BookingSettingsTab({
                 <input
                   type="text"
                   value={reminderSettings.penalty_note || ''}
-                  onChange={(e) => setReminderSettings((p) => ({ ...p, penalty_note: e.target.value || null }))}
+                  onChange={(e) =>
+                    setReminderSettings((p) => ({ ...p, penalty_note: e.target.value || null }))
+                  }
                   className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
                   placeholder="Shown to staff when blocking a booking"
                 />
@@ -1208,7 +1793,9 @@ export default function BookingSettingsTab({
                 {loading ? 'Saving...' : 'Save Reminder & Penalty Settings'}
               </button>
               <button
-                onClick={() => setReminderSettings(buildDefaultReminderSettings(selectedLocationId))}
+                onClick={() =>
+                  setReminderSettings(buildDefaultReminderSettings(selectedLocationId))
+                }
                 className="px-3 py-2 rounded border border-slate-300 text-sm"
               >
                 Reset to Defaults

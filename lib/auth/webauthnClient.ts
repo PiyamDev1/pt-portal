@@ -27,12 +27,9 @@ function writeCookie(name: string, value: string, maxAgeSeconds = COOKIE_MAX_AGE
 
 function clearCookie(name: string) {
   if (typeof document === 'undefined') return
-  document.cookie = [
-    `${encodeURIComponent(name)}=`,
-    'Path=/',
-    'SameSite=Lax',
-    'Max-Age=0',
-  ].join('; ')
+  document.cookie = [`${encodeURIComponent(name)}=`, 'Path=/', 'SameSite=Lax', 'Max-Age=0'].join(
+    '; ',
+  )
 }
 
 function readStorageValue(key: string) {
@@ -169,21 +166,11 @@ export function clearPasskeySession() {
   removeStorageValue(PASSKEY_SESSION_ID_KEY)
 }
 
-export function getPasskeySessionId() {
-  if (typeof window === 'undefined') return ''
-  return readStorageValue(PASSKEY_SESSION_ID_KEY)
-}
-
 export function hasPasskeySession(sessionId?: string) {
   if (typeof window === 'undefined') return false
   if (readStorageValue(PASSKEY_SESSION_KEY) !== '1') return false
   if (!sessionId) return true
   return readStorageValue(PASSKEY_SESSION_ID_KEY) === sessionId
-}
-
-export function clearPasskeyLastEmail() {
-  if (typeof window === 'undefined') return
-  removeStorageValue(PASSKEY_LAST_EMAIL_KEY)
 }
 
 export function hasConfirmedHrmsCompanionInstall() {

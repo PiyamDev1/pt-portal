@@ -1,5 +1,7 @@
 # Staff Member Disable/Delete Feature - Implementation Guide
 
+> **Historical implementation snapshot.** Route filenames, line numbers, permissions, and UI details below may have changed. Use current admin routes, [API Reference](../technical/API_REFERENCE.md#administration), and [Security](../technical/SECURITY.md) before operating on staff accounts.
+
 ## Overview
 
 This document describes the new staff member management feature that allows:

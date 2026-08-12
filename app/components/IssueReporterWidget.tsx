@@ -4,7 +4,7 @@
  */
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { AlertTriangle, Bug, Camera, Loader2, Send, TerminalSquare, X } from 'lucide-react'
 import { toast } from 'sonner'

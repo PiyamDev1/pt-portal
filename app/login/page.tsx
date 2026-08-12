@@ -33,6 +33,10 @@ import {
   setPasskeyLastEmail,
 } from '@/lib/auth/webauthnClient'
 
+function getErrorMessage(error: unknown, fallback: string) {
+  return error instanceof Error && error.message ? error.message : fallback
+}
+
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -82,8 +86,10 @@ export default function LoginPage() {
     }
     // ----------------------------------------
 
-    // @ts-ignore
-    const assignedCode = employee?.locations?.branch_code
+    const assignedLocation = employee?.locations
+    const assignedCode = Array.isArray(assignedLocation)
+      ? assignedLocation[0]?.branch_code
+      : (assignedLocation as { branch_code?: string | null } | null | undefined)?.branch_code
 
     // If a branch code was typed, it MUST match the user's assigned location
     if (branchCode && assignedCode !== branchCode) {
@@ -226,8 +232,8 @@ export default function LoginPage() {
 
       setPasskeyLastEmail(data.user.email || loginEmail)
       await postLoginChecks(data.user.id)
-    } catch (err: any) {
-      setErrorMsg(err.message || 'Login failed')
+    } catch (err: unknown) {
+      setErrorMsg(getErrorMessage(err, 'Login failed'))
       setLoading(false)
     }
   }
@@ -289,8 +295,8 @@ export default function LoginPage() {
       markPasskeySession(sessionId)
       setPasskeyLastEmail(verifyData.email || loginEmail)
       await postLoginChecks(data.user?.id || verifyData.user_id, { skipMfa: true })
-    } catch (err: any) {
-      setErrorMsg(err.message || 'Biometric login failed')
+    } catch (err: unknown) {
+      setErrorMsg(getErrorMessage(err, 'Biometric login failed'))
       setBiometricLoading(false)
     }
   }

@@ -1,6 +1,8 @@
 # Bookings Portal Integration for PT-Portal Packages
 
-**Status:** Ready for implementation
+> **Historical external-integration design.** PT-Portal now has native quote sharing, package-reference/surname access, customer documents, invoices, vouchers, and legacy migration tooling. This file is not the current contract for either deployed portal. Use [Travel Packages](../../guides/TRAVEL_PACKAGES_GUIDE.md) and revalidate the external bookings-portal deployment before acting.
+
+**Original status:** Ready for implementation
 
 **Created:** August 8, 2026
 
@@ -256,13 +258,13 @@ Success:
 
 Current error behaviour:
 
-| Status | Meaning | Bookings portal action |
-|---|---|---|
-| `400` | Missing or invalid input | Show validation error |
-| `404` | No matching active PT package | Try legacy Firebase lookup |
-| `410` | Matching package access expired | Show expiry message; do not use legacy fallback |
-| `429` | Too many failed attempts | Show retry-later message; do not use legacy fallback |
-| `500` | PT-Portal unavailable | Show temporary service error; do not report invalid details |
+| Status | Meaning                         | Bookings portal action                                      |
+| ------ | ------------------------------- | ----------------------------------------------------------- |
+| `400`  | Missing or invalid input        | Show validation error                                       |
+| `404`  | No matching active PT package   | Try legacy Firebase lookup                                  |
+| `410`  | Matching package access expired | Show expiry message; do not use legacy fallback             |
+| `429`  | Too many failed attempts        | Show retry-later message; do not use legacy fallback        |
+| `500`  | PT-Portal unavailable           | Show temporary service error; do not report invalid details |
 
 PT-Portal currently limits repeated failed access attempts by hashed IP address and records successful customer portal access in the package audit log.
 
@@ -324,12 +326,12 @@ preview_url
 
 Current token errors:
 
-| Status | Meaning |
-|---|---|
-| `400` | Token missing |
-| `404` | Token invalid, access revoked, or package unavailable |
-| `410` | Access expired |
-| `500` | Package or storage lookup failed |
+| Status | Meaning                                               |
+| ------ | ----------------------------------------------------- |
+| `400`  | Token missing                                         |
+| `404`  | Token invalid, access revoked, or package unavailable |
+| `410`  | Access expired                                        |
+| `500`  | Package or storage lookup failed                      |
 
 ---
 
@@ -452,16 +454,16 @@ type PortalPackage = {
 
 Suggested document category mapping:
 
-| PT-Portal | Customer label | Legacy category |
-|---|---|---|
-| `flight` | Flights | Flights |
-| `hotel` | Hotels | Hotels |
-| `transport` | Transport | Transport |
-| `visa` | Visa | Visa |
-| `e_sim` | E-Sim | E-Sim |
-| `insurance` | Insurance | Insurance |
-| `invoice` | Invoice | No direct legacy equivalent |
-| `other` | Other | Others |
+| PT-Portal   | Customer label | Legacy category             |
+| ----------- | -------------- | --------------------------- |
+| `flight`    | Flights        | Flights                     |
+| `hotel`     | Hotels         | Hotels                      |
+| `transport` | Transport      | Transport                   |
+| `visa`      | Visa           | Visa                        |
+| `e_sim`     | E-Sim          | E-Sim                       |
+| `insurance` | Insurance      | Insurance                   |
+| `invoice`   | Invoice        | No direct legacy equivalent |
+| `other`     | Other          | Others                      |
 
 `travel_documents` is agent-only in the normal customer portal and must not be displayed even if malformed upstream data contains it.
 
@@ -528,12 +530,12 @@ Each document should show:
 
 Preview behaviour:
 
-| File type | Behaviour |
-|---|---|
-| PDF | Open responsive modal/iframe using `preview_url` |
-| JPG/JPEG/PNG/WebP | Contained image preview |
+| File type              | Behaviour                                          |
+| ---------------------- | -------------------------------------------------- |
+| PDF                    | Open responsive modal/iframe using `preview_url`   |
+| JPG/JPEG/PNG/WebP      | Contained image preview                            |
 | HTML transport voucher | Open `preview_url` in a new tab with print support |
-| Unknown/office file | Download only |
+| Unknown/office file    | Download only                                      |
 
 If a signed link expires while the page remains open, reload package data and retry once.
 
@@ -679,15 +681,15 @@ PT-Portal's current public access endpoints are sufficient for initial integrati
 
 Customer-facing errors should be clear and calm.
 
-| Situation | Customer message |
-|---|---|
+| Situation               | Customer message                                                              |
+| ----------------------- | ----------------------------------------------------------------------------- |
 | Wrong reference/surname | Package details do not match. Check the lead passenger surname and reference. |
-| Access disabled/revoked | Package documents are not currently available. Contact your agent. |
-| Access expired | Your document access has expired. Contact your agent to renew access. |
-| Too many attempts | Too many attempts. Please wait before trying again. |
-| PT-Portal timeout | The package service is temporarily unavailable. Please try again shortly. |
-| No released documents | Your package is open, but no documents have been released yet. |
-| Signed URL expired | Refreshing your secure document link. |
+| Access disabled/revoked | Package documents are not currently available. Contact your agent.            |
+| Access expired          | Your document access has expired. Contact your agent to renew access.         |
+| Too many attempts       | Too many attempts. Please wait before trying again.                           |
+| PT-Portal timeout       | The package service is temporarily unavailable. Please try again shortly.     |
+| No released documents   | Your package is open, but no documents have been released yet.                |
+| Signed URL expired      | Refreshing your secure document link.                                         |
 
 Do not convert upstream `500` errors into "invalid reference" messages.
 

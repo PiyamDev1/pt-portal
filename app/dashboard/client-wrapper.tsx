@@ -8,10 +8,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useState } from 'react'
 import { CalendarDays, Clock3, HeartPulse, Home, Settings } from 'lucide-react'
-// import { useSessionTimeout } from '@/hooks/useSessionTimeout'
-import { SessionWarningHeader } from '@/app/components/SessionWarningHeader'
 import { PasskeySetupPrompt } from '@/app/components/PasskeySetupPrompt'
 import { RouteWarmup } from './RouteWarmup'
 
@@ -53,18 +50,8 @@ function MobileDashboardNav() {
 }
 
 export default function DashboardClientWrapper({ children }: { children: React.ReactNode }) {
-  const [showWarning, setShowWarning] = useState(false)
-  const [secondsRemaining, setSecondsRemaining] = useState(0)
-
-  // Session timeout temporarily disabled
-  // useSessionTimeout((warning, seconds) => {
-  //   setShowWarning(warning)
-  //   setSecondsRemaining(seconds || 0)
-  // })
-
   return (
     <div className="dashboard-mobile-shell">
-      <SessionWarningHeader showWarning={showWarning} secondsRemaining={secondsRemaining} />
       <RouteWarmup />
       {children}
       <MobileDashboardNav />

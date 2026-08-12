@@ -1,177 +1,119 @@
 # Integrations Guide
 
-This guide explains the external services PT-Portal depends on, what each one is responsible for, and where to look when something breaks.
+Last verified against the repository: August 12, 2026.
+
+`.env.example` is the committed variable checklist. Keep every credential/token server-only unless the name intentionally begins with `NEXT_PUBLIC_`; configure real values in local/platform secret storage.
 
 ## Integration map
 
-PT-Portal currently integrates with:
-
-- `Supabase`
-- `MinIO`
-- `Mailgun`
-- `Frappe HRMS`
-- `GitHub Actions`
-
-Each service has a distinct operational role. Keeping those roles clear helps a lot when debugging.
+| Provider        | Responsibility                                                                       | Failure is visible as                                                        |
+| --------------- | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
+| Supabase        | Auth, PostgreSQL, RLS, RPCs, linked type generation                                  | Login/session errors, schema/readiness `503`, database failures              |
+| MinIO           | Primary application documents, package documents, and default issue-report artifacts | Upload/preview/health failure; optional fallback may activate                |
+| R2              | Optional private application-vault and issue-artifact fallback                       | Fallback unavailable or migration backlog                                    |
+| R3              | Optional travel-package backup object store                                          | Package backup reconciliation degraded; primary remains MinIO                |
+| Mailgun         | Operational email                                                                    | Booking, application-assignment, and admin notification warnings or failures |
+| Frappe HRMS     | Employee provisioning, HR sync, leave, webhook, signed browser handoff               | Health/provisioning/sync/handoff errors                                      |
+| Vercel          | Next.js runtime and five scheduled cron invocations                                  | Deployment/runtime/cron failures                                             |
+| GitHub Actions  | Quality/DB/smoke/docs, database backup, document migration                           | Failed workflow/check or stale backup/migration run                          |
+| Hetzner Cloud   | Super Admin server status/power control                                              | Server-control provider/health error                                         |
+| Legacy Firebase | Read-only source for one-time package migration                                      | Scan/import unavailable; normal packages unaffected                          |
+| Alert webhook   | Optional trusted receiver for redacted operational alerts                            | Delivery warning in server logs; original API response remains authoritative |
 
 ## Supabase
 
-Supabase is the main auth and database layer.
-
-Used for:
-
-- user authentication
-- session and identity data
-- application data
-- bookings and audit data
-- integration identity maps
-- passkeys and WebAuthn challenge persistence
-
-Key variables:
+Core values:
 
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY`
+- independent `RATE_LIMIT_HASH_SECRET`
 
-Common failure signs:
+The anon key participates in cookie-backed user sessions and RLS. The service-role key bypasses RLS and must appear only in server code after explicit authorization. Apply required migrations before dependent code and regenerate types with `npm run types:supabase` after the linked project changes.
 
-- login/session issues
-- route handlers failing on DB access
-- missing data after a migration was not applied
+Microsoft SSO and TOTP/passkeys are mediated through the Supabase Auth project. Configure those providers/redirect URLs in Supabase and keep the portal callback URL aligned with `NEXT_PUBLIC_SITE_URL`.
 
-## MinIO
+## Object storage
 
-MinIO is the primary document storage provider.
+### Primary MinIO
 
-Used for:
+`MINIO_ENDPOINT`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `MINIO_REGION`, and bucket values configure the S3-compatible server client. `MINIO_BUCKET_NAME` defaults application documents; `MINIO_PACKAGES_BUCKET_NAME` separates package objects. `ISSUE_REPORTS_MINIO_BUCKET_NAME` can override the artifact bucket.
 
-- direct document uploads
-- previews and retrieval
-- long-term operational storage
+`NEXT_PUBLIC_MINIO_ENDPOINT` is display/health metadata only. It is not a credential and must not be used for browser object authorization.
 
-Key variables:
+### Application R2 fallback
 
-- `MINIO_ENDPOINT`
-- `MINIO_ACCESS_KEY`
-- `MINIO_SECRET_KEY`
-- `MINIO_BUCKET_NAME`
-- `NEXT_PUBLIC_MINIO_ENDPOINT`
+`R2_ENDPOINT`, credentials, and `R2_BUCKET_NAME` enable private fallback writes for application documents. `R2_PING_URL` is only an optional health/display endpoint; `ISSUE_REPORTS_R2_BUCKET_NAME` can isolate report artifacts. The GitHub document-migration workflow uses `DOCUMENT_MIGRATION_CRON_TOKEN` to move bounded batches back to MinIO.
 
-Related docs:
+### Package R3 backup
 
-- [DOCUMENT_MANAGEMENT_GUIDE.md](DOCUMENT_MANAGEMENT_GUIDE.md)
-- [../technical/STORAGE_SYSTEM.md](../technical/STORAGE_SYSTEM.md)
+`R3_ENDPOINT`, `R3_ACCESS_KEY_ID`, `R3_SECRET_ACCESS_KEY`, `R3_BUCKET_NAME`, and optional `R3_PUBLIC_URL` configure the package backup provider. The code calls this integration R3 to avoid colliding with the application-vault `R2_*` keys. MinIO remains package primary; Super Admin reconciliation reports/copies backup state.
+
+All buckets containing customer/staff documents should be private. Access is issued only after a database record/token check through short-lived signed URLs. See [Storage System](../technical/STORAGE_SYSTEM.md).
 
 ## Mailgun
 
-Mailgun is used for outbound mail.
+`MAILGUN_API_KEY`, `MAILGUN_DOMAIN`, `MAILGUN_SENDER_EMAIL`, and optional `MAILGUN_ENDPOINT` configure outbound mail.
 
-Typical uses:
+Mail is used for booking confirmations/changes/cancellations/reminders, selected staff/application notifications, and administrative temporary-password delivery. A database mutation may succeed while a non-transactional email reports a warning; show the warning without pretending the underlying operation failed.
 
-- booking confirmation or reminder emails
-- operational notification flows
-
-Key variables:
-
-- `MAILGUN_API_KEY`
-- `MAILGUN_DOMAIN`
-
-If email behavior looks wrong, check:
-
-- the relevant API route
-- the template or payload generation logic
-- the env vars
+Do not log message bodies or provider credentials. Check the route's response, persisted email/audit row where available, and Mailgun delivery logs using a request/record ID.
 
 ## Frappe HRMS
 
-Frappe is a separate HRMS environment that PT-Portal talks to over API, webhook, and signed browser handoff.
-
-Used for:
-
-- employee provisioning
-- leave sync
-- browser handoff from IMS to Frio
-- webhook-driven inbound events
-
-Key variables:
+Required integration values:
 
 - `FRAPPE_BASE_URL`
-- `FRAPPE_API_KEY`
-- `FRAPPE_API_SECRET`
+- either `FRAPPE_API_KEY` plus `FRAPPE_API_SECRET`, or `FRAPPE_API_TOKEN`
 - `FRAPPE_WEBHOOK_SECRET`
 - `FRAPPE_HANDOFF_SECRET`
 
-Operational notes:
+PT-Portal owns portal identity and maps/provisions employees into Frappe. The bridge supports health, candidate/self provisioning, transfer, push/pull sync, conflict/reconciliation queues, an authenticated webhook inbox, and a short-lived signed handoff. Handoff and webhook secrets have different purposes and must not be reused.
 
-- PT-Portal is the main login door
-- Frio can be protected so guest launches bounce back through IMS
-- the handoff flow now records audit rows in Supabase
+Scheduled outbox and timeclock-attendance work is invoked through the portal's `CRON_SECRET` routes. Full deployment, proxy, hook, and rollout requirements are in [Frappe HRMS Setup](FRAPPE_HRMS_SETUP.md).
 
-Read these together:
+## Vercel scheduled jobs
 
-- [FRAPPE_HRMS_SETUP.md](FRAPPE_HRMS_SETUP.md)
-- [../technical/API_REFERENCE.md](../technical/API_REFERENCE.md)
+Every `/api/cron/*` route requires `Authorization: Bearer <CRON_SECRET>`. Vercel supplies that header for configured cron jobs. Missing server configuration returns `503`; an invalid/absent credential returns `401`; `x-vercel-cron` alone is ignored.
 
-## GitHub Actions
+Booking reminders require an absolute URL. Resolution order is `APP_BASE_URL`, `NEXT_PUBLIC_SITE_URL`, then legacy `NEXT_PUBLIC_APP_URL`. `BOOKING_REMINDER_CRON_LOOKBACK_MINUTES` is optional and clamped from 15 to 1,440 minutes.
 
-GitHub Actions is used for automation rather than runtime application behavior.
+See [Deployment](DEPLOYMENT_GUIDE.md#vercel-cron-schedule) for the exact schedules. The document migration endpoint is invoked by a separate GitHub Actions worker. It prefers `DOCUMENT_MIGRATION_CRON_TOKEN` and falls back to `CRON_SECRET` only when the dedicated token is not configured.
 
-Workflows in this repo:
+## GitHub Actions and backup storage
 
-- docs publishing
-- smoke tests
-- document migration cron
-- database backups
+Repository workflows cover:
 
-That means operational docs should always mention both:
+- dependency audit, repository lint, types, API boundaries, unit tests, formatting, documentation links, and build;
+- disposable PostgreSQL LMS/security migration checks;
+- authenticated Playwright smoke tests;
+- GitHub Pages documentation;
+- daily Supabase dump to S3-compatible backup storage; and
+- ten-minute application-document fallback migration.
 
-- runtime configuration
-- repository automation configuration
+Workflow-only database-backup and smoke secrets are documented in [Deployment](DEPLOYMENT_GUIDE.md#github-actions). Use dedicated least-privilege backup credentials and verify restore behavior, not just upload success.
 
-## Debugging by symptom
+## Hetzner server control
 
-### Login or session issues
+`HETZNER_API_TOKEN`, `HETZNER_SERVER_ID`, address/label, and `SERVER_CONTROL_*` values feed the Super Admin server-control panel. Status/health reads and power actions are server-side. Power operations require the exact authorized role, an explicit operation, and a fresh TOTP or backup code. Never expose the provider token or accept a caller-selected server ID.
 
-Look at:
+## Legacy Firebase migration
 
-- Supabase env vars
-- auth routes under `app/api/auth/`
-- [../technical/AUTHENTICATION_FLOW.md](../technical/AUTHENTICATION_FLOW.md)
+`LEGACY_BOOKINGS_FIREBASE_PROJECT_ID`, service-account email, and private key are used only by Super Admin travel-package migration scan/import routes. They do not participate in normal quote or folder reads. Preserve newline escaping in the private key, limit service-account access to the source project, and remove/rotate the credential after migration is complete.
 
-### Document upload or preview issues
+## PDF/Chromium runtime
 
-Look at:
+Package transport vouchers and related PDF work can use Chromium. The deployment keeps Chromium packages server-external; set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` only when the target runtime needs an explicit binary. PDF.js application-document previews instead use the checked-in worker synchronized by `npm run sync:pdf-worker`.
 
-- MinIO env vars
-- `app/api/documents/`
-- [../technical/STORAGE_SYSTEM.md](../technical/STORAGE_SYSTEM.md)
+## Observability webhook
 
-### Booking emails or reminders not working
+`OBSERVABILITY_ALERT_WEBHOOK_URL` may point to one trusted fixed receiver for redacted high-value operational events. Events include request IDs and bounded context. Callers cannot select the destination; alert delivery has a timeout and does not replace the original request result.
 
-Look at:
+## Triage order
 
-- Mailgun env vars
-- `app/api/bookings/`
-- `app/api/cron/bookings/reminders/route.ts`
-- [BOOKINGS_GUIDE.md](BOOKINGS_GUIDE.md)
-
-### Frappe launch or employee transfer problems
-
-Look at:
-
-- `FRAPPE_*` env vars
-- the Frappe bridge deployment
-- the maintenance health panel
-- handoff audit rows
-- [FRAPPE_HRMS_SETUP.md](FRAPPE_HRMS_SETUP.md)
-
-## Integration boundaries
-
-PT-Portal should keep these boundaries clear:
-
-- the frontend should not be the source of truth for sensitive records
-- integration secrets stay server-side
-- signed handoff tokens should remain short-lived
-- external systems should be observable through health/status tooling
-
-That boundary discipline is what keeps the repo maintainable as it grows.
+1. Capture the route, status, safe error text, request ID, target environment, and time.
+2. Check the relevant environment group without printing its values.
+3. Check schema/readiness markers and recent deployments/workflows.
+4. Check the provider health/status panel and correlated provider logs.
+5. Confirm scope/role/token/expiry before treating an authorization failure as provider downtime.
+6. Rotate any credential that might have appeared in a browser, log, screenshot, or ticket.

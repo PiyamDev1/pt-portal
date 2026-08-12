@@ -26,7 +26,6 @@ import type {
   PackageResolvedSelection,
   PackageSelectionInput,
   PackageVisaPassengerCategory,
-  TravelPackageQuote,
 } from '@/app/types/packages'
 import {
   buildPackagePresetSelections,
@@ -52,16 +51,23 @@ type PackageShareClientProps = {
 }
 
 type QuoteResponse = {
-  quote?: TravelPackageQuote
-  linkedGroup?: PublicLinkedPackageGroup | null
+  quote?: PublicPackageQuote
+  linkedGroup?: PublicLinkedPackageGroupResponse | null
   error?: string
 }
 
+type PublicPackageQuote = {
+  payload: PackageQuotePayload
+  expires_at: string
+  customer_name: string | null
+  customer_phone: string | null
+  customer_email: string | null
+  selected_option: PackageResolvedSelection | null
+}
+
 type PublicLinkedFamily = {
-  quoteId?: string | null
   familyLabel: string
   quoteTitle?: string | null
-  customerName?: string | null
   sharePath?: string | null
   isCurrent: boolean
   payload?: PackageQuotePayload | null
@@ -76,12 +82,15 @@ type PublicLinkedFamily = {
 }
 
 type PublicLinkedPackageGroup = {
-  groupId: string
-  groupReference: string
-  title: string
-  visibilityMode: string
+  notice?: string
+  groupReference?: string
+  title?: string
   sharedFlightSelection?: boolean
   families: PublicLinkedFamily[]
+}
+
+type PublicLinkedPackageGroupResponse = Omit<PublicLinkedPackageGroup, 'families'> & {
+  families?: PublicLinkedFamily[]
 }
 
 type PaymentReviewScope = 'current' | 'group'
@@ -378,7 +387,7 @@ function getLinkedFamilyLabel(family: PublicLinkedFamily, index: number) {
 }
 
 function getLinkedFamilyKey(family: PublicLinkedFamily, index: number) {
-  return family.quoteId || `${family.familyLabel}-${index}`
+  return `${family.familyLabel}-${index}`
 }
 
 function getPricingSubtotal(pricing: PublicLinkedFamily['pricing']) {
@@ -767,7 +776,7 @@ function PriceSummaryContent({
         </div>
         {linkedFamilyTotals.map(({ family, index, pricing }) => (
           <div
-            key={`${family.quoteId || family.familyLabel}-${index}-summary`}
+            key={`${getLinkedFamilyKey(family, index)}-summary`}
             className="border-t border-slate-200 pt-2"
           >
             <div className="flex items-center justify-between gap-3">
@@ -857,7 +866,7 @@ function PriceSummaryContent({
         )}
         {linkedFamilyTotals.map(({ family, index, pricing }) => (
           <div
-            key={`${family.quoteId || family.familyLabel}-${index}-breakdown`}
+            key={`${getLinkedFamilyKey(family, index)}-breakdown`}
             className="mt-3 space-y-2 rounded-lg bg-slate-50 p-3 text-sm"
           >
             <div className="flex items-start justify-between gap-3">
@@ -928,7 +937,7 @@ function SectionTitle({
 }
 
 export default function PackageShareClient({ token }: PackageShareClientProps) {
-  const [quote, setQuote] = useState<TravelPackageQuote | null>(null)
+  const [quote, setQuote] = useState<PublicPackageQuote | null>(null)
   const [payload, setPayload] = useState<PackageQuotePayload | null>(null)
   const [selection, setSelection] = useState<ReturnType<typeof firstSelections> | null>(null)
   const [customer, setCustomer] = useState<CustomerFields>({
@@ -974,6 +983,7 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
           data.linkedGroup
             ? {
                 ...data.linkedGroup,
+                families: data.linkedGroup.families || [],
                 sharedFlightSelection:
                   data.linkedGroup.sharedFlightSelection ||
                   normalized.linkedPackageGroup?.sharedFlightSelection ||
@@ -1507,6 +1517,22 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
         </div>
       </section>
 
+      {linkedGroup?.notice && (
+        <section className="border-b border-cyan-200 bg-cyan-50 px-4 py-4">
+          <div className="mx-auto flex max-w-6xl items-start gap-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-cyan-900 text-white">
+              <Users className="h-4 w-4" />
+            </span>
+            <div>
+              <p className="text-xs font-black uppercase text-cyan-900">
+                Linked travel arrangements
+              </p>
+              <p className="mt-1 text-sm font-semibold text-slate-700">{linkedGroup.notice}</p>
+            </div>
+          </div>
+        </section>
+      )}
+
       {linkedGroup && linkedGroup.families.length > 0 && (
         <section className="border-b border-cyan-200 bg-gradient-to-b from-cyan-50 to-white px-4 py-5">
           <div className="mx-auto max-w-6xl">
@@ -1777,7 +1803,7 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                     <div className="mt-3 space-y-3">
                       {linkedFamilyReviewSelections.map(({ family, index, payload, resolved }) => (
                         <div
-                          key={`${family.quoteId || family.familyLabel}-${index}-selection`}
+                          key={`${getLinkedFamilyKey(family, index)}-selection`}
                           className="rounded-lg border border-cyan-100 bg-white p-3"
                         >
                           <div className="flex items-start justify-between gap-3">
@@ -1974,7 +2000,7 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                       </div>
                       {linkedFamilyTotals.map(({ family, index, pricing }) => (
                         <div
-                          key={`${family.quoteId || family.familyLabel}-${index}-payment-scope`}
+                          key={`${getLinkedFamilyKey(family, index)}-payment-scope`}
                           className="flex items-center justify-between gap-3 text-sm"
                         >
                           <span className="font-bold text-slate-600">
@@ -2834,7 +2860,7 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                       </div>
                       {linkedFamilyTotals.map(({ family, index, pricing }) => (
                         <div
-                          key={`${family.quoteId || family.familyLabel}-${index}-summary`}
+                          key={`${getLinkedFamilyKey(family, index)}-summary`}
                           className="border-t border-slate-200 pt-2"
                         >
                           <div className="flex items-center justify-between gap-3">
@@ -2956,7 +2982,7 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                         )}
                         {linkedFamilyTotals.map(({ family, index, pricing }) => (
                           <div
-                            key={`${family.quoteId || family.familyLabel}-${index}-breakdown`}
+                            key={`${getLinkedFamilyKey(family, index)}-breakdown`}
                             className="mt-3 space-y-2 rounded-lg bg-slate-50 p-3 text-sm"
                           >
                             <div className="flex items-start justify-between gap-3">

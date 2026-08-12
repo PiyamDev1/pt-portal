@@ -353,7 +353,11 @@ export default function RowItem({
               className="h-8 w-8 flex items-center justify-center rounded-full bg-sky-50 hover:bg-sky-100 text-sky-600 transition relative"
               type="button"
               aria-label="Manage documents"
-              title={documentCount > 0 ? `Manage documents (${documentCount} attached)` : 'Manage documents'}
+              title={
+                documentCount > 0
+                  ? `Manage documents (${documentCount} attached)`
+                  : 'Manage documents'
+              }
             >
               📄
               {documentCount > 0 && (

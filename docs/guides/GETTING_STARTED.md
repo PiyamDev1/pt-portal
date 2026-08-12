@@ -1,175 +1,145 @@
 # Getting Started
 
-This guide is the fastest reliable path to getting PT-Portal running locally and understanding how the repo is organized.
-
-## What you are setting up
-
-PT-Portal is a Next.js application that depends on:
-
-- Supabase for auth and database access
-- Mailgun for email delivery
-- MinIO for document storage
-- Frappe HRMS credentials if you want to exercise the HRMS bridge
-
-You can still run the app without every integration being fully live, but the closer your `.env.local` is to production, the more realistic your local testing will be.
+This is the shortest reliable path from a clean checkout to a working PT-Portal development environment.
 
 ## Prerequisites
 
-Install these first:
+- Node.js 20.9 or newer
+- npm and Git
+- Supabase project access for authenticated/data-backed work
+- Optional: `psql` and a disposable PostgreSQL database for migration integration tests
 
-- `Node.js 20+`
-- `npm`
-- `Git`
+The production dependencies are external. MinIO/R2, Mailgun, Frappe, Hetzner, and live smoke credentials are needed only for the features that use them.
 
-Recommended tools:
-
-- `VS Code`
-- `Supabase dashboard` access
-- `Vercel` access if you deploy from the platform
-
-## Initial setup
-
-1. Clone the repository.
+## Install and configure
 
 ```bash
 git clone https://github.com/PiyamDev1/pt-portal.git
 cd pt-portal
-```
-
-2. Install dependencies.
-
-```bash
-npm install
-```
-
-3. Create your local environment file.
-
-```bash
+npm ci
 cp .env.example .env.local
 ```
 
-4. Fill in the required variables from Supabase and your operational services.
+Use `npm ci` for a reproducible checkout. Use `npm install` when intentionally changing dependencies and commit the resulting lockfile.
 
-Minimum local baseline:
+Minimum server-backed configuration:
 
 ```env
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
+RATE_LIMIT_HASH_SECRET=
 NEXT_PUBLIC_SITE_URL=http://localhost:3000
 ```
 
-Commonly needed for real feature testing:
+`RATE_LIMIT_HASH_SECRET` must be a long, independent, server-only secret. Do not reuse a Supabase key and do not add a `NEXT_PUBLIC_` prefix.
 
-```env
-MAILGUN_API_KEY=
-MAILGUN_DOMAIN=
-MINIO_ENDPOINT=
-MINIO_ACCESS_KEY=
-MINIO_SECRET_KEY=
-MINIO_BUCKET_NAME=
-NEXT_PUBLIC_MINIO_ENDPOINT=
-FRAPPE_BASE_URL=
-FRAPPE_API_KEY=
-FRAPPE_API_SECRET=
-FRAPPE_WEBHOOK_SECRET=
-FRAPPE_HANDOFF_SECRET=
-HETZNER_API_TOKEN=
-HETZNER_SERVER_ID=
-HETZNER_SERVER_IP=
-HETZNER_SERVER_LABEL=
-SERVER_CONTROL_SERVICES=
-SERVER_CONTROL_SERVICE_HEALTH_URLS=
-```
+Copy other values from [.env.example](https://github.com/PiyamDev1/pt-portal/blob/main/.env.example) when exercising the matching capability:
 
-5. Start the app.
+- `MAILGUN_*` for outbound email and staff onboarding/reset flows
+- `MINIO_*` and optional `R2_*` for the private document vault
+- `R3_*` for travel-package backup storage
+- `FRAPPE_*` for HRMS provisioning, sync, webhook, and handoff
+- `HETZNER_*` and `SERVER_CONTROL_*` for Super Admin server controls
+- `OBSERVABILITY_ALERT_WEBHOOK_URL` for trusted operational alerts
+- `SMOKE_*` for live Playwright tests
+
+All credentials, cron tokens, peppers, and webhook destinations are server-only unless `.env.example` explicitly names them `NEXT_PUBLIC_*`.
+
+## Run locally
 
 ```bash
 npm run dev
 ```
 
-6. Open `http://localhost:3000`.
+Open `http://localhost:3000`. A useful first check is that the login page loads, an active employee can authenticate, and protected dashboard navigation works.
 
-## Verification checklist
+## Baseline verification
 
-You should be able to confirm:
-
-- the login page loads
-- the app compiles without startup errors
-- authenticated pages work with your Supabase-backed user
-- basic dashboard navigation works
-
-Before making changes, it is worth running:
+Run the checks relevant to a change:
 
 ```bash
-npx tsc --noEmit
 npm run lint
-```
-
-## Common working commands
-
-```bash
-npm run dev
-npm run build
-npm start
-npm run lint
-npm run lint:fix
-npm run format
-npm run format:check
+npm run typecheck
 npm run test:unit
+npm run format:check
+npm run docs:check
+npm run docs:check-api
+npm run api:check-boundaries
+npm run build
 ```
 
-For smoke tests:
+`npm run format` rewrites the repository; use it only when that is intended. CI checks only changed-file formatting for normal pull requests and separately runs lint, types, unit tests, documentation links, detailed API coverage, API boundaries, audit, and the production build.
+
+## Browser smoke tests
+
+Install Chromium once:
+
+```bash
+npm run test:smoke:install
+```
+
+For a live deployment, set `SMOKE_BASE_URL`, the required smoke account/scope variables, and either `SMOKE_2FA_TOTP_SECRET` or the one-time backup-code fallback. Then run:
 
 ```bash
 npm run test:smoke
 ```
 
-## How the repo is laid out
+If `PLAYWRIGHT_BASE_URL` is unset, Playwright starts the local Next.js development server. The authenticated setup project writes state under `.playwright/`; reports and test results are ignored by Git.
 
-Main areas you will touch most often:
+## Database migration tests
 
-- `app/` for pages, route handlers, and dashboard UI
-- `lib/` for shared server-side helpers and integrations
-- `components/` for reusable UI primitives
-- `hooks/` for reusable hooks
-- `scripts/migrations/` for SQL migrations
-- `docs/` for product, technical, and operational documentation
-- `.github/workflows/` for automation
+Set `DATABASE_TEST_URL` to a disposable PostgreSQL database and run:
 
-For a deeper technical walk-through, read [ARCHITECTURE_GUIDE.md](ARCHITECTURE_GUIDE.md).
+```bash
+npm run test:db:lms
+npm run test:db:security
+```
 
-## Suggested onboarding path
+These scripts install fixtures and exercise migrations, transactions, and concurrency. Never point them at production or a database containing data that must be retained.
 
-If you are new to the project, read in this order:
+## Supabase schema types
 
-1. [Repository README](https://github.com/PiyamDev1/pt-portal/blob/main/README.md)
-2. [ARCHITECTURE_GUIDE.md](ARCHITECTURE_GUIDE.md)
-3. [USAGE_GUIDE.md](USAGE_GUIDE.md)
-4. [INTEGRATIONS_GUIDE.md](INTEGRATIONS_GUIDE.md)
-5. [QUICK_REFERENCE.md](QUICK_REFERENCE.md)
+After deploying a database migration, authenticate and link the Supabase CLI, then regenerate the committed schema:
+
+```bash
+npm run types:supabase
+```
+
+The generator preserves the existing file if the CLI does not return a valid `Database` definition. See [Type Safety and Request Validation](../technical/TYPE_SAFETY.md).
+
+## Repository map
+
+| Path                  | Responsibility                                               |
+| --------------------- | ------------------------------------------------------------ |
+| `app/`                | App Router pages, feature-local UI, and route handlers       |
+| `components/`         | Reusable app-native dialogs and modal primitives             |
+| `hooks/`              | Live shared React hooks                                      |
+| `lib/`                | Shared domain, auth, security, storage, and integration code |
+| `types/`              | Generated Supabase schema and compatibility database types   |
+| `scripts/migrations/` | Durable SQL schema history                                   |
+| `scripts/ci/`         | CI ratchets and PostgreSQL integration runners               |
+| `tests/unit/`         | Vitest unit and route tests                                  |
+| `tests/integration/`  | Real-PostgreSQL fixtures and assertions                      |
+| `tests/smoke/`        | Authenticated Playwright smoke tests                         |
+| `docs/`               | Product, operations, and technical documentation             |
+
+Continue with [Architecture](ARCHITECTURE_GUIDE.md), [Security](../technical/SECURITY.md), and [Integrations](INTEGRATIONS_GUIDE.md).
 
 ## Troubleshooting
 
-### `npm install` fails
+### Authentication or data access fails
 
-- Ensure you are on Node `20+`
-- Delete `node_modules` and retry `npm install`
-- If lockfile drift is suspected, keep `package-lock.json` and retry from a clean checkout
+Verify the three Supabase values, confirm the database migrations are deployed, and ensure the Auth user has an active `employees` record. A service-role key enables privileged database access but never authenticates the caller.
 
-### App starts but auth does not work
+### Sensitive APIs return `503`
 
-- Check `NEXT_PUBLIC_SUPABASE_URL`
-- Check `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- Check `SUPABASE_SERVICE_ROLE_KEY` for server-side routes
+Confirm `RATE_LIMIT_HASH_SECRET` exists and `20260812_security_rate_limits.sql` is deployed. Sensitive routes fail closed when the shared limiter is unavailable.
 
-### Storage or email features fail locally
+### Storage or email fails
 
-- Those features require real MinIO and Mailgun credentials
-- If you are only working on UI, avoid flows that send mail or upload files until env is complete
+Those features require real provider credentials. Check [Storage System](../technical/STORAGE_SYSTEM.md) or [Integrations](INTEGRATIONS_GUIDE.md); do not work around missing server credentials by exposing them to the browser.
 
-### Frappe handoff or provisioning fails
+### Frappe handoff fails
 
-- Confirm all `FRAPPE_*` variables are set
-- Read [FRAPPE_HRMS_SETUP.md](FRAPPE_HRMS_SETUP.md)
-- Confirm the Frappe bridge app and matching handoff secret are deployed
+Verify every `FRAPPE_*` value and the matching Frappe bridge site configuration. Follow [Frappe HRMS Setup](FRAPPE_HRMS_SETUP.md).

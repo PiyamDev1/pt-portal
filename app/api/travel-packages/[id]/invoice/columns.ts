@@ -1,0 +1,60 @@
+export function selectTravelPackageInvoiceColumns() {
+  return `
+    id,
+    package_id,
+    quote_id,
+    created_by,
+    updated_by,
+    released_by,
+    invoice_number,
+    status,
+    currency,
+    subtotal_sold,
+    discount_total,
+    total_sold,
+    total_paid,
+    balance_due,
+    total_booked_cost,
+    projected_margin,
+    expected_commission_total,
+    received_commission_total,
+    released_to_customer,
+    released_at,
+    version,
+    customer_terms,
+    internal_notes,
+    metadata,
+    created_at,
+    updated_at,
+    voided_at,
+    due_at,
+    finalised_at,
+    amendment_reason,
+    released_version
+  `
+}
+
+export function selectTravelPackageInvoiceLineColumns() {
+  return `
+    id,
+    invoice_id,
+    package_id,
+    reservation_id,
+    reservation_item_id,
+    line_type,
+    description,
+    quantity,
+    unit_sold_price,
+    total_sold_price,
+    unit_booked_cost,
+    total_booked_cost,
+    discount_amount,
+    expected_commission,
+    received_commission,
+    customer_visible,
+    sort_order,
+    metadata,
+    created_at,
+    updated_at
+  `
+}

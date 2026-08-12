@@ -23,6 +23,7 @@ const payload: PackageQuotePayload = {
     },
   ],
   flightOptions: [],
+  linkedFlightGroups: [],
   visaOptions: [],
   transportOptions: [],
   limitedTimeOffers: [],
@@ -68,6 +69,15 @@ function makeRequest(body: unknown) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
+}
+
+function allObjectKeys(value: unknown): string[] {
+  if (!value || typeof value !== 'object') return []
+  if (Array.isArray(value)) return value.flatMap(allObjectKeys)
+  return Object.entries(value as Record<string, unknown>).flatMap(([key, child]) => [
+    key,
+    ...allObjectKeys(child),
+  ])
 }
 
 describe('POST /api/packages/share/[token]/selection', () => {
@@ -140,6 +150,172 @@ describe('POST /api/packages/share/[token]/selection', () => {
       expect.objectContaining({
         customer_name: 'Linked Customer',
         selection_note: 'Save before switching family',
+      }),
+    )
+  })
+
+  it('rejects oversized public selection bodies before loading the quote', async () => {
+    const response = await POST(
+      makeRequest({
+        stayOptionIds: { makkah: 'hotel-a' },
+        note: 'x'.repeat(64 * 1024),
+        termsAccepted: true,
+      }) as never,
+      { params: Promise.resolve({ token: 'share-token' }) },
+    )
+    const body = await response.json()
+
+    expect(response.status).toBe(413)
+    expect(body.error).toBe('Request body is too large')
+    expect(mocks.quoteSingle).not.toHaveBeenCalled()
+  })
+
+  it('rejects selection maps with more than 50 groups', async () => {
+    const response = await POST(
+      makeRequest({
+        stayOptionIds: Object.fromEntries(
+          Array.from({ length: 51 }, (_, index) => [`stay-${index}`, `hotel-${index}`]),
+        ),
+        termsAccepted: true,
+      }) as never,
+      { params: Promise.resolve({ token: 'share-token' }) },
+    )
+    const body = await response.json()
+
+    expect(response.status).toBe(400)
+    expect(body.error).toBe('A selection can contain at most 50 groups')
+    expect(mocks.quoteSingle).not.toHaveBeenCalled()
+  })
+
+  it('returns a customer-safe selection while retaining the full internal record', async () => {
+    const payloadWithInternalTransport: PackageQuotePayload = {
+      ...payload,
+      transportOptions: [
+        {
+          id: 'transport-a',
+          title: 'Private transport',
+          summary: 'Customer-visible transport summary',
+          price: 500,
+          searchPrice: 250,
+          adjustedPrice: 500,
+          transportMainSupplierId: 'supplier-secret-id',
+          transportMainSupplierName: 'Secret Supplier Ltd',
+          transportNetCost: 175,
+          transportNetCurrency: 'SAR',
+          transportRoutes: [
+            {
+              id: 'route-selection-a',
+              kind: 'transfer',
+              routeId: 'route-a',
+              routeName: 'Jeddah to Makkah',
+              supplierId: 'route-supplier-secret-id',
+              supplierName: 'Route Supplier Secret',
+              vehicleTypeId: 'vehicle-a',
+              vehicleLabel: 'GMC Yukon',
+              costPrice: 650,
+              currency: 'SAR',
+              baseCostPriceGbp: 130,
+              costPriceGbp: 145,
+              exchangeRate: 5,
+              exchangeRateMode: 'sar_per_gbp',
+              damageRecoveryMarginMode: 'percent',
+              damageRecoveryMarginValue: 10,
+              damageRecoveryMarginAmountGbp: 15,
+            },
+          ],
+        },
+      ],
+    }
+    mocks.quoteSingle.mockResolvedValueOnce({
+      data: {
+        id: 'quote-share',
+        payload: payloadWithInternalTransport,
+        expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+      },
+      error: null,
+    })
+
+    const response = await POST(
+      makeRequest({
+        stayOptionIds: { makkah: 'hotel-a' },
+        transportOptionId: 'transport-a',
+        customerName: 'Customer Secret Name',
+        customerPhone: '+447333333333',
+        customerEmail: 'customer-secret@example.com',
+        note: 'Private customer request',
+        termsAccepted: true,
+      }) as never,
+      { params: Promise.resolve({ token: 'share-token' }) },
+    )
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.selected.combination.totalPrice).toBe(1700)
+    expect(body.selected.combination.currency).toBe('GBP')
+    expect(body.selected.combination.transportOption).toEqual(
+      expect.objectContaining({
+        id: 'transport-a',
+        price: 500,
+        transportRoutes: [
+          {
+            id: 'route-selection-a',
+            kind: 'transfer',
+            routeId: 'route-a',
+            routeName: 'Jeddah to Makkah',
+            vehicleTypeId: 'vehicle-a',
+            vehicleLabel: 'GMC Yukon',
+          },
+        ],
+      }),
+    )
+
+    const forbiddenKeys = new Set([
+      'customerName',
+      'customerPhone',
+      'customerEmail',
+      'note',
+      'searchPrice',
+      'adjustedPrice',
+      'transportMainSupplierId',
+      'transportMainSupplierName',
+      'transportNetCost',
+      'transportNetCurrency',
+      'supplierId',
+      'supplierName',
+      'costPrice',
+      'baseCostPriceGbp',
+      'costPriceGbp',
+      'exchangeRate',
+      'exchangeRateMode',
+      'damageRecoveryMarginMode',
+      'damageRecoveryMarginValue',
+      'damageRecoveryMarginAmountGbp',
+    ])
+    expect(allObjectKeys(body.selected).filter((key) => forbiddenKeys.has(key))).toEqual([])
+    expect(JSON.stringify(body)).not.toContain('Secret Supplier Ltd')
+    expect(JSON.stringify(body)).not.toContain('Route Supplier Secret')
+    expect(JSON.stringify(body)).not.toContain('Private customer request')
+    expect(JSON.stringify(body)).not.toContain('customer-secret@example.com')
+
+    const savedUpdate = mocks.update.mock.calls.at(-1)?.[0] as {
+      selected_option: {
+        selection: Record<string, unknown>
+        combination: { transportOption: Record<string, unknown> }
+      }
+    }
+    expect(savedUpdate.selected_option.selection).toEqual(
+      expect.objectContaining({
+        customerName: 'Customer Secret Name',
+        customerPhone: '+447333333333',
+        customerEmail: 'customer-secret@example.com',
+        note: 'Private customer request',
+      }),
+    )
+    expect(savedUpdate.selected_option.combination.transportOption).toEqual(
+      expect.objectContaining({
+        transportMainSupplierId: 'supplier-secret-id',
+        transportMainSupplierName: 'Secret Supplier Ltd',
+        transportNetCost: 175,
       }),
     )
   })

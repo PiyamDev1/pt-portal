@@ -105,9 +105,12 @@ export default function Verify2FAPage() {
             IMS secure access
           </div>
           <div className="mt-10">
-            <h1 className="text-4xl font-black tracking-tight text-slate-950">Confirm your identity</h1>
+            <h1 className="text-4xl font-black tracking-tight text-slate-950">
+              Confirm your identity
+            </h1>
             <p className="mt-6 max-w-xl text-lg leading-8 text-slate-600">
-              Enter your authenticator code or a backup code to complete secure sign-in to the IMS dashboard.
+              Enter your authenticator code or a backup code to complete secure sign-in to the IMS
+              dashboard.
             </p>
           </div>
         </section>
@@ -118,12 +121,15 @@ export default function Verify2FAPage() {
               <Shield className="h-6 w-6" />
             </div>
             <h2 className="text-2xl font-black text-slate-950">Two-Factor Authentication</h2>
-            <p className="mt-2 text-sm text-slate-600">Prove it&apos;s you to finish signing in to Piyam Travels IMS.</p>
+            <p className="mt-2 text-sm text-slate-600">
+              Prove it&apos;s you to finish signing in to Piyam Travels IMS.
+            </p>
           </div>
           {!useBackup ? (
             <>
               <p className="text-slate-500 mb-6 text-sm">
-                Open your authenticator app and enter the 6‑digit code for <strong>Piyam Travels</strong>.
+                Open your authenticator app and enter the 6‑digit code for{' '}
+                <strong>Piyam Travels</strong>.
               </p>
 
               <form onSubmit={handleVerify} className="space-y-6">
@@ -170,7 +176,9 @@ export default function Verify2FAPage() {
             </>
           ) : (
             <>
-              <p className="text-slate-500 mb-6 text-sm">Enter one of your single-use backup codes.</p>
+              <p className="text-slate-500 mb-6 text-sm">
+                Enter one of your single-use backup codes.
+              </p>
 
               <form onSubmit={handleVerify} className="space-y-6">
                 <input

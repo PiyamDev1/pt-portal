@@ -70,14 +70,18 @@ describe('GET /api/cron/passports/pak/drafts-cleanup', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.queues.clear()
-    delete process.env.CRON_SECRET
+    process.env.CRON_SECRET = 'secret'
     mocks.isR2Configured.mockReturnValue(false)
   })
 
   it('returns zero counts when no cancelled drafts are eligible', async () => {
     queue('pakistani_passport_drafts', mocks.makeQuery({ data: [], error: null }))
 
-    const res = await GET(new Request('http://localhost/api/cron/passports/pak/drafts-cleanup'))
+    const res = await GET(
+      new Request('http://localhost/api/cron/passports/pak/drafts-cleanup', {
+        headers: { authorization: 'Bearer secret' },
+      }),
+    )
     const body = await res.json()
 
     expect(res.status).toBe(200)
@@ -109,7 +113,11 @@ describe('GET /api/cron/passports/pak/drafts-cleanup', () => {
     queue('pakistani_passport_drafts', draftQuery, draftDelete)
     queue('documents', documentsQuery, documentUpdate)
 
-    const res = await GET(new Request('http://localhost/api/cron/passports/pak/drafts-cleanup'))
+    const res = await GET(
+      new Request('http://localhost/api/cron/passports/pak/drafts-cleanup', {
+        headers: { authorization: 'Bearer secret' },
+      }),
+    )
     const body = await res.json()
 
     expect(res.status).toBe(200)
@@ -139,5 +147,14 @@ describe('GET /api/cron/passports/pak/drafts-cleanup', () => {
 
     expect(res.status).toBe(401)
     expect(body.error).toBe('Unauthorized')
+  })
+
+  it('fails closed before querying drafts when CRON_SECRET is missing', async () => {
+    delete process.env.CRON_SECRET
+
+    const res = await GET(new Request('http://localhost/api/cron/passports/pak/drafts-cleanup'))
+
+    expect(res.status).toBe(503)
+    expect(mocks.from).not.toHaveBeenCalled()
   })
 })

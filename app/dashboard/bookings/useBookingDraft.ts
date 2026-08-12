@@ -11,7 +11,7 @@ function isMeaningfulDraft(payload: BookingDraftPayload): boolean {
     payload.customer_email.trim() ||
     payload.phone_local.trim() ||
     payload.notes.trim() ||
-    payload.tags.trim()
+    payload.tags.trim(),
   )
 }
 
@@ -23,7 +23,9 @@ export function useBookingDraft(params: {
   setForm: Dispatch<SetStateAction<BookingDraftPayload>>
 }) {
   const { enabled, editing, locationId, form, setForm } = params
-  const [draftState, setDraftState] = useState<'idle' | 'loading' | 'saving' | 'saved' | 'error'>('idle')
+  const [draftState, setDraftState] = useState<'idle' | 'loading' | 'saving' | 'saved' | 'error'>(
+    'idle',
+  )
   const loadedRef = useRef(false)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -39,9 +41,12 @@ export function useBookingDraft(params: {
     const run = async () => {
       try {
         if (active) setDraftState('loading')
-        const res = await fetch(`/api/bookings/drafts?location_id=${encodeURIComponent(locationId)}&draft_key=${DEFAULT_DRAFT_KEY}`, {
-          cache: 'no-store',
-        })
+        const res = await fetch(
+          `/api/bookings/drafts?location_id=${encodeURIComponent(locationId)}&draft_key=${DEFAULT_DRAFT_KEY}`,
+          {
+            cache: 'no-store',
+          },
+        )
         const json = await res.json()
         if (!active) return
         if (res.ok && json.payload) {
@@ -74,9 +79,12 @@ export function useBookingDraft(params: {
 
     if (!isMeaningfulDraft(form)) {
       saveTimerRef.current = setTimeout(() => {
-        void fetch(`/api/bookings/drafts?location_id=${encodeURIComponent(locationId)}&draft_key=${DEFAULT_DRAFT_KEY}`, {
-          method: 'DELETE',
-        })
+        void fetch(
+          `/api/bookings/drafts?location_id=${encodeURIComponent(locationId)}&draft_key=${DEFAULT_DRAFT_KEY}`,
+          {
+            method: 'DELETE',
+          },
+        )
       }, 250)
       return
     }
@@ -91,11 +99,13 @@ export function useBookingDraft(params: {
           draft_key: DEFAULT_DRAFT_KEY,
           payload: form,
         }),
-      }).then((res) => {
-        setDraftState(res.ok ? 'saved' : 'error')
-      }).catch(() => {
-        setDraftState('error')
       })
+        .then((res) => {
+          setDraftState(res.ok ? 'saved' : 'error')
+        })
+        .catch(() => {
+          setDraftState('error')
+        })
     }, 600)
 
     return () => {
@@ -105,9 +115,12 @@ export function useBookingDraft(params: {
 
   const clearDraft = async () => {
     if (!locationId) return
-    await fetch(`/api/bookings/drafts?location_id=${encodeURIComponent(locationId)}&draft_key=${DEFAULT_DRAFT_KEY}`, {
-      method: 'DELETE',
-    })
+    await fetch(
+      `/api/bookings/drafts?location_id=${encodeURIComponent(locationId)}&draft_key=${DEFAULT_DRAFT_KEY}`,
+      {
+        method: 'DELETE',
+      },
+    )
     setDraftState('idle')
   }
   return {

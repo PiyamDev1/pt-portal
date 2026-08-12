@@ -8,7 +8,17 @@
 'use client'
 
 import { useState } from 'react'
-import { Database, AlertCircle, CheckCircle, RefreshCw, HeartPulse, ArrowDownToLine, ArrowUpToLine, ShieldAlert, History } from 'lucide-react'
+import {
+  Database,
+  AlertCircle,
+  CheckCircle,
+  RefreshCw,
+  HeartPulse,
+  ArrowDownToLine,
+  ArrowUpToLine,
+  ShieldAlert,
+  History,
+} from 'lucide-react'
 import { toast } from 'sonner'
 import { ConfirmationDialog } from '@/components/ConfirmationDialog'
 
@@ -66,7 +76,11 @@ export function MaintenanceTab() {
   const [frappeLoading, setFrappeLoading] = useState(false)
   const [frappeHealth, setFrappeHealth] = useState<FrappeHealthResult | null>(null)
   const [attendanceBackfillLoading, setAttendanceBackfillLoading] = useState(false)
-  const [attendanceBackfillResult, setAttendanceBackfillResult] = useState<{ queued?: number; daysBack?: number; error?: string } | null>(null)
+  const [attendanceBackfillResult, setAttendanceBackfillResult] = useState<{
+    queued?: number
+    daysBack?: number
+    error?: string
+  } | null>(null)
   const [frappeActionLabel, setFrappeActionLabel] = useState<string | null>(null)
 
   const migrateInstallments = async () => {
@@ -99,11 +113,7 @@ export function MaintenanceTab() {
     }
   }
 
-  const runFrappeAction = async (
-    endpoint: string,
-    successMessage: string,
-    actionLabel: string,
-  ) => {
+  const runFrappeAction = async (endpoint: string, successMessage: string, actionLabel: string) => {
     setFrappeLoading(true)
     setFrappeActionLabel(actionLabel)
     try {
@@ -180,7 +190,13 @@ export function MaintenanceTab() {
 
               <div className="flex flex-wrap gap-2">
                 <button
-                  onClick={() => void runFrappeAction('/api/integrations/frappe/health', 'Frappe health refreshed', 'Refreshing health')}
+                  onClick={() =>
+                    void runFrappeAction(
+                      '/api/integrations/frappe/health',
+                      'Frappe health refreshed',
+                      'Refreshing health',
+                    )
+                  }
                   disabled={frappeLoading}
                   className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
                 >
@@ -188,7 +204,13 @@ export function MaintenanceTab() {
                   Health
                 </button>
                 <button
-                  onClick={() => void runFrappeAction('/api/integrations/frappe/sync/pull', 'Frappe leave pull completed', 'Pulling leave')}
+                  onClick={() =>
+                    void runFrappeAction(
+                      '/api/integrations/frappe/sync/pull',
+                      'Frappe leave pull completed',
+                      'Pulling leave',
+                    )
+                  }
                   disabled={frappeLoading}
                   className="inline-flex items-center gap-2 rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
                 >
@@ -196,7 +218,13 @@ export function MaintenanceTab() {
                   Pull Leave
                 </button>
                 <button
-                  onClick={() => void runFrappeAction('/api/integrations/frappe/sync/push', 'Frappe outbox push completed', 'Pushing outbox')}
+                  onClick={() =>
+                    void runFrappeAction(
+                      '/api/integrations/frappe/sync/push',
+                      'Frappe outbox push completed',
+                      'Pushing outbox',
+                    )
+                  }
                   disabled={frappeLoading}
                   className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
                 >
@@ -204,7 +232,13 @@ export function MaintenanceTab() {
                   Push Outbox
                 </button>
                 <button
-                  onClick={() => void runFrappeAction('/api/integrations/frappe/reconcile', 'Frappe reconcile completed', 'Reconciling bridge data')}
+                  onClick={() =>
+                    void runFrappeAction(
+                      '/api/integrations/frappe/reconcile',
+                      'Frappe reconcile completed',
+                      'Reconciling bridge data',
+                    )
+                  }
                   disabled={frappeLoading}
                   className="inline-flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
                 >
@@ -223,14 +257,22 @@ export function MaintenanceTab() {
               {frappeHealth && (
                 <div className="rounded-lg border border-slate-200 bg-white p-4">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${frappeHealth.ready ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                    <span
+                      className={`rounded-full px-2.5 py-1 text-xs font-semibold ${frappeHealth.ready ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}
+                    >
                       {frappeHealth.ready ? 'Ready' : 'Needs setup'}
                     </span>
-                    <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${frappeHealth.ping_ok ? 'bg-sky-100 text-sky-700' : 'bg-red-100 text-red-700'}`}>
+                    <span
+                      className={`rounded-full px-2.5 py-1 text-xs font-semibold ${frappeHealth.ping_ok ? 'bg-sky-100 text-sky-700' : 'bg-red-100 text-red-700'}`}
+                    >
                       {frappeHealth.ping_ok ? 'Frappe reachable' : 'Ping failed'}
                     </span>
-                    <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${frappeHealth.employee_provisioning_ready ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
-                      {frappeHealth.employee_provisioning_ready ? 'Employee DocType ready' : 'Employee DocType missing'}
+                    <span
+                      className={`rounded-full px-2.5 py-1 text-xs font-semibold ${frappeHealth.employee_provisioning_ready ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}
+                    >
+                      {frappeHealth.employee_provisioning_ready
+                        ? 'Employee DocType ready'
+                        : 'Employee DocType missing'}
                     </span>
                   </div>
 
@@ -238,20 +280,33 @@ export function MaintenanceTab() {
                     <p className="mt-3 text-xs text-red-700">{frappeHealth.ping_error}</p>
                   )}
 
-                  {!frappeHealth.employee_provisioning_ready && frappeHealth.employee_provisioning_error && (
-                    <p className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
-                      {frappeHealth.employee_provisioning_error}
-                    </p>
-                  )}
+                  {!frappeHealth.employee_provisioning_ready &&
+                    frappeHealth.employee_provisioning_error && (
+                      <p className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                        {frappeHealth.employee_provisioning_error}
+                      </p>
+                    )}
 
                   <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-7">
                     <MetricCard label="Outbox pending" value={frappeHealth.counts.outbox_pending} />
-                    <MetricCard label="Dead letters" value={frappeHealth.counts.outbox_dead_letter} />
+                    <MetricCard
+                      label="Dead letters"
+                      value={frappeHealth.counts.outbox_dead_letter}
+                    />
                     <MetricCard label="Inbox pending" value={frappeHealth.counts.inbox_pending} />
                     <MetricCard label="Open conflicts" value={frappeHealth.counts.conflicts_open} />
-                    <MetricCard label="Identity rows" value={frappeHealth.counts.identity_map_rows} />
-                    <MetricCard label="Handoffs 24h" value={frappeHealth.counts.handoff_issued_24h || 0} />
-                    <MetricCard label="Handoff issues" value={frappeHealth.counts.handoff_problem_24h || 0} />
+                    <MetricCard
+                      label="Identity rows"
+                      value={frappeHealth.counts.identity_map_rows}
+                    />
+                    <MetricCard
+                      label="Handoffs 24h"
+                      value={frappeHealth.counts.handoff_issued_24h || 0}
+                    />
+                    <MetricCard
+                      label="Handoff issues"
+                      value={frappeHealth.counts.handoff_problem_24h || 0}
+                    />
                   </div>
 
                   <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-4">
@@ -259,7 +314,8 @@ export function MaintenanceTab() {
                       <div>
                         <h4 className="mb-1 font-bold text-slate-900">Timeclock Attendance Sync</h4>
                         <p className="text-xs text-slate-600">
-                          Queues IMS clock-in summaries to Frappe. Staff should keep clocking in through IMS only.
+                          Queues IMS clock-in summaries to Frappe. Staff should keep clocking in
+                          through IMS only.
                         </p>
                       </div>
                       <button
@@ -267,7 +323,9 @@ export function MaintenanceTab() {
                         disabled={attendanceBackfillLoading}
                         className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
                       >
-                        <RefreshCw className={`w-4 h-4 ${attendanceBackfillLoading ? 'animate-spin' : ''}`} />
+                        <RefreshCw
+                          className={`w-4 h-4 ${attendanceBackfillLoading ? 'animate-spin' : ''}`}
+                        />
                         {attendanceBackfillLoading ? 'Queueing...' : 'Backfill 3 Days'}
                       </button>
                     </div>
@@ -282,12 +340,10 @@ export function MaintenanceTab() {
                       />
                       <MetricCard
                         label="Attendance sync state"
-                        value={
-                          Number(
-                            frappeHealth.sync_state.find((item) => item.domain === 'attendance')
-                              ?.health_status === 'healthy',
-                          )
-                        }
+                        value={Number(
+                          frappeHealth.sync_state.find((item) => item.domain === 'attendance')
+                            ?.health_status === 'healthy',
+                        )}
                       />
                     </div>
                     {attendanceBackfillResult && (
@@ -301,7 +357,10 @@ export function MaintenanceTab() {
 
                   <div className="mt-4 space-y-2">
                     {frappeHealth.sync_state.map((item) => (
-                      <div key={item.domain} className="rounded border border-slate-200 px-3 py-2 text-xs text-slate-600">
+                      <div
+                        key={item.domain}
+                        className="rounded border border-slate-200 px-3 py-2 text-xs text-slate-600"
+                      >
                         <p className="font-semibold text-slate-800">{item.domain}</p>
                         <p>Status: {item.health_status || 'unknown'}</p>
                         <p>Last pull: {item.last_pull_at || 'never'}</p>
@@ -340,7 +399,9 @@ export function MaintenanceTab() {
                               {event.client_kind} / {event.response_mode} to {event.target_path}
                             </p>
                             {event.reason && <p className="mt-1 text-amber-700">{event.reason}</p>}
-                            <p className="mt-1 text-slate-400">{formatDateTime(event.created_at)}</p>
+                            <p className="mt-1 text-slate-400">
+                              {formatDateTime(event.created_at)}
+                            </p>
                           </div>
                         ))}
                       </div>

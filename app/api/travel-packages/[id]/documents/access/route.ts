@@ -35,10 +35,7 @@ async function parseBody(request: NextRequest) {
   }
 }
 
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const supabase = await getRouteSupabaseClient()
   const {
@@ -85,8 +82,8 @@ export async function PATCH(
       document_access_expires_at: expiresAt,
       document_release_status: enabled ? 'released' : 'revoked',
       customer_access_last_name:
-        (existing as { customer_access_last_name?: string | null }).customer_access_last_name
-        || customerLastName,
+        (existing as { customer_access_last_name?: string | null }).customer_access_last_name ||
+        customerLastName,
       portal_access_created_at: enabled ? new Date().toISOString() : null,
     })
     .eq('id', id)

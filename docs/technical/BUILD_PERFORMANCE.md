@@ -1,5 +1,7 @@
 # Vercel Build Performance Analysis
 
+> **Point-in-time measurement.** Durations, cache behavior, dependency versions, and recommended optimizations below are not current guarantees. Re-profile the present branch/environment before acting.
+
 ## Current Build Time: ~40s
 
 ### Breakdown Analysis:

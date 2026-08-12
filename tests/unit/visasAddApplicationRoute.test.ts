@@ -67,7 +67,8 @@ describe('POST /api/visas/add-application', () => {
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-key'
     mocks.createClient.mockReturnValue({ from: mocks.from })
     mocks.from.mockImplementation((table: string) => {
-      if (table === 'applicants') return { select: mocks.applicantSelect, insert: mocks.applicantInsert }
+      if (table === 'applicants')
+        return { select: mocks.applicantSelect, insert: mocks.applicantInsert }
       if (table === 'visa_applications') return { insert: mocks.visaInsert }
       return {}
     })

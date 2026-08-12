@@ -6,22 +6,22 @@ export const ALLOWED_TEMPLATE_VARIABLES = [
   '[branch name]',
   '[branch address]',
   '[branch contact number]',
-] as const;
+] as const
 
 export interface BookingTemplateValues {
-  'Customer Name': string;
-  'date booked': string;
-  'time booked': string;
-  'service booked': string;
-  'branch name'?: string;
-  'branch address'?: string;
-  'branch contact number'?: string;
+  'Customer Name': string
+  'date booked': string
+  'time booked': string
+  'service booked': string
+  'branch name'?: string
+  'branch address'?: string
+  'branch contact number'?: string
 }
 
-const TEMPLATE_TOKEN_REGEX = /\[[^\]]+\]/g;
+const TEMPLATE_TOKEN_REGEX = /\[[^\]]+\]/g
 
 function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 function escapeHtml(value: string): string {
@@ -30,40 +30,41 @@ function escapeHtml(value: string): string {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+    .replace(/'/g, '&#39;')
 }
 
 export function findTemplateTokens(template: string): string[] {
-  const matches = template.match(TEMPLATE_TOKEN_REGEX) || [];
-  return [...new Set(matches)];
+  const matches = template.match(TEMPLATE_TOKEN_REGEX) || []
+  return [...new Set(matches)]
 }
 
 export function validateBookingTemplate(template: string): {
-  valid: boolean;
-  invalidTokens: string[];
+  valid: boolean
+  invalidTokens: string[]
 } {
-  const tokens = findTemplateTokens(template);
+  const tokens = findTemplateTokens(template)
   const invalidTokens = tokens.filter(
-    (token) => !ALLOWED_TEMPLATE_VARIABLES.includes(token as (typeof ALLOWED_TEMPLATE_VARIABLES)[number])
-  );
+    (token) =>
+      !ALLOWED_TEMPLATE_VARIABLES.includes(token as (typeof ALLOWED_TEMPLATE_VARIABLES)[number]),
+  )
   return {
     valid: invalidTokens.length === 0,
     invalidTokens,
-  };
+  }
 }
 
 export function renderBookingTemplate(template: string, values: BookingTemplateValues): string {
-  let output = template;
+  let output = template
   for (const [key, rawValue] of Object.entries(values)) {
-    const value = rawValue ?? '';
-    const token = new RegExp(`\\[${escapeRegExp(key)}\\]`, 'g');
-    output = output.replace(token, value);
+    const value = rawValue ?? ''
+    const token = new RegExp(`\\[${escapeRegExp(key)}\\]`, 'g')
+    output = output.replace(token, value)
   }
-  return output;
+  return output
 }
 
 export function withPresetEmailTemplate(content: string): string {
-  const escaped = escapeHtml(content).replace(/\n/g, '<br/>');
+  const escaped = escapeHtml(content).replace(/\n/g, '<br/>')
   return `<!DOCTYPE html>
 <html>
   <head>
@@ -88,13 +89,13 @@ export function withPresetEmailTemplate(content: string): string {
       </tr>
     </table>
   </body>
-</html>`;
+</html>`
 }
 
 export function buildBookingEmailHtmlFromTemplate(
   template: string,
-  values: BookingTemplateValues
+  values: BookingTemplateValues,
 ): string {
-  const renderedText = renderBookingTemplate(template, values);
-  return withPresetEmailTemplate(renderedText);
+  const renderedText = renderBookingTemplate(template, values)
+  return withPresetEmailTemplate(renderedText)
 }

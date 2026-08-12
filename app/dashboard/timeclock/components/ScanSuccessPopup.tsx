@@ -59,7 +59,9 @@ export function ScanSuccessPopup({
           </h2>
           <p className="mt-1 text-slate-600 text-sm">{result?.message || message}</p>
         </div>
-        {result?.scannedAt && <p className="text-xs text-slate-400">Recorded at {result.scannedAt}</p>}
+        {result?.scannedAt && (
+          <p className="text-xs text-slate-400">Recorded at {result.scannedAt}</p>
+        )}
         {isCooldownActive && (
           <p className="text-xs font-medium text-amber-600">
             Scan locked for {cooldownSeconds}s to prevent duplicates

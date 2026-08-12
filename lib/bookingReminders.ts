@@ -1,6 +1,7 @@
 import { renderBookingTemplate } from '@/lib/bookingEmail'
 
-export const DEFAULT_REMINDER_SUBJECT = 'Appointment reminder: [service booked] on [date booked] at [time booked]'
+export const DEFAULT_REMINDER_SUBJECT =
+  'Appointment reminder: [service booked] on [date booked] at [time booked]'
 
 export const DEFAULT_REMINDER_TEMPLATE = [
   'Dear [Customer Name],',
@@ -43,7 +44,8 @@ export function defaultReminderSettings(locationId: string): BookingReminderSett
     penalty_enabled: true,
     penalty_threshold: 3,
     penalty_action: 'block_until_manual_review',
-    penalty_note: 'Repeat no-show profile. Staff review required before accepting another appointment.',
+    penalty_note:
+      'Repeat no-show profile. Staff review required before accepting another appointment.',
   }
 }
 
@@ -70,7 +72,7 @@ export function renderReminderText(
     branchName: string
     branchAddress: string
     branchContactNumber: string
-  }
+  },
 ): string {
   return renderBookingTemplate(template, {
     'Customer Name': values.customerName,

@@ -74,7 +74,7 @@ PT-Portal does not store a login-capable plaintext password. Supabase Auth owns 
 
 Supabase Auth Helpers maintain the browser session in cookies. API authorization must use `auth.getUser()`, not the unverified contents returned by `getSession()`. The latter may be decoded only after `getUser()` has authenticated the request, for example to identify the current session in the session-management view.
 
-`useSessionTimeout` and `SessionWarningHeader` warn before token expiry. API `401` responses indicate that the caller should return to login; `403` means the identity is known but lacks the required employee, role, department, or fresh-factor authorization.
+The Supabase browser client refreshes its cookie-backed session while refresh credentials remain valid. On a fresh login-page load, PT-Portal resumes a valid existing session and reruns employee/branch/MFA checks; logout explicitly signs out and returns to `/login`. There is no separate client countdown warning. API `401` responses mean the session is missing or no longer valid and the caller must authenticate again; `403` means the identity is known but lacks the required employee, role, department, or fresh-factor authorization.
 
 ## Shared rate limiting
 

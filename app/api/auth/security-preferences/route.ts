@@ -56,7 +56,9 @@ export async function PATCH(request: NextRequest) {
     }
 
     if (body.backup_codes_downloaded !== undefined) {
-      payload.backup_codes_downloaded_at = body.backup_codes_downloaded ? new Date().toISOString() : null
+      payload.backup_codes_downloaded_at = body.backup_codes_downloaded
+        ? new Date().toISOString()
+        : null
     }
     if (body.backup_reminder_dismissed_until !== undefined) {
       payload.backup_reminder_dismissed_until = body.backup_reminder_dismissed_until

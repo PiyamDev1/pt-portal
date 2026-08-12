@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
 import { getSupabaseClient } from '@/lib/supabaseClient'
-import {
-  type BookingReminderSettings,
-  defaultReminderSettings,
-} from '@/lib/bookingReminders'
+import { type BookingReminderSettings, defaultReminderSettings } from '@/lib/bookingReminders'
+import { requireAdminSession } from '@/lib/adminSessionAuth'
 
-const SCHEMA_HINT = 'Booking schema is out of date. Run scripts/migrations/20260602_add_booking_reminders_and_penalties.sql in Supabase SQL editor.'
+const SCHEMA_HINT =
+  'Booking schema is out of date. Run scripts/migrations/20260602_add_booking_reminders_and_penalties.sql in Supabase SQL editor.'
 
 function isSchemaError(error: unknown): boolean {
   const code = (error as { code?: string } | null)?.code
@@ -25,9 +24,8 @@ function sanitizeReminderSettings(input: BookingReminderSettings): BookingRemind
     ? Math.min(20, Math.max(1, Math.round(input.penalty_threshold)))
     : 3
 
-  const penaltyAction = input.penalty_action === 'warn_only'
-    ? 'warn_only'
-    : 'block_until_manual_review'
+  const penaltyAction =
+    input.penalty_action === 'warn_only' ? 'warn_only' : 'block_until_manual_review'
 
   return {
     ...input,
@@ -35,8 +33,12 @@ function sanitizeReminderSettings(input: BookingReminderSettings): BookingRemind
     reminder_hours_before: reminderHours,
     same_day_reminder_enabled: input.same_day_reminder_enabled !== false,
     same_day_reminder_hours_before: sameDayHours,
-    reminder_subject: (input.reminder_subject || '').trim() || defaultReminderSettings(input.location_id).reminder_subject,
-    reminder_template: (input.reminder_template || '').trim() || defaultReminderSettings(input.location_id).reminder_template,
+    reminder_subject:
+      (input.reminder_subject || '').trim() ||
+      defaultReminderSettings(input.location_id).reminder_subject,
+    reminder_template:
+      (input.reminder_template || '').trim() ||
+      defaultReminderSettings(input.location_id).reminder_template,
     attendance_confirmation_required: input.attendance_confirmation_required !== false,
     penalty_enabled: input.penalty_enabled !== false,
     penalty_threshold: threshold,
@@ -53,7 +55,9 @@ export async function GET(request: NextRequest) {
     }
 
     const sessionClient = await getRouteSupabaseClient()
-    const { data: { user } } = await sessionClient.auth.getUser()
+    const {
+      data: { user },
+    } = await sessionClient.auth.getUser()
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
@@ -66,7 +70,10 @@ export async function GET(request: NextRequest) {
 
     if (error) {
       if (isSchemaError(error)) {
-        return NextResponse.json({ settings: defaultReminderSettings(locationId), warning: SCHEMA_HINT }, { status: 200 })
+        return NextResponse.json(
+          { settings: defaultReminderSettings(locationId), warning: SCHEMA_HINT },
+          { status: 200 },
+        )
       }
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
@@ -79,7 +86,10 @@ export async function GET(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    const body = await request.json() as {
+    const access = await requireAdminSession()
+    if (!access.authorized) return access.response
+
+    const body = (await request.json()) as {
       location_id?: string
       settings?: Partial<BookingReminderSettings>
     }
@@ -87,12 +97,6 @@ export async function PATCH(request: NextRequest) {
     const locationId = body.location_id
     if (!locationId) {
       return NextResponse.json({ error: 'location_id is required' }, { status: 400 })
-    }
-
-    const sessionClient = await getRouteSupabaseClient()
-    const { data: { user } } = await sessionClient.auth.getUser()
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const merged = sanitizeReminderSettings({

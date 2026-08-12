@@ -14,7 +14,7 @@
  */
 
 import React, { useCallback, useState, useRef } from 'react'
-import { Upload, X, AlertCircle, CheckCircle2, File, FileText, RotateCcw } from 'lucide-react'
+import { Upload, X, AlertCircle, CheckCircle2, File, RotateCcw } from 'lucide-react'
 import { documentClient } from '@/lib/services/documentClient'
 import { UploadProgress, Document } from './types'
 
@@ -81,19 +81,6 @@ export function DocumentUpload({
   const [uploadedFiles, setUploadedFiles] = useState<Document[]>([])
   // Retain file references so failed uploads can be retried
   const fileMapRef = useRef<Map<string, File>>(new Map())
-
-  /**
-   * Get file icon based on type
-   */
-  const getFileIcon = (fileType: string) => {
-    if (fileType.startsWith('image/')) {
-      return '🖼️'
-    }
-    if (fileType.includes('pdf')) {
-      return '📄'
-    }
-    return '📎'
-  }
 
   /**
    * Validate and upload files

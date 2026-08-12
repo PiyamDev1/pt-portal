@@ -2,7 +2,7 @@
  * Visa Table Column Configuration
  * Defines the columns displayed in visa application tables
  * Also used to generate CSV exports and table headers
- * 
+ *
  * @module lib/visaTableConfig
  */
 

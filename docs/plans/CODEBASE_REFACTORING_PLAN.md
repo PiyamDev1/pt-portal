@@ -1,5 +1,7 @@
 # Codebase Refactoring & Modularization Plan
 
+> **Point-in-time planning audit.** File sizes, priorities, and suggested extractions below may no longer match the repository. Use current source and active architecture/developer guides before acting.
+
 ## Executive Summary
 
 The codebase has grown significantly and contains several large monolithic components and API routes that would benefit from modularization. This document outlines the priority areas and recommended refactoring approach.

@@ -1,5 +1,7 @@
 # Payment Service Page - Infinite Refresh Loop Fix
 
+> **Historical incident summary.** This explains a past fix, not the current LMS architecture or troubleshooting contract. Verify current components and tests before reusing its advice.
+
 ## Problem
 
 The payment service (LMS) page was experiencing constant data refetching, making it completely unusable. The page would continuously refresh data even when user interactions should trigger controlled refreshes.

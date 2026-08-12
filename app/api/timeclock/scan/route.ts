@@ -39,7 +39,6 @@
  * @module app/api/timeclock/scan
  */
 
-import { NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies, headers } from 'next/headers'
 import { createClient } from '@supabase/supabase-js'

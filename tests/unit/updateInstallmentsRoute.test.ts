@@ -1,13 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => {
-  const from = vi.fn()
-  const createClient = vi.fn(() => ({ from }))
-  return { from, createClient }
+  const rpc = vi.fn()
+  return { rpc }
 })
 
-vi.mock('@supabase/supabase-js', () => ({
-  createClient: mocks.createClient,
+vi.mock('@/lib/api/serviceSupabase', () => ({
+  getServiceSupabaseClient: () => ({ rpc: mocks.rpc }),
 }))
 vi.mock('@/lib/lms/apiAuth', () => ({
   requireLmsStaff: vi.fn(async () => ({
@@ -42,16 +41,13 @@ describe('/api/lms/update-installments route', () => {
 
     expect(response.status).toBe(400)
     expect(payload).toEqual({ error: 'Invalid installments data' })
-    expect(mocks.from).not.toHaveBeenCalled()
+    expect(mocks.rpc).not.toHaveBeenCalled()
   })
 
-  it('updates every validated installment entry', async () => {
-    const eq = vi.fn(async () => ({ error: null }))
-    const update = vi.fn(() => ({ eq }))
-
-    mocks.from.mockImplementation((table: string) => {
-      if (table !== 'loan_installments') throw new Error('Unexpected table')
-      return { update }
+  it('updates every validated installment entry in one atomic call', async () => {
+    mocks.rpc.mockResolvedValue({
+      data: { updatedInstallmentIds: ['i-1', 'i-2'], updatedCount: 2 },
+      error: null,
     })
 
     const request = new Request('http://localhost/api/lms/update-installments', {
@@ -71,16 +67,20 @@ describe('/api/lms/update-installments route', () => {
     expect(response.status).toBe(200)
     expect(payload.updatedInstallmentIds).toEqual(['i-1', 'i-2'])
     expect(payload.updatedCount).toBe(2)
-    expect(update).toHaveBeenCalledTimes(2)
-    expect(eq).toHaveBeenNthCalledWith(1, 'id', 'i-1')
-    expect(eq).toHaveBeenNthCalledWith(2, 'id', 'i-2')
+    expect(mocks.rpc).toHaveBeenCalledTimes(1)
+    expect(mocks.rpc).toHaveBeenCalledWith('lms_update_installments', {
+      p_installments: [
+        { id: 'i-1', due_date: '2026-04-01', amount: 100.5 },
+        { id: 'i-2', due_date: '2026-05-01', amount: 125 },
+      ],
+    })
   })
 
-  it('returns 500 when a Supabase update fails', async () => {
-    const eq = vi.fn(async () => ({ error: { message: 'db failed' } }))
-    const update = vi.fn(() => ({ eq }))
-
-    mocks.from.mockImplementation(() => ({ update }))
+  it('returns 500 when the atomic Supabase call fails', async () => {
+    mocks.rpc.mockResolvedValue({
+      data: null,
+      error: { code: 'XX000', message: 'db failed' },
+    })
 
     const request = new Request('http://localhost/api/lms/update-installments', {
       method: 'POST',

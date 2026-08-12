@@ -1,7 +1,7 @@
 /**
  * API Error Handling Utilities
  * Extract consistent error messages from various error types
- * 
+ *
  * @module lib/api/error
  */
 

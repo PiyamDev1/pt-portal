@@ -1,8 +1,10 @@
 # Receipt Generation Feature Implementation Plan
 
+> **Completed historical plan.** Retained for provenance; use [Receipt Operations](../../guides/RECEIPT_OPERATIONS_GUIDE.md) and current route/tests for operational behavior.
+
 **Date Created:** March 19, 2026  
 **Status:** Completed (April 2026)  
-**Priority:** Medium  
+**Priority:** Medium
 
 ---
 
@@ -17,10 +19,10 @@ Implement a comprehensive receipt generation system that creates copyable receip
 - Integrated receipt generation into NADRA, PK Passport, and GB Passport workflows.
 - Shipped receipt preview modal with screenshot copy to clipboard and in-modal history logs.
 - Added service-specific rules:
-   - NADRA uses PIN verification.
-   - PK Passport and GB Passport do not use PIN.
-   - GB uses PEX REF as the receipt tracking value.
-   - Family head is shown only for NADRA receipts.
+  - NADRA uses PIN verification.
+  - PK Passport and GB Passport do not use PIN.
+  - GB uses PEX REF as the receipt tracking value.
+  - Family head is shown only for NADRA receipts.
 - Added operations guide, backfill scripts, and smoke/unit test coverage.
 
 ---
@@ -30,15 +32,18 @@ Implement a comprehensive receipt generation system that creates copyable receip
 ### Receipt Types Required
 
 #### **NADRA Applications**
+
 - Receipt for Application Submitted
 - Receipt for Refund (when refunded)
 
 #### **Pakistani Passports**
+
 - Receipt for Application at Biometrics Submitted
 - Receipt for Refund (when refunded)
 - Receipt for Passport Collected/Returned
 
 #### **British Passports**
+
 - Receipt for Application Entered into System
 
 ---
@@ -48,6 +53,7 @@ Implement a comprehensive receipt generation system that creates copyable receip
 ### Database Schema
 
 **Update to documents table:**
+
 ```sql
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS receipt_type VARCHAR(50);
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS service_type VARCHAR(50);
@@ -56,6 +62,7 @@ ALTER TABLE documents ADD COLUMN IF NOT EXISTS is_shared BOOLEAN DEFAULT FALSE;
 ```
 
 **Receipt-specific fields in service tables:**
+
 - Store receipt generation timestamp in application records
 - Track receipt access/share attempts in audit logs
 
@@ -94,7 +101,9 @@ hooks/
 ## Implementation Phases
 
 ### Phase 1: Receipt Data & Generation Engine
+
 **Deliverables:**
+
 - Receipt data structures for each service type
 - HTML template system with Tailwind styling
 - Pricing data integration from existing tables
@@ -102,12 +111,15 @@ hooks/
 - Random 6-digit PIN generation for receipt verification
 
 **Key Components:**
+
 - Receipt contains: Application details, pricing breakdown, tracking number, QR code, PIN, timestamp
 - Template includes: Service type badge, applicant info, dates, amounts, verification code
 - Auto-generated on status changes to submission/completion states
 
 ### Phase 2: UI & Copy Functionality
+
 **Deliverables:**
+
 - Receipt viewer component (modal/side panel)
 - Image capture using `html2canvas` library
 - Copy to clipboard (PNG format)
@@ -115,25 +127,31 @@ hooks/
 - Share buttons (WhatsApp, Email, generic share)
 
 **User Experience:**
+
 - One-click copy to clipboard
 - Visual feedback on successful copy
 - Mobile-responsive design
 - Preview before copying
 
 ### Phase 3: Integration & Automation
+
 **Deliverables:**
+
 - Hook into status update endpoints to auto-generate receipts
 - Hook into refund endpoints to generate refund receipts
 - Store receipt records in documents table
 - Receipt history tracking per applicant
 
 **Triggers:**
+
 - NADRA: "Submitted", "Cancelled" (refund) status
 - PK Passport: "BiometricsTaken", "Collected", "Cancelled" (refund)
 - GB Passport: "Pending Submission" (initial entry)
 
 ### Phase 4: Advanced Features (Optional)
+
 **Deliverables:**
+
 - Email delivery (async job queue)
 - WhatsApp integration (if using Twilio/similar)
 - SMS tracking number delivery
@@ -220,23 +238,26 @@ hooks/
 ## Technical Stack
 
 ### Frontend Libraries
+
 ```json
 {
-  "html2canvas": "^1.4.1",    // Convert HTML to canvas/image
-  "jspdf": "^2.5.1",           // PDF generation
-  "qrcode.react": "^1.0.1",    // QR code component
-  "date-fns": "^3.0.0",        // Date formatting
-  "axios": "existing",         // HTTP requests
+  "html2canvas": "^1.4.1", // Convert HTML to canvas/image
+  "jspdf": "^2.5.1", // PDF generation
+  "qrcode.react": "^1.0.1", // QR code component
+  "date-fns": "^3.0.0", // Date formatting
+  "axios": "existing", // HTTP requests
   "react-hot-toast": "existing" // Notifications
 }
 ```
 
 ### Styling
+
 - Tailwind CSS (existing)
 - Custom receipt CSS for print media
 - Responsive grid layout
 
 ### Backend
+
 - Existing Node.js/Next.js API routes
 - Service-role authentication
 - MinIO document storage
@@ -247,42 +268,44 @@ hooks/
 ## Data Models
 
 ### Receipt Data Structure
+
 ```typescript
 interface Receipt {
-  id: string;
-  documentId?: string;  // Reference to documents table
-  applicationId: string;
-  applicantId: string;
-  applicantName: string;
-  phone: string;
-  email?: string;
-  
-  serviceType: 'nadra' | 'pk_passport' | 'gb_passport';
-  receiptType: 'submission' | 'refund' | 'collection';
-  
-  trackingNumber: string;
-  applicationPin: string;  // From application
-  receiptPin: string;      // 6-digit verification PIN
-  
+  id: string
+  documentId?: string // Reference to documents table
+  applicationId: string
+  applicantId: string
+  applicantName: string
+  phone: string
+  email?: string
+
+  serviceType: 'nadra' | 'pk_passport' | 'gb_passport'
+  receiptType: 'submission' | 'refund' | 'collection'
+
+  trackingNumber: string
+  applicationPin: string // From application
+  receiptPin: string // 6-digit verification PIN
+
   pricing: {
-    serviceDescription: string;
-    costPrice: number;
-    salePrice: number;
-    currency: string;
-  };
-  
-  generatedAt: Date;
-  generatedBy: string;    // User ID
-  
+    serviceDescription: string
+    costPrice: number
+    salePrice: number
+    currency: string
+  }
+
+  generatedAt: Date
+  generatedBy: string // User ID
+
   metadata: {
-    qrCode: string;       // Base64 encoded
-    company: string;
-    branding?: Record<string, string>;
-  };
+    qrCode: string // Base64 encoded
+    company: string
+    branding?: Record<string, string>
+  }
 }
 ```
 
 ### Status History Integration
+
 ```typescript
 // Extend existing nadra_status_history, etc.
 {
@@ -297,6 +320,7 @@ interface Receipt {
 ## API Endpoints
 
 ### Generate Receipt
+
 ```
 POST /api/receipts/generate
 Body: { applicationId: string, receiptType: string }
@@ -304,6 +328,7 @@ Returns: Receipt object + document reference
 ```
 
 ### Verify Receipt
+
 ```
 POST /api/receipts/verify
 Body: { trackingNumber: string, receiptPin: string }
@@ -311,6 +336,7 @@ Returns: { valid: boolean, message: string }
 ```
 
 ### Send Receipt Email
+
 ```
 POST /api/receipts/email
 Body: { receiptId: string, recipientEmail: string }
@@ -318,6 +344,7 @@ Returns: { sent: boolean, messageId?: string }
 ```
 
 ### List User Receipts
+
 ```
 GET /api/receipts/list?applicantId=...&serviceType=...
 Returns: Receipt[]
@@ -351,6 +378,7 @@ Returns: Receipt[]
 ## Integration Points
 
 ### Status Update Triggers
+
 **When to generate receipts:**
 
 1. **NADRA:**
@@ -366,6 +394,7 @@ Returns: Receipt[]
    - Status change to "Pending Submission" (creation) → Entry Receipt
 
 ### Auto-Email (Optional)
+
 If enabled, async job to send email immediately after generation.
 
 ---
@@ -373,18 +402,21 @@ If enabled, async job to send email immediately after generation.
 ## Testing Strategy
 
 ### Unit Tests
+
 - Receipt data generation
 - PIN validation logic
 - Price calculations
 - QR code generation
 
 ### Integration Tests
+
 - API endpoint creation/verification
 - Database record insertion
 - Email sending (mock)
 - Status trigger logic
 
 ### E2E Tests
+
 - Create application → receipt generation → copy flow
 - Refund flow → receipt generation
 - Receipt share to WhatsApp/email

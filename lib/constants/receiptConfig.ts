@@ -23,4 +23,7 @@ export const RECEIPT_DEFAULT_CURRENCY = 'GBP'
 export const RECEIPT_COMPANY_NAME = process.env.RECEIPT_COMPANY_NAME || 'PT Portal'
 
 export const RECEIPT_VERIFY_BASE_URL =
-  process.env.RECEIPT_VERIFY_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || ''
+  process.env.RECEIPT_VERIFY_BASE_URL ||
+  process.env.NEXT_PUBLIC_SITE_URL ||
+  process.env.NEXT_PUBLIC_APP_URL ||
+  ''

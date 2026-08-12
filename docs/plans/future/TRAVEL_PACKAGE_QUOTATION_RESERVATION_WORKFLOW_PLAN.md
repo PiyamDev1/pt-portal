@@ -1,6 +1,8 @@
 # Travel Package Quotation, Reservation, Invoice, and Document Portal Plan
 
-**Status:** Implemented in PT-Portal; database rollout and legacy import validation pending
+> **Superseded implementation design.** The native quote-to-selection-to-package-folder workflow, reservations, invoices, payments, documents, portals, groups, vouchers, and migration tooling are implemented. Use [Travel Packages](../../guides/TRAVEL_PACKAGES_GUIDE.md); deployment/migration state must be verified live.
+
+**Original status:** Implemented in PT-Portal; database rollout and legacy import validation pending
 **Created:** July 11, 2026  
 **Target Module:** Packages / Reservations  
 **Primary Repo:** `Piyam-Travel-LTD/pt-portal`  

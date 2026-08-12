@@ -25,34 +25,3 @@ export const PRICING_OPTIONS = {
     serviceTypes: ['Standard', 'Express', 'Premium'],
   },
 }
-
-/**
- * Default visa countries - can be expanded based on business needs
- */
-export const DEFAULT_VISA_COUNTRIES = [
-  'United States',
-  'United Kingdom',
-  'Canada',
-  'Australia',
-  'Schengen (EU)',
-  'Saudi Arabia',
-  'UAE',
-  'Singapore',
-  'Malaysia',
-  'Thailand',
-  'Turkey',
-]
-
-/**
- * Visa types commonly offered
- */
-export const VISA_TYPES = [
-  'Tourist',
-  'Business',
-  'Work',
-  'Student',
-  'Family',
-  'Medical',
-  'Transit',
-  'Resident',
-]

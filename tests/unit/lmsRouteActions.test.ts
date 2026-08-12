@@ -135,6 +135,24 @@ describe('/api/lms route POST actions', () => {
     )
   })
 
+  it('maps a missing payment loan to 404', async () => {
+    mocks.rpc.mockResolvedValue({
+      data: null,
+      error: { code: 'P0002', message: 'Loan not found' },
+    })
+
+    const response = await POST(
+      new Request('http://localhost/api/lms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'record_payment', loanId: 'missing', amount: 100 }),
+      }),
+    )
+
+    expect(response.status).toBe(404)
+    expect(await response.json()).toEqual({ error: 'Loan not found' })
+  })
+
   it('update_customer succeeds', async () => {
     mocks.rpc.mockResolvedValue({
       data: { updatedCustomerId: 'cust-1' },

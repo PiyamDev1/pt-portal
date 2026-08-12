@@ -2,7 +2,7 @@
  * Visa Application Constants
  * Default form states, common nationalities, and visa types
  * Used across visa module components
- * 
+ *
  * @module lib/visaConstants
  */
 

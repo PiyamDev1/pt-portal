@@ -1,4 +1,4 @@
-(function () {
+;(function () {
   const IMS_URL = 'https://ims.piyamtravel.com/dashboard'
   const BUTTON_ID = 'piyam-ims-return-button'
 

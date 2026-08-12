@@ -8,7 +8,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { StickyNote, X, Plus, Trash2 } from 'lucide-react'
+import { StickyNote, Plus, Trash2 } from 'lucide-react'
 import { ModalWrapper } from './ModalWrapper'
 import { ConfirmationModal } from './ConfirmationModal'
 import { toast } from 'sonner'

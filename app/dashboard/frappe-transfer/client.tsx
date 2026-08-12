@@ -149,7 +149,6 @@ export function FrappeTransferClient() {
         (data.employee_provisioning || null) as EmployeeProvisioningReadiness | null,
       )
       const defaultCompany = String(data.default_company || FALLBACK_DEFAULT_COMPANY)
-      const nextOptions = (data.options || emptyOptions) as Options
       setForm((current) => ({
         ...current,
         date_of_joining: current.date_of_joining || new Date().toISOString().slice(0, 10),

@@ -52,7 +52,9 @@ export function IssueReportsTicketsPanel({
 
       <div className="max-h-[70vh] overflow-y-auto">
         {reports.length === 0 ? (
-          <div className="px-5 py-10 text-center text-sm text-slate-500">No issue reports found.</div>
+          <div className="px-5 py-10 text-center text-sm text-slate-500">
+            No issue reports found.
+          </div>
         ) : (
           reports.map((report) => {
             const ageMeta = getAgeMeta(report)

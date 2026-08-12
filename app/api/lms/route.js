@@ -516,7 +516,7 @@ export async function POST(request) {
         p_idempotency_key: idempotencyKey,
       })
 
-      if (error) throw error
+      if (error) return lmsFailureResponse(request, action, error, 'Failed to record payment')
       return apiOk({ recordedPaymentLoanId: data?.recordedPaymentLoanId || loanId })
     } else if (action === 'add_service') {
       const { serviceAmount, initialDeposit, installmentTerms, installmentPlan, transactionDate } =

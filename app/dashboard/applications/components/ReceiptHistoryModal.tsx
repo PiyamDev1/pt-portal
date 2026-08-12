@@ -72,12 +72,11 @@ export default function ReceiptHistoryModal({
       ) : (
         <div className="space-y-3">
           {visibleReceipts.map((item) => (
-            <div
-              key={item.id}
-              className="rounded-lg border border-slate-200 bg-slate-50 p-3"
-            >
+            <div key={item.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
               <div className="min-w-0 space-y-1">
-                <div className="text-xs text-slate-500 uppercase tracking-wide">{item.receiptType}</div>
+                <div className="text-xs text-slate-500 uppercase tracking-wide">
+                  {item.receiptType}
+                </div>
                 <div className="text-sm font-semibold text-slate-800 truncate">
                   {item.trackingNumber || 'No tracking number'}
                 </div>
@@ -86,7 +85,9 @@ export default function ReceiptHistoryModal({
                 </div>
                 <div className="text-xs text-slate-500">
                   Shares: {item.shareCount || 0}
-                  {item.sharedAt ? ` • Last shared: ${new Date(item.sharedAt).toLocaleString('en-GB')}` : ''}
+                  {item.sharedAt
+                    ? ` • Last shared: ${new Date(item.sharedAt).toLocaleString('en-GB')}`
+                    : ''}
                   {item.sharedVia ? ` • Via: ${item.sharedVia}` : ''}
                 </div>
               </div>

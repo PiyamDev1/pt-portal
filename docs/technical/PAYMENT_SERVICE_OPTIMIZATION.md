@@ -1,5 +1,7 @@
 # Payment Service Performance Optimization
 
+> **Historical LMS optimization note.** The current LMS uses newer global pagination and atomic database functions. Use [Database Schema Overview](DATABASE_SCHEMA_OVERVIEW.md), current routes, and tests before applying anything below.
+
 ## Problem Identified
 
 The payment service page was **failing to load due to insufficient resources**. The root cause was:

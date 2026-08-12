@@ -4,7 +4,10 @@ import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
 import { createCustomerInvoiceSnapshot } from '@/lib/packageInvoices'
 import { recordPackageAuditEvent } from '@/lib/packageAudit'
 import type { TravelPackageInvoice, TravelPackageInvoiceLine } from '@/app/types/packages'
-import { selectTravelPackageInvoiceColumns, selectTravelPackageInvoiceLineColumns } from '../route'
+import {
+  selectTravelPackageInvoiceColumns,
+  selectTravelPackageInvoiceLineColumns,
+} from '../columns'
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params

@@ -2,7 +2,7 @@
  * Visa Filtering Hook
  * Filters visa destinations and visa types based on applicant nationality and selections
  * Handles complex filtering logic for visa metadata availability rules
- * 
+ *
  * @module hooks/useVisaFiltering
  */
 

@@ -53,9 +53,7 @@ export async function getFrappeIntegrationHealth() {
       .from('integration_conflicts')
       .select('id', { count: 'exact', head: true })
       .eq('status', 'open'),
-    supabase
-      .from('integration_identity_map')
-      .select('id', { count: 'exact', head: true }),
+    supabase.from('integration_identity_map').select('id', { count: 'exact', head: true }),
     supabase
       .from('frappe_handoff_events')
       .select('id', { count: 'exact', head: true })
@@ -75,19 +73,26 @@ export async function getFrappeIntegrationHealth() {
 
   const pingOk = pingResult.status === 'fulfilled'
   const pingPayload = pingOk ? pingResult.value : null
-  const pingError = pingOk ? null : (pingResult.reason instanceof Error ? pingResult.reason.message : String(pingResult.reason))
-  const employeeProvisioning = employeeProvisioningResult.status === 'fulfilled'
-    ? employeeProvisioningResult.value
-    : {
-      ready: false,
-      error: employeeProvisioningResult.reason instanceof Error
-        ? employeeProvisioningResult.reason.message
-        : String(employeeProvisioningResult.reason),
-    }
+  const pingError = pingOk
+    ? null
+    : pingResult.reason instanceof Error
+      ? pingResult.reason.message
+      : String(pingResult.reason)
+  const employeeProvisioning =
+    employeeProvisioningResult.status === 'fulfilled'
+      ? employeeProvisioningResult.value
+      : {
+          ready: false,
+          error:
+            employeeProvisioningResult.reason instanceof Error
+              ? employeeProvisioningResult.reason.message
+              : String(employeeProvisioningResult.reason),
+        }
 
-  const syncState = syncStateResult.status === 'fulfilled' && !syncStateResult.value.error
-    ? syncStateResult.value.data || []
-    : []
+  const syncState =
+    syncStateResult.status === 'fulfilled' && !syncStateResult.value.error
+      ? syncStateResult.value.data || []
+      : []
 
   const counts = {
     outbox_pending: getExactCount(outboxPendingResult),
@@ -100,9 +105,10 @@ export async function getFrappeIntegrationHealth() {
     handoff_issued_24h: getExactCount(handoffIssuedResult),
     handoff_problem_24h: getExactCount(handoffProblemResult),
   }
-  const recentHandoffs = recentHandoffResult.status === 'fulfilled' && !recentHandoffResult.value.error
-    ? recentHandoffResult.value.data || []
-    : []
+  const recentHandoffs =
+    recentHandoffResult.status === 'fulfilled' && !recentHandoffResult.value.error
+      ? recentHandoffResult.value.data || []
+      : []
 
   const ready = pingOk && employeeProvisioning.ready && counts.identity_map_rows > 0
 
@@ -120,7 +126,7 @@ export async function getFrappeIntegrationHealth() {
 }
 
 function getExactCount(
-  result: PromiseSettledResult<{ count: number | null; error?: { message?: string } | null }>
+  result: PromiseSettledResult<{ count: number | null; error?: { message?: string } | null }>,
 ) {
   if (result.status !== 'fulfilled') return 0
   if (result.value.error) return 0

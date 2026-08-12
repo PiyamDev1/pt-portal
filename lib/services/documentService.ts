@@ -3,10 +3,9 @@
  *
  * Shared document operations used by the UI.
  *
- * Despite the older "placeholder" wording, this module now represents the
- * practical client-side orchestration layer for document uploads, downloads,
- * validation, and preview helpers. It exists so feature screens do not each
- * have to understand storage details or upload flow quirks.
+ * This module is the browser-side orchestration layer for authenticated
+ * document uploads, reads, deletion, and validation. It keeps feature screens
+ * independent from the underlying API details.
  *
  * @module lib/services/documentService
  */
@@ -23,17 +22,12 @@ import {
 import {
   Document,
   MinioStatus,
-  MinioConfig,
   ValidationResult,
-  BatchUploadResponse,
 } from '@/app/dashboard/applications/nadra/components/DocumentHub/types'
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || '/api'
+const API_BASE = '/api'
 const MINIO_ENDPOINT = process.env.NEXT_PUBLIC_MINIO_ENDPOINT || 'https://eu49v2.piyamtravel.com'
-const MINIO_BUCKET =
-  process.env.MINIO_BUCKET_NAME || process.env.NEXT_PUBLIC_MINIO_BUCKET || 'portal-documents'
-const MINIO_REGION = process.env.MINIO_REGION || 'eu-west-1'
-
+const DEFAULT_MINIO_BUCKET = 'portal-documents'
 // Constants
 const MAX_FILE_SIZE = DOCUMENT_MAX_FILE_SIZE_BYTES
 const ALLOWED_MIME_TYPES = DOCUMENT_ALLOWED_MIME_TYPES
@@ -41,11 +35,9 @@ const ALLOWED_MIME_TYPES = DOCUMENT_ALLOWED_MIME_TYPES
 /**
  * Stable interface consumed by document-heavy UI surfaces.
  */
-export interface DocumentService {
+interface DocumentService {
   // Connection & Status
   checkMinioStatus(): Promise<MinioStatus>
-  pingMinioServer(endpoint: string): Promise<number>
-  getMinioConfig(): Promise<MinioConfig>
 
   // Document Operations
   uploadDocument(
@@ -54,11 +46,6 @@ export interface DocumentService {
     category?: 'receipt' | 'application-review' | 'general',
     onProgress?: (percent: number) => void,
   ): Promise<Document>
-  uploadMultipleDocuments(
-    files: File[],
-    familyHeadId: string,
-    category?: 'receipt' | 'application-review' | 'general',
-  ): Promise<BatchUploadResponse>
   getDocuments(
     familyHeadId: string,
     page?: number,
@@ -66,10 +53,6 @@ export interface DocumentService {
     category?: string,
   ): Promise<Document[]>
   deleteDocument(documentId: string): Promise<{ success: boolean }>
-  downloadDocument(documentId: string): Promise<Blob>
-
-  // Preview & Thumbnails
-  generateThumbnail(document: Document): Promise<string>
 
   // Validation
   validateFile(file: File): ValidationResult
@@ -78,12 +61,10 @@ export interface DocumentService {
 }
 
 /**
- * Current document service implementation.
- *
- * We keep this behind an interface so the UI can depend on document behavior
- * without binding itself directly to transport details.
+ * Browser document service implementation kept behind a narrow interface so
+ * the UI is not bound directly to transport details.
  */
-class PlaceholderDocumentService implements DocumentService {
+export class BrowserDocumentService implements DocumentService {
   /**
    * Check storage health via the server-side status endpoint.
    *
@@ -97,7 +78,7 @@ class PlaceholderDocumentService implements DocumentService {
         method: 'GET',
       })
       const ping = Math.round(performance.now() - startTime)
-      const data = await response.json()
+      const data = (await response.json()) as { error?: string; status?: MinioStatus }
 
       const statusPayload = data?.status
       if (statusPayload) return { ...statusPayload, ping }
@@ -116,37 +97,6 @@ class PlaceholderDocumentService implements DocumentService {
         endpoint: MINIO_ENDPOINT,
         error: error instanceof Error ? error.message : 'Failed to check MinIO status',
       }
-    }
-  }
-
-  /**
-   * Lightweight client-visible latency probe.
-   *
-   * This is useful for UI feedback but should not be treated as proof that the
-   * server-side storage pipeline is fully healthy.
-   */
-  async pingMinioServer(endpoint: string): Promise<number> {
-    const startTime = performance.now()
-    try {
-      await fetch(`${endpoint}/minio/health/live`, {
-        method: 'GET',
-        mode: 'no-cors',
-      })
-      return Math.round(performance.now() - startTime)
-    } catch {
-      return -1
-    }
-  }
-
-  /**
-   * Return non-sensitive client-visible storage configuration.
-   */
-  async getMinioConfig(): Promise<MinioConfig> {
-    return {
-      endpoint: MINIO_ENDPOINT,
-      bucket: MINIO_BUCKET,
-      region: MINIO_REGION,
-      useSSL: MINIO_ENDPOINT.startsWith('https'),
     }
   }
 
@@ -272,7 +222,7 @@ class PlaceholderDocumentService implements DocumentService {
         uploadedBy: 'staff',
         familyHeadId,
         minio: {
-          bucket: storageBucket || MINIO_BUCKET,
+          bucket: storageBucket || DEFAULT_MINIO_BUCKET,
           key: minioKey,
           etag,
         },
@@ -280,38 +230,6 @@ class PlaceholderDocumentService implements DocumentService {
     } catch (error) {
       throw new Error(error instanceof Error ? error.message : 'Failed to upload document')
     }
-  }
-
-  /**
-   * PLACEHOLDER: Upload multiple documents
-   * Handles batch uploads with progress tracking
-   * Documents are stored at family level
-   */
-  async uploadMultipleDocuments(
-    files: File[],
-    familyHeadId: string,
-    category: 'receipt' | 'application-review' | 'general' = 'general',
-  ): Promise<BatchUploadResponse> {
-    const response: BatchUploadResponse = {
-      successful: [],
-      failed: [],
-      totalAttempted: files.length,
-    }
-
-    for (const file of files) {
-      try {
-        const doc = await this.uploadDocument(file, familyHeadId, category)
-        response.successful.push(doc)
-      } catch (error) {
-        response.failed.push({
-          fileName: file.name,
-          fileSize: file.size,
-          reason: error instanceof Error ? error.message : 'Unknown error',
-        })
-      }
-    }
-
-    return response
   }
 
   /**
@@ -337,7 +255,11 @@ class PlaceholderDocumentService implements DocumentService {
         throw new Error(`Failed to fetch documents: ${response.statusText}`)
       }
 
-      const data: any = await response.json()
+      const data = (await response.json()) as {
+        data?: unknown
+        documents?: unknown
+        error?: string
+      }
       if (data?.error) throw new Error(data.error)
       const documents = data?.documents ?? data?.data
       return Array.isArray(documents) ? documents : []
@@ -347,9 +269,7 @@ class PlaceholderDocumentService implements DocumentService {
     }
   }
 
-  /**
-   * PLACEHOLDER: Delete a document
-   */
+  /** Delete a document through the authenticated application endpoint. */
   async deleteDocument(documentId: string): Promise<{ success: boolean }> {
     try {
       const response = await fetch(`${API_BASE}/documents/${documentId}`, {
@@ -360,56 +280,10 @@ class PlaceholderDocumentService implements DocumentService {
         throw new Error(`Failed to delete document: ${response.statusText}`)
       }
 
-      const data = await response.json()
+      const data = (await response.json()) as { error?: string }
       return { success: !data?.error }
     } catch (error) {
       throw new Error(error instanceof Error ? error.message : 'Failed to delete document')
-    }
-  }
-
-  /**
-   * PLACEHOLDER: Download document
-   * Returns the file as a Blob
-   */
-  async downloadDocument(documentId: string): Promise<Blob> {
-    try {
-      const response = await fetch(`${API_BASE}/documents/${documentId}/download`, {
-        method: 'GET',
-      })
-
-      if (!response.ok) {
-        throw new Error(`Failed to download document: ${response.statusText}`)
-      }
-
-      return await response.blob()
-    } catch (error) {
-      throw new Error(error instanceof Error ? error.message : 'Failed to download document')
-    }
-  }
-
-  /**
-   * PLACEHOLDER: Generate thumbnail for document
-   */
-  async generateThumbnail(document: Document): Promise<string> {
-    // PLACEHOLDER: Return cached thumbnail URL or request generation
-    if (document.preview?.thumbnail) {
-      return document.preview.thumbnail
-    }
-
-    try {
-      const response = await fetch(`${API_BASE}/documents/${document.id}/thumbnail`, {
-        method: 'GET',
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to generate thumbnail')
-      }
-
-      const data = await response.json()
-      return data.thumbnailUrl || ''
-    } catch (error) {
-      console.error('Error generating thumbnail:', error)
-      return ''
     }
   }
 
@@ -452,20 +326,12 @@ class PlaceholderDocumentService implements DocumentService {
     if (!ALLOWED_MIME_TYPES.includes(file.type)) {
       return {
         valid: false,
-        error: `File type "${file.type}" is not supported. Allowed types: PDF, JPEG, PNG, WEBP, DOCX, XLSX`,
+        error: `File type "${file.type}" is not supported. Allowed types: PDF, JPEG, PNG, WEBP`,
       }
     }
     return { valid: true }
   }
 }
 
-/**
- * Export singleton instance
- * Replace with actual implementation when backend is ready
- */
-export const documentService = new PlaceholderDocumentService()
-
-/**
- * Export the class for testing and injection
- */
-export { PlaceholderDocumentService }
+/** Shared browser-side document service singleton. */
+export const documentService = new BrowserDocumentService()

@@ -1,12 +1,13 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getRouteSupabaseClient } from '@/lib/api/serverSupabase';
+import { NextRequest, NextResponse } from 'next/server'
+import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
+import { requireAdminSession } from '@/lib/adminSessionAuth'
 
 const SCHEMA_HINT =
   'Booking schema is out of date. Run scripts/bootstrap/create-bookings-schema.sql in Supabase SQL editor.'
 
 function isSchemaError(error: unknown): boolean {
-  const code = (error as { code?: string } | null)?.code;
-  return code === '42P01' || code === '42703' || code === '42P10';
+  const code = (error as { code?: string } | null)?.code
+  return code === '42P01' || code === '42703' || code === '42P10'
 }
 
 /**
@@ -16,43 +17,46 @@ function isSchemaError(error: unknown): boolean {
 
 export async function GET(request: NextRequest) {
   try {
-    const locationId = request.nextUrl.searchParams.get('location_id');
-    const from = request.nextUrl.searchParams.get('from');
-    const to = request.nextUrl.searchParams.get('to');
+    const locationId = request.nextUrl.searchParams.get('location_id')
+    const from = request.nextUrl.searchParams.get('from')
+    const to = request.nextUrl.searchParams.get('to')
 
     if (!locationId) {
-      return NextResponse.json({ error: 'location_id is required' }, { status: 400 });
+      return NextResponse.json({ error: 'location_id is required' }, { status: 400 })
     }
 
-    const supabase = await getRouteSupabaseClient();
+    const supabase = await getRouteSupabaseClient()
 
     let query = supabase
       .from('branch_schedule_overrides')
       .select('*')
       .eq('location_id', locationId)
-      .order('date', { ascending: true });
+      .order('date', { ascending: true })
 
-    if (from) query = query.gte('date', from);
-    if (to) query = query.lte('date', to);
+    if (from) query = query.gte('date', from)
+    if (to) query = query.lte('date', to)
 
-    const { data, error } = await query;
+    const { data, error } = await query
 
     if (error) {
       if (isSchemaError(error)) {
-        return NextResponse.json({ overrides: [], warning: SCHEMA_HINT }, { status: 200 });
+        return NextResponse.json({ overrides: [], warning: SCHEMA_HINT }, { status: 200 })
       }
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    return NextResponse.json({ overrides: data || [] });
+    return NextResponse.json({ overrides: data || [] })
   } catch {
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    const access = await requireAdminSession()
+    if (!access.authorized) return access.response
+
+    const body = await request.json()
     const {
       location_id,
       date,
@@ -67,25 +71,25 @@ export async function POST(request: NextRequest) {
       slot_interval_minutes,
       notes,
     } = body as {
-      location_id: string;
-      date: string;
-      open_time: string | null;
-      close_time: string | null;
-      lunch_start_time: string | null;
-      lunch_end_time: string | null;
-      prayer_start_time: string | null;
-      prayer_end_time: string | null;
-      is_closed: boolean;
-      concurrent_staff: number;
-      slot_interval_minutes: number;
-      notes?: string | null;
-    };
-
-    if (!location_id || !date) {
-      return NextResponse.json({ error: 'location_id and date are required' }, { status: 400 });
+      location_id: string
+      date: string
+      open_time: string | null
+      close_time: string | null
+      lunch_start_time: string | null
+      lunch_end_time: string | null
+      prayer_start_time: string | null
+      prayer_end_time: string | null
+      is_closed: boolean
+      concurrent_staff: number
+      slot_interval_minutes: number
+      notes?: string | null
     }
 
-    const supabase = await getRouteSupabaseClient();
+    if (!location_id || !date) {
+      return NextResponse.json({ error: 'location_id and date are required' }, { status: 400 })
+    }
+
+    const supabase = await getRouteSupabaseClient()
 
     const { data, error } = await supabase
       .from('branch_schedule_overrides')
@@ -104,20 +108,20 @@ export async function POST(request: NextRequest) {
           slot_interval_minutes,
           notes: notes ?? null,
         },
-        { onConflict: 'location_id,date' }
+        { onConflict: 'location_id,date' },
       )
       .select()
-      .single();
+      .single()
 
     if (error) {
       if (isSchemaError(error)) {
-        return NextResponse.json({ error: SCHEMA_HINT }, { status: 503 });
+        return NextResponse.json({ error: SCHEMA_HINT }, { status: 503 })
       }
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    return NextResponse.json({ success: true, override: data }, { status: 201 });
+    return NextResponse.json({ success: true, override: data }, { status: 201 })
   } catch {
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

@@ -119,7 +119,9 @@ export default async function PassportDocumentsPage({ params }: PassportDocument
               familyHeadName={applicantName}
               customSubtitle={`Manage documents for ${applicantName}`}
               showStatus={true}
-              zipFileName={application.tracking_number || applicant?.citizen_number || applicationId}
+              zipFileName={
+                application.tracking_number || applicant?.citizen_number || applicationId
+              }
             />
           </div>
         </main>

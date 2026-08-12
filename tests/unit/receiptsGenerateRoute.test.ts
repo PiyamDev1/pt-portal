@@ -2,11 +2,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => {
   const generateReceipt = vi.fn()
-  return { generateReceipt }
+  const requireStaffSession = vi.fn()
+  return { generateReceipt, requireStaffSession }
 })
 
 vi.mock('@/lib/services/receiptGenerator', () => ({
   generateReceipt: mocks.generateReceipt,
+}))
+vi.mock('@/lib/auth/staffSession', () => ({
+  requireStaffSession: mocks.requireStaffSession,
 }))
 
 import { POST } from '@/app/api/receipts/generate/route'
@@ -21,6 +25,23 @@ const makeRequest = (body: Record<string, unknown>) =>
 describe('POST /api/receipts/generate', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.requireStaffSession.mockResolvedValue({
+      authorized: true,
+      user: { id: 'auth-user' },
+      employee: { id: 'employee-server' },
+    })
+  })
+
+  it('requires an active staff session before reading the request', async () => {
+    mocks.requireStaffSession.mockResolvedValue({
+      authorized: false,
+      response: Response.json({ error: 'Unauthorized' }, { status: 401 }),
+    })
+
+    const res = await POST(makeRequest({}))
+
+    expect(res.status).toBe(401)
+    expect(mocks.generateReceipt).not.toHaveBeenCalled()
   })
 
   it('returns 400 when required fields are missing', async () => {
@@ -43,7 +64,7 @@ describe('POST /api/receipts/generate', () => {
         serviceType: 'nadra',
         serviceRecordId: 'n-1',
         receiptType: 'submission',
-        generatedBy: 'u-1',
+        generatedBy: 'spoofed-user',
       }),
     )
 
@@ -61,7 +82,7 @@ describe('POST /api/receipts/generate', () => {
       serviceType: 'nadra',
       serviceRecordId: 'n-1',
       receiptType: 'submission',
-      generatedBy: 'u-1',
+      generatedBy: 'employee-server',
     })
   })
 

@@ -714,7 +714,9 @@ export default function PackageSalesModeClient({ quoteId }: PackageSalesModeClie
                       title={option.title}
                       summary={option.summary}
                       price={option.price}
-                      priceLabel={selected ? 'Selected' : formatSelectionDelta(deltas.adult, payload.currency)}
+                      priceLabel={
+                        selected ? 'Selected' : formatSelectionDelta(deltas.adult, payload.currency)
+                      }
                       priceSubLabel={selected ? 'current option' : undefined}
                       priceSubLines={
                         selected
@@ -764,13 +766,19 @@ export default function PackageSalesModeClient({ quoteId }: PackageSalesModeClie
                               summary={option.summary}
                               price={deltas.adult}
                               priceLabel={
-                                selected ? 'Selected' : formatSelectionDelta(deltas.adult, payload.currency)
+                                selected
+                                  ? 'Selected'
+                                  : formatSelectionDelta(deltas.adult, payload.currency)
                               }
                               priceSubLabel={selected ? 'current option' : undefined}
                               priceSubLines={
                                 selected
                                   ? undefined
-                                  : formatLinkedFlightPassengerDeltas(payload, option, selectedOption)
+                                  : formatLinkedFlightPassengerDeltas(
+                                      payload,
+                                      option,
+                                      selectedOption,
+                                    )
                               }
                               pricingMode="per_person"
                               currency={payload.currency}
@@ -857,7 +865,9 @@ export default function PackageSalesModeClient({ quoteId }: PackageSalesModeClie
                       summary={option.summary}
                       price={option.price}
                       priceLabel={
-                        selected ? 'Selected' : formatSelectionDelta(perPassengerDelta, payload.currency)
+                        selected
+                          ? 'Selected'
+                          : formatSelectionDelta(perPassengerDelta, payload.currency)
                       }
                       priceSubLabel={selected ? 'current option' : undefined}
                       pricingMode={option.pricingMode}

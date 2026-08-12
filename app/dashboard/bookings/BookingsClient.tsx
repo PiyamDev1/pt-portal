@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo, useRef, memo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { toast } from 'sonner'
 import {
   BookingStatus,
@@ -19,19 +19,13 @@ import {
   CALENDAR_DAY_LABELS,
   COUNTRY_CODE_OPTIONS,
   DAY_LABELS,
-  SOURCE_CONFIG,
-  STATUS_ACCESSIBILITY,
   STATUS_CONFIG,
-  WEEK_BLOCK_COLORS,
   formatDateLabel,
   formatHeaderDate,
-  formatLongDateLabel,
-  formatMinutesLabel,
   formatMonthLabel,
   formatTime,
   formatTimeFromMinutes,
   getServicePersonUnits,
-  getUtcMinutesOfDay,
   isSameUTCDay,
   isValidLocalPhone,
   normalizeLocalPhone,
@@ -54,7 +48,6 @@ import {
   ClockIcon,
   CloseIcon,
   ConfirmedIcon,
-  DoneIcon,
   EyeIcon,
   FilterIcon,
   ListIcon,
@@ -67,16 +60,7 @@ import {
   SparkIcon,
   WeekIcon,
 } from './BookingIcons'
-import {
-  loadAvailableBookingSlots,
-  loadBookingReport,
-  loadBookingServices,
-  loadBookingWaitlist,
-  loadBookings,
-  loadSavedBookingViews,
-  type BookingReport,
-  type SavedBookingView,
-} from './bookingClientApi'
+import { type BookingReport, type SavedBookingView } from './bookingClientApi'
 import { BookingRow, DayAgendaModal, SelectedDayPanel } from './BookingDayViews'
 import { SlotTimeline, WeekTimeline } from './BookingTimelines'
 

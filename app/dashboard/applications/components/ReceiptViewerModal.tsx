@@ -185,7 +185,9 @@ export default function ReceiptViewerModal({ isOpen, onClose, receipt }: Receipt
                     alt="Receipt QR code"
                     className="mx-auto mt-1 h-24 w-24 rounded border border-slate-200 bg-white p-1"
                   />
-                  <p className="mt-1 break-all text-[10px] text-slate-500">{receipt.verificationUrl}</p>
+                  <p className="mt-1 break-all text-[10px] text-slate-500">
+                    {receipt.verificationUrl}
+                  </p>
                 </>
               ) : (
                 <p className="mt-1 text-[10px] text-rose-600">

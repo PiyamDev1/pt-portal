@@ -25,7 +25,16 @@ const mocks = vi.hoisted(() => {
     if (table === 'locations') return { select: locationSelect }
     if (table === 'booking_email_logs') return { insert: emailLogsInsert }
     if (table === 'booking_audit_logs') return { insert: auditInsert }
-    if (table === 'booking_idempotency_keys') return { select: vi.fn(() => ({ eq: vi.fn(() => ({ eq: vi.fn(() => ({ maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }) })) })) })) }
+    if (table === 'booking_idempotency_keys')
+      return {
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+            })),
+          })),
+        })),
+      }
     return {}
   })
 

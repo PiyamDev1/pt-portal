@@ -1,12 +1,12 @@
 /**
  * Storage System Status Probes
  * Health checks for MinIO and R2 object storage backends
- * Includes connection tests, latency measurement, and CORS configuration
- * 
+ * Includes connection tests, latency measurement, and fallback migration maintenance
+ *
  * @module lib/documentStorageStatus
  */
 
-import { HeadBucketCommand, PutBucketCorsCommand } from '@aws-sdk/client-s3'
+import { HeadBucketCommand } from '@aws-sdk/client-s3'
 import { migrateFallbackBatch } from '@/lib/r2Migration'
 import { getR2Client, isR2Configured } from '@/lib/r2Client'
 import { getS3Client } from '@/lib/s3Client'
@@ -18,13 +18,13 @@ const R2_DISPLAY_ENDPOINT = process.env.R2_PING_URL || process.env.R2_ENDPOINT |
 const R2_BUCKET = process.env.R2_BUCKET_NAME || 'portal-fallback'
 const STATUS_TIMEOUT_MS = 2500
 
-export type ProbeResult = {
+type ProbeResult = {
   connected: boolean
   ping: number | null
   error?: string
 }
 
-export async function runWithTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+async function runWithTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
   let timeoutRef: NodeJS.Timeout | null = null
   try {
     return await Promise.race([
@@ -38,7 +38,7 @@ export async function runWithTimeout<T>(promise: Promise<T>, timeoutMs: number):
   }
 }
 
-export async function probeMinio(): Promise<ProbeResult> {
+async function probeMinio(): Promise<ProbeResult> {
   const start = performance.now()
   try {
     const s3Client = getS3Client()
@@ -56,7 +56,7 @@ export async function probeMinio(): Promise<ProbeResult> {
   }
 }
 
-export async function probeR2(): Promise<ProbeResult> {
+async function probeR2(): Promise<ProbeResult> {
   if (!isR2Configured()) {
     return { connected: false, ping: null, error: 'R2 not configured' }
   }
@@ -78,37 +78,9 @@ export async function probeR2(): Promise<ProbeResult> {
   }
 }
 
-async function ensureCorsPolicy() {
-  try {
-    const s3Client = getS3Client()
-    await s3Client.send(
-      new PutBucketCorsCommand({
-        Bucket: MINIO_BUCKET,
-        CORSConfiguration: {
-          CORSRules: [
-            {
-              AllowedOrigins: ['*'],
-              AllowedMethods: ['GET', 'PUT', 'POST', 'DELETE', 'HEAD'],
-              AllowedHeaders: ['*'],
-              ExposeHeaders: ['ETag', 'Content-Length'],
-              MaxAgeSeconds: 3600,
-            },
-          ],
-        },
-      }),
-    )
-  } catch {
-    // Non-fatal — the bucket may already have CORS configured.
-  }
-}
-
 export async function getDocumentStorageStatus(options?: { runMaintenance?: boolean }) {
   const runMaintenance = options?.runMaintenance ?? true
   const [minio, r2] = await Promise.all([probeMinio(), probeR2()])
-
-  if (runMaintenance && minio.connected) {
-    void ensureCorsPolicy()
-  }
 
   if (runMaintenance && minio.connected && r2.connected) {
     void migrateFallbackBatch(5, { trigger: 'status' })

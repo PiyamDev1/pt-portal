@@ -73,13 +73,17 @@ export function TeamEventsTable({
                 <td className="py-3 pr-4">
                   <div>{formatDate(getEffectiveDeviceTime(event))}</div>
                   {event.adjusted_device_ts && (
-                    <div className="text-xs text-slate-500">Original: {formatDate(event.device_ts)}</div>
+                    <div className="text-xs text-slate-500">
+                      Original: {formatDate(event.device_ts)}
+                    </div>
                   )}
                 </td>
                 <td className="py-3 pr-4">
                   <div>{formatDate(getEffectiveRecordedTime(event))}</div>
                   {event.adjusted_scanned_at && (
-                    <div className="text-xs text-slate-500">Original: {formatDate(event.scanned_at)}</div>
+                    <div className="text-xs text-slate-500">
+                      Original: {formatDate(event.scanned_at)}
+                    </div>
                   )}
                   {event.adjustment_reason && (
                     <div className="text-xs text-slate-500">Reason: {event.adjustment_reason}</div>

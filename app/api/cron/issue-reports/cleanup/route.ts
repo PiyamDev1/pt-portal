@@ -15,35 +15,24 @@
  *     Deletes entire issue report tickets (and cascade-deletes their
  *     related rows) older than TICKET_RETENTION_DAYS (60 days).
  *
- * Authorization: Bearer token in Authorization header must match CRON_SECRET
- *   env var. If CRON_SECRET is not set, the route is open (dev convenience).
+ * Authorization: Bearer token in Authorization header must match CRON_SECRET.
+ *   Missing configuration fails closed.
  *
  * Response Success (200): { deletedArtifacts, deletedTickets, errors[] }
- * Response Errors: 401 Unauthorized | 500 DB or storage error
+ * Response Errors: 401 Unauthorized | 503 Missing cron configuration | 500 DB or storage error
  */
 import { toErrorMessage } from '@/lib/api/error'
 import { apiError, apiOk } from '@/lib/api/http'
 import { deleteIssueArtifact } from '@/lib/issueReportStorage'
 import { getSupabaseClient } from '@/lib/supabaseClient'
+import { requireCronAuthorization } from '@/lib/security/cronAuth.server'
 
 const ARTIFACT_RETENTION_DAYS = 30
 const TICKET_RETENTION_DAYS = 60
 
-function isAuthorizedCron(request: Request) {
-  const cronSecret = process.env.CRON_SECRET
-  if (!cronSecret) {
-    return true
-  }
-
-  const authHeader = request.headers.get('authorization')
-  const vercelCronHeader = request.headers.get('x-vercel-cron')
-  return authHeader === `Bearer ${cronSecret}` || vercelCronHeader === '1'
-}
-
 export async function GET(request: Request) {
-  if (!isAuthorizedCron(request)) {
-    return apiError('Unauthorized', 401)
-  }
+  const authorizationError = requireCronAuthorization(request)
+  if (authorizationError) return authorizationError
 
   try {
     const supabase = getSupabaseClient()
@@ -63,7 +52,9 @@ export async function GET(request: Request) {
       .in('status', ['solved', 'closed'])
       .lte('solved_at', artifactPurgeBefore)
 
-    const artifactReportIds = ((artifactReports || []) as Array<{ id: string }>).map((row) => row.id)
+    const artifactReportIds = ((artifactReports || []) as Array<{ id: string }>).map(
+      (row) => row.id,
+    )
     let deletedArtifactCount = 0
 
     if (artifactReportIds.length > 0) {
@@ -96,7 +87,9 @@ export async function GET(request: Request) {
       .in('status', ['solved', 'closed'])
       .lte('solved_at', ticketDeleteBefore)
 
-    const ticketIdsToDelete = ((ticketsToDelete || []) as Array<{ id: string }>).map((row) => row.id)
+    const ticketIdsToDelete = ((ticketsToDelete || []) as Array<{ id: string }>).map(
+      (row) => row.id,
+    )
     let deletedTicketCount = 0
 
     if (ticketIdsToDelete.length > 0) {

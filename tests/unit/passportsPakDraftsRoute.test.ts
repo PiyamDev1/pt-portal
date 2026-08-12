@@ -234,7 +234,8 @@ describe('POST /api/passports/pak/drafts', () => {
         data: null,
         error: {
           code: '23503',
-          message: 'insert or update on table "pakistani_passport_drafts" violates foreign key constraint',
+          message:
+            'insert or update on table "pakistani_passport_drafts" violates foreign key constraint',
         },
       }),
     )

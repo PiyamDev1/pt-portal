@@ -25,8 +25,8 @@ export default function PassportsPagination({
   return (
     <div className="flex items-center justify-between mt-4">
       <div className="text-xs text-slate-500">
-        Showing {filteredCount === 0 ? 0 : startIdx + 1}-{Math.min(startIdx + pageSize, filteredCount)} of{' '}
-        {filteredCount}
+        Showing {filteredCount === 0 ? 0 : startIdx + 1}-
+        {Math.min(startIdx + pageSize, filteredCount)} of {filteredCount}
       </div>
       <div className="flex items-center gap-2">
         <button

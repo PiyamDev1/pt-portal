@@ -14,7 +14,7 @@ import { parseBodyWithSchema } from '@/lib/api/request'
 
 const scheduledMigrationSchema = z.object({
   token: z.string().max(1_000).optional(),
-  limit: z.coerce.number().int().min(1).max(100).optional(),
+  limit: z.coerce.number().int().min(1).max(50).optional(),
 })
 
 function tokensMatch(provided: string, expected: string) {
@@ -57,7 +57,7 @@ async function runScheduledMigration(
 
     const limitFromQuery = Number(request.nextUrl.searchParams.get('limit'))
     const limitFromBody = Number(body?.limit)
-    const limit = Math.max(1, Math.min(100, limitFromBody || limitFromQuery || 30))
+    const limit = Math.max(1, Math.min(50, limitFromBody || limitFromQuery || 30))
     const result = await migrateFallbackBatch(limit, { trigger: 'cron' })
 
     return apiOk({

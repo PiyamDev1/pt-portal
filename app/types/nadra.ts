@@ -2,7 +2,7 @@
  * NADRA Service Type Definitions
  * Comprehensive types for NADRA (National Database & Registration Authority) applications
  * Includes persons, applications, services, history entries, and family groups
- * 
+ *
  * @module app/types/nadra
  */
 

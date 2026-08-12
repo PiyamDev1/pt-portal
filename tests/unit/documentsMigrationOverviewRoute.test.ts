@@ -190,7 +190,9 @@ describe('document migration overview route', () => {
     const payload = await response.json()
 
     expect(response.status).toBe(409)
-    expect(payload).toEqual({ error: 'Primary storage is offline. Batch migration is unavailable.' })
+    expect(payload).toEqual({
+      error: 'Primary storage is offline. Batch migration is unavailable.',
+    })
   })
 
   it('returns result and refreshed overview on successful manual batch', async () => {

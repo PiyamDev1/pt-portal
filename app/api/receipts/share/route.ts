@@ -3,22 +3,34 @@
  * Marks a generated receipt as shared and tracks channel/timestamp.
  */
 
+import { z } from 'zod'
 import { apiError, apiOk } from '@/lib/api/http'
+import { parseBodyWithSchema } from '@/lib/api/request'
 import { markPersistedReceiptShared } from '@/lib/services/receiptStore'
+import { requireStaffSession } from '@/lib/auth/staffSession'
 
-type RequestBody = {
-  receiptId?: string
-  channel?: string | null
-}
+const shareReceiptSchema = z
+  .object({
+    receiptId: z.string().trim().min(1).max(200),
+    channel: z.string().trim().max(100).nullable().optional(),
+  })
+  .strip()
 
 export async function POST(request: Request) {
-  const body = (await request.json()) as RequestBody
-  const receiptId = String(body.receiptId || '').trim()
-  const channel = body.channel ? String(body.channel).trim().toLowerCase() : null
+  const access = await requireStaffSession()
+  if (!access.authorized) return access.response
 
-  if (!receiptId) {
-    return apiError('Missing receiptId', 400)
+  const { data: body, error: bodyError } = await parseBodyWithSchema(request, shareReceiptSchema, {
+    maxBytes: 4 * 1024,
+  })
+  if (bodyError || !body) {
+    return apiError(
+      bodyError || 'Invalid receipt sharing request',
+      bodyError === 'Request body is too large' ? 413 : 400,
+    )
   }
+  const receiptId = body.receiptId
+  const channel = body.channel ? body.channel.toLowerCase() : null
 
   const result = await markPersistedReceiptShared({ receiptId, channel })
 

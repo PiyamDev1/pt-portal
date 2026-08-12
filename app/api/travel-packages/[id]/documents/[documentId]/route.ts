@@ -11,7 +11,7 @@ import type {
   TravelPackageDocumentCategory,
   TravelPackageDocumentStatus,
 } from '@/app/types/packages'
-import { selectTravelPackageDocumentColumns } from '../route'
+import { selectTravelPackageDocumentColumns } from '../columns'
 import { recordPackageAuditEvent } from '@/lib/packageAudit'
 
 const SCHEMA_HINT =
@@ -108,7 +108,7 @@ export async function PATCH(
 
   const requestedCategory = hasBodyKey(body, 'category')
     ? normalizePackageDocumentCategory(body.category)
-    : ((currentDocument as { category?: TravelPackageDocumentCategory }).category || 'other')
+    : (currentDocument as { category?: TravelPackageDocumentCategory }).category || 'other'
   const agentOnlyDocument = isAgentOnlyPackageDocumentCategory(requestedCategory)
 
   const updatePayload: Record<string, unknown> = {
@@ -122,9 +122,7 @@ export async function PATCH(
   }
 
   if (hasBodyKey(body, 'fileName') || hasBodyKey(body, 'file_name')) {
-    const fileName = sanitizePackageDocumentFileName(
-      cleanText(body.fileName ?? body.file_name),
-    )
+    const fileName = sanitizePackageDocumentFileName(cleanText(body.fileName ?? body.file_name))
     if (!fileName) return apiError('File name is required', 400)
     updatePayload.file_name = fileName
   }

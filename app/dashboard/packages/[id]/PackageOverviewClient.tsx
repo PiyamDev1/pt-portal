@@ -17,7 +17,6 @@ import {
   EyeOff,
   FileImage,
   FileText,
-  FolderOpen,
   Link2,
   Loader2,
   PackageCheck,
@@ -38,7 +37,6 @@ import type {
   TravelPackageInvoice,
   TravelPackageInvoiceStatus,
   TravelPackageReservation,
-  TravelPackageReservationItem,
   TravelPackageReservationItemStatus,
   TravelPackageReservationItemType,
   TravelPackageReservationStatus,
@@ -91,7 +89,6 @@ import {
   formatDate,
   formatDateTime,
   formatFileSize,
-  formatPaymentMethod,
   formatReservationStatus,
   getLinkedVisaPhotoParentId,
   getOptionSoldTotal,
@@ -155,7 +152,6 @@ export default function PackageOverviewClient({
   const [loading, setLoading] = useState(true)
   const [reservationsLoading, setReservationsLoading] = useState(false)
   const [documentsLoading, setDocumentsLoading] = useState(false)
-  const [thirdPartyShareLoading, setThirdPartyShareLoading] = useState(false)
   const [invoiceLoading, setInvoiceLoading] = useState(false)
   const [savingReservation, setSavingReservation] = useState(false)
   const [savingItemReservationId, setSavingItemReservationId] = useState<string | null>(null)
@@ -328,7 +324,6 @@ export default function PackageOverviewClient({
 
   useEffect(() => {
     const loadThirdPartyShares = async () => {
-      setThirdPartyShareLoading(true)
       try {
         const response = await fetch(
           `/api/travel-packages/${encodeURIComponent(packageId)}/third-party-document-shares`,
@@ -344,8 +339,6 @@ export default function PackageOverviewClient({
         setThirdPartyShares(data.shares || [])
       } catch {
         setThirdPartyShares([])
-      } finally {
-        setThirdPartyShareLoading(false)
       }
     }
 

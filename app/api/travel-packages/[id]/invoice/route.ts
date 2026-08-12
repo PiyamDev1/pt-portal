@@ -20,6 +20,7 @@ import {
   selectTravelPackageReservationItemColumns,
 } from '../reservations/columns'
 import { recordPackageAuditEvent } from '@/lib/packageAudit'
+import { selectTravelPackageInvoiceColumns, selectTravelPackageInvoiceLineColumns } from './columns'
 
 const SCHEMA_HINT =
   'Travel package invoice schema is not installed yet. Run scripts/migrations/20260712_create_travel_package_invoices.sql in Supabase SQL editor.'
@@ -40,67 +41,6 @@ const INVOICE_STATUSES = new Set<TravelPackageInvoiceStatus>([
 function isInvoiceSchemaError(error: unknown) {
   const code = (error as { code?: string } | null)?.code
   return code === '42P01' || code === '42703' || code === '42P10' || code === '23503'
-}
-
-export function selectTravelPackageInvoiceColumns() {
-  return `
-    id,
-    package_id,
-    quote_id,
-    created_by,
-    updated_by,
-    released_by,
-    invoice_number,
-    status,
-    currency,
-    subtotal_sold,
-    discount_total,
-    total_sold,
-    total_paid,
-    balance_due,
-    total_booked_cost,
-    projected_margin,
-    expected_commission_total,
-    received_commission_total,
-    released_to_customer,
-    released_at,
-    version,
-    customer_terms,
-    internal_notes,
-    metadata,
-    created_at,
-    updated_at,
-    voided_at
-    ,due_at
-    ,finalised_at
-    ,amendment_reason
-    ,released_version
-  `
-}
-
-export function selectTravelPackageInvoiceLineColumns() {
-  return `
-    id,
-    invoice_id,
-    package_id,
-    reservation_id,
-    reservation_item_id,
-    line_type,
-    description,
-    quantity,
-    unit_sold_price,
-    total_sold_price,
-    unit_booked_cost,
-    total_booked_cost,
-    discount_amount,
-    expected_commission,
-    received_commission,
-    customer_visible,
-    sort_order,
-    metadata,
-    created_at,
-    updated_at
-  `
 }
 
 function cleanText(value: unknown) {

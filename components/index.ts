@@ -1,13 +1,10 @@
-/**
- * Shared UI Components - Barrel Export
- * New reusable components created during refactoring
- *
- * Note: App-specific components remain in app/components/
- * (GlobalFooter, PageHeader, ProgressBarProvider, RootErrorBoundary, etc.)
- */
+/** Public exports for application-wide dialog primitives. */
 
-export { ModalBase, ModalFooter } from './ModalBase'
-export type { ModalBaseProps, ModalFooterProps } from './ModalBase'
+export { ModalBase } from './ModalBase'
+export type { ModalBaseProps } from './ModalBase'
 
-export { ConfirmationDialog, useConfirmation } from './ConfirmationDialog'
+export { ConfirmationDialog } from './ConfirmationDialog'
 export type { ConfirmationDialogProps, ConfirmationType } from './ConfirmationDialog'
+
+export { useAppDialog } from './AppDialog'
+export type { ConfirmDialogOptions, PromptDialogOptions } from './AppDialog'

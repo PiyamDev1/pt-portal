@@ -2,7 +2,7 @@
  * Cloudflare R2 Client Singleton
  * Provides S3-compatible object storage client for documents and backups
  * Reuses connection across all requests for better performance
- * 
+ *
  * @module lib/r2Client
  */
 

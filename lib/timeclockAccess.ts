@@ -1,7 +1,7 @@
 /**
  * Timeclock Access Control Utilities
  * Determines user permissions for timeclock features based on roles
- * 
+ *
  * @module lib/timeclockAccess
  */
 

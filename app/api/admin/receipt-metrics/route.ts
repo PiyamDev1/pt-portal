@@ -35,7 +35,11 @@ export async function GET() {
 
     if (error) {
       const message = String(error.message || '').toLowerCase()
-      if (error.code === '42P01' || message.includes('does not exist') || message.includes('relation')) {
+      if (
+        error.code === '42P01' ||
+        message.includes('does not exist') ||
+        message.includes('relation')
+      ) {
         return apiOk({
           supported: false,
           message: 'generated_receipts table is not available yet',
@@ -65,7 +69,10 @@ export async function GET() {
       byServiceMap.set(service, Number(byServiceMap.get(service) || 0) + 1)
 
       const channel = row.shared_via || 'untracked'
-      byChannelMap.set(channel, Number(byChannelMap.get(channel) || 0) + Number(row.share_count || 0))
+      byChannelMap.set(
+        channel,
+        Number(byChannelMap.get(channel) || 0) + Number(row.share_count || 0),
+      )
 
       if (row.is_shared && row.share_count == null) {
         nullShareCountRows += 1

@@ -1,5 +1,7 @@
 # Code Audit & Refactoring Plan
 
+> **Historical audit.** Paths, duplicate counts, dead-code findings, and recommendations below are a point-in-time snapshot; many have already changed. Use current source and quality checks.
+
 ## 🧹 Cleanup Issues Found
 
 ### 1. **Backup Files to Remove** (Safe - No references)

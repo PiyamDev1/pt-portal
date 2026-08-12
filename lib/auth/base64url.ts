@@ -1,9 +1,10 @@
 export function bufferToBase64url(value: ArrayBuffer | Uint8Array | Buffer | string) {
-  const buffer = typeof value === 'string'
-    ? Buffer.from(value)
-    : value instanceof ArrayBuffer
-      ? Buffer.from(new Uint8Array(value))
-      : Buffer.from(value)
+  const buffer =
+    typeof value === 'string'
+      ? Buffer.from(value)
+      : value instanceof ArrayBuffer
+        ? Buffer.from(new Uint8Array(value))
+        : Buffer.from(value)
   return buffer.toString('base64url')
 }
 

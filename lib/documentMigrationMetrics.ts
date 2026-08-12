@@ -2,7 +2,7 @@
  * Document Migration Metrics
  * In-memory tracking of document migration progress and recent events
  * Used for real-time monitoring and status reporting
- * 
+ *
  * @module lib/documentMigrationMetrics
  */
 

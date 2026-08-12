@@ -4,6 +4,7 @@ import { toErrorMessage } from '@/lib/api/error'
 import { getSupabaseClient } from '@/lib/supabaseClient'
 import { getS3Client } from '@/lib/s3Client'
 import { getR2Client, isR2Configured } from '@/lib/r2Client'
+import { requireCronAuthorization } from '@/lib/security/cronAuth.server'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -21,17 +22,6 @@ type DocumentCleanupRow = {
   id: string
   minio_key: string | null
   minio_bucket: string | null
-}
-
-function isAuthorizedCron(request: Request) {
-  const cronSecret = process.env.CRON_SECRET
-  if (!cronSecret) {
-    return true
-  }
-
-  const authHeader = request.headers.get('authorization')
-  const vercelCronHeader = request.headers.get('x-vercel-cron')
-  return authHeader === `Bearer ${cronSecret}` || vercelCronHeader === '1'
 }
 
 async function deleteStoredDocument(document: DocumentCleanupRow) {
@@ -59,9 +49,8 @@ async function deleteStoredDocument(document: DocumentCleanupRow) {
 }
 
 export async function GET(request: Request) {
-  if (!isAuthorizedCron(request)) {
-    return apiError('Unauthorized', 401)
-  }
+  const authorizationError = requireCronAuthorization(request)
+  if (authorizationError) return authorizationError
 
   try {
     const supabase = getSupabaseClient()

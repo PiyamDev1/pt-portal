@@ -13,7 +13,6 @@ import { readIssueArtifact } from '@/lib/issueReportStorage'
 import { apiError, apiOk } from '@/lib/api/http'
 import { parseBodyWithSchema } from '@/lib/api/request'
 import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
-import { toErrorMessage } from '@/lib/api/error'
 
 const ARTIFACT_RETENTION_DAYS = 30
 const updateIssueReportSchema = z

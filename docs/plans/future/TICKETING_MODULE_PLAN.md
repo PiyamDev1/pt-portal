@@ -1,5 +1,7 @@
 # Ticketing Module - Detailed Plan
 
+> **Unimplemented proposal.** The current Ticketing page is a coming-soon placeholder; the ledger described below is not an operational feature. Use current source and [Usage Guide](../../guides/USAGE_GUIDE.md).
+
 **Status:** Brainstorm Phase  
 **Last Updated:** March 4, 2026  
 **Owner:** PT-Portal Team

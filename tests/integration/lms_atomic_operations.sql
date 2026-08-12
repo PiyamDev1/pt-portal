@@ -8,6 +8,8 @@ declare
   v_loan_id uuid;
   v_transaction_count integer;
   v_installment_count integer;
+  v_installment_ids uuid[];
+  v_installment_update jsonb;
   v_balance numeric;
 begin
   select public.lms_schema_status() into v_status;
@@ -138,6 +140,41 @@ begin
   if (public.lms_list_accounts('active', null, 1, 50) -> 'pagination' ->> 'total')::integer <> 1 then
     raise exception 'Global account listing did not return the seeded active account';
   end if;
+
+  select array_agg(id order by installment_number)
+  into v_installment_ids
+  from public.loan_installments
+  where loan_transaction_id = (v_service ->> 'serviceTransactionId')::uuid;
+
+  select public.lms_update_installments(jsonb_build_array(
+    jsonb_build_object(
+      'id', v_installment_ids[1],
+      'due_date', '2026-09-20',
+      'amount', 31
+    ),
+    jsonb_build_object(
+      'id', v_installment_ids[2],
+      'due_date', '2026-10-20',
+      'amount', 32
+    )
+  )) into v_installment_update;
+
+  if (v_installment_update ->> 'updatedCount')::integer <> 2 then
+    raise exception 'Expected two atomic installment updates: %', v_installment_update;
+  end if;
+  if not exists (
+    select 1 from public.loan_installments
+    where id = v_installment_ids[1]
+      and due_date = date '2026-09-20'
+      and amount = 31
+  ) or not exists (
+    select 1 from public.loan_installments
+    where id = v_installment_ids[2]
+      and due_date = date '2026-10-20'
+      and amount = 32
+  ) then
+    raise exception 'Atomic installment batch did not persist every requested value';
+  end if;
 end
 $$;
 
@@ -156,5 +193,78 @@ begin
   raise exception 'Expected idempotency payload mismatch';
 exception
   when sqlstate '22023' then null;
+end
+$$;
+
+-- A missing later row must roll back earlier updates in the same batch.
+do $$
+declare
+  v_installment_id uuid;
+  v_due_date date;
+  v_amount numeric;
+begin
+  select id, due_date, amount
+  into v_installment_id, v_due_date, v_amount
+  from public.loan_installments
+  order by installment_number
+  limit 1;
+
+  begin
+    perform public.lms_update_installments(jsonb_build_array(
+      jsonb_build_object(
+        'id', v_installment_id,
+        'due_date', v_due_date + 7,
+        'amount', v_amount + 5
+      ),
+      jsonb_build_object(
+        'id', 'ffffffff-ffff-ffff-ffff-ffffffffffff',
+        'due_date', date '2026-12-20',
+        'amount', 10
+      )
+    ));
+    raise exception 'Expected missing installment failure';
+  exception
+    when sqlstate 'P0002' then null;
+  end;
+
+  if not exists (
+    select 1 from public.loan_installments
+    where id = v_installment_id
+      and due_date = v_due_date
+      and amount = v_amount
+  ) then
+    raise exception 'Failed installment batch committed an earlier row';
+  end if;
+end
+$$;
+
+-- Direct RPC callers receive a value error for missing required fields, and
+-- only the server-side service role can execute the function.
+do $$
+begin
+  begin
+    perform public.lms_update_installments(
+      '[{"id":null,"due_date":null,"amount":null}]'::jsonb
+    );
+    raise exception 'Expected null installment fields to fail';
+  exception
+    when sqlstate '22023' then null;
+  end;
+
+  if has_function_privilege(
+    'anon',
+    'public.lms_update_installments(jsonb)',
+    'execute'
+  ) or has_function_privilege(
+    'authenticated',
+    'public.lms_update_installments(jsonb)',
+    'execute'
+  ) or not has_function_privilege(
+    'service_role',
+    'public.lms_update_installments(jsonb)',
+    'execute'
+  ) then
+    raise exception 'Unexpected lms_update_installments execution grants';
+  end if;
 end
 $$;

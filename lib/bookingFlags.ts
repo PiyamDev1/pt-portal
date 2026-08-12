@@ -1,4 +1,8 @@
-import { defaultReminderSettings, normalizeEmailForMatch, normalizePhoneForMatch } from '@/lib/bookingReminders'
+import {
+  defaultReminderSettings,
+  normalizeEmailForMatch,
+  normalizePhoneForMatch,
+} from '@/lib/bookingReminders'
 
 type SupabaseServiceLike = {
   from: (table: string) => any
@@ -64,7 +68,17 @@ async function incrementFlagByField(params: {
   penaltyReason: string
   notes?: string | null
 }) {
-  const { supabase, locationId, bookingId, field, value, threshold, penaltyEnabled, penaltyReason, notes } = params
+  const {
+    supabase,
+    locationId,
+    bookingId,
+    field,
+    value,
+    threshold,
+    penaltyEnabled,
+    penaltyReason,
+    notes,
+  } = params
 
   const { data: existing } = await supabase
     .from('booking_contact_flags')
@@ -78,12 +92,14 @@ async function incrementFlagByField(params: {
   const nextPayload = {
     missed_count: nextMissedCount,
     penalty_applied: penaltyApplied,
-    penalty_applied_at: penaltyApplied ? new Date().toISOString() : existing?.penalty_applied_at ?? null,
+    penalty_applied_at: penaltyApplied
+      ? new Date().toISOString()
+      : (existing?.penalty_applied_at ?? null),
     last_missed_booking_id: bookingId,
     last_no_show_at: new Date().toISOString(),
     manual_review_required: penaltyApplied,
-    penalty_reason: penaltyApplied ? penaltyReason : existing?.penalty_reason ?? null,
-    blocked_until: penaltyApplied ? null : existing?.blocked_until ?? null,
+    penalty_reason: penaltyApplied ? penaltyReason : (existing?.penalty_reason ?? null),
+    blocked_until: penaltyApplied ? null : (existing?.blocked_until ?? null),
     notes: notes || existing?.notes || 'Auto-generated from no-show tracking',
   }
 

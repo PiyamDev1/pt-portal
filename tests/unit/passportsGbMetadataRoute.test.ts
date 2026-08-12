@@ -42,7 +42,16 @@ describe('GET /api/passports/gb/metadata', () => {
     mocks.pagesOrder.mockResolvedValue({ data: [{ id: 1, option_label: '34 Pages' }], error: null })
     mocks.servicesOrder.mockResolvedValue({ data: [{ id: 1, name: 'Standard' }], error: null })
     mocks.pricingSelect.mockResolvedValue({
-      data: [{ id: 'p-1', cost_price: 90, sale_price: 120, age_group: 'Adult', pages: '34', service_type: 'Standard' }],
+      data: [
+        {
+          id: 'p-1',
+          cost_price: 90,
+          sale_price: 120,
+          age_group: 'Adult',
+          pages: '34',
+          service_type: 'Standard',
+        },
+      ],
       error: null,
     })
 

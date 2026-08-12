@@ -111,7 +111,8 @@ export default function useNadraFormManagement({
 
       if (name === 'serviceType') {
         const selectedTypeId = serviceTypes.find(
-          (serviceType) => normalizeLookupValue(serviceType.name) === normalizeLookupValue(String(value)),
+          (serviceType) =>
+            normalizeLookupValue(serviceType.name) === normalizeLookupValue(String(value)),
         )?.id
         const nextServiceOptions = serviceOptions.filter(
           (serviceOption) => serviceOption.service_type_id === selectedTypeId,

@@ -1,111 +1,83 @@
 # PT-Portal
 
-PT-Portal is an internal operations platform for Piyam Travel. It combines travel application handling, staff/admin tooling, pricing, appointment bookings, document storage, LMS/payment tracking, timeclock features, and an IMS-controlled Frappe HRMS bridge in one Next.js + Supabase codebase.
+PT-Portal is Piyam Travel's internal operations platform. One Next.js application covers travel applications, appointment bookings, package quotations and operations, receipts, pricing, LMS/accounting, timeclock, training, staff administration, private document storage, and the Frappe HRMS bridge.
 
-The application is built for a real operating environment rather than a demo flow. That means the repo includes API routes, database migrations, storage failover logic, security controls, smoke tests, cron workflows, and operational documentation alongside the frontend.
+## Platform
 
-## What this repo contains
+- Next.js 16 App Router, React 18, TypeScript, and Tailwind CSS
+- Supabase Auth and PostgreSQL data storage
+- MinIO private document storage with an optional private R2 fallback
+- Mailgun for operational email
+- Frappe HRMS provisioning, synchronization, webhook, and signed handoff integration
+- Vitest unit tests, Playwright smoke tests, and PostgreSQL 16 migration tests
 
-- Next.js 16 App Router application
-- Supabase-backed auth and data access
-- Travel application modules for NADRA, passports, visas, and receipts
-- Appointment bookings with branch schedules, reminders, no-show handling, waitlist, and audit logs
-- Document management backed by MinIO primary storage with fallback support
-- IMS-to-Frappe HRMS provisioning, webhook sync, and signed handoff flow
-- GitHub Actions for smoke tests, database backup, and document migration cron
-
-## Core stack
-
-- Framework: `Next.js 16`
-- UI: `React 18`, `TypeScript`, `Tailwind CSS`
-- Database/Auth: `Supabase`
-- Storage: `MinIO` with fallback object storage support
-- Notifications: `Mailgun`
-- Integrations: `Frappe HRMS`
-- Deployment: `Vercel` for the portal, Ubuntu/Docker/Coolify for Frappe
+The portal normally runs on Vercel. Supabase and the object stores are external services; Frappe runs separately and is reached through server-side integration routes.
 
 ## Quick start
 
-1. Clone the repository.
-2. Install dependencies with `npm install`.
-3. Copy `.env.example` to `.env.local`.
-4. Fill in the required Supabase, storage, mail, and Frappe variables.
-5. Run `npm run dev`.
-6. Open `http://localhost:3000`.
-
-The detailed setup path lives in [Getting Started](docs/guides/GETTING_STARTED.md) and the deployment/runtime details live in [Deployment Guide](docs/guides/DEPLOYMENT_GUIDE.md).
-
-## Documentation map
-
-The documentation is split into a GitHub-friendly docs site and deeper guide/reference files under `docs/`.
-
-- Docs home: [docs/README.md](docs/README.md)
-- GitHub Pages landing page source: [docs/index.md](docs/index.md)
-- Setup and onboarding: [docs/guides/GETTING_STARTED.md](docs/guides/GETTING_STARTED.md)
-- Developer workflow and coding guidance: [docs/guides/DEVELOPER_GUIDE.md](docs/guides/DEVELOPER_GUIDE.md)
-- Day-to-day product usage: [docs/guides/USAGE_GUIDE.md](docs/guides/USAGE_GUIDE.md)
-- Deployment and release flow: [docs/guides/DEPLOYMENT_GUIDE.md](docs/guides/DEPLOYMENT_GUIDE.md)
-- Integrations and external services: [docs/guides/INTEGRATIONS_GUIDE.md](docs/guides/INTEGRATIONS_GUIDE.md)
-- Frappe HRMS setup: [docs/guides/FRAPPE_HRMS_SETUP.md](docs/guides/FRAPPE_HRMS_SETUP.md)
-- Architecture: [docs/guides/ARCHITECTURE_GUIDE.md](docs/guides/ARCHITECTURE_GUIDE.md)
-- API reference: [docs/technical/API_REFERENCE.md](docs/technical/API_REFERENCE.md)
-- Planning and historical notes: [docs/plans/README.md](docs/plans/README.md), [docs/operations/README.md](docs/operations/README.md), [docs/archive/README.md](docs/archive/README.md)
-
-## Development commands
+Use Node.js 20.9 or newer.
 
 ```bash
+git clone https://github.com/PiyamDev1/pt-portal.git
+cd pt-portal
+npm ci
+cp .env.example .env.local
 npm run dev
-npm run build
-npm start
-npm run lint
-npm run lint:fix
-npm run format
-npm run format:check
-npm run test:unit
-npm run test:smoke
 ```
 
-There is no dedicated `type-check` script right now. Use `npx tsc --noEmit` when you want a standalone TypeScript check.
+Add at least the three Supabase values and `RATE_LIMIT_HASH_SECRET` to `.env.local`; features that send email, store documents, or call Frappe need their corresponding integration values. Open `http://localhost:3000`.
 
-## Environment variables
+Read [Getting Started](docs/guides/GETTING_STARTED.md) for the complete local setup and [Deployment Guide](docs/guides/DEPLOYMENT_GUIDE.md) before a release.
 
-The baseline variables are documented in [.env.example](.env.example). Main groups:
+## Verification
 
-- `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
-- `NEXT_PUBLIC_SITE_URL`
-- `MAILGUN_API_KEY`, `MAILGUN_DOMAIN`
-- `MINIO_*`, `NEXT_PUBLIC_MINIO_ENDPOINT`
-- `FRAPPE_*`
+```bash
+npm run lint
+npm run typecheck
+npm run test:unit
+npm run format:check
+npm run docs:check
+npm run docs:check-api
+npm run api:check-boundaries
+npm run build
+```
 
-Do not commit real secrets. Use `.env.local` locally and your platform secret store in deployment.
+Additional suites:
 
-## GitHub Pages documentation
+```bash
+npm run test:smoke:install
+npm run test:smoke
+npm run test:db:lms
+npm run test:db:security
+```
 
-This repo now includes a GitHub Pages publishing workflow:
+The database commands require `psql` and a disposable PostgreSQL database in `DATABASE_TEST_URL`. The live smoke suite requires the `SMOKE_*` variables documented in [.env.example](.env.example).
 
-- Workflow: [.github/workflows/github-pages.yml](.github/workflows/github-pages.yml)
-- Site source: `docs/`
-- Landing page: [docs/index.md](docs/index.md)
-- Jekyll config: [docs/\_config.yml](docs/_config.yml)
+## Documentation
 
-Once GitHub Pages is enabled for the repository's Actions-based deployment, the docs site can be published directly from the `docs/` folder contents.
+- [Documentation home](docs/README.md)
+- [Architecture](docs/guides/ARCHITECTURE_GUIDE.md)
+- [Travel packages](docs/guides/TRAVEL_PACKAGES_GUIDE.md)
+- [Detailed API contracts](docs/api/README.md)
+- [API route inventory](docs/technical/API_REFERENCE.md)
+- [Database and migrations](docs/technical/DATABASE_SCHEMA_OVERVIEW.md)
+- [Authentication](docs/technical/AUTHENTICATION_FLOW.md)
+- [Security](docs/technical/SECURITY.md)
+- [Storage](docs/technical/STORAGE_SYSTEM.md)
+- [Environment and deployment](docs/technical/DEPLOYMENT_ENVIRONMENT_SETUP.md)
 
-## Recommended reading order
+The active guides and technical references describe current behavior. `docs/plans/`, `docs/operations/`, `docs/archive/`, and the point-in-time reports listed in [the docs index](docs/README.md#historical-and-supporting-material) are retained for context and are not implementation authority.
 
-If you are new to the repo:
+## Database changes
 
-1. [docs/README.md](docs/README.md)
-2. [docs/guides/GETTING_STARTED.md](docs/guides/GETTING_STARTED.md)
-3. [docs/guides/ARCHITECTURE_GUIDE.md](docs/guides/ARCHITECTURE_GUIDE.md)
-4. [docs/guides/USAGE_GUIDE.md](docs/guides/USAGE_GUIDE.md)
-5. [docs/guides/INTEGRATIONS_GUIDE.md](docs/guides/INTEGRATIONS_GUIDE.md)
+`scripts/migrations/` is the durable schema history. Apply pending migrations before deploying code that depends on them, then regenerate the checked-in Supabase schema types:
 
-If you are deploying:
+```bash
+npm run types:supabase
+```
 
-1. [docs/guides/DEPLOYMENT_GUIDE.md](docs/guides/DEPLOYMENT_GUIDE.md)
-2. [docs/guides/FRAPPE_HRMS_SETUP.md](docs/guides/FRAPPE_HRMS_SETUP.md)
-3. [docs/technical/SECURITY.md](docs/technical/SECURITY.md)
+Do not run integration fixtures against production. Do not expose `SUPABASE_SERVICE_ROLE_KEY`, object-store credentials, rate-limit secrets, cron tokens, or alert webhooks through `NEXT_PUBLIC_*` variables.
 
-## Current status
+## Automation
 
-The portal is active and substantial. Some modules, especially bookings and paired PWA/Frappe flows, are still evolving operationally. The docs are written to reflect the real current state rather than pretending every area is fully settled.
+GitHub Actions performs dependency auditing, linting, type checking, API-boundary checks, unit tests, formatting checks, production builds, database migration tests, authenticated smoke tests, documentation publishing, database backup, and document fallback migration. See [Deployment Guide](docs/guides/DEPLOYMENT_GUIDE.md#github-actions) for triggers and required secrets.

@@ -3,7 +3,11 @@ import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
 import { BookingStatus } from '@/app/types/bookings'
 import { sendBookingEmail } from '@/lib/bookingEmail'
 import { deriveBookingEmailSubject, getIdempotencyKey } from '@/lib/bookingOperations'
-import { findIdempotentBooking, recordIdempotentBooking, storeBookingEmailAttempt } from '@/lib/bookingPersistence'
+import {
+  findIdempotentBooking,
+  recordIdempotentBooking,
+  storeBookingEmailAttempt,
+} from '@/lib/bookingPersistence'
 
 type ResendableEmailKind = 'confirmation' | 'modification' | 'cancellation'
 
@@ -15,34 +19,47 @@ function isSchemaError(error: unknown): boolean {
   return code === '42P01' || code === '42703' || code === '42P10'
 }
 
-function buildBranchAddress(location: {
-  address_line1?: string | null
-  address_line2?: string | null
-  city?: string | null
-  postcode?: string | null
-  country?: string | null
-} | null): string {
+function buildBranchAddress(
+  location: {
+    address_line1?: string | null
+    address_line2?: string | null
+    city?: string | null
+    postcode?: string | null
+    country?: string | null
+  } | null,
+): string {
   if (!location) return 'Address unavailable'
-  const parts = [location.address_line1, location.address_line2, location.city, location.postcode, location.country]
+  const parts = [
+    location.address_line1,
+    location.address_line2,
+    location.city,
+    location.postcode,
+    location.country,
+  ]
     .map((value) => value?.trim())
     .filter((value): value is string => Boolean(value))
   return parts.length > 0 ? parts.join(', ') : 'Address unavailable'
 }
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
-    const body = await request.json().catch(() => ({})) as { kind?: ResendableEmailKind; reason?: string; idempotency_key?: string }
+    const body = (await request.json().catch(() => ({}))) as {
+      kind?: ResendableEmailKind
+      reason?: string
+      idempotency_key?: string
+    }
     const supabase = await getRouteSupabaseClient()
     const idempotencyKey = getIdempotencyKey(request, body)
 
     if (idempotencyKey) {
       const replay = await findIdempotentBooking(supabase, `booking.resend:${id}`, idempotencyKey)
       if (replay?.booking_id) {
-        return NextResponse.json({ success: true, booking_id: replay.booking_id, idempotent_replay: true })
+        return NextResponse.json({
+          success: true,
+          booking_id: replay.booking_id,
+          idempotent_replay: true,
+        })
       }
     }
 
@@ -81,15 +98,15 @@ export async function POST(
       (booking.status === BookingStatus.CANCELLED
         ? 'cancellation'
         : booking.status === BookingStatus.CONFIRMED
-        ? 'confirmation'
-        : 'modification')
+          ? 'confirmation'
+          : 'modification')
 
     const template =
       kind === 'cancellation'
         ? service.cancellation_template
         : kind === 'confirmation'
-        ? service.confirmation_template
-        : service.modification_template
+          ? service.confirmation_template
+          : service.modification_template
 
     const subject = deriveBookingEmailSubject({ kind, manualResend: true })
     const result = await sendBookingEmail({
@@ -134,7 +151,7 @@ export async function POST(
       metadata: {
         resend_reason: body.reason ?? null,
         sent: result.sent,
-        failure_reason: result.sent ? null : result.reason ?? null,
+        failure_reason: result.sent ? null : (result.reason ?? null),
       },
     })
 

@@ -1,18 +1,18 @@
 /**
  * Applications Hub Page
- * 
+ *
  * Central dashboard for tracking all immigration and travel applications:
  * - NADRA family registration and verification
  * - Pakistani passport applications and status
  * - British passport applications and status
  * - Visa applications with real-time status updates
  * - Application status aggregation and filtering
- * 
+ *
  * Server component that:
  * - Loads all user application records from database
  * - Aggregates status across different application types
  * - Renders filterable application dashboard
- * 
+ *
  * @module app/dashboard/applications/page
  */
 import { createServerClient } from '@supabase/auth-helpers-nextjs'
@@ -21,13 +21,7 @@ import { redirect } from 'next/navigation'
 import PageHeader from '@/app/components/PageHeader.client'
 import ApplicationsClient from './client'
 import DashboardClientWrapper from '@/app/dashboard/client-wrapper'
-import type {
-  StatusRecord,
-  NadraJoinRecord,
-  PakJoinRecord,
-  GbRecord,
-  VisaRecord,
-} from './client'
+import type { StatusRecord, NadraJoinRecord, PakJoinRecord, GbRecord, VisaRecord } from './client'
 
 type QueryResult<T> = {
   label: string

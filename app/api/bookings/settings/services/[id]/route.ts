@@ -1,48 +1,49 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getRouteSupabaseClient } from '@/lib/api/serverSupabase';
-import { getSupabaseClient } from '@/lib/supabaseClient';
-import { validateBookingTemplate } from '@/lib/bookingEmail';
+import { NextRequest, NextResponse } from 'next/server'
+import { getSupabaseClient } from '@/lib/supabaseClient'
+import { validateBookingTemplate } from '@/lib/bookingEmail'
+import { requireAdminSession } from '@/lib/adminSessionAuth'
 
 const SCHEMA_HINT =
   'Booking schema is out of date. Run scripts/bootstrap/create-bookings-schema.sql in Supabase SQL editor.'
 
 function isSchemaError(error: unknown): boolean {
-  const code = (error as { code?: string } | null)?.code;
-  return code === '42P01' || code === '42703' || code === '42P10' || code === 'PGRST204';
+  const code = (error as { code?: string } | null)?.code
+  return code === '42P01' || code === '42703' || code === '42P10' || code === 'PGRST204'
 }
 
 function isMissingServiceTimingColumns(error: unknown): boolean {
-  const payload = error as { message?: string; details?: string; hint?: string } | null;
-  const haystack = `${payload?.message ?? ''} ${payload?.details ?? ''} ${payload?.hint ?? ''}`.toLowerCase();
-  if (!haystack.includes('schema cache')) return false;
+  const payload = error as { message?: string; details?: string; hint?: string } | null
+  const haystack =
+    `${payload?.message ?? ''} ${payload?.details ?? ''} ${payload?.hint ?? ''}`.toLowerCase()
+  if (!haystack.includes('schema cache')) return false
   return (
     haystack.includes('duration_per_additional_person_minutes') ||
     haystack.includes('person_count_excludes_family_head') ||
     haystack.includes('close_overrun_tolerance_minutes')
-  );
+  )
 }
 
-type TemplateValidationError = { field: string; invalidTokens: string[] };
+type TemplateValidationError = { field: string; invalidTokens: string[] }
 
 function validateServiceTemplates(input: {
-  confirmation_template?: string | null;
-  modification_template?: string | null;
-  cancellation_template?: string | null;
+  confirmation_template?: string | null
+  modification_template?: string | null
+  cancellation_template?: string | null
 }): TemplateValidationError[] {
   const checks: Array<{ field: string; value: string | null | undefined }> = [
     { field: 'confirmation_template', value: input.confirmation_template },
     { field: 'modification_template', value: input.modification_template },
     { field: 'cancellation_template', value: input.cancellation_template },
-  ];
+  ]
 
   return checks
     .map(({ field, value }) => {
-      if (value === undefined || value === null || value.trim() === '') return null;
-      const result = validateBookingTemplate(value);
-      if (result.valid) return null;
-      return { field, invalidTokens: result.invalidTokens };
+      if (value === undefined || value === null || value.trim() === '') return null
+      const result = validateBookingTemplate(value)
+      if (result.valid) return null
+      return { field, invalidTokens: result.invalidTokens }
     })
-    .filter((item): item is TemplateValidationError => item !== null);
+    .filter((item): item is TemplateValidationError => item !== null)
 }
 
 /**
@@ -53,23 +54,13 @@ function validateServiceTemplates(input: {
  * Deletes a service (only if no bookings reference it)
  */
 
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const routeSupabase = await getRouteSupabaseClient();
-    const {
-      data: { user },
-      error: authError,
-    } = await routeSupabase.auth.getUser();
+    const access = await requireAdminSession()
+    if (!access.authorized) return access.response
 
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const { id } = await params;
-    const body = await request.json();
+    const { id } = await params
+    const body = await request.json()
     const {
       name,
       duration_minutes,
@@ -85,147 +76,143 @@ export async function PATCH(
       person_count_excludes_family_head,
       close_overrun_tolerance_minutes,
     } = body as {
-      name?: string;
-      duration_minutes?: number;
-      buffer_minutes?: number;
-      is_active?: boolean;
-      available_days?: number[] | null;
-      service_start_time?: string | null;
-      service_end_time?: string | null;
-      confirmation_template?: string | null;
-      modification_template?: string | null;
-      cancellation_template?: string | null;
-      duration_per_additional_person_minutes?: number;
-      person_count_excludes_family_head?: boolean;
-      close_overrun_tolerance_minutes?: number;
-    };
+      name?: string
+      duration_minutes?: number
+      buffer_minutes?: number
+      is_active?: boolean
+      available_days?: number[] | null
+      service_start_time?: string | null
+      service_end_time?: string | null
+      confirmation_template?: string | null
+      modification_template?: string | null
+      cancellation_template?: string | null
+      duration_per_additional_person_minutes?: number
+      person_count_excludes_family_head?: boolean
+      close_overrun_tolerance_minutes?: number
+    }
 
     if (duration_minutes !== undefined && duration_minutes < 5) {
-      return NextResponse.json(
-        { error: 'duration_minutes must be at least 5' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'duration_minutes must be at least 5' }, { status: 400 })
     }
 
     if (available_days && available_days.some((d) => d < 0 || d > 6)) {
       return NextResponse.json(
         { error: 'available_days values must be between 0 and 6' },
-        { status: 400 }
-      );
+        { status: 400 },
+      )
     }
 
     const templateErrors = validateServiceTemplates({
       confirmation_template,
       modification_template,
       cancellation_template,
-    });
+    })
     if (templateErrors.length > 0) {
       return NextResponse.json(
         {
           error: 'Template contains unsupported placeholders',
           template_errors: templateErrors,
         },
-        { status: 400 }
-      );
+        { status: 400 },
+      )
     }
 
-    const supabase = getSupabaseClient();
+    const supabase = getSupabaseClient()
 
-    const updates: Record<string, unknown> = {};
-    if (name !== undefined) updates.name = name;
-    if (duration_minutes !== undefined) updates.duration_minutes = duration_minutes;
-    if (buffer_minutes !== undefined) updates.buffer_minutes = buffer_minutes;
-    if (is_active !== undefined) updates.is_active = is_active;
-    if (available_days !== undefined) updates.available_days = available_days;
-    if (service_start_time !== undefined) updates.service_start_time = service_start_time;
-    if (service_end_time !== undefined) updates.service_end_time = service_end_time;
-    if (confirmation_template !== undefined) updates.confirmation_template = confirmation_template;
-    if (modification_template !== undefined) updates.modification_template = modification_template;
-    if (cancellation_template !== undefined) updates.cancellation_template = cancellation_template;
-    if (duration_per_additional_person_minutes !== undefined) updates.duration_per_additional_person_minutes = Math.max(0, duration_per_additional_person_minutes);
-    if (person_count_excludes_family_head !== undefined) updates.person_count_excludes_family_head = person_count_excludes_family_head;
-    if (close_overrun_tolerance_minutes !== undefined) updates.close_overrun_tolerance_minutes = Math.max(0, close_overrun_tolerance_minutes);
+    const updates: Record<string, unknown> = {}
+    if (name !== undefined) updates.name = name
+    if (duration_minutes !== undefined) updates.duration_minutes = duration_minutes
+    if (buffer_minutes !== undefined) updates.buffer_minutes = buffer_minutes
+    if (is_active !== undefined) updates.is_active = is_active
+    if (available_days !== undefined) updates.available_days = available_days
+    if (service_start_time !== undefined) updates.service_start_time = service_start_time
+    if (service_end_time !== undefined) updates.service_end_time = service_end_time
+    if (confirmation_template !== undefined) updates.confirmation_template = confirmation_template
+    if (modification_template !== undefined) updates.modification_template = modification_template
+    if (cancellation_template !== undefined) updates.cancellation_template = cancellation_template
+    if (duration_per_additional_person_minutes !== undefined)
+      updates.duration_per_additional_person_minutes = Math.max(
+        0,
+        duration_per_additional_person_minutes,
+      )
+    if (person_count_excludes_family_head !== undefined)
+      updates.person_count_excludes_family_head = person_count_excludes_family_head
+    if (close_overrun_tolerance_minutes !== undefined)
+      updates.close_overrun_tolerance_minutes = Math.max(0, close_overrun_tolerance_minutes)
 
     let { data, error } = await supabase
       .from('booking_services')
       .update(updates)
       .eq('id', id)
       .select()
-      .single();
+      .single()
 
     // Backward compatibility while DB migration is pending.
     if (error && isMissingServiceTimingColumns(error)) {
-      const fallbackUpdates = { ...updates };
-      delete fallbackUpdates.duration_per_additional_person_minutes;
-      delete fallbackUpdates.person_count_excludes_family_head;
-      delete fallbackUpdates.close_overrun_tolerance_minutes;
+      const fallbackUpdates = { ...updates }
+      delete fallbackUpdates.duration_per_additional_person_minutes
+      delete fallbackUpdates.person_count_excludes_family_head
+      delete fallbackUpdates.close_overrun_tolerance_minutes
       const retry = await supabase
         .from('booking_services')
         .update(fallbackUpdates)
         .eq('id', id)
         .select()
-        .single();
-      data = retry.data;
-      error = retry.error;
+        .single()
+      data = retry.data
+      error = retry.error
     }
 
     if (error) {
       if (isSchemaError(error)) {
-        return NextResponse.json({ error: SCHEMA_HINT }, { status: 503 });
+        return NextResponse.json({ error: SCHEMA_HINT }, { status: 503 })
       }
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    return NextResponse.json({ success: true, service: data });
+    return NextResponse.json({ success: true, service: data })
   } catch {
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
 export async function DELETE(
   _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const routeSupabase = await getRouteSupabaseClient();
-    const {
-      data: { user },
-      error: authError,
-    } = await routeSupabase.auth.getUser();
+    const access = await requireAdminSession()
+    if (!access.authorized) return access.response
 
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const { id } = await params;
-    const supabase = getSupabaseClient();
+    const { id } = await params
+    const supabase = getSupabaseClient()
 
     // Check if any non-cancelled bookings reference this service
     const { count, error: countError } = await supabase
       .from('bookings')
       .select('id', { count: 'exact', head: true })
       .eq('service_id', id)
-      .neq('status', 'cancelled');
+      .neq('status', 'cancelled')
 
     if (countError) {
-      return NextResponse.json({ error: countError.message }, { status: 500 });
+      return NextResponse.json({ error: countError.message }, { status: 500 })
     }
 
     if (count && count > 0) {
       return NextResponse.json(
         { error: `Cannot delete: ${count} active booking(s) use this service` },
-        { status: 409 }
-      );
+        { status: 409 },
+      )
     }
 
-    const { error } = await supabase.from('booking_services').delete().eq('id', id);
+    const { error } = await supabase.from('booking_services').delete().eq('id', id)
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true })
   } catch {
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

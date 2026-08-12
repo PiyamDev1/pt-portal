@@ -460,10 +460,12 @@ function formatDateTime(value: string) {
 }
 
 function getPiyamLogoSrc() {
-  const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || process.env.APP_BASE_URL || '').replace(
-    /\/+$/,
-    '',
-  )
+  const baseUrl = (
+    process.env.APP_BASE_URL ||
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    ''
+  ).replace(/\/+$/, '')
   return baseUrl ? `${baseUrl}${PIYAM_LOGO_SRC}` : PIYAM_LOGO_SRC
 }
 
@@ -520,8 +522,8 @@ export function cleanTransportVoucherVehicleLabel(value: string | null | undefin
 
 export function getPackageCustomerPortalBaseUrl() {
   return (
-    process.env.NEXT_PUBLIC_BOOKINGS_PORTAL_URL ||
     process.env.NEXT_PUBLIC_PACKAGE_PORTAL_URL ||
+    process.env.NEXT_PUBLIC_BOOKINGS_PORTAL_URL ||
     DEFAULT_CUSTOMER_PORTAL_URL
   ).replace(/\/+$/, '')
 }

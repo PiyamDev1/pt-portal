@@ -83,8 +83,8 @@ export function PasskeySetupPrompt() {
         <div>
           <p className="text-lg font-black text-slate-950">Use {platformLabel} next time?</p>
           <p className="mt-1 text-sm leading-6 text-slate-600">
-            IMS can use your phone&apos;s secure passkey so you can sign in faster next time.
-            You can remove it any time from My Account.
+            IMS can use your phone&apos;s secure passkey so you can sign in faster next time. You
+            can remove it any time from My Account.
           </p>
         </div>
       </div>

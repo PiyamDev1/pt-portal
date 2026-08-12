@@ -3,7 +3,7 @@ import { apiError, apiOk } from '@/lib/api/http'
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
 import { recordPackageAuditEvent } from '@/lib/packageAudit'
 import type { TravelPackageInvoice } from '@/app/types/packages'
-import { selectTravelPackageInvoiceColumns } from '../route'
+import { selectTravelPackageInvoiceColumns } from '../columns'
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params

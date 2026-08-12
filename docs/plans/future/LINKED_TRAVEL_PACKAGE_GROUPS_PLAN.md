@@ -1,6 +1,8 @@
 # Linked Travel Package Groups Plan
 
-**Status:** Phase 2 agent linking UI complete; Phase 3 customer and sales presentation pending
+> **Superseded design snapshot.** Native group records, member links, shared-service allocation, and customer/sales presentation are implemented. Use [Travel Packages](../../guides/TRAVEL_PACKAGES_GUIDE.md) for the current contract.
+
+**Original status:** Phase 2 agent linking UI complete; Phase 3 customer and sales presentation pending
 **Created:** July 21, 2026  
 **Target Module:** Packages / Quotation Maker / Sales Mode / Package Folder  
 **Related Plan:** `TRAVEL_PACKAGE_QUOTATION_RESERVATION_WORKFLOW_PLAN.md`

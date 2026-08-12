@@ -83,27 +83,3 @@ export function formatErrorForDisplay(error: ApiError): string {
 
   return error.message || 'An error occurred. Please try again.'
 }
-
-/**
- * Type-safe error assertion
- */
-export function isError(value: unknown): value is Error {
-  return value instanceof Error
-}
-
-/**
- * Check if error is a network error
- */
-export function isNetworkError(error: unknown): boolean {
-  if (!error || typeof error !== 'object') return false
-
-  const err = asErrorLike(error)
-  const name = typeof err.name === 'string' ? err.name : ''
-  const message = typeof err.message === 'string' ? err.message : ''
-  return (
-    err instanceof TypeError ||
-    name === 'NetworkError' ||
-    message.includes('fetch') ||
-    message.includes('network')
-  )
-}

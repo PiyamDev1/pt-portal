@@ -7,23 +7,13 @@
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
 import { queueRecentTimeclockAttendance } from '@/lib/integrations/frappe/syncEngine'
+import { requireCronAuthorization } from '@/lib/security/cronAuth.server'
 
 export const dynamic = 'force-dynamic'
 
-function isAuthorizedCron(request: Request) {
-  const cronSecret = process.env.CRON_SECRET
-  if (!cronSecret) {
-    return true
-  }
-  const authHeader = request.headers.get('authorization')
-  const vercelCronHeader = request.headers.get('x-vercel-cron')
-  return authHeader === `Bearer ${cronSecret}` || vercelCronHeader === '1'
-}
-
 export async function GET(request: Request) {
-  if (!isAuthorizedCron(request)) {
-    return apiError('Unauthorized', 401)
-  }
+  const authorizationError = requireCronAuthorization(request)
+  if (authorizationError) return authorizationError
 
   try {
     const url = new URL(request.url)

@@ -27,15 +27,23 @@ export default async function BookingsDashboard() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        getAll() { return cookieStore.getAll() },
+        getAll() {
+          return cookieStore.getAll()
+        },
         setAll(cookiesToSet: { name: string; value: string; options?: Record<string, unknown> }[]) {
-          try { cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options)) } catch {}
+          try {
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options),
+            )
+          } catch {}
         },
       },
-    }
+    },
   )
 
-  const { data: { session } } = await supabase.auth.getSession()
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
   if (!session) redirect('/login')
 
   const { data: employee } = await supabase
@@ -53,20 +61,18 @@ export default async function BookingsDashboard() {
 
   let branchLocations: BranchLocationOption[] = []
 
-    // Load appointment-enabled locations so all staff can pick an alternate site
-    const { data: locationsData } = await supabase
-      .from('locations')
-      .select('id, name, branch_code, appointments_enabled')
-      .eq('type', 'Branch')
-      .eq('appointments_enabled', true)
-      .order('name')
-    branchLocations = (locationsData || []) as BranchLocationOption[]
+  // Load appointment-enabled locations so all staff can pick an alternate site
+  const { data: locationsData } = await supabase
+    .from('locations')
+    .select('id, name, branch_code, appointments_enabled')
+    .eq('type', 'Branch')
+    .eq('appointments_enabled', true)
+    .order('name')
+  branchLocations = (locationsData || []) as BranchLocationOption[]
 
   const effectiveUserLocationId =
-      // By default, show user's own location if appointment-enabled; otherwise fall back to the next available appointment-enabled site
-      location?.appointments_enabled === false
-        ? branchLocations[0]?.id || null
-        : location?.id || null
+    // By default, show user's own location if appointment-enabled; otherwise fall back to the next available appointment-enabled site
+    location?.appointments_enabled === false ? branchLocations[0]?.id || null : location?.id || null
 
   return (
     <DashboardClientWrapper>

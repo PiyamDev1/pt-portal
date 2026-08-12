@@ -119,23 +119,32 @@ export default function NewPasswordPage() {
             Secured by IMS portal design
           </div>
           <div className="mt-10">
-            <h1 className="text-5xl font-black tracking-tight text-slate-950">Finish secure access</h1>
+            <h1 className="text-5xl font-black tracking-tight text-slate-950">
+              Finish secure access
+            </h1>
             <p className="mt-6 max-w-xl text-lg leading-8 text-slate-600">
-              Your temporary password protects the first login. Create a strong new password now to continue into the IMS dashboard and keep your account secure.
+              Your temporary password protects the first login. Create a strong new password now to
+              continue into the IMS dashboard and keep your account secure.
             </p>
           </div>
 
           <div className="mt-10 grid gap-4 text-sm leading-6 text-slate-700">
             <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-5 shadow-sm">
-              <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">What happens next</p>
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">
+                What happens next
+              </p>
               <p className="mt-3 text-sm text-slate-600">
-                Your new password will be applied immediately, and you will be returned to the authentication flow for secure two-factor verification.
+                Your new password will be applied immediately, and you will be returned to the
+                authentication flow for secure two-factor verification.
               </p>
             </div>
             <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-5 shadow-sm">
-              <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Why strong passwords matter</p>
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">
+                Why strong passwords matter
+              </p>
               <p className="mt-3 text-sm text-slate-600">
-                Strong credentials reduce risk for your IMS account, protect HRMS handoff, and keep branch access secure.
+                Strong credentials reduce risk for your IMS account, protect HRMS handoff, and keep
+                branch access secure.
               </p>
             </div>
           </div>
@@ -147,10 +156,13 @@ export default function NewPasswordPage() {
               <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-3xl bg-[#4b0f16] text-white shadow-lg shadow-emerald-900/15">
                 <Shield className="h-6 w-6" />
               </div>
-              <p className="text-xs font-bold uppercase tracking-[0.24em] text-[#8b1e2d]">Authentication</p>
+              <p className="text-xs font-bold uppercase tracking-[0.24em] text-[#8b1e2d]">
+                Authentication
+              </p>
               <h2 className="mt-3 text-3xl font-black text-slate-950">New password required</h2>
               <p className="mt-2 text-sm text-slate-600">
-                Set a secure password for <span className="font-semibold text-slate-900">{userEmail || 'your account'}</span>.
+                Set a secure password for{' '}
+                <span className="font-semibold text-slate-900">{userEmail || 'your account'}</span>.
               </p>
             </div>
             <div className="rounded-3xl bg-red-50 px-4 py-3 text-sm font-semibold text-[#7f1d1d] shadow-sm">
@@ -205,8 +217,8 @@ export default function NewPasswordPage() {
                     passwordStrength === 5
                       ? 'bg-emerald-100 text-emerald-900'
                       : passwordStrength >= 3
-                      ? 'bg-amber-100 text-amber-900'
-                      : 'bg-red-100 text-red-900'
+                        ? 'bg-amber-100 text-amber-900'
+                        : 'bg-red-100 text-red-900'
                   }`}
                 >
                   {passwordStrength === 5 ? 'Strong' : passwordStrength >= 3 ? 'Fair' : 'Weak'}
@@ -218,8 +230,8 @@ export default function NewPasswordPage() {
                     passwordStrength === 5
                       ? 'bg-emerald-500 w-full'
                       : passwordStrength >= 3
-                      ? 'bg-amber-500 w-3/4'
-                      : 'bg-red-500 w-1/2'
+                        ? 'bg-amber-500 w-3/4'
+                        : 'bg-red-500 w-1/2'
                   }`}
                 />
               </div>

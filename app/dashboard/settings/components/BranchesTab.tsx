@@ -107,7 +107,9 @@ export default function BranchesTab({
   // Overrides state
   const [overrides, setOverrides] = useState<BranchScheduleOverride[]>([])
   const [newOverrideDate, setNewOverrideDate] = useState('')
-  const [newOverride, setNewOverride] = useState<Omit<BranchScheduleOverride, 'id' | 'location_id' | 'date'>>({
+  const [newOverride, setNewOverride] = useState<
+    Omit<BranchScheduleOverride, 'id' | 'location_id' | 'date'>
+  >({
     open_time: '09:00',
     close_time: '17:00',
     lunch_start_time: '13:00',
@@ -130,7 +132,9 @@ export default function BranchesTab({
 
       const [weeklyRes, overridesRes] = await Promise.all([
         fetch(`/api/bookings/settings/branch?location_id=${locationId}`),
-        fetch(`/api/bookings/settings/overrides?location_id=${locationId}&from=${from.toISOString().slice(0, 10)}&to=${to.toISOString().slice(0, 10)}`),
+        fetch(
+          `/api/bookings/settings/overrides?location_id=${locationId}&from=${from.toISOString().slice(0, 10)}&to=${to.toISOString().slice(0, 10)}`,
+        ),
       ])
 
       const weeklyJson = await weeklyRes.json()
@@ -152,8 +156,14 @@ export default function BranchesTab({
     loadBranchSettings(branch.id)
   }
 
-  const updateDay = (day: number, field: keyof BranchSettingRow, value: string | number | boolean | null) => {
-    setWeeklySettings((prev) => prev.map((row) => (row.day_of_week === day ? { ...row, [field]: value } : row)))
+  const updateDay = (
+    day: number,
+    field: keyof BranchSettingRow,
+    value: string | number | boolean | null,
+  ) => {
+    setWeeklySettings((prev) =>
+      prev.map((row) => (row.day_of_week === day ? { ...row, [field]: value } : row)),
+    )
   }
 
   const handleAddBranch = async (e: React.FormEvent) => {
@@ -161,7 +171,12 @@ export default function BranchesTab({
     setLoading(true)
     const { data, error } = await supabase
       .from('locations')
-      .insert({ name: newBranchName, branch_code: newBranchCode, type: 'Branch', appointments_enabled: true })
+      .insert({
+        name: newBranchName,
+        branch_code: newBranchCode,
+        type: 'Branch',
+        appointments_enabled: true,
+      })
       .select()
 
     if (!error && data) {
@@ -178,18 +193,21 @@ export default function BranchesTab({
   const saveDetails = async () => {
     if (!editDetails || !selectedBranchId) return
     setLoading(true)
-    const { error } = await supabase.from('locations').update({
-      name: editDetails.name,
-      branch_code: editDetails.branch_code,
-      appointments_enabled: editDetails.appointments_enabled ?? true,
-      address_line1: editDetails.address_line1 ?? null,
-      address_line2: editDetails.address_line2 ?? null,
-      city: editDetails.city ?? null,
-      postcode: editDetails.postcode ?? null,
-      country: editDetails.country ?? null,
-      phone: editDetails.phone ?? null,
-      email: editDetails.email ?? null,
-    }).eq('id', selectedBranchId)
+    const { error } = await supabase
+      .from('locations')
+      .update({
+        name: editDetails.name,
+        branch_code: editDetails.branch_code,
+        appointments_enabled: editDetails.appointments_enabled ?? true,
+        address_line1: editDetails.address_line1 ?? null,
+        address_line2: editDetails.address_line2 ?? null,
+        city: editDetails.city ?? null,
+        postcode: editDetails.postcode ?? null,
+        country: editDetails.country ?? null,
+        phone: editDetails.phone ?? null,
+        email: editDetails.email ?? null,
+      })
+      .eq('id', selectedBranchId)
 
     if (!error) {
       setLocations(locations.map((l) => (l.id === selectedBranchId ? { ...l, ...editDetails } : l)))
@@ -215,7 +233,9 @@ export default function BranchesTab({
       toast.success('Booking hours saved')
       await loadBranchSettings(selectedBranchId)
     } catch (err) {
-      toast.error('Failed to save hours', { description: err instanceof Error ? err.message : 'Unknown error' })
+      toast.error('Failed to save hours', {
+        description: err instanceof Error ? err.message : 'Unknown error',
+      })
     } finally {
       setHoursSaving(false)
     }
@@ -230,14 +250,20 @@ export default function BranchesTab({
       const res = await fetch('/api/bookings/settings/overrides', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ location_id: selectedBranchId, date: newOverrideDate, ...newOverride }),
+        body: JSON.stringify({
+          location_id: selectedBranchId,
+          date: newOverrideDate,
+          ...newOverride,
+        }),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error)
       toast.success('One-off schedule saved')
       await loadBranchSettings(selectedBranchId)
     } catch (err) {
-      toast.error('Failed to save override', { description: err instanceof Error ? err.message : 'Unknown error' })
+      toast.error('Failed to save override', {
+        description: err instanceof Error ? err.message : 'Unknown error',
+      })
     }
   }
 
@@ -252,7 +278,9 @@ export default function BranchesTab({
       toast.success('Override removed')
       await loadBranchSettings(selectedBranchId)
     } catch (err) {
-      toast.error('Failed to remove override', { description: err instanceof Error ? err.message : 'Unknown error' })
+      toast.error('Failed to remove override', {
+        description: err instanceof Error ? err.message : 'Unknown error',
+      })
     }
   }
 
@@ -310,16 +338,24 @@ export default function BranchesTab({
           </thead>
           <tbody className="divide-y divide-slate-100">
             {locations.map((loc) => (
-              <tr key={loc.id} className={`hover:bg-slate-50 cursor-pointer ${selectedBranchId === loc.id ? 'bg-indigo-50' : ''}`}>
+              <tr
+                key={loc.id}
+                className={`hover:bg-slate-50 cursor-pointer ${selectedBranchId === loc.id ? 'bg-indigo-50' : ''}`}
+              >
                 <td className="px-6 py-3 font-medium text-slate-900">{loc.name}</td>
                 <td className="px-6 py-3 font-mono text-slate-500">{loc.branch_code || '-'}</td>
                 <td className="px-6 py-3">
-                  <span className={`px-2 py-1 rounded text-xs ${loc.type === 'HQ' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
+                  <span
+                    className={`px-2 py-1 rounded text-xs ${loc.type === 'HQ' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}
+                  >
                     {loc.type}
                   </span>
                 </td>
                 <td className="px-6 py-3">
-                  <button onClick={() => openBranch(loc)} className="text-blue-600 hover:text-blue-800 font-medium">
+                  <button
+                    onClick={() => openBranch(loc)}
+                    className="text-blue-600 hover:text-blue-800 font-medium"
+                  >
                     Manage
                   </button>
                 </td>
@@ -341,10 +377,17 @@ export default function BranchesTab({
                   onClick={() => setBranchSubTab(tab)}
                   className={`px-4 py-1.5 rounded-lg text-sm font-medium capitalize ${branchSubTab === tab ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
                 >
-                  {tab === 'hours' ? 'Booking Hours' : tab === 'overrides' ? 'One-off Schedules' : 'Details'}
+                  {tab === 'hours'
+                    ? 'Booking Hours'
+                    : tab === 'overrides'
+                      ? 'One-off Schedules'
+                      : 'Details'}
                 </button>
               ))}
-              <button onClick={() => setSelectedBranchId(null)} className="ml-auto text-xs text-slate-400 hover:text-slate-600">
+              <button
+                onClick={() => setSelectedBranchId(null)}
+                className="ml-auto text-xs text-slate-400 hover:text-slate-600"
+              >
                 Close ✕
               </button>
             </div>
@@ -356,7 +399,9 @@ export default function BranchesTab({
               <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Branch Name</label>
+                    <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">
+                      Branch Name
+                    </label>
                     <input
                       className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
                       value={editDetails.name}
@@ -364,80 +409,122 @@ export default function BranchesTab({
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Branch Code</label>
+                    <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">
+                      Branch Code
+                    </label>
                     <input
                       className="w-full border border-slate-300 rounded px-3 py-2 text-sm uppercase"
                       value={editDetails.branch_code ?? ''}
-                      onChange={(e) => setEditDetails({ ...editDetails, branch_code: e.target.value.toUpperCase() })}
+                      onChange={(e) =>
+                        setEditDetails({
+                          ...editDetails,
+                          branch_code: e.target.value.toUpperCase(),
+                        })
+                      }
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Address Line 1</label>
+                    <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">
+                      Address Line 1
+                    </label>
                     <input
                       className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
                       value={editDetails.address_line1 ?? ''}
-                      onChange={(e) => setEditDetails({ ...editDetails, address_line1: e.target.value || null })}
+                      onChange={(e) =>
+                        setEditDetails({ ...editDetails, address_line1: e.target.value || null })
+                      }
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Address Line 2</label>
+                    <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">
+                      Address Line 2
+                    </label>
                     <input
                       className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
                       value={editDetails.address_line2 ?? ''}
-                      onChange={(e) => setEditDetails({ ...editDetails, address_line2: e.target.value || null })}
+                      onChange={(e) =>
+                        setEditDetails({ ...editDetails, address_line2: e.target.value || null })
+                      }
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">City</label>
+                    <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">
+                      City
+                    </label>
                     <input
                       className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
                       value={editDetails.city ?? ''}
-                      onChange={(e) => setEditDetails({ ...editDetails, city: e.target.value || null })}
+                      onChange={(e) =>
+                        setEditDetails({ ...editDetails, city: e.target.value || null })
+                      }
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Postcode</label>
+                    <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">
+                      Postcode
+                    </label>
                     <input
                       className="w-full border border-slate-300 rounded px-3 py-2 text-sm uppercase"
                       value={editDetails.postcode ?? ''}
-                      onChange={(e) => setEditDetails({ ...editDetails, postcode: e.target.value.toUpperCase() || null })}
+                      onChange={(e) =>
+                        setEditDetails({
+                          ...editDetails,
+                          postcode: e.target.value.toUpperCase() || null,
+                        })
+                      }
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Country</label>
+                    <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">
+                      Country
+                    </label>
                     <input
                       className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
                       value={editDetails.country ?? ''}
-                      onChange={(e) => setEditDetails({ ...editDetails, country: e.target.value || null })}
+                      onChange={(e) =>
+                        setEditDetails({ ...editDetails, country: e.target.value || null })
+                      }
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Appointments</label>
+                    <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">
+                      Appointments
+                    </label>
                     <label className="inline-flex items-center gap-2 rounded border border-slate-300 px-3 py-2 text-sm text-slate-700">
                       <input
                         type="checkbox"
                         checked={editDetails.appointments_enabled ?? true}
-                        onChange={(e) => setEditDetails({ ...editDetails, appointments_enabled: e.target.checked })}
+                        onChange={(e) =>
+                          setEditDetails({ ...editDetails, appointments_enabled: e.target.checked })
+                        }
                       />
                       This branch accepts appointments
                     </label>
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Phone</label>
+                    <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">
+                      Phone
+                    </label>
                     <input
                       type="tel"
                       className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
                       value={editDetails.phone ?? ''}
-                      onChange={(e) => setEditDetails({ ...editDetails, phone: e.target.value || null })}
+                      onChange={(e) =>
+                        setEditDetails({ ...editDetails, phone: e.target.value || null })
+                      }
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Email</label>
+                    <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">
+                      Email
+                    </label>
                     <input
                       type="email"
                       className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
                       value={editDetails.email ?? ''}
-                      onChange={(e) => setEditDetails({ ...editDetails, email: e.target.value || null })}
+                      onChange={(e) =>
+                        setEditDetails({ ...editDetails, email: e.target.value || null })
+                      }
                     />
                   </div>
                 </div>
@@ -458,8 +545,13 @@ export default function BranchesTab({
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-slate-600">Configure branch opening hours, breaks and concurrent staff per day.</p>
-                    <p className="mt-1 text-xs text-slate-500">Concurrent staff is shared across all appointment services. Use 1 if one staff member handles the whole booking desk.</p>
+                    <p className="text-sm text-slate-600">
+                      Configure branch opening hours, breaks and concurrent staff per day.
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Concurrent staff is shared across all appointment services. Use 1 if one staff
+                      member handles the whole booking desk.
+                    </p>
                   </div>
                   <button
                     onClick={saveWeekly}
@@ -487,15 +579,105 @@ export default function BranchesTab({
                     <tbody className="divide-y divide-slate-100">
                       {weeklySettings.map((row) => (
                         <tr key={row.day_of_week}>
-                          <td className="px-3 py-2 font-medium text-slate-700">{DAY_NAMES[row.day_of_week]}</td>
-                          <td className="px-3 py-2"><input type="time" value={row.open_time} onChange={(e) => updateDay(row.day_of_week, 'open_time', e.target.value)} className="border border-slate-300 rounded px-2 py-1" /></td>
-                          <td className="px-3 py-2"><input type="time" value={row.close_time} onChange={(e) => updateDay(row.day_of_week, 'close_time', e.target.value)} className="border border-slate-300 rounded px-2 py-1" /></td>
-                          <td className="px-3 py-2"><input type="time" value={row.lunch_start_time || ''} onChange={(e) => updateDay(row.day_of_week, 'lunch_start_time', e.target.value || null)} className="border border-slate-300 rounded px-2 py-1" /></td>
-                          <td className="px-3 py-2"><input type="time" value={row.lunch_end_time || ''} onChange={(e) => updateDay(row.day_of_week, 'lunch_end_time', e.target.value || null)} className="border border-slate-300 rounded px-2 py-1" /></td>
-                          <td className="px-3 py-2"><input type="time" value={row.prayer_start_time || ''} onChange={(e) => updateDay(row.day_of_week, 'prayer_start_time', e.target.value || null)} className="border border-slate-300 rounded px-2 py-1" /></td>
-                          <td className="px-3 py-2"><input type="time" value={row.prayer_end_time || ''} onChange={(e) => updateDay(row.day_of_week, 'prayer_end_time', e.target.value || null)} className="border border-slate-300 rounded px-2 py-1" /></td>
-                          <td className="px-3 py-2"><input type="number" min={1} value={row.concurrent_staff} onChange={(e) => updateDay(row.day_of_week, 'concurrent_staff', Math.max(1, Number(e.target.value)))} className="w-16 border border-slate-300 rounded px-2 py-1" /></td>
-                          <td className="px-3 py-2 text-center"><input type="checkbox" checked={row.is_closed} onChange={(e) => updateDay(row.day_of_week, 'is_closed', e.target.checked)} /></td>
+                          <td className="px-3 py-2 font-medium text-slate-700">
+                            {DAY_NAMES[row.day_of_week]}
+                          </td>
+                          <td className="px-3 py-2">
+                            <input
+                              type="time"
+                              value={row.open_time}
+                              onChange={(e) =>
+                                updateDay(row.day_of_week, 'open_time', e.target.value)
+                              }
+                              className="border border-slate-300 rounded px-2 py-1"
+                            />
+                          </td>
+                          <td className="px-3 py-2">
+                            <input
+                              type="time"
+                              value={row.close_time}
+                              onChange={(e) =>
+                                updateDay(row.day_of_week, 'close_time', e.target.value)
+                              }
+                              className="border border-slate-300 rounded px-2 py-1"
+                            />
+                          </td>
+                          <td className="px-3 py-2">
+                            <input
+                              type="time"
+                              value={row.lunch_start_time || ''}
+                              onChange={(e) =>
+                                updateDay(
+                                  row.day_of_week,
+                                  'lunch_start_time',
+                                  e.target.value || null,
+                                )
+                              }
+                              className="border border-slate-300 rounded px-2 py-1"
+                            />
+                          </td>
+                          <td className="px-3 py-2">
+                            <input
+                              type="time"
+                              value={row.lunch_end_time || ''}
+                              onChange={(e) =>
+                                updateDay(row.day_of_week, 'lunch_end_time', e.target.value || null)
+                              }
+                              className="border border-slate-300 rounded px-2 py-1"
+                            />
+                          </td>
+                          <td className="px-3 py-2">
+                            <input
+                              type="time"
+                              value={row.prayer_start_time || ''}
+                              onChange={(e) =>
+                                updateDay(
+                                  row.day_of_week,
+                                  'prayer_start_time',
+                                  e.target.value || null,
+                                )
+                              }
+                              className="border border-slate-300 rounded px-2 py-1"
+                            />
+                          </td>
+                          <td className="px-3 py-2">
+                            <input
+                              type="time"
+                              value={row.prayer_end_time || ''}
+                              onChange={(e) =>
+                                updateDay(
+                                  row.day_of_week,
+                                  'prayer_end_time',
+                                  e.target.value || null,
+                                )
+                              }
+                              className="border border-slate-300 rounded px-2 py-1"
+                            />
+                          </td>
+                          <td className="px-3 py-2">
+                            <input
+                              type="number"
+                              min={1}
+                              value={row.concurrent_staff}
+                              onChange={(e) =>
+                                updateDay(
+                                  row.day_of_week,
+                                  'concurrent_staff',
+                                  Math.max(1, Number(e.target.value)),
+                                )
+                              }
+                              className="w-16 border border-slate-300 rounded px-2 py-1"
+                            />
+                          </td>
+                          <td className="px-3 py-2 text-center">
+                            <input
+                              type="checkbox"
+                              checked={row.is_closed}
+                              onChange={(e) =>
+                                updateDay(row.day_of_week, 'is_closed', e.target.checked)
+                              }
+                            />
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -508,32 +690,70 @@ export default function BranchesTab({
             {branchSubTab === 'overrides' && (
               <div className="space-y-6">
                 <div className="space-y-3 bg-slate-50 p-4 rounded-lg border border-slate-200">
-                  <p className="text-sm font-medium text-slate-700">Add a one-off schedule override for a specific date.</p>
+                  <p className="text-sm font-medium text-slate-700">
+                    Add a one-off schedule override for a specific date.
+                  </p>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     <div>
                       <label className="block text-xs text-slate-500 mb-1">Date</label>
-                      <input type="date" value={newOverrideDate} onChange={(e) => setNewOverrideDate(e.target.value)} className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm" />
+                      <input
+                        type="date"
+                        value={newOverrideDate}
+                        onChange={(e) => setNewOverrideDate(e.target.value)}
+                        className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm"
+                      />
                     </div>
                     <div>
                       <label className="block text-xs text-slate-500 mb-1">Open</label>
-                      <input type="time" value={newOverride.open_time ?? ''} onChange={(e) => setNewOverride((p) => ({ ...p, open_time: e.target.value || null }))} className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm" />
+                      <input
+                        type="time"
+                        value={newOverride.open_time ?? ''}
+                        onChange={(e) =>
+                          setNewOverride((p) => ({ ...p, open_time: e.target.value || null }))
+                        }
+                        className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm"
+                      />
                     </div>
                     <div>
                       <label className="block text-xs text-slate-500 mb-1">Close</label>
-                      <input type="time" value={newOverride.close_time ?? ''} onChange={(e) => setNewOverride((p) => ({ ...p, close_time: e.target.value || null }))} className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm" />
+                      <input
+                        type="time"
+                        value={newOverride.close_time ?? ''}
+                        onChange={(e) =>
+                          setNewOverride((p) => ({ ...p, close_time: e.target.value || null }))
+                        }
+                        className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm"
+                      />
                     </div>
                     <div className="flex items-end gap-2">
                       <label className="flex items-center gap-1.5 text-sm text-slate-600 pb-1.5">
-                        <input type="checkbox" checked={newOverride.is_closed} onChange={(e) => setNewOverride((p) => ({ ...p, is_closed: e.target.checked }))} />
+                        <input
+                          type="checkbox"
+                          checked={newOverride.is_closed}
+                          onChange={(e) =>
+                            setNewOverride((p) => ({ ...p, is_closed: e.target.checked }))
+                          }
+                        />
                         Closed
                       </label>
                     </div>
                     <div>
                       <label className="block text-xs text-slate-500 mb-1">Notes</label>
-                      <input type="text" placeholder="e.g. Bank Holiday" value={newOverride.notes ?? ''} onChange={(e) => setNewOverride((p) => ({ ...p, notes: e.target.value || null }))} className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm" />
+                      <input
+                        type="text"
+                        placeholder="e.g. Bank Holiday"
+                        value={newOverride.notes ?? ''}
+                        onChange={(e) =>
+                          setNewOverride((p) => ({ ...p, notes: e.target.value || null }))
+                        }
+                        className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm"
+                      />
                     </div>
                   </div>
-                  <button onClick={saveOverride} className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700">
+                  <button
+                    onClick={saveOverride}
+                    className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700"
+                  >
                     Add Override
                   </button>
                 </div>
@@ -555,13 +775,28 @@ export default function BranchesTab({
                       {overrides.map((o) => (
                         <tr key={o.id}>
                           <td className="px-3 py-2 font-medium">{o.date}</td>
-                          <td className="px-3 py-2 text-slate-600">{o.is_closed ? '—' : `${o.open_time} – ${o.close_time}`}</td>
+                          <td className="px-3 py-2 text-slate-600">
+                            {o.is_closed ? '—' : `${o.open_time} – ${o.close_time}`}
+                          </td>
                           <td className="px-3 py-2">
-                            {o.is_closed ? <span className="px-2 py-0.5 rounded bg-red-100 text-red-700 text-xs">Closed</span> : <span className="px-2 py-0.5 rounded bg-green-100 text-green-700 text-xs">Open</span>}
+                            {o.is_closed ? (
+                              <span className="px-2 py-0.5 rounded bg-red-100 text-red-700 text-xs">
+                                Closed
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded bg-green-100 text-green-700 text-xs">
+                                Open
+                              </span>
+                            )}
                           </td>
                           <td className="px-3 py-2 text-slate-500">{o.notes || '-'}</td>
                           <td className="px-3 py-2">
-                            <button onClick={() => deleteOverride(o.id)} className="text-red-500 hover:text-red-700 text-xs font-medium">Remove</button>
+                            <button
+                              onClick={() => deleteOverride(o.id)}
+                              className="text-red-500 hover:text-red-700 text-xs font-medium"
+                            >
+                              Remove
+                            </button>
                           </td>
                         </tr>
                       ))}

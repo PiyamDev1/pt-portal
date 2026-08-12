@@ -26,16 +26,9 @@ const nextConfig = {
     removeConsole: process.env.NODE_ENV === 'production' ? { exclude: ['error', 'warn'] } : false,
   },
 
-  // Reduce bundle size
-  modularizeImports: {
-    'lucide-react': {
-      transform: 'lucide-react/dist/esm/icons/{{kebabCase member}}',
-    },
-  },
-
-  // Enable experimental features for faster builds
+  // Keep package optimization that Next.js does not already enable by default.
   experimental: {
-    optimizePackageImports: ['lucide-react', '@supabase/supabase-js'],
+    optimizePackageImports: ['@supabase/supabase-js'],
     // Next 16's default CLI checker can lose captured `tsc --showConfig`
     // output under Node 22. The compiler API supports the same project and
     // keeps local and CI production builds portable across supported Node LTS.

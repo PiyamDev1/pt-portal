@@ -1,5 +1,7 @@
 # 🌐 PT-Portal v1.0.0 - Complete Travel & Document Services Platform
 
+> **Archived release snapshot.** Versions, routes, feature status, setup steps, and “production-ready” claims below apply only to the historical release. Use the root README and active documentation for the current repository.
+
 **Release Date:** March 19, 2026  
 **By:** Rathobixz Inc.
 
@@ -16,44 +18,52 @@ PT-Portal is a comprehensive, production-ready web application for managing trav
 The receipt system is fully implemented end-to-end across backend, UI, metrics, and tests.
 
 ### Implemented APIs
+
 - `POST /api/receipts/generate` for generating service receipts with pricing, PIN, and QR verification payload.
 - `POST /api/receipts/verify` for tracking-number + PIN authenticity checks.
 - `GET /api/receipts/list` for applicant/service filtered receipt history.
 - `POST /api/receipts/share` for share analytics updates (channel, timestamp, counter).
 
 ### Triggered Generation
+
 - NADRA: Submitted and refund events.
 - Pakistani Passport: Biometrics Taken, Collected, and refund events.
 - British Passport: Pending Submission event via update flow.
 
 ### Service-Specific Receipt Rules
+
 - NADRA receipts use PIN + verification flow.
 - Pakistani Passport and British Passport receipts do not use PIN.
 - Family head details are NADRA-only.
 - British Passport receipts use PEX REF as tracking reference.
 
 ### UI Completion
+
 - Single receipt action per row across NADRA/PK/GB dashboards.
 - Receipt popup provides screenshot-to-clipboard copy for receipt preview.
 - Receipt history is opened from popup corner button and shown as logs-only entries.
 
 ### Persistence & Schema
+
 - New receipt storage table via `scripts/bootstrap/create-generated-receipts-table.sql`.
 - Share-tracking columns: shared flag, shared timestamp, channel, and share count.
 - Safe fallback behavior if schema is not available (APIs remain stable with supported=false responses where applicable).
 
 ### Frontend Integration Readiness
+
 - New reusable receipt hook: `hooks/useReceipt.ts`.
 - New API endpoint constants under `lib/constants/api.ts`.
 
 ### Validation
+
 - Receipt route tests passing:
-	- `tests/unit/receiptsGenerateRoute.test.ts`
-	- `tests/unit/receiptsVerifyRoute.test.ts`
-	- `tests/unit/receiptsListRoute.test.ts`
-	- `tests/unit/receiptsShareRoute.test.ts`
+  - `tests/unit/receiptsGenerateRoute.test.ts`
+  - `tests/unit/receiptsVerifyRoute.test.ts`
+  - `tests/unit/receiptsListRoute.test.ts`
+  - `tests/unit/receiptsShareRoute.test.ts`
 
 ### Admin Audit & Hardening
+
 - New admin API: `GET /api/admin/receipt-metrics` with maintenance-session protection.
 - New Settings tab: **Receipt Metrics** for generation/share/backfill visibility.
 - New backfill script: `scripts/manual/backfill-generated-receipts-share-columns.sql`.
@@ -66,11 +76,12 @@ The receipt system is fully implemented end-to-end across backend, UI, metrics, 
 
 ### 📋 Application Management System
 
-#### **NADRA Services** 
+#### **NADRA Services**
+
 - CNIC/NICOP applications and renewals
 - Family registration forms (FRC)
 - Character reports (CAN)
-- Point of Contact (POC) applications  
+- Point of Contact (POC) applications
 - Power of Attorney (POA) documentation
 - Real-time status tracking with audit history
 - Complaint management with service level agreements (SLA)
@@ -78,6 +89,7 @@ The receipt system is fully implemented end-to-end across backend, UI, metrics, 
 - Database-backed service type configuration
 
 #### **Pakistani Passport Services**
+
 - Adult passport applications (5 and 10 year variants)
 - Child passport processing
 - Biometrics tracking and scheduling
@@ -90,18 +102,21 @@ The receipt system is fully implemented end-to-end across backend, UI, metrics, 
 - Refund support for cancelled applications
 
 #### **British Passport Services**
+
 - Adult, child, and infant passports
 - Multiple page options (32, 48, 52 pages)
 - Service types: Standard, Express, Premium
 - Real-time application status tracking
 
 #### **Visa Services**
+
 - Multi-country visa applications
 - Document management
 - Status tracking per visa type
 - Comprehensive application history
 
 #### **Smart Application Dashboard**
+
 - Command deck with quick filters and metrics
 - Real-time attention feeds (overdue, critical)
 - SLA aging indicators and throughput analytics
@@ -117,6 +132,7 @@ The receipt system is fully implemented end-to-end across backend, UI, metrics, 
 ### 💰 Financial Management
 
 #### **Loan Management System (LMS)**
+
 - Account management and balance tracking
 - Multi-method payment processing (cash, card, check)
 - Installment plan creation and management
@@ -126,6 +142,7 @@ The receipt system is fully implemented end-to-end across backend, UI, metrics, 
 - Account statistics and analytics
 
 #### **Advanced Pricing Management**
+
 - Dynamic pricing for all services
 - Service-specific pricing matrices
 - Cost price and sale price tracking
@@ -140,6 +157,7 @@ The receipt system is fully implemented end-to-end across backend, UI, metrics, 
 ### 👥 User & Admin Management
 
 #### **Authentication & Security**
+
 - Supabase-based authentication
 - Email/password login
 - Two-factor authentication (2FA)
@@ -148,6 +166,7 @@ The receipt system is fully implemented end-to-end across backend, UI, metrics, 
 - Admin and service role separation
 
 #### **User & Employee Management**
+
 - Role-based access control (Admin, Manager, User)
 - Employee profile management
 - Team member management
@@ -155,6 +174,7 @@ The receipt system is fully implemented end-to-end across backend, UI, metrics, 
 - Activity logging
 
 #### **Admin Console**
+
 - Settings management
 - User administration
 - Pricing configuration
@@ -167,6 +187,7 @@ The receipt system is fully implemented end-to-end across backend, UI, metrics, 
 ### 🐛 Issue Reporting & Support
 
 #### **Global Issue Reporting System**
+
 - In-app issue reporting with rich context
 - Screenshot capture and attachment
 - Failed API request logging
@@ -182,6 +203,7 @@ The receipt system is fully implemented end-to-end across backend, UI, metrics, 
 ### ⏱️ Employee TimeClock
 
 #### **Advanced Time Tracking**
+
 - Punch in/out functionality
 - Manual time code entry
 - Duplicate scan prevention
@@ -198,35 +220,37 @@ The receipt system is fully implemented end-to-end across backend, UI, metrics, 
 ## 📋 Documentation
 
 #### **Comprehensive Guides**
-- **[Usage Guide](docs/guides/USAGE_GUIDE.md)** - Complete user documentation
-- **[Architecture Guide](docs/guides/ARCHITECTURE_GUIDE.md)** - Technical architecture and design patterns
-- **[Windows Setup Guide](docs/guides/WINDOWS_SETUP_GUIDE.md)** - Development environment setup
-- **[Database Schemas](docs/database/)** - Table structures and relationships
+
+- **[Usage Guide](../guides/USAGE_GUIDE.md)** - Current user documentation
+- **[Architecture Guide](../guides/ARCHITECTURE_GUIDE.md)** - Current technical architecture
+- **[Windows Setup Guide](../guides/WINDOWS_SETUP_GUIDE.md)** - Development environment setup
+- **[Database Schema Overview](../technical/DATABASE_SCHEMA_OVERVIEW.md)** - Current schema domains and migration workflow
 
 #### **Technical Documentation**
-- **[Type System Documentation](docs/TYPES.md)** - TypeScript type definitions
-- **[API Documentation](docs/technical/)** - API endpoints and usage patterns
-- **[Database Documentation](docs/database/)** - Complete schema reference
+
+- **[Type System Documentation](../TYPES.md)** - TypeScript type definitions
+- **[API Documentation](../technical/API_REFERENCE.md)** - API endpoints and security contracts
+- **[Database Documentation](../technical/DATABASE_SCHEMA_OVERVIEW.md)** - Current schema reference
 - **[Code Structure Guide](../plans/CODEBASE_STRUCTURE_GUIDE.md)** - File organization and conventions
 
 ---
 
 ## 🛠️ Technical Stack
 
-| Component | Technology | Version |
-|-----------|-----------|---------|
-| **Frontend Framework** | Next.js | 14.2+ |
-| **UI Library** | React | 18.x |
-| **Language** | TypeScript | 5.x |
-| **Database** | Supabase (PostgreSQL) | Latest |
-| **Authentication** | Supabase Auth | Built-in |
-| **Styling** | Tailwind CSS | 3.x |
-| **UI Icons** | Lucide React | Latest |
-| **Node.js** | LTS | 18+ |
-| **Deployment** | Vercel | Recommended |
-| **Document Storage** | MinIO | Latest |
-| **PDF Processing** | PDF.js | Latest |
-| **Testing** | Vitest + Playwright | Latest |
+| Component              | Technology            | Version     |
+| ---------------------- | --------------------- | ----------- |
+| **Frontend Framework** | Next.js               | 14.2+       |
+| **UI Library**         | React                 | 18.x        |
+| **Language**           | TypeScript            | 5.x         |
+| **Database**           | Supabase (PostgreSQL) | Latest      |
+| **Authentication**     | Supabase Auth         | Built-in    |
+| **Styling**            | Tailwind CSS          | 3.x         |
+| **UI Icons**           | Lucide React          | Latest      |
+| **Node.js**            | LTS                   | 18+         |
+| **Deployment**         | Vercel                | Recommended |
+| **Document Storage**   | MinIO                 | Latest      |
+| **PDF Processing**     | PDF.js                | Latest      |
+| **Testing**            | Vitest + Playwright   | Latest      |
 
 ---
 
@@ -300,21 +324,25 @@ vercel deploy --prod
 ## 💪 Performance Optimizations
 
 ### Component-Level
+
 - React.memo for pure components
 - useCallback for stable function references
 - Lazy loading for code splitting
 
 ### Data Loading
+
 - Backend pagination (50 items/page, max 100)
 - Efficient queries with indexed fields
 - O(1) lookup maps for filtering
 
 ### Memory Management
+
 - **90% memory reduction** through optimization
 - Efficient useEffect dependency tracking
 - Proper cleanup of subscriptions
 
 ### Load Times
+
 - **15x faster initial load** (15-30s → 1-2s)
 - Optimized images and assets
 - Minified production bundles
@@ -324,9 +352,10 @@ vercel deploy --prod
 ## 📊 Database Architecture
 
 ### Core Tables (30+)
+
 - `applications` - Master application records
 - `applicants` - Person/applicant data
-- `nadra_services` - NADRA-specific applications  
+- `nadra_services` - NADRA-specific applications
 - `nadra_status_history` - NADRA audit trail
 - `pakistani_passport_applications` - PK passport data
 - `british_passport_applications` - GB passport data
@@ -338,13 +367,14 @@ vercel deploy --prod
 - `documents` - Document storage metadata
 - And more...
 
-Full schema available in [docs/database/](docs/database/)
+See the current [Database Schema Overview](../technical/DATABASE_SCHEMA_OVERVIEW.md).
 
 ---
 
 ## 🔄 API Features
 
 ### Standardized API Endpoints
+
 - `POST /api/nadra/add-application` - Create NADRA application
 - `POST /api/nadra/update-status` - Update NADRA status
 - `POST /api/nadra/refund` - Process refund
@@ -354,6 +384,7 @@ Full schema available in [docs/database/](docs/database/)
 - And 50+ more endpoints...
 
 ### Error Handling
+
 - Standardized error response format
 - Proper HTTP status codes
 - Detailed error messages
@@ -390,7 +421,7 @@ This is a closed-source project developed by Rathobixz Inc. For feature requests
 
 ## 📄 License
 
-MIT License - See [LICENSE](LICENSE) file for details
+MIT License - See the repository [LICENSE](../../LICENSE) file for details
 
 ---
 
@@ -409,8 +440,9 @@ MIT License - See [LICENSE](LICENSE) file for details
 ## 👨‍💼 Support
 
 For issues, feature requests, or support:
+
 - **GitHub Issues:** Use GitHub Issues for bug reports
-- **Documentation:** Check [docs/](docs/) for comprehensive guides
+- **Documentation:** Check the current [documentation index](../README.md) for comprehensive guides
 - **Performance:** Optimized for 1000+ concurrent users
 - **Uptime:** Enterprise-grade reliability
 

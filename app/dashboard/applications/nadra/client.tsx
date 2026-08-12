@@ -26,12 +26,7 @@ import useNadraAuxiliaryManagement from './components/useNadraAuxiliaryManagemen
 import useNadraFormManagement from './components/useNadraFormManagement'
 import { useReceipt } from '@/hooks'
 import type { GeneratedReceipt } from '@/hooks'
-import type {
-  NadraApplication,
-  NadraClientProps,
-  NadraPerson,
-  NadraServiceRecord,
-} from '@/app/types/nadra'
+import type { NadraApplication, NadraClientProps, NadraServiceRecord } from '@/app/types/nadra'
 
 const getNoteSignature = (value?: string | null) => String(value || '').trim()
 
@@ -66,8 +61,14 @@ export default function NadraClient({
     currentPage: 1,
   })
   const {
-    searchQuery, statusFilter, serviceTypeFilter, serviceOptionFilter,
-    startDate, endDate, showEmptyFamilies, currentPage,
+    searchQuery,
+    statusFilter,
+    serviceTypeFilter,
+    serviceOptionFilter,
+    startDate,
+    endDate,
+    showEmptyFamilies,
+    currentPage,
   } = filters
   const pageSize = 25
 
@@ -137,39 +138,42 @@ export default function NadraClient({
     router.refresh()
   }, [router])
 
-  const markNadraNotesRead = useCallback(async (
-    nadraId: string,
-    noteValue?: string | null,
-    options: { silent?: boolean } = { silent: true },
-  ) => {
-    const signature = getNoteSignature(noteValue)
-    setNoteReadSignatures((current) => {
-      const next = { ...current }
-      if (!signature) {
-        delete next[nadraId]
-      } else {
-        next[nadraId] = signature
-      }
-      return next
-    })
-
-    try {
-      await fetch('/api/applications/notes-read', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          context: 'nadra',
-          recordId: nadraId,
-          noteSignature: signature,
-        }),
+  const markNadraNotesRead = useCallback(
+    async (
+      nadraId: string,
+      noteValue?: string | null,
+      options: { silent?: boolean } = { silent: true },
+    ) => {
+      const signature = getNoteSignature(noteValue)
+      setNoteReadSignatures((current) => {
+        const next = { ...current }
+        if (!signature) {
+          delete next[nadraId]
+        } else {
+          next[nadraId] = signature
+        }
+        return next
       })
-    } catch {
-      if (!options.silent) {
-        toast.error('Could not save read state')
+
+      try {
+        await fetch('/api/applications/notes-read', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            context: 'nadra',
+            recordId: nadraId,
+            noteSignature: signature,
+          }),
+        })
+      } catch {
+        if (!options.silent) {
+          toast.error('Could not save read state')
+        }
       }
-    }
-  }, [])
+    },
+    [],
+  )
 
   const markNadraNotesUnread = useCallback(async (nadraId: string) => {
     setNoteReadSignatures((current) => {
@@ -267,8 +271,6 @@ export default function NadraClient({
     setShowForm,
     formData,
     isSubmitting,
-    setFormServiceType,
-    setFormServiceOption,
     handleInputChange,
     handleAddMember,
     handleSubmit,
@@ -360,7 +362,7 @@ export default function NadraClient({
     onRefresh: refreshData,
   })
 
-  const handleManageDocuments = (familyHeadId: string, familyHeadName: string) => {
+  const handleManageDocuments = (familyHeadId: string) => {
     if (!familyHeadId) {
       toast.error('Cannot manage documents for this family')
       return
@@ -393,9 +395,10 @@ export default function NadraClient({
     normalizeLookupValue,
   })
 
-  const serviceOptionNames = useMemo(() => serviceOptions.map((option) => option.name), [
-    serviceOptions,
-  ])
+  const serviceOptionNames = useMemo(
+    () => serviceOptions.map((option) => option.name),
+    [serviceOptions],
+  )
 
   // =====================================================================
   // STATUS UPDATE

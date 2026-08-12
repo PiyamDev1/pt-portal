@@ -4,13 +4,13 @@ import { incrementBookingContactPenalty } from '@/lib/bookingFlags'
 
 export const runtime = 'nodejs'
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const body = await request.json().catch(() => null)
-  const reason = typeof body?.reason === 'string' ? body.reason.trim() || 'Marked as no-show by staff' : 'Marked as no-show by staff'
+  const reason =
+    typeof body?.reason === 'string'
+      ? body.reason.trim() || 'Marked as no-show by staff'
+      : 'Marked as no-show by staff'
 
   const supabase = await getRouteSupabaseClient()
   const { data: booking, error: bookingError } = await supabase

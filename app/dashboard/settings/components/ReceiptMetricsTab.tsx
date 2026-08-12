@@ -101,7 +101,9 @@ export function ReceiptMetricsTab() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-bold text-slate-900">Receipt Metrics</h2>
-          <p className="text-sm text-slate-600 mt-1">Generation, share, and backfill health overview.</p>
+          <p className="text-sm text-slate-600 mt-1">
+            Generation, share, and backfill health overview.
+          </p>
         </div>
         <button
           onClick={() => void load()}
@@ -156,8 +158,10 @@ export function ReceiptMetricsTab() {
       <div className="rounded-xl border border-slate-200 bg-white p-4">
         <h3 className="font-semibold text-slate-900">Backfill Health</h3>
         <p className="mt-2 text-sm text-slate-600">
-          Null share_count rows: <span className="font-semibold">{data.backfill?.nullShareCountRows ?? 0}</span>
-          {' '}• Null shared_via rows: <span className="font-semibold">{data.backfill?.nullSharedViaRows ?? 0}</span>
+          Null share_count rows:{' '}
+          <span className="font-semibold">{data.backfill?.nullShareCountRows ?? 0}</span> • Null
+          shared_via rows:{' '}
+          <span className="font-semibold">{data.backfill?.nullSharedViaRows ?? 0}</span>
         </p>
       </div>
 
@@ -186,7 +190,9 @@ export function ReceiptMetricsTab() {
                   <tr key={row.id} className="border-t border-slate-100">
                     <td className="py-2">{row.serviceType}</td>
                     <td className="py-2">{row.receiptType}</td>
-                    <td className="py-2">{row.generatedAt ? new Date(row.generatedAt).toLocaleString('en-GB') : 'N/A'}</td>
+                    <td className="py-2">
+                      {row.generatedAt ? new Date(row.generatedAt).toLocaleString('en-GB') : 'N/A'}
+                    </td>
                     <td className="py-2">{row.sharedVia || (row.isShared ? 'yes' : 'no')}</td>
                     <td className="py-2">{row.shareCount}</td>
                   </tr>

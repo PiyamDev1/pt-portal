@@ -1,12 +1,19 @@
 # Operations Notes
 
-This folder contains operational notes, rollout guides, and one-off troubleshooting documents that are still useful but are not part of the core product guide set.
+These files are supporting or historical runbooks, not current implementation authority. Verify the target environment, active guide, source, migrations, and permissions before using any procedure.
 
-## Typical contents
+| Note                                                            | Classification/current reference                                                    |
+| --------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| [Manual Entry Timeclock Troubleshooting](MANUAL_ENTRY_FIX.md)   | Maintained supporting runbook; preserves RLS/service-role boundary                  |
+| [MinIO Backend Integration](MINIO_BACKEND_INTEGRATION_GUIDE.md) | Superseded pre-implementation design; unsafe public-credential examples—do not copy |
+| [MinIO Frontend Testing](MINIO_FRONTEND_TESTING_GUIDE.md)       | Superseded placeholder-era test plan                                                |
+| [Staff Disable/Delete](STAFF_DISABLE_DELETE_FEATURE.md)         | Historical rollout note; revalidate roles, fresh-factor rules, and current API      |
+| [Timeclock Enhancements](TIMECLOCK_ENHANCEMENTS.md)             | Point-in-time completion note                                                       |
 
-- implementation checklists
-- emergency fix notes
-- admin operation reminders
-- infrastructure-specific walkthroughs
+Current authorities:
 
-Use these as supporting documents when a guide in `docs/guides/` points here.
+- [Usage Guide](../guides/USAGE_GUIDE.md)
+- [Document Management](../guides/DOCUMENT_MANAGEMENT_GUIDE.md)
+- [API Reference](../technical/API_REFERENCE.md)
+- [Security](../technical/SECURITY.md)
+- [Storage System](../technical/STORAGE_SYSTEM.md)

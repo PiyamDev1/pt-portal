@@ -3,26 +3,17 @@ import { sendBookingEmail } from '@/lib/bookingEmail'
 import { getSupabaseClient } from '@/lib/supabaseClient'
 import { renderReminderText } from '@/lib/bookingReminders'
 import { storeBookingEmailAttempt } from '@/lib/bookingPersistence'
+import { requireCronAuthorization } from '@/lib/security/cronAuth.server'
 
 export const runtime = 'nodejs'
 
-const SCHEMA_HINT = 'Booking schema is out of date. Run scripts/migrations/20260602_add_booking_reminders_and_penalties.sql in Supabase SQL editor.'
+const SCHEMA_HINT =
+  'Booking schema is out of date. Run scripts/migrations/20260602_add_booking_reminders_and_penalties.sql in Supabase SQL editor.'
 const DEFAULT_LOOKBACK_MINUTES = 24 * 60
 
 function isSchemaError(error: unknown): boolean {
   const code = (error as { code?: string } | null)?.code
   return code === '42P01' || code === '42703' || code === '42P10'
-}
-
-function isAuthorizedCron(request: Request) {
-  const cronSecret = process.env.CRON_SECRET
-  if (!cronSecret) {
-    return true
-  }
-
-  const authHeader = request.headers.get('authorization')
-  const vercelCronHeader = request.headers.get('x-vercel-cron')
-  return authHeader === `Bearer ${cronSecret}` || vercelCronHeader === '1'
 }
 
 function formatDateTime(isoString: string): { date: string; time: string } {
@@ -44,22 +35,32 @@ function formatDateTime(isoString: string): { date: string; time: string } {
   }
 }
 
-function buildBranchAddress(location: {
-  address_line1?: string | null
-  address_line2?: string | null
-  city?: string | null
-  postcode?: string | null
-  country?: string | null
-} | null): string {
+function buildBranchAddress(
+  location: {
+    address_line1?: string | null
+    address_line2?: string | null
+    city?: string | null
+    postcode?: string | null
+    country?: string | null
+  } | null,
+): string {
   if (!location) return 'Address unavailable'
-  const parts = [location.address_line1, location.address_line2, location.city, location.postcode, location.country]
+  const parts = [
+    location.address_line1,
+    location.address_line2,
+    location.city,
+    location.postcode,
+    location.country,
+  ]
     .map((value) => value?.trim())
     .filter((value): value is string => Boolean(value))
   return parts.length > 0 ? parts.join(', ') : 'Address unavailable'
 }
 
 function getReminderWindowBounds(hoursBefore: number, nowMs: number) {
-  const configuredLookback = Number(process.env.BOOKING_REMINDER_CRON_LOOKBACK_MINUTES || DEFAULT_LOOKBACK_MINUTES)
+  const configuredLookback = Number(
+    process.env.BOOKING_REMINDER_CRON_LOOKBACK_MINUTES || DEFAULT_LOOKBACK_MINUTES,
+  )
   const lookbackMinutes = Number.isFinite(configuredLookback)
     ? Math.min(DEFAULT_LOOKBACK_MINUTES, Math.max(15, configuredLookback))
     : DEFAULT_LOOKBACK_MINUTES
@@ -75,9 +76,8 @@ function getReminderWindowBounds(hoursBefore: number, nowMs: number) {
 }
 
 export async function GET(request: Request) {
-  if (!isAuthorizedCron(request)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const authorizationError = requireCronAuthorization(request)
+  if (authorizationError) return authorizationError
 
   try {
     const supabase = getSupabaseClient()
@@ -89,14 +89,27 @@ export async function GET(request: Request) {
 
     if (settingsError) {
       if (isSchemaError(settingsError)) {
-        return NextResponse.json({ success: true, warning: SCHEMA_HINT, sent: 0, considered: 0 }, { status: 200 })
+        return NextResponse.json(
+          { success: true, warning: SCHEMA_HINT, sent: 0, considered: 0 },
+          { status: 200 },
+        )
       }
       return NextResponse.json({ error: settingsError.message }, { status: 500 })
     }
 
-    const baseUrl = (process.env.APP_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/$/, '')
+    const baseUrl = (
+      process.env.APP_BASE_URL ||
+      process.env.NEXT_PUBLIC_SITE_URL ||
+      process.env.NEXT_PUBLIC_APP_URL ||
+      ''
+    ).replace(/\/$/, '')
     if (!baseUrl) {
-      return NextResponse.json({ error: 'APP_BASE_URL or NEXT_PUBLIC_APP_URL must be configured' }, { status: 500 })
+      return NextResponse.json(
+        {
+          error: 'APP_BASE_URL, NEXT_PUBLIC_SITE_URL, or NEXT_PUBLIC_APP_URL must be configured',
+        },
+        { status: 500 },
+      )
     }
 
     let sent = 0
@@ -124,7 +137,8 @@ export async function GET(request: Request) {
 
         const { data: candidates, error: candidateError } = await supabase
           .from('bookings')
-          .select(`
+          .select(
+            `
             id,
             location_id,
             customer_name,
@@ -133,7 +147,8 @@ export async function GET(request: Request) {
             status,
             booking_services:service_id(name),
             locations:location_id(name,address_line1,address_line2,city,postcode,country,phone)
-          `)
+          `,
+          )
           .eq('location_id', setting.location_id)
           .in('status', ['pending', 'confirmed'])
           .gte('start_time', lowerBound)
@@ -154,7 +169,9 @@ export async function GET(request: Request) {
         const bookingIds = candidates.map((row) => row.id)
         const { data: eventRows } = await supabase
           .from('booking_reminder_events')
-          .select('booking_id, reminder_sent_at, reminder_hours_before, same_day_reminder_sent_at, same_day_reminder_hours_before, response_token, response_status')
+          .select(
+            'booking_id, reminder_sent_at, reminder_hours_before, same_day_reminder_sent_at, same_day_reminder_hours_before, response_token, response_status',
+          )
           .in('booking_id', bookingIds)
 
         const eventMap = new Map((eventRows || []).map((row) => [row.booking_id, row]))
@@ -190,17 +207,21 @@ export async function GET(request: Request) {
 
           const emailTemplate = `${templateCore}${confirmationBlock}`.trim()
           const subject = renderReminderText(
-            setting.reminder_subject || 'Appointment reminder: [service booked] on [date booked] at [time booked]',
+            setting.reminder_subject ||
+              'Appointment reminder: [service booked] on [date booked] at [time booked]',
             {
               customerName: booking.customer_name || 'Customer',
               dateBooked: date,
               timeBooked: time,
-              serviceBooked: (booking.booking_services as { name?: string } | null)?.name || 'Service',
+              serviceBooked:
+                (booking.booking_services as { name?: string } | null)?.name || 'Service',
               branchName: location?.name || 'Branch',
               branchAddress: buildBranchAddress(location),
               branchContactNumber: location?.phone || 'Contact unavailable',
-            }
-          ).replace(/\s+/g, ' ').trim()
+            },
+          )
+            .replace(/\s+/g, ' ')
+            .trim()
 
           const result = await sendBookingEmail({
             to: booking.customer_email,
@@ -218,10 +239,22 @@ export async function GET(request: Request) {
           const upsertPayload = {
             booking_id: booking.id,
             location_id: booking.location_id,
-            reminder_sent_at: reminderWindow.key === 'advance' && result.sent ? new Date().toISOString() : existing?.reminder_sent_at ?? null,
-            reminder_hours_before: reminderWindow.key === 'advance' ? reminderWindow.hours : existing?.reminder_hours_before ?? null,
-            same_day_reminder_sent_at: reminderWindow.key === 'same_day' && result.sent ? new Date().toISOString() : existing?.same_day_reminder_sent_at ?? null,
-            same_day_reminder_hours_before: reminderWindow.key === 'same_day' ? reminderWindow.hours : existing?.same_day_reminder_hours_before ?? null,
+            reminder_sent_at:
+              reminderWindow.key === 'advance' && result.sent
+                ? new Date().toISOString()
+                : (existing?.reminder_sent_at ?? null),
+            reminder_hours_before:
+              reminderWindow.key === 'advance'
+                ? reminderWindow.hours
+                : (existing?.reminder_hours_before ?? null),
+            same_day_reminder_sent_at:
+              reminderWindow.key === 'same_day' && result.sent
+                ? new Date().toISOString()
+                : (existing?.same_day_reminder_sent_at ?? null),
+            same_day_reminder_hours_before:
+              reminderWindow.key === 'same_day'
+                ? reminderWindow.hours
+                : (existing?.same_day_reminder_hours_before ?? null),
             response_token: token,
             response_status: status,
             metadata: {

@@ -1,30 +1,31 @@
-# lib Ownership Model
+# Shared Library Ownership
 
-Purpose: keep shared, framework-agnostic business utilities in one stable module root.
+`lib/` owns reusable domain and infrastructure code. Consumers import the module they need through
+an explicit root alias such as `@/lib/api/request`; there is intentionally no catch-all `@/lib`
+barrel.
+
+## Main areas
+
+| Area                     | Responsibility                                                                       |
+| ------------------------ | ------------------------------------------------------------------------------------ |
+| `api/`                   | Request parsing, consistent JSON responses, and server-side Supabase clients.        |
+| `auth/`                  | Canonical staff sessions, fresh second-factor checks, passkeys, and security events. |
+| `security/`              | Shared database-backed rate limiting and cryptographically secure generators.        |
+| `observability/`         | Structured server events, request IDs, redaction, and operational alerts.            |
+| `integrations/frappe/`   | Frappe API, provisioning, webhook, sync, and handoff contracts.                      |
+| `lms/` and `accounting/` | LMS authorization and application-report aggregation.                                |
+| `passports/`             | Passport pricing, draft normalization, and assignment email logic.                   |
+| `services/`              | Document and receipt client/server services. Import the concrete service module.     |
+
+Top-level modules contain shared booking, document, package, receipt, storage, timeclock, and visa
+logic. Route-local or UI-only helpers should remain beside their feature instead.
 
 ## Rules
 
-- Use `@/lib/*` for shared utilities consumed by dashboard, API routes, and hooks.
-- Keep UI-only or route-local helpers near their feature when they are not reusable.
-- Do not reintroduce duplicate utility layers under `app/lib`.
-
-## Status
-
-- The old compatibility bridge from `app/lib` and `app/hooks` has been removed.
-- Shared imports should now point directly at `@/lib/*` and `@/hooks/*`.
-
-## Current Target Modules
-
-- `dateFormatter`
-- `errorHandler`
-- `pricingOptions`
-- `utils`
-- `visaApi`
-- `visaConstants`
-- `visaTableConfig`
-
-## Done In This Pass
-
-- App code imports were standardized to root aliases:
-  - `@/lib/*`
-  - `@/hooks/*`
+- Import concrete modules (`@/lib/...`) so client code does not accidentally pull server-only code
+  through a barrel.
+- Keep service credentials and privileged clients in server-only modules.
+- Use `lib/api/request.ts` for bounded request parsing and `lib/api/http.ts` for standard responses.
+- Use `lib/observability/server.ts` for server logging; never log credentials or raw tokens.
+- Put durable schema changes in `scripts/migrations/` and regenerate Supabase types after deployment.
+- Remove compatibility helpers once their final consumer has migrated.

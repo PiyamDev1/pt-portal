@@ -31,239 +31,238 @@ export async function PATCH(
   if (!user) return apiError('Unauthorized', 401)
 
   try {
-  const body = (await request.json().catch(() => null)) as Record<string, unknown> | null
-  if (!body) return apiError('Invalid JSON body', 400)
+    const body = (await request.json().catch(() => null)) as Record<string, unknown> | null
+    if (!body) return apiError('Invalid JSON body', 400)
 
-  const { data: before } = await supabase
-    .from('travel_package_transport_vouchers')
-    .select(selectTravelPackageVoucherColumns())
-    .eq('id', voucherId)
-    .eq('package_id', id)
-    .single()
-  if (!before) return apiError('Transport voucher not found', 404)
-  const voucher = before as unknown as TravelPackageTransportVoucher
-  const hasVoucherData = body.voucherData !== undefined || body.voucher_data !== undefined
-  const customerVisible = Boolean(
-    body.customerVisible ?? body.customer_visible ?? voucher.customer_visible,
-  )
-  const now = new Date().toISOString()
-  const { data: packageData } = await supabase
-    .from('travel_packages')
-    .select(
-      `
+    const { data: before } = await supabase
+      .from('travel_package_transport_vouchers')
+      .select(selectTravelPackageVoucherColumns())
+      .eq('id', voucherId)
+      .eq('package_id', id)
+      .single()
+    if (!before) return apiError('Transport voucher not found', 404)
+    const voucher = before as unknown as TravelPackageTransportVoucher
+    const hasVoucherData = body.voucherData !== undefined || body.voucher_data !== undefined
+    const customerVisible = Boolean(
+      body.customerVisible ?? body.customer_visible ?? voucher.customer_visible,
+    )
+    const now = new Date().toISOString()
+    const { data: packageData } = await supabase
+      .from('travel_packages')
+      .select(
+        `
       id, package_reference, customer_name, passenger_summary,
       document_access_token, document_access_enabled, document_access_expires_at,
       customer_access_last_name
     `,
-    )
-    .eq('id', id)
-    .single()
-  if (!packageData) return apiError('Travel package not found', 404)
-
-  const packageFolder = packageData as unknown as TravelPackageFolder
-  const voucherData = await enrichTransportVoucherPortalData(
-    supabase as unknown as Parameters<typeof enrichTransportVoucherPortalData>[0],
-    packageFolder,
-    hasVoucherData
-      ? normalizeTransportVoucherData(body.voucherData || body.voucher_data, voucher.voucher_data)
-      : normalizeTransportVoucherData(voucher.voucher_data),
-  )
-  const renderedHtml = renderTransportVoucherHtml(packageFolder, voucherData)
-  const { getTransportVoucherLogoDataUrl, renderTransportVoucherDocument } = await import(
-    '@/lib/packageTransportVoucherServer'
-  )
-  const pdfHtml = renderTransportVoucherHtml(packageFolder, voucherData, {
-    logoSrc: await getTransportVoucherLogoDataUrl(),
-  })
-  const documentFile = await renderTransportVoucherDocument(pdfHtml)
-  const renderWarning = documentFile.renderWarning
-  let storageWarning: string | null = null
-  const nextStatus = customerVisible
-    ? 'released_to_customer'
-    : hasVoucherData
-      ? voucher.status === 'released_to_customer' || voucher.status === 'revoked'
-        ? 'amended'
-        : voucher.status
-      : 'revoked'
-
-  if (voucher.document_id && renderedHtml) {
-    const { data: documentData } = await supabase
-      .from('travel_package_documents')
-      .select('id, file_name, storage_bucket, storage_key')
-      .eq('id', voucher.document_id)
-      .single()
-    const document = documentData as
-      | {
-          id: string
-          file_name?: string | null
-          storage_bucket?: string | null
-          storage_key?: string | null
-        }
-      | null
-      | undefined
-    if (document?.storage_bucket && document.storage_key) {
-      const nextStorageKey = document.storage_key.replace(
-        /\.(html|pdf)$/i,
-        `.${documentFile.extension}`,
       )
-      const nextFileName =
-        document.file_name?.replace(/\.(html|pdf)$/i, `.${documentFile.extension}`) ||
-        nextStorageKey.split('/').at(-1) ||
-        `transport-voucher-${packageFolder.package_reference}-v${voucher.version}.${documentFile.extension}`
-      let etag = ''
-      try {
-        const result = await getS3Client().send(
-          new PutObjectCommand({
-            Bucket: document.storage_bucket,
-            Key: nextStorageKey,
-            Body: documentFile.body,
-            ContentType: documentFile.contentType,
-          }),
-        )
-        etag = result.ETag || ''
+      .eq('id', id)
+      .single()
+    if (!packageData) return apiError('Travel package not found', 404)
 
-        const backupConfig = getPackageBackupStorageConfig()
-        let backupStatus: 'pending' | 'copied' | 'failed' | 'skipped' = backupConfig
-          ? 'pending'
-          : 'skipped'
-        let backupError: string | null = null
-        if (backupConfig) {
-          try {
-            await getPackageBackupStorageClient().send(
-              new PutObjectCommand({
-                Bucket: backupConfig.bucketName,
-                Key: nextStorageKey,
-                Body: documentFile.body,
-                ContentType: documentFile.contentType,
-              }),
-            )
-            backupStatus = 'copied'
-          } catch (error) {
-            backupStatus = 'failed'
-            backupError = error instanceof Error ? error.message : 'Voucher backup failed'
-          }
-        }
-
-        await supabase
-          .from('travel_package_documents')
-          .update({
-            file_name: nextFileName,
-            file_size: documentFile.body.byteLength,
-            file_type: documentFile.contentType,
-            storage_key: nextStorageKey,
-            storage_etag: etag,
-            backup_status: backupStatus,
-            backup_error: backupError,
-            backup_key: backupConfig ? nextStorageKey : null,
-            updated_by: user.id,
-          })
-          .eq('id', voucher.document_id)
-      } catch (error) {
-        storageWarning =
-          error instanceof Error ? error.message : 'Failed to refresh stored voucher document'
-      }
-    }
-  }
-  const documentWarning = [renderWarning, storageWarning].filter(Boolean).join(' ') || null
-
-  if (customerVisible) {
-    const { data: oldVouchers } = await supabase
-      .from('travel_package_transport_vouchers')
-      .select('id, document_id')
-      .eq('package_id', id)
-      .eq('customer_visible', true)
-      .neq('id', voucherId)
-    for (const oldVoucher of oldVouchers || []) {
-      await supabase
-        .from('travel_package_transport_vouchers')
-        .update({
-          status: 'amended',
-          customer_visible: false,
-        })
-        .eq('id', oldVoucher.id)
-      if (oldVoucher.document_id) {
-        await supabase
-          .from('travel_package_documents')
-          .update({
-            status: 'revoked',
-            customer_visible: false,
-            revoked_at: now,
-            revoked_by: user.id,
-          })
-          .eq('id', oldVoucher.document_id)
-      }
-    }
-  }
-
-  const { data, error } = await supabase
-    .from('travel_package_transport_vouchers')
-    .update({
-      status: nextStatus,
-      customer_visible: customerVisible,
-      voucher_data: voucherData,
-      rendered_html: renderedHtml,
-      released_at: customerVisible ? voucher.released_at || now : null,
-      released_by: customerVisible ? voucher.released_by || user.id : null,
-      updated_by: user.id,
+    const packageFolder = packageData as unknown as TravelPackageFolder
+    const voucherData = await enrichTransportVoucherPortalData(
+      supabase as unknown as Parameters<typeof enrichTransportVoucherPortalData>[0],
+      packageFolder,
+      hasVoucherData
+        ? normalizeTransportVoucherData(body.voucherData || body.voucher_data, voucher.voucher_data)
+        : normalizeTransportVoucherData(voucher.voucher_data),
+    )
+    const renderedHtml = renderTransportVoucherHtml(packageFolder, voucherData)
+    const { getTransportVoucherLogoDataUrl, renderTransportVoucherDocument } =
+      await import('@/lib/packageTransportVoucherServer')
+    const pdfHtml = renderTransportVoucherHtml(packageFolder, voucherData, {
+      logoSrc: await getTransportVoucherLogoDataUrl(),
     })
-    .eq('id', voucherId)
-    .eq('package_id', id)
-    .select(selectTravelPackageVoucherColumns())
-    .single()
-  if (error || !data) return apiError(error?.message || 'Failed to update transport voucher', 500)
+    const documentFile = await renderTransportVoucherDocument(pdfHtml)
+    const renderWarning = documentFile.renderWarning
+    let storageWarning: string | null = null
+    const nextStatus = customerVisible
+      ? 'released_to_customer'
+      : hasVoucherData
+        ? voucher.status === 'released_to_customer' || voucher.status === 'revoked'
+          ? 'amended'
+          : voucher.status
+        : 'revoked'
 
-  if (voucher.document_id) {
-    await supabase
-      .from('travel_package_documents')
+    if (voucher.document_id && renderedHtml) {
+      const { data: documentData } = await supabase
+        .from('travel_package_documents')
+        .select('id, file_name, storage_bucket, storage_key')
+        .eq('id', voucher.document_id)
+        .single()
+      const document = documentData as
+        | {
+            id: string
+            file_name?: string | null
+            storage_bucket?: string | null
+            storage_key?: string | null
+          }
+        | null
+        | undefined
+      if (document?.storage_bucket && document.storage_key) {
+        const nextStorageKey = document.storage_key.replace(
+          /\.(html|pdf)$/i,
+          `.${documentFile.extension}`,
+        )
+        const nextFileName =
+          document.file_name?.replace(/\.(html|pdf)$/i, `.${documentFile.extension}`) ||
+          nextStorageKey.split('/').at(-1) ||
+          `transport-voucher-${packageFolder.package_reference}-v${voucher.version}.${documentFile.extension}`
+        let etag = ''
+        try {
+          const result = await getS3Client().send(
+            new PutObjectCommand({
+              Bucket: document.storage_bucket,
+              Key: nextStorageKey,
+              Body: documentFile.body,
+              ContentType: documentFile.contentType,
+            }),
+          )
+          etag = result.ETag || ''
+
+          const backupConfig = getPackageBackupStorageConfig()
+          let backupStatus: 'pending' | 'copied' | 'failed' | 'skipped' = backupConfig
+            ? 'pending'
+            : 'skipped'
+          let backupError: string | null = null
+          if (backupConfig) {
+            try {
+              await getPackageBackupStorageClient().send(
+                new PutObjectCommand({
+                  Bucket: backupConfig.bucketName,
+                  Key: nextStorageKey,
+                  Body: documentFile.body,
+                  ContentType: documentFile.contentType,
+                }),
+              )
+              backupStatus = 'copied'
+            } catch (error) {
+              backupStatus = 'failed'
+              backupError = error instanceof Error ? error.message : 'Voucher backup failed'
+            }
+          }
+
+          await supabase
+            .from('travel_package_documents')
+            .update({
+              file_name: nextFileName,
+              file_size: documentFile.body.byteLength,
+              file_type: documentFile.contentType,
+              storage_key: nextStorageKey,
+              storage_etag: etag,
+              backup_status: backupStatus,
+              backup_error: backupError,
+              backup_key: backupConfig ? nextStorageKey : null,
+              updated_by: user.id,
+            })
+            .eq('id', voucher.document_id)
+        } catch (error) {
+          storageWarning =
+            error instanceof Error ? error.message : 'Failed to refresh stored voucher document'
+        }
+      }
+    }
+    const documentWarning = [renderWarning, storageWarning].filter(Boolean).join(' ') || null
+
+    if (customerVisible) {
+      const { data: oldVouchers } = await supabase
+        .from('travel_package_transport_vouchers')
+        .select('id, document_id')
+        .eq('package_id', id)
+        .eq('customer_visible', true)
+        .neq('id', voucherId)
+      for (const oldVoucher of oldVouchers || []) {
+        await supabase
+          .from('travel_package_transport_vouchers')
+          .update({
+            status: 'amended',
+            customer_visible: false,
+          })
+          .eq('id', oldVoucher.id)
+        if (oldVoucher.document_id) {
+          await supabase
+            .from('travel_package_documents')
+            .update({
+              status: 'revoked',
+              customer_visible: false,
+              revoked_at: now,
+              revoked_by: user.id,
+            })
+            .eq('id', oldVoucher.document_id)
+        }
+      }
+    }
+
+    const { data, error } = await supabase
+      .from('travel_package_transport_vouchers')
       .update({
-        status: customerVisible ? 'released' : 'revoked',
+        status: nextStatus,
         customer_visible: customerVisible,
+        voucher_data: voucherData,
+        rendered_html: renderedHtml,
+        released_at: customerVisible ? voucher.released_at || now : null,
+        released_by: customerVisible ? voucher.released_by || user.id : null,
+        updated_by: user.id,
+      })
+      .eq('id', voucherId)
+      .eq('package_id', id)
+      .select(selectTravelPackageVoucherColumns())
+      .single()
+    if (error || !data) return apiError(error?.message || 'Failed to update transport voucher', 500)
+
+    if (voucher.document_id) {
+      await supabase
+        .from('travel_package_documents')
+        .update({
+          status: customerVisible ? 'released' : 'revoked',
+          customer_visible: customerVisible,
+          released_at: customerVisible ? now : null,
+          released_by: customerVisible ? user.id : null,
+          revoked_at: customerVisible ? null : now,
+          revoked_by: customerVisible ? null : user.id,
+          public_notes: voucherData.publicNotes || null,
+          internal_notes: voucherData.internalNotes || null,
+        })
+        .eq('id', voucher.document_id)
+    }
+    await supabase
+      .from('travel_package_versions')
+      .update({
+        visibility: customerVisible
+          ? 'released_to_customer'
+          : hasVoucherData
+            ? 'ready_for_review'
+            : 'revoked',
+        snapshot: { voucher: data },
         released_at: customerVisible ? now : null,
         released_by: customerVisible ? user.id : null,
-        revoked_at: customerVisible ? null : now,
-        revoked_by: customerVisible ? null : user.id,
-        public_notes: voucherData.publicNotes || null,
-        internal_notes: voucherData.internalNotes || null,
       })
-      .eq('id', voucher.document_id)
-  }
-  await supabase
-    .from('travel_package_versions')
-    .update({
-      visibility: customerVisible
-        ? 'released_to_customer'
-        : hasVoucherData
-          ? 'ready_for_review'
-          : 'revoked',
-      snapshot: { voucher: data },
-      released_at: customerVisible ? now : null,
-      released_by: customerVisible ? user.id : null,
+      .eq('object_type', 'transport_voucher')
+      .eq('object_id', voucherId)
+    await recordPackageAuditEvent(
+      supabase as unknown as Parameters<typeof recordPackageAuditEvent>[0],
+      {
+        packageId: id,
+        actorId: user.id,
+        eventType: hasVoucherData
+          ? 'transport_voucher_updated'
+          : customerVisible
+            ? 'transport_voucher_released'
+            : 'transport_voucher_revoked',
+        eventSummary: hasVoucherData
+          ? `Transport voucher v${voucher.version} updated.`
+          : `Transport voucher ${customerVisible ? 'released to customer' : 'revoked'}.`,
+        beforeData: before,
+        afterData: data,
+      },
+    )
+    return apiOk({
+      voucher: data as unknown as TravelPackageTransportVoucher,
+      storageWarning,
+      renderWarning,
+      documentWarning,
     })
-    .eq('object_type', 'transport_voucher')
-    .eq('object_id', voucherId)
-  await recordPackageAuditEvent(
-    supabase as unknown as Parameters<typeof recordPackageAuditEvent>[0],
-    {
-      packageId: id,
-      actorId: user.id,
-      eventType: hasVoucherData
-        ? 'transport_voucher_updated'
-        : customerVisible
-          ? 'transport_voucher_released'
-          : 'transport_voucher_revoked',
-      eventSummary: hasVoucherData
-        ? `Transport voucher v${voucher.version} updated.`
-        : `Transport voucher ${customerVisible ? 'released to customer' : 'revoked'}.`,
-      beforeData: before,
-      afterData: data,
-    },
-  )
-  return apiOk({
-    voucher: data as unknown as TravelPackageTransportVoucher,
-    storageWarning,
-    renderWarning,
-    documentWarning,
-  })
   } catch (error) {
     console.error('Transport voucher update failed', error)
     return apiError(

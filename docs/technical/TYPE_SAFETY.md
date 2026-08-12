@@ -1,35 +1,49 @@
-# Type safety and request validation
+# Type Safety and Request Validation
+
+Last verified against the repository: August 12, 2026.
 
 ## Supabase schema types
 
-Application code should import `Database` from `types/supabase.generated.ts` when constructing a
-Supabase client. Refresh the file after every database migration:
+`types/supabase.generated.ts` is the checked-in linked-project public-schema snapshot. It is not a permissive bootstrap stub. Regenerate it after applying any linked Supabase schema change:
 
 ```bash
 npm run types:supabase
 ```
 
-The command uses the repository's linked Supabase project and replaces the generated file only
-after the CLI returns a valid `Database` definition. Authenticate and link the Supabase CLI before
-running it. The bootstrap type committed with the repository is deliberately permissive so a fresh
-checkout remains buildable; a generated schema replaces it in development and should be committed
-with the migration that changed the database.
+The generator runs the current Supabase CLI against the linked project, validates that output contains `Database`, writes through a temporary file, and preserves the existing file if generation fails. Authenticate and link the Supabase CLI before running it; review and commit the resulting type diff with the migration.
 
-`getStrictSupabaseClient()` exposes the exact generated schema for new and migrated server code.
-The existing `getSupabaseClient()` retains generated table-name checking through a compatibility
-type while older handwritten payloads are migrated; do not use the compatibility type in new code.
+`types/supabase.ts` exports the current repository `Database`: the generated snapshot plus a narrow typed overlay for tables/functions introduced by committed migrations that have not yet appeared in a linked-project regeneration. The current overlay covers only the two `20260812` migrations. Remove an overlay entry after the deployed schema is regenerated and the generated file contains it; do not hand-edit the generated file.
 
-## API request bodies
+`getStrictSupabaseClient()` exposes `SupabaseClient<Database>` for the combined current contract. `getSupabaseClient()` uses `LegacyDatabase` from the same file: it preserves current table/view/function names but allows legacy record payloads while older callers are migrated. Do not widen the overlay or use the compatibility layer for new code merely to avoid a type error.
 
-New or modified mutation routes should define a Zod schema at the route boundary and parse the body
-with `parseBodyWithSchema` from `lib/api/request.ts`. Business logic should only receive the parsed
-output. Avoid TypeScript assertions on `request.json()`: assertions do not validate runtime input.
+Cookie-scoped route clients and server-only service-role clients are separate authorization concerns. A typed service-role client still bypasses RLS; authenticate and authorize before using it.
 
-Return HTTP 400 with the helper's error for invalid input. Keep authorization separate and perform
-it before any service-role database mutation.
+## Domain types
 
-## Pull-request checks
+Reusable UI/business contracts live in `app/types/`. Import bookings and package contracts directly from their modules; the current `app/types/index.ts` barrel exports the auth, LMS, NADRA, pricing, and visa modules only. See [Domain Type Conventions](../TYPES.md).
 
-The code-quality workflow runs lint, TypeScript, unit tests, production build, and Prettier checks as
-separate jobs. Formatting is ratcheted over changed files so legacy formatting debt does not require
-an unrelated mass rewrite. The full repository can still be audited with `npm run format:check`.
+## HTTP boundary validation
+
+New or changed mutation routes should:
+
+1. Define a bounded Zod schema at the route boundary.
+2. Parse with `parseBodyWithSchema()` from `lib/api/request.ts`, setting a deliberate byte limit.
+3. Return `400` for invalid input and `413` for bodies over the route limit.
+4. Pass only validated output to business/database code.
+5. Authenticate/authorize before any service-role mutation.
+
+A TypeScript assertion on `await request.json()` is not runtime validation. The `npm run api:check-boundaries` ratchet identifies routes that still parse raw JSON without the shared helper; its baseline is migration debt, not an approved pattern for new routes.
+
+Multipart routes require their own byte/MIME/count checks because JSON parsing helpers do not apply. Validate uploads before persistence and enforce the route's server-side contract regardless of client checks.
+
+## Verification
+
+```bash
+npm run lint
+npm run typecheck
+npm run test:unit
+npm run api:check-boundaries
+npm run build
+```
+
+Run `npm run test:db:lms` or `npm run test:db:security` when a type/schema change affects those PostgreSQL contracts. Never run those fixtures against production.

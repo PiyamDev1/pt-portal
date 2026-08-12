@@ -40,7 +40,10 @@ export async function GET(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   const body = await request.json().catch(() => null)
   const locationId = typeof body?.location_id === 'string' ? body.location_id : ''
-  const draftKey = typeof body?.draft_key === 'string' && body.draft_key.trim() ? body.draft_key.trim() : DEFAULT_DRAFT_KEY
+  const draftKey =
+    typeof body?.draft_key === 'string' && body.draft_key.trim()
+      ? body.draft_key.trim()
+      : DEFAULT_DRAFT_KEY
   const payload = body?.payload
 
   if (!locationId || !payload || typeof payload !== 'object') {
@@ -53,14 +56,15 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const { error } = await supabase
-    .from('booking_drafts')
-    .upsert({
+  const { error } = await supabase.from('booking_drafts').upsert(
+    {
       user_id: auth.user.id,
       location_id: locationId,
       draft_key: draftKey,
       payload,
-    }, { onConflict: 'user_id,location_id,draft_key' })
+    },
+    { onConflict: 'user_id,location_id,draft_key' },
+  )
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })

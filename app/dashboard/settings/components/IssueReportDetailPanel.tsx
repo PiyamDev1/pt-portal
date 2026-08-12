@@ -128,7 +128,9 @@ export function IssueReportDetailPanel({
               <h3 className="mt-3 text-2xl font-bold text-slate-900">
                 {detail.report.reporter_name || detail.report.reporter_email || 'Anonymous User'}
               </h3>
-              <p className="mt-1 text-sm text-slate-500">Created {formatDate(detail.report.created_at)}</p>
+              <p className="mt-1 text-sm text-slate-500">
+                Created {formatDate(detail.report.created_at)}
+              </p>
             </div>
 
             <div className="grid gap-2 sm:grid-cols-2">
@@ -149,7 +151,9 @@ export function IssueReportDetailPanel({
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
               <div className="flex-1">
-                <label className="mb-2 block text-sm font-semibold text-slate-900">Ticket Owner</label>
+                <label className="mb-2 block text-sm font-semibold text-slate-900">
+                  Ticket Owner
+                </label>
                 <select
                   value={selectedAssigneeId}
                   onChange={(event) => setSelectedAssigneeId(event.target.value)}
@@ -185,10 +189,12 @@ export function IssueReportDetailPanel({
               <p className="text-sm font-semibold text-slate-900">Context</p>
               <div className="mt-3 space-y-2 text-sm text-slate-600">
                 <p>
-                  <span className="font-semibold text-slate-800">Page:</span> {detail.report.route_path}
+                  <span className="font-semibold text-slate-800">Page:</span>{' '}
+                  {detail.report.route_path}
                 </p>
                 <p>
-                  <span className="font-semibold text-slate-800">URL:</span> {detail.report.page_url}
+                  <span className="font-semibold text-slate-800">URL:</span>{' '}
+                  {detail.report.page_url}
                 </p>
                 <p>
                   <span className="font-semibold text-slate-800">Reporter:</span>{' '}
@@ -249,7 +255,9 @@ export function IssueReportDetailPanel({
             <div className="rounded-2xl border border-slate-200 p-4">
               <div className="flex items-center justify-between gap-3">
                 <p className="text-sm font-semibold text-slate-900">Console Log</p>
-                <span className="text-xs text-slate-500">{detail.consoleEntries.length} entries</span>
+                <span className="text-xs text-slate-500">
+                  {detail.consoleEntries.length} entries
+                </span>
               </div>
               <div className="mt-3 max-h-[28rem] space-y-3 overflow-auto">
                 {detail.consoleEntries.length === 0 ? (
@@ -290,7 +298,10 @@ export function IssueReportDetailPanel({
                 <p className="text-sm text-slate-500">No activity recorded yet.</p>
               ) : (
                 detail.events.map((event) => (
-                  <div key={event.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <div
+                    key={event.id}
+                    className="rounded-xl border border-slate-200 bg-slate-50 p-3"
+                  >
                     <div className="flex items-center justify-between gap-3">
                       <p className="text-sm font-semibold text-slate-900">
                         {event.action.replace(/_/g, ' ')}

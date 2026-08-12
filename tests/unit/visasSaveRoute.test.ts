@@ -77,7 +77,8 @@ describe('POST /api/visas/save', () => {
       if (table === 'applicants') {
         return { select: mocks.appSelect, insert: mocks.appInsert, update: mocks.appUpdate }
       }
-      if (table === 'visa_applications') return { insert: mocks.visaInsert, update: mocks.visaUpdate }
+      if (table === 'visa_applications')
+        return { insert: mocks.visaInsert, update: mocks.visaUpdate }
       return {}
     })
 

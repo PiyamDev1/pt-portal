@@ -1,5 +1,7 @@
 # MinIO Document Management Implementation - COMPLETE ✅
 
+> **Archived March 2026 snapshot.** This describes a placeholder-era frontend milestone, not the current private server-owned vault. Use [Document Management](../guides/DOCUMENT_MANAGEMENT_GUIDE.md) and [Storage System](../technical/STORAGE_SYSTEM.md).
+
 **Status**: Phase 1, 2, and 3 Complete - Ready for Backend Integration  
 **Build Status**: ✅ Successful - All Components Compile  
 **Date**: March 5, 2026
@@ -312,8 +314,8 @@ All components use Tailwind CSS. Customize colors in component files.
 
 Complete documentation available in:
 
-- [DocumentHub Component Guide](app/dashboard/applications/nadra/components/DocumentHub/README.md)
-- [Implementation Plan](Future%20Plans/MINIO_DOCUMENT_MANAGEMENT_PLAN.md)
+- [Current DocumentHub Component Guide](../../app/dashboard/applications/nadra/components/DocumentHub/README.md)
+- [Historical Implementation Plan](../plans/future/MINIO_DOCUMENT_MANAGEMENT_PLAN.md)
 - Code comments in all component files
 
 ---
@@ -347,8 +349,8 @@ Complete documentation available in:
 
 For implementation questions, refer to:
 
-1. [MINIO_DOCUMENT_MANAGEMENT_PLAN.md](Future%20Plans/MINIO_DOCUMENT_MANAGEMENT_PLAN.md) - Full architecture details
-2. [DocumentHub README.md](app/dashboard/applications/nadra/components/DocumentHub/README.md) - Component API docs
+1. [MINIO_DOCUMENT_MANAGEMENT_PLAN.md](../plans/future/MINIO_DOCUMENT_MANAGEMENT_PLAN.md) - Historical architecture plan
+2. [DocumentHub README.md](../../app/dashboard/applications/nadra/components/DocumentHub/README.md) - Current component notes
 3. Code comments - Technical details per file
 
 ---

@@ -1,18 +1,18 @@
 /**
  * Timeclock History Page
- * 
+ *
  * Employee time tracking history and records:
  * - View attendance history with punch records
  * - Filter by date range and employee
  * - Export time records report
  * - Identify attendance patterns and absences
  * - Review approved time adjustments
- * 
+ *
  * Server component that:
  * - Authenticates user access
  * - Loads time records from database
  * - Renders filterable history table
- * 
+ *
  * @module app/dashboard/timeclock/history/page
  */
 import { createServerClient } from '@supabase/auth-helpers-nextjs'

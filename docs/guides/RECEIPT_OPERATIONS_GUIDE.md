@@ -1,86 +1,63 @@
 # Receipt Operations Guide
 
-## Overview
+Last verified against the repository: August 12, 2026.
 
-Receipt generation is available for NADRA, Pakistani Passport, and British Passport workflows.
-The system supports generation, verification, history lookup, and share tracking.
+Receipts are implemented for NADRA, Pakistani-passport, and GB-passport application workflows. Generation resolves source/pricing data server-side, persists a snapshot, and supports history/share auditing. Do not build customer receipt fields from browser-supplied prices.
 
-Rollout status: Completed and in production use.
+## Service rules
 
-## Service-Specific Rules
+| Service            | Triggered receipt types                            | Customer verification/display                                          |
+| ------------------ | -------------------------------------------------- | ---------------------------------------------------------------------- |
+| NADRA              | Submission and approved-refund events              | Receipt PIN and verification URL; family-head fields can appear        |
+| Pakistani passport | Biometrics, collection, and approved-refund events | No receipt PIN/verification requirement; no family-head field          |
+| GB passport        | Pending-submission and approved-refund events      | No receipt PIN/verification requirement; PEX REF is the tracking label |
 
-- NADRA receipts:
-  - Include PIN and verification flow.
-  - Can include family head details.
-- PK Passport receipts:
-  - Do not include PIN.
-  - Do not require family head details.
-- British Passport receipts:
-  - Do not include PIN.
-  - Do not require family head details.
-  - Use PEX REF as the tracking reference on receipt output.
+The exact status-to-receipt mapping is enforced in `receiptGenerator.ts`; a status that has no mapping does not generate a receipt.
 
-## Receipt UI Behavior
+## Staff workflow
 
-- Single receipt action button per application row.
-- Receipt history is available from the corner button inside the receipt popup.
-- History view is logs-only (generation/share events), no copy actions.
-- Copy action uses screenshot-to-clipboard for the receipt preview area.
+- Open the receipt action on an eligible application row.
+- Review the application/customer/service/sale-price snapshot before sharing.
+- Copy the rendered receipt image when the browser supports clipboard images; the action records share channel/count.
+- Use the receipt-history control to review generation/share events for the applicant and service.
+- Use Settings → Receipt Metrics for aggregate volume, channels, service mix, recent activity, and backfill health.
 
-## API Endpoints
+Feedback uses app toasts and dialogs. The receipt canvas shows the customer sale price, not internal cost fields.
 
-- `POST /api/receipts/generate`
-- `POST /api/receipts/verify`
-- `GET /api/receipts/list`
-- `POST /api/receipts/share`
-- `GET /api/admin/receipt-metrics`
+## API and access
 
-## Database Setup
+| Route                            | Access/purpose                                                        |
+| -------------------------------- | --------------------------------------------------------------------- |
+| `POST /api/receipts/generate`    | Authenticated staff generation from a supported source record/status  |
+| `GET /api/receipts/list`         | Authenticated staff history lookup                                    |
+| `POST /api/receipts/share`       | Authenticated staff share audit update                                |
+| `POST /api/receipts/verify`      | Public NADRA tracking/PIN verification with shared IP/tracking limits |
+| `GET /api/admin/receipt-metrics` | Authorized admin metrics/backfill status                              |
 
-Run both SQL scripts in order:
+Public verification intentionally returns `valid: false` for a mismatch and `supported: false` when the receipt schema/service is unavailable. It does not expose internal pricing, employee, or application data.
+
+## Database setup
+
+For an environment without the feature, run in order after review:
 
 1. `scripts/bootstrap/create-generated-receipts-table.sql`
 2. `scripts/manual/backfill-generated-receipts-share-columns.sql`
 
-The backfill script is idempotent and safe to re-run.
+The backfill is idempotent. In Receipt Metrics verify `Null share_count rows` and `Null shared_via rows` are both zero. If the schema is absent or incompatible, receipt persistence/history/metrics return a supported/setup indication rather than fabricating records.
 
-## Backfill Verification
+Optional branding and verification links are configured with `RECEIPT_COMPANY_NAME`, `RECEIPT_VERIFY_BASE_URL`, and the `NEXT_PUBLIC_RECEIPT_ADDRESS_LINE*` values in `.env.example`.
 
-Open Settings -> Receipt Metrics and confirm:
+## Verification
 
-- `Null share_count rows` is `0`
-- `Null shared_via rows` is `0`
-
-If non-zero, re-run the backfill script.
-
-## Smoke Testing
-
-A mutating Playwright smoke test is available:
-
-- File: `tests/smoke/receipt-flow.spec.ts`
-- Required environment variables:
-  - `SMOKE_USER_EMAIL`
-  - `SMOKE_USER_PASSWORD`
-  - `SMOKE_USER_BRANCH_CODE`
-  - `SMOKE_RECEIPT_NADRA_ID`
-- Optional:
-  - `SMOKE_2FA_BACKUP_CODE`
-  - `SMOKE_RUN_RECEIPT_MUTATION=true`
-
-Run with:
+The mutating smoke flow is `tests/smoke/receipt-flow.spec.ts`. It requires the normal smoke account/branch values plus `SMOKE_RECEIPT_NADRA_ID`; set `SMOKE_RUN_RECEIPT_MUTATION=true` deliberately for generation/share mutation. TOTP is preferred; a supplied backup code is single-use.
 
 ```bash
 npm run test:smoke -- tests/smoke/receipt-flow.spec.ts
 ```
 
-## Admin Audit View
+Focused source:
 
-The `Receipt Metrics` tab in Settings provides:
-
-- Total receipts
-- Shared receipts
-- Share rate
-- Share channels
-- Per-service volume
-- Backfill health indicators
-- Recent receipt activity
+- UI: `app/dashboard/applications/components/ReceiptViewerModal.tsx` and `ReceiptHistoryModal.tsx`
+- Routes: `app/api/receipts/` and `app/api/admin/receipt-metrics/`
+- Generation/templates/store: `lib/services/receiptGenerator.ts`, `receiptTemplates.ts`, `receiptStore.ts`
+- Configuration: `lib/constants/receiptConfig.ts`

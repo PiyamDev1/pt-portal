@@ -89,10 +89,6 @@ export function createPackageShareToken() {
   return crypto.randomUUID().replace(/-/g, '').slice(0, 24)
 }
 
-export function createPackageOptionId(prefix = 'option') {
-  return `${prefix}-${crypto.randomUUID().slice(0, 8)}`
-}
-
 export function getTravelPackageQuoteReferenceCode(value: unknown) {
   if (typeof value !== 'string') return ''
   const title = value.trim().toUpperCase()
@@ -1628,13 +1624,6 @@ function getFlightPassengerUnitPrices(
   return { adult: unit, child: unit, infant: unit }
 }
 
-export function getFlightOptionPassengerPrices(
-  payloadInput: unknown,
-  option: PackageComponentOption | null,
-) {
-  return getFlightPassengerUnitPrices(option, normalizePackageQuotePayload(payloadInput))
-}
-
 export function getFlightOptionPriceDeltas(
   payloadInput: unknown,
   option: PackageComponentOption | null,
@@ -1651,16 +1640,6 @@ export function getFlightOptionPriceDeltas(
     child: next.child - base.child,
     infant: next.infant - base.infant,
   }
-}
-
-export function getFlightOptionTotalDelta(
-  payloadInput: unknown,
-  option: PackageComponentOption | null,
-  baseOption?: PackageComponentOption | null,
-) {
-  const payload = normalizePackageQuotePayload(payloadInput)
-  const base = baseOption || getDefaultOption(payload.flightOptions)
-  return getFlightOptionTotal(option, payload) - getFlightOptionTotal(base, payload)
 }
 
 export function getPackagePassengerPriceBreakdown(

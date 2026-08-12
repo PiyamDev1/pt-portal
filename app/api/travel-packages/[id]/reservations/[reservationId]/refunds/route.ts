@@ -5,7 +5,7 @@ import { recordPackageAuditEvent } from '@/lib/packageAudit'
 import { syncPackagePaymentFinancials } from '@/lib/packagePaymentsServer'
 import { calculateTravelPackageDiscountAllocations } from '@/lib/packageDiscountAllocations'
 import type { TravelPackagePaymentMethod, TravelPackageReservation } from '@/app/types/packages'
-import { selectTravelPackagePaymentColumns } from '../../../payments/route'
+import { selectTravelPackagePaymentColumns } from '../../../payments/columns'
 import { selectTravelPackageReservationColumns } from '../../columns'
 
 const METHODS = new Set<TravelPackagePaymentMethod>(['cash', 'bank_transfer', 'card', 'other'])

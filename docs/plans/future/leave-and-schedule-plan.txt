@@ -1,3 +1,5 @@
+HISTORICAL REQUIREMENTS PROPOSAL — verify current leave/Frappe routes, migrations, and docs/guides/FRAPPE_HRMS_SETUP.md before reuse. This file is not implementation authority.
+
 LEAVE, SCHEDULE, AND MANAGER CONSOLE - DETAILED PLAN
 
 1) SCOPE SUMMARY

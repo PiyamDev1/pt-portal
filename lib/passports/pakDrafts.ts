@@ -33,12 +33,6 @@ export function generatePakPassportDraftId() {
   return `${PAK_PASSPORT_DRAFT_ID_PREFIX}${suffix}`
 }
 
-export function normalizePakPassportDraftId(value: unknown) {
-  return String(value || '')
-    .trim()
-    .toUpperCase()
-}
-
 export function normalizeOfficialTrackingNumber(value: unknown) {
   return String(value || '')
     .trim()
@@ -65,10 +59,6 @@ export function isPakPassportDraftPaymentStatus(
   value: unknown,
 ): value is PakPassportDraftPaymentStatus {
   return PAK_PASSPORT_DRAFT_PAYMENT_STATUSES.includes(value as PakPassportDraftPaymentStatus)
-}
-
-export function isSafePakPassportDraftPaymentStatusForCleanup(value: unknown) {
-  return value === 'unknown' || value === 'not_taken' || value === 'refunded'
 }
 
 export function isDuplicateTrackingError(error: unknown) {

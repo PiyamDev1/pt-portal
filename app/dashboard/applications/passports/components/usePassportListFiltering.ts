@@ -93,8 +93,10 @@ export function usePassportListFiltering({
           searchTerms.length === 0 ||
           searchTerms.every((term) => {
             const compactTerm = compactSearchValue(term)
-            return normalizedFields.some((field) => field.includes(term)) ||
+            return (
+              normalizedFields.some((field) => field.includes(term)) ||
               compactFields.some((field) => compactTerm && field.includes(compactTerm))
+            )
           })
 
         const status = getPassportRecord(item)?.status || 'Pending Submission'

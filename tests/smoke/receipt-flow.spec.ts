@@ -6,7 +6,10 @@ test.describe('receipt flow smoke', () => {
     const nadraId = process.env.SMOKE_RECEIPT_NADRA_ID || ''
     const runMutation = process.env.SMOKE_RUN_RECEIPT_MUTATION === 'true'
 
-    test.skip(!runMutation, 'Set SMOKE_RUN_RECEIPT_MUTATION=true to allow this mutating smoke test.')
+    test.skip(
+      !runMutation,
+      'Set SMOKE_RUN_RECEIPT_MUTATION=true to allow this mutating smoke test.',
+    )
     test.skip(!nadraId, 'Set SMOKE_RECEIPT_NADRA_ID for receipt smoke flow.')
 
     await loginForSmoke(page)

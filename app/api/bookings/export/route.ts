@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
-import { BookingStatus } from '@/app/types/bookings'
 
 function escapeCsv(value: unknown): string {
   const text = String(value ?? '')
@@ -56,21 +55,23 @@ export async function GET(request: NextRequest) {
         'Last Email Subject',
         'Notes',
       ].join(','),
-      ...(data || []).map((booking) => [
-        escapeCsv(booking.customer_name),
-        escapeCsv(booking.customer_phone),
-        escapeCsv(booking.customer_email),
-        escapeCsv((booking.booking_services as { name?: string } | null)?.name || ''),
-        escapeCsv(booking.status),
-        escapeCsv(booking.source),
-        escapeCsv(booking.person_count ?? 1),
-        escapeCsv(Array.isArray(booking.tags) ? booking.tags.join(' ') : ''),
-        escapeCsv(booking.start_time),
-        escapeCsv(booking.end_time),
-        escapeCsv(booking.last_email_status ?? ''),
-        escapeCsv(booking.last_email_subject ?? ''),
-        escapeCsv(booking.notes ?? ''),
-      ].join(',')),
+      ...(data || []).map((booking) =>
+        [
+          escapeCsv(booking.customer_name),
+          escapeCsv(booking.customer_phone),
+          escapeCsv(booking.customer_email),
+          escapeCsv((booking.booking_services as { name?: string } | null)?.name || ''),
+          escapeCsv(booking.status),
+          escapeCsv(booking.source),
+          escapeCsv(booking.person_count ?? 1),
+          escapeCsv(Array.isArray(booking.tags) ? booking.tags.join(' ') : ''),
+          escapeCsv(booking.start_time),
+          escapeCsv(booking.end_time),
+          escapeCsv(booking.last_email_status ?? ''),
+          escapeCsv(booking.last_email_subject ?? ''),
+          escapeCsv(booking.notes ?? ''),
+        ].join(','),
+      ),
     ].join('\n')
 
     return new NextResponse(rows, {

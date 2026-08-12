@@ -129,7 +129,9 @@ export default function useNadraApplicationFiltering({
           nadra?.status,
           status,
           nadra?.notes,
-          Array.isArray(nadra?.employees) ? nadra?.employees[0]?.full_name : nadra?.employees?.full_name,
+          Array.isArray(nadra?.employees)
+            ? nadra?.employees[0]?.full_name
+            : nadra?.employees?.full_name,
         ]
         const normalizedFields = searchableFields.map(normalizeSearchValue).filter(Boolean)
         const compactFields = searchableFields.map(compactSearchValue).filter(Boolean)
@@ -138,8 +140,10 @@ export default function useNadraApplicationFiltering({
           searchTerms.length === 0 ||
           searchTerms.every((term) => {
             const compactTerm = compactSearchValue(term)
-            return normalizedFields.some((field) => field.includes(term)) ||
+            return (
+              normalizedFields.some((field) => field.includes(term)) ||
               compactFields.some((field) => compactTerm && field.includes(compactTerm))
+            )
           })
 
         const matchesStatus = statusFilter === 'All' || status === normalizeStatus(statusFilter)
@@ -188,15 +192,18 @@ export default function useNadraApplicationFiltering({
   )
 
   const groupedEntries = useMemo(() => {
-    const groupedMap = filteredApplications.reduce<Record<string, NadraFamilyGroup>>((acc, item) => {
-      const headCnic = item.family_heads?.citizen_number || 'Independent'
-      if (!acc[headCnic]) {
-        acc[headCnic] = { head: item.family_heads, members: [] }
-      }
-      const hasRealMember = !!(item.applicants || item.nadra_services)
-      if (hasRealMember) acc[headCnic].members.push(item)
-      return acc
-    }, {})
+    const groupedMap = filteredApplications.reduce<Record<string, NadraFamilyGroup>>(
+      (acc, item) => {
+        const headCnic = item.family_heads?.citizen_number || 'Independent'
+        if (!acc[headCnic]) {
+          acc[headCnic] = { head: item.family_heads, members: [] }
+        }
+        const hasRealMember = !!(item.applicants || item.nadra_services)
+        if (hasRealMember) acc[headCnic].members.push(item)
+        return acc
+      },
+      {},
+    )
 
     return (Object.entries(groupedMap) as [string, NadraFamilyGroup][]).sort((a, b) => {
       const aGroup = a[1]
@@ -247,10 +254,7 @@ export default function useNadraApplicationFiltering({
     setCurrentPage,
   ])
 
-  const groupedData = useMemo(
-    () => Object.fromEntries(pagedGroupedEntries),
-    [pagedGroupedEntries],
-  )
+  const groupedData = useMemo(() => Object.fromEntries(pagedGroupedEntries), [pagedGroupedEntries])
 
   const filteredFamilyCount = useMemo(
     () =>

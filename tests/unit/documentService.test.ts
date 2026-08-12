@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
-import { PlaceholderDocumentService } from '@/lib/services/documentService'
+import { BrowserDocumentService } from '@/lib/services/documentService'
 import { DOCUMENT_MAX_FILE_SIZE_BYTES } from '@/lib/documentConstraints'
 import { prepareDocumentUploadFile } from '@/lib/services/documentCompression'
 
-describe('PlaceholderDocumentService', () => {
-  const service = new PlaceholderDocumentService()
+describe('BrowserDocumentService', () => {
+  const service = new BrowserDocumentService()
 
   it('validates file size upper bound', () => {
     const tooLarge = new File([new Uint8Array(DOCUMENT_MAX_FILE_SIZE_BYTES + 1)], 'big.pdf', {

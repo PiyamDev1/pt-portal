@@ -1,5 +1,7 @@
 # Frontend Testing Guide - MinIO Document Management
 
+> **Superseded frontend-only test snapshot.** Placeholder handlers described below no longer represent the server-owned document vault. Use [Document Management](../guides/DOCUMENT_MANAGEMENT_GUIDE.md) and the current `tests/unit/document*.test.ts` / `tests/smoke/document-storage.spec.ts` coverage.
+
 Quick guide for testing the document management system without a real MinIO backend.
 
 ## 🧪 Testing Phases

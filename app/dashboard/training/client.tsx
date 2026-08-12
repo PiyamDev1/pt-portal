@@ -88,7 +88,10 @@ type TrainingEmployee = {
   full_name: string
   email: string | null
   roles?: { name?: string } | { name?: string }[] | null
-  locations?: { name?: string; branch_code?: string | null } | { name?: string; branch_code?: string | null }[] | null
+  locations?:
+    | { name?: string; branch_code?: string | null }
+    | { name?: string; branch_code?: string | null }[]
+    | null
 }
 
 type TrainingPayload = {
@@ -210,7 +213,9 @@ function getQuestionType(question: TrainingQuizQuestion): TrainingQuestionType {
   return question.question_type || 'single_choice'
 }
 
-function normaliseQuestionOptions(options: TrainingQuizQuestion['options']): TrainingQuestionOption[] {
+function normaliseQuestionOptions(
+  options: TrainingQuizQuestion['options'],
+): TrainingQuestionOption[] {
   return (Array.isArray(options) ? options : [])
     .map((option, index) => {
       if (typeof option === 'string') {
@@ -300,7 +305,11 @@ export default function TrainingClient() {
     }
   }, [payload])
 
-  async function postTraining(action: string, body: Record<string, unknown>, successMessage?: string) {
+  async function postTraining(
+    action: string,
+    body: Record<string, unknown>,
+    successMessage?: string,
+  ) {
     setSavingAction(action)
     try {
       const response = await fetch('/api/training', {
@@ -327,11 +336,7 @@ export default function TrainingClient() {
       return
     }
 
-    const result = await postTraining(
-      'create-course',
-      newCourse,
-      'Training course created',
-    )
+    const result = await postTraining('create-course', newCourse, 'Training course created')
     if (result) setNewCourse(defaultNewCourse)
   }
 
@@ -399,16 +404,15 @@ export default function TrainingClient() {
     const questions = [...(course.training_quiz_questions || [])].sort(
       (a, b) => a.sort_order - b.sort_order,
     )
-    const missing = questions.some((question) => !isQuestionAnswered(question, answers[question.id]))
+    const missing = questions.some(
+      (question) => !isQuestionAnswered(question, answers[question.id]),
+    )
     if (missing) return toast.error('Answer all quiz questions before submitting')
 
-    const result = await postTraining(
-      'complete',
-      {
-        courseId: course.id,
-        answers,
-      },
-    )
+    const result = await postTraining('complete', {
+      courseId: course.id,
+      answers,
+    })
     if (!result) return
 
     if (result.passed) {
@@ -418,7 +422,9 @@ export default function TrainingClient() {
       return
     }
 
-    toast.error(`Score ${result.score}%. You need ${course.passing_score}% to pass. Review the lessons and try again.`)
+    toast.error(
+      `Score ${result.score}%. You need ${course.passing_score}% to pass. Review the lessons and try again.`,
+    )
   }
 
   function downloadCertificate(course: TrainingCourse, enrollment: TrainingEnrollment) {
@@ -456,15 +462,18 @@ export default function TrainingClient() {
             : current.questionOptions
       const nextValidIds = new Set(nextOptions.map((option) => option.id))
       const nextCorrectAnswerIds = current.correctAnswerIds.filter((id) => nextValidIds.has(id))
-      const fallbackCorrectAnswerIds = nextCorrectAnswerIds.length ? nextCorrectAnswerIds : [nextOptions[0]?.id || 'a']
+      const fallbackCorrectAnswerIds = nextCorrectAnswerIds.length
+        ? nextCorrectAnswerIds
+        : [nextOptions[0]?.id || 'a']
 
       return {
         ...current,
         questionType,
         questionOptions: nextOptions,
-        correctAnswerIds: questionType === 'multi_select'
-          ? fallbackCorrectAnswerIds
-          : fallbackCorrectAnswerIds.slice(0, 1),
+        correctAnswerIds:
+          questionType === 'multi_select'
+            ? fallbackCorrectAnswerIds
+            : fallbackCorrectAnswerIds.slice(0, 1),
       }
     })
   }
@@ -491,7 +500,8 @@ export default function TrainingClient() {
 
   function removeQuestionOption(id: string) {
     setQuestionForm((current) => {
-      if (current.questionType === 'true_false' || current.questionOptions.length <= 2) return current
+      if (current.questionType === 'true_false' || current.questionOptions.length <= 2)
+        return current
       const nextOptions = current.questionOptions.filter((option) => option.id !== id)
       const nextCorrectAnswerIds = current.correctAnswerIds.filter((answerId) => answerId !== id)
       return {
@@ -526,7 +536,7 @@ export default function TrainingClient() {
     }
 
     setAnswers((current) => {
-      const existing = Array.isArray(current[question.id]) ? current[question.id] as string[] : []
+      const existing = Array.isArray(current[question.id]) ? (current[question.id] as string[]) : []
       const next = existing.includes(optionId)
         ? existing.filter((id) => id !== optionId)
         : [...existing, optionId]
@@ -584,10 +594,30 @@ export default function TrainingClient() {
 
       <section className="grid grid-cols-2 gap-3 md:grid-cols-4">
         {[
-          { label: 'Assigned', value: stats.assigned, icon: BookOpenCheck, tone: 'bg-amber-50 text-amber-700 border-amber-200' },
-          { label: 'In progress', value: stats.inProgress, icon: Clock3, tone: 'bg-sky-50 text-sky-700 border-sky-200' },
-          { label: 'Certified', value: stats.completed, icon: Award, tone: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-          { label: 'Required courses', value: stats.required, icon: ShieldCheck, tone: 'bg-red-50 text-red-700 border-red-200' },
+          {
+            label: 'Assigned',
+            value: stats.assigned,
+            icon: BookOpenCheck,
+            tone: 'bg-amber-50 text-amber-700 border-amber-200',
+          },
+          {
+            label: 'In progress',
+            value: stats.inProgress,
+            icon: Clock3,
+            tone: 'bg-sky-50 text-sky-700 border-sky-200',
+          },
+          {
+            label: 'Certified',
+            value: stats.completed,
+            icon: Award,
+            tone: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+          },
+          {
+            label: 'Required courses',
+            value: stats.required,
+            icon: ShieldCheck,
+            tone: 'bg-red-50 text-red-700 border-red-200',
+          },
         ].map((item) => {
           const Icon = item.icon
           return (
@@ -679,14 +709,24 @@ export default function TrainingClient() {
                       onClick={() =>
                         postTraining(
                           'enroll',
-                          { courseId: selectedCourseId, employeeId: selectedEmployeeId, dueDate: dueDate || null },
+                          {
+                            courseId: selectedCourseId,
+                            employeeId: selectedEmployeeId,
+                            dueDate: dueDate || null,
+                          },
                           'Training assigned',
                         )
                       }
-                      disabled={!selectedCourseId || !selectedEmployeeId || savingAction === 'enroll'}
+                      disabled={
+                        !selectedCourseId || !selectedEmployeeId || savingAction === 'enroll'
+                      }
                       className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#8b1d2c] px-4 text-sm font-black text-white disabled:opacity-50"
                     >
-                      {savingAction === 'enroll' ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
+                      {savingAction === 'enroll' ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <UserPlus className="h-4 w-4" />
+                      )}
                       Assign course
                     </button>
                   </div>
@@ -696,9 +736,9 @@ export default function TrainingClient() {
                   <ShieldCheck className="h-5 w-5" />
                   <h3 className="mt-3 font-black">Assignment behaviour</h3>
                   <p className="mt-2 leading-6">
-                    Staff can start assigned training from their course cards. Completion attempts are
-                    stored in the database, and certificates are only created after the server marks a
-                    passing score.
+                    Staff can start assigned training from their course cards. Completion attempts
+                    are stored in the database, and certificates are only created after the server
+                    marks a passing score.
                   </p>
                 </div>
               </div>
@@ -713,13 +753,17 @@ export default function TrainingClient() {
                   <div className="mt-4 grid gap-3 md:grid-cols-2">
                     <input
                       value={newCourse.title}
-                      onChange={(event) => setNewCourse((current) => ({ ...current, title: event.target.value }))}
+                      onChange={(event) =>
+                        setNewCourse((current) => ({ ...current, title: event.target.value }))
+                      }
                       placeholder="Course title"
                       className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm md:col-span-2"
                     />
                     <input
                       value={newCourse.category}
-                      onChange={(event) => setNewCourse((current) => ({ ...current, category: event.target.value }))}
+                      onChange={(event) =>
+                        setNewCourse((current) => ({ ...current, category: event.target.value }))
+                      }
                       placeholder="Category"
                       className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm"
                     />
@@ -727,7 +771,12 @@ export default function TrainingClient() {
                       type="number"
                       min={1}
                       value={newCourse.estimatedMinutes}
-                      onChange={(event) => setNewCourse((current) => ({ ...current, estimatedMinutes: Number(event.target.value) }))}
+                      onChange={(event) =>
+                        setNewCourse((current) => ({
+                          ...current,
+                          estimatedMinutes: Number(event.target.value),
+                        }))
+                      }
                       placeholder="Minutes"
                       className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm"
                     />
@@ -736,7 +785,12 @@ export default function TrainingClient() {
                       min={0}
                       max={100}
                       value={newCourse.passingScore}
-                      onChange={(event) => setNewCourse((current) => ({ ...current, passingScore: Number(event.target.value) }))}
+                      onChange={(event) =>
+                        setNewCourse((current) => ({
+                          ...current,
+                          passingScore: Number(event.target.value),
+                        }))
+                      }
                       placeholder="Passing score"
                       className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm"
                     />
@@ -744,16 +798,22 @@ export default function TrainingClient() {
                       type="number"
                       min={1}
                       value={newCourse.certificateValidDays || ''}
-                      onChange={(event) => setNewCourse((current) => ({
-                        ...current,
-                        certificateValidDays: event.target.value ? Number(event.target.value) : null,
-                      }))}
+                      onChange={(event) =>
+                        setNewCourse((current) => ({
+                          ...current,
+                          certificateValidDays: event.target.value
+                            ? Number(event.target.value)
+                            : null,
+                        }))
+                      }
                       placeholder="Certificate valid days"
                       className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm"
                     />
                     <textarea
                       value={newCourse.description}
-                      onChange={(event) => setNewCourse((current) => ({ ...current, description: event.target.value }))}
+                      onChange={(event) =>
+                        setNewCourse((current) => ({ ...current, description: event.target.value }))
+                      }
                       placeholder="What this course covers"
                       rows={3}
                       className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm md:col-span-2"
@@ -762,7 +822,12 @@ export default function TrainingClient() {
                       <input
                         type="checkbox"
                         checked={newCourse.isRequired}
-                        onChange={(event) => setNewCourse((current) => ({ ...current, isRequired: event.target.checked }))}
+                        onChange={(event) =>
+                          setNewCourse((current) => ({
+                            ...current,
+                            isRequired: event.target.checked,
+                          }))
+                        }
                         className="h-4 w-4 rounded border-slate-300 text-[#8b1d2c]"
                       />
                       Required training
@@ -772,7 +837,11 @@ export default function TrainingClient() {
                       disabled={savingAction === 'create-course'}
                       className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 text-sm font-black text-white disabled:opacity-50"
                     >
-                      {savingAction === 'create-course' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                      {savingAction === 'create-course' ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Plus className="h-4 w-4" />
+                      )}
                       Create course
                     </button>
                   </div>
@@ -784,10 +853,15 @@ export default function TrainingClient() {
                   </h3>
                   <div className="mt-3 space-y-2">
                     {payload.courses.slice(0, 6).map((course) => (
-                      <div key={course.id} className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                      <div
+                        key={course.id}
+                        className="rounded-xl border border-slate-100 bg-slate-50 p-3"
+                      >
                         <p className="font-black text-slate-900">{course.title}</p>
                         <p className="mt-1 text-xs text-slate-500">
-                          {course.training_lessons?.length || 0} lessons, {course.training_quiz_questions?.length || 0} questions, pass {course.passing_score}%
+                          {course.training_lessons?.length || 0} lessons,{' '}
+                          {course.training_quiz_questions?.length || 0} questions, pass{' '}
+                          {course.passing_score}%
                         </p>
                       </div>
                     ))}
@@ -817,13 +891,20 @@ export default function TrainingClient() {
                     </select>
                     <input
                       value={lessonForm.lessonTitle}
-                      onChange={(event) => setLessonForm((current) => ({ ...current, lessonTitle: event.target.value }))}
+                      onChange={(event) =>
+                        setLessonForm((current) => ({
+                          ...current,
+                          lessonTitle: event.target.value,
+                        }))
+                      }
                       placeholder="Lesson title"
                       className="mt-3 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm"
                     />
                     <textarea
                       value={lessonForm.lessonBody}
-                      onChange={(event) => setLessonForm((current) => ({ ...current, lessonBody: event.target.value }))}
+                      onChange={(event) =>
+                        setLessonForm((current) => ({ ...current, lessonBody: event.target.value }))
+                      }
                       placeholder="Lesson content. Use short paragraphs and bullets so it reads well on mobile."
                       rows={8}
                       className="mt-3 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
@@ -832,7 +913,12 @@ export default function TrainingClient() {
                       <input
                         type="number"
                         value={lessonForm.sortOrder}
-                        onChange={(event) => setLessonForm((current) => ({ ...current, sortOrder: Number(event.target.value) }))}
+                        onChange={(event) =>
+                          setLessonForm((current) => ({
+                            ...current,
+                            sortOrder: Number(event.target.value),
+                          }))
+                        }
                         placeholder="Sort order"
                         className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm"
                       />
@@ -841,7 +927,11 @@ export default function TrainingClient() {
                         disabled={savingAction === 'create-lesson'}
                         className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#8b1d2c] px-4 text-sm font-black text-white disabled:opacity-50"
                       >
-                        {savingAction === 'create-lesson' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                        {savingAction === 'create-lesson' ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Plus className="h-4 w-4" />
+                        )}
                         Add lesson
                       </button>
                     </div>
@@ -852,8 +942,8 @@ export default function TrainingClient() {
                     <h3 className="mt-3 font-black">How marking works</h3>
                     <p className="mt-2 leading-6">
                       IMS stores the correct answer in the database and marks answers on the API.
-                      Multi-select questions require every correct option and no extra wrong options.
-                      Points let important questions carry more weight.
+                      Multi-select questions require every correct option and no extra wrong
+                      options. Points let important questions carry more weight.
                     </p>
                   </div>
                 </div>
@@ -866,14 +956,21 @@ export default function TrainingClient() {
                   <div className="mt-4 grid gap-3">
                     <input
                       value={questionForm.questionPrompt}
-                      onChange={(event) => setQuestionForm((current) => ({ ...current, questionPrompt: event.target.value }))}
+                      onChange={(event) =>
+                        setQuestionForm((current) => ({
+                          ...current,
+                          questionPrompt: event.target.value,
+                        }))
+                      }
                       placeholder="Question prompt"
                       className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm"
                     />
                     <div className="grid gap-2 md:grid-cols-3">
                       <select
                         value={questionForm.questionType}
-                        onChange={(event) => setQuestionType(event.target.value as TrainingQuestionType)}
+                        onChange={(event) =>
+                          setQuestionType(event.target.value as TrainingQuestionType)
+                        }
                         className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm md:col-span-2"
                       >
                         {trainingQuestionTypes.map((type) => (
@@ -887,18 +984,32 @@ export default function TrainingClient() {
                         min={1}
                         max={20}
                         value={questionForm.points}
-                        onChange={(event) => setQuestionForm((current) => ({ ...current, points: Number(event.target.value) }))}
+                        onChange={(event) =>
+                          setQuestionForm((current) => ({
+                            ...current,
+                            points: Number(event.target.value),
+                          }))
+                        }
                         placeholder="Points"
                         className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm"
                       />
                     </div>
                     <p className="rounded-xl bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-500">
-                      {trainingQuestionTypes.find((type) => type.value === questionForm.questionType)?.description}
+                      {
+                        trainingQuestionTypes.find(
+                          (type) => type.value === questionForm.questionType,
+                        )?.description
+                      }
                     </p>
                     {questionForm.questionType === 'image_choice' && (
                       <input
                         value={questionForm.imageUrl}
-                        onChange={(event) => setQuestionForm((current) => ({ ...current, imageUrl: event.target.value }))}
+                        onChange={(event) =>
+                          setQuestionForm((current) => ({
+                            ...current,
+                            imageUrl: event.target.value,
+                          }))
+                        }
                         placeholder="Optional question image URL"
                         className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm"
                       />
@@ -906,18 +1017,27 @@ export default function TrainingClient() {
 
                     <div className="space-y-2">
                       {questionForm.questionOptions.map((option, index) => (
-                        <div key={option.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                        <div
+                          key={option.id}
+                          className="rounded-2xl border border-slate-200 bg-slate-50 p-3"
+                        >
                           <div className="grid gap-2 md:grid-cols-[1fr_auto_auto] md:items-center">
                             <input
                               value={option.label}
-                              onChange={(event) => updateQuestionOption(index, { label: event.target.value })}
+                              onChange={(event) =>
+                                updateQuestionOption(index, { label: event.target.value })
+                              }
                               disabled={questionForm.questionType === 'true_false'}
                               placeholder={`Option ${option.id.toUpperCase()}`}
                               className="min-h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm disabled:bg-slate-100"
                             />
                             <label className="inline-flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-sm font-bold text-slate-700">
                               <input
-                                type={questionForm.questionType === 'multi_select' ? 'checkbox' : 'radio'}
+                                type={
+                                  questionForm.questionType === 'multi_select'
+                                    ? 'checkbox'
+                                    : 'radio'
+                                }
                                 checked={questionForm.correctAnswerIds.includes(option.id)}
                                 onChange={() => toggleCorrectAnswer(option.id)}
                                 className="h-4 w-4 text-[#8b1d2c]"
@@ -926,7 +1046,10 @@ export default function TrainingClient() {
                             </label>
                             <button
                               onClick={() => removeQuestionOption(option.id)}
-                              disabled={questionForm.questionType === 'true_false' || questionForm.questionOptions.length <= 2}
+                              disabled={
+                                questionForm.questionType === 'true_false' ||
+                                questionForm.questionOptions.length <= 2
+                              }
                               className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold text-slate-500 disabled:opacity-40"
                             >
                               Remove
@@ -936,14 +1059,20 @@ export default function TrainingClient() {
                             <div className="mt-2 grid gap-2 md:grid-cols-[1fr_8rem] md:items-center">
                               <input
                                 value={option.imageUrl || ''}
-                                onChange={(event) => updateQuestionOption(index, { imageUrl: event.target.value })}
+                                onChange={(event) =>
+                                  updateQuestionOption(index, { imageUrl: event.target.value })
+                                }
                                 placeholder="Option image URL"
                                 className="min-h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm"
                               />
                               <div className="flex h-20 items-center justify-center overflow-hidden rounded-xl bg-white">
                                 {option.imageUrl ? (
                                   // eslint-disable-next-line @next/next/no-img-element
-                                  <img src={option.imageUrl} alt="" className="h-full w-full object-cover" />
+                                  <img
+                                    src={option.imageUrl}
+                                    alt=""
+                                    className="h-full w-full object-cover"
+                                  />
                                 ) : (
                                   <ImageIcon className="h-6 w-6 text-slate-300" />
                                 )}
@@ -969,13 +1098,23 @@ export default function TrainingClient() {
                       <input
                         type="number"
                         value={questionForm.sortOrder}
-                        onChange={(event) => setQuestionForm((current) => ({ ...current, sortOrder: Number(event.target.value) }))}
+                        onChange={(event) =>
+                          setQuestionForm((current) => ({
+                            ...current,
+                            sortOrder: Number(event.target.value),
+                          }))
+                        }
                         placeholder="Sort order"
                         className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm"
                       />
                       <textarea
                         value={questionForm.explanation}
-                        onChange={(event) => setQuestionForm((current) => ({ ...current, explanation: event.target.value }))}
+                        onChange={(event) =>
+                          setQuestionForm((current) => ({
+                            ...current,
+                            explanation: event.target.value,
+                          }))
+                        }
                         placeholder="Explanation shown after review"
                         rows={2}
                         className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
@@ -986,7 +1125,11 @@ export default function TrainingClient() {
                       disabled={savingAction === 'create-question'}
                       className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 text-sm font-black text-white disabled:opacity-50"
                     >
-                      {savingAction === 'create-question' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                      {savingAction === 'create-question' ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Plus className="h-4 w-4" />
+                      )}
                       Add question
                     </button>
                   </div>
@@ -1041,7 +1184,12 @@ export default function TrainingClient() {
               </div>
               {enrollment && (
                 <div className="mt-4 rounded-2xl border border-slate-100 bg-slate-50 p-3 text-xs text-slate-600">
-                  <p>Status: <span className="font-black text-slate-800">{statusLabel(enrollment.status)}</span></p>
+                  <p>
+                    Status:{' '}
+                    <span className="font-black text-slate-800">
+                      {statusLabel(enrollment.status)}
+                    </span>
+                  </p>
                   <p className="mt-1">Due: {formatDate(enrollment.due_date)}</p>
                   {enrollment.score !== null && <p className="mt-1">Score: {enrollment.score}%</p>}
                   {complete && (
@@ -1058,7 +1206,11 @@ export default function TrainingClient() {
                     disabled={savingAction === 'start' || savingAction === 'complete'}
                     className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#8b1d2c] px-4 text-sm font-black text-white disabled:opacity-50"
                   >
-                    {savingAction ? <Loader2 className="h-4 w-4 animate-spin" /> : <BookOpenCheck className="h-4 w-4" />}
+                    {savingAction ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <BookOpenCheck className="h-4 w-4" />
+                    )}
                     {enrollment?.status === 'in_progress' ? 'Continue training' : 'Start training'}
                   </button>
                 )}
@@ -1106,7 +1258,10 @@ export default function TrainingClient() {
                 {[...(activeCourse.training_lessons || [])]
                   .sort((a, b) => a.sort_order - b.sort_order)
                   .map((lesson, index) => (
-                    <article key={lesson.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <article
+                      key={lesson.id}
+                      className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                    >
                       <p className="text-xs font-black uppercase tracking-wide text-[#8b1d2c]">
                         Lesson {index + 1}
                       </p>
@@ -1118,8 +1273,8 @@ export default function TrainingClient() {
                   ))}
                 {(activeCourse.training_lessons || []).length === 0 && (
                   <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
-                    No lesson content has been added. Staff can still complete this course if no quiz
-                    questions are configured.
+                    No lesson content has been added. Staff can still complete this course if no
+                    quiz questions are configured.
                   </div>
                 )}
               </div>
@@ -1134,20 +1289,29 @@ export default function TrainingClient() {
                     const questionType = getQuestionType(question)
                     const options = normaliseQuestionOptions(question.options)
                     const selected = answers[question.id]
-                    const selectedIds = Array.isArray(selected) ? selected : selected ? [selected] : []
+                    const selectedIds = Array.isArray(selected)
+                      ? selected
+                      : selected
+                        ? [selected]
+                        : []
                     const inputType = questionType === 'multi_select' ? 'checkbox' : 'radio'
 
                     return (
-                      <fieldset key={question.id} className="rounded-2xl border border-slate-200 bg-white p-4">
+                      <fieldset
+                        key={question.id}
+                        className="rounded-2xl border border-slate-200 bg-white p-4"
+                      >
                         <legend className="text-sm font-black text-slate-900">
                           {index + 1}. {question.prompt}
                         </legend>
                         <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-black uppercase tracking-wide">
                           <span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-600">
-                            {trainingQuestionTypes.find((type) => type.value === questionType)?.label || 'Question'}
+                            {trainingQuestionTypes.find((type) => type.value === questionType)
+                              ?.label || 'Question'}
                           </span>
                           <span className="rounded-full bg-red-50 px-2.5 py-1 text-[#8b1d2c]">
-                            {question.points || 1} point{Number(question.points || 1) === 1 ? '' : 's'}
+                            {question.points || 1} point
+                            {Number(question.points || 1) === 1 ? '' : 's'}
                           </span>
                         </div>
                         {question.image_url && (
@@ -1158,7 +1322,13 @@ export default function TrainingClient() {
                             className="mt-3 max-h-48 w-full rounded-2xl object-cover"
                           />
                         )}
-                        <div className={questionType === 'image_choice' ? 'mt-3 grid gap-3 sm:grid-cols-2' : 'mt-3 space-y-2'}>
+                        <div
+                          className={
+                            questionType === 'image_choice'
+                              ? 'mt-3 grid gap-3 sm:grid-cols-2'
+                              : 'mt-3 space-y-2'
+                          }
+                        >
                           {options.map((option) => {
                             const isSelected = selectedIds.includes(option.id)
                             return (
@@ -1174,13 +1344,23 @@ export default function TrainingClient() {
                                   <div className="flex h-32 items-center justify-center bg-white">
                                     {option.imageUrl ? (
                                       // eslint-disable-next-line @next/next/no-img-element
-                                      <img src={option.imageUrl} alt="" className="h-full w-full object-cover" />
+                                      <img
+                                        src={option.imageUrl}
+                                        alt=""
+                                        className="h-full w-full object-cover"
+                                      />
                                     ) : (
                                       <ImageIcon className="h-8 w-8 text-slate-300" />
                                     )}
                                   </div>
                                 )}
-                                <span className={questionType === 'image_choice' ? 'flex items-center gap-3 px-3 py-3' : 'contents'}>
+                                <span
+                                  className={
+                                    questionType === 'image_choice'
+                                      ? 'flex items-center gap-3 px-3 py-3'
+                                      : 'contents'
+                                  }
+                                >
                                   <input
                                     type={inputType}
                                     name={question.id}
@@ -1196,7 +1376,8 @@ export default function TrainingClient() {
                         </div>
                         {questionType === 'multi_select' && (
                           <p className="mt-2 text-xs font-semibold text-slate-500">
-                            Select every correct answer. Extra wrong answers will make this question incorrect.
+                            Select every correct answer. Extra wrong answers will make this question
+                            incorrect.
                           </p>
                         )}
                       </fieldset>
@@ -1216,7 +1397,11 @@ export default function TrainingClient() {
                 disabled={savingAction === 'complete'}
                 className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#8b1d2c] px-4 text-sm font-black text-white disabled:opacity-50 md:w-auto"
               >
-                {savingAction === 'complete' ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                {savingAction === 'complete' ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <CheckCircle2 className="h-4 w-4" />
+                )}
                 Submit training
               </button>
             </div>

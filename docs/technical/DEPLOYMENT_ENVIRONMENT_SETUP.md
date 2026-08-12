@@ -1,68 +1,46 @@
 # Deployment and Environment Setup
 
-Last updated: March 18, 2026
+This reference complements the operational [Deployment Guide](../guides/DEPLOYMENT_GUIDE.md). `.env.example`, workflow YAML, and `vercel.json` are the executable configuration sources.
 
-## Runtime Model
+## Configuration classes
 
-PT-Portal is a Next.js application with App Router APIs and Supabase-backed data access.
+| Class              | Examples                                                     | Exposure                                  |
+| ------------------ | ------------------------------------------------------------ | ----------------------------------------- |
+| Browser-public     | Supabase URL/anon key, site URL, display-only MinIO endpoint | `NEXT_PUBLIC_*`; bundled into client code |
+| Server credentials | service-role, Mailgun, storage, Frappe, Hetzner              | platform secrets only                     |
+| Security controls  | rate-limit pepper, cron/migration tokens, alert webhook      | independent server-only secrets           |
+| CI-only            | backup credentials, smoke account/scope, disposable DB URL   | GitHub environment/repository secrets     |
 
-Deployment targets commonly include:
+Do not reuse one security secret for multiple roles. Do not put real secrets, credentials, or private tokens in `.env.example`, source, logs, tests, or documentation; public example URLs and non-secret identifiers must still be reviewed before reuse in another environment.
 
-- Vercel (configured via `vercel.json`)
-- Containerized/dev-container workflows for local development
+## Runtime requirements
 
-## Environment Variables
+The core application needs Node.js 20.9+, the three Supabase values, `RATE_LIMIT_HASH_SECRET`, and the canonical public site URL. A feature can render without every external integration, but calls to its provider will fail until its group is configured.
 
-Define required secrets in your deployment environment and local `.env` files.
+Storage credentials must point at private S3-compatible buckets. The R2 endpoint is the S3 API endpoint. Package R3 is a backup provider, not a replacement for package MinIO primary storage.
 
-Typical categories:
+`OBSERVABILITY_ALERT_WEBHOOK_URL` must be a trusted fixed receiver. It receives redacted operational events and request IDs; callers cannot select the destination.
 
-- Supabase URL and keys (public + server role where required)
-- Storage configuration (MinIO primary, optional fallback R2)
-- Auth/security values for sensitive admin routes
-- App runtime/public URL variables
+## Scheduled work
 
-Do not commit plaintext secrets to source control.
+Every Vercel cron route requires an exact `Authorization: Bearer <CRON_SECRET>` header. Missing server configuration returns `503`; invalid or absent credentials return `401`. The `x-vercel-cron` header alone is ignored. Booking-attendance links use `APP_BASE_URL`, then `NEXT_PUBLIC_SITE_URL`, then the legacy `NEXT_PUBLIC_APP_URL` fallback. The document fallback migration runs from a separate GitHub workflow and prefers `DOCUMENT_MIGRATION_CRON_TOKEN`, falling back to `CRON_SECRET` only when that dedicated token is absent.
 
-## Local Setup Baseline
+Database backup configuration lives entirely in the backup workflow secrets and should use a dedicated S3-compatible bucket/credentials with retention access.
 
-1. Install dependencies:
-   - `npm install`
-2. Configure environment variables.
-3. Start development server:
-   - `npm run dev`
+## Build/runtime notes
 
-Additional onboarding references:
+- `npm ci` runs the `postinstall` PDF-worker sync unless CI deliberately uses `--ignore-scripts`.
+- `next.config.js` keeps the Chromium packages server-external for PDF/voucher rendering.
+- Set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` only when the deployment needs a specific browser binary.
+- Auth endpoints are non-cacheable; private document and security responses should remain private/no-store.
 
-- `docs/guides/GETTING_STARTED.md`
-- `docs/guides/WINDOWS_SETUP_GUIDE.md`
+## Release checklist
 
-## Pre-Deploy Validation
+1. Apply required migrations and verify capability markers/functions.
+2. Regenerate Supabase types after schema deployment.
+3. Confirm application and workflow secrets in the exact target environment.
+4. Run the quality suite plus applicable database/smoke checks.
+5. Deploy, exercise critical workflows, and review correlated logs/alerts.
+6. Verify scheduled jobs, backup retention, and document migration after infrastructure changes.
 
-Run these checks before promoting a release:
-
-1. `npm run lint`
-2. `npm run test:unit`
-3. `npm run build`
-
-If any command fails, fix and re-run before deploy.
-
-## V1 Release Checklist
-
-1. Confirm checklist items are marked complete.
-2. Confirm lint/type/test/build all pass.
-3. Update changelog/release notes.
-4. Tag and push release commit.
-
-## Post-Deploy Verification
-
-1. Validate dashboard login/session behavior.
-2. Validate core API route health paths.
-3. Validate storage upload/preview/download flows.
-4. Validate key admin operations and audit logging.
-
-## Rollback Guidance
-
-- Revert to the previous known-good deployment.
-- Restore environment variables if a config regression occurred.
-- If schema migrations are involved, follow migration rollback policy in SQL scripts.
+Never run integration fixtures against production. Never use the API-boundary baseline update to conceal newly unvalidated request bodies.

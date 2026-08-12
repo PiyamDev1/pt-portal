@@ -45,6 +45,8 @@ describe('frappeRequest', () => {
       frappeMessage: 'DocType Employee not found',
     })
 
-    await expect(frappeRequest('/api/resource/Employee', { retries: 0 })).rejects.toBeInstanceOf(FrappeApiError)
+    await expect(frappeRequest('/api/resource/Employee', { retries: 0 })).rejects.toBeInstanceOf(
+      FrappeApiError,
+    )
   })
 })

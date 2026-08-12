@@ -97,17 +97,16 @@ export default function useNadraServiceMetadata({
   )
 
   const filterServiceOptionOptions = useMemo(
-    () =>
-      [
-        ...new Set(
-          serviceOptions
-            .filter((serviceOption) => {
-              if (serviceTypeFilter === 'All') return true
-              return serviceOption.service_type_id === currentFilterServiceTypeId
-            })
-            .map((serviceOption) => serviceOption.name),
-        ),
-      ],
+    () => [
+      ...new Set(
+        serviceOptions
+          .filter((serviceOption) => {
+            if (serviceTypeFilter === 'All') return true
+            return serviceOption.service_type_id === currentFilterServiceTypeId
+          })
+          .map((serviceOption) => serviceOption.name),
+      ),
+    ],
     [currentFilterServiceTypeId, serviceOptions, serviceTypeFilter],
   )
 
@@ -141,18 +140,14 @@ export default function useNadraServiceMetadata({
     if (serviceTypeFilter === 'All') return
 
     const exists = filterServiceTypeOptions.some(
-      (serviceType) => normalizeLookupValue(serviceType) === normalizeLookupValue(serviceTypeFilter),
+      (serviceType) =>
+        normalizeLookupValue(serviceType) === normalizeLookupValue(serviceTypeFilter),
     )
 
     if (!exists) {
       setServiceTypeFilter('All')
     }
-  }, [
-    filterServiceTypeOptions,
-    normalizeLookupValue,
-    serviceTypeFilter,
-    setServiceTypeFilter,
-  ])
+  }, [filterServiceTypeOptions, normalizeLookupValue, serviceTypeFilter, setServiceTypeFilter])
 
   useEffect(() => {
     if (filterServiceOptionOptions.length === 0) {

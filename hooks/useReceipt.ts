@@ -68,7 +68,7 @@ export function useReceipt() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const withRequest = useCallback(async <T,>(run: () => Promise<T>) => {
+  const withRequest = useCallback(async <T>(run: () => Promise<T>) => {
     setLoading(true)
     setError(null)
     try {
@@ -143,9 +143,7 @@ export function useReceipt() {
         if (params.includePayload) search.set('includePayload', 'true')
 
         const query = search.toString()
-        const url = query
-          ? `${API_ENDPOINTS.RECEIPTS_LIST}?${query}`
-          : API_ENDPOINTS.RECEIPTS_LIST
+        const url = query ? `${API_ENDPOINTS.RECEIPTS_LIST}?${query}` : API_ENDPOINTS.RECEIPTS_LIST
 
         const res = await fetch(url)
         const payload = await res.json()

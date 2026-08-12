@@ -1,7 +1,4 @@
-import type {
-  TravelPackageDocument,
-  TravelPackageDocumentCategory,
-} from '@/app/types/packages'
+import type { TravelPackageDocument, TravelPackageDocumentCategory } from '@/app/types/packages'
 
 export const PACKAGE_DOCUMENT_CATEGORIES: Array<{
   value: TravelPackageDocumentCategory

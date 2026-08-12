@@ -2,11 +2,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => {
   const markPersistedReceiptShared = vi.fn()
-  return { markPersistedReceiptShared }
+  const requireStaffSession = vi.fn()
+  return { markPersistedReceiptShared, requireStaffSession }
 })
 
 vi.mock('@/lib/services/receiptStore', () => ({
   markPersistedReceiptShared: mocks.markPersistedReceiptShared,
+}))
+vi.mock('@/lib/auth/staffSession', () => ({
+  requireStaffSession: mocks.requireStaffSession,
 }))
 
 import { POST } from '@/app/api/receipts/share/route'
@@ -21,6 +25,23 @@ const makeRequest = (body: Record<string, unknown>) =>
 describe('POST /api/receipts/share', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.requireStaffSession.mockResolvedValue({
+      authorized: true,
+      user: { id: 'auth-user' },
+      employee: { id: 'employee-server' },
+    })
+  })
+
+  it('requires an active staff session', async () => {
+    mocks.requireStaffSession.mockResolvedValue({
+      authorized: false,
+      response: Response.json({ error: 'Unauthorized' }, { status: 401 }),
+    })
+
+    const res = await POST(makeRequest({ receiptId: 'r-1' }))
+
+    expect(res.status).toBe(401)
+    expect(mocks.markPersistedReceiptShared).not.toHaveBeenCalled()
   })
 
   it('returns 400 when receiptId is missing', async () => {

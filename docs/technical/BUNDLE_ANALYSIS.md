@@ -1,5 +1,7 @@
 # Bundle Size Analysis Report
 
+> **Historical bundle snapshot.** Page sizes and priorities below were measured against an older build and must be regenerated before use.
+
 **Generated:** January 31, 2026
 
 ## Current Bundle Status

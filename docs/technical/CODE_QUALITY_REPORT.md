@@ -1,5 +1,7 @@
 # Code Quality Report & Improvements
 
+> **Historical completion report.** Counts, versions, and “fixed” status below describe an earlier repository state. Re-run current lint, types, tests, formatting, documentation links, and build.
+
 Generated: January 31, 2026
 
 ## ✅ Issues Fixed

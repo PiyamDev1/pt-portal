@@ -10,7 +10,7 @@ export async function reserveBookingCapacity(
     startTime: string
     occupiedUntil: string
     capacity: number
-  }
+  },
 ): Promise<{ success: boolean; seatNumber: number | null; error: string | null }> {
   const { data, error } = await supabase.rpc('reserve_booking_capacity', {
     p_booking_id: params.bookingId,
@@ -21,7 +21,11 @@ export async function reserveBookingCapacity(
   })
 
   if (error) {
-    return { success: false, seatNumber: null, error: error.message || 'Failed to reserve booking capacity' }
+    return {
+      success: false,
+      seatNumber: null,
+      error: error.message || 'Failed to reserve booking capacity',
+    }
   }
 
   const row = Array.isArray(data) ? data[0] : null
@@ -34,7 +38,7 @@ export async function reserveBookingCapacity(
 
 export async function releaseBookingCapacity(
   supabase: SupabaseLike,
-  bookingId: string
+  bookingId: string,
 ): Promise<void> {
   await supabase.rpc('release_booking_capacity_reservation', {
     p_booking_id: bookingId,

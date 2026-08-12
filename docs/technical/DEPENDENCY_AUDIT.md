@@ -1,5 +1,7 @@
 # Dependency Audit
 
+> **Point-in-time dependency snapshot.** Versions and advisories change; use `package.json`, the lockfile, and a fresh `npm run audit:ci` result for current decisions.
+
 Last updated: March 17, 2026
 
 ## Summary

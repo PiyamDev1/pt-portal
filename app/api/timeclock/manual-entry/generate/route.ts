@@ -26,7 +26,7 @@
  * Authentication: Session cookie (manager or maintenance role)
  */
 import { createServerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies, headers } from 'next/headers'
+import { cookies } from 'next/headers'
 import { createClient } from '@supabase/supabase-js'
 import { createHmac, randomBytes, randomUUID } from 'node:crypto'
 import { apiOk, apiError } from '@/lib/api/http'

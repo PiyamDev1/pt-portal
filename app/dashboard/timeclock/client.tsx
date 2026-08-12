@@ -170,80 +170,83 @@ export default function TimeclockClient() {
     setQrText(value)
   }
 
-  const handleSubmit = useCallback(async (rawValue?: string) => {
-    if (submitLockRef.current || showSuccessPopup) return
+  const handleSubmit = useCallback(
+    async (rawValue?: string) => {
+      if (submitLockRef.current || showSuccessPopup) return
 
-    if (isCooldownActive) {
-      setStatus('success')
-      setMessage(`Already scanned. Please wait ${cooldownSeconds}s before scanning again.`)
-      return
-    }
-
-    const payload = rawValue ?? qrText.trim()
-    if (!payload) {
-      setMessage('Enter a manual code or scan a QR code first.')
-      setStatus('error')
-      return
-    }
-
-    submitLockRef.current = true
-    setIsScanning(false)
-    stopStream()
-    setStatus('submitting')
-    setMessage('Submitting scan...')
-    setResult(null)
-
-    try {
-      const geo = await getGeo()
-      const manualCode = payload.replace(/\D/g, '')
-      const isManualCode = isManualCodeInput(payload)
-
-      const response = await fetch(
-        isManualCode ? '/api/timeclock/manual-entry/submit' : '/api/timeclock/scan',
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(
-            isManualCode
-              ? { code: manualCode }
-              : {
-                  qrText: payload,
-                  geo,
-                  clientTs: new Date().toISOString(),
-                },
-          ),
-        },
-      )
-
-      const data = await response.json()
-      if (!response.ok) {
-        setStatus('error')
-        setMessage(data?.error || 'Clock-in failed.')
+      if (isCooldownActive) {
+        setStatus('success')
+        setMessage(`Already scanned. Please wait ${cooldownSeconds}s before scanning again.`)
         return
       }
 
-      setStatus('success')
-      setScanCooldownUntil(Date.now() + 8000)
-      setCooldownNow(Date.now())
-      setMessage(data?.message || 'Clock-in recorded.')
-      setPopupNow(Date.now())
-      setPopupClosesAt(Date.now() + 3000)
-      setShowSuccessPopup(true)
-      setResult({
-        ok: true,
-        message: data?.message || 'Clock-in recorded.',
-        eventId: data?.eventId,
-        eventType: data?.eventType || 'PUNCH',
-        punchType: data?.punchType,
-        scannedAt: data?.scannedAt,
-      })
-    } catch (error: unknown) {
-      setStatus('error')
-      setMessage(error instanceof Error ? error.message : 'Clock-in failed.')
-    } finally {
-      submitLockRef.current = false
-    }
-  }, [cooldownSeconds, isCooldownActive, qrText, showSuccessPopup, stopStream])
+      const payload = rawValue ?? qrText.trim()
+      if (!payload) {
+        setMessage('Enter a manual code or scan a QR code first.')
+        setStatus('error')
+        return
+      }
+
+      submitLockRef.current = true
+      setIsScanning(false)
+      stopStream()
+      setStatus('submitting')
+      setMessage('Submitting scan...')
+      setResult(null)
+
+      try {
+        const geo = await getGeo()
+        const manualCode = payload.replace(/\D/g, '')
+        const isManualCode = isManualCodeInput(payload)
+
+        const response = await fetch(
+          isManualCode ? '/api/timeclock/manual-entry/submit' : '/api/timeclock/scan',
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(
+              isManualCode
+                ? { code: manualCode }
+                : {
+                    qrText: payload,
+                    geo,
+                    clientTs: new Date().toISOString(),
+                  },
+            ),
+          },
+        )
+
+        const data = await response.json()
+        if (!response.ok) {
+          setStatus('error')
+          setMessage(data?.error || 'Clock-in failed.')
+          return
+        }
+
+        setStatus('success')
+        setScanCooldownUntil(Date.now() + 8000)
+        setCooldownNow(Date.now())
+        setMessage(data?.message || 'Clock-in recorded.')
+        setPopupNow(Date.now())
+        setPopupClosesAt(Date.now() + 3000)
+        setShowSuccessPopup(true)
+        setResult({
+          ok: true,
+          message: data?.message || 'Clock-in recorded.',
+          eventId: data?.eventId,
+          eventType: data?.eventType || 'PUNCH',
+          punchType: data?.punchType,
+          scannedAt: data?.scannedAt,
+        })
+      } catch (error: unknown) {
+        setStatus('error')
+        setMessage(error instanceof Error ? error.message : 'Clock-in failed.')
+      } finally {
+        submitLockRef.current = false
+      }
+    },
+    [cooldownSeconds, isCooldownActive, qrText, showSuccessPopup, stopStream],
+  )
 
   useEffect(() => {
     if (!isCooldownActive) return
@@ -334,7 +337,9 @@ export default function TimeclockClient() {
         }
 
         if (detectorSupported) {
-          const detectorWindow = window as unknown as Window & { BarcodeDetector: BarcodeDetectorCtor }
+          const detectorWindow = window as unknown as Window & {
+            BarcodeDetector: BarcodeDetectorCtor
+          }
           const detector = new detectorWindow.BarcodeDetector({ formats: ['qr_code'] })
 
           const scanLoop = async () => {
@@ -484,7 +489,9 @@ export default function TimeclockClient() {
       </div>
       <div className="space-y-3 rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm md:rounded-2xl md:p-6">
         <h2 className="text-lg font-semibold text-slate-800">Status</h2>
-        <p className={`rounded-2xl px-3 py-2 text-sm md:rounded-none md:p-0 ${status === 'error' ? 'bg-red-50 text-red-600 md:bg-transparent' : status === 'success' ? 'bg-emerald-50 text-emerald-700 md:bg-transparent' : 'bg-slate-50 text-slate-600 md:bg-transparent'}`}>
+        <p
+          className={`rounded-2xl px-3 py-2 text-sm md:rounded-none md:p-0 ${status === 'error' ? 'bg-red-50 text-red-600 md:bg-transparent' : status === 'success' ? 'bg-emerald-50 text-emerald-700 md:bg-transparent' : 'bg-slate-50 text-slate-600 md:bg-transparent'}`}
+        >
           {message || 'Waiting for scan.'}
         </p>
         {result && (

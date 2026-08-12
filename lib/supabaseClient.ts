@@ -7,8 +7,7 @@
 
 import { createClient } from '@supabase/supabase-js'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Database } from '@/types/supabase.generated'
-import type { LegacyDatabase } from '@/types/supabase'
+import type { Database, LegacyDatabase } from '@/types/supabase'
 
 let supabaseClient: SupabaseClient<LegacyDatabase> | null = null
 

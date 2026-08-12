@@ -64,7 +64,10 @@ export function TransactionServiceFields({
         <h4 className="text-xs font-bold text-blue-700 uppercase">Payment Plan</h4>
 
         <div>
-          <label htmlFor="payment-frequency" className="text-xs font-bold text-slate-500 uppercase mb-1 block">
+          <label
+            htmlFor="payment-frequency"
+            className="text-xs font-bold text-slate-500 uppercase mb-1 block"
+          >
             Payment Frequency
           </label>
           <select
@@ -84,7 +87,10 @@ export function TransactionServiceFields({
         </div>
 
         <div>
-          <label htmlFor="installment-duration" className="text-xs font-bold text-slate-500 uppercase mb-1 block">
+          <label
+            htmlFor="installment-duration"
+            className="text-xs font-bold text-slate-500 uppercase mb-1 block"
+          >
             Duration
           </label>
           <select
@@ -102,9 +108,14 @@ export function TransactionServiceFields({
         </div>
 
         <div>
-          <label htmlFor="first-payment-date" className="text-xs font-bold text-slate-500 uppercase mb-1 block">
+          <label
+            htmlFor="first-payment-date"
+            className="text-xs font-bold text-slate-500 uppercase mb-1 block"
+          >
             First Payment Date
-            {allowUnlimitedPast && <span className="text-orange-500 text-xs font-normal">(Backdated: Unlimited)</span>}
+            {allowUnlimitedPast && (
+              <span className="text-orange-500 text-xs font-normal">(Backdated: Unlimited)</span>
+            )}
           </label>
           <div className="relative">
             <Calendar className="absolute left-3 top-3 w-4 h-4 text-slate-400" />

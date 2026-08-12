@@ -1,173 +1,148 @@
 # Deployment Guide
 
-This guide covers how PT-Portal is typically deployed and what should be checked before and after release.
+Last verified against the repository: August 12, 2026.
 
-## Deployment shape
+## Runtime topology
 
-PT-Portal is usually deployed as:
+- Vercel: Next.js portal and configured cron routes
+- Supabase: Auth and PostgreSQL
+- MinIO: primary private document/package storage
+- Optional R2: application-vault fallback
+- Optional R3: travel-package backup copy
+- Mailgun: outbound operational email
+- Frappe HRMS: separate server/application reached through the bridge
 
-- `Vercel` for the Next.js portal
-- `Supabase` for auth and database
-- `MinIO` for primary document storage
-- `Mailgun` for outbound mail
-- `Frappe HRMS` on a separate Ubuntu/Docker host
+Start with `.env.example`; it is the committed deployment-variable checklist. Store production values in the platform secret manager, never in the repository.
 
-The repo also includes GitHub Actions for smoke tests, database backups, document migration cron, and GitHub Pages docs publishing.
+## Release order
 
-## Required environment variables
+1. Review the code and migration diff.
+2. Apply required SQL migrations to the target Supabase project in filename order.
+3. Regenerate/commit Supabase types if the deployed schema changed.
+4. Configure the target environment and workflow secrets.
+5. Run the proportional verification suites.
+6. Deploy the application.
+7. Perform post-deploy checks and review correlated error/alert events.
 
-Start from [.env.example](https://github.com/PiyamDev1/pt-portal/blob/main/.env.example).
+Deploy schema before code when new routes require a table/function/marker. The LMS/security routes fail readiness/limits closed when their required 20260812 migrations are absent. The batch installment route also requires the follow-up LMS function migration.
 
-Key production groups:
+## Environment groups
 
-### Core portal
+Required for the core portal/security boundary:
 
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY`
+- `RATE_LIMIT_HASH_SECRET`
 - `NEXT_PUBLIC_SITE_URL`
 
-### Email
+Feature groups from `.env.example`:
 
-- `MAILGUN_API_KEY`
-- `MAILGUN_DOMAIN`
+- Mail: `MAILGUN_API_KEY`, `MAILGUN_DOMAIN`, `MAILGUN_SENDER_EMAIL`, and optional `MAILGUN_ENDPOINT`
+- Application vault: `MINIO_*`, optional `R2_*`, `DOCUMENT_MIGRATION_CRON_TOKEN`
+- Package storage/migration: `MINIO_PACKAGES_BUCKET_NAME`, optional `R3_*`, legacy Firebase values
+- Frappe: `FRAPPE_*`
+- Server controls: `HETZNER_*`, `SERVER_CONTROL_*`
+- Alerts: optional `OBSERVABILITY_ALERT_WEBHOOK_URL`
+- Live tests: `SMOKE_*`
 
-### Storage
+The Vercel cron handlers require `Authorization: Bearer <CRON_SECRET>`. A missing or blank server configuration fails closed with `503`; a missing or invalid bearer value returns `401`. The `x-vercel-cron` header is not authentication. Booking reminders use `APP_BASE_URL`, then `NEXT_PUBLIC_SITE_URL`, then the legacy `NEXT_PUBLIC_APP_URL` fallback to construct attendance links. Configure `CRON_SECRET` and an absolute canonical base URL in production.
 
-- `MINIO_ENDPOINT`
-- `MINIO_ACCESS_KEY`
-- `MINIO_SECRET_KEY`
-- `MINIO_BUCKET_NAME`
-- `NEXT_PUBLIC_MINIO_ENDPOINT`
+All service-role, Mailgun, storage, cron, rate-limit, Frappe, Hetzner, and alert values are server-only. A `NEXT_PUBLIC_*` variable is shipped to browsers.
 
-### Frappe
-
-- `FRAPPE_BASE_URL`
-- `FRAPPE_API_KEY`
-- `FRAPPE_API_SECRET`
-- `FRAPPE_WEBHOOK_SECRET`
-- `FRAPPE_HANDOFF_SECRET`
-
-### Server Control
-
-- `HETZNER_API_TOKEN`
-- `HETZNER_SERVER_ID`
-- `HETZNER_SERVER_IP`
-- `HETZNER_SERVER_LABEL`
-- `SERVER_CONTROL_SERVICES`
-- `SERVER_CONTROL_SERVICE_HEALTH_URLS`
-
-`HETZNER_SERVER_IP` accepts an IPv4 address, a Hetzner IPv6 `/64`, or both separated by commas.
-
-## Local-to-production rule
-
-Do not rely on `.env.local` assumptions when documenting or debugging production behavior. Production should always be treated as its own config surface with explicit platform secrets.
-
-## Vercel deployment flow
-
-Typical release path:
-
-1. Push to GitHub.
-2. Let Vercel build from the connected repo.
-3. Confirm all required environment variables are present in the target environment.
-4. Validate the deployment health after release.
-
-Before promoting important releases, run locally:
+## Pre-deploy verification
 
 ```bash
-npx tsc --noEmit
+npm ci
+npm run audit:ci
 npm run lint
+npm run typecheck
 npm run test:unit
+npm run format:check
+npm run docs:check
+npm run docs:check-api
+npm run api:check-boundaries
 npm run build
 ```
 
-If smoke-test secrets are configured, also run:
+When relevant:
 
 ```bash
+npm run test:db:lms
+npm run test:db:security
 npm run test:smoke
 ```
 
-## Database and migration flow
+Database tests require a disposable `DATABASE_TEST_URL`. Live smoke tests require the configured deployment/account/scope secrets and TOTP or the one-use backup fallback.
 
-Database change management in this repo is migration-file driven.
+## Database deployment
 
-Main location:
+Executable migrations under `scripts/migrations/` are authoritative. Do not use runtime APIs to create production schema. After applying schema changes:
 
-- `scripts/migrations/`
+```bash
+npm run types:supabase
+```
 
-Apply the relevant SQL in Supabase before enabling features that depend on it. Examples:
+The latest cross-cutting required migrations are:
 
-- bookings upgrades
-- security preferences
-- passkeys
-- Frappe identity map and handoff audit tables
+- `20260812_secure_atomic_lms_operations.sql`
+- `20260812_security_rate_limits.sql`
+- `20260812_update_lms_installments_atomically.sql`
 
-For the latest Frappe handoff audit work, ensure [20260612_add_frappe_handoff_events.sql](https://github.com/PiyamDev1/pt-portal/blob/main/scripts/migrations/20260612_add_frappe_handoff_events.sql) has been applied.
+Apply all three in filename order. Do not deploy the batch installment route until `lms_update_installments(jsonb)` exists and is executable only by `service_role`.
 
-## GitHub Actions in this repo
+Feature migrations remain required for bookings, receipts, passkeys/security preferences, documents, Frappe, training, timeclock hardware, Pakistani passport drafts, and travel packages. See [Database Schema Overview](../technical/DATABASE_SCHEMA_OVERVIEW.md) and [Travel Packages](TRAVEL_PACKAGES_GUIDE.md).
 
-Current workflows:
+## GitHub Actions
 
-- [db-backup.yml](https://github.com/PiyamDev1/pt-portal/blob/main/.github/workflows/db-backup.yml)
-- [document-migration-cron.yml](https://github.com/PiyamDev1/pt-portal/blob/main/.github/workflows/document-migration-cron.yml)
-- [smoke-tests.yml](https://github.com/PiyamDev1/pt-portal/blob/main/.github/workflows/smoke-tests.yml)
-- [github-pages.yml](https://github.com/PiyamDev1/pt-portal/blob/main/.github/workflows/github-pages.yml)
+| Workflow                      | Trigger                                 | Responsibility                                                                                                      |
+| ----------------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `quality.yml`                 | push/PR to `main`, manual               | audit, repository-wide lint, types, API boundaries, unit tests, changed-file formatting, documentation links, build |
+| `database-integration.yml`    | relevant push/PR paths, manual          | PostgreSQL 16 LMS and security migration tests                                                                      |
+| `smoke-tests.yml`             | PR to `main`, manual                    | authenticated live Playwright suite and report artifact                                                             |
+| `db-backup.yml`               | daily 02:00 UTC, manual                 | linked Supabase schema/data dump to S3-compatible storage, 30-day default retention                                 |
+| `document-migration-cron.yml` | every ten minutes, manual               | bounded R2-to-MinIO migration endpoint call                                                                         |
+| `github-pages.yml`            | docs/root README push to `main`, manual | Jekyll build and GitHub Pages deployment                                                                            |
 
-### Smoke tests
+Repository secrets outside application runtime include:
 
-Smoke tests are PR-triggered and manual-trigger capable. They depend on GitHub secrets for a real smoke-test account and base URL.
+- backup: `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`, `S3_BACKUP_BUCKET`, `S3_ENDPOINT_URL`, and AWS credentials/region;
+- document worker: `APP_BASE_URL`, `DOCUMENT_MIGRATION_CRON_TOKEN`; and
+- smoke: required `SMOKE_BASE_URL`, user credentials, branch code, family scope, plus optional mutation/package/LMS/receipt values.
 
-### Database backup
+The smoke workflow intentionally fails when its required account/base secrets are missing.
 
-The backup workflow uses the Supabase CLI and uploads schema/data archives to S3-compatible storage.
+## Vercel cron schedule
 
-### Document migration cron
+`vercel.json` currently schedules:
 
-The migration cron hits the scheduled document migration endpoint at a regular interval using a shared token.
+- booking reminders daily at 06:00 UTC;
+- issue-report cleanup daily at 03:00 UTC;
+- Pakistani passport draft cleanup daily at 03:30 UTC;
+- Frappe outbox daily at 04:00 UTC; and
+- Frappe timeclock attendance daily at 04:30 UTC.
 
-### GitHub Pages docs
+Every Vercel cron request must carry the bearer secret configured by Vercel. The separate document migration schedule is GitHub Actions, not Vercel. Its endpoint prefers `DOCUMENT_MIGRATION_CRON_TOKEN` and falls back to `CRON_SECRET` only when the dedicated token is not configured; configure the dedicated token for the workflow so the two automation boundaries remain independently rotatable.
 
-Docs are deployed from `docs/` via the GitHub Pages workflow. Enable Pages in repository settings and use the Actions deployment source.
+## Post-deploy checks
 
-## Release checklist
+- Login, employee status/branch checks, and required 2FA work.
+- Dashboard and role-scoped admin pages load.
+- Shared limiter returns normal responses and records no unexpected `503`.
+- Application document upload, preview, download, deletion, and status work.
+- LMS payment/installment mutations, atomic batch rescheduling, and global pagination work.
+- Package quote share, conversion, financial operations, and released portal content work if changed.
+- Booking availability/reminder behavior works if changed.
+- Frappe health/handoff works if changed.
+- Request IDs are present on correlated API failures and trusted alerts contain no secrets.
+- Backup/migration/smoke workflows have valid secrets and recent successful runs.
 
-Before releasing:
+## Rollback
 
-- all required env vars are present
-- required SQL migrations are applied
-- `npx tsc --noEmit` passes
-- `npm run lint` passes
-- `npm run test:unit` passes
-- `npm run build` passes
-- smoke tests pass if the release touches critical flows
+Application rollback is a redeploy of the previous known-good commit/config. Database rollback must follow the specific migration's compatibility strategy; do not blindly reverse a data migration. If code depends on a new irreversible schema, deploy a forward-compatible corrective migration before/with the application fix.
 
-After releasing:
+Record which deployment, migrations, environment changes, and external providers were involved. Rotate any secret that may have been exposed.
 
-- login works
-- dashboard loads
-- key admin pages load
-- document upload/preview works
-- bookings load for enabled branches
-- Frappe health endpoint returns expected status
-- recent error logs are reviewed
+## Documentation publishing
 
-## GitHub Pages setup
-
-To publish docs:
-
-1. Go to repository `Settings -> Pages`.
-2. Set the source to `GitHub Actions`.
-3. Push docs changes to `main` or trigger the workflow manually.
-
-The source files are:
-
-- [docs/index.md](../index.md)
-- [docs/\_config.yml](../_config.yml)
-- [docs/README.md](../README.md)
-
-## Related docs
-
-- [GETTING_STARTED.md](GETTING_STARTED.md)
-- [INTEGRATIONS_GUIDE.md](INTEGRATIONS_GUIDE.md)
-- [FRAPPE_HRMS_SETUP.md](FRAPPE_HRMS_SETUP.md)
-- [../technical/DEPLOYMENT_ENVIRONMENT_SETUP.md](../technical/DEPLOYMENT_ENVIRONMENT_SETUP.md)
+Enable GitHub Pages with GitHub Actions as the source. The workflow builds `docs/index.md` with `docs/_config.yml` and deploys the resulting Jekyll site.

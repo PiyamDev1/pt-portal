@@ -29,16 +29,6 @@ export interface Document {
 }
 
 /**
- * MinIO server configuration
- */
-export interface MinioConfig {
-  endpoint: string
-  bucket: string
-  region: string
-  useSSL: boolean
-}
-
-/**
  * Real-time progress of a file upload
  */
 export interface UploadProgress {
@@ -77,25 +67,6 @@ export interface MinioStatus {
 }
 
 /**
- * Response from server for document operations
- */
-export interface DocumentResponse {
-  success: boolean
-  data?: Document | Document[]
-  message?: string
-  error?: string
-}
-
-/**
- * Response for status check
- */
-export interface StatusResponse {
-  success: boolean
-  status?: MinioStatus
-  error?: string
-}
-
-/**
  * File validation result
  */
 export interface ValidationResult {
@@ -105,66 +76,4 @@ export interface ValidationResult {
     fieldName: string
     message: string
   }[]
-}
-
-/**
- * Document category for organization
- */
-export interface DocumentCategory {
-  id: string
-  name: string
-  icon: string
-  color: string
-}
-
-/**
- * Applicant information for document context
- */
-export interface ApplicantInfo {
-  id: string
-  firstName: string
-  lastName: string
-  citizenNumber: string
-  email?: string
-  phoneNumber?: string
-}
-
-/**
- * Batch upload request
- */
-export interface BatchUploadRequest {
-  files: File[]
-  familyHeadId: string
-  category?: 'receipt' | 'application-review' | 'general'
-  metadata?: Record<string, string>
-}
-
-/**
- * Batch upload response
- */
-export interface BatchUploadResponse {
-  successful: Document[]
-  failed: FailedUpload[]
-  totalAttempted: number
-}
-
-/**
- * Information about a failed upload
- */
-export interface FailedUpload {
-  fileName: string
-  reason: string
-  fileSize?: number
-}
-
-/**
- * Document preview data
- */
-export interface DocumentPreview {
-  documentId: string
-  fileType: string
-  previewUrl: string
-  thumbnailUrl?: string
-  canZoom: boolean
-  pageCount?: number // for PDFs
 }

@@ -65,6 +65,18 @@ jobs:
           node-version: '20'
       - run: npm run api:check-boundaries
 
+  documentation:
+    name: Documentation integrity
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm run docs:check
+      - run: npm run docs:check-api
+
   unit-tests:
     name: Unit tests
     runs-on: ubuntu-latest

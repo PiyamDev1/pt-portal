@@ -2,7 +2,8 @@
 set -euo pipefail
 
 database_url="${DATABASE_TEST_URL:-postgresql://postgres:postgres@127.0.0.1:54329/pt_portal_test}"
-migration="scripts/migrations/20260812_secure_atomic_lms_operations.sql"
+lms_migration="scripts/migrations/20260812_secure_atomic_lms_operations.sql"
+installment_migration="scripts/migrations/20260812_update_lms_installments_atomically.sql"
 fixture="tests/integration/fixtures/lms_schema.sql"
 assertions="tests/integration/lms_atomic_operations.sql"
 
@@ -11,7 +12,8 @@ psql "$database_url" -v ON_ERROR_STOP=1 -f "$fixture"
 # Prove that the migration can be rolled back cleanly before installing it.
 psql "$database_url" -v ON_ERROR_STOP=1 <<SQL
 begin;
-\i $migration
+\i $lms_migration
+\i $installment_migration
 select public.lms_schema_status();
 rollback;
 SQL
@@ -21,7 +23,13 @@ if [[ "$(psql "$database_url" -Atqc "select to_regprocedure('public.lms_schema_s
   exit 1
 fi
 
-psql "$database_url" -v ON_ERROR_STOP=1 -f "$migration"
+if [[ "$(psql "$database_url" -Atqc "select to_regprocedure('public.lms_update_installments(jsonb)') is null")" != "t" ]]; then
+  echo "Migration rollback left lms_update_installments installed"
+  exit 1
+fi
+
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$lms_migration"
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$installment_migration"
 psql "$database_url" -v ON_ERROR_STOP=1 -f "$assertions"
 
 # Exercise simultaneous retries from separate database sessions. The advisory

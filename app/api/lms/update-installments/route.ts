@@ -3,26 +3,24 @@
  *
  * POST /api/lms/update-installments
  *
- * Updates one or more installment records in bulk (due dates, amounts,
- * or status). Used by the admin panel to reschedule or modify a payment plan.
+ * Atomically updates the due date and amount of one or more installments.
+ * Used by the LMS staff panel to reschedule or modify a payment plan.
  *
- * Request Body: { installments: Array<{ id, due_date?, amount?, status? }> }
- * Response Success (200): { updatedCount }
- * Response Errors: 400 Missing/empty installments | 500 DB update failed
+ * Request Body: { installments: Array<{ id, due_date, amount }> }
+ * Response Success (200): { updatedInstallmentIds, updatedCount }
+ * Response Errors: 400 invalid batch | 404 installment missing |
+ *                  429/503 rate limit | 500 DB update failed
  *
- * Authentication: Service role key
+ * Authentication: Active LMS staff session. The server invokes the
+ * service-role-only RPC after authorization and rate limiting.
  */
-import { createClient } from '@supabase/supabase-js'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
 import { requireLmsStaff } from '@/lib/lms/apiAuth'
 import { z } from 'zod'
 import { parseBodyWithSchema } from '@/lib/api/request'
 import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-const supabase = createClient(supabaseUrl, supabaseKey)
+import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
 
 const updateInstallmentsSchema = z.object({
   installments: z
@@ -58,29 +56,22 @@ export async function POST(request: Request) {
     if (bodyError || !body) return apiError('Invalid installments data', 400)
     const { installments } = body
 
-    // Update each installment
-    const updates = []
-    for (const installment of installments) {
-      const { id, due_date, amount } = installment
-
-      const { error } = await supabase
-        .from('loan_installments')
-        .update({
-          due_date,
-          amount,
-        })
-        .eq('id', id)
-
-      if (error) {
-        throw new Error(error.message || 'Failed to update installment')
-      }
-
-      updates.push(id)
+    const { data, error } = await getServiceSupabaseClient().rpc('lms_update_installments', {
+      p_installments: installments,
+    })
+    if (error) {
+      if (error.code === 'P0002') return apiError(error.message || 'Installment not found', 404)
+      if (error.code === '22023') return apiError(error.message || 'Invalid installments data', 400)
+      throw error
     }
 
+    const updatedInstallmentIds = Array.isArray(data?.updatedInstallmentIds)
+      ? data.updatedInstallmentIds
+      : installments.map((installment) => installment.id)
+
     return apiOk({
-      updatedInstallmentIds: updates,
-      updatedCount: updates.length,
+      updatedInstallmentIds,
+      updatedCount: Number(data?.updatedCount ?? updatedInstallmentIds.length),
     })
   } catch (error) {
     return apiError(toErrorMessage(error, 'Failed to update installments'), 500)

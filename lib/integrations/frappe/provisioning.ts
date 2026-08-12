@@ -631,9 +631,7 @@ export async function ensureFrappeLoginUserForEmployee(employeeId: string) {
 
   const employeeLookup = await checkFrappeEmployeeExists(candidate.frappe_employee_id)
   if (!employeeLookup.exists) {
-    throw new Error(
-      'Frappe HRMS link is stale. Re-run the transfer before opening Frappe HRMS.',
-    )
+    throw new Error('Frappe HRMS link is stale. Re-run the transfer before opening Frappe HRMS.')
   }
 
   if (candidate.frappe_user_id) {

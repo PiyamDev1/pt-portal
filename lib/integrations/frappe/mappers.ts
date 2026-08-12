@@ -79,8 +79,12 @@ export function mapLifecycleToFrappePayload(record: LifecycleRow) {
   }
 }
 
-export function mapLeaveStatusFromFrappe(status: string | null | undefined): LeaveRequestRow['status'] {
-  const value = String(status || '').trim().toLowerCase()
+export function mapLeaveStatusFromFrappe(
+  status: string | null | undefined,
+): LeaveRequestRow['status'] {
+  const value = String(status || '')
+    .trim()
+    .toLowerCase()
 
   if (value === 'approved') return 'approved'
   if (value === 'rejected') return 'rejected'

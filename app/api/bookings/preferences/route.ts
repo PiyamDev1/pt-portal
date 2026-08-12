@@ -19,7 +19,12 @@ function sanitizeSavedViews(input: unknown): SavedView[] {
       if (!name) return null
       return {
         name,
-        source: candidate.source === 'portal' || candidate.source === 'whatsapp' || candidate.source === 'website' ? candidate.source : 'all',
+        source:
+          candidate.source === 'portal' ||
+          candidate.source === 'whatsapp' ||
+          candidate.source === 'website'
+            ? candidate.source
+            : 'all',
         status:
           candidate.status === 'pending' ||
           candidate.status === 'confirmed' ||
@@ -44,7 +49,9 @@ export async function GET(request: NextRequest) {
     }
 
     const supabase = await getRouteSupabaseClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
@@ -68,7 +75,7 @@ export async function GET(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    const body = await request.json() as {
+    const body = (await request.json()) as {
       location_id?: string
       saved_views?: unknown
     }
@@ -78,7 +85,9 @@ export async function PATCH(request: NextRequest) {
     }
 
     const supabase = await getRouteSupabaseClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
@@ -86,11 +95,14 @@ export async function PATCH(request: NextRequest) {
     const savedViews = sanitizeSavedViews(body.saved_views)
     const { data, error } = await supabase
       .from('booking_user_preferences')
-      .upsert({
-        user_id: user.id,
-        location_id: body.location_id,
-        saved_views: savedViews,
-      }, { onConflict: 'user_id,location_id' })
+      .upsert(
+        {
+          user_id: user.id,
+          location_id: body.location_id,
+          saved_views: savedViews,
+        },
+        { onConflict: 'user_id,location_id' },
+      )
       .select('saved_views')
       .single()
 
