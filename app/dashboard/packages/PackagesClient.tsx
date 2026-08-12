@@ -3625,8 +3625,8 @@ export default function PackagesClient({
             )}
           </section>
 
-          <section className="grid gap-5 lg:grid-cols-2">
-            <div className="rounded-xl border-2 border-sky-300 bg-sky-50/50 p-4 shadow-sm lg:col-span-2">
+          <section className="grid gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(18rem,1fr)]">
+            <div className="min-w-0 rounded-xl border-2 border-sky-300 bg-sky-50/50 p-4 shadow-sm">
               <SectionHeader
                 icon={Plane}
                 title="Flight options"
@@ -3665,7 +3665,7 @@ export default function PackagesClient({
               </div>
             </div>
 
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50/40 p-4 shadow-sm lg:col-span-2">
+            <div className="min-w-0 rounded-xl border border-emerald-200 bg-emerald-50/40 p-4 shadow-sm">
               <SectionHeader
                 icon={FileText}
                 title="Visa options"
