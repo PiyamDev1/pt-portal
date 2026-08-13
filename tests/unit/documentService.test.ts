@@ -44,12 +44,14 @@ describe('BrowserDocumentService', () => {
     expect(result.valid).toBe(true)
   })
 
-  it('returns [] from getDocuments on fetch failure', async () => {
+  it('surfaces getDocuments failures instead of presenting an empty vault', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('network down'))
 
-    const docs = await service.getDocuments('family-1')
-
-    expect(docs).toEqual([])
+    await expect(service.getDocuments('PKD-ABCDE12345')).rejects.toThrow('network down')
+    expect(fetchSpy).toHaveBeenCalledWith(
+      expect.stringContaining('familyHeadId=PKD-ABCDE12345'),
+      expect.objectContaining({ method: 'GET' }),
+    )
     fetchSpy.mockRestore()
   })
 

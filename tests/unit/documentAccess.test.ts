@@ -2,12 +2,18 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => {
   const results = new Map<string, { data: unknown; error: unknown }>()
-  const eq = vi.fn((table: string, column: string, value: string) => ({
-    maybeSingle: vi.fn(async () => results.get(table) || { data: null, error: null }),
-    table,
-    column,
-    value,
-  }))
+  const resultFor = (table: string, column: string) =>
+    results.get(`${table}:${column}`) || results.get(table) || { data: null, error: null }
+  const eq = vi.fn((table: string, column: string, value: string) => {
+    const result = resultFor(table, column)
+    return {
+      ...result,
+      maybeSingle: vi.fn(async () => result),
+      table,
+      column,
+      value,
+    }
+  })
   const from = vi.fn((table: string) => ({
     select: vi.fn(() => ({
       eq: (column: string, value: string) => eq(table, column, value),
@@ -20,7 +26,7 @@ vi.mock('@/lib/supabaseClient', () => ({
   getSupabaseClient: () => ({ from: mocks.from }),
 }))
 
-import { documentScopeExists } from '@/lib/documentAccess'
+import { documentScopeExists, resolveDocumentScope } from '@/lib/documentAccess'
 
 describe('document scope access', () => {
   beforeEach(() => {
@@ -33,11 +39,34 @@ describe('document scope access', () => {
     expect(mocks.from).not.toHaveBeenCalled()
   })
 
-  it('accepts a scope backed by an applicant, application, or passport draft', async () => {
-    mocks.results.set('pakistani_passport_drafts', { data: { id: 'draft-row' }, error: null })
+  it('resolves a PKD draft without comparing the text identifier to UUID columns', async () => {
+    mocks.results.set('pakistani_passport_drafts', {
+      data: { id: 'draft-row', draft_id: 'PKD-ABCDE12345' },
+      error: null,
+    })
 
-    await expect(documentScopeExists('ppd-001')).resolves.toBe(true)
-    expect(mocks.eq).toHaveBeenCalledWith('pakistani_passport_drafts', 'draft_id', 'PPD-001')
+    await expect(documentScopeExists('pkd-abcde12345')).resolves.toBe(true)
+    expect(mocks.eq).toHaveBeenCalledWith('pakistani_passport_drafts', 'draft_id', 'PKD-ABCDE12345')
+    expect(mocks.from).not.toHaveBeenCalledWith('applicants')
+    expect(mocks.from).not.toHaveBeenCalledWith('applications')
+  })
+
+  it('includes legacy applicant and converted-draft owners for an application', async () => {
+    const applicationId = '11111111-1111-4111-8111-111111111111'
+    const applicantId = '22222222-2222-4222-8222-222222222222'
+    mocks.results.set('applications:id', {
+      data: { id: applicationId, applicant_id: applicantId, family_head_id: applicantId },
+      error: null,
+    })
+    mocks.results.set('pakistani_passport_drafts:converted_application_id', {
+      data: [{ id: 'draft-row', draft_id: 'PKD-ABCDE12345' }],
+      error: null,
+    })
+
+    await expect(resolveDocumentScope(applicationId)).resolves.toEqual({
+      exists: true,
+      scopeIds: [applicationId, applicantId, 'PKD-ABCDE12345'],
+    })
   })
 
   it('fails closed when scope verification cannot be completed', async () => {
@@ -46,7 +75,7 @@ describe('document scope access', () => {
       error: { code: 'XX000', message: 'database unavailable' },
     })
 
-    await expect(documentScopeExists('scope-1')).rejects.toEqual(
+    await expect(documentScopeExists('11111111-1111-4111-8111-111111111111')).rejects.toEqual(
       expect.objectContaining({ code: 'XX000' }),
     )
   })

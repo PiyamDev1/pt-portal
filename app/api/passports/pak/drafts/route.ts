@@ -543,13 +543,6 @@ async function convertDraft(body: Record<string, unknown>) {
 
     if (passportError) throw passportError
 
-    const { error: documentError } = await supabase
-      .from('documents')
-      .update({ family_head_id: applicationId })
-      .eq('family_head_id', draft.draft_id)
-
-    if (documentError) throw documentError
-
     const { data: convertedDraft, error: updateDraftError } = await supabase
       .from('pakistani_passport_drafts')
       .update({
@@ -565,13 +558,7 @@ async function convertDraft(body: Record<string, unknown>) {
       .select(DRAFT_SELECT)
       .single()
 
-    if (updateDraftError) {
-      await supabase
-        .from('documents')
-        .update({ family_head_id: draft.draft_id })
-        .eq('family_head_id', applicationId)
-      throw updateDraftError
-    }
+    if (updateDraftError) throw updateDraftError
 
     return apiOk({
       convertedDraftId: draft.id,

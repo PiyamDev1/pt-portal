@@ -39,18 +39,34 @@ type DocumentRow = {
 const DOCUMENT_SELECT =
   'id, file_name, file_type, family_head_id, minio_bucket, minio_key, category, deleted'
 
-function mapStoredDocument(row: DocumentRow): StoredDocument | null {
-  if (!isValidDocumentScopeId(row.family_head_id)) return null
+export async function isDocumentStorageKeyOwnedByScope(
+  familyHeadId: string,
+  key: string,
+): Promise<boolean> {
+  if (!isValidDocumentScopeId(familyHeadId)) return false
+  if (!key || key.length > 1024 || key.includes('\u0000')) return false
+  if (key.startsWith(`family-${familyHeadId}/`)) return true
 
-  const expectedPrefix = `family-${row.family_head_id}/`
-  if (
-    !row.minio_key ||
-    row.minio_key.length > 1024 ||
-    row.minio_key.includes('\u0000') ||
-    !row.minio_key.startsWith(expectedPrefix)
-  ) {
-    return null
-  }
+  const storageScope = /^family-([^/]+)\//.exec(key)?.[1]
+  if (!storageScope || !/^PKD-[A-Z0-9]{10}$/.test(storageScope)) return false
+
+  // Compatibility for drafts converted before document ownership stopped
+  // being rewritten. Their database owner is the application UUID while the
+  // immutable object key still contains the linked PKD identifier.
+  const { data, error } = await getSupabaseClient()
+    .from('pakistani_passport_drafts')
+    .select('id')
+    .eq('draft_id', storageScope)
+    .eq('converted_application_id', familyHeadId)
+    .maybeSingle<{ id: string }>()
+
+  if (error && error.code !== 'PGRST116') throw error
+  return Boolean(data)
+}
+
+async function mapStoredDocument(row: DocumentRow): Promise<StoredDocument | null> {
+  if (!isValidDocumentScopeId(row.family_head_id)) return null
+  if (!(await isDocumentStorageKeyOwnedByScope(row.family_head_id, row.minio_key))) return null
 
   const bucket = row.minio_bucket === R2_BUCKET ? R2_BUCKET : MINIO_BUCKET
   return {
@@ -75,7 +91,7 @@ export async function findStoredDocumentById(documentId: string): Promise<Stored
     .maybeSingle<DocumentRow>()
 
   if (error) throw error
-  return data ? mapStoredDocument(data) : null
+  return data ? await mapStoredDocument(data) : null
 }
 
 /**
@@ -94,7 +110,7 @@ export async function findStoredDocumentByKey(key: string): Promise<StoredDocume
     .maybeSingle<DocumentRow>()
 
   if (error) throw error
-  return data ? mapStoredDocument(data) : null
+  return data ? await mapStoredDocument(data) : null
 }
 
 export async function getSignedDocumentUrl(

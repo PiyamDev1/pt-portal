@@ -7,11 +7,11 @@ const mocks = vi.hoisted(() => {
   const eqCategory = vi.fn(() => ({ order }))
   const neqCategory = vi.fn(() => ({ eq: eqCategory, order }))
   const eqDeleted = vi.fn(() => ({ eq: eqCategory, neq: neqCategory, order }))
-  const eqFamily = vi.fn(() => ({ eq: eqDeleted }))
-  const select = vi.fn(() => ({ eq: eqFamily }))
+  const inFamily = vi.fn(() => ({ eq: eqDeleted }))
+  const select = vi.fn(() => ({ in: inFamily }))
   const from = vi.fn(() => ({ select }))
   const getSupabaseClient = vi.fn(() => ({ from }))
-  const documentScopeExists = vi.fn(() => Promise.resolve(true))
+  const resolveDocumentScope = vi.fn(() => Promise.resolve({ exists: true, scopeIds: ['fh-1'] }))
   const requireStaffSession = vi.fn()
 
   return {
@@ -21,17 +21,17 @@ const mocks = vi.hoisted(() => {
     eqCategory,
     neqCategory,
     eqDeleted,
-    eqFamily,
+    inFamily,
     select,
     from,
     getSupabaseClient,
-    documentScopeExists,
+    resolveDocumentScope,
     requireStaffSession,
   }
 })
 
 vi.mock('@/lib/supabaseClient', () => ({ getSupabaseClient: mocks.getSupabaseClient }))
-vi.mock('@/lib/documentAccess', () => ({ documentScopeExists: mocks.documentScopeExists }))
+vi.mock('@/lib/documentAccess', () => ({ resolveDocumentScope: mocks.resolveDocumentScope }))
 vi.mock('@/lib/auth/staffSession', () => ({ requireStaffSession: mocks.requireStaffSession }))
 
 import { GET, POST } from '@/app/api/documents/route'
@@ -47,8 +47,8 @@ describe('GET /api/documents', () => {
     vi.clearAllMocks()
     mocks.getSupabaseClient.mockReturnValue({ from: mocks.from })
     mocks.from.mockReturnValue({ select: mocks.select })
-    mocks.select.mockReturnValue({ eq: mocks.eqFamily })
-    mocks.eqFamily.mockReturnValue({ eq: mocks.eqDeleted })
+    mocks.select.mockReturnValue({ in: mocks.inFamily })
+    mocks.inFamily.mockReturnValue({ eq: mocks.eqDeleted })
     mocks.eqDeleted.mockReturnValue({
       eq: mocks.eqCategory,
       neq: mocks.neqCategory,
@@ -57,7 +57,7 @@ describe('GET /api/documents', () => {
     mocks.neqCategory.mockReturnValue({ eq: mocks.eqCategory, order: mocks.order })
     mocks.eqCategory.mockReturnValue({ order: mocks.order })
     mocks.order.mockReturnValue({ range: mocks.range })
-    mocks.documentScopeExists.mockResolvedValue(true)
+    mocks.resolveDocumentScope.mockResolvedValue({ exists: true, scopeIds: ['fh-1'] })
     mocks.requireStaffSession.mockResolvedValue({
       authorized: true,
       user: { id: 'staff-1' },

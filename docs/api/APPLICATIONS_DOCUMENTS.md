@@ -300,7 +300,9 @@ overwritten with the verified session user.
 - `cancel`: requires `draftId`/`id`; accepts `reason` or
   `cancellationReason`.
 - `convert`: requires `draftId`/`id` and `trackingNumber`. It creates the live
-  applicant/application/passport hierarchy and moves draft-scoped documents.
+  applicant/application/passport hierarchy. Draft-scoped document ownership
+  and object keys remain unchanged; the registered application resolves the
+  linked draft ID as a server-side read alias.
 
 Payment amount must be finite and non-negative. Draft status is one of `Draft`,
 `Documents Pending` (the create default), `Ready to Process`,
@@ -639,6 +641,10 @@ defaults to 1; `limit` defaults to 20 and is clamped to 5–100; `category` is
 Documents expose `id`, `fileName`, `fileSize`, `fileType`, `category`,
 `uploadedAt`, `uploadedBy`, `familyHeadId`, and `minio: { bucket, key, etag }`.
 Pagination is `{ page, limit, total, pages }`; internal ZIP records are omitted.
+For an application UUID, results also include legacy applicant-owned files and
+files owned by a PKD draft whose `converted_application_id` is that exact
+application. These aliases are derived by the server and cannot be supplied as
+an arbitrary list by the caller.
 
 **Errors:** `400` missing/invalid scope or category; `404` live application/draft
 scope not found; `401`/`403` session failure; `500` query failure.
@@ -718,6 +724,8 @@ limit; `503` limiter/storage availability errors; `401`/`403` session failure;
 **Success:** `200 { status: "none" }`, or `{ status: "ready" | "stale",
 documentId, fileName, createdAt, currentCount, storedCount }`. Staleness means
 the current non-ZIP document count differs from the count captured at creation.
+For application scopes, the count covers the same server-resolved applicant and
+converted-draft aliases as the document list.
 
 **Errors:** `400` missing/invalid scope; `404` scope not found; `401`/`403`
 session failure; `500` database failure with `x-request-id`.
@@ -728,8 +736,8 @@ session failure; `500` database failure with `x-request-id`.
 
 **Input:** JSON up to 8 KiB: required `familyHeadId` (max 200) and optional
 `zipFileName` (max 240). A live scope is required. At most 200 source documents
-and 100 MB of declared source bytes may be archived; storage keys must belong to
-the exact scope.
+and 100 MB of declared source bytes may be archived; each storage key must match
+its recorded owner or the exact PKD draft linked to its converted application.
 
 **Success:** `200 { documentId, fileName }`. The route creates a ZIP, writes it
 to primary/R2 fallback storage, persists a `zip-archive` document, and retires

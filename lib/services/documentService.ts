@@ -243,7 +243,7 @@ export class BrowserDocumentService implements DocumentService {
     category?: string,
   ): Promise<Document[]> {
     try {
-      let url = `${API_BASE}/documents?familyHeadId=${familyHeadId}&page=${page}&limit=${limit}`
+      let url = `${API_BASE}/documents?familyHeadId=${encodeURIComponent(familyHeadId)}&page=${page}&limit=${limit}`
       if (category) {
         url += `&category=${encodeURIComponent(category)}`
       }
@@ -264,8 +264,7 @@ export class BrowserDocumentService implements DocumentService {
       const documents = data?.documents ?? data?.data
       return Array.isArray(documents) ? documents : []
     } catch (error) {
-      console.error('Error fetching documents:', error)
-      return []
+      throw new Error(error instanceof Error ? error.message : 'Failed to fetch documents')
     }
   }
 

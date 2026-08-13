@@ -68,6 +68,31 @@ describe('document server storage resolution', () => {
     await expect(findStoredDocumentById('doc-1')).resolves.toBeNull()
   })
 
+  it('accepts the original PKD storage key for its converted application', async () => {
+    mocks.maybeSingle
+      .mockResolvedValueOnce({
+        data: {
+          ...baseRow,
+          family_head_id: '11111111-1111-4111-8111-111111111111',
+          minio_key: 'family-PKD-ABCDE12345/general/doc-1-passport.pdf',
+        },
+        error: null,
+      })
+      .mockResolvedValueOnce({ data: { id: 'draft-row-1' }, error: null })
+
+    await expect(findStoredDocumentById('doc-1')).resolves.toEqual(
+      expect.objectContaining({
+        familyHeadId: '11111111-1111-4111-8111-111111111111',
+        key: 'family-PKD-ABCDE12345/general/doc-1-passport.pdf',
+      }),
+    )
+    expect(mocks.eqIdentity).toHaveBeenCalledWith('draft_id', 'PKD-ABCDE12345')
+    expect(mocks.eqDeleted).toHaveBeenCalledWith(
+      'converted_application_id',
+      '11111111-1111-4111-8111-111111111111',
+    )
+  })
+
   it('restricts database-provided buckets to configured document storage', async () => {
     mocks.maybeSingle.mockResolvedValue({
       data: { ...baseRow, minio_bucket: 'unrelated-private-bucket' },

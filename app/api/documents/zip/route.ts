@@ -27,7 +27,8 @@ const createZipSchema = z.object({
   zipFileName: z.string().trim().max(240).optional(),
 })
 import { requireStaffSession } from '@/lib/auth/staffSession'
-import { documentScopeExists } from '@/lib/documentAccess'
+import { resolveDocumentScope } from '@/lib/documentAccess'
+import { isDocumentStorageKeyOwnedByScope } from '@/lib/services/documentServer'
 import {
   DOCUMENT_PRIVATE_CACHE_HEADERS,
   isValidDocumentScopeId,
@@ -46,6 +47,7 @@ const MAX_ZIP_SOURCE_BYTES = 100 * 1024 * 1024
 type DocumentRow = {
   id: string
   file_name: string
+  family_head_id: string
   minio_key: string
   minio_bucket: string
   category: string | null
@@ -94,7 +96,8 @@ export async function GET(request: NextRequest) {
     const familyHeadId = new URL(request.url).searchParams.get('familyHeadId')
     if (!familyHeadId) return apiError('familyHeadId is required', 400)
     if (!isValidDocumentScopeId(familyHeadId)) return apiError('Invalid document scope', 400)
-    if (!(await documentScopeExists(familyHeadId))) {
+    const scope = await resolveDocumentScope(familyHeadId)
+    if (!scope.exists) {
       return apiError('Document scope not found', 404)
     }
 
@@ -122,7 +125,7 @@ export async function GET(request: NextRequest) {
     const { count, error: countErr } = await supabase
       .from('documents')
       .select('id', { count: 'exact', head: true })
-      .eq('family_head_id', familyHeadId)
+      .in('family_head_id', scope.scopeIds)
       .eq('deleted', false)
       .neq('category', 'zip-archive')
 
@@ -176,7 +179,8 @@ export async function POST(request: NextRequest) {
     if (bodyError || !body) return apiError(bodyError || 'Invalid request payload', 400)
     const { familyHeadId, zipFileName } = body
     if (!isValidDocumentScopeId(familyHeadId)) return apiError('Invalid document scope', 400)
-    if (!(await documentScopeExists(familyHeadId))) {
+    const scope = await resolveDocumentScope(familyHeadId)
+    if (!scope.exists) {
       return apiError('Document scope not found', 404)
     }
 
@@ -185,8 +189,8 @@ export async function POST(request: NextRequest) {
     // Fetch all non-zip documents for this family
     const { data, error: fetchErr } = await supabase
       .from('documents')
-      .select('id, file_name, file_size, minio_key, minio_bucket, category')
-      .eq('family_head_id', familyHeadId)
+      .select('id, file_name, file_size, family_head_id, minio_key, minio_bucket, category')
+      .in('family_head_id', scope.scopeIds)
       .eq('deleted', false)
       .neq('category', 'zip-archive')
       .order('uploaded_at', { ascending: false })
@@ -195,16 +199,12 @@ export async function POST(request: NextRequest) {
     if (!data || data.length === 0) return apiError('No documents found', 404)
 
     const documents = data as DocumentRow[]
-    const expectedKeyPrefix = `family-${familyHeadId}/`
-    if (
-      documents.some(
-        (document) =>
-          !document.minio_key ||
-          document.minio_key.length > 1024 ||
-          document.minio_key.includes('\u0000') ||
-          !document.minio_key.startsWith(expectedKeyPrefix),
-      )
-    ) {
+    const ownershipChecks = await Promise.all(
+      documents.map((document) =>
+        isDocumentStorageKeyOwnedByScope(document.family_head_id, document.minio_key),
+      ),
+    )
+    if (ownershipChecks.some((owned) => !owned)) {
       return apiError('Document metadata failed storage ownership validation', 409)
     }
     if (documents.some((document) => document.minio_bucket === R2_BUCKET) && !isR2Configured()) {

@@ -23,6 +23,7 @@ import { ClipboardList } from 'lucide-react'
 import PageHeader from '@/app/components/PageHeader.client'
 import PakPassportClient from './client'
 import DashboardClientWrapper from '@/app/dashboard/client-wrapper'
+import { getServiceSupabaseClient } from '@/lib/api/serviceSupabase'
 
 export default async function PakPassportPage() {
   const cookieStore = await cookies()
@@ -57,7 +58,6 @@ export default async function PakPassportPage() {
       `
         id,
         tracking_number,
-        has_documents,
         applicants:applicants!applications_applicant_id_fkey(
           id, first_name, last_name, citizen_number, email, phone_number
         ),
@@ -87,12 +87,58 @@ export default async function PakPassportPage() {
     .order('created_at', { ascending: false })
     .limit(10000)
 
-  // Build documentCounts from the has_documents marker stored on each application.
-  // No second query needed — the flag is maintained by the upload/delete APIs.
+  // Documents have historically been owned by an application UUID, its
+  // applicant UUID, or the PKD identifier of a converted draft. Resolve those
+  // server-side aliases so the badge reflects the files the workspace loads.
   const documentCounts: Record<string, number> = {}
-  for (const app of applications || []) {
-    if ((app as { has_documents?: boolean }).has_documents) {
-      documentCounts[app.id] = 1
+  const applicationIds = (applications || []).map((application) => application.id)
+  const scopeOwners = new Map<string, Set<string>>()
+  const registerScope = (scopeId: string | null | undefined, applicationId: string) => {
+    if (!scopeId) return
+    const owners = scopeOwners.get(scopeId) || new Set<string>()
+    owners.add(applicationId)
+    scopeOwners.set(scopeId, owners)
+  }
+
+  for (const application of applications || []) {
+    const applicant = Array.isArray(application.applicants)
+      ? application.applicants[0]
+      : application.applicants
+    registerScope(application.id, application.id)
+    registerScope(applicant?.id, application.id)
+  }
+
+  const serviceSupabase = getServiceSupabaseClient()
+  for (let offset = 0; offset < applicationIds.length; offset += 500) {
+    const { data: convertedDrafts, error: convertedDraftsError } = await serviceSupabase
+      .from('pakistani_passport_drafts')
+      .select('draft_id, converted_application_id')
+      .in('converted_application_id', applicationIds.slice(offset, offset + 500))
+
+    if (convertedDraftsError) throw convertedDraftsError
+
+    for (const draft of convertedDrafts || []) {
+      if (draft.converted_application_id) {
+        registerScope(draft.draft_id, draft.converted_application_id)
+      }
+    }
+  }
+
+  const scopeIds = Array.from(scopeOwners.keys())
+  for (let offset = 0; offset < scopeIds.length; offset += 500) {
+    const { data: documents, error: documentsError } = await serviceSupabase
+      .from('documents')
+      .select('family_head_id')
+      .in('family_head_id', scopeIds.slice(offset, offset + 500))
+      .eq('deleted', false)
+      .neq('category', 'zip-archive')
+
+    if (documentsError) throw documentsError
+
+    for (const document of documents || []) {
+      for (const applicationId of scopeOwners.get(document.family_head_id) || []) {
+        documentCounts[applicationId] = (documentCounts[applicationId] || 0) + 1
+      }
     }
   }
 

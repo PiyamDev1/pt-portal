@@ -1,6 +1,6 @@
 # Document Management Guide
 
-Last verified against the repository: August 12, 2026.
+Last verified against the repository: August 13, 2026.
 
 PT-Portal has two related private-document systems:
 
@@ -18,6 +18,8 @@ The shared `DocumentHub` UI is mounted at:
 - `/dashboard/applications/passports/drafts/[draftId]/documents`.
 
 The scope ID must resolve server-side to an `applicants.id`, `applications.id`, or `pakistani_passport_drafts.draft_id`. Being authenticated is not enough to create an arbitrary storage prefix.
+
+Pakistani passport application reads are compatibility-aware. An application UUID resolves its own uploads, older uploads owned by its applicant UUID, and uploads owned by a PKD draft converted into that exact application. New draft conversions retain the PKD owner and storage prefix, avoiding metadata/object-key drift. The alias relationship is derived from live database records; browsers cannot submit arbitrary related scopes.
 
 ## Operator workflow
 
@@ -68,7 +70,7 @@ Signed URLs last at most ten minutes. Compatibility stream routes return private
 
 ## ZIP archives
 
-`POST /api/documents/zip` creates an archive from the current live records, writes it to primary/fallback storage, and records it as an internal `zip-archive` document. The archive is excluded from normal listings.
+`POST /api/documents/zip` creates an archive from the current live records, including server-resolved Pakistani passport application aliases, writes it to primary/fallback storage, and records it as an internal `zip-archive` document. The archive is excluded from normal listings.
 
 Limits:
 

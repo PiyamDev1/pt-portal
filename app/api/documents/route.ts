@@ -7,7 +7,7 @@ import { NextRequest } from 'next/server'
 import { apiError, apiOk } from '@/lib/api/http'
 import { toErrorMessage } from '@/lib/api/error'
 import { getSupabaseClient } from '@/lib/supabaseClient'
-import { documentScopeExists } from '@/lib/documentAccess'
+import { resolveDocumentScope } from '@/lib/documentAccess'
 import {
   DOCUMENT_PRIVATE_CACHE_HEADERS,
   isValidDocumentScopeId,
@@ -59,7 +59,8 @@ export async function GET(request: NextRequest) {
     if (categoryInput && !category) {
       return apiError('Invalid document category', 400)
     }
-    if (!(await documentScopeExists(familyHeadId))) {
+    const scope = await resolveDocumentScope(familyHeadId)
+    if (!scope.exists) {
       return apiError('Document scope not found', 404)
     }
 
@@ -70,7 +71,7 @@ export async function GET(request: NextRequest) {
         'id, file_name, file_size, file_type, category, uploaded_at, uploaded_by, family_head_id, minio_bucket, minio_key, minio_etag',
         { count: 'exact' },
       )
-      .eq('family_head_id', familyHeadId)
+      .in('family_head_id', scope.scopeIds)
       .eq('deleted', false)
       .neq('category', 'zip-archive') // exclude internal ZIP archives from display
 

@@ -282,7 +282,7 @@ describe('POST /api/passports/pak/drafts', () => {
     expect(body.trackingNumber).toBe('PK-111')
   })
 
-  it('converts a draft and moves draft documents to the real application id', async () => {
+  it('converts a draft while preserving its storage-safe document ownership', async () => {
     const draftLookup = mocks.makeQuery({
       data: {
         id: 'draft-row-1',
@@ -328,9 +328,6 @@ describe('POST /api/passports/pak/drafts', () => {
     const passportInsert = mocks.makeQuery({ data: { id: 'passport-1' }, error: null })
     queue('pakistani_passport_applications', passportInsert)
 
-    const documentsUpdate = mocks.makeQuery({ data: null, error: null })
-    queue('documents', documentsUpdate)
-
     const res = await POST(
       makeRequest({
         action: 'convert',
@@ -355,8 +352,7 @@ describe('POST /api/passports/pak/drafts', () => {
         applicant_id: 'applicant-1',
       }),
     )
-    expect(documentsUpdate.update).toHaveBeenCalledWith({ family_head_id: 'app-1' })
-    expect(documentsUpdate.eq).toHaveBeenCalledWith('family_head_id', 'PKD-ABCDE12345')
+    expect(mocks.from).not.toHaveBeenCalledWith('documents')
     expect(convertedDraft.update).toHaveBeenCalledWith(
       expect.objectContaining({
         status: 'Converted',
