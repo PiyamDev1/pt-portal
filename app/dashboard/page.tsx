@@ -88,7 +88,7 @@ function MobileDashboard({
   )
 
   return (
-    <section className="lg:hidden">
+    <section className="platform-mobile-only">
       <div className="rounded-[2rem] bg-[#4b0f16] p-5 text-white shadow-2xl shadow-red-950/20">
         <div className="flex items-center justify-between gap-4">
           <div>
@@ -190,7 +190,7 @@ function DesktopDashboard({
   branchName?: string | null
 }) {
   return (
-    <section className="hidden space-y-5 lg:block">
+    <section className="platform-desktop-only space-y-5">
       <div className="relative overflow-hidden rounded-[1.5rem] border border-red-100 bg-gradient-to-r from-white via-red-50 to-slate-100 px-5 py-4 shadow-sm">
         <div className="pointer-events-none absolute -right-10 -top-16 h-36 w-36 rounded-full bg-[#8b1e2d]/15 blur-3xl" />
         <div className="relative flex items-center justify-between gap-6">

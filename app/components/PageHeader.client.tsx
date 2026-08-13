@@ -8,10 +8,11 @@
 
 import Link from 'next/link'
 import Image from 'next/image'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 import { useState } from 'react'
 import {
   BadgePoundSterling,
+  ArrowLeft,
   Building2,
   Database,
   FileText,
@@ -24,6 +25,7 @@ import {
   X,
 } from 'lucide-react'
 import LogoutButton from '@/app/dashboard/logout-button.client'
+import { getDashboardParentNavigation } from '@/lib/navigation/dashboardNavigation'
 
 type MenuItem = {
   href: string
@@ -100,15 +102,18 @@ export default function PageHeader({
   role,
   location,
   userId,
-  showBack = false,
+  showBack,
+  backHref,
+  backLabel,
 }: {
   employeeName?: string
   role?: string
   location?: any
   userId?: string
   showBack?: boolean
+  backHref?: string
+  backLabel?: string
 }) {
-  const router = useRouter()
   const pathname = usePathname()
   const [menuOpen, setMenuOpen] = useState(false)
 
@@ -127,11 +132,29 @@ export default function PageHeader({
 
   const pageMenu = PAGE_MENU_ITEMS.find((menu) => pathname.startsWith(menu.match))
   const canSee = (item: MenuItem) => !item.allowedRoles || item.allowedRoles.includes(role || '')
+  const inferredParent = getDashboardParentNavigation(pathname)
+  const parentNavigation = backHref
+    ? { href: backHref, label: backLabel || 'Previous page' }
+    : inferredParent
+  const displayBack = (showBack ?? true) && parentNavigation
 
   return (
     <>
-      <nav className="fixed inset-x-0 top-0 z-40 flex items-center justify-between border-b border-slate-200 bg-white/95 px-2.5 py-2.5 shadow-sm backdrop-blur sm:px-6 sm:py-4 lg:static lg:bg-white">
+      <nav className="portal-header fixed inset-x-0 top-0 z-40 flex items-center justify-between border-b border-slate-200 bg-white/95 px-2.5 py-2.5 shadow-sm backdrop-blur sm:px-6 sm:py-4 lg:static lg:bg-white">
         <div className="flex min-w-0 items-center gap-2 sm:gap-4">
+          {displayBack && (
+            <Link
+              href={parentNavigation.href}
+              aria-label={`Back to ${parentNavigation.label}`}
+              title={`Back to ${parentNavigation.label}`}
+              className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-xl border border-red-100 bg-red-50 px-2.5 text-sm font-black text-[#8b1e2d] shadow-sm transition hover:border-red-200 hover:bg-red-100 hover:text-[#4b0f16] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b1e2d] focus-visible:ring-offset-2 sm:h-10 sm:px-3"
+            >
+              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+              <span className="platform-mobile-only">Back</span>
+              <span className="platform-desktop-only">Back to {parentNavigation.label}</span>
+            </Link>
+          )}
+
           <Link
             href="/dashboard"
             className="flex shrink-0 cursor-pointer items-center gap-2 transition hover:opacity-80"
@@ -157,20 +180,12 @@ export default function PageHeader({
               {location?.branch_code ? `(${location.branch_code})` : ''}
             </p>
           </div>
-          {showBack && (
-            <button
-              onClick={() => router.back()}
-              className="hidden text-sm font-medium text-[#8b1e2d] hover:text-[#4b0f16] sm:ml-4 sm:flex sm:items-center sm:gap-1"
-            >
-              ← Back
-            </button>
-          )}
         </div>
 
         <div className="flex shrink-0 items-center gap-2 sm:gap-4">
           <Link
             href="/dashboard/settings"
-            className="group relative hidden cursor-pointer items-center gap-3 transition hover:opacity-80 sm:flex"
+            className="platform-desktop-flex group relative cursor-pointer items-center gap-3 transition hover:opacity-80"
           >
             <div className="select-none text-right">
               <p className="text-sm font-medium text-slate-900">{employeeName}</p>
@@ -196,15 +211,15 @@ export default function PageHeader({
             </div>
           </Link>
 
-          <div className="mx-2 hidden h-8 w-px bg-slate-200 sm:block"></div>
-          <div className="hidden sm:block">
+          <div className="platform-desktop-only mx-2 h-8 w-px bg-slate-200"></div>
+          <div className="platform-desktop-only">
             <LogoutButton />
           </div>
 
           <button
             type="button"
             onClick={() => setMenuOpen((current) => !current)}
-            className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-800 shadow-sm sm:hidden"
+            className="platform-mobile-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-800 shadow-sm"
             aria-label={menuOpen ? 'Close mobile menu' : 'Open mobile menu'}
             aria-expanded={menuOpen}
           >
@@ -214,7 +229,7 @@ export default function PageHeader({
       </nav>
 
       {menuOpen && (
-        <div className="fixed inset-x-0 top-[3.55rem] z-40 border-b border-slate-200 bg-white p-3 shadow-xl sm:hidden">
+        <div className="platform-mobile-only fixed inset-x-0 top-[3.55rem] z-40 border-b border-slate-200 bg-white p-3 shadow-xl">
           <div className="rounded-2xl bg-[#4b0f16] p-4 text-white">
             <p className="text-sm font-black">{employeeName || 'Portal user'}</p>
             <p className="mt-1 text-xs text-red-100">

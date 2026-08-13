@@ -1,6 +1,6 @@
 # Usage Guide
 
-Last verified against the repository: August 12, 2026.
+Last verified against the repository: August 13, 2026.
 
 PT-Portal is an internal operations application. Navigation and available actions depend on the signed-in employee's role, departments, location, and feature-specific permissions.
 
@@ -12,11 +12,20 @@ The interface uses in-app dialogs for decisions and Sonner toast notifications f
 
 The browser SDK refreshes an eligible Supabase session. When it can no longer do so, return to login; there is no separate session-expiry countdown warning. Account settings include passkeys, 2FA/backup codes, and recent-session revocation.
 
+## Computer and mobile presentation
+
+The portal chooses its presentation from the device operating system rather than reported pixel resolution:
+
+- Windows, macOS, Linux, ChromeOS, and unknown desktop clients use the full webpage layout. A 1280 × 800 Windows office monitor therefore keeps the desktop header and dashboard.
+- Android and iOS/iPadOS use the mobile app layout, including the compact header, mobile dashboard, touch sizing, and fixed bottom navigation. High-resolution phones and tablets remain in this mode even if their reported display width resembles a computer monitor.
+
+The mode is selected before the page renders and applies throughout authenticated dashboard routes. Resizing a desktop browser does not turn it into the mobile app, and widening or rotating a phone does not turn it into the desktop portal.
+
 ## Dashboard and personal modules
 
 The dashboard presents enabled modules and a notice board. A user can personalize dashboard module visibility; administrators manage shared notice slides. Common routes include Applications, Bookings, Packages, LMS, Accounting, Pricing, Timeclock, Training, Employee Module, Settings, and Account.
 
-Ticketing and Commissions currently show coming-soon pages. Do not treat their database tables or historical plans as a finished operator workflow.
+Ticketing currently provides a front-end workspace with placeholder Refund Calculator and Ticketing Ledger submodules, an empty upcoming-flight overview, and the planned mark/review/finalise schedule-change flow. It does not yet read or write ticketing records. Commissions remains a coming-soon page. Do not treat these placeholders, database tables, or historical plans as a finished operator workflow.
 
 ## Applications and receipts
 

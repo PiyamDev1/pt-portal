@@ -1,6 +1,6 @@
 # Architecture Guide
 
-Last verified against the repository: August 12, 2026.
+Last verified against the repository: August 13, 2026.
 
 ## System shape
 
@@ -43,6 +43,8 @@ Keep a helper feature-local until more than one consumer needs it. Shared server
 
 The root layout installs the progress bar, Sonner toaster, global footer, issue reporter, Web Vitals/API-latency reporters, PWA install UI, and service-worker registration. Dashboard pages are predominantly server entry points with client components for interaction.
 
+The root layout also selects presentation from the request operating system before rendering. Android and iOS/iPadOS receive `data-device-layout="mobile"` plus a bounded app viewport, so high-resolution phones and tablets stay on the mobile shell and mobile Tailwind breakpoints. Windows, macOS, Linux, ChromeOS, and unknown desktop clients receive `data-device-layout="desktop"` with the real browser width. Shared visibility utilities (`platform-mobile-*` and `platform-desktop-*`) control the header, dashboard launcher, notice board, and bottom navigation without a client-side layout flash. `lib/deviceLayout.ts` is the single OS-classification source; do not introduce page-local width or user-agent checks for layout selection.
+
 Protected dashboard pages perform their own server-side session/data checks. `proxy.ts` is not the authentication boundary: it only propagates or creates `x-request-id` for API correlation. Sensitive abuse controls live in route handlers and PostgreSQL so they work across instances.
 
 Use:
@@ -53,6 +55,12 @@ Use:
 - `ModalBase` for accessible modal shells with Escape handling, focus trap/restoration, backdrop behavior, and scroll locking.
 
 Native `window.alert`, `window.confirm`, and `window.prompt` are not application UI. Browser-owned PWA install and permission APIs are launched from explicit app controls.
+
+### Dashboard navigation
+
+Dashboard return controls follow the route hierarchy, not browser history. The shared `PageHeader` uses `getDashboardParentNavigation()` from `lib/navigation/dashboardNavigation.ts` to show a parent-directory link on every non-root dashboard page. For example, Pakistani Passports returns to the Applications hub even if the user arrived from a notification, refresh, or unrelated cached page.
+
+Deep routes whose immediate URL directory is not itself a page have explicit mappings, including application documents, passport drafts, LMS statements, package groups, and package quotation modes. New dashboard routes should either sit beneath a real index page or add an explicit parent rule and regression case. Use `backHref`/`backLabel` only when a page needs to override the central route map. Do not use `router.back()` or `window.history` for portal direction controls.
 
 ## Authentication and authorization
 
@@ -105,6 +113,7 @@ Use PostgreSQL functions for atomic multi-record invariants. LMS ledger writes a
 - Applications: NADRA, Pakistani passport drafts/submissions, GB passports, visas, notes, assignments, status history, complaints, refunds, custody, and receipts.
 - Accounting/LMS: application reports, customer accounts, ledger entries, fees, payments, installments, notes, methods, audit, and statements.
 - Bookings: branch/service schedules, availability, appointments, drafts, waitlist, reminders, attendance, no-shows, preferences, export/report, and audit history.
+- Ticketing: UI-only module shell for the future Refund Calculator, Ticketing Ledger, upcoming flights, and mark/review/finalise schedule-change flow. No ticketing persistence or API integration is active yet.
 - Travel packages: quote/share/selection, operational folders, groups, reservations, passengers, documents, invoices, payments/refunds/installments, vouchers, responsibilities, workflow risks, migration, and customer portals. See [Travel Packages](TRAVEL_PACKAGES_GUIDE.md).
 - Staff/operations: settings, roles/departments, security, notices, issue reports, server control, timeclock devices/events/manual codes, training, and Frappe transfer.
 

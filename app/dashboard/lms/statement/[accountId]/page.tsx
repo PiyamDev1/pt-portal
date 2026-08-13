@@ -15,6 +15,7 @@ import { TransactionTable } from '../components/TransactionTable'
 import { StatementTotals } from '../components/StatementTotals'
 import { StatementActions } from '../components/StatementActions'
 import { StatementPrintStyles } from '../components/StatementPrintStyles'
+import DashboardClientWrapper from '@/app/dashboard/client-wrapper'
 
 export default function StatementPage() {
   const params = useParams()
@@ -26,55 +27,61 @@ export default function StatementPage() {
 
   if (loading)
     return (
-      <div className="p-12 text-center text-slate-400" role="status" aria-live="polite">
-        Loading statement...
-      </div>
+      <DashboardClientWrapper>
+        <div className="p-12 text-center text-slate-400" role="status" aria-live="polite">
+          Loading statement...
+        </div>
+      </DashboardClientWrapper>
     )
   if (!account)
     return (
-      <div className="p-12 text-center text-slate-400" role="alert" aria-live="assertive">
-        Account not found
-      </div>
+      <DashboardClientWrapper>
+        <div className="p-12 text-center text-slate-400" role="alert" aria-live="assertive">
+          Account not found
+        </div>
+      </DashboardClientWrapper>
     )
 
   return (
-    <div className="min-h-screen bg-white">
-      <StatementHeader accountId={accountId} />
+    <DashboardClientWrapper>
+      <div className="min-h-screen bg-white">
+        <StatementHeader accountId={accountId} />
 
-      {/* Print-Friendly Container */}
-      <div className="max-w-4xl mx-auto p-6 space-y-6 print:p-0 print:space-y-4">
-        <CustomerInfoSection account={account} />
-        <TransactionFilters
-          filter={filter}
-          setFilter={setFilter}
-          handleDateInput={handleDateInput}
-        />
-        <TransactionTable
-          filteredTransactions={filteredTransactions}
-          account={account}
-          installmentsByTransaction={installmentsByTransaction}
-        />
-        <StatementTotals
-          totals={totals}
-          account={account}
-          hasTransactions={filteredTransactions.length > 0}
-        />
+        {/* Print-Friendly Container */}
+        <div className="max-w-4xl mx-auto p-6 space-y-6 print:p-0 print:space-y-4">
+          <CustomerInfoSection account={account} />
+          <TransactionFilters
+            filter={filter}
+            setFilter={setFilter}
+            handleDateInput={handleDateInput}
+          />
+          <TransactionTable
+            filteredTransactions={filteredTransactions}
+            account={account}
+            installmentsByTransaction={installmentsByTransaction}
+          />
+          <StatementTotals
+            totals={totals}
+            account={account}
+            hasTransactions={filteredTransactions.length > 0}
+          />
 
-        {/* Disclaimer Note */}
-        <div className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded print:bg-amber-50 print:border-l-2 print:p-3 print:rounded-none">
-          <p className="text-sm text-amber-900 font-semibold mb-1 print:text-xs print:mb-0.5">
-            Important Notice
-          </p>
-          <p className="text-sm text-amber-800 print:text-xs print:leading-tight">
-            This is not an invoice but a balance statement of your transactions with us. For
-            specific detailed transaction information, please get in contact with our office.
-          </p>
+          {/* Disclaimer Note */}
+          <div className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded print:bg-amber-50 print:border-l-2 print:p-3 print:rounded-none">
+            <p className="text-sm text-amber-900 font-semibold mb-1 print:text-xs print:mb-0.5">
+              Important Notice
+            </p>
+            <p className="text-sm text-amber-800 print:text-xs print:leading-tight">
+              This is not an invoice but a balance statement of your transactions with us. For
+              specific detailed transaction information, please get in contact with our office.
+            </p>
+          </div>
+
+          <StatementActions filteredTransactions={filteredTransactions} accountId={accountId} />
         </div>
 
-        <StatementActions filteredTransactions={filteredTransactions} accountId={accountId} />
+        <StatementPrintStyles />
       </div>
-
-      <StatementPrintStyles />
-    </div>
+    </DashboardClientWrapper>
   )
 }

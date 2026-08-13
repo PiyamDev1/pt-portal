@@ -6,6 +6,7 @@
  */
 
 import type { Metadata, Viewport } from 'next'
+import { headers } from 'next/headers'
 import { Toaster } from 'sonner'
 import { ProgressBarProvider } from './components/ProgressBarProvider'
 import { WebVitalsReporter } from './components/WebVitalsReporter'
@@ -14,6 +15,7 @@ import { GlobalFooter } from './components/GlobalFooter'
 import { IssueReporterWidget } from './components/IssueReporterWidget'
 import { PWAInstallPrompt } from './components/PWAInstallPrompt'
 import { ServiceWorkerRegistrar } from './components/ServiceWorkerRegistrar'
+import { detectDeviceLayout } from '@/lib/deviceLayout'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -62,13 +64,32 @@ export const metadata: Metadata = {
   },
 }
 
-export const viewport: Viewport = {
-  themeColor: '#064e3b',
+async function requestDeviceLayout() {
+  const requestHeaders = await headers()
+  return detectDeviceLayout({
+    userAgent: requestHeaders.get('user-agent'),
+    platformHint: requestHeaders.get('sec-ch-ua-platform'),
+  })
 }
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export async function generateViewport(): Promise<Viewport> {
+  const deviceLayout = await requestDeviceLayout()
+  return {
+    // A fixed app viewport keeps high-resolution Android/iOS tablets and phones
+    // on the same mobile breakpoints. Desktop operating systems retain their
+    // actual browser width, including the office's 1280px displays.
+    width: deviceLayout === 'mobile' ? 430 : 'device-width',
+    initialScale: 1,
+    viewportFit: 'cover',
+    themeColor: '#064e3b',
+  }
+}
+
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const deviceLayout = await requestDeviceLayout()
+
   return (
-    <html lang="en" dir="ltr">
+    <html lang="en" dir="ltr" data-device-layout={deviceLayout}>
       <body className="flex flex-col min-h-screen">
         <ProgressBarProvider />
         <div className="flex-grow">{children}</div>

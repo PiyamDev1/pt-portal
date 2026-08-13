@@ -20,6 +20,9 @@ import { toast } from 'sonner'
 import { ConfirmationDialog } from '@/components/ConfirmationDialog'
 import type { User } from '@supabase/supabase-js'
 import { PasskeySettingsPanel } from './PasskeySettingsPanel'
+import Link from 'next/link'
+import { ArrowLeft } from 'lucide-react'
+import DashboardClientWrapper from '@/app/dashboard/client-wrapper'
 
 export default function MyAccountPage() {
   const [user, setUser] = useState<User | null>(null)
@@ -220,11 +223,26 @@ export default function MyAccountPage() {
     }
   }
 
-  if (!user) return <div className="p-8">Loading...</div>
+  if (!user) {
+    return (
+      <DashboardClientWrapper>
+        <div className="p-8" role="status" aria-live="polite">
+          Loading account...
+        </div>
+      </DashboardClientWrapper>
+    )
+  }
 
   return (
-    <>
+    <DashboardClientWrapper>
       <div className="max-w-4xl mx-auto p-6 space-y-8">
+        <Link
+          href="/dashboard"
+          className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
+        >
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+          Back to Dashboard
+        </Link>
         <h1 className="text-2xl font-bold text-slate-800">My Account Settings</h1>
 
         {/* 1. PASSWORD SECTION */}
@@ -404,6 +422,6 @@ export default function MyAccountPage() {
           </p>
         </div>
       </ConfirmationDialog>
-    </>
+    </DashboardClientWrapper>
   )
 }

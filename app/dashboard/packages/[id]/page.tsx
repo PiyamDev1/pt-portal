@@ -5,6 +5,7 @@ import PageHeader from '@/app/components/PageHeader.client'
 import type { PackageEmployeeOption } from './packageOverviewTypes'
 import PackageOverviewClient from './PackageOverviewClient'
 import { getPackagePageHeader } from '../packagePageHeader'
+import DashboardClientWrapper from '@/app/dashboard/client-wrapper'
 
 export const metadata = {
   title: 'Package Folder - PT Portal',
@@ -56,17 +57,19 @@ export default async function TravelPackageFolderPage({
   const employees = (employeeRows || []) as PackageEmployeeOption[]
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-950">
-      <PageHeader
-        employeeName={header.employeeName}
-        role={header.role}
-        location={header.location}
-        userId={session.user.id}
-      />
+    <DashboardClientWrapper>
+      <div className="min-h-screen bg-slate-50 text-slate-950">
+        <PageHeader
+          employeeName={header.employeeName}
+          role={header.role}
+          location={header.location}
+          userId={session.user.id}
+        />
 
-      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-        <PackageOverviewClient packageId={id} employees={employees} />
-      </main>
-    </div>
+        <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+          <PackageOverviewClient packageId={id} employees={employees} />
+        </main>
+      </div>
+    </DashboardClientWrapper>
   )
 }

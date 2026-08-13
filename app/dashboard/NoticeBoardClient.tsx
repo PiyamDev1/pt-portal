@@ -43,7 +43,7 @@ export function NoticeBoardClient({
 
         if (showMobilePopup && nextSlides.length > 0 && typeof window !== 'undefined') {
           const seen = window.sessionStorage.getItem('ims-notice-board-seen')
-          const mobile = window.matchMedia('(max-width: 1023px)').matches
+          const mobile = document.documentElement.dataset.deviceLayout === 'mobile'
           if (mobile && !seen) setShowMobileNotice(true)
         }
       })
@@ -141,7 +141,7 @@ export function NoticeBoardClient({
   return (
     <>
       {showDesktopRail && (
-        <aside className="hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm lg:block">
+        <aside className="platform-desktop-only rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="mb-4 flex items-center justify-between">
             <div>
               <h2 className="text-base font-black text-slate-950">Notice board</h2>
@@ -179,7 +179,7 @@ export function NoticeBoardClient({
       )}
 
       {showMobileNotice && slide && (
-        <div className="fixed inset-0 z-50 flex items-end bg-slate-950/45 p-4 backdrop-blur-sm lg:hidden">
+        <div className="platform-mobile-flex fixed inset-0 z-50 items-end bg-slate-950/45 p-4 backdrop-blur-sm">
           <div className="w-full rounded-[1.5rem] bg-white p-4 shadow-2xl">
             <div className="mb-3 flex items-center justify-between">
               <p className="text-xs font-black uppercase tracking-[0.18em] text-[#8b1e2d]">

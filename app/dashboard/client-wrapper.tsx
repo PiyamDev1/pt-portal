@@ -24,7 +24,7 @@ function MobileDashboardNav() {
   const pathname = usePathname()
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-2 pb-[calc(env(safe-area-inset-bottom)+0.45rem)] pt-2 shadow-[0_-12px_40px_-28px_rgba(15,23,42,0.55)] backdrop-blur lg:hidden">
+    <nav className="platform-mobile-only fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-2 pb-[calc(env(safe-area-inset-bottom)+0.45rem)] pt-2 shadow-[0_-12px_40px_-28px_rgba(15,23,42,0.55)] backdrop-blur print:hidden">
       <div className="mx-auto grid max-w-md grid-cols-5 gap-1">
         {MOBILE_NAV_ITEMS.map((item) => {
           const Icon = item.icon

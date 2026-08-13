@@ -4,6 +4,7 @@ import { createServerClient } from '@supabase/auth-helpers-nextjs'
 import PageHeader from '@/app/components/PageHeader.client'
 import PackagesClient from '../../../PackagesClient'
 import { getPackagePageHeader } from '../../../packagePageHeader'
+import DashboardClientWrapper from '@/app/dashboard/client-wrapper'
 
 export const metadata = {
   title: 'Edit Package Quote - PT Portal',
@@ -49,17 +50,19 @@ export default async function EditPackageQuotationPage({
   )
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-950">
-      <PageHeader
-        employeeName={header.employeeName}
-        role={header.role}
-        location={header.location}
-        userId={session.user.id}
-      />
+    <DashboardClientWrapper>
+      <div className="min-h-screen bg-slate-50 text-slate-950">
+        <PageHeader
+          employeeName={header.employeeName}
+          role={header.role}
+          location={header.location}
+          userId={session.user.id}
+        />
 
-      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-        <PackagesClient currentUserId={session.user.id} initialQuoteId={id} />
-      </main>
-    </div>
+        <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+          <PackagesClient currentUserId={session.user.id} initialQuoteId={id} />
+        </main>
+      </div>
+    </DashboardClientWrapper>
   )
 }

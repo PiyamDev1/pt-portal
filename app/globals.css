@@ -81,81 +81,101 @@ html {
   }
 }
 
-@media (max-width: 1023px) {
-  .dashboard-mobile-shell {
-    min-height: 100vh;
-    background: #f5f5f5;
-    padding-top: 3.55rem;
-  }
+/* Device presentation is selected from the request operating system. */
+.platform-mobile-only,
+.platform-mobile-flex,
+.platform-desktop-only,
+.platform-desktop-flex {
+  display: none !important;
+}
 
-  .dashboard-mobile-shell main {
-    width: 100%;
-    max-width: 100%;
-    padding: 1rem !important;
-    padding-bottom: calc(5.5rem + env(safe-area-inset-bottom)) !important;
-  }
+html[data-device-layout='mobile'] .platform-mobile-only,
+html[data-device-layout='desktop'] .platform-desktop-only {
+  display: block !important;
+}
 
-  .dashboard-mobile-shell h1 {
-    font-size: clamp(1.35rem, 6vw, 1.85rem);
-    line-height: 1.1;
-  }
+html[data-device-layout='mobile'] .platform-mobile-flex,
+html[data-device-layout='desktop'] .platform-desktop-flex {
+  display: flex !important;
+}
 
-  .dashboard-mobile-shell .sticky {
-    top: 4.25rem;
-  }
+html[data-device-layout='desktop'] .portal-header {
+  position: static !important;
+}
 
-  .dashboard-mobile-shell input,
-  .dashboard-mobile-shell select,
-  .dashboard-mobile-shell textarea {
-    min-height: 2.75rem;
-    font-size: 16px;
-  }
+html[data-device-layout='mobile'] .dashboard-mobile-shell {
+  min-height: 100vh;
+  background: #f5f5f5;
+  padding-top: 3.55rem;
+}
 
-  .dashboard-mobile-shell button,
-  .dashboard-mobile-shell a {
-    -webkit-tap-highlight-color: transparent;
-  }
+html[data-device-layout='mobile'] .dashboard-mobile-shell main {
+  width: 100%;
+  max-width: 100%;
+  padding: 1rem !important;
+  padding-bottom: calc(5.5rem + env(safe-area-inset-bottom)) !important;
+}
 
-  .dashboard-mobile-shell table {
-    display: block;
-    width: 100%;
-    overflow-x: auto;
-    white-space: nowrap;
-    -webkit-overflow-scrolling: touch;
-  }
+html[data-device-layout='mobile'] .dashboard-mobile-shell h1 {
+  font-size: clamp(1.35rem, 6vw, 1.85rem);
+  line-height: 1.1;
+}
 
-  .dashboard-mobile-shell thead,
-  .dashboard-mobile-shell tbody,
-  .dashboard-mobile-shell tr {
-    min-width: max-content;
-  }
+html[data-device-layout='mobile'] .dashboard-mobile-shell .sticky {
+  top: 4.25rem;
+}
 
-  .dashboard-mobile-shell th,
-  .dashboard-mobile-shell td {
-    white-space: nowrap;
-  }
+html[data-device-layout='mobile'] .dashboard-mobile-shell input,
+html[data-device-layout='mobile'] .dashboard-mobile-shell select,
+html[data-device-layout='mobile'] .dashboard-mobile-shell textarea {
+  min-height: 2.75rem;
+  font-size: 16px;
+}
 
-  .dashboard-mobile-shell [class*='max-w-7xl'],
-  .dashboard-mobile-shell [class*='max-w-6xl'],
-  .dashboard-mobile-shell [class*='max-w-5xl'],
-  .dashboard-mobile-shell [class*='max-w-4xl'] {
-    max-width: 100% !important;
-  }
+html[data-device-layout='mobile'] .dashboard-mobile-shell button,
+html[data-device-layout='mobile'] .dashboard-mobile-shell a {
+  -webkit-tap-highlight-color: transparent;
+}
 
-  .dashboard-mobile-shell [class*=' p-6'],
-  .dashboard-mobile-shell [class^='p-6'],
-  .dashboard-mobile-shell [class*=' px-6'],
-  .dashboard-mobile-shell [class^='px-6'] {
-    padding-left: 1rem;
-    padding-right: 1rem;
-  }
+html[data-device-layout='mobile'] .dashboard-mobile-shell table {
+  display: block;
+  width: 100%;
+  overflow-x: auto;
+  white-space: nowrap;
+  -webkit-overflow-scrolling: touch;
+}
 
-  .dashboard-mobile-shell [class*='gap-8'] {
-    gap: 1rem;
-  }
+html[data-device-layout='mobile'] .dashboard-mobile-shell thead,
+html[data-device-layout='mobile'] .dashboard-mobile-shell tbody,
+html[data-device-layout='mobile'] .dashboard-mobile-shell tr {
+  min-width: max-content;
+}
 
-  .dashboard-mobile-shell [class*='rounded-\\[2rem\\]'],
-  .dashboard-mobile-shell [class*='rounded-\\[28px\\]'] {
-    border-radius: 1.35rem;
-  }
+html[data-device-layout='mobile'] .dashboard-mobile-shell th,
+html[data-device-layout='mobile'] .dashboard-mobile-shell td {
+  white-space: nowrap;
+}
+
+html[data-device-layout='mobile'] .dashboard-mobile-shell [class*='max-w-7xl'],
+html[data-device-layout='mobile'] .dashboard-mobile-shell [class*='max-w-6xl'],
+html[data-device-layout='mobile'] .dashboard-mobile-shell [class*='max-w-5xl'],
+html[data-device-layout='mobile'] .dashboard-mobile-shell [class*='max-w-4xl'] {
+  max-width: 100% !important;
+}
+
+html[data-device-layout='mobile'] .dashboard-mobile-shell [class*=' p-6'],
+html[data-device-layout='mobile'] .dashboard-mobile-shell [class^='p-6'],
+html[data-device-layout='mobile'] .dashboard-mobile-shell [class*=' px-6'],
+html[data-device-layout='mobile'] .dashboard-mobile-shell [class^='px-6'] {
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+html[data-device-layout='mobile'] .dashboard-mobile-shell [class*='gap-8'] {
+  gap: 1rem;
+}
+
+html[data-device-layout='mobile'] .dashboard-mobile-shell [class*='rounded-\\[2rem\\]'],
+html[data-device-layout='mobile'] .dashboard-mobile-shell [class*='rounded-\\[28px\\]'] {
+  border-radius: 1.35rem;
 }
