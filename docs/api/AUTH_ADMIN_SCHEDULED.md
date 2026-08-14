@@ -661,19 +661,22 @@ Creates a notice-board slide.
 **Access:** Active maintenance-role session. Shared notice mutation limit: 30 requests per actor and
 IP per hour. No fresh factor.
 
-**Input:** Strict JSON, maximum 16 KiB. Every field is required: `title` (string, max 120), `body`
-(string, max 500), `image_url` (string, max 1,000), `image_storage_provider` (string, max 40),
-`image_storage_bucket` (string, max 200), `image_storage_key` (string, max 1,000), `hyperlink_url`
-(string, max 1,000), `display_seconds` (finite number, 2–60), `sort_order` (finite number,
--100,000–100,000), `is_active` (boolean), `target_role` (string, max 120),
-`target_department_id` (string, max 200), and `target_location_id` (string, max 200). Empty strings
-are stored as `null`; numeric sanitization defaults a falsey duration to 6 and sort order to 0.
+**Input:** Strict JSON, maximum 16 KiB. At least one of `title`, `body`, or `image_url` must be
+non-empty. Optional fields/defaults are: `title` (string, max 120, `""`), `body` (string, max 500,
+`""`), `image_url` (HTTP/HTTPS or internal path, max 1,000, `""`),
+`image_storage_provider` (`"" | minio | r2`), `image_storage_bucket` (string, max 200),
+`image_storage_key` (string, max 1,000), `hyperlink_url` (HTTP/HTTPS or internal path, max 1,000),
+`display_seconds` (finite number, 2–60, default 6), `sort_order` (finite number,
+-100,000–100,000, default 0), `is_active` (boolean, default true), `target_role` (string, max 120),
+and department/location targets (`""` or UUID). A stored image must provide provider, bucket, and a
+`notice-board/` key together. Empty strings are stored as `null`.
 
 **Success:** `201` `{ "slide": NoticeBoardSlideRow }`. Stores creator/update timestamps. Not
 idempotent; identical retries create additional slides.
 
-**Errors:** `400` missing/invalid/extra field; `401` unauthenticated; `403` wrong role; `429`
-limited; `500` database failure.
+**Errors:** `400` empty notice, unsafe URL, incomplete storage metadata, or invalid/extra field;
+`401` unauthenticated; `403` wrong role; `409` stale targeting reference; `429` limited; `500`
+database failure (with request ID).
 
 ```json
 {
@@ -700,15 +703,17 @@ Replaces the editable fields of one notice-board slide.
 **Access:** Active maintenance-role session. Shared notice mutation limit: 30 requests per actor and
 IP per hour. No fresh factor.
 
-**Input:** Strict JSON, maximum 16 KiB: `id` (required trimmed string, 1–200) plus every slide field
-and constraint listed for the create route. This is replacement-like rather than a sparse patch;
-omitting any slide field is invalid.
+**Input:** Strict JSON, maximum 16 KiB: `id` (required trimmed string, 1–200) plus the create-route
+fields and constraints. This is replacement-like rather than a sparse patch: omitted editable
+fields receive their documented defaults, so callers should send the complete intended state.
 
-**Success:** `200` `{ "slide": NoticeBoardSlideRow }`. Updates `updated_at`; repeating can change
-that timestamp even when content is unchanged.
+**Success:** `200` `{ "slide": NoticeBoardSlideRow }`. Updates `updated_at`; when the stored image
+key changes, the superseded private object is deleted on a best-effort basis. Repeating can change
+the timestamp even when content is unchanged.
 
-**Errors:** `400` invalid/partial/extra body; `401` unauthenticated; `403` wrong role; `429` limited;
-`500` missing row or database update failure (the route does not map missing rows to `404`).
+**Errors:** `400` empty notice, unsafe URL, incomplete storage metadata, or invalid/extra body;
+`401` unauthenticated; `403` wrong role; `404` missing slide; `409` stale targeting reference; `429`
+limited; `500` database update failure (with request ID).
 
 ### DELETE `/api/admin/notice-board`
 
@@ -719,8 +724,9 @@ IP per hour. No fresh factor.
 
 **Input:** Strict JSON, maximum 4 KiB: `id` (required trimmed string, 1–200). No extra fields.
 
-**Success:** `200` `{ "ok": true }`. Deleting a nonexistent ID also returns success, so repeats are
-effectively idempotent.
+**Success:** `200` `{ "ok": true }`. The associated managed image object is deleted on a
+best-effort basis after the database row; deleting a nonexistent ID also returns success, so
+repeats are effectively idempotent.
 
 **Errors:** `400` invalid body; `401` unauthenticated; `403` wrong role; `429` limited; `500`
 database failure.
@@ -739,10 +745,13 @@ and detected signature must agree; no other form field is used.
 
 **Success:** `200` `{ "imageUrl": string, "image_storage_provider": "minio"|"r2",
 "image_storage_bucket": string, "image_storage_key": string, "fileName": string, "fileType":
-string }`. Writes a unique object key; retries create additional objects and are not idempotent.
+string }`. `imageUrl` contains only the encoded object key; the read route derives storage details
+from the saved slide. Writes a unique object key; retries create additional objects and are not
+idempotent.
 
 **Errors:** `400` missing/empty/invalid form file; `401` unauthenticated; `403` wrong role; `413`
-oversize; `415` unsupported/mismatched content; `429` limited; `500` storage/internal failure.
+oversize; `415` unsupported/mismatched content; `429` limited; `503` storage unavailable (generic
+message with request ID).
 
 ```bash
 curl -X POST -b 'portal-session=...' -F 'file=@notice.webp;type=image/webp' \

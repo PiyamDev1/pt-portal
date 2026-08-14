@@ -1,0 +1,48 @@
+import { fireEvent, render, screen } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const mocks = vi.hoisted(() => ({ pathname: '/dashboard/applications/passports' }))
+
+vi.mock('next/navigation', () => ({
+  usePathname: () => mocks.pathname,
+}))
+
+vi.mock('next/image', () => ({
+  default: (props: React.ImgHTMLAttributes<HTMLImageElement> & { priority?: boolean }) => {
+    const { priority: _priority, ...imageProps } = props
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img {...imageProps} alt={imageProps.alt || ''} />
+  },
+}))
+
+vi.mock('@/app/dashboard/logout-button.client', () => ({
+  default: () => <button type="button">Sign out</button>,
+}))
+
+import PageHeader from '@/app/components/PageHeader.client'
+
+describe('PageHeader', () => {
+  beforeEach(() => {
+    mocks.pathname = '/dashboard/applications/passports'
+  })
+
+  it('places stable parent navigation immediately after the logo link', () => {
+    render(<PageHeader employeeName="Amina" role="Admin" location={{ name: 'Bradford' }} />)
+
+    const links = screen.getAllByRole('link')
+    expect(links[0].getAttribute('href')).toBe('/dashboard')
+    expect(links[1].getAttribute('href')).toBe('/dashboard/applications')
+    expect(links[1].getAttribute('aria-label')).toBe('Back to Applications')
+  })
+
+  it('keeps mobile settings navigation available to Super Admins', () => {
+    mocks.pathname = '/dashboard/settings'
+    render(<PageHeader employeeName="Amina" role="Super Admin" location={{ name: 'Bradford' }} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open mobile menu' }))
+
+    expect(screen.getByRole('link', { name: 'Notice Board' }).getAttribute('href')).toBe(
+      '/dashboard/settings?tab=notice-board',
+    )
+  })
+})

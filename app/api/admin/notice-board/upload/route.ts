@@ -11,8 +11,8 @@ import { getS3Client } from '@/lib/s3Client'
 import { getR2Client, isR2Configured } from '@/lib/r2Client'
 import { apiError, apiOk } from '@/lib/api/http'
 import { parseMultipartFormDataWithLimit } from '@/lib/api/request'
-import { toErrorMessage } from '@/lib/api/error'
 import { requireMaintenanceSession } from '@/lib/adminSessionAuth'
+import { reportOperationalError, responseWithRequestId } from '@/lib/observability/server'
 import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
 import { isUploadedFile, validateImageUpload } from '@/lib/documentSecurity'
 
@@ -64,6 +64,7 @@ export async function POST(request: NextRequest) {
           Bucket: MINIO_BUCKET,
           Key: key,
           Body: buffer,
+          ContentLength: buffer.length,
           ContentType: fileType,
         }),
       )
@@ -74,6 +75,7 @@ export async function POST(request: NextRequest) {
           Bucket: R2_BUCKET,
           Key: key,
           Body: buffer,
+          ContentLength: buffer.length,
           ContentType: fileType,
         }),
       )
@@ -81,7 +83,7 @@ export async function POST(request: NextRequest) {
       bucket = R2_BUCKET
     }
 
-    const imageUrl = `/api/dashboard/notice-board/image?provider=${provider}&bucket=${encodeURIComponent(bucket)}&key=${encodeURIComponent(key)}`
+    const imageUrl = `/api/dashboard/notice-board/image?key=${encodeURIComponent(key)}`
 
     return apiOk({
       imageUrl,
@@ -92,6 +94,15 @@ export async function POST(request: NextRequest) {
       fileType,
     })
   } catch (error) {
-    return apiError(toErrorMessage(error, 'Failed to upload notice image'), 500)
+    const requestId = await reportOperationalError({
+      event: 'notice_board.image_upload_failed',
+      request,
+      error,
+      context: { userId: access.user.id },
+    })
+    return responseWithRequestId(
+      apiError('Notice image storage is temporarily unavailable', 503),
+      requestId,
+    )
   }
 }

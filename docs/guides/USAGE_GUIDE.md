@@ -1,6 +1,6 @@
 # Usage Guide
 
-Last verified against the repository: August 13, 2026.
+Last verified against the repository: August 14, 2026.
 
 PT-Portal is an internal operations application. Navigation and available actions depend on the signed-in employee's role, departments, location, and feature-specific permissions.
 
@@ -21,9 +21,11 @@ The portal chooses its presentation from the device operating system rather than
 
 The mode is selected before the page renders and applies throughout authenticated dashboard routes. Resizing a desktop browser does not turn it into the mobile app, and widening or rotating a phone does not turn it into the desktop portal.
 
+The two modes are intentionally not identical. The computer layout keeps the full identity header, wide work areas, and desktop notice-board rail. The mobile app keeps only the logo, stable parent-directory Back action, and menu in its safe-area-aware top bar; it uses touch-sized controls, compact cards, a first-visit notice sheet, and the persistent five-item bottom navigation. This is a presentation difference only—role permissions and server-side validation remain the same.
+
 ## Dashboard and personal modules
 
-The dashboard presents enabled modules and a notice board. A user can personalize dashboard module visibility; administrators manage shared notice slides. Common routes include Applications, Bookings, Packages, LMS, Accounting, Pricing, Timeclock, Training, Employee Module, Settings, and Account.
+The dashboard presents enabled modules and a notice board. A user can personalize dashboard module visibility; administrators manage shared notice slides. On mobile, a notice appears as an accessible first-visit sheet and can be dismissed for the day; on computers it rotates in the dashboard rail. Notice images accept JPEG, PNG, or WebP up to 5 MB and are delivered through an authenticated portal stream after the saved slide is verified. Common routes include Applications, Bookings, Packages, LMS, Accounting, Pricing, Timeclock, Training, Employee Module, Settings, and Account.
 
 Ticketing currently provides a front-end workspace with placeholder Refund Calculator and Ticketing Ledger submodules, an empty upcoming-flight overview, and the planned mark/review/finalise schedule-change flow. It does not yet read or write ticketing records. Commissions remains a coming-soon page. Do not treat these placeholders, database tables, or historical plans as a finished operator workflow.
 

@@ -21,7 +21,6 @@
     "app/api/bookings/settings/services/route.ts": 1,
     "app/api/bookings/waitlist/route.ts": 2,
     "app/api/dashboard/modules/route.ts": 1,
-    "app/api/dashboard/notice-board/read/route.ts": 1,
     "app/api/documents/migration-overview/route.ts": 1,
     "app/api/hr/leave/requests/[id]/route.ts": 1,
     "app/api/hr/leave/requests/route.ts": 1,

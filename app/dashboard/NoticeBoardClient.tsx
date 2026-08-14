@@ -6,8 +6,9 @@
  */
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
-import { Bell, ExternalLink, X } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Bell, ExternalLink, Loader2, X } from 'lucide-react'
+import { toast } from 'sonner'
 
 type NoticeSlide = {
   id: string
@@ -30,11 +31,15 @@ export function NoticeBoardClient({
   const [activeIndex, setActiveIndex] = useState(0)
   const [showMobileNotice, setShowMobileNotice] = useState(false)
   const [viewAllMobile, setViewAllMobile] = useState(false)
+  const [dismissing, setDismissing] = useState(false)
+  const [failedImages, setFailedImages] = useState<Set<string>>(() => new Set())
+  const mobileDialogRef = useRef<HTMLDivElement>(null)
+  const closeButtonRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
     let cancelled = false
 
-    fetch('/api/dashboard/notice-board')
+    fetch('/api/dashboard/notice-board', { cache: 'no-store' })
       .then((response) => (response.ok ? response.json() : Promise.reject(response)))
       .then((payload: { slides?: NoticeSlide[] }) => {
         if (cancelled) return
@@ -90,28 +95,94 @@ export function NoticeBoardClient({
   }
 
   async function dismissToday() {
-    await Promise.all(
-      slides.map((item) =>
-        fetch('/api/dashboard/notice-board/read', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ slideId: item.id, action: 'dismissed' }),
-          keepalive: true,
-        }).catch(() => undefined),
-      ),
-    )
-    closeMobileNotice()
+    setDismissing(true)
+    try {
+      const responses = await Promise.all(
+        slides.map((item) =>
+          fetch('/api/dashboard/notice-board/read', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ slideId: item.id, action: 'dismissed' }),
+            keepalive: true,
+          }),
+        ),
+      )
+      if (responses.some((response) => !response.ok)) {
+        throw new Error('Some notices could not be dismissed')
+      }
+      closeMobileNotice()
+      toast.success('Notices hidden for today')
+    } catch {
+      toast.error('Unable to hide notices for today. Please try again.')
+    } finally {
+      setDismissing(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!showMobileNotice || !slide) return undefined
+
+    const previouslyFocused = document.activeElement as HTMLElement | null
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    const frame = window.requestAnimationFrame(() => closeButtonRef.current?.focus())
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const dialog = mobileDialogRef.current
+      if (!dialog) return
+
+      if (event.key === 'Escape' && !dismissing) {
+        event.preventDefault()
+        closeMobileNotice()
+        return
+      }
+      if (event.key !== 'Tab') return
+
+      const focusable = [
+        ...dialog.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
+        ),
+      ]
+      if (focusable.length === 0) {
+        event.preventDefault()
+        dialog.focus()
+        return
+      }
+
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.cancelAnimationFrame(frame)
+      document.removeEventListener('keydown', handleKeyDown)
+      document.body.style.overflow = previousOverflow
+      previouslyFocused?.focus()
+    }
+  }, [showMobileNotice, slide, dismissing])
+
+  function markImageFailed(slideId: string) {
+    setFailedImages((current) => new Set(current).add(slideId))
   }
 
   const slideContent = slide ? (
     <>
-      {slide.image_url && (
+      {slide.image_url && !failedImages.has(slide.id) && (
         <div className="relative mb-4 h-44 overflow-hidden rounded-2xl bg-slate-100">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={slide.image_url}
             alt={slide.title || 'Notice board image'}
             className="h-full w-full object-cover"
+            onError={() => markImageFailed(slide.id)}
           />
         </div>
       )}
@@ -179,16 +250,34 @@ export function NoticeBoardClient({
       )}
 
       {showMobileNotice && slide && (
-        <div className="platform-mobile-flex fixed inset-0 z-50 items-end bg-slate-950/45 p-4 backdrop-blur-sm">
-          <div className="w-full rounded-[1.5rem] bg-white p-4 shadow-2xl">
+        <div
+          className="platform-mobile-flex fixed inset-0 z-50 items-end bg-slate-950/45 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] backdrop-blur-sm"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !dismissing) closeMobileNotice()
+          }}
+        >
+          <div
+            ref={mobileDialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="mobile-notice-title"
+            aria-busy={dismissing || undefined}
+            tabIndex={-1}
+            className="w-full rounded-[1.5rem] bg-white p-4 shadow-2xl outline-none"
+          >
             <div className="mb-3 flex items-center justify-between">
-              <p className="text-xs font-black uppercase tracking-[0.18em] text-[#8b1e2d]">
+              <p
+                id="mobile-notice-title"
+                className="text-xs font-black uppercase tracking-[0.18em] text-[#8b1e2d]"
+              >
                 Notice
               </p>
               <button
+                ref={closeButtonRef}
                 type="button"
                 onClick={closeMobileNotice}
-                className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-600"
+                disabled={dismissing}
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-600 disabled:opacity-60"
                 aria-label="Close notice"
               >
                 <X className="h-4 w-4" />
@@ -218,7 +307,7 @@ export function NoticeBoardClient({
             ) : (
               slideContent
             )}
-            <div className="mt-4 grid grid-cols-2 gap-2">
+            <div className={`mt-4 grid gap-2 ${slides.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
               {slides.length > 1 && (
                 <button
                   type="button"
@@ -231,9 +320,14 @@ export function NoticeBoardClient({
               <button
                 type="button"
                 onClick={() => void dismissToday()}
-                className="rounded-xl bg-[#4b0f16] px-3 py-2 text-xs font-black text-white"
+                disabled={dismissing}
+                className="inline-flex min-h-11 items-center justify-center rounded-xl bg-[#4b0f16] px-3 py-2 text-xs font-black text-white disabled:opacity-60"
               >
-                Don&apos;t show today
+                {dismissing ? (
+                  <Loader2 className="h-4 w-4 animate-spin" aria-label="Dismissing notices" />
+                ) : (
+                  <>Don&apos;t show today</>
+                )}
               </button>
             </div>
           </div>

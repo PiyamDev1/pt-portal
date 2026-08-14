@@ -13,7 +13,9 @@ import { useState } from 'react'
 import {
   BadgePoundSterling,
   ArrowLeft,
+  BookOpen,
   Building2,
+  Calculator,
   Database,
   FileText,
   Home,
@@ -63,13 +65,13 @@ const PAGE_MENU_ITEMS: Array<{ match: string; title: string; items: MenuItem[] }
         href: '/dashboard/settings?tab=staff',
         label: 'Staff Management',
         icon: UsersRound,
-        allowedRoles: ['Admin', 'Master Admin'],
+        allowedRoles: ['Admin', 'Master Admin', 'Super Admin'],
       },
       {
         href: '/dashboard/settings?tab=branches',
         label: 'Branches',
         icon: Building2,
-        allowedRoles: ['Admin', 'Master Admin'],
+        allowedRoles: ['Admin', 'Master Admin', 'Super Admin'],
       },
       {
         href: '/dashboard/settings?tab=maintenance',
@@ -81,7 +83,7 @@ const PAGE_MENU_ITEMS: Array<{ match: string; title: string; items: MenuItem[] }
         href: '/dashboard/settings?tab=notice-board',
         label: 'Notice Board',
         icon: FileText,
-        allowedRoles: ['Admin', 'Master Admin'],
+        allowedRoles: ['Admin', 'Master Admin', 'Super Admin'],
       },
     ],
   },
@@ -91,8 +93,26 @@ const PAGE_MENU_ITEMS: Array<{ match: string; title: string; items: MenuItem[] }
     items: [
       { href: '/dashboard/applications', label: 'Applications Hub', icon: FileText },
       { href: '/dashboard/applications/nadra', label: 'NADRA', icon: FileText },
+      {
+        href: '/dashboard/applications/passports',
+        label: 'Pakistani Passports',
+        icon: FileText,
+      },
       { href: '/dashboard/applications/passports-gb', label: 'GB Passport', icon: FileText },
       { href: '/dashboard/applications/visa', label: 'Visa', icon: FileText },
+    ],
+  },
+  {
+    match: '/dashboard/ticketing',
+    title: 'Ticketing menu',
+    items: [
+      { href: '/dashboard/ticketing', label: 'Ticketing Home', icon: BookOpen },
+      {
+        href: '/dashboard/ticketing/refund-calculator',
+        label: 'Refund Calculator',
+        icon: Calculator,
+      },
+      { href: '/dashboard/ticketing/ledger', label: 'Ticketing Ledger', icon: BookOpen },
     ],
   },
 ]
@@ -142,19 +162,6 @@ export default function PageHeader({
     <>
       <nav className="portal-header fixed inset-x-0 top-0 z-40 flex items-center justify-between border-b border-slate-200 bg-white/95 px-2.5 py-2.5 shadow-sm backdrop-blur sm:px-6 sm:py-4 lg:static lg:bg-white">
         <div className="flex min-w-0 items-center gap-2 sm:gap-4">
-          {displayBack && (
-            <Link
-              href={parentNavigation.href}
-              aria-label={`Back to ${parentNavigation.label}`}
-              title={`Back to ${parentNavigation.label}`}
-              className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-xl border border-red-100 bg-red-50 px-2.5 text-sm font-black text-[#8b1e2d] shadow-sm transition hover:border-red-200 hover:bg-red-100 hover:text-[#4b0f16] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b1e2d] focus-visible:ring-offset-2 sm:h-10 sm:px-3"
-            >
-              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-              <span className="platform-mobile-only">Back</span>
-              <span className="platform-desktop-only">Back to {parentNavigation.label}</span>
-            </Link>
-          )}
-
           <Link
             href="/dashboard"
             className="flex shrink-0 cursor-pointer items-center gap-2 transition hover:opacity-80"
@@ -171,7 +178,20 @@ export default function PageHeader({
             </div>
           </Link>
 
-          <div className="min-w-0">
+          {displayBack && (
+            <Link
+              href={parentNavigation.href}
+              aria-label={`Back to ${parentNavigation.label}`}
+              title={`Back to ${parentNavigation.label}`}
+              className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-xl border border-red-100 bg-red-50 px-2.5 text-sm font-black text-[#8b1e2d] shadow-sm transition hover:border-red-200 hover:bg-red-100 hover:text-[#4b0f16] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b1e2d] focus-visible:ring-offset-2 sm:h-10 sm:px-3"
+            >
+              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+              <span className="platform-mobile-only">Back</span>
+              <span className="platform-desktop-only">Back to {parentNavigation.label}</span>
+            </Link>
+          )}
+
+          <div className="platform-desktop-only min-w-0">
             <h1 className="truncate !text-[12px] font-black leading-tight text-slate-800 sm:!text-lg">
               Piyam Travels
             </h1>
@@ -229,7 +249,7 @@ export default function PageHeader({
       </nav>
 
       {menuOpen && (
-        <div className="platform-mobile-only fixed inset-x-0 top-[3.55rem] z-40 border-b border-slate-200 bg-white p-3 shadow-xl">
+        <div className="portal-mobile-menu platform-mobile-only fixed inset-x-0 z-40 border-b border-slate-200 bg-white p-3 shadow-xl">
           <div className="rounded-2xl bg-[#4b0f16] p-4 text-white">
             <p className="text-sm font-black">{employeeName || 'Portal user'}</p>
             <p className="mt-1 text-xs text-red-100">

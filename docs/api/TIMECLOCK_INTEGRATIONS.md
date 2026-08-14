@@ -91,33 +91,33 @@ the server's local start of day are excluded. Read-only.
 
 Marks a slide seen or dismissed for the current user.
 
-**Access:** Supabase session; any authenticated user. No route-level rate limit.
+**Access:** Supabase session; any authenticated user. Limit: 240 updates per actor and IP per hour.
 
-**Input:** JSON parsed directly: `slideId` (required non-empty string) and `action` (optional;
-supported `seen | dismissed`). Only exact `dismissed` sets `dismissed_at`; missing or any other
-runtime value records a seen event. No size/length/strict schema.
+**Input:** Strict JSON, maximum 4 KiB: `slideId` (required UUID) and `action` (required
+`seen | dismissed`). No extra fields.
 
 **Success:** `200` `{ "ok": true }`. Upserts by slide/user and always refreshes `last_seen_at`;
 dismissal also sets `dismissed_at`. Repeats update timestamps and are not strictly idempotent.
 
-**Errors:** `400` missing `slideId`; `401` unauthenticated; `500` upsert failure.
+**Errors:** `400` invalid/oversized body; `401` unauthenticated; `429` limited; `500` upsert failure.
 
 ### GET `/api/dashboard/notice-board/image`
 
-Redirects an authenticated browser to a five-minute signed object URL for a notice image.
+Streams a saved private notice image through the authenticated portal.
 
-**Access:** Supabase session; any authenticated user. No route-level rate limit. The route does not
-re-check that the object belongs to a currently visible slide.
+**Access:** Active staff session. No route-level rate limit. The service-role lookup is used only
+after staff authentication to resolve a saved notice-board slide.
 
-**Input:** Query `provider` (optional string; exact `r2` selects R2, every other/missing value selects
-MinIO), `bucket` (required non-empty string), and `key` (required string beginning
-`notice-board/`). No explicit length bounds.
+**Input:** Query `key` (required, maximum 1,000 characters, beginning `notice-board/`). Legacy
+`provider` and `bucket` query values are ignored. The saved slide—not caller input—selects the
+configured MinIO/R2 bucket and provider.
 
-**Success:** `307` redirect to a signed storage `GET` URL expiring in 300 seconds. It does not read
-or mutate the object.
+**Success:** `200` JPEG, PNG, or WebP bytes, maximum 5 MiB, with private/no-store, nosniff,
+no-referrer, and sandbox response policy. Read-only.
 
-**Errors:** `400` missing bucket/key or invalid prefix; `401` unauthenticated. Signing/configuration
-failures can surface as `500`.
+**Errors:** `400` missing/invalid key; `401` unauthenticated; `403` inactive/non-staff session; `404`
+missing slide or unapproved storage reference; `413` stored object too large; `415` invalid stored
+image bytes/type; `502` database/storage read failure (generic message with request ID).
 
 ## Human resources leave
 

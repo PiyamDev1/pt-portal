@@ -7,8 +7,9 @@
  */
 'use client'
 
-import { useEffect, useState } from 'react'
-import { ExternalLink, Loader2, Plus, Save, Trash2 } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { ExternalLink, ImageIcon, Loader2, Plus, Save, Trash2, X } from 'lucide-react'
+import { toast } from 'sonner'
 
 type NoticeSlide = {
   id: string
@@ -54,6 +55,15 @@ type NoticeBoardTabProps = {
   locations: { id: string; name: string }[]
 }
 
+type NoticeBoardApiPayload = {
+  error?: unknown
+  slides?: NoticeSlide[]
+  imageUrl?: string
+  image_storage_provider?: string
+  image_storage_bucket?: string
+  image_storage_key?: string
+}
+
 const EMPTY_FORM: SlideForm = {
   title: '',
   body: '',
@@ -68,6 +78,20 @@ const EMPTY_FORM: SlideForm = {
   target_role: '',
   target_department_id: '',
   target_location_id: '',
+}
+
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024
+const ALLOWED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'])
+const ALLOWED_IMAGE_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'webp'])
+
+function hasNoticeContent(form: SlideForm) {
+  return Boolean(form.title.trim() || form.body.trim() || form.image_url.trim())
+}
+
+function responseError(response: Response, payload: NoticeBoardApiPayload, fallback: string) {
+  const message = typeof payload.error === 'string' ? payload.error : fallback
+  const requestId = response.headers.get('x-request-id')
+  return new Error(requestId ? `${message} (reference ${requestId})` : message)
 }
 
 function toForm(slide: NoticeSlide): SlideForm {
@@ -95,20 +119,51 @@ export function NoticeBoardTab({ roles, departments, locations }: NoticeBoardTab
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
-  const [message, setMessage] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [localPreviewUrl, setLocalPreviewUrl] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const editorRef = useRef<HTMLDivElement>(null)
+
+  function clearLocalPreview() {
+    setLocalPreviewUrl((current) => {
+      if (current) URL.revokeObjectURL(current)
+      return null
+    })
+  }
+
+  function resetEditor() {
+    clearLocalPreview()
+    if (fileInputRef.current) fileInputRef.current.value = ''
+    setForm(EMPTY_FORM)
+    setDeleteId(null)
+  }
+
+  function startEditing(slide: NoticeSlide) {
+    clearLocalPreview()
+    setForm(toForm(slide))
+    setDeleteId(null)
+    editorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
+  useEffect(() => {
+    return () => {
+      if (localPreviewUrl) URL.revokeObjectURL(localPreviewUrl)
+    }
+  }, [localPreviewUrl])
 
   async function loadSlides() {
     setLoading(true)
-    setError(null)
+    setLoadError(null)
     try {
       const response = await fetch('/api/admin/notice-board')
-      const payload = await response.json().catch(() => ({}))
-      if (!response.ok) throw new Error(payload.error || 'Failed to load notices')
+      const payload = (await response.json().catch(() => ({}))) as NoticeBoardApiPayload
+      if (!response.ok) throw responseError(response, payload, 'Failed to load notices')
       setSlides(payload.slides || [])
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load notices')
+      const message = err instanceof Error ? err.message : 'Failed to load notices'
+      setLoadError(message)
+      toast.error(message)
     } finally {
       setLoading(false)
     }
@@ -119,22 +174,29 @@ export function NoticeBoardTab({ roles, departments, locations }: NoticeBoardTab
   }, [])
 
   async function saveSlide() {
+    if (uploading) {
+      toast.error('Wait for the image upload to finish before saving.')
+      return
+    }
+    if (!hasNoticeContent(form)) {
+      toast.error('Add a title, message, or image before saving the notice.')
+      return
+    }
+
     setSaving(true)
-    setMessage(null)
-    setError(null)
     try {
       const response = await fetch('/api/admin/notice-board', {
         method: form.id ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
       })
-      const payload = await response.json().catch(() => ({}))
-      if (!response.ok) throw new Error(payload.error || 'Failed to save notice')
-      setMessage(form.id ? 'Notice updated' : 'Notice added')
-      setForm(EMPTY_FORM)
+      const payload = (await response.json().catch(() => ({}))) as NoticeBoardApiPayload
+      if (!response.ok) throw responseError(response, payload, 'Failed to save notice')
+      toast.success(form.id ? 'Notice updated' : 'Notice added')
+      resetEditor()
       await loadSlides()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save notice')
+      toast.error(err instanceof Error ? err.message : 'Failed to save notice')
     } finally {
       setSaving(false)
     }
@@ -142,9 +204,25 @@ export function NoticeBoardTab({ roles, departments, locations }: NoticeBoardTab
 
   async function uploadImage(file: File | null) {
     if (!file) return
+
+    const extension = file.name.split('.').pop()?.toLowerCase() || ''
+    if (
+      !ALLOWED_IMAGE_EXTENSIONS.has(extension) ||
+      (file.type && !ALLOWED_IMAGE_TYPES.has(file.type.toLowerCase()))
+    ) {
+      toast.error('Choose a JPEG, PNG, or WebP image.')
+      if (fileInputRef.current) fileInputRef.current.value = ''
+      return
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      toast.error('Choose an image that is 5 MB or smaller.')
+      if (fileInputRef.current) fileInputRef.current.value = ''
+      return
+    }
+
+    clearLocalPreview()
+    setLocalPreviewUrl(URL.createObjectURL(file))
     setUploading(true)
-    setMessage(null)
-    setError(null)
 
     try {
       const formData = new FormData()
@@ -153,8 +231,8 @@ export function NoticeBoardTab({ roles, departments, locations }: NoticeBoardTab
         method: 'POST',
         body: formData,
       })
-      const payload = await response.json().catch(() => ({}))
-      if (!response.ok) throw new Error(payload.error || 'Failed to upload image')
+      const payload = (await response.json().catch(() => ({}))) as NoticeBoardApiPayload
+      if (!response.ok) throw responseError(response, payload, 'Failed to upload image')
 
       setForm((current) => ({
         ...current,
@@ -163,36 +241,40 @@ export function NoticeBoardTab({ roles, departments, locations }: NoticeBoardTab
         image_storage_bucket: payload.image_storage_bucket || '',
         image_storage_key: payload.image_storage_key || '',
       }))
-      setMessage('Image uploaded. Save the slide to publish it.')
+      toast.success('Image uploaded', { description: 'Save the slide to publish it.' })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to upload image')
+      clearLocalPreview()
+      toast.error(err instanceof Error ? err.message : 'Failed to upload image')
     } finally {
       setUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
     }
   }
 
   async function deleteSlide(id: string) {
-    setError(null)
-    setMessage(null)
     try {
       const response = await fetch('/api/admin/notice-board', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id }),
       })
-      const payload = await response.json().catch(() => ({}))
-      if (!response.ok) throw new Error(payload.error || 'Failed to delete notice')
-      setMessage('Notice deleted')
+      const payload = (await response.json().catch(() => ({}))) as NoticeBoardApiPayload
+      if (!response.ok) throw responseError(response, payload, 'Failed to delete notice')
+      toast.success('Notice deleted')
       setDeleteId(null)
+      if (form.id === id) resetEditor()
       await loadSlides()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete notice')
+      toast.error(err instanceof Error ? err.message : 'Failed to delete notice')
     }
   }
 
   return (
     <div className="space-y-6">
-      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div
+        ref={editorRef}
+        className="scroll-mt-24 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6"
+      >
         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h2 className="text-xl font-black text-slate-950">Notice Board</h2>
@@ -202,22 +284,21 @@ export function NoticeBoardTab({ roles, departments, locations }: NoticeBoardTab
           </div>
           <button
             type="button"
-            onClick={() => setForm(EMPTY_FORM)}
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#4b0f16] px-4 py-2 text-sm font-black text-white hover:bg-[#8b1e2d]"
+            onClick={resetEditor}
+            disabled={saving || uploading}
+            className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#4b0f16] px-4 py-2.5 text-sm font-black text-white hover:bg-[#8b1e2d] disabled:opacity-60 sm:w-auto sm:py-2"
           >
             <Plus className="h-4 w-4" />
             New slide
           </button>
         </div>
 
-        {message && (
-          <p className="mt-4 rounded-xl bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-700">
-            {message}
-          </p>
-        )}
-        {error && (
+        {loadError && (
           <p className="mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
-            {error}
+            {loadError}{' '}
+            <button type="button" onClick={() => void loadSlides()} className="underline">
+              Retry
+            </button>
           </p>
         )}
 
@@ -237,18 +318,56 @@ export function NoticeBoardTab({ roles, departments, locations }: NoticeBoardTab
           <label className="block text-sm font-bold text-slate-700">
             Image
             <input
+              ref={fileInputRef}
               type="file"
               accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
               onChange={(event) => void uploadImage(event.target.files?.[0] || null)}
               className="mt-2 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
               disabled={uploading}
             />
+            <span className="mt-2 block text-xs font-medium text-slate-500">
+              JPEG, PNG, or WebP. Maximum 5 MB.
+            </span>
             {uploading && (
               <span className="mt-2 flex items-center gap-2 text-xs text-slate-500">
                 <Loader2 className="h-3.5 w-3.5 animate-spin" /> Uploading image
               </span>
             )}
           </label>
+
+          {(localPreviewUrl || form.image_url) && (
+            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 lg:col-span-2">
+              <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-3 py-2">
+                <span className="inline-flex items-center gap-2 text-xs font-black text-slate-600">
+                  <ImageIcon className="h-4 w-4 text-[#8b1e2d]" /> Image preview
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    clearLocalPreview()
+                    setForm((current) => ({
+                      ...current,
+                      image_url: '',
+                      image_storage_provider: '',
+                      image_storage_bucket: '',
+                      image_storage_key: '',
+                    }))
+                  }}
+                  disabled={uploading}
+                  className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-black text-red-700 hover:bg-red-50 disabled:opacity-60"
+                >
+                  <X className="h-3.5 w-3.5" /> Remove
+                </button>
+              </div>
+              {/* The local object URL previews an upload before its slide record exists. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={localPreviewUrl || form.image_url}
+                alt="Notice image preview"
+                className="max-h-72 w-full object-contain"
+              />
+            </div>
+          )}
 
           <label className="block text-sm font-bold text-slate-700">
             Image URL / stored path
@@ -386,7 +505,8 @@ export function NoticeBoardTab({ roles, departments, locations }: NoticeBoardTab
             {form.id && (
               <button
                 type="button"
-                onClick={() => setForm(EMPTY_FORM)}
+                onClick={resetEditor}
+                disabled={saving || uploading}
                 className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-50"
               >
                 Cancel edit
@@ -395,8 +515,8 @@ export function NoticeBoardTab({ roles, departments, locations }: NoticeBoardTab
             <button
               type="button"
               onClick={() => void saveSlide()}
-              disabled={saving}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#8b1e2d] px-4 py-2 text-sm font-black text-white hover:bg-[#4b0f16] disabled:opacity-60"
+              disabled={saving || uploading || !hasNoticeContent(form)}
+              className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-[#8b1e2d] px-4 py-2 text-sm font-black text-white hover:bg-[#4b0f16] disabled:cursor-not-allowed disabled:opacity-60 sm:flex-none"
             >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
               {form.id ? 'Save changes' : 'Add slide'}
@@ -405,7 +525,7 @@ export function NoticeBoardTab({ roles, departments, locations }: NoticeBoardTab
         </div>
       </div>
 
-      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
         <h3 className="text-base font-black text-slate-950">Current slides</h3>
         {loading ? (
           <div className="mt-4 flex items-center gap-2 text-sm text-slate-500">
@@ -464,7 +584,8 @@ export function NoticeBoardTab({ roles, departments, locations }: NoticeBoardTab
                   <div className="flex gap-2">
                     <button
                       type="button"
-                      onClick={() => setForm(toForm(slide))}
+                      onClick={() => startEditing(slide)}
+                      disabled={saving || uploading}
                       className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-black text-slate-600 hover:bg-slate-50"
                     >
                       Edit

@@ -6,9 +6,19 @@
  */
 
 import { apiError, apiOk } from '@/lib/api/http'
+import { parseBodyWithSchema } from '@/lib/api/request'
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
+import { enforceRateLimit, getClientIp } from '@/lib/security/rateLimit'
+import { z } from 'zod'
 
 export const dynamic = 'force-dynamic'
+
+const readSchema = z
+  .object({
+    slideId: z.string().uuid(),
+    action: z.enum(['seen', 'dismissed']),
+  })
+  .strict()
 
 export async function POST(request: Request) {
   const supabase = await getRouteSupabaseClient()
@@ -18,12 +28,19 @@ export async function POST(request: Request) {
 
   if (!user) return apiError('Unauthorized', 401)
 
-  const body = (await request.json().catch(() => ({}))) as {
-    slideId?: string
-    action?: 'seen' | 'dismissed'
-  }
+  const limit = await enforceRateLimit(request, {
+    scope: 'dashboard.notice-board-read',
+    limit: 240,
+    windowSeconds: 60 * 60,
+    identities: [`user:${user.id}`, `ip:${getClientIp(request)}`],
+    message: 'Too many notice-board updates. Please try again later.',
+  })
+  if (!limit.allowed) return limit.response
 
-  if (!body.slideId) return apiError('slideId required', 400)
+  const { data: body, error: bodyError } = await parseBodyWithSchema(request, readSchema, {
+    maxBytes: 4 * 1024,
+  })
+  if (bodyError || !body) return apiError(bodyError || 'Invalid notice-board update', 400)
 
   const now = new Date().toISOString()
   const readRow = {

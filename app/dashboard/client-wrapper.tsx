@@ -8,15 +8,15 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { CalendarDays, Clock3, HeartPulse, Home, Settings } from 'lucide-react'
+import { CalendarDays, Clock3, FileText, Home, Settings } from 'lucide-react'
 import { PasskeySetupPrompt } from '@/app/components/PasskeySetupPrompt'
 import { RouteWarmup } from './RouteWarmup'
 
 const MOBILE_NAV_ITEMS = [
   { href: '/dashboard', label: 'Home', icon: Home },
-  { href: '/dashboard/timeclock', label: 'Clock', icon: Clock3 },
-  { href: '/dashboard/frappe-transfer', label: 'HRMS', icon: HeartPulse },
+  { href: '/dashboard/applications', label: 'Apps', icon: FileText },
   { href: '/dashboard/bookings', label: 'Bookings', icon: CalendarDays },
+  { href: '/dashboard/timeclock', label: 'Clock', icon: Clock3 },
   { href: '/dashboard/settings', label: 'Settings', icon: Settings },
 ]
 

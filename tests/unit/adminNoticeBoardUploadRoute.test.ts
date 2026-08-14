@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => {
   const from = vi.fn(() => ({ select: employeeSelect }))
   const minioSend = vi.fn()
   const r2Send = vi.fn()
+  const reportOperationalError = vi.fn(async () => 'request-123456')
 
   return {
     getUser,
@@ -15,6 +16,7 @@ const mocks = vi.hoisted(() => {
     from,
     minioSend,
     r2Send,
+    reportOperationalError,
   }
 })
 
@@ -32,6 +34,14 @@ vi.mock('@/lib/s3Client', () => ({
 vi.mock('@/lib/r2Client', () => ({
   getR2Client: vi.fn(() => ({ send: mocks.r2Send })),
   isR2Configured: vi.fn(() => false),
+}))
+
+vi.mock('@/lib/observability/server', () => ({
+  reportOperationalError: mocks.reportOperationalError,
+  responseWithRequestId: (response: Response, requestId: string) => {
+    response.headers.set('x-request-id', requestId)
+    return response
+  },
 }))
 
 import { POST } from '@/app/api/admin/notice-board/upload/route'
@@ -81,7 +91,13 @@ describe('POST /api/admin/notice-board/upload', () => {
 
     expect(response.status).toBe(200)
     expect(payload).toEqual(
-      expect.objectContaining({ fileName: 'notice.png', fileType: 'image/png' }),
+      expect.objectContaining({
+        imageUrl: expect.stringMatching(
+          /^\/api\/dashboard\/notice-board\/image\?key=notice-board%2F/,
+        ),
+        fileName: 'notice.png',
+        fileType: 'image/png',
+      }),
     )
     expect(mocks.minioSend).toHaveBeenCalledTimes(1)
     expect(mocks.minioSend.mock.calls[0][0].input).toEqual(
@@ -99,5 +115,22 @@ describe('POST /api/admin/notice-board/upload', () => {
 
     expect(response.status).toBe(413)
     expect(mocks.minioSend).not.toHaveBeenCalled()
+  })
+
+  it('returns a generic retryable response when storage is unavailable', async () => {
+    mocks.minioSend.mockRejectedValue(new Error('endpoint and credential details'))
+
+    const response = await POST(
+      uploadRequest(new File([PNG_BYTES], 'notice.png', { type: 'image/png' })) as never,
+    )
+
+    expect(response.status).toBe(503)
+    expect(response.headers.get('x-request-id')).toBe('request-123456')
+    await expect(response.json()).resolves.toEqual({
+      error: 'Notice image storage is temporarily unavailable',
+    })
+    expect(mocks.reportOperationalError).toHaveBeenCalledWith(
+      expect.objectContaining({ event: 'notice_board.image_upload_failed' }),
+    )
   })
 })
