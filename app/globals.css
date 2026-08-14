@@ -146,6 +146,65 @@ html[data-device-layout='mobile'] .portal-dashboard-footer {
   padding-bottom: calc(6.5rem + env(safe-area-inset-bottom));
 }
 
+html[data-device-layout='mobile'] .portal-auth-footer {
+  display: none;
+}
+
+html[data-device-layout='mobile'] .mobile-auth-flow {
+  min-height: 100dvh;
+  background: #fff;
+}
+
+html[data-device-layout='mobile'] .mobile-auth-container {
+  display: flex;
+  min-height: 100dvh;
+  align-items: center;
+  padding: calc(1rem + env(safe-area-inset-top)) 1rem calc(1rem + env(safe-area-inset-bottom));
+}
+
+html[data-device-layout='mobile'] .mobile-auth-card {
+  width: 100%;
+  max-width: none;
+  border-radius: 1.5rem;
+  padding: 1.25rem;
+  box-shadow: none;
+}
+
+html[data-device-layout='mobile'] .mobile-auth-card input,
+html[data-device-layout='mobile'] .mobile-auth-card button {
+  min-height: 3.5rem;
+  font-size: 1rem;
+}
+
+html[data-device-layout='mobile'] .mobile-auth-back {
+  top: calc(0.75rem + env(safe-area-inset-top));
+  z-index: 10;
+}
+
+html[data-device-layout='mobile'] body:has(.mobile-auth-flow) .issue-reporter-root {
+  display: none;
+}
+
+html[data-device-layout='mobile'] .issue-reporter-root {
+  top: auto;
+  right: 1rem;
+  bottom: calc(1rem + env(safe-area-inset-bottom));
+}
+
+html[data-device-layout='mobile'] body:has(.dashboard-mobile-shell) .issue-reporter-root {
+  bottom: calc(5.75rem + env(safe-area-inset-bottom));
+}
+
+html[data-device-layout='mobile'] .issue-reporter-trigger {
+  width: 3rem;
+  height: 3rem;
+  transform: none;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 9999px;
+}
+
 html[data-device-layout='mobile'] .dashboard-mobile-shell main {
   width: 100%;
   max-width: 100%;

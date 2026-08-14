@@ -150,7 +150,11 @@ export function IssueReporterWidget() {
   }
 
   return (
-    <div ref={rootRef} className="fixed right-0 top-1/2 z-50" data-issue-report-ignore="true">
+    <div
+      ref={rootRef}
+      className="issue-reporter-root fixed right-0 top-1/2 z-50"
+      data-issue-report-ignore="true"
+    >
       {isOpen && (
         <div
           className="fixed inset-0 z-[70] flex items-end justify-center bg-slate-950/60 p-2 sm:items-center sm:p-4"
@@ -314,10 +318,15 @@ export function IssueReporterWidget() {
         type="button"
         onClick={() => setIsOpen((current) => !current)}
         onMouseDown={(event) => event.preventDefault()}
-        className="-translate-y-1/2 inline-flex items-center rounded-l-lg border border-r-0 border-slate-700 bg-slate-900 px-1.5 py-2.5 text-[11px] font-semibold text-white shadow-xl transition hover:bg-slate-800"
+        className="issue-reporter-trigger -translate-y-1/2 inline-flex items-center rounded-l-lg border border-r-0 border-slate-700 bg-slate-900 px-1.5 py-2.5 text-[11px] font-semibold text-white shadow-xl transition hover:bg-slate-800"
+        aria-label={isOpen ? 'Close issue reporter' : 'Report an issue'}
+        aria-expanded={isOpen}
       >
-        <span className="[writing-mode:vertical-rl] rotate-180 tracking-[0.08em]">
+        <span className="platform-desktop-only [writing-mode:vertical-rl] rotate-180 tracking-[0.08em]">
           Report Issue
+        </span>
+        <span className="platform-mobile-flex items-center justify-center" aria-hidden="true">
+          {isOpen ? <X className="h-5 w-5" /> : <Bug className="h-5 w-5" />}
         </span>
       </button>
     </div>

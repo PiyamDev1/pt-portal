@@ -94,12 +94,12 @@ export default function Verify2FAPage() {
   }
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#f5f5f5] text-slate-950">
+    <main className="mobile-auth-flow relative min-h-screen overflow-hidden bg-[#f5f5f5] text-slate-950">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(139,30,45,0.12),_transparent_30%),linear-gradient(135deg,_#f7fbf7_0%,_#f1e7e9_45%,_#f8fafc_100%)]" />
       <div className="pointer-events-none absolute right-[-8rem] top-[-10rem] h-80 w-80 rounded-full bg-red-200/30 blur-3xl" />
 
-      <div className="relative mx-auto grid min-h-screen w-full max-w-6xl grid-cols-1 items-center gap-8 px-5 py-10 lg:grid-cols-[1fr_440px] lg:px-8">
-        <section className="hidden lg:block rounded-[2rem] border border-red-100 bg-white/90 p-10 shadow-2xl shadow-red-950/10 backdrop-blur">
+      <div className="mobile-auth-container relative mx-auto grid min-h-screen w-full max-w-6xl grid-cols-1 items-center gap-8 px-5 py-10 lg:grid-cols-[1fr_440px] lg:px-8">
+        <section className="hidden rounded-[2rem] border border-red-100 bg-white/90 p-10 shadow-2xl shadow-red-950/10 backdrop-blur lg:block">
           <div className="flex items-center gap-3 rounded-3xl bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700 shadow-sm">
             <Shield className="h-4 w-4" />
             IMS secure access
@@ -115,7 +115,7 @@ export default function Verify2FAPage() {
           </div>
         </section>
 
-        <section className="rounded-[1.5rem] border border-white/80 bg-white/95 p-8 shadow-2xl shadow-slate-900/10 backdrop-blur md:p-10">
+        <section className="mobile-auth-card rounded-[1.5rem] border border-white/80 bg-white/95 p-8 shadow-2xl shadow-slate-900/10 backdrop-blur md:p-10">
           <div className="mb-6 text-center">
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-3xl bg-[#4b0f16] text-white shadow-lg mb-4">
               <Shield className="h-6 w-6" />
@@ -138,6 +138,9 @@ export default function Verify2FAPage() {
                   placeholder="000 000"
                   maxLength={6}
                   autoFocus
+                  autoComplete="one-time-code"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   className="w-full text-center text-3xl tracking-[0.5em] p-3 border border-slate-300 rounded-2xl focus:ring-4 focus:ring-red-100 outline-none font-mono"
                   value={code}
                   onChange={(e) => setCode(e.target.value)}
@@ -186,6 +189,7 @@ export default function Verify2FAPage() {
                   placeholder="Backup code"
                   maxLength={32}
                   autoFocus
+                  autoComplete="one-time-code"
                   className="w-full text-center text-xl p-3 border border-slate-300 rounded-2xl focus:ring-4 focus:ring-red-100 outline-none font-mono"
                   value={code}
                   onChange={(e) => setCode(e.target.value)}

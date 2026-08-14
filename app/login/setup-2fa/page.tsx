@@ -84,8 +84,8 @@ export default function Setup2FAPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50">
-      <div className="absolute top-4 left-4">
+    <main className="mobile-auth-flow flex min-h-screen items-center justify-center bg-slate-50">
+      <div className="mobile-auth-back absolute left-4 top-4">
         <Link
           href="/login"
           className="flex items-center gap-2 text-blue-600 hover:text-blue-800 text-sm font-medium"
@@ -93,7 +93,7 @@ export default function Setup2FAPage() {
           ← Back to Login
         </Link>
       </div>
-      <div className="w-full max-w-md p-8 bg-white rounded-xl shadow-lg text-center">
+      <div className="mobile-auth-card w-full max-w-md rounded-xl bg-white p-8 text-center shadow-lg">
         <h2 className="text-2xl font-bold text-blue-900 mb-2">Secure Your Account</h2>
         <p className="text-sm text-slate-500 mb-6">Scan with Google Authenticator to setup 2FA.</p>
 
@@ -166,6 +166,9 @@ export default function Setup2FAPage() {
             type="text"
             placeholder="Enter 6-digit code"
             maxLength={6}
+            autoComplete="one-time-code"
+            inputMode="numeric"
+            pattern="[0-9]*"
             className="w-full text-center text-2xl tracking-[0.5em] p-2 border border-slate-300 rounded focus:ring-2 focus:ring-blue-600 outline-none"
             value={verifyCode}
             onChange={(e) => setVerifyCode(e.target.value)}
@@ -179,6 +182,6 @@ export default function Setup2FAPage() {
           </button>
         </form>
       </div>
-    </div>
+    </main>
   )
 }

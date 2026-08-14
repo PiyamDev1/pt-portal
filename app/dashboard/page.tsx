@@ -19,6 +19,7 @@ import {
   BriefcaseBusiness,
   CalendarDays,
   ChartNoAxesColumnIncreasing,
+  ChevronRight,
   Clock3,
   FileText,
   FingerprintPattern,
@@ -106,22 +107,32 @@ function MobileDashboard({
         </p>
       </div>
 
-      <div className="mt-5 grid grid-cols-1 gap-3 min-[360px]:grid-cols-2">
-        {primaryModules.map((moduleItem) => (
-          <Link key={moduleItem.id} href={moduleItem.href} className="group">
-            <div
-              className={`min-h-36 rounded-[1.5rem] bg-gradient-to-br ${moduleItem.tileTone} p-4 text-slate-950 shadow-lg ring-1 ring-slate-900/5`}
+      <div className="mt-6">
+        <p className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-slate-500">
+          Start here
+        </p>
+        <div className="space-y-3">
+          {primaryModules.map((moduleItem) => (
+            <Link
+              key={moduleItem.id}
+              href={moduleItem.href}
+              className={`flex min-h-24 items-center gap-4 rounded-[1.5rem] bg-gradient-to-br ${moduleItem.tileTone} p-4 text-slate-950 shadow-lg ring-1 ring-slate-900/5 active:scale-[0.99]`}
             >
               <div
-                className={`flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br ${moduleItem.iconTone} shadow-lg`}
+                className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br ${moduleItem.iconTone} shadow-lg`}
               >
-                <ModuleIcon moduleItem={moduleItem} className="h-7 w-7" />
+                <ModuleIcon moduleItem={moduleItem} className="h-8 w-8" />
               </div>
-              <h2 className="mt-5 text-lg font-black">{moduleItem.title}</h2>
-              <p className="mt-1 text-xs leading-5 text-slate-600">{moduleItem.desc}</p>
-            </div>
-          </Link>
-        ))}
+              <div className="min-w-0 flex-1">
+                <h2 className="text-lg font-black">{moduleItem.title}</h2>
+                <p className="mt-1 line-clamp-2 text-sm leading-5 text-slate-600">
+                  {moduleItem.desc}
+                </p>
+              </div>
+              <ChevronRight className="h-5 w-5 shrink-0 text-slate-500" aria-hidden="true" />
+            </Link>
+          ))}
+        </div>
       </div>
 
       <div className="mt-5 rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm">
@@ -132,18 +143,18 @@ function MobileDashboard({
           <Sparkles className="h-4 w-4 text-amber-500" />
         </div>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          {quickModules.map((moduleItem) => (
+          {quickModules.map((moduleItem, index) => (
             <Link
               key={moduleItem.id}
               href={moduleItem.href}
-              className={`rounded-2xl bg-gradient-to-br ${moduleItem.tileTone} p-3 text-center shadow-sm ring-1 ring-slate-900/5`}
+              className={`min-h-24 rounded-2xl bg-gradient-to-br ${moduleItem.tileTone} p-3 text-center shadow-sm ring-1 ring-slate-900/5 active:scale-[0.99] ${quickModules.length % 2 === 1 && index === quickModules.length - 1 ? 'col-span-2' : ''}`}
             >
               <div
                 className={`mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br ${moduleItem.iconTone} shadow-sm`}
               >
                 <ModuleIcon moduleItem={moduleItem} className="h-5 w-5" />
               </div>
-              <p className="mt-2 text-[11px] font-bold leading-tight text-slate-700">
+              <p className="mt-2 text-sm font-black leading-tight text-slate-700">
                 {moduleItem.title}
               </p>
             </Link>
@@ -151,29 +162,35 @@ function MobileDashboard({
         </div>
       </div>
 
-      <div className="mt-5 grid grid-cols-2 gap-3">
-        {remainingModules.map((moduleItem) => (
-          <Link
-            key={moduleItem.id}
-            href={moduleItem.href}
-            className={`rounded-2xl border border-white/70 bg-gradient-to-br ${moduleItem.tileTone} p-4 shadow-sm ring-1 ring-slate-900/5`}
-          >
-            <div className="flex items-center gap-3">
-              <div
-                className={`flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br ${moduleItem.iconTone} shadow-sm`}
+      {remainingModules.length > 0 && (
+        <div className="mt-6">
+          <p className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-slate-500">
+            All staff tools
+          </p>
+          <div className="space-y-3">
+            {remainingModules.map((moduleItem) => (
+              <Link
+                key={moduleItem.id}
+                href={moduleItem.href}
+                className={`flex min-h-20 items-center gap-4 rounded-2xl border border-white/70 bg-gradient-to-br ${moduleItem.tileTone} p-4 shadow-sm ring-1 ring-slate-900/5 active:scale-[0.99]`}
               >
-                <ModuleIcon moduleItem={moduleItem} className="h-5 w-5" />
-              </div>
-              <div>
-                <h3 className="text-sm font-black text-slate-900">{moduleItem.title}</h3>
-                <p className="text-[11px] text-slate-500">
-                  {DASHBOARD_GROUP_LABELS[moduleItem.group]}
-                </p>
-              </div>
-            </div>
-          </Link>
-        ))}
-      </div>
+                <div
+                  className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${moduleItem.iconTone} shadow-sm`}
+                >
+                  <ModuleIcon moduleItem={moduleItem} className="h-6 w-6" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-base font-black text-slate-900">{moduleItem.title}</h3>
+                  <p className="mt-1 text-xs font-semibold text-slate-500">
+                    {DASHBOARD_GROUP_LABELS[moduleItem.group]}
+                  </p>
+                </div>
+                <ChevronRight className="h-5 w-5 shrink-0 text-slate-400" aria-hidden="true" />
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
     </section>
   )
 }

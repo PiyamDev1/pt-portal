@@ -21,7 +21,7 @@ The portal chooses its presentation from the device operating system rather than
 
 The mode is selected before the page renders and applies throughout authenticated dashboard routes. Resizing a desktop browser does not turn it into the mobile app, and widening or rotating a phone does not turn it into the desktop portal.
 
-The two modes are intentionally not identical. The computer layout keeps the full identity header, wide work areas, and desktop notice-board rail. The mobile app keeps only the logo, stable parent-directory Back action, and menu in its safe-area-aware top bar; it uses touch-sized controls, compact cards, a first-visit notice sheet, and the persistent five-item bottom navigation. This is a presentation difference only—role permissions and server-side validation remain the same.
+The two modes are intentionally not identical. The computer layout keeps the full identity header, wide work areas, and desktop notice-board rail. The mobile app begins with a full-width sign-in surface instead of the computer login card. After sign-in it keeps only the logo, stable parent-directory Back action, and menu in its safe-area-aware top bar; the dashboard uses large single-column launch rows for primary and secondary tools, larger two-column quick actions, a first-visit notice sheet, and the persistent five-item bottom navigation. Authentication controls are at least 56 CSS pixels high, and mobile authentication pages omit the desktop footer and floating issue-report trigger so neither competes with the active form. This is a presentation difference only—role permissions and server-side validation remain the same.
 
 ## Dashboard and personal modules
 

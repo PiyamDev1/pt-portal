@@ -10,6 +10,7 @@ export function GlobalFooter() {
   const pathname = usePathname()
   const isStatementPage = pathname.includes('/dashboard/lms/statement/')
   const isDashboardPage = pathname.startsWith('/dashboard')
+  const isAuthenticationPage = pathname.startsWith('/login')
 
   if (isStatementPage) {
     return null
@@ -17,7 +18,7 @@ export function GlobalFooter() {
 
   return (
     <footer
-      className={`portal-footer mt-auto border-t border-slate-200 bg-white py-6 ${isDashboardPage ? 'portal-dashboard-footer' : ''}`}
+      className={`portal-footer mt-auto border-t border-slate-200 bg-white py-6 ${isDashboardPage ? 'portal-dashboard-footer' : ''} ${isAuthenticationPage ? 'portal-auth-footer' : ''}`}
     >
       <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-3 px-4 text-center text-xs text-slate-400 md:flex-row md:gap-4 md:px-6 md:text-left">
         <div className="space-y-1">
