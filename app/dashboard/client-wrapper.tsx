@@ -35,11 +35,11 @@ function MobileDashboardNav() {
             <Link
               key={item.href}
               href={item.href}
-              className={`flex min-h-12 flex-col items-center justify-center rounded-2xl px-1 text-[10px] font-black transition ${
+              className={`flex min-h-[3.25rem] flex-col items-center justify-center rounded-2xl px-1 text-[11px] font-black transition ${
                 active ? 'bg-[#4b0f16] text-white' : 'text-slate-500 hover:bg-slate-100'
               }`}
             >
-              <Icon className="mb-0.5 h-4 w-4" />
+              <Icon className="mb-0.5 h-5 w-5" />
               {item.label}
             </Link>
           )

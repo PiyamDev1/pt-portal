@@ -166,7 +166,7 @@ export default function PageHeader({
             href="/dashboard"
             className="flex shrink-0 cursor-pointer items-center gap-2 transition hover:opacity-80"
           >
-            <div className="relative aspect-[797/313] h-6 w-auto sm:h-10">
+            <div className="portal-header-logo relative aspect-[797/313] h-8 w-auto sm:h-10">
               <Image
                 src="/logo.png"
                 alt="Piyam Travels"
@@ -183,7 +183,7 @@ export default function PageHeader({
               href={parentNavigation.href}
               aria-label={`Back to ${parentNavigation.label}`}
               title={`Back to ${parentNavigation.label}`}
-              className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-xl border border-red-100 bg-red-50 px-2.5 text-sm font-black text-[#8b1e2d] shadow-sm transition hover:border-red-200 hover:bg-red-100 hover:text-[#4b0f16] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b1e2d] focus-visible:ring-offset-2 sm:h-10 sm:px-3"
+              className="portal-back-button inline-flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-xl border border-red-100 bg-red-50 px-3 text-sm font-black text-[#8b1e2d] shadow-sm transition hover:border-red-200 hover:bg-red-100 hover:text-[#4b0f16] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b1e2d] focus-visible:ring-offset-2 sm:h-10"
             >
               <ArrowLeft className="h-4 w-4" aria-hidden="true" />
               <span className="platform-mobile-only">Back</span>
@@ -239,7 +239,7 @@ export default function PageHeader({
           <button
             type="button"
             onClick={() => setMenuOpen((current) => !current)}
-            className="platform-mobile-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-800 shadow-sm"
+            className="portal-menu-button platform-mobile-flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-800 shadow-sm"
             aria-label={menuOpen ? 'Close mobile menu' : 'Open mobile menu'}
             aria-expanded={menuOpen}
           >

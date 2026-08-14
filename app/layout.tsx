@@ -72,17 +72,13 @@ async function requestDeviceLayout() {
   })
 }
 
-export async function generateViewport(): Promise<Viewport> {
-  const deviceLayout = await requestDeviceLayout()
-  return {
-    // A fixed app viewport keeps high-resolution Android/iOS tablets and phones
-    // on the same mobile breakpoints. Desktop operating systems retain their
-    // actual browser width, including the office's 1280px displays.
-    width: deviceLayout === 'mobile' ? 430 : 'device-width',
-    initialScale: 1,
-    viewportFit: 'cover',
-    themeColor: '#064e3b',
-  }
+export const viewport: Viewport = {
+  // Use the device's CSS viewport so narrow phones are never scaled down from a
+  // wider virtual canvas. Operating-system detection still selects the app shell.
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+  themeColor: '#064e3b',
 }
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {

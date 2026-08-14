@@ -17,7 +17,7 @@ The browser SDK refreshes an eligible Supabase session. When it can no longer do
 The portal chooses its presentation from the device operating system rather than reported pixel resolution:
 
 - Windows, macOS, Linux, ChromeOS, and unknown desktop clients use the full webpage layout. A 1280 × 800 Windows office monitor therefore keeps the desktop header and dashboard.
-- Android and iOS/iPadOS use the mobile app layout, including the compact header, mobile dashboard, touch sizing, and fixed bottom navigation. High-resolution phones and tablets remain in this mode even if their reported display width resembles a computer monitor.
+- Android and iOS/iPadOS use the mobile app layout, including the compact header, mobile dashboard, touch sizing, and fixed bottom navigation. The portal uses each device's real CSS viewport, so a narrow phone is not scaled down from a fixed virtual width. High physical pixel counts do not switch the operating-system-selected app shell back to desktop mode.
 
 The mode is selected before the page renders and applies throughout authenticated dashboard routes. Resizing a desktop browser does not turn it into the mobile app, and widening or rotating a phone does not turn it into the desktop portal.
 

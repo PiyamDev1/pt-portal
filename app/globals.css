@@ -103,20 +103,47 @@ html[data-device-layout='desktop'] .portal-header {
   position: static !important;
 }
 
+html[data-device-layout='mobile'] {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+html[data-device-layout='mobile'] body {
+  width: 100%;
+  overflow-x: hidden;
+}
+
 html[data-device-layout='mobile'] .dashboard-mobile-shell {
   min-height: 100dvh;
   background: #f5f5f5;
-  padding-top: calc(3.55rem + env(safe-area-inset-top));
+  padding-top: calc(4rem + env(safe-area-inset-top));
   overscroll-behavior-y: none;
 }
 
 html[data-device-layout='mobile'] .portal-header {
-  min-height: calc(3.55rem + env(safe-area-inset-top));
+  min-height: calc(4rem + env(safe-area-inset-top));
   padding-top: calc(0.625rem + env(safe-area-inset-top));
 }
 
+html[data-device-layout='mobile'] .portal-header-logo {
+  height: 2rem;
+}
+
+html[data-device-layout='mobile'] .portal-back-button,
+html[data-device-layout='mobile'] .portal-menu-button {
+  height: 2.75rem;
+}
+
 html[data-device-layout='mobile'] .portal-mobile-menu {
-  top: calc(3.55rem + env(safe-area-inset-top));
+  top: calc(4rem + env(safe-area-inset-top));
+}
+
+html[data-device-layout='mobile'] .portal-footer {
+  font-size: 0.875rem;
+}
+
+html[data-device-layout='mobile'] .portal-dashboard-footer {
+  padding-bottom: calc(6.5rem + env(safe-area-inset-bottom));
 }
 
 html[data-device-layout='mobile'] .dashboard-mobile-shell main {
@@ -132,7 +159,7 @@ html[data-device-layout='mobile'] .dashboard-mobile-shell h1 {
 }
 
 html[data-device-layout='mobile'] .dashboard-mobile-shell .sticky {
-  top: calc(4.25rem + env(safe-area-inset-top));
+  top: calc(4.7rem + env(safe-area-inset-top));
 }
 
 html[data-device-layout='mobile'] .dashboard-mobile-shell input,
