@@ -133,11 +133,13 @@ describe('transport vouchers', () => {
     expect(html).toContain('SCAN TO OPEN YOUR PORTAL')
     expect(html).toContain('Link and documents are valid for 10 months')
     expect(html).toContain('class="access-watermarks"')
-    expect(html).toContain('.access-colour-bars span:nth-child(1) { background: #111827; }')
-    expect(html).toContain('.access-colour-bars span:nth-child(2) { background: #facc15; }')
-    expect(html).toContain('.access-colour-bars span:nth-child(3) { background: #2563eb; }')
+    expect(html).toContain('.access-colour-bars span:nth-child(1) { background: #8b1e2d; }')
+    expect(html).toContain('.access-colour-bars span:nth-child(2) { background: #c9952e; }')
+    expect(html).toContain('.access-colour-bars span:nth-child(3) { background: #0891b2; }')
     expect(html).toContain('background: #8b1e2d;')
-    expect(html).toContain('border-left: 1.5mm solid #94a3b8;')
+    expect(html).toContain(
+      'background: linear-gradient(to bottom, #111827 0 33.333%, #facc15 33.333% 66.666%, #2563eb 66.666% 100%);',
+    )
     expect(html).toContain('info@piyamtravel.com')
     expect(html).toContain('src="data:image/png;base64,access-qr"')
     expect(html).toMatch(/\.timeline-row span\s*{[^}]*font-size:\s*13px/s)

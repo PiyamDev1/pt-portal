@@ -86,9 +86,9 @@ const TRANSPORT_VOUCHER_PRINT_CSS = `
     display: grid;
     grid-template-columns: 3fr 1fr 1fr;
   }
-  .access-colour-bars span:nth-child(1) { background: #111827; }
-  .access-colour-bars span:nth-child(2) { background: #facc15; }
-  .access-colour-bars span:nth-child(3) { background: #2563eb; }
+  .access-colour-bars span:nth-child(1) { background: #8b1e2d; }
+  .access-colour-bars span:nth-child(2) { background: #c9952e; }
+  .access-colour-bars span:nth-child(3) { background: #0891b2; }
   .access-header {
     width: 100%;
     min-height: 39mm;
@@ -186,13 +186,21 @@ const TRANSPORT_VOUCHER_PRINT_CSS = `
     transform: rotate(-8deg);
   }
   .access-details {
+    position: relative;
     width: 100%;
     padding: 4mm;
     border: 1px solid #6f1422;
-    border-left: 1.5mm solid #94a3b8;
     border-radius: 6px;
     background: #8b1e2d;
     text-align: left;
+    overflow: hidden;
+  }
+  .access-details::before {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 1.5mm;
+    background: linear-gradient(to bottom, #111827 0 33.333%, #facc15 33.333% 66.666%, #2563eb 66.666% 100%);
   }
   .access-details .access-label { color: #f8e8eb; }
   .access-label {
