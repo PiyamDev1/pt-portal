@@ -126,6 +126,8 @@ describe('transport vouchers', () => {
     expect(html).toMatch(/\.voucher\s*{[^}]*width:\s*107\.8mm;[^}]*height:\s*215\.6mm/s)
     expect(html).toMatch(/\.access-voucher\s*{[^}]*width:\s*98mm;[^}]*height:\s*215\.6mm/s)
     expect(html).toContain('class="cut-divider"')
+    expect(html).toMatch(/\.cut-divider\s*{[^}]*border-left:\s*\.5mm dotted #64748b/s)
+    expect(html).toMatch(/\.cut-divider\s*{[^}]*background:\s*transparent/s)
     expect(html).toContain('Amanat Ali')
     expect(html).toContain('PT-ABC123')
     expect(html).toContain('bookings.piyamtravel.com')
@@ -137,9 +139,7 @@ describe('transport vouchers', () => {
     expect(html).toContain('.access-colour-bars span:nth-child(2) { background: #c9952e; }')
     expect(html).toContain('.access-colour-bars span:nth-child(3) { background: #0891b2; }')
     expect(html).toContain('background: #8b1e2d;')
-    expect(html).toContain(
-      'background: linear-gradient(to bottom, #111827 0 33.333%, #facc15 33.333% 66.666%, #2563eb 66.666% 100%);',
-    )
+    expect(html).toMatch(/\.access-details::before\s*{[^}]*background:\s*#000;/s)
     expect(html).toContain('info@piyamtravel.com')
     expect(html).toContain('src="data:image/png;base64,access-qr"')
     expect(html).toMatch(/\.timeline-row span\s*{[^}]*font-size:\s*13px/s)

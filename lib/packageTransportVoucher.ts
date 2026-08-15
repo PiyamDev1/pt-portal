@@ -63,9 +63,11 @@ const TRANSPORT_VOUCHER_PRINT_CSS = `
     overflow: hidden;
   }
   .cut-divider {
-    width: 2mm;
+    width: 0;
     height: 215.6mm;
-    background: #800000;
+    justify-self: center;
+    border-left: .5mm dotted #64748b;
+    background: transparent;
   }
   .access-voucher {
     width: 98mm;
@@ -200,7 +202,7 @@ const TRANSPORT_VOUCHER_PRINT_CSS = `
     position: absolute;
     inset: 0 auto 0 0;
     width: 1.5mm;
-    background: linear-gradient(to bottom, #111827 0 33.333%, #facc15 33.333% 66.666%, #2563eb 66.666% 100%);
+    background: #000;
   }
   .access-details .access-label { color: #f8e8eb; }
   .access-label {
