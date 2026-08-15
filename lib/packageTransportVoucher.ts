@@ -617,7 +617,7 @@ const TRANSPORT_VOUCHER_PRINT_CSS = `
     .standalone-access-sheet {
       width: 98mm;
       height: 215.6mm;
-      margin: 4.5mm auto 0;
+      margin: 0;
     }
     .main { padding: 4.8mm; }
     .stub { padding: 3.8mm; }

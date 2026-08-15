@@ -153,6 +153,7 @@ describe('transport vouchers', () => {
     expect(html).toContain('<title>Access Voucher PT-ABC123</title>')
     expect(html).toContain('class="standalone-access-sheet"')
     expect(html).toContain('Print access voucher')
+    expect(html).toMatch(/@media print\s*{[\s\S]*?\.standalone-access-sheet\s*{[^}]*margin:\s*0;/)
     expect(html).toContain('src="https://portal.example/logo.png"')
     expect(html).toContain('src="data:image/png;base64,access-qr"')
     expect(html).not.toContain('GROUND TRANSPORT')
