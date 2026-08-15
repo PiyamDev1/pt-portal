@@ -962,6 +962,7 @@ export interface TravelPackageTransportVoucherData {
   sourceTransportOptionTitle?: string
   digitalVoucherUrl?: string
   qrCodeDataUrl?: string
+  accessVoucherQrCodeDataUrl?: string
   quoteSnapshot?: {
     title?: string
     packageType?: string

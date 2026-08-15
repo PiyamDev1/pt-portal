@@ -12,6 +12,7 @@ import {
   Loader2,
   PackageCheck,
   Pencil,
+  Printer,
   X,
 } from 'lucide-react'
 import type {
@@ -130,6 +131,7 @@ type PackageOverviewDialogsProps = {
   accessVoucherCopyMessage: string
   accessVoucherDetailsText: string
   copyAccessVoucherText: (text: string, message: string) => Promise<void>
+  printStandaloneAccessVoucher: () => void
   quoteCustomerFirstName: string
   quoteCustomerLastName: string
   showQuoteSnapshot: boolean
@@ -183,6 +185,7 @@ export default function PackageOverviewDialogs({
   accessVoucherCopyMessage,
   accessVoucherDetailsText,
   copyAccessVoucherText,
+  printStandaloneAccessVoucher,
   quoteCustomerFirstName,
   quoteCustomerLastName,
   showQuoteSnapshot,
@@ -293,7 +296,15 @@ export default function PackageOverviewDialogs({
             </div>
           </div>
 
-          <div className="mt-6 grid gap-4 md:grid-cols-2">
+          <div className="mt-6 grid gap-4 md:grid-cols-3">
+            <button
+              type="button"
+              onClick={printStandaloneAccessVoucher}
+              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-[#8b1e2d] bg-white px-4 text-sm font-black text-[#8b1e2d] transition hover:bg-red-50"
+            >
+              <Printer className="h-5 w-5" />
+              Print Access Voucher
+            </button>
             <button
               type="button"
               onClick={() => void copyAccessVoucherText(CUSTOMER_PORTAL_URL, 'Link copied')}

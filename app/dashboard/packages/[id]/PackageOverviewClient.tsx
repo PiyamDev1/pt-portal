@@ -46,6 +46,7 @@ import type {
 import { formatMoney, getLinkedFlightOptionTotal } from '@/lib/packageQuote'
 import { calculateTravelPackageDiscountAllocations } from '@/lib/packageDiscountAllocations'
 import type { TravelPackageGroupDetail } from '@/lib/packageGroups'
+import { renderStandaloneAccessVoucherHtml } from '@/lib/packageTransportVoucher'
 import {
   PACKAGE_DOCUMENT_CATEGORIES,
   THIRD_PARTY_PACKAGE_DOCUMENT_CATEGORIES,
@@ -1322,6 +1323,22 @@ Please enter the access code and accept the data handling terms before downloadi
     } catch {
       setAccessVoucherCopyMessage('Unable to copy')
     }
+  }
+
+  const printStandaloneAccessVoucher = () => {
+    if (!packageFolder) return
+    const html = renderStandaloneAccessVoucherHtml(packageFolder, accessVoucherQr, {
+      logoSrc: `${window.location.origin}/logo.png`,
+    })
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const preview = window.open(url, '_blank', 'noopener,noreferrer')
+    if (!preview) {
+      URL.revokeObjectURL(url)
+      setAccessVoucherCopyMessage('Allow pop-ups to print the access voucher')
+      return
+    }
+    window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
   }
 
   const uploadSingleDocumentFile = async (
@@ -4769,6 +4786,7 @@ Please enter the access code and accept the data handling terms before downloadi
         accessVoucherCopyMessage={accessVoucherCopyMessage}
         accessVoucherDetailsText={accessVoucherDetailsText}
         copyAccessVoucherText={copyAccessVoucherText}
+        printStandaloneAccessVoucher={printStandaloneAccessVoucher}
         quoteCustomerFirstName={quoteCustomerFirstName}
         quoteCustomerLastName={quoteCustomerLastName}
         showQuoteSnapshot={showQuoteSnapshot}

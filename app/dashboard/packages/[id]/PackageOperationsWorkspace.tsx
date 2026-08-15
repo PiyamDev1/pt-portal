@@ -104,6 +104,7 @@ export default function PackageOperationsWorkspace({
   const [editingPassengerId, setEditingPassengerId] = useState<string | null>(null)
   const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null)
   const [voucherPreviewQrCodeDataUrl, setVoucherPreviewQrCodeDataUrl] = useState('')
+  const [accessVoucherQrCodeDataUrl, setAccessVoucherQrCodeDataUrl] = useState('')
 
   const [customerForm, setCustomerForm] = useState({
     customerName: packageFolder.customer_name || '',
@@ -330,8 +331,10 @@ export default function PackageOperationsWorkspace({
       ...voucherForm,
       digitalVoucherUrl: voucherDigitalUrl,
       qrCodeDataUrl: voucherForm.qrCodeDataUrl || voucherPreviewQrCodeDataUrl,
+      accessVoucherQrCodeDataUrl:
+        voucherForm.accessVoucherQrCodeDataUrl || accessVoucherQrCodeDataUrl,
     }),
-    [voucherDigitalUrl, voucherForm, voucherPreviewQrCodeDataUrl],
+    [accessVoucherQrCodeDataUrl, voucherDigitalUrl, voucherForm, voucherPreviewQrCodeDataUrl],
   )
   const voucherPreviewHtml = useMemo(
     () => renderTransportVoucherHtml(packageFolder, voucherPreviewData),
@@ -362,6 +365,30 @@ export default function PackageOperationsWorkspace({
       cancelled = true
     }
   }, [voucherDigitalUrl, voucherForm.qrCodeDataUrl])
+
+  useEffect(() => {
+    if (voucherForm.accessVoucherQrCodeDataUrl) {
+      setAccessVoucherQrCodeDataUrl(voucherForm.accessVoucherQrCodeDataUrl)
+      return
+    }
+
+    let cancelled = false
+    QRCode.toDataURL('https://bookings.piyamtravel.com', {
+      width: 220,
+      margin: 1,
+      color: { dark: '#111827', light: '#ffffff' },
+    })
+      .then((value) => {
+        if (!cancelled) setAccessVoucherQrCodeDataUrl(value)
+      })
+      .catch(() => {
+        if (!cancelled) setAccessVoucherQrCodeDataUrl('')
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [voucherForm.accessVoucherQrCodeDataUrl])
 
   const patchPackage = async (body: Record<string, unknown>) => {
     setSaving('package')

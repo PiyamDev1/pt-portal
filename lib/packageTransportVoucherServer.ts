@@ -23,8 +23,8 @@ export async function renderTransportVoucherPdf(html: string) {
       headless: 'shell',
     }),
     defaultViewport: {
-      width: 416,
-      height: 832,
+      width: 794,
+      height: 1123,
       deviceScaleFactor: 2,
     },
     executablePath: configuredExecutablePath || (await serverlessChromium.executablePath()),
@@ -36,8 +36,7 @@ export async function renderTransportVoucherPdf(html: string) {
     await page.setContent(html, { waitUntil: 'load' })
     await page.emulateMediaType('print')
     const pdf = await page.pdf({
-      width: '110mm',
-      height: '220mm',
+      format: 'A4',
       printBackground: true,
       preferCSSPageSize: true,
       margin: { top: '0', right: '0', bottom: '0', left: '0' },

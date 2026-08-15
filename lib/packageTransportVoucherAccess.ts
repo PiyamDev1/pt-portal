@@ -4,6 +4,8 @@ import type { TravelPackageFolder, TravelPackageTransportVoucherData } from '@/a
 import { createPackageDocumentAccessToken } from '@/lib/packageDocuments'
 import { getPackageDocumentPortalUrl } from '@/lib/packageTransportVoucher'
 
+const CUSTOMER_PORTAL_URL = 'https://bookings.piyamtravel.com'
+
 function defaultAccessExpiry() {
   const expiry = new Date()
   expiry.setUTCMonth(expiry.getUTCMonth() + 10)
@@ -77,6 +79,7 @@ export async function enrichTransportVoucherPortalData(
   const portalAccess = await ensureTransportVoucherPortalAccess(supabase, packageFolder)
   const digitalVoucherUrl = voucherData.digitalVoucherUrl || portalAccess.url
   let qrCodeDataUrl = voucherData.qrCodeDataUrl || ''
+  let accessVoucherQrCodeDataUrl = voucherData.accessVoucherQrCodeDataUrl || ''
 
   if (!qrCodeDataUrl) {
     try {
@@ -90,9 +93,22 @@ export async function enrichTransportVoucherPortalData(
     }
   }
 
+  if (!accessVoucherQrCodeDataUrl) {
+    try {
+      accessVoucherQrCodeDataUrl = await QRCode.toDataURL(CUSTOMER_PORTAL_URL, {
+        width: 220,
+        margin: 1,
+        color: { dark: '#111827', light: '#ffffff' },
+      })
+    } catch {
+      accessVoucherQrCodeDataUrl = ''
+    }
+  }
+
   return {
     ...voucherData,
     digitalVoucherUrl,
     qrCodeDataUrl,
+    accessVoucherQrCodeDataUrl,
   }
 }

@@ -14,8 +14,9 @@ export interface TransportVoucherRenderOptions {
 }
 
 const TRANSPORT_VOUCHER_PRINT_CSS = `
-  @page { size: 110mm 220mm; margin: 0; }
+  @page { size: A4 portrait; margin: 0; }
   * { box-sizing: border-box; }
+  html,
   body {
     font-family: Inter, Arial, sans-serif;
     color: #111827;
@@ -23,7 +24,7 @@ const TRANSPORT_VOUCHER_PRINT_CSS = `
     background: #f4f6f8;
   }
   .preview-toolbar {
-    width: 107.8mm;
+    width: 207.8mm;
     max-width: calc(100% - 24px);
     margin: 16px auto -12px;
     display: flex;
@@ -40,17 +41,132 @@ const TRANSPORT_VOUCHER_PRINT_CSS = `
     padding: 9px 14px;
   }
   .preview-toolbar button:hover { background: #660000; }
+  .print-sheet {
+    width: 207.8mm;
+    height: 215.6mm;
+    max-width: calc(100% - 24px);
+    margin: 24px auto;
+    display: grid;
+    grid-template-columns: 107.8mm 2mm 98mm;
+    align-items: stretch;
+    background: #fff;
+  }
   .voucher {
     width: 107.8mm;
     height: 215.6mm;
-    max-width: 100%;
-    margin: 24px auto;
+    margin: 0;
     background: #fff;
     display: flex;
     flex-direction: column;
     border-radius: 12px;
     border: 1px dashed #cbd5e1;
     overflow: hidden;
+  }
+  .cut-divider {
+    width: 2mm;
+    height: 215.6mm;
+    background: #800000;
+  }
+  .access-voucher {
+    width: 98mm;
+    height: 215.6mm;
+    padding: 8mm 7mm;
+    background: #f8fafc;
+    border: 1px solid #cbd5e1;
+    border-left: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    overflow: hidden;
+  }
+  .access-logo-wrap {
+    min-height: 31mm;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .access-logo {
+    display: block;
+    width: 44mm;
+    max-height: 25mm;
+    object-fit: contain;
+  }
+  .access-logo-fallback {
+    display: none;
+    color: #800000;
+    font-size: 18px;
+    font-weight: 900;
+  }
+  .access-rule {
+    width: 22mm;
+    height: 1px;
+    margin: 5mm auto;
+    background: #cbd5e1;
+  }
+  .access-details {
+    width: 100%;
+    padding: 4mm 2mm;
+  }
+  .access-label {
+    margin: 0;
+    color: #64748b;
+    font-size: 10px;
+  }
+  .access-name {
+    margin: 1mm 0 0;
+    color: #111827;
+    font-size: 18px;
+    font-weight: 900;
+    overflow-wrap: anywhere;
+  }
+  .access-reference {
+    display: inline-block;
+    margin: 1mm 0 0;
+    border: 1px solid #fecaca;
+    border-radius: 5px;
+    background: #fff1f2;
+    padding: 1.5mm 2.5mm;
+    color: #8b1e2d;
+    font: 800 16px ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  .access-website {
+    margin: 1mm 0 0;
+    color: #111827;
+    font-size: 16px;
+    font-weight: 900;
+    overflow-wrap: anywhere;
+  }
+  .access-qr-wrap {
+    margin-top: auto;
+    width: 48mm;
+    height: 48mm;
+    padding: 3mm;
+    border: 1px solid #e2e8f0;
+    border-radius: 7px;
+    background: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .access-qr-wrap img {
+    display: block;
+    width: 42mm;
+    height: 42mm;
+  }
+  .access-qr-fallback {
+    color: #475569;
+    font-size: 9px;
+    font-weight: 800;
+    overflow-wrap: anywhere;
+  }
+  .standalone-access-sheet {
+    width: 98mm;
+    height: 215.6mm;
+    margin: 24px auto;
+  }
+  .standalone-access-sheet .access-voucher {
+    border-left: 1px solid #cbd5e1;
   }
   .main {
     flex: 1;
@@ -336,17 +452,34 @@ const TRANSPORT_VOUCHER_PRINT_CSS = `
   @media print {
     html,
     body {
-      width: 110mm;
-      height: 220mm;
+      width: 210mm;
+      height: 297mm;
       background: #fff;
+      overflow: hidden;
+    }
+    .print-sheet {
+      width: 207.8mm;
+      height: 215.6mm;
+      max-width: none;
+      margin: 4.5mm auto 0;
     }
     .voucher {
       width: 107.8mm;
       height: 215.6mm;
-      margin: 2.2mm auto;
+      margin: 0;
       border-radius: 0;
       border: 1px dashed #94a3b8;
       box-shadow: none;
+    }
+    .access-voucher {
+      width: 98mm;
+      height: 215.6mm;
+      border-radius: 0;
+    }
+    .standalone-access-sheet {
+      width: 98mm;
+      height: 215.6mm;
+      margin: 4.5mm auto 0;
     }
     .main { padding: 4.8mm; }
     .stub { padding: 3.8mm; }
@@ -354,8 +487,18 @@ const TRANSPORT_VOUCHER_PRINT_CSS = `
     .timeline-card { padding: 1.3mm 1.8mm; }
     .no-print { display: none; }
   }
-  @media (max-width: 720px) {
+  @media screen and (max-width: 720px) {
     body { background: #fff; }
+    .preview-toolbar {
+      width: calc(100% - 24px);
+      margin-bottom: 12px;
+    }
+    .print-sheet {
+      max-width: none;
+      margin: 0;
+      transform: scale(.52);
+      transform-origin: top left;
+    }
     .voucher {
       margin: 0;
       border-radius: 0;
@@ -395,6 +538,53 @@ function escapeHtml(value: unknown) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;')
+}
+
+type AccessVoucherPackage = Pick<
+  TravelPackageFolder,
+  'package_reference' | 'customer_name' | 'customer_access_last_name'
+>
+
+function renderAccessVoucherPanel(
+  packageFolder: AccessVoucherPackage,
+  qrCodeDataUrl: string,
+  logoSrc: string,
+) {
+  const qrContent = qrCodeDataUrl
+    ? `<img src="${escapeHtml(qrCodeDataUrl)}" alt="Open customer portal" />`
+    : `<span class="access-qr-fallback">${escapeHtml(DEFAULT_CUSTOMER_PORTAL_URL)}</span>`
+
+  return `<section class="access-voucher">
+    <div class="access-logo-wrap"><img class="access-logo" src="${escapeHtml(logoSrc)}" alt="Piyam Travel" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"><span class="access-logo-fallback">Piyam Travel</span></div>
+    <div class="access-rule"></div>
+    <div class="access-details">
+      <p class="access-label">Customer</p>
+      <p class="access-name">${escapeHtml(packageFolder.customer_name || 'Customer')}</p>
+      <p class="access-label" style="margin-top:5mm">Reference Number</p>
+      <p class="access-reference">${escapeHtml(packageFolder.package_reference)}</p>
+      <p class="access-label" style="margin-top:5mm">Login Website</p>
+      <p class="access-website">${escapeHtml(DEFAULT_CUSTOMER_PORTAL_URL.replace('https://', ''))}</p>
+    </div>
+    <div class="access-qr-wrap">${qrContent}</div>
+  </section>`
+}
+
+export function renderStandaloneAccessVoucherHtml(
+  packageFolder: AccessVoucherPackage,
+  qrCodeDataUrl: string,
+  options: TransportVoucherRenderOptions = {},
+) {
+  const logoSrc = options.logoSrc || getPiyamLogoSrc()
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Access Voucher ${escapeHtml(packageFolder.package_reference)}</title>
+  <style>${TRANSPORT_VOUCHER_PRINT_CSS}</style>
+</head>
+<body><div class="preview-toolbar no-print"><button type="button" onclick="window.print()">Print access voucher</button></div><main class="standalone-access-sheet">${renderAccessVoucherPanel(packageFolder, qrCodeDataUrl, logoSrc)}</main></body>
+</html>`
 }
 
 function dateOnly(value: string | null | undefined) {
@@ -719,6 +909,7 @@ export function createDefaultTransportVoucherData(
     sourceTransportOptionTitle: transportOption?.title || '',
     digitalVoucherUrl: '',
     qrCodeDataUrl: '',
+    accessVoucherQrCodeDataUrl: '',
     quoteSnapshot: {
       title: packageFolder.selected_quote_snapshot?.quote?.title || '',
       packageType: packageFolder.selected_quote_snapshot?.quote?.package_type || '',
@@ -843,6 +1034,7 @@ export function normalizeTransportVoucherData(
     sourceTransportOptionTitle: text('sourceTransportOptionTitle'),
     digitalVoucherUrl: text('digitalVoucherUrl'),
     qrCodeDataUrl: text('qrCodeDataUrl'),
+    accessVoucherQrCodeDataUrl: text('accessVoucherQrCodeDataUrl'),
     quoteSnapshot: {
       title: String(quoteSnapshotInput.title || '').trim(),
       packageType: String(quoteSnapshotInput.packageType || '').trim(),
@@ -945,16 +1137,21 @@ export function renderTransportVoucherHtml(
     driverContact ? `Driver: ${driverContact}` : '',
   ].filter(Boolean)
   const logoSrc = options.logoSrc || getPiyamLogoSrc()
+  const accessVoucherHtml = renderAccessVoucherPanel(
+    packageFolder,
+    data.accessVoucherQrCodeDataUrl || '',
+    logoSrc,
+  )
 
   return `<!doctype html>
 <html lang="en">
 <head>
 	  <meta charset="utf-8">
 	  <meta name="viewport" content="width=device-width, initial-scale=1">
-	  <title>Transport Voucher ${escapeHtml(packageFolder.package_reference)}</title>
-	  <style>${TRANSPORT_VOUCHER_PRINT_CSS}</style>
-	</head>
-	<body><div class="preview-toolbar no-print"><button type="button" onclick="window.print()">Print voucher</button></div><main class="voucher">
+		  <title>Transport Voucher ${escapeHtml(packageFolder.package_reference)}</title>
+		  <style>${TRANSPORT_VOUCHER_PRINT_CSS}</style>
+		</head>
+		<body><div class="preview-toolbar no-print"><button type="button" onclick="window.print()">Print vouchers</button></div><div class="print-sheet"><main class="voucher">
 	  <section class="main">
 	    <header class="header">
 	      <div class="brand"><img class="brand-logo" src="${escapeHtml(logoSrc)}" alt="Piyam Travel" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"><span class="brand-fallback">Piyam Travel</span></div>
@@ -990,9 +1187,9 @@ export function renderTransportVoucherHtml(
         <div><p class="stub-label">BAGGAGE</p><p class="stub-value" style="font-size:12px">${escapeHtml(data.maxBags || '0')} Bags Max (${escapeHtml(data.extraBaggageFee || DEFAULT_EXTRA_BAGGAGE_FEE)})</p></div>
       </div>
     </div>
-    <div class="qr-wrap">
-      <div class="qr">${qrContent}</div>
-    </div>
-  </aside>
-</main></body></html>`
+	    <div class="qr-wrap">
+	      <div class="qr">${qrContent}</div>
+	    </div>
+	  </aside>
+	</main><div class="cut-divider" aria-hidden="true"></div>${accessVoucherHtml}</div></body></html>`
 }

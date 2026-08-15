@@ -3,6 +3,7 @@ import type { TravelPackageFolder } from '@/app/types/packages'
 import {
   getPackageDocumentPortalUrl,
   normalizeTransportVoucherData,
+  renderStandaloneAccessVoucherHtml,
   renderTransportVoucherHtml,
 } from '@/lib/packageTransportVoucher'
 
@@ -104,24 +105,53 @@ describe('transport vouchers', () => {
     expect(html).not.toContain('src="/logo.png"')
   })
 
-  it('renders portrait DL print dimensions', () => {
+  it('renders the transport and access vouchers together on an A4 cut sheet', () => {
     const html = renderTransportVoucherHtml(
       {
         package_reference: 'PT-ABC123',
-        customer_name: 'Customer',
+        customer_name: 'Amanat Ali',
         passenger_summary: { totalPassengers: 2 },
       } as TravelPackageFolder,
-      normalizeTransportVoucherData({ routes: ['Airport to hotel'] }),
+      normalizeTransportVoucherData({
+        routes: ['Airport to hotel'],
+        accessVoucherQrCodeDataUrl: 'data:image/png;base64,access-qr',
+      }),
     )
 
-    expect(html).toMatch(/@page\s*{\s*size:\s*110mm 220mm;\s*margin:\s*0;\s*}/)
-    expect(html).toMatch(/html,\s*body\s*{[^}]*width:\s*110mm;[^}]*height:\s*220mm/s)
+    expect(html).toMatch(/@page\s*{\s*size:\s*A4 portrait;\s*margin:\s*0;\s*}/)
+    expect(html).toMatch(/html,\s*body\s*{[^}]*width:\s*210mm;[^}]*height:\s*297mm/s)
+    expect(html).toMatch(/html,\s*body\s*{[^}]*overflow:\s*hidden/s)
+    expect(html).toMatch(/\.print-sheet\s*{[^}]*width:\s*207\.8mm;[^}]*height:\s*215\.6mm/s)
+    expect(html).toMatch(/grid-template-columns:\s*107\.8mm 2mm 98mm/)
     expect(html).toMatch(/\.voucher\s*{[^}]*width:\s*107\.8mm;[^}]*height:\s*215\.6mm/s)
+    expect(html).toMatch(/\.access-voucher\s*{[^}]*width:\s*98mm;[^}]*height:\s*215\.6mm/s)
+    expect(html).toContain('class="cut-divider"')
+    expect(html).toContain('Amanat Ali')
+    expect(html).toContain('PT-ABC123')
+    expect(html).toContain('bookings.piyamtravel.com')
+    expect(html).toContain('src="data:image/png;base64,access-qr"')
     expect(html).toMatch(/\.timeline-row span\s*{[^}]*font-size:\s*13px/s)
     expect(html).toMatch(/\.timeline-row strong\s*{[^}]*font-size:\s*11\.2px/s)
     expect(html).toMatch(/\.route\s*{[^}]*font-size:\s*11px/s)
     expect(html).toMatch(/\.segment-meta\s*{[^}]*font-size:\s*9\.5px/s)
     expect(html).toMatch(/\.qr\s*{[^}]*width:\s*30mm;[^}]*height:\s*30mm/s)
-    expect(html).not.toMatch(/@page\s*{\s*size:\s*220mm 110mm/)
+  })
+
+  it('renders a standalone access voucher for individual printing', () => {
+    const html = renderStandaloneAccessVoucherHtml(
+      {
+        package_reference: 'PT-ABC123',
+        customer_name: 'Amanat Ali',
+      },
+      'data:image/png;base64,access-qr',
+      { logoSrc: 'https://portal.example/logo.png' },
+    )
+
+    expect(html).toContain('<title>Access Voucher PT-ABC123</title>')
+    expect(html).toContain('class="standalone-access-sheet"')
+    expect(html).toContain('Print access voucher')
+    expect(html).toContain('src="https://portal.example/logo.png"')
+    expect(html).toContain('src="data:image/png;base64,access-qr"')
+    expect(html).not.toContain('GROUND TRANSPORT')
   })
 })
