@@ -1,5 +1,7 @@
 import type {
+  PackageComponentOption,
   PackageLinkedPackageGroupSnapshot,
+  PackageQuotePayload,
   TravelPackageGroup,
   TravelPackageGroupAllocationMode,
   TravelPackageGroupMember,
@@ -9,6 +11,87 @@ import type {
   TravelPackageGroupStatus,
   TravelPackageGroupVisibilityMode,
 } from '@/app/types/packages'
+
+function comparableFlightText(value: string | null | undefined) {
+  return (value || '').trim().toLowerCase()
+}
+
+function findMatchingMainFlight(
+  source: PackageComponentOption,
+  targetOptions: PackageComponentOption[],
+) {
+  return (
+    targetOptions.find((option) => option.id === source.id) ||
+    targetOptions.find(
+      (option) =>
+        comparableFlightText(option.title) !== '' &&
+        comparableFlightText(option.title) === comparableFlightText(source.title),
+    )
+  )
+}
+
+/**
+ * Copies the shared flight structure while retaining any matching quote-specific seat prices.
+ * This lets linked families use the same services without forcing identical fares.
+ */
+export function copySharedPackageFlights(
+  sourcePayload: PackageQuotePayload,
+  targetPayload: PackageQuotePayload,
+): PackageQuotePayload {
+  const flightOptions = sourcePayload.flightOptions.map((sourceOption) => {
+    const targetOption = findMatchingMainFlight(sourceOption, targetPayload.flightOptions)
+    if (!targetOption) return { ...sourceOption }
+
+    return {
+      ...sourceOption,
+      price: targetOption.price,
+      searchPrice: targetOption.searchPrice,
+      adjustedPrice: targetOption.adjustedPrice,
+      adultPrice: targetOption.adultPrice,
+      childPrice: targetOption.childPrice,
+      infantPrice: targetOption.infantPrice,
+    }
+  })
+
+  const linkedFlightGroups = sourcePayload.linkedFlightGroups.map((sourceGroup) => {
+    const targetGroup =
+      targetPayload.linkedFlightGroups.find((group) => group.id === sourceGroup.id) ||
+      targetPayload.linkedFlightGroups.find(
+        (group) =>
+          comparableFlightText(group.routeLabel) !== '' &&
+          comparableFlightText(group.routeLabel) === comparableFlightText(sourceGroup.routeLabel),
+      )
+
+    return {
+      ...sourceGroup,
+      options: sourceGroup.options.map((sourceOption) => {
+        const targetOption =
+          targetGroup?.options.find((option) => option.id === sourceOption.id) ||
+          targetGroup?.options.find(
+            (option) =>
+              comparableFlightText(option.airlineName) !== '' &&
+              comparableFlightText(option.airlineName) ===
+                comparableFlightText(sourceOption.airlineName),
+          )
+
+        if (!targetOption) return { ...sourceOption }
+
+        return {
+          ...sourceOption,
+          adultPrice: targetOption.adultPrice,
+          childPrice: targetOption.childPrice,
+          infantPrice: targetOption.infantPrice,
+        }
+      }),
+    }
+  })
+
+  return {
+    ...targetPayload,
+    flightOptions,
+    linkedFlightGroups,
+  }
+}
 
 export const TRAVEL_PACKAGE_GROUP_SCHEMA_HINT =
   'Linked travel package group schema is not installed yet. Run scripts/migrations/20260721_create_travel_package_groups.sql in Supabase SQL editor.'

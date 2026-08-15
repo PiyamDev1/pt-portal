@@ -19,9 +19,6 @@ import {
   createPublicResolvedPackageSelection,
 } from '@/lib/packagePublicQuote'
 
-const LINKED_PACKAGE_NOTICE =
-  'This package shares travel arrangements with another family or group.'
-
 type PublicGroupRow = {
   id: string
   group_reference: string
@@ -182,10 +179,6 @@ async function loadPublicLinkedGroup(
 
     const group = groupResult.data as unknown as PublicGroupRow
     if (group.customer_visibility_mode === 'private') return null
-    if (group.customer_visibility_mode !== 'shared_group_view') {
-      return { notice: LINKED_PACKAGE_NOTICE }
-    }
-
     const membersResult = await supabase
       .from('travel_package_group_members')
       .select(selectPublicGroupMemberColumns())

@@ -65,6 +65,16 @@ type PackageGroupResponse = {
   error?: string
 }
 
+type SalesLinkedFamilyPricing = {
+  quoteId: string
+  familyLabel: string
+  quoteTitle: string
+  grossPrice: number
+  discountTotal: number
+  totalPrice: number
+  currency: string
+}
+
 type SelectionResponse = {
   selected?: PackageResolvedSelection
   error?: string
@@ -324,6 +334,41 @@ async function resolveSalesLinkedPackageGroup(
     : payload.linkedPackageGroup || null
 }
 
+async function loadSalesLinkedFamilyPricing(
+  linkedPackageGroup: PackageLinkedPackageGroupSnapshot | null,
+) {
+  if (!linkedPackageGroup) return []
+
+  const results = await Promise.all(
+    linkedPackageGroup.linkedFamilies.map(async (family) => {
+      if (!family.quoteId) return null
+      try {
+        const response = await fetch(`/api/packages/${encodeURIComponent(family.quoteId)}`)
+        const data = (await response.json()) as QuoteResponse
+        if (!response.ok || !data.quote) return null
+
+        const payload = normalizePackageQuotePayload(data.quote.payload)
+        const selection =
+          data.quote.selected_option?.selection || getDefaultPackageSelection(payload)
+        const resolved = resolvePackageSelection(payload, selection)
+        return {
+          quoteId: data.quote.id,
+          familyLabel: family.familyLabel,
+          quoteTitle: data.quote.title,
+          grossPrice: resolved.combination.grossPrice,
+          discountTotal: resolved.combination.offerDiscountTotal,
+          totalPrice: resolved.combination.totalPrice,
+          currency: resolved.combination.currency,
+        } satisfies SalesLinkedFamilyPricing
+      } catch {
+        return null
+      }
+    }),
+  )
+
+  return results.filter((result): result is SalesLinkedFamilyPricing => Boolean(result))
+}
+
 function SectionTitle({ icon: Icon, title }: { icon: typeof Building2; title: string }) {
   return (
     <div className="mb-3 flex items-center gap-2">
@@ -350,11 +395,13 @@ export default function PackageSalesModeClient({ quoteId }: PackageSalesModeClie
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [linkedFamilyPricing, setLinkedFamilyPricing] = useState<SalesLinkedFamilyPricing[]>([])
 
   useEffect(() => {
     const loadQuote = async () => {
       setLoading(true)
       setError(null)
+      setLinkedFamilyPricing([])
       try {
         const response = await fetch(`/api/packages/${encodeURIComponent(quoteId)}`)
         const data = (await response.json()) as QuoteResponse
@@ -366,6 +413,7 @@ export default function PackageSalesModeClient({ quoteId }: PackageSalesModeClie
           ...normalized,
           linkedPackageGroup,
         })
+        const linkedPricing = await loadSalesLinkedFamilyPricing(linkedPackageGroup)
         const existingSelection = data.quote.selected_option?.selection
         setQuote(data.quote)
         setPayload(normalizedWithGroup)
@@ -400,6 +448,7 @@ export default function PackageSalesModeClient({ quoteId }: PackageSalesModeClie
         })
         setPromoCode('')
         setSavedSelection(data.quote.selected_option)
+        setLinkedFamilyPricing(linkedPricing)
       } catch (loadError) {
         setError(loadError instanceof Error ? loadError.message : 'Unable to load quote')
       } finally {
@@ -435,6 +484,32 @@ export default function PackageSalesModeClient({ quoteId }: PackageSalesModeClie
     if (!payload || !resolved) return null
     return getPackagePassengerPriceBreakdown(payload, resolved.combination)
   }, [payload, resolved])
+  const combinedGroupPricing = useMemo(() => {
+    if (!resolved || linkedFamilyPricing.length === 0) return null
+    const current = resolved.combination
+    const currencies = new Set([
+      current.currency,
+      ...linkedFamilyPricing.map((family) => family.currency),
+    ])
+    if (currencies.size !== 1) {
+      return { currencyMismatch: true as const, families: linkedFamilyPricing }
+    }
+
+    return {
+      currencyMismatch: false as const,
+      currency: current.currency,
+      grossPrice:
+        current.grossPrice +
+        linkedFamilyPricing.reduce((total, family) => total + family.grossPrice, 0),
+      discountTotal:
+        current.offerDiscountTotal +
+        linkedFamilyPricing.reduce((total, family) => total + family.discountTotal, 0),
+      totalPrice:
+        current.totalPrice +
+        linkedFamilyPricing.reduce((total, family) => total + family.totalPrice, 0),
+      families: linkedFamilyPricing,
+    }
+  }, [linkedFamilyPricing, resolved])
 
   const orderedStayGroups = useMemo(() => {
     if (!payload) return []
@@ -1133,6 +1208,80 @@ export default function PackageSalesModeClient({ quoteId }: PackageSalesModeClie
                     </div>
                   </div>
                 </div>
+                {combinedGroupPricing && (
+                  <div className="mt-4 rounded-lg border-2 border-[#8b1e2d]/40 bg-red-50 p-3 text-sm">
+                    <p className="text-xs font-black uppercase text-[#8b1e2d]">
+                      All linked groups combined
+                    </p>
+                    <div className="mt-3 space-y-2">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="font-bold text-slate-700">
+                          {payload.linkedPackageGroup?.currentFamilyLabel || 'Current group'}
+                        </span>
+                        <span className="font-black text-slate-950">
+                          {formatMoney(
+                            resolved.combination.totalPrice,
+                            resolved.combination.currency,
+                          )}
+                        </span>
+                      </div>
+                      {combinedGroupPricing.families.map((family) => (
+                        <div
+                          key={family.quoteId}
+                          className="flex items-center justify-between gap-3"
+                        >
+                          <span className="min-w-0 font-bold text-slate-700">
+                            <span className="block truncate">{family.familyLabel}</span>
+                            <span className="block truncate text-[11px] text-slate-500">
+                              {family.quoteTitle}
+                            </span>
+                          </span>
+                          <span className="shrink-0 font-black text-slate-950">
+                            {formatMoney(family.totalPrice, family.currency)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    {combinedGroupPricing.currencyMismatch ? (
+                      <p className="mt-3 border-t border-red-200 pt-3 text-xs font-bold text-amber-800">
+                        These linked quotes use different currencies, so one combined amount cannot
+                        be calculated safely.
+                      </p>
+                    ) : (
+                      <div className="mt-3 space-y-2 border-t-2 border-[#8b1e2d]/30 pt-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="font-bold text-slate-700">Before discounts</span>
+                          <span className="font-black text-slate-950">
+                            {formatMoney(
+                              combinedGroupPricing.grossPrice,
+                              combinedGroupPricing.currency,
+                            )}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between gap-3 text-emerald-700">
+                          <span className="font-bold">Combined discounts</span>
+                          <span className="font-black">
+                            {combinedGroupPricing.discountTotal > 0
+                              ? `-${formatMoney(
+                                  combinedGroupPricing.discountTotal,
+                                  combinedGroupPricing.currency,
+                                )}`
+                              : 'None'}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between gap-3 border-t border-red-200 pt-2">
+                          <span className="font-black text-slate-950">Combined total</span>
+                          <span className="text-lg font-black text-[#8b1e2d]">
+                            {formatMoney(
+                              combinedGroupPricing.totalPrice,
+                              combinedGroupPricing.currency,
+                            )}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
                 <label className="mt-4 block">
                   <span className="mb-1 block text-xs font-black uppercase text-slate-500">
                     Promo code

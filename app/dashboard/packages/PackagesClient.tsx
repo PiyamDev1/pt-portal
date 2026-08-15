@@ -1307,7 +1307,9 @@ function OptionEditor({
           className={`mt-2 grid gap-2 ${
             showHotelCostAudit
               ? 'grid-cols-[repeat(auto-fit,minmax(8.75rem,1fr))]'
-              : 'sm:grid-cols-[minmax(0,1fr)_9.5rem]'
+              : showPricingMode
+                ? 'grid-cols-1'
+                : 'sm:grid-cols-[minmax(0,1fr)_9.5rem]'
           }`}
         >
           {showHotelCostAudit && (
@@ -2311,30 +2313,38 @@ export default function PackagesClient({
   }
 
   const saveSharedFlightSelection = async (nextValue = sharedFlightSelection) => {
-    if (!activePackageGroup) {
+    if (!activePackageGroup || !activeQuote) {
       toast.error('Create or link a package group first')
       return
     }
     setPackageGroupSaving(true)
     try {
-      const response = await fetch(`/api/travel-package-groups/${activePackageGroup.id}`, {
-        method: 'PATCH',
+      if (nextValue) {
+        await persistActiveQuotePayload(payload)
+      }
+      const response = await fetch(`/api/travel-package-groups/${activePackageGroup.id}/flights`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          metadata: {
-            ...(activePackageGroup.metadata || {}),
-            sharedFlightSelection: nextValue,
-          },
+          sourceQuoteId: activeQuote.id,
+          enabled: nextValue,
         }),
       })
-      const data = (await response.json()) as PackageGroupResponse
-      if (!response.ok || data.setupRequired || !data.group) {
-        throw new Error(data.message || data.error || 'Failed to save shared flight setting')
+      const data = (await response.json()) as {
+        syncedCount?: number
+        error?: string
+      }
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to save shared flight setting')
       }
       setSharedFlightSelection(nextValue)
       const detail = await loadPackageGroupDetail(activePackageGroup.id, false)
       if (detail) await persistPackageGroupSnapshot(detail)
-      toast.success('Shared flight setting updated')
+      toast.success(
+        nextValue
+          ? `Shared flights copied to ${data.syncedCount || 0} linked quote${data.syncedCount === 1 ? '' : 's'}`
+          : 'Shared flight matching disabled',
+      )
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to save shared flight setting')
     } finally {

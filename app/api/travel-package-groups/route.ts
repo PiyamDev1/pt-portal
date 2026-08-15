@@ -125,7 +125,7 @@ export async function POST(request: NextRequest) {
         lead_package_id: leadPackageId || null,
         lead_quote_id: leadQuoteId || null,
         status: 'active',
-        customer_visibility_mode: 'linked_notice_only',
+        customer_visibility_mode: 'shared_group_view',
         internal_notes: cleanPackageGroupText(body.internalNotes || body.internal_notes) || null,
         metadata: cleanMetadata(body.groupMetadata || body.group_metadata),
         created_by: user.id,

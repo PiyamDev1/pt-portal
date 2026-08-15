@@ -1,8 +1,97 @@
 import { describe, expect, it } from 'vitest'
+import type { PackageQuotePayload } from '@/app/types/packages'
 import type { TravelPackageGroupDetail } from '@/lib/packageGroups'
-import { buildLinkedPackageGroupSnapshot } from '@/lib/packageGroups'
+import { buildLinkedPackageGroupSnapshot, copySharedPackageFlights } from '@/lib/packageGroups'
 
 describe('package group helpers', () => {
+  it('copies shared flight structure while preserving matching family seat prices', () => {
+    const source = {
+      flightOptions: [
+        {
+          id: 'main-saudi',
+          title: 'Saudi Airlines',
+          summary: 'London to Jeddah',
+          price: 500,
+          searchPrice: 500,
+          adjustedPrice: 500,
+          pricingMode: 'per_person',
+          isDefault: true,
+          adultPrice: 500,
+          childPrice: 420,
+          infantPrice: 120,
+        },
+      ],
+      linkedFlightGroups: [
+        {
+          id: 'return-leg',
+          baseFlightOptionId: 'main-saudi',
+          routeLabel: 'Madinah to London',
+          defaultOptionId: 'wizz',
+          options: [
+            {
+              id: 'wizz',
+              airlineName: 'Wizz Air',
+              summary: 'Direct return',
+              adultPrice: 200,
+              childPrice: 180,
+              infantPrice: 50,
+              adultDelta: 0,
+              childDelta: 0,
+              infantDelta: 0,
+              isDefault: true,
+            },
+          ],
+        },
+      ],
+    } as unknown as PackageQuotePayload
+    const target = {
+      ...source,
+      title: 'Target family',
+      flightOptions: [
+        {
+          ...source.flightOptions[0],
+          summary: 'Old route copy',
+          adultPrice: 620,
+          childPrice: 510,
+          infantPrice: 160,
+        },
+      ],
+      linkedFlightGroups: [
+        {
+          ...source.linkedFlightGroups[0],
+          options: [
+            {
+              ...source.linkedFlightGroups[0].options[0],
+              summary: 'Old linked route copy',
+              adultPrice: 240,
+              childPrice: 205,
+              infantPrice: 65,
+            },
+          ],
+        },
+      ],
+    } as PackageQuotePayload
+
+    const copied = copySharedPackageFlights(source, target)
+
+    expect(copied.flightOptions[0]).toEqual(
+      expect.objectContaining({
+        summary: 'London to Jeddah',
+        adultPrice: 620,
+        childPrice: 510,
+        infantPrice: 160,
+      }),
+    )
+    expect(copied.linkedFlightGroups[0].options[0]).toEqual(
+      expect.objectContaining({
+        summary: 'Direct return',
+        adultPrice: 240,
+        childPrice: 205,
+        infantPrice: 65,
+      }),
+    )
+  })
+
   it('builds a customer-safe linked package group snapshot', () => {
     const group: TravelPackageGroupDetail = {
       id: 'group-1',

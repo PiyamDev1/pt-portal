@@ -425,12 +425,49 @@ describe('GET /api/packages/share/[token]', () => {
     expect(mocks.membersResult).not.toHaveBeenCalled()
   })
 
-  it('returns only a generic notice for linked-notice groups', async () => {
+  it('returns safe linked-family switching for legacy notice-only groups', async () => {
     mocks.groupSingle.mockResolvedValueOnce({
       data: {
         id: 'group-1',
         group_reference: 'SECRET-GROUP-REFERENCE',
         title: 'Sensitive linked group title',
+        customer_visibility_mode: 'linked_notice_only',
+        metadata: { sharedFlightSelection: false },
+      },
+      error: null,
+    })
+
+    const response = await GET(
+      new Request('http://localhost/api/packages/share/current-public-token') as never,
+      { params: Promise.resolve({ token: 'current-public-token' }) },
+    )
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.linkedGroup).toEqual(
+      expect.objectContaining({
+        groupReference: 'SECRET-GROUP-REFERENCE',
+        title: 'Sensitive linked group title',
+        sharedFlightSelection: false,
+        families: expect.arrayContaining([
+          expect.objectContaining({
+            familyLabel: 'Visible linked family',
+            sharePath: '/packages/linked-public-token',
+          }),
+        ]),
+      }),
+    )
+    expect(JSON.stringify(body)).not.toContain('Other Family Sensitive Name')
+    expect(JSON.stringify(body)).not.toContain('other-family@example.com')
+    expect(JSON.stringify(body)).not.toContain('Hidden family')
+  })
+
+  it('restores customer quote switching for existing linked groups with shared flights', async () => {
+    mocks.groupSingle.mockResolvedValueOnce({
+      data: {
+        id: 'group-1',
+        group_reference: 'TPG-001',
+        title: 'Existing shared-flight group',
         customer_visibility_mode: 'linked_notice_only',
         metadata: { sharedFlightSelection: true },
       },
@@ -444,13 +481,17 @@ describe('GET /api/packages/share/[token]', () => {
     const body = await response.json()
 
     expect(response.status).toBe(200)
-    expect(body.linkedGroup).toEqual({
-      notice: 'This package shares travel arrangements with another family or group.',
-    })
-    expect(JSON.stringify(body)).not.toContain('SECRET-GROUP-REFERENCE')
-    expect(JSON.stringify(body)).not.toContain('Sensitive linked group title')
-    expect(JSON.stringify(body)).not.toContain('Visible linked family')
-    expect(mocks.membersResult).not.toHaveBeenCalled()
-    expect(mocks.state.quoteCall).toBe(1)
+    expect(body.linkedGroup).toEqual(
+      expect.objectContaining({
+        groupReference: 'TPG-001',
+        sharedFlightSelection: true,
+        families: expect.arrayContaining([
+          expect.objectContaining({
+            familyLabel: 'Visible linked family',
+            sharePath: '/packages/linked-public-token',
+          }),
+        ]),
+      }),
+    )
   })
 })
