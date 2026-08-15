@@ -86,9 +86,9 @@ const TRANSPORT_VOUCHER_PRINT_CSS = `
     display: grid;
     grid-template-columns: 3fr 1fr 1fr;
   }
-  .access-colour-bars span:nth-child(1) { background: #8b1e2d; }
-  .access-colour-bars span:nth-child(2) { background: #c9952e; }
-  .access-colour-bars span:nth-child(3) { background: #0891b2; }
+  .access-colour-bars span:nth-child(1) { background: #111827; }
+  .access-colour-bars span:nth-child(2) { background: #facc15; }
+  .access-colour-bars span:nth-child(3) { background: #2563eb; }
   .access-header {
     width: 100%;
     min-height: 39mm;
