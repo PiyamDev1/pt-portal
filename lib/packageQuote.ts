@@ -21,6 +21,7 @@ import type {
   PackageTransportRouteKind,
   PackageTransportRouteSelection,
   PackageVisaPassengerCategory,
+  TravelPackageFolder,
   TravelPackageQuote,
   TravelPackageType,
 } from '@/app/types/packages'
@@ -722,6 +723,42 @@ export function buildPackageSnapshot(quote: TravelPackageQuote) {
     },
     payload,
     selection: quote.selected_option,
+  }
+}
+
+export function rebuildConvertedPackageSnapshot(
+  quote: TravelPackageQuote,
+  previousSnapshot: TravelPackageFolder['selected_quote_snapshot'] | null | undefined,
+) {
+  const payload = normalizePackageQuotePayload(quote.payload)
+  const previousSelection = quote.selected_option || previousSnapshot?.selection
+  if (!previousSelection) {
+    throw new Error('The converted package has no final selection to refresh')
+  }
+
+  const selection = resolvePackageSelection(payload, previousSelection.selection)
+  const snapshotQuote: TravelPackageQuote = {
+    ...quote,
+    selected_option: selection,
+    selected_at: quote.selected_at || previousSnapshot?.quote?.selected_at || null,
+    selection_note:
+      quote.selection_note ??
+      previousSnapshot?.quote?.selection_note ??
+      previousSelection.selection.note ??
+      null,
+  }
+
+  return {
+    snapshot: buildPackageSnapshot(snapshotQuote),
+    selection,
+    publicSummary: {
+      title: payload.title,
+      packageSubtotalPrice: selection.combination.packageSubtotalPrice,
+      paymentMethod: selection.combination.paymentMethod,
+      paymentSurchargeTotal: selection.combination.paymentSurchargeTotal,
+      totalPrice: selection.combination.totalPrice,
+      currency: selection.combination.currency,
+    },
   }
 }
 

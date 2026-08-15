@@ -3,6 +3,7 @@ import {
   buildPackageCombinations,
   buildCustomerPackageOptions,
   buildPackagePresetSelections,
+  buildPackageSnapshot,
   createTravelPackageReference,
   formatPackageQuoteForCopy,
   formatPackageCombinationForCopy,
@@ -12,10 +13,15 @@ import {
   getDefaultPackageExpiry,
   isPackageQuoteExpired,
   normalizePackageQuotePayload,
+  rebuildConvertedPackageSnapshot,
   resolvePackageSelection,
   sortPackageOptionsLowToHigh,
 } from '@/lib/packageQuote'
-import type { PackageQuotePayload } from '@/app/types/packages'
+import type {
+  PackageQuotePayload,
+  TravelPackageFolder,
+  TravelPackageQuote,
+} from '@/app/types/packages'
 
 const payload: PackageQuotePayload = {
   title: 'Family Umrah',
@@ -724,6 +730,115 @@ describe('package quote calculator', () => {
     expect(resolved.selection.transportOptionId).toBe('transport-total')
     expect(resolved.combination.transportOption?.pricingMode).toBe('total')
     expect(resolved.combination.totalPrice).toBe(925)
+  })
+
+  it('refreshes a converted package snapshot from corrected transport data', () => {
+    const originalPayload = normalizePackageQuotePayload({
+      ...payload,
+      flightOptions: [],
+      visaOptions: [],
+      transportOptions: [
+        {
+          id: 'transport-selected',
+          title: 'Private transport',
+          summary: '* Jeddah Airport to Makkah Hotel (Car)',
+          price: 300,
+          pricingMode: 'total',
+          isDefault: true,
+          transportRoutes: [
+            {
+              id: 'route-selection-1',
+              kind: 'transfer',
+              routeId: 'jeddah-makkah',
+              routeName: 'Jeddah Airport to Makkah Hotel',
+              supplierId: 'supplier-1',
+              supplierName: 'Supplier 1',
+              vehicleTypeId: 'car',
+              vehicleLabel: 'Car',
+              costPrice: 100,
+              currency: 'GBP',
+              costPriceGbp: 100,
+            },
+          ],
+        },
+      ],
+    })
+    const originalSelection = resolvePackageSelection(originalPayload, {
+      stayOptionIds: { makkah: 'mk-b', madinah: 'md-b' },
+      transportOptionId: 'transport-selected',
+      customerName: 'A Khan',
+    })
+    const originalQuote: TravelPackageQuote = {
+      id: 'quote-transport-sync',
+      title: originalPayload.title,
+      package_type: originalPayload.packageType,
+      status: 'converted',
+      currency: originalPayload.currency,
+      customer_name: 'A Khan',
+      customer_phone: null,
+      customer_email: null,
+      payload: originalPayload,
+      share_token: 'share-token',
+      share_enabled: false,
+      shared_at: null,
+      expires_at: '2026-12-01T00:00:00.000Z',
+      selected_option: originalSelection,
+      selected_at: '2026-08-01T10:00:00.000Z',
+      selection_note: 'Original selection',
+      converted_package_id: 'package-1',
+      converted_at: '2026-08-01T10:05:00.000Z',
+      created_by: 'agent-1',
+      created_at: '2026-08-01T09:00:00.000Z',
+      updated_at: null,
+    }
+    const previousSnapshot = buildPackageSnapshot(
+      originalQuote,
+    ) as unknown as TravelPackageFolder['selected_quote_snapshot']
+    const correctedPayload = normalizePackageQuotePayload({
+      ...originalPayload,
+      transportOptions: [
+        {
+          ...originalPayload.transportOptions[0],
+          summary: '* Madinah Airport to Madinah Hotel (H1)',
+          price: 420,
+          transportRoutes: [
+            {
+              ...originalPayload.transportOptions[0].transportRoutes?.[0],
+              routeId: 'madinah-airport-hotel',
+              routeName: 'Madinah Airport to Madinah Hotel',
+              vehicleTypeId: 'h1',
+              vehicleLabel: 'H1',
+              costPrice: 140,
+              costPriceGbp: 140,
+            },
+          ],
+        },
+      ],
+    })
+
+    const refreshed = rebuildConvertedPackageSnapshot(
+      {
+        ...originalQuote,
+        payload: correctedPayload,
+        selected_option: null,
+        selected_at: null,
+        selection_note: null,
+      },
+      previousSnapshot,
+    )
+
+    expect(refreshed.selection.selection.transportOptionId).toBe('transport-selected')
+    expect(refreshed.selection.combination.transportOption?.transportRoutes?.[0]).toMatchObject({
+      routeId: 'madinah-airport-hotel',
+      routeName: 'Madinah Airport to Madinah Hotel',
+      vehicleTypeId: 'h1',
+      vehicleLabel: 'H1',
+    })
+    expect(refreshed.selection.combination.transportOption?.price).toBe(420)
+    expect(refreshed.publicSummary.totalPrice).toBe(
+      refreshed.selection.combination.totalPrice,
+    )
+    expect(refreshed.snapshot.quote.selected_at).toBe('2026-08-01T10:00:00.000Z')
   })
 
   it('calculates per-person transport mode for every passenger', () => {

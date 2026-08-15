@@ -86,6 +86,8 @@ type SaveResponse = {
   setupRequired?: boolean
   message?: string
   error?: string
+  packageSynced?: boolean
+  packageSyncMessage?: string
 }
 
 type PackageGroupsResponse = {
@@ -2415,7 +2417,16 @@ export default function PackagesClient({
         const next = current.filter((quote) => quote.id !== data.quote!.id)
         return [data.quote!, ...next]
       })
-      toast.success(shareEnabled ? 'Package saved and share link enabled' : 'Package draft saved')
+      toast.success(
+        data.packageSynced
+          ? `${shareEnabled ? 'Package saved and share link enabled' : 'Package draft saved'}. Package folder refreshed.`
+          : shareEnabled
+            ? 'Package saved and share link enabled'
+            : 'Package draft saved',
+      )
+      if (data.packageSynced === false && data.packageSyncMessage) {
+        toast.warning(data.packageSyncMessage)
+      }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to save package quote')
     } finally {
