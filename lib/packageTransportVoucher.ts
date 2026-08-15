@@ -70,9 +70,9 @@ const TRANSPORT_VOUCHER_PRINT_CSS = `
   .access-voucher {
     width: 98mm;
     height: 215.6mm;
-    padding: 8mm 7mm;
+    padding: 0;
     background: #f8fafc;
-    border: 1px solid #cbd5e1;
+    border: 1px solid #b8c4d3;
     border-left: 0;
     display: flex;
     flex-direction: column;
@@ -80,16 +80,44 @@ const TRANSPORT_VOUCHER_PRINT_CSS = `
     text-align: center;
     overflow: hidden;
   }
+  .access-colour-bars {
+    width: 100%;
+    height: 2.4mm;
+    display: grid;
+    grid-template-columns: 3fr 1fr 1fr;
+  }
+  .access-colour-bars span:nth-child(1) { background: #8b1e2d; }
+  .access-colour-bars span:nth-child(2) { background: #c9952e; }
+  .access-colour-bars span:nth-child(3) { background: #0891b2; }
+  .access-header {
+    width: 100%;
+    min-height: 39mm;
+    padding: 5mm 6mm 4mm;
+    background: #0f172a;
+    color: #fff;
+  }
+  .access-pass-label {
+    margin: 0;
+    color: #f2cf7d;
+    font-size: 8px;
+    font-weight: 900;
+    letter-spacing: .14em;
+  }
   .access-logo-wrap {
-    min-height: 31mm;
+    width: 43mm;
+    min-height: 19mm;
+    margin: 2.5mm auto 0;
+    padding: 2.2mm 3mm;
+    border-radius: 6px;
+    background: #fff;
     display: flex;
     align-items: center;
     justify-content: center;
   }
   .access-logo {
     display: block;
-    width: 44mm;
-    max-height: 25mm;
+    width: 36mm;
+    max-height: 15mm;
     object-fit: contain;
   }
   .access-logo-fallback {
@@ -98,52 +126,112 @@ const TRANSPORT_VOUCHER_PRINT_CSS = `
     font-size: 18px;
     font-weight: 900;
   }
-  .access-rule {
-    width: 22mm;
-    height: 1px;
-    margin: 5mm auto;
-    background: #cbd5e1;
+  .access-tagline {
+    margin: 2.2mm 0 0;
+    color: #cbd5e1;
+    font-size: 7.5px;
+    font-weight: 800;
+    letter-spacing: .06em;
+  }
+  .access-body {
+    width: 100%;
+    flex: 1;
+    min-height: 0;
+    padding: 5mm 6mm;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
   }
   .access-details {
     width: 100%;
-    padding: 4mm 2mm;
+    padding: 4mm;
+    border: 1px solid #dbe3ec;
+    border-left: 1.5mm solid #8b1e2d;
+    border-radius: 6px;
+    background: #fff;
+    text-align: left;
   }
   .access-label {
     margin: 0;
     color: #64748b;
-    font-size: 10px;
+    font-size: 7.5px;
+    font-weight: 900;
+    letter-spacing: .06em;
+    text-transform: uppercase;
   }
   .access-name {
-    margin: 1mm 0 0;
+    margin: .8mm 0 0;
     color: #111827;
-    font-size: 18px;
+    font-size: 17px;
     font-weight: 900;
     overflow-wrap: anywhere;
   }
+  .access-reference-row {
+    margin-top: 3mm;
+    padding-top: 3mm;
+    border-top: 1px solid #e2e8f0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 3mm;
+  }
   .access-reference {
     display: inline-block;
-    margin: 1mm 0 0;
+    margin: 0;
     border: 1px solid #fecaca;
     border-radius: 5px;
     background: #fff1f2;
     padding: 1.5mm 2.5mm;
     color: #8b1e2d;
-    font: 800 16px ui-monospace, SFMono-Regular, Menlo, monospace;
+    font: 900 14px ui-monospace, SFMono-Regular, Menlo, monospace;
+    white-space: nowrap;
   }
-  .access-website {
-    margin: 1mm 0 0;
-    color: #111827;
-    font-size: 16px;
+  .access-scan-copy {
+    margin: 4mm 0 2.5mm;
+    color: #334155;
+    font-size: 9px;
+    font-weight: 700;
+    line-height: 1.35;
+  }
+  .access-scan-copy strong { color: #0f172a; }
+  .access-qr-frame {
+    position: relative;
+    padding: 2.2mm;
+    border: 1.2mm solid #0f172a;
+    border-radius: 8px;
+    background: #fff;
+  }
+  .access-qr-frame::before,
+  .access-qr-frame::after {
+    content: "";
+    position: absolute;
+    width: 8mm;
+    height: 8mm;
+    border-color: #c9952e;
+  }
+  .access-qr-frame::before {
+    left: -2.1mm;
+    top: -2.1mm;
+    border-left: 1mm solid #c9952e;
+    border-top: 1mm solid #c9952e;
+  }
+  .access-qr-frame::after {
+    right: -2.1mm;
+    bottom: -2.1mm;
+    border-right: 1mm solid #c9952e;
+    border-bottom: 1mm solid #c9952e;
+  }
+  .access-qr-title {
+    margin: 2.8mm 0 0;
+    color: #8b1e2d;
+    font-size: 8px;
     font-weight: 900;
-    overflow-wrap: anywhere;
+    letter-spacing: .1em;
   }
   .access-qr-wrap {
-    margin-top: auto;
-    width: 48mm;
-    height: 48mm;
-    padding: 3mm;
-    border: 1px solid #e2e8f0;
-    border-radius: 7px;
+    width: 43mm;
+    height: 43mm;
+    padding: 2mm;
     background: #fff;
     display: flex;
     align-items: center;
@@ -151,14 +239,64 @@ const TRANSPORT_VOUCHER_PRINT_CSS = `
   }
   .access-qr-wrap img {
     display: block;
-    width: 42mm;
-    height: 42mm;
+    width: 39mm;
+    height: 39mm;
   }
   .access-qr-fallback {
     color: #475569;
     font-size: 9px;
     font-weight: 800;
     overflow-wrap: anywhere;
+  }
+  .access-portal {
+    width: 100%;
+    margin-top: auto;
+    padding: 3mm 3.5mm;
+    border: 1px solid #bae6fd;
+    border-radius: 6px;
+    background: #ecfeff;
+  }
+  .access-portal .access-label { color: #0e7490; }
+  .access-website {
+    margin: 1mm 0 0;
+    color: #0f172a;
+    font-size: 13px;
+    font-weight: 900;
+    overflow-wrap: anywhere;
+  }
+  .access-footer {
+    width: 100%;
+    min-height: 18mm;
+    padding: 3.5mm 5mm;
+    background: #e9eef4;
+    border-top: 1px solid #cbd5e1;
+    color: #334155;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 4mm;
+    text-align: left;
+  }
+  .access-footer p { margin: 0; }
+  .access-support-title {
+    color: #0f172a;
+    font-size: 10px;
+    font-weight: 900;
+  }
+  .access-support-detail {
+    margin-top: .8mm !important;
+    font-size: 8.2px;
+    font-weight: 700;
+  }
+  .access-secure-badge {
+    border: 1px solid #b8c4d3;
+    border-radius: 999px;
+    background: #fff;
+    padding: 1.5mm 2.3mm;
+    color: #8b1e2d;
+    font-size: 7.5px;
+    font-weight: 900;
+    white-space: nowrap;
   }
   .standalone-access-sheet {
     width: 98mm;
@@ -555,17 +693,24 @@ function renderAccessVoucherPanel(
     : `<span class="access-qr-fallback">${escapeHtml(DEFAULT_CUSTOMER_PORTAL_URL)}</span>`
 
   return `<section class="access-voucher">
-    <div class="access-logo-wrap"><img class="access-logo" src="${escapeHtml(logoSrc)}" alt="Piyam Travel" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"><span class="access-logo-fallback">Piyam Travel</span></div>
-    <div class="access-rule"></div>
-    <div class="access-details">
-      <p class="access-label">Customer</p>
-      <p class="access-name">${escapeHtml(packageFolder.customer_name || 'Customer')}</p>
-      <p class="access-label" style="margin-top:5mm">Reference Number</p>
-      <p class="access-reference">${escapeHtml(packageFolder.package_reference)}</p>
-      <p class="access-label" style="margin-top:5mm">Login Website</p>
-      <p class="access-website">${escapeHtml(DEFAULT_CUSTOMER_PORTAL_URL.replace('https://', ''))}</p>
+    <div class="access-colour-bars" aria-hidden="true"><span></span><span></span><span></span></div>
+    <header class="access-header">
+      <p class="access-pass-label">CUSTOMER ACCESS PASS</p>
+      <div class="access-logo-wrap"><img class="access-logo" src="${escapeHtml(logoSrc)}" alt="Piyam Travel" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"><span class="access-logo-fallback">Piyam Travel</span></div>
+      <p class="access-tagline">YOUR JOURNEY, ONE SECURE PORTAL</p>
+    </header>
+    <div class="access-body">
+      <div class="access-details">
+        <p class="access-label">Lead customer</p>
+        <p class="access-name">${escapeHtml(packageFolder.customer_name || 'Customer')}</p>
+        <div class="access-reference-row"><p class="access-label">Travel reference</p><p class="access-reference">${escapeHtml(packageFolder.package_reference)}</p></div>
+      </div>
+      <p class="access-scan-copy"><strong>Scan your pass</strong><br>Open your secure travel portal and keep your documents close throughout your journey.</p>
+      <div class="access-qr-frame"><div class="access-qr-wrap">${qrContent}</div></div>
+      <p class="access-qr-title">SCAN TO OPEN YOUR PORTAL</p>
+      <div class="access-portal"><p class="access-label">Portal address</p><p class="access-website">${escapeHtml(DEFAULT_CUSTOMER_PORTAL_URL.replace('https://', ''))}</p></div>
     </div>
-    <div class="access-qr-wrap">${qrContent}</div>
+    <footer class="access-footer"><div><p class="access-support-title">Need help while travelling?</p><p class="access-support-detail">info@piyamtravel.com | +44 7400 828212</p></div><span class="access-secure-badge">SECURE ACCESS</span></footer>
   </section>`
 }
 
