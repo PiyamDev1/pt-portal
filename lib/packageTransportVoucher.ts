@@ -765,7 +765,7 @@ function renderAccessVoucherPanel(
       <div class="access-qr-frame"><div class="access-qr-wrap">${qrContent}</div></div>
       <p class="access-qr-title">SCAN TO OPEN YOUR PORTAL</p>
       <div class="access-portal"><p class="access-label">Portal address</p><p class="access-website">${escapeHtml(DEFAULT_CUSTOMER_PORTAL_URL.replace('https://', ''))}</p></div>
-      <p class="access-validity">Link and documents are valid for 11 months. You can request the office to extend this.</p>
+      <p class="access-validity">Link and documents are valid for 10 months. You can request the office to extend this.</p>
     </div>
     <footer class="access-footer"><div><p class="access-support-title">Need help while travelling?</p><p class="access-support-detail">info@piyamtravel.com | +44 7400 828212</p></div><span class="access-secure-badge">SECURE ACCESS</span></footer>
   </section>`

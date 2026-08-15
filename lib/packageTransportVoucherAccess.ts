@@ -8,7 +8,7 @@ const CUSTOMER_PORTAL_URL = 'https://bookings.piyamtravel.com'
 
 function defaultAccessExpiry() {
   const expiry = new Date()
-  expiry.setUTCMonth(expiry.getUTCMonth() + 11)
+  expiry.setUTCMonth(expiry.getUTCMonth() + 10)
   return expiry.toISOString()
 }
 

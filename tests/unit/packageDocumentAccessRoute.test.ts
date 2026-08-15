@@ -122,7 +122,7 @@ describe('travel package document access route', () => {
     expect(mocks.updateEq).toHaveBeenCalledWith('id', 'package-1')
   })
 
-  it('defaults customer document access to 11 months', async () => {
+  it('defaults customer document access to 10 months', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-08-15T12:00:00.000Z'))
 
@@ -133,7 +133,7 @@ describe('travel package document access route', () => {
     expect(response.status).toBe(200)
     expect(mocks.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        document_access_expires_at: '2027-07-15T12:00:00.000Z',
+        document_access_expires_at: '2027-06-15T12:00:00.000Z',
       }),
     )
   })
