@@ -28,7 +28,6 @@ import {
   LayoutDashboard,
   Plane,
   Settings,
-  Sparkles,
   Ticket,
 } from 'lucide-react'
 import PageHeader from '@/app/components/PageHeader.client'
@@ -62,8 +61,6 @@ const ICONS: Record<DashboardModule['iconKey'], ComponentType<IconProps>> = {
 }
 
 const MOBILE_PRIMARY_IDS = new Set(['timeclock', 'hrms-transfer'])
-const MOBILE_QUICK_IDS = new Set(['account', 'applications', 'accounting', 'bookings', 'packages'])
-
 function ModuleIcon({
   moduleItem,
   className = 'h-5 w-5',
@@ -83,18 +80,15 @@ function MobileDashboard({
   userName?: string | null
 }) {
   const primaryModules = modules.filter((moduleItem) => MOBILE_PRIMARY_IDS.has(moduleItem.id))
-  const quickModules = modules.filter((moduleItem) => MOBILE_QUICK_IDS.has(moduleItem.id))
-  const remainingModules = modules.filter(
-    (moduleItem) => !MOBILE_PRIMARY_IDS.has(moduleItem.id) && !MOBILE_QUICK_IDS.has(moduleItem.id),
-  )
+  const workspaceModules = modules.filter((moduleItem) => !MOBILE_PRIMARY_IDS.has(moduleItem.id))
 
   return (
     <section className="platform-mobile-only">
-      <div className="rounded-[2rem] bg-[#4b0f16] p-5 text-white shadow-2xl shadow-red-950/20">
+      <div className="overflow-hidden rounded-[1.75rem] bg-[#4b0f16] p-5 text-white shadow-xl shadow-red-950/20">
         <div className="flex items-center justify-between gap-4">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.22em] text-red-100">
-              Staff launchpad
+              Mobile workspace
             </p>
             <h1 className="mt-2 text-2xl font-black leading-tight">Hi {userName || 'there'}</h1>
           </div>
@@ -102,8 +96,8 @@ function MobileDashboard({
             <LayoutDashboard className="h-6 w-6" />
           </div>
         </div>
-        <p className="mt-4 text-sm leading-6 text-slate-300">
-          Fast access for phones. Clock in or jump to HRMS first, then everything else below.
+        <p className="mt-4 text-base leading-6 text-red-50/85">
+          Your daily actions are arranged as full-width touch controls for easier use on a phone.
         </p>
       </div>
 
@@ -116,7 +110,7 @@ function MobileDashboard({
             <Link
               key={moduleItem.id}
               href={moduleItem.href}
-              className={`flex min-h-24 items-center gap-4 rounded-[1.5rem] bg-gradient-to-br ${moduleItem.tileTone} p-4 text-slate-950 shadow-lg ring-1 ring-slate-900/5 active:scale-[0.99]`}
+              className={`flex min-h-28 items-center gap-4 rounded-[1.5rem] bg-gradient-to-br ${moduleItem.tileTone} p-4 text-slate-950 shadow-md ring-1 ring-slate-900/5 active:scale-[0.99]`}
             >
               <div
                 className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br ${moduleItem.iconTone} shadow-lg`}
@@ -135,53 +129,29 @@ function MobileDashboard({
         </div>
       </div>
 
-      <div className="mt-5 rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-black uppercase tracking-[0.16em] text-slate-500">
-            Quick options
-          </h2>
-          <Sparkles className="h-4 w-4 text-amber-500" />
-        </div>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          {quickModules.map((moduleItem, index) => (
-            <Link
-              key={moduleItem.id}
-              href={moduleItem.href}
-              className={`min-h-24 rounded-2xl bg-gradient-to-br ${moduleItem.tileTone} p-3 text-center shadow-sm ring-1 ring-slate-900/5 active:scale-[0.99] ${quickModules.length % 2 === 1 && index === quickModules.length - 1 ? 'col-span-2' : ''}`}
-            >
-              <div
-                className={`mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br ${moduleItem.iconTone} shadow-sm`}
-              >
-                <ModuleIcon moduleItem={moduleItem} className="h-5 w-5" />
-              </div>
-              <p className="mt-2 text-sm font-black leading-tight text-slate-700">
-                {moduleItem.title}
-              </p>
-            </Link>
-          ))}
-        </div>
-      </div>
-
-      {remainingModules.length > 0 && (
+      {workspaceModules.length > 0 && (
         <div className="mt-6">
           <p className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-slate-500">
-            All staff tools
+            Your workspaces
           </p>
           <div className="space-y-3">
-            {remainingModules.map((moduleItem) => (
+            {workspaceModules.map((moduleItem) => (
               <Link
                 key={moduleItem.id}
                 href={moduleItem.href}
-                className={`flex min-h-20 items-center gap-4 rounded-2xl border border-white/70 bg-gradient-to-br ${moduleItem.tileTone} p-4 shadow-sm ring-1 ring-slate-900/5 active:scale-[0.99]`}
+                className={`flex min-h-24 items-center gap-4 rounded-2xl border border-white/70 bg-gradient-to-br ${moduleItem.tileTone} p-4 shadow-sm ring-1 ring-slate-900/5 active:scale-[0.99]`}
               >
                 <div
-                  className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${moduleItem.iconTone} shadow-sm`}
+                  className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br ${moduleItem.iconTone} shadow-sm`}
                 >
-                  <ModuleIcon moduleItem={moduleItem} className="h-6 w-6" />
+                  <ModuleIcon moduleItem={moduleItem} className="h-7 w-7" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h3 className="text-base font-black text-slate-900">{moduleItem.title}</h3>
-                  <p className="mt-1 text-xs font-semibold text-slate-500">
+                  <h3 className="text-lg font-black text-slate-900">{moduleItem.title}</h3>
+                  <p className="mt-1 line-clamp-2 text-sm leading-5 text-slate-600">
+                    {moduleItem.desc}
+                  </p>
+                  <p className="mt-1 text-xs font-bold uppercase tracking-wide text-slate-400">
                     {DASHBOARD_GROUP_LABELS[moduleItem.group]}
                   </p>
                 </div>

@@ -26,13 +26,15 @@ describe('PageHeader', () => {
     mocks.pathname = '/dashboard/applications/passports'
   })
 
-  it('places stable parent navigation immediately after the logo link', () => {
+  it('places stable parent navigation after the company and branch identity', () => {
     render(<PageHeader employeeName="Amina" role="Admin" location={{ name: 'Bradford' }} />)
 
     const links = screen.getAllByRole('link')
     expect(links[0].getAttribute('href')).toBe('/dashboard')
     expect(links[1].getAttribute('href')).toBe('/dashboard/applications')
     expect(links[1].getAttribute('aria-label')).toBe('Back to Applications')
+    expect(links[1].previousElementSibling?.textContent).toContain('Piyam Travels')
+    expect(links[1].previousElementSibling?.textContent).toContain('Bradford')
   })
 
   it('keeps mobile settings navigation available to Super Admins', () => {

@@ -21,6 +21,7 @@ import { redirect } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import PageHeader from '@/app/components/PageHeader.client'
 import DashboardClientWrapper from '@/app/dashboard/client-wrapper'
+import { DeviceLayoutPreference } from './components/DeviceLayoutPreference'
 
 const SettingsClient = dynamic(() => import('./client'), {
   loading: () => (
@@ -120,6 +121,10 @@ export default async function SettingsPage() {
               ? 'Manage account security, organization controls, and operational maintenance from one workspace.'
               : 'Manage your personal account and security settings.'}
           </p>
+
+          <div className="mb-6">
+            <DeviceLayoutPreference />
+          </div>
 
           <SettingsClient
             currentUser={{

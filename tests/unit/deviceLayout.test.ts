@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { detectDeviceLayout } from '@/lib/deviceLayout'
+import {
+  DEVICE_LAYOUT_COOKIE,
+  detectDeviceLayout,
+  parseDeviceLayoutOverride,
+  readDeviceLayoutOverride,
+} from '@/lib/deviceLayout'
 
 describe('operating-system device layout detection', () => {
   it.each([
@@ -49,5 +54,21 @@ describe('operating-system device layout detection', () => {
     ['unknown client', '', ''],
   ])('uses the desktop webpage layout for %s', (_name, userAgent, platformHint) => {
     expect(detectDeviceLayout({ userAgent, platformHint })).toBe('desktop')
+  })
+
+  it('accepts only explicit mobile and desktop overrides', () => {
+    expect(parseDeviceLayoutOverride('mobile')).toBe('mobile')
+    expect(parseDeviceLayoutOverride(' Desktop ')).toBe('desktop')
+    expect(parseDeviceLayoutOverride('automatic')).toBeNull()
+    expect(parseDeviceLayoutOverride('tablet')).toBeNull()
+  })
+
+  it('reads the persisted layout override without matching similarly named cookies', () => {
+    expect(
+      readDeviceLayoutOverride(`session=abc; ${DEVICE_LAYOUT_COOKIE}=mobile; theme=dark`),
+    ).toBe('mobile')
+    expect(readDeviceLayoutOverride(`old_${DEVICE_LAYOUT_COOKIE}=desktop`)).toBeNull()
+    expect(readDeviceLayoutOverride(`${DEVICE_LAYOUT_COOKIE}=invalid`)).toBeNull()
+    expect(readDeviceLayoutOverride(`${DEVICE_LAYOUT_COOKIE}=%E0%A4%A`)).toBeNull()
   })
 })

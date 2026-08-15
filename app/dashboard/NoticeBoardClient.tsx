@@ -173,41 +173,47 @@ export function NoticeBoardClient({
     setFailedImages((current) => new Set(current).add(slideId))
   }
 
-  const slideContent = slide ? (
-    <>
-      {slide.image_url && !failedImages.has(slide.id) && (
-        <div className="relative mb-4 h-44 overflow-hidden rounded-2xl bg-slate-100">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={slide.image_url}
-            alt={slide.title || 'Notice board image'}
-            className="h-full w-full object-cover"
-            onError={() => markImageFailed(slide.id)}
-          />
+  function renderSlideContent(surface: 'desktop' | 'mobile') {
+    if (!slide) return null
+
+    return (
+      <>
+        {slide.image_url && !failedImages.has(slide.id) && (
+          <div
+            className={`relative mb-4 aspect-[1504/2816] w-full overflow-hidden rounded-2xl bg-slate-100 ${surface === 'mobile' ? 'max-h-[55dvh]' : ''}`}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={slide.image_url}
+              alt={slide.title || 'Notice board image'}
+              className="h-full w-full object-contain"
+              onError={() => markImageFailed(slide.id)}
+            />
+          </div>
+        )}
+        <div className="flex items-start gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#4b0f16] text-white">
+            <Bell className="h-5 w-5" />
+          </div>
+          <div className="min-w-0">
+            <h3 className="text-base font-black text-slate-950">{slide.title || 'Notice'}</h3>
+            {slide.body && <p className="mt-2 text-sm leading-6 text-slate-600">{slide.body}</p>}
+            {slide.hyperlink_url && (
+              <a
+                href={slide.hyperlink_url}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-4 inline-flex items-center gap-2 rounded-full bg-red-50 px-3 py-1.5 text-xs font-black text-[#8b1e2d] hover:bg-red-100"
+              >
+                Open link
+                <ExternalLink className="h-3.5 w-3.5" />
+              </a>
+            )}
+          </div>
         </div>
-      )}
-      <div className="flex items-start gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#4b0f16] text-white">
-          <Bell className="h-5 w-5" />
-        </div>
-        <div className="min-w-0">
-          <h3 className="text-base font-black text-slate-950">{slide.title || 'Notice'}</h3>
-          {slide.body && <p className="mt-2 text-sm leading-6 text-slate-600">{slide.body}</p>}
-          {slide.hyperlink_url && (
-            <a
-              href={slide.hyperlink_url}
-              target="_blank"
-              rel="noreferrer"
-              className="mt-4 inline-flex items-center gap-2 rounded-full bg-red-50 px-3 py-1.5 text-xs font-black text-[#8b1e2d] hover:bg-red-100"
-            >
-              Open link
-              <ExternalLink className="h-3.5 w-3.5" />
-            </a>
-          )}
-        </div>
-      </div>
-    </>
-  ) : null
+      </>
+    )
+  }
 
   return (
     <>
@@ -226,7 +232,7 @@ export function NoticeBoardClient({
           </div>
 
           {hasContent ? (
-            <div className="min-h-[21rem]">{slideContent}</div>
+            <div className="min-h-[42rem]">{renderSlideContent('desktop')}</div>
           ) : (
             <div className="flex min-h-[18rem] items-center justify-center rounded-2xl bg-slate-50 p-6 text-center text-sm text-slate-500">
               No active notices yet. Admins can add them from Settings.
@@ -263,7 +269,7 @@ export function NoticeBoardClient({
             aria-labelledby="mobile-notice-title"
             aria-busy={dismissing || undefined}
             tabIndex={-1}
-            className="w-full rounded-[1.5rem] bg-white p-4 shadow-2xl outline-none"
+            className="max-h-[calc(100dvh-2rem)] w-full overflow-y-auto rounded-[1.5rem] bg-white p-4 shadow-2xl outline-none"
           >
             <div className="mb-3 flex items-center justify-between">
               <p
@@ -305,7 +311,7 @@ export function NoticeBoardClient({
                 ))}
               </div>
             ) : (
-              slideContent
+              renderSlideContent('mobile')
             )}
             <div className={`mt-4 grid gap-2 ${slides.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
               {slides.length > 1 && (

@@ -178,6 +178,16 @@ export default function PageHeader({
             </div>
           </Link>
 
+          <div className="min-w-0">
+            <h1 className="truncate !text-[12px] font-black leading-tight text-slate-800 sm:!text-lg">
+              Piyam Travels
+            </h1>
+            <p className="truncate text-[10px] leading-tight text-slate-500 sm:text-xs">
+              {location?.name || 'Portal'}{' '}
+              {location?.branch_code ? `(${location.branch_code})` : ''}
+            </p>
+          </div>
+
           {displayBack && (
             <Link
               href={parentNavigation.href}
@@ -190,16 +200,6 @@ export default function PageHeader({
               <span className="platform-desktop-only">Back to {parentNavigation.label}</span>
             </Link>
           )}
-
-          <div className="platform-desktop-only min-w-0">
-            <h1 className="truncate !text-[12px] font-black leading-tight text-slate-800 sm:!text-lg">
-              Piyam Travels
-            </h1>
-            <p className="truncate text-[10px] leading-tight text-slate-500 sm:text-xs">
-              {location?.name || 'Portal'}{' '}
-              {location?.branch_code ? `(${location.branch_code})` : ''}
-            </p>
-          </div>
         </div>
 
         <div className="flex shrink-0 items-center gap-2 sm:gap-4">

@@ -6,7 +6,7 @@
  */
 
 import type { Metadata, Viewport } from 'next'
-import { headers } from 'next/headers'
+import { cookies, headers } from 'next/headers'
 import { Toaster } from 'sonner'
 import { ProgressBarProvider } from './components/ProgressBarProvider'
 import { WebVitalsReporter } from './components/WebVitalsReporter'
@@ -15,7 +15,12 @@ import { GlobalFooter } from './components/GlobalFooter'
 import { IssueReporterWidget } from './components/IssueReporterWidget'
 import { PWAInstallPrompt } from './components/PWAInstallPrompt'
 import { ServiceWorkerRegistrar } from './components/ServiceWorkerRegistrar'
-import { detectDeviceLayout } from '@/lib/deviceLayout'
+import { DeviceLayoutSynchronizer } from './components/DeviceLayoutSynchronizer'
+import {
+  DEVICE_LAYOUT_COOKIE,
+  detectDeviceLayout,
+  parseDeviceLayoutOverride,
+} from '@/lib/deviceLayout'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -65,7 +70,10 @@ export const metadata: Metadata = {
 }
 
 async function requestDeviceLayout() {
-  const requestHeaders = await headers()
+  const [requestHeaders, cookieStore] = await Promise.all([headers(), cookies()])
+  const manualLayout = parseDeviceLayoutOverride(cookieStore.get(DEVICE_LAYOUT_COOKIE)?.value)
+  if (manualLayout) return manualLayout
+
   return detectDeviceLayout({
     userAgent: requestHeaders.get('user-agent'),
     platformHint: requestHeaders.get('sec-ch-ua-platform'),
@@ -87,6 +95,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="en" dir="ltr" data-device-layout={deviceLayout}>
       <body className="flex flex-col min-h-screen">
+        <DeviceLayoutSynchronizer />
         <ProgressBarProvider />
         <div className="flex-grow">{children}</div>
         <GlobalFooter />
