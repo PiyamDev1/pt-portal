@@ -182,6 +182,7 @@ export default function PackageOverviewClient({
   const [showNewReservationForm, setShowNewReservationForm] = useState(false)
   const [showInvoicePreview, setShowInvoicePreview] = useState(false)
   const [accessVoucherQr, setAccessVoucherQr] = useState('')
+  const [printAccessVoucherQr, setPrintAccessVoucherQr] = useState('')
   const [accessVoucherCopyMessage, setAccessVoucherCopyMessage] = useState('')
   const [activePackageTab, setActivePackageTab] = useState<PackageWorkspaceTab>('overview')
   const [expandedReservationIds, setExpandedReservationIds] = useState<Record<string, boolean>>({})
@@ -968,6 +969,17 @@ Please enter the access code and accept the data handling terms before downloadi
       .catch(() => {
         if (active) setAccessVoucherQr('')
       })
+    QRCode.toDataURL(CUSTOMER_PORTAL_URL, {
+      width: 220,
+      margin: 1,
+      color: { dark: '#8b1e2d', light: '#ffffff' },
+    })
+      .then((url) => {
+        if (active) setPrintAccessVoucherQr(url)
+      })
+      .catch(() => {
+        if (active) setPrintAccessVoucherQr('')
+      })
     return () => {
       active = false
     }
@@ -1327,9 +1339,13 @@ Please enter the access code and accept the data handling terms before downloadi
 
   const printStandaloneAccessVoucher = () => {
     if (!packageFolder) return
-    const html = renderStandaloneAccessVoucherHtml(packageFolder, accessVoucherQr, {
-      logoSrc: `${window.location.origin}/logo.png`,
-    })
+    const html = renderStandaloneAccessVoucherHtml(
+      packageFolder,
+      printAccessVoucherQr || accessVoucherQr,
+      {
+        logoSrc: `${window.location.origin}/logo.png`,
+      },
+    )
     const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
     const url = URL.createObjectURL(blob)
     const preview = window.open(url, '_blank', 'noopener,noreferrer')

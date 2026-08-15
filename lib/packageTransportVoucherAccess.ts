@@ -8,7 +8,7 @@ const CUSTOMER_PORTAL_URL = 'https://bookings.piyamtravel.com'
 
 function defaultAccessExpiry() {
   const expiry = new Date()
-  expiry.setUTCMonth(expiry.getUTCMonth() + 10)
+  expiry.setUTCMonth(expiry.getUTCMonth() + 11)
   return expiry.toISOString()
 }
 
@@ -79,7 +79,7 @@ export async function enrichTransportVoucherPortalData(
   const portalAccess = await ensureTransportVoucherPortalAccess(supabase, packageFolder)
   const digitalVoucherUrl = voucherData.digitalVoucherUrl || portalAccess.url
   let qrCodeDataUrl = voucherData.qrCodeDataUrl || ''
-  let accessVoucherQrCodeDataUrl = voucherData.accessVoucherQrCodeDataUrl || ''
+  let accessVoucherQrCodeDataUrl = ''
 
   if (!qrCodeDataUrl) {
     try {
@@ -98,7 +98,7 @@ export async function enrichTransportVoucherPortalData(
       accessVoucherQrCodeDataUrl = await QRCode.toDataURL(CUSTOMER_PORTAL_URL, {
         width: 220,
         margin: 1,
-        color: { dark: '#111827', light: '#ffffff' },
+        color: { dark: '#8b1e2d', light: '#ffffff' },
       })
     } catch {
       accessVoucherQrCodeDataUrl = ''

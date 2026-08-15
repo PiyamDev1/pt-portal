@@ -71,7 +71,7 @@ const TRANSPORT_VOUCHER_PRINT_CSS = `
     width: 98mm;
     height: 215.6mm;
     padding: 0;
-    background: #f8fafc;
+    background: #fff;
     border: 1px solid #b8c4d3;
     border-left: 0;
     display: flex;
@@ -93,15 +93,16 @@ const TRANSPORT_VOUCHER_PRINT_CSS = `
     width: 100%;
     min-height: 39mm;
     padding: 5mm 6mm 4mm;
-    background: #0f172a;
-    color: #fff;
+    background: #fff;
+    color: #0f172a;
+    border-bottom: 1.5mm solid #8b1e2d;
   }
   .access-pass-label {
     margin: 0;
-    color: #f2cf7d;
-    font-size: 8px;
+    color: #8b1e2d;
+    font-size: 11px;
     font-weight: 900;
-    letter-spacing: .14em;
+    letter-spacing: .1em;
   }
   .access-logo-wrap {
     width: 43mm;
@@ -109,7 +110,7 @@ const TRANSPORT_VOUCHER_PRINT_CSS = `
     margin: 2.5mm auto 0;
     padding: 2.2mm 3mm;
     border-radius: 6px;
-    background: #fff;
+    background: transparent;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -128,19 +129,61 @@ const TRANSPORT_VOUCHER_PRINT_CSS = `
   }
   .access-tagline {
     margin: 2.2mm 0 0;
-    color: #cbd5e1;
-    font-size: 7.5px;
-    font-weight: 800;
+    color: #0f172a;
+    font-size: 9.5px;
+    font-weight: 900;
     letter-spacing: .06em;
   }
   .access-body {
+    position: relative;
     width: 100%;
     flex: 1;
     min-height: 0;
     padding: 5mm 6mm;
+    background: #fff;
     display: flex;
     flex-direction: column;
     align-items: center;
+  }
+  .access-body > * {
+    position: relative;
+    z-index: 1;
+  }
+  .access-watermarks {
+    position: absolute;
+    z-index: 0;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    color: #8b1e2d;
+    font-family: Arial, sans-serif;
+    font-weight: 900;
+  }
+  .access-watermarks span {
+    position: absolute;
+    display: block;
+    opacity: .055;
+    line-height: 1;
+  }
+  .access-watermarks span:nth-child(1) {
+    left: 3mm;
+    top: 50mm;
+    font-size: 52px;
+    transform: rotate(-18deg);
+  }
+  .access-watermarks span:nth-child(2) {
+    right: 4mm;
+    top: 82mm;
+    color: #0e7490;
+    font-size: 48px;
+    transform: rotate(12deg);
+  }
+  .access-watermarks span:nth-child(3) {
+    left: 7mm;
+    bottom: 13mm;
+    color: #c9952e;
+    font-size: 42px;
+    transform: rotate(-8deg);
   }
   .access-details {
     width: 100%;
@@ -154,7 +197,7 @@ const TRANSPORT_VOUCHER_PRINT_CSS = `
   .access-label {
     margin: 0;
     color: #64748b;
-    font-size: 7.5px;
+    font-size: 9px;
     font-weight: 900;
     letter-spacing: .06em;
     text-transform: uppercase;
@@ -162,7 +205,7 @@ const TRANSPORT_VOUCHER_PRINT_CSS = `
   .access-name {
     margin: .8mm 0 0;
     color: #111827;
-    font-size: 17px;
+    font-size: 20px;
     font-weight: 900;
     overflow-wrap: anywhere;
   }
@@ -183,21 +226,21 @@ const TRANSPORT_VOUCHER_PRINT_CSS = `
     background: #fff1f2;
     padding: 1.5mm 2.5mm;
     color: #8b1e2d;
-    font: 900 14px ui-monospace, SFMono-Regular, Menlo, monospace;
+    font: 900 16px ui-monospace, SFMono-Regular, Menlo, monospace;
     white-space: nowrap;
   }
   .access-scan-copy {
     margin: 4mm 0 2.5mm;
     color: #334155;
-    font-size: 9px;
-    font-weight: 700;
+    font-size: 10.5px;
+    font-weight: 800;
     line-height: 1.35;
   }
   .access-scan-copy strong { color: #0f172a; }
   .access-qr-frame {
     position: relative;
     padding: 2.2mm;
-    border: 1.2mm solid #0f172a;
+    border: 1.2mm solid #8b1e2d;
     border-radius: 8px;
     background: #fff;
   }
@@ -224,7 +267,7 @@ const TRANSPORT_VOUCHER_PRINT_CSS = `
   .access-qr-title {
     margin: 2.8mm 0 0;
     color: #8b1e2d;
-    font-size: 8px;
+    font-size: 10px;
     font-weight: 900;
     letter-spacing: .1em;
   }
@@ -260,17 +303,29 @@ const TRANSPORT_VOUCHER_PRINT_CSS = `
   .access-website {
     margin: 1mm 0 0;
     color: #0f172a;
-    font-size: 13px;
+    font-size: 15px;
     font-weight: 900;
     overflow-wrap: anywhere;
+  }
+  .access-validity {
+    width: 100%;
+    margin: 2.5mm 0 0;
+    padding: 2.5mm 3mm;
+    border-left: 1mm solid #c9952e;
+    background: #fff8e7;
+    color: #713f12;
+    font-size: 9px;
+    font-weight: 800;
+    line-height: 1.35;
+    text-align: left;
   }
   .access-footer {
     width: 100%;
     min-height: 18mm;
     padding: 3.5mm 5mm;
-    background: #e9eef4;
-    border-top: 1px solid #cbd5e1;
-    color: #334155;
+    background: #8b1e2d;
+    border-top: 1px solid #6f1422;
+    color: #fff;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -279,22 +334,22 @@ const TRANSPORT_VOUCHER_PRINT_CSS = `
   }
   .access-footer p { margin: 0; }
   .access-support-title {
-    color: #0f172a;
-    font-size: 10px;
+    color: #fff;
+    font-size: 11px;
     font-weight: 900;
   }
   .access-support-detail {
     margin-top: .8mm !important;
-    font-size: 8.2px;
+    font-size: 9px;
     font-weight: 700;
   }
   .access-secure-badge {
-    border: 1px solid #b8c4d3;
+    border: 1px solid #fff;
     border-radius: 999px;
     background: #fff;
     padding: 1.5mm 2.3mm;
     color: #8b1e2d;
-    font-size: 7.5px;
+    font-size: 8px;
     font-weight: 900;
     white-space: nowrap;
   }
@@ -700,6 +755,7 @@ function renderAccessVoucherPanel(
       <p class="access-tagline">YOUR JOURNEY, ONE SECURE PORTAL</p>
     </header>
     <div class="access-body">
+      <div class="access-watermarks" aria-hidden="true"><span>&#9992;</span><span>&#9673;</span><span>&#8801;</span></div>
       <div class="access-details">
         <p class="access-label">Lead customer</p>
         <p class="access-name">${escapeHtml(packageFolder.customer_name || 'Customer')}</p>
@@ -709,6 +765,7 @@ function renderAccessVoucherPanel(
       <div class="access-qr-frame"><div class="access-qr-wrap">${qrContent}</div></div>
       <p class="access-qr-title">SCAN TO OPEN YOUR PORTAL</p>
       <div class="access-portal"><p class="access-label">Portal address</p><p class="access-website">${escapeHtml(DEFAULT_CUSTOMER_PORTAL_URL.replace('https://', ''))}</p></div>
+      <p class="access-validity">Link and documents are valid for 11 months. You can request the office to extend this.</p>
     </div>
     <footer class="access-footer"><div><p class="access-support-title">Need help while travelling?</p><p class="access-support-detail">info@piyamtravel.com | +44 7400 828212</p></div><span class="access-secure-badge">SECURE ACCESS</span></footer>
   </section>`

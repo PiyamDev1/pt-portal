@@ -131,6 +131,8 @@ describe('transport vouchers', () => {
     expect(html).toContain('bookings.piyamtravel.com')
     expect(html).toContain('CUSTOMER ACCESS PASS')
     expect(html).toContain('SCAN TO OPEN YOUR PORTAL')
+    expect(html).toContain('Link and documents are valid for 11 months')
+    expect(html).toContain('class="access-watermarks"')
     expect(html).toContain('info@piyamtravel.com')
     expect(html).toContain('src="data:image/png;base64,access-qr"')
     expect(html).toMatch(/\.timeline-row span\s*{[^}]*font-size:\s*13px/s)

@@ -13,7 +13,7 @@ function isDocumentSchemaError(error: unknown) {
 
 function getDefaultExpiry() {
   const expiry = new Date()
-  expiry.setUTCMonth(expiry.getUTCMonth() + 10)
+  expiry.setUTCMonth(expiry.getUTCMonth() + 11)
   return expiry.toISOString()
 }
 

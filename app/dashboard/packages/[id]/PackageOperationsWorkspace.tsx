@@ -331,8 +331,7 @@ export default function PackageOperationsWorkspace({
       ...voucherForm,
       digitalVoucherUrl: voucherDigitalUrl,
       qrCodeDataUrl: voucherForm.qrCodeDataUrl || voucherPreviewQrCodeDataUrl,
-      accessVoucherQrCodeDataUrl:
-        voucherForm.accessVoucherQrCodeDataUrl || accessVoucherQrCodeDataUrl,
+      accessVoucherQrCodeDataUrl,
     }),
     [accessVoucherQrCodeDataUrl, voucherDigitalUrl, voucherForm, voucherPreviewQrCodeDataUrl],
   )
@@ -367,16 +366,11 @@ export default function PackageOperationsWorkspace({
   }, [voucherDigitalUrl, voucherForm.qrCodeDataUrl])
 
   useEffect(() => {
-    if (voucherForm.accessVoucherQrCodeDataUrl) {
-      setAccessVoucherQrCodeDataUrl(voucherForm.accessVoucherQrCodeDataUrl)
-      return
-    }
-
     let cancelled = false
     QRCode.toDataURL('https://bookings.piyamtravel.com', {
       width: 220,
       margin: 1,
-      color: { dark: '#111827', light: '#ffffff' },
+      color: { dark: '#8b1e2d', light: '#ffffff' },
     })
       .then((value) => {
         if (!cancelled) setAccessVoucherQrCodeDataUrl(value)
@@ -388,7 +382,7 @@ export default function PackageOperationsWorkspace({
     return () => {
       cancelled = true
     }
-  }, [voucherForm.accessVoucherQrCodeDataUrl])
+  }, [])
 
   const patchPackage = async (body: Record<string, unknown>) => {
     setSaving('package')

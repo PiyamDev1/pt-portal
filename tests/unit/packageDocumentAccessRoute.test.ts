@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => {
   const getUser = vi.fn()
@@ -56,6 +56,10 @@ function makeRequest(body: unknown) {
 }
 
 describe('travel package document access route', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.getUser.mockResolvedValue({ data: { user: { id: 'agent-1' } } })
@@ -116,6 +120,22 @@ describe('travel package document access route', () => {
       }),
     )
     expect(mocks.updateEq).toHaveBeenCalledWith('id', 'package-1')
+  })
+
+  it('defaults customer document access to 11 months', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-15T12:00:00.000Z'))
+
+    const response = await PATCH(makeRequest({ enabled: true }) as never, {
+      params: Promise.resolve({ id: 'package-1' }),
+    })
+
+    expect(response.status).toBe(200)
+    expect(mocks.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        document_access_expires_at: '2027-07-15T12:00:00.000Z',
+      }),
+    )
   })
 
   it('revokes access without deleting the existing token', async () => {
