@@ -188,12 +188,13 @@ const TRANSPORT_VOUCHER_PRINT_CSS = `
   .access-details {
     width: 100%;
     padding: 4mm;
-    border: 1px solid #dbe3ec;
-    border-left: 1.5mm solid #8b1e2d;
+    border: 1px solid #6f1422;
+    border-left: 1.5mm solid #94a3b8;
     border-radius: 6px;
-    background: #fff;
+    background: #8b1e2d;
     text-align: left;
   }
+  .access-details .access-label { color: #f8e8eb; }
   .access-label {
     margin: 0;
     color: #64748b;
@@ -204,7 +205,7 @@ const TRANSPORT_VOUCHER_PRINT_CSS = `
   }
   .access-name {
     margin: .8mm 0 0;
-    color: #111827;
+    color: #fff;
     font-size: 20px;
     font-weight: 900;
     overflow-wrap: anywhere;
@@ -212,7 +213,7 @@ const TRANSPORT_VOUCHER_PRINT_CSS = `
   .access-reference-row {
     margin-top: 3mm;
     padding-top: 3mm;
-    border-top: 1px solid #e2e8f0;
+    border-top: 1px solid rgba(255, 255, 255, .35);
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -221,11 +222,11 @@ const TRANSPORT_VOUCHER_PRINT_CSS = `
   .access-reference {
     display: inline-block;
     margin: 0;
-    border: 1px solid #fecaca;
+    border: 1px solid rgba(255, 255, 255, .75);
     border-radius: 5px;
-    background: #fff1f2;
+    background: #fff;
     padding: 1.5mm 2.5mm;
-    color: #8b1e2d;
+    color: #6f1422;
     font: 900 16px ui-monospace, SFMono-Regular, Menlo, monospace;
     white-space: nowrap;
   }

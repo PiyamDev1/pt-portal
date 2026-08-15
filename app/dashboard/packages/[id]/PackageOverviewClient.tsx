@@ -972,7 +972,7 @@ Please enter the access code and accept the data handling terms before downloadi
     QRCode.toDataURL(CUSTOMER_PORTAL_URL, {
       width: 220,
       margin: 1,
-      color: { dark: '#8b1e2d', light: '#ffffff' },
+      color: { dark: '#3b0a12', light: '#ffffff' },
     })
       .then((url) => {
         if (active) setPrintAccessVoucherQr(url)
