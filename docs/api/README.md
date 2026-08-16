@@ -1,6 +1,6 @@
 # Detailed API Documentation
 
-Last verified against `app/api/**/route.{ts,js}`: August 12, 2026.
+Last verified against `app/api/**/route.{ts,js}`: August 16, 2026.
 
 This directory is the field-level HTTP contract for PT-Portal. The compact
 [API Reference](../technical/API_REFERENCE.md) remains the route inventory;

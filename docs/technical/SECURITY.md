@@ -1,7 +1,7 @@
 # Security Architecture
 
 > PT-Portal authentication, authorization, 2FA, abuse protection, document security, and operational logging
-> Last updated: August 12, 2026
+> Last updated: August 16, 2026
 
 ## Security boundaries
 
@@ -24,7 +24,31 @@ Password authentication is mediated by `POST /api/auth/password-login`:
 
 The route returns a generic credential error for rejected passwords. It does not reveal whether an email exists.
 
-Passkey and Microsoft SSO flows remain available, but protected API routes use the same server-side session and employee authorization boundary after login.
+Microsoft SSO remains available, but protected API routes use the same server-side session and
+employee authorization boundary after login.
+
+### Native passkeys
+
+Passkeys are handled by Supabase Auth's native experimental API. The portal browser client opts in
+to that API; Supabase owns relying-party configuration, origin validation, challenge generation and
+single use, assertion verification, signature-counter updates, credential storage, and session
+issuance. The retired custom `/api/auth/passkeys/**` routes and magic-link exchange are not part of
+the runtime boundary.
+
+The login page supports both an explicit provider chooser and conditional mediation through the
+email field on compatible browsers. Passkey sign-in is discoverable and does not require the user
+to disclose an email before the WebAuthn ceremony. The portal then:
+
+1. validates the session's signature through `auth.getClaims()`;
+2. accepts passkey assurance only from the signed `amr` method `passkey`;
+3. resolves the employee and rejects missing or inactive staff records; and
+4. continues to require a fresh TOTP or one-use backup code for separately protected destructive
+   actions.
+
+Local storage is used only to snooze the optional enrollment prompt; it never records or grants
+authentication assurance. Users may register multiple passkeys and assign a recognizable name to
+each. Supabase requires AAL2 before passkey management when TOTP is enabled. Do not log WebAuthn
+challenges/assertions, JWTs, credential identifiers, or provider details.
 
 ### Canonical staff-session guard
 

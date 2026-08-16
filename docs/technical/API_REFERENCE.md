@@ -1,6 +1,6 @@
 # API Route Inventory
 
-Last verified against `app/api/**/route.{ts,js}`: August 12, 2026.
+Last verified against `app/api/**/route.{ts,js}`: August 16, 2026.
 
 This compact reference inventories every current API route and records cross-cutting contracts. The [detailed API documentation](../api/README.md) provides field-level access, input, success, error, side-effect, and example contracts for every exported handler. The route implementation, its schemas, and focused tests remain authoritative when a deployment has moved ahead of these documents.
 
@@ -34,25 +34,20 @@ These endpoints do not use an ordinary staff cookie and must not be made broader
 
 ## Authentication and account security
 
-| Methods         | Route                                     |
-| --------------- | ----------------------------------------- |
-| `POST`          | `/api/auth/password-login`                |
-| `POST`          | `/api/auth/login-guard`                   |
-| `GET`, `DELETE` | `/api/auth/sessions`                      |
-| `POST`          | `/api/auth/update-password`               |
-| `GET`, `PATCH`  | `/api/auth/security-preferences`          |
-| `POST`          | `/api/auth/security-events`               |
-| `GET`           | `/api/auth/backup-codes/count`            |
-| `POST`          | `/api/auth/generate-backup-codes`         |
-| `POST`          | `/api/auth/consume-backup-code`           |
-| `POST`          | `/api/auth/reset-2fa`                     |
-| `GET`, `DELETE` | `/api/auth/passkeys`                      |
-| `POST`          | `/api/auth/passkeys/register/options`     |
-| `POST`          | `/api/auth/passkeys/register/verify`      |
-| `POST`          | `/api/auth/passkeys/authenticate/options` |
-| `POST`          | `/api/auth/passkeys/authenticate/verify`  |
+| Methods         | Route                             |
+| --------------- | --------------------------------- |
+| `POST`          | `/api/auth/password-login`        |
+| `POST`          | `/api/auth/login-guard`           |
+| `GET`, `DELETE` | `/api/auth/sessions`              |
+| `POST`          | `/api/auth/update-password`       |
+| `GET`, `PATCH`  | `/api/auth/security-preferences`  |
+| `POST`          | `/api/auth/security-events`       |
+| `GET`           | `/api/auth/backup-codes/count`    |
+| `POST`          | `/api/auth/generate-backup-codes` |
+| `POST`          | `/api/auth/consume-backup-code`   |
+| `POST`          | `/api/auth/reset-2fa`             |
 
-Password login accepts a bounded normalized email/password body, applies IP and email limits, checks the persisted login guard, and returns the minimal token pair the browser SDK needs to establish a session. Token/security-material responses are non-cacheable. Backup-code generation and 2FA reset require a fresh factor; backup-code replacement is atomic. See [Authentication Flow](AUTHENTICATION_FLOW.md).
+Password login accepts a bounded normalized email/password body, applies IP and email limits, checks the persisted login guard, and returns the minimal token pair the browser SDK needs to establish a session. Token/security-material responses are non-cacheable. Backup-code generation and 2FA reset require a fresh factor; backup-code replacement is atomic. Passkeys use the native Supabase browser SDK and therefore do not add portal HTTP routes. See [Authentication Flow](AUTHENTICATION_FLOW.md).
 
 ## Applications, passports, visas, and receipts
 

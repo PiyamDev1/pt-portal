@@ -17,6 +17,7 @@ import {
   sendPakPassportDraftAssignmentEmail,
   type PakPassportDraftAssignmentEmailResult,
 } from '@/lib/passports/pakDraftAssignmentEmail'
+import type { Database } from '@/types/supabase'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -93,8 +94,10 @@ type DraftAssignmentNotificationInput = {
   assignedById?: string | null
 }
 
-function cleanPayload(payload: Record<string, unknown>) {
-  return Object.fromEntries(Object.entries(payload).filter(([, value]) => value !== undefined))
+type PakPassportDraftUpdate = Database['public']['Tables']['pakistani_passport_drafts']['Update']
+
+function cleanPayload<T extends object>(payload: T): T {
+  return Object.fromEntries(Object.entries(payload).filter(([, value]) => value !== undefined)) as T
 }
 
 function cleanText(value: unknown) {
@@ -248,7 +251,7 @@ function normalizeUpdatePayload(body: Record<string, unknown>) {
   const currentUserId = cleanText(body.currentUserId || body.userId)
   if (!currentUserId) throw new Error('Current user is required')
 
-  const payload: Record<string, unknown> = {
+  const payload: PakPassportDraftUpdate = {
     updated_by: currentUserId,
   }
 

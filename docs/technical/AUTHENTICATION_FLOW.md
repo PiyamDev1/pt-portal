@@ -1,6 +1,6 @@
 # Authentication Flow
 
-Last verified against the repository: August 12, 2026.
+Last verified against the repository: August 16, 2026.
 
 PT-Portal uses Supabase Auth sessions stored in browser/server cookies. Authentication proves the Supabase user; authorization additionally resolves the corresponding active employee, role, departments, branch, resource scope, and—where required—a freshly verified second factor.
 
@@ -18,7 +18,26 @@ Login, 2FA, backup-code, and session-revocation outcomes are recorded as securit
 
 ### Passkey
 
-`/api/auth/passkeys/authenticate/options` and `/verify` implement the WebAuthn challenge/verification flow. Registration uses `/api/auth/passkeys/register/options` and `/verify`; `GET|DELETE /api/auth/passkeys` lists or removes credentials for the authenticated account. A verified passkey session can satisfy the login page's second-factor step for that session.
+PT-Portal uses Supabase Auth's experimental native passkey API rather than maintaining a parallel
+WebAuthn server:
+
+1. `lib/auth/browserSupabase.ts` enables `auth.experimental.passkey` on a dedicated browser-client
+   singleton.
+2. Explicit sign-in uses `auth.signInWithPasskey()`. On supported browsers, the email field also
+   starts quiet conditional mediation so a discoverable passkey can appear in browser autofill.
+3. Supabase Auth creates and atomically consumes challenges, verifies origins/RP ID/assertions,
+   updates credential counters, and issues the session. No assertion, challenge, magic-link token,
+   or credential public key crosses a PT-Portal API route.
+4. The portal verifies the signed session claims with `auth.getClaims()` and accepts passkey
+   assurance only when the JWT authentication-method list contains `passkey`. A local-storage flag
+   cannot grant access.
+5. The same post-login checks reject missing/inactive employee records, route temporary-password
+   accounts correctly, and validate an optional typed branch code.
+
+My Account lists every native credential and supports adding, naming, renaming, and removing
+multiple passkeys. Supabase requires AAL2 before credential management when TOTP MFA is enabled.
+Existing credentials from the retired custom preview must be enrolled again because they are not
+copied into Supabase Auth storage.
 
 ### Microsoft OAuth
 
@@ -34,15 +53,15 @@ The login page starts Supabase OAuth and the `/auth/callback` flow exchanges the
 
 ## Two-factor and account recovery
 
-| Route                                  | Purpose                                                                                |
-| -------------------------------------- | -------------------------------------------------------------------------------------- | -------------------------------------------- |
-| `POST /api/auth/generate-backup-codes` | Replace the account's bcrypt-hashed one-use backup-code set after a fresh factor check |
-| `POST /api/auth/consume-backup-code`   | Consume one code during sign-in                                                        |
-| `GET /api/auth/backup-codes/count`     | Return the unused-code count                                                           |
-| `POST /api/auth/reset-2fa`             | Self-service factor reset after fresh TOTP/backup verification                         |
-| `POST /api/admin/recover-employee-2fa` | Admin recovery with role checks, fresh admin factor, and target restrictions           |
-| `POST /api/auth/update-password`       | Update the authenticated user's password and password history                          |
-| `GET                                   | PATCH /api/auth/security-preferences`                                                  | Read/update backup-code reminder preferences |
+| Route                                         | Purpose                                                                                |
+| --------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `POST /api/auth/generate-backup-codes`        | Replace the account's bcrypt-hashed one-use backup-code set after a fresh factor check |
+| `POST /api/auth/consume-backup-code`          | Consume one code during sign-in                                                        |
+| `GET /api/auth/backup-codes/count`            | Return the unused-code count                                                           |
+| `POST /api/auth/reset-2fa`                    | Self-service factor reset after fresh TOTP/backup verification                         |
+| `POST /api/admin/recover-employee-2fa`        | Admin recovery with role checks, fresh admin factor, and target restrictions           |
+| `POST /api/auth/update-password`              | Update the authenticated user's password and password history                          |
+| `GET`, `PATCH /api/auth/security-preferences` | Read/update backup-code reminder preferences                                           |
 
 Generating a replacement backup-code set is atomic: the previous set remains valid if the database operation fails. Never store or log plaintext backup codes, TOTP values, passkey challenges, passwords, session tokens, or cookies.
 

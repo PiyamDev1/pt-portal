@@ -6,16 +6,13 @@
 'use client'
 
 import { useState } from 'react'
-import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
 import ServicePricingTab from '@/app/dashboard/settings/components/ServicePricingTab'
+import { getBrowserSupabaseClient } from '@/lib/auth/browserSupabase'
 
 export default function PricingClient({ userRole }: { userRole: string }) {
   const [loading, setLoading] = useState(false)
 
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  )
+  const supabase = getBrowserSupabaseClient()
 
   const isAdmin = ['Admin', 'Master Admin'].includes(userRole)
 

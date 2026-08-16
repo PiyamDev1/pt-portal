@@ -7,12 +7,12 @@
 
 'use client'
 import { useState, useEffect } from 'react'
-import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 import QRCode from 'qrcode'
 import { toast } from 'sonner'
+import { getBrowserSupabaseClient } from '@/lib/auth/browserSupabase'
 
 export default function Setup2FAPage() {
   const [qrCodeUrl, setQrCodeUrl] = useState('')
@@ -21,10 +21,7 @@ export default function Setup2FAPage() {
   const [error, setError] = useState('')
   const [secretKey, setSecretKey] = useState('')
 
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  )
+  const supabase = getBrowserSupabaseClient()
   const router = useRouter()
 
   useEffect(() => {

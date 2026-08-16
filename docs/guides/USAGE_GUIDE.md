@@ -6,11 +6,19 @@ PT-Portal is an internal operations application. Navigation and available action
 
 ## Sign in and feedback
 
-Sign in with password, passkey, or Microsoft SSO. Password sign-in can require a matching branch code, a temporary-password change, and TOTP or a one-use backup code. If a valid session can be resumed, the login page still reruns employee, branch, and second-factor checks.
+Sign in with password, passkey, or Microsoft SSO. On a compatible browser, a saved passkey can
+appear in the email field's autofill menu, or the dedicated passkey button can open the device or
+password-manager chooser without first asking for an email. Password sign-in can require a
+matching branch code, a temporary-password change, and TOTP or a one-use backup code. If a valid
+session can be resumed, the login page still reruns employee, branch, and assurance checks.
 
 The interface uses in-app dialogs for decisions and Sonner toast notifications for success, warning, and failure feedback. Native browser `alert`, `confirm`, and `prompt` windows are not part of the supported interaction pattern.
 
-The browser SDK refreshes an eligible Supabase session. When it can no longer do so, return to login; there is no separate session-expiry countdown warning. Account settings include passkeys, 2FA/backup codes, and recent-session revocation.
+The browser SDK refreshes an eligible Supabase session. When it can no longer do so, return to
+login; there is no separate session-expiry countdown warning. Account settings can hold multiple
+named passkeys, plus 2FA/backup codes and recent-session revocation. A passkey may live on the
+device, a roaming security key, or a synchronized password manager; fingerprint/face/PIN merely
+unlocks that provider and is not sent to PT-Portal.
 
 ## Computer and mobile presentation
 

@@ -6,7 +6,6 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
 import SecurityTab from './components/SecurityTab'
 import BranchesTab from './components/BranchesTab'
 import StaffTab from './components/StaffTab'
@@ -22,6 +21,7 @@ import { ServerControlTab } from './components/ServerControlTab'
 import { TimeclockDevicesTab } from './components/TimeclockDevicesTab'
 import Link from 'next/link'
 import type { AuthUser } from '@/app/types/auth'
+import { getBrowserSupabaseClient } from '@/lib/auth/browserSupabase'
 
 interface EmployeeSummary {
   is_active?: boolean
@@ -71,10 +71,7 @@ export default function SettingsClient({
     return () => window.cancelAnimationFrame(frame)
   }, [requestedTab])
 
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  )
+  const supabase = getBrowserSupabaseClient()
 
   const employeeCount = Array.isArray(initialEmployees) ? initialEmployees.length : 0
   const activeEmployeeCount = Array.isArray(initialEmployees)

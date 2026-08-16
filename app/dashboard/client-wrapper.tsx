@@ -8,9 +8,8 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Home, Settings } from 'lucide-react'
-import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
 import { PasskeySetupPrompt } from '@/app/components/PasskeySetupPrompt'
 import { DashboardModuleIcon } from './DashboardModuleIcon'
 import { RouteWarmup } from './RouteWarmup'
@@ -20,17 +19,11 @@ import {
   MOBILE_NAVIGATION_UPDATED_EVENT,
   resolveMobileShortcutModules,
 } from '@/lib/mobileNavigation'
+import { getBrowserSupabaseClient } from '@/lib/auth/browserSupabase'
 
 export function MobileDashboardNav() {
   const pathname = usePathname()
-  const supabase = useMemo(
-    () =>
-      createBrowserClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      ),
-    [],
-  )
+  const supabase = getBrowserSupabaseClient()
   const [shortcuts, setShortcuts] = useState(() => resolveMobileShortcutModules(undefined))
 
   useEffect(() => {

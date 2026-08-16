@@ -1,6 +1,6 @@
 # Deployment Guide
 
-Last verified against the repository: August 12, 2026.
+Last verified against the repository: August 16, 2026.
 
 ## Runtime topology
 
@@ -45,6 +45,28 @@ Feature groups from `.env.example`:
 - Server controls: `HETZNER_*`, `SERVER_CONTROL_*`
 - Alerts: optional `OBSERVABILITY_ALERT_WEBHOOK_URL`
 - Live tests: `SMOKE_*`
+
+### Supabase Auth passkey configuration
+
+Passkeys are a native, currently experimental Supabase Auth capability and require the pinned
+passkey-capable `@supabase/supabase-js` version in this repository. Before deploying passkey UI:
+
+1. Open the target Supabase project's Authentication provider/sign-in settings and enable
+   Passkeys.
+2. Set a stable display name, for example `Piyam Travels IMS`.
+3. Set the relying-party ID to the production portal's registrable host. For the committed
+   `NEXT_PUBLIC_SITE_URL=https://piyamtravels.com`, use `piyamtravels.com`.
+4. Add the exact HTTPS portal origin, `https://piyamtravels.com`, to the allowed WebAuthn origins.
+   Configure preview/local origins only in the appropriate non-production project; origin includes
+   scheme and port, while RP ID is a host name.
+5. Verify registration, discoverable/conditional sign-in, rename/delete, TOTP-protected
+   management, and logout on at least Android/Chrome, iOS/Safari, and Windows/Edge or Chrome.
+
+Do not change the production RP ID casually: WebAuthn credentials are scoped to it, so existing
+passkeys may stop matching. The browser option `auth.experimental.passkey: true` is already
+centralized in `lib/auth/browserSupabase.ts`; no passkey secret or environment variable is needed.
+If the provider is disabled or misconfigured, password, TOTP/backup-code, and Microsoft recovery
+paths remain available.
 
 The Vercel cron handlers require `Authorization: Bearer <CRON_SECRET>`. A missing or blank server configuration fails closed with `503`; a missing or invalid bearer value returns `401`. The `x-vercel-cron` header is not authentication. Booking reminders use `APP_BASE_URL`, then `NEXT_PUBLIC_SITE_URL`, then the legacy `NEXT_PUBLIC_APP_URL` fallback to construct attendance links. Configure `CRON_SECRET` and an absolute canonical base URL in production.
 
@@ -91,7 +113,11 @@ The latest cross-cutting required migrations are:
 
 Apply all three in filename order. Do not deploy the batch installment route until `lms_update_installments(jsonb)` exists and is executable only by `service_role`.
 
-Feature migrations remain required for bookings, receipts, passkeys/security preferences, documents, Frappe, training, timeclock hardware, Pakistani passport drafts, and travel packages. See [Database Schema Overview](../technical/DATABASE_SCHEMA_OVERVIEW.md) and [Travel Packages](TRAVEL_PACKAGES_GUIDE.md).
+Feature migrations remain required for bookings, receipts, security preferences/events, documents,
+Frappe, training, timeclock hardware, Pakistani passport drafts, and travel packages. Native
+passkeys require the Supabase Auth provider configuration above, not a portal public-schema
+migration. See [Database Schema Overview](../technical/DATABASE_SCHEMA_OVERVIEW.md) and
+[Travel Packages](TRAVEL_PACKAGES_GUIDE.md).
 
 ## GitHub Actions
 
@@ -126,7 +152,8 @@ Every Vercel cron request must carry the bearer secret configured by Vercel. The
 
 ## Post-deploy checks
 
-- Login, employee status/branch checks, and required 2FA work.
+- Password, Microsoft, explicit passkey, and conditional passkey login work; employee
+  status/branch and required assurance checks still run.
 - Dashboard and role-scoped admin pages load.
 - Shared limiter returns normal responses and records no unexpected `503`.
 - Application document upload, preview, download, deletion, and status work.

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseClient } from '@/lib/supabaseClient'
 import { validateBookingTemplate } from '@/lib/bookingEmail'
 import { requireAdminSession } from '@/lib/adminSessionAuth'
+import type { Database } from '@/types/supabase'
 
 const SCHEMA_HINT =
   'Booking schema is out of date. Run scripts/bootstrap/create-bookings-schema.sql in Supabase SQL editor.'
@@ -24,6 +25,7 @@ function isMissingServiceTimingColumns(error: unknown): boolean {
 }
 
 type TemplateValidationError = { field: string; invalidTokens: string[] }
+type BookingServiceUpdate = Database['public']['Tables']['booking_services']['Update']
 
 function validateServiceTemplates(input: {
   confirmation_template?: string | null
@@ -119,7 +121,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     const supabase = getSupabaseClient()
 
-    const updates: Record<string, unknown> = {}
+    const updates: BookingServiceUpdate = {}
     if (name !== undefined) updates.name = name
     if (duration_minutes !== undefined) updates.duration_minutes = duration_minutes
     if (buffer_minutes !== undefined) updates.buffer_minutes = buffer_minutes

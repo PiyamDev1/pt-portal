@@ -7,10 +7,10 @@
 
 'use client'
 import { useMemo, useState, useEffect } from 'react'
-import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
 import { useRouter } from 'next/navigation'
 import { ShieldCheck, LockKeyhole, Loader2, Shield } from 'lucide-react'
 import { toast } from 'sonner'
+import { getBrowserSupabaseClient } from '@/lib/auth/browserSupabase'
 
 export default function NewPasswordPage() {
   const [password, setPassword] = useState('')
@@ -20,10 +20,7 @@ export default function NewPasswordPage() {
   const [loadingUser, setLoadingUser] = useState(true)
   const router = useRouter()
 
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  )
+  const supabase = getBrowserSupabaseClient()
 
   useEffect(() => {
     let active = true

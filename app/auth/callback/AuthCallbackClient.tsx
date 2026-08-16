@@ -8,9 +8,9 @@
 'use client'
 
 import { useEffect } from 'react'
-import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
 import { useRouter } from 'next/navigation'
 import { Loader2 } from 'lucide-react'
+import { getBrowserSupabaseClient } from '@/lib/auth/browserSupabase'
 
 type AuthCallbackClientProps = {
   code: string | null
@@ -19,10 +19,7 @@ type AuthCallbackClientProps = {
 
 export default function AuthCallbackClient({ code, nextPath }: AuthCallbackClientProps) {
   const router = useRouter()
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  )
+  const supabase = getBrowserSupabaseClient()
 
   useEffect(() => {
     if (!code) {

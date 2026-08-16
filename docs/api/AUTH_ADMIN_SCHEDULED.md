@@ -128,104 +128,18 @@ unavailable. Authentication outcomes are always no-store.
 { "email": "staff@example.com", "password": "user-entered password" }
 ```
 
-### GET `/api/auth/passkeys`
+#### Native Supabase passkeys (no portal API route)
 
-Lists the current user's registered passkeys without credential material.
+Passkey registration, authentication, listing, renaming, and deletion are performed directly by
+the cookie-backed Supabase browser client through the experimental native passkey SDK. PT-Portal
+does not proxy WebAuthn challenges or assertions through `app/api`: Supabase Auth owns challenge
+expiry/consumption, credential counters, credential storage, and session issuance. The login page
+also supports discoverable credentials through conditional mediation on compatible browsers.
 
-**Access:** Supabase session; any authenticated user. No route-level rate limit.
-
-**Input:** No path, query, header, or body fields beyond the session cookies.
-
-**Success:** `200` `{ "passkeys": [{ "id": string, "name": string|null,
-"transports": string[]|null, "device_type": string|null, "created_at": string,
-"last_used_at": string|null }] }`, newest first. Read-only.
-
-**Errors:** `401` unauthenticated; `500` database failure.
-
-### DELETE `/api/auth/passkeys`
-
-Deletes one passkey owned by the current user.
-
-**Access:** Supabase session; any authenticated user. Limit: 5 requests per user and IP per 15
-minutes. No fresh-factor check.
-
-**Input:** JSON parsed directly: `id` (required non-empty string; no explicit length/format
-validation). Extra fields are ignored.
-
-**Success:** `200` `{ "ok": true }`. The delete is owner-scoped; deleting a missing/non-owned ID
-also produces this shape, making repeats effectively idempotent.
-
-**Errors:** `400` missing `id`; `401` unauthenticated; `429` limited; `500` database failure.
-
-### POST `/api/auth/passkeys/register/options`
-
-Creates a one-time WebAuthn registration challenge for a platform authenticator.
-
-**Access:** Supabase session with an email. Limit: 10 requests per user and IP per 15 minutes.
-
-**Input:** No body fields. WebAuthn origin and relying-party ID are derived from the request/server
-configuration.
-
-**Success:** `200` `{ "publicKey": RegistrationOptions }`, containing base64url `challenge`, `rp`
-(`name`, `id`), `user` (`id`, `name`, `displayName`), ES256 `pubKeyCredParams`, `timeout: 60000`,
-`attestation: "none"`, required resident/user verification platform-authenticator selection, and
-`excludeCredentials`. Stores an expiring registration challenge. Not idempotent.
-
-**Errors:** `400` the account already has its one allowed passkey; `401` unauthenticated/no email;
-`429` limited; `500` database/challenge failure.
-
-### POST `/api/auth/passkeys/register/verify`
-
-Verifies a WebAuthn registration attestation and stores the passkey.
-
-**Access:** Supabase session with an email. Limit: 10 requests per user and IP per 15 minutes.
-
-**Input:** JSON parsed directly: `challenge` (required string), `name` (optional string; trimmed,
-default `Mobile passkey`), `device_type` (optional string, stored as supplied), and `credential`
-(required object) whose `response.clientDataJSON` and `response.attestationObject` are required
-base64url strings and `response.transports` is an optional string array. No explicit body/field
-size bounds are applied by this route.
-
-**Success:** `200` `{ "ok": true, "credential_id": string, "email": string, "name": string }`.
-Upserts the credential and consumes the challenge. Reusing a consumed challenge fails.
-
-**Errors:** `400` incomplete, expired, wrong-origin/challenge, or invalid attestation; `401`
-unauthenticated; `429` limited; `500` challenge/passkey database failure.
-
-### POST `/api/auth/passkeys/authenticate/options`
-
-Creates a WebAuthn authentication challenge for the passkeys registered to an email.
-
-**Access:** Public. Limit: 10 requests per IP and normalized email per 15 minutes.
-
-**Input:** JSON parsed directly: `email` (required non-empty string after trim; lowercased; this
-route does not enforce email syntax or a length bound). Extra fields are ignored.
-
-**Success:** `200` `{ "publicKey": { "challenge": string, "timeout": 60000,
-"userVerification": "required", "allowCredentials": [{ "type": "public-key", "id": string,
-"transports": string[] }] } }`. Stores an expiring authentication challenge. Not idempotent.
-
-**Errors:** `400` missing email; `404` no passkey for email; `429` limited; `500` database/challenge
-failure.
-
-### POST `/api/auth/passkeys/authenticate/verify`
-
-Verifies a WebAuthn assertion and creates a Supabase magic-link token hash for session exchange.
-
-**Access:** Public. Limit: 15 requests per IP per 15 minutes.
-
-**Input:** JSON parsed directly: `challenge` (required string); `credential.id` or preferably
-`credential.rawId` (one required string); and required base64url strings
-`credential.response.clientDataJSON`, `authenticatorData`, and `signature`. No explicit body/field
-size bounds are applied.
-
-**Success:** `200` `{ "ok": true, "token_hash": string, "email": string, "user_id": string }`.
-Updates signature count/last-used time, consumes the challenge, records success, and returns a
-sensitive one-time token hash for Supabase session exchange. Not idempotent.
-
-**Errors:** `400` incomplete, expired, or cryptographically invalid assertion; `403` credential
-does not match challenge email; `404` credential missing; `429` limited; `500` database or magic
-link generation failure.
+The portal accepts passkey assurance only when the signed Supabase JWT contains the `passkey`
+authentication-method claim. Browser storage is never an assurance source. Accounts may register
+multiple named passkeys; when TOTP is enabled, Supabase requires AAL2 before credential management.
+The legacy `/api/auth/passkeys/**` preview surface was removed and is not a supported contract.
 
 ### POST `/api/auth/reset-2fa`
 

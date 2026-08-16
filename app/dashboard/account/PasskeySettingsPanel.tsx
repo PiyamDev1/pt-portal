@@ -1,111 +1,174 @@
 /**
- * My Account passkey management panel.
+ * My Account passkey management panel backed by Supabase Auth.
  */
 
 'use client'
 
-import { useEffect, useState } from 'react'
-import { ScanFace, RefreshCw, Smartphone, Trash2 } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
+import { KeyRound, Pencil, Plus, RefreshCw, ShieldCheck, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { registerPasskeyForCurrentUser } from '@/lib/auth/passkeyClientActions'
+import { useAppDialog } from '@/components/AppDialog'
+import { getBrowserSupabaseClient } from '@/lib/auth/browserSupabase'
 import {
-  getMobilePlatformLabel,
-  isWebAuthnSupported,
-  resetPasskeyPromptDismissal,
-} from '@/lib/auth/webauthnClient'
+  getPasskeyErrorMessage,
+  registerPasskeyForCurrentUser,
+} from '@/lib/auth/passkeyClientActions'
+import { isWebAuthnSupported, resetPasskeyPromptDismissal } from '@/lib/auth/webauthnClient'
 
 type Passkey = {
   id: string
-  name: string
-  transports: string[]
-  device_type: string | null
+  friendly_name?: string
   created_at: string
-  last_used_at: string | null
+  last_used_at?: string
+}
+
+function passkeyName(passkey: Passkey) {
+  return passkey.friendly_name?.trim() || 'Unnamed passkey'
 }
 
 export function PasskeySettingsPanel() {
   const [passkeys, setPasskeys] = useState<Passkey[]>([])
   const [loading, setLoading] = useState(true)
-  const [busy, setBusy] = useState(false)
-  const supported = isWebAuthnSupported()
+  const [busyId, setBusyId] = useState<string | null>(null)
+  const [serviceError, setServiceError] = useState('')
+  const [supported, setSupported] = useState<boolean | null>(null)
+  const supabase = getBrowserSupabaseClient()
+  const { confirm, prompt, dialog } = useAppDialog()
 
-  const loadPasskeys = async () => {
+  const loadPasskeys = useCallback(async () => {
     setLoading(true)
+    setServiceError('')
     try {
-      const response = await fetch('/api/auth/passkeys')
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.error || 'Unable to load biometric devices')
-      setPasskeys(data.passkeys || [])
+      const { data, error } = await supabase.auth.passkey.list()
+      if (error) throw error
+      setPasskeys(data || [])
     } catch (error: unknown) {
-      toast.error(error instanceof Error ? error.message : 'Unable to load biometric devices')
+      const message = getPasskeyErrorMessage(error, 'Unable to load your passkeys')
+      setServiceError(message)
+      toast.error(message)
     } finally {
       setLoading(false)
     }
-  }
+  }, [supabase])
 
   useEffect(() => {
+    setSupported(isWebAuthnSupported())
     void loadPasskeys()
-  }, [])
+  }, [loadPasskeys])
 
-  const enablePasskey = async () => {
-    setBusy(true)
+  const addPasskey = async () => {
+    const friendlyName = await prompt({
+      title: 'Name this passkey',
+      message: 'Use a name that will help you recognise its device or password manager later.',
+      label: 'Passkey name',
+      placeholder: 'e.g. Pixel 8 Pro or 1Password',
+      confirmLabel: 'Add passkey',
+    })
+    if (friendlyName === null) return
+
+    setBusyId('new')
     try {
-      await registerPasskeyForCurrentUser(`${getMobilePlatformLabel()} on this device`)
+      await registerPasskeyForCurrentUser(friendlyName)
       resetPasskeyPromptDismissal()
       await loadPasskeys()
     } catch (error: unknown) {
-      toast.error(error instanceof Error ? error.message : 'Unable to enable biometric login')
+      toast.error(getPasskeyErrorMessage(error, 'Unable to add passkey'))
     } finally {
-      setBusy(false)
+      setBusyId(null)
+    }
+  }
+
+  const renamePasskey = async (passkey: Passkey) => {
+    const friendlyName = await prompt({
+      title: 'Rename passkey',
+      message: 'Use a name that helps you recognise the device or password manager.',
+      label: 'Passkey name',
+      initialValue: passkeyName(passkey),
+      placeholder: 'e.g. Pixel 8 Pro',
+      confirmLabel: 'Save name',
+    })
+    if (!friendlyName) return
+    if (friendlyName.length > 120) {
+      toast.error('Passkey names must be 120 characters or fewer.')
+      return
+    }
+
+    setBusyId(passkey.id)
+    try {
+      const { error } = await supabase.auth.passkey.update({
+        passkeyId: passkey.id,
+        friendlyName,
+      })
+      if (error) throw error
+      toast.success('Passkey renamed')
+      await loadPasskeys()
+    } catch (error: unknown) {
+      toast.error(getPasskeyErrorMessage(error, 'Unable to rename passkey'))
+    } finally {
+      setBusyId(null)
     }
   }
 
   const deletePasskey = async (passkey: Passkey) => {
-    setBusy(true)
+    const isLastPasskey = passkeys.length === 1
+    const approved = await confirm({
+      title: isLastPasskey ? 'Remove your last passkey?' : 'Remove passkey?',
+      message: isLastPasskey
+        ? 'You will need your password and authenticator code to sign in after removing this passkey.'
+        : `Remove “${passkeyName(passkey)}” from your account?`,
+      confirmLabel: 'Remove passkey',
+      type: 'danger',
+    })
+    if (!approved) return
+
+    setBusyId(passkey.id)
     try {
-      const response = await fetch('/api/auth/passkeys', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: passkey.id }),
-      })
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.error || 'Unable to remove biometric login')
-      toast.success('Biometric login removed')
+      const { error } = await supabase.auth.passkey.delete({ passkeyId: passkey.id })
+      if (error) throw error
+      toast.success('Passkey removed')
       await loadPasskeys()
     } catch (error: unknown) {
-      toast.error(error instanceof Error ? error.message : 'Unable to remove biometric login')
+      toast.error(getPasskeyErrorMessage(error, 'Unable to remove passkey'))
     } finally {
-      setBusy(false)
+      setBusyId(null)
     }
   }
 
   return (
-    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+    <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-lg font-bold text-slate-800 mb-2 flex items-center gap-2">
-            <ScanFace className="h-5 w-5 text-sky-700" />
-            Biometric Login
+          <h2 className="mb-2 flex items-center gap-2 text-lg font-bold text-slate-800">
+            <KeyRound className="h-5 w-5 text-sky-700" />
+            Passkeys
           </h2>
-          <p className="text-sm text-slate-600">
-            Enable Face ID, Touch ID, Android fingerprint, or your phone screen lock for faster IMS
-            login. This stores a passkey on your device and only a public key in IMS.
+          <p className="text-sm leading-6 text-slate-600">
+            Sign in without entering your email or password. Your fingerprint, face, device PIN,
+            password manager, or security key unlocks a private key that never leaves its secure
+            provider.
           </p>
         </div>
         <button
+          type="button"
           onClick={() => void loadPasskeys()}
           disabled={loading}
-          className="rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-50"
-          aria-label="Refresh biometric devices"
+          className="rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-50 disabled:opacity-60"
+          aria-label="Refresh passkeys"
         >
           <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
         </button>
       </div>
 
-      {!supported && (
+      {supported === false && (
         <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-          This browser does not support biometric passkeys. Use Safari on iOS/iPadOS or Chrome on
-          Android for the best mobile experience.
+          This browser does not support passkeys. Use a current version of Chrome, Edge, Safari, or
+          Firefox on a device with WebAuthn support.
+        </div>
+      )}
+
+      {serviceError && (
+        <div className="mt-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+          {serviceError}
         </div>
       )}
 
@@ -113,47 +176,69 @@ export function PasskeySettingsPanel() {
         {passkeys.map((passkey) => (
           <div
             key={passkey.id}
-            className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4"
+            className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between"
           >
-            <div className="flex items-center gap-3">
-              <div className="rounded-xl bg-white p-2 text-sky-700">
-                <Smartphone className="h-5 w-5" />
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="rounded-xl bg-white p-2 text-sky-700 shadow-sm">
+                <ShieldCheck className="h-5 w-5" />
               </div>
-              <div>
-                <p className="font-semibold text-slate-900">{passkey.name}</p>
+              <div className="min-w-0">
+                <p className="truncate font-semibold text-slate-900">{passkeyName(passkey)}</p>
                 <p className="text-xs text-slate-500">
                   Added {new Date(passkey.created_at).toLocaleDateString('en-GB')}
                   {passkey.last_used_at
                     ? ` · Last used ${new Date(passkey.last_used_at).toLocaleDateString('en-GB')}`
-                    : ''}
+                    : ' · Not used yet'}
                 </p>
               </div>
             </div>
-            <button
-              onClick={() => void deletePasskey(passkey)}
-              disabled={busy}
-              className="rounded-lg border border-red-200 bg-white p-2 text-red-600 hover:bg-red-50"
-              aria-label={`Remove ${passkey.name}`}
-            >
-              <Trash2 className="h-4 w-4" />
-            </button>
+            <div className="flex gap-2 sm:shrink-0">
+              <button
+                type="button"
+                onClick={() => void renamePasskey(passkey)}
+                disabled={busyId !== null}
+                className="flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-60 sm:flex-none"
+              >
+                <Pencil className="h-4 w-4" />
+                Rename
+              </button>
+              <button
+                type="button"
+                onClick={() => void deletePasskey(passkey)}
+                disabled={busyId !== null}
+                className="flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg border border-red-200 bg-white px-3 text-sm font-semibold text-red-600 hover:bg-red-50 disabled:opacity-60 sm:flex-none"
+                aria-label={`Remove ${passkeyName(passkey)}`}
+              >
+                <Trash2 className="h-4 w-4" />
+                Remove
+              </button>
+            </div>
           </div>
         ))}
 
-        {!loading && passkeys.length === 0 && (
+        {!loading && !serviceError && passkeys.length === 0 && (
           <div className="rounded-xl border border-dashed border-slate-300 p-4 text-sm text-slate-500">
-            No biometric login has been enabled yet.
+            No native passkeys are registered yet. Existing biometric shortcuts from the previous
+            preview must be enrolled again once using the new secure passkey service.
           </div>
         )}
       </div>
 
       <button
-        onClick={() => void enablePasskey()}
-        disabled={!supported || busy}
-        className="mt-5 rounded-xl bg-sky-700 px-5 py-3 text-sm font-bold text-white transition hover:bg-sky-800 disabled:opacity-60"
+        type="button"
+        onClick={() => void addPasskey()}
+        disabled={supported !== true || busyId !== null || Boolean(serviceError)}
+        className="mt-5 flex min-h-11 items-center gap-2 rounded-xl bg-sky-700 px-5 py-3 text-sm font-bold text-white transition hover:bg-sky-800 disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {busy ? 'Working...' : 'Enable biometric login on this device'}
+        <Plus className="h-4 w-4" />
+        {busyId === 'new' ? 'Opening passkey provider…' : 'Add a passkey'}
       </button>
+
+      <p className="mt-3 text-xs leading-5 text-slate-500">
+        If authenticator-app MFA is enabled, Supabase requires a recent TOTP verification before
+        passkeys can be added or removed.
+      </p>
+      {dialog}
     </div>
   )
 }

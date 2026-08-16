@@ -1,13 +1,11 @@
-/**
- * Post-login prompt asking mobile users to enable biometric login.
- */
+/** Post-login prompt offering native passkey enrollment on a mobile device. */
 
 'use client'
 
 import { useEffect, useState } from 'react'
-import { ScanFace, X } from 'lucide-react'
-import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
+import { KeyRound, X } from 'lucide-react'
 import { toast } from 'sonner'
+import { getBrowserSupabaseClient } from '@/lib/auth/browserSupabase'
 import { registerPasskeyForCurrentUser } from '@/lib/auth/passkeyClientActions'
 import {
   dismissPasskeyPrompt,
@@ -25,26 +23,25 @@ export function PasskeySetupPrompt() {
   useEffect(() => {
     if (!isMobileDevice() || !isWebAuthnSupported() || hasDismissedPasskeyPrompt()) return
 
-    const supabase = createBrowserClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    )
+    const supabase = getBrowserSupabaseClient()
 
+    let promptTimer: number | undefined
     const load = async () => {
       const {
         data: { user },
       } = await supabase.auth.getUser()
       if (!user) return
 
-      const response = await fetch('/api/auth/passkeys')
-      if (!response.ok) return
-      const data = await response.json()
-      if ((data.passkeys || []).length === 0) {
-        window.setTimeout(() => setVisible(true), 1200)
+      const { data, error } = await supabase.auth.passkey.list()
+      if (!error && (data || []).length === 0) {
+        promptTimer = window.setTimeout(() => setVisible(true), 1200)
       }
     }
 
     void load()
+    return () => {
+      if (promptTimer) window.clearTimeout(promptTimer)
+    }
   }, [])
 
   const close = () => {
@@ -58,7 +55,7 @@ export function PasskeySetupPrompt() {
       await registerPasskeyForCurrentUser()
       setVisible(false)
     } catch (error: unknown) {
-      toast.error(error instanceof Error ? error.message : 'Unable to enable biometric login')
+      toast.error(error instanceof Error ? error.message : 'Unable to add passkey')
     } finally {
       setLoading(false)
     }
@@ -71,20 +68,20 @@ export function PasskeySetupPrompt() {
       <button
         onClick={close}
         className="absolute right-3 top-3 rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-        aria-label="Dismiss biometric login prompt"
+        aria-label="Dismiss passkey prompt"
       >
         <X className="h-4 w-4" />
       </button>
 
       <div className="flex gap-4 pr-8">
         <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-sky-100 text-sky-700">
-          <ScanFace className="h-6 w-6" />
+          <KeyRound className="h-6 w-6" />
         </div>
         <div>
-          <p className="text-lg font-black text-slate-950">Use {platformLabel} next time?</p>
+          <p className="text-lg font-black text-slate-950">Add a passkey for next time?</p>
           <p className="mt-1 text-sm leading-6 text-slate-600">
-            IMS can use your phone&apos;s secure passkey so you can sign in faster next time. You
-            can remove it any time from My Account.
+            Sign in with {platformLabel} without entering your email or password. You can add more
+            devices or remove this one from My Account.
           </p>
         </div>
       </div>
@@ -95,7 +92,7 @@ export function PasskeySetupPrompt() {
           disabled={loading}
           className="flex-1 rounded-xl bg-sky-700 px-4 py-3 text-sm font-bold text-white transition hover:bg-sky-800 disabled:opacity-60"
         >
-          {loading ? 'Opening biometrics...' : 'Enable biometric login'}
+          {loading ? 'Opening passkey provider…' : 'Add passkey'}
         </button>
         <button
           onClick={close}

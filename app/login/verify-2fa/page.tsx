@@ -7,20 +7,16 @@
 
 'use client'
 import { useState } from 'react'
-import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
 import { useRouter } from 'next/navigation'
 import { Shield, Loader2 } from 'lucide-react'
-import { clearPasskeySession } from '@/lib/auth/webauthnClient'
+import { getBrowserSupabaseClient } from '@/lib/auth/browserSupabase'
 
 export default function Verify2FAPage() {
   const [code, setCode] = useState('')
   const [error, setError] = useState('')
   const [useBackup, setUseBackup] = useState(false)
   const router = useRouter()
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  )
+  const supabase = getBrowserSupabaseClient()
 
   const recordTwoFactorEvent = async (
     status: 'success' | 'failed',
@@ -34,7 +30,6 @@ export default function Verify2FAPage() {
   }
 
   const handleBackToLogin = async () => {
-    clearPasskeySession()
     await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined)
     router.replace('/login?fresh=1')
   }

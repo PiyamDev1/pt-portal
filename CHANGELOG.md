@@ -4,6 +4,22 @@ Notable PT-Portal changes are recorded here. This project follows [Keep a Change
 
 ## Unreleased
 
+### Added
+
+- Native Supabase Auth passkeys with discoverable conditional sign-in, multiple named
+  credentials, and in-app rename/removal management.
+
+### Changed
+
+- Passkey login assurance now comes from signature-verified Supabase JWT authentication-method
+  claims instead of browser-controlled hints; password and Microsoft sign-in also rerun active
+  employee and MFA routing checks.
+
+### Removed
+
+- The custom passkey challenge, credential, and magic-link proxy routes. Supabase Auth now owns
+  WebAuthn challenges, counters, credential storage, and session issuance.
+
 ## 2.0.0 - 2026-08-12
 
 ### Added

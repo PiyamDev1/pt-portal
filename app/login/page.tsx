@@ -7,7 +7,6 @@
 
 'use client'
 import { useEffect, useRef, useState } from 'react'
-import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import {
@@ -19,19 +18,12 @@ import {
   MapPin,
   ShieldCheck,
 } from 'lucide-react'
+import { getBrowserSupabaseClient } from '@/lib/auth/browserSupabase'
+import { getPortalSessionAssurance, signInWithPasskey } from '@/lib/auth/passkeyClientActions'
 import {
-  clearPasskeySession,
-  getPasskeyLastEmail,
   getMobilePlatformLabel,
-  hasPasskeyEnabledHint,
-  hasPasskeySession,
+  isConditionalPasskeySupported,
   isWebAuthnSupported,
-  isMobileDevice,
-  isStandalonePwa,
-  markPasskeySession,
-  preparePublicKeyRequestOptions,
-  serializeAuthenticationCredential,
-  setPasskeyLastEmail,
 } from '@/lib/auth/webauthnClient'
 
 function getErrorMessage(error: unknown, fallback: string) {
@@ -44,19 +36,17 @@ export default function LoginPage() {
   const [branchCode, setBranchCode] = useState('')
   const [errorMsg, setErrorMsg] = useState('')
   const [loading, setLoading] = useState(false)
-  const [biometricLoading, setBiometricLoading] = useState(false)
+  const [passkeyLoading, setPasskeyLoading] = useState(false)
   const [passkeySupported, setPasskeySupported] = useState(false)
-  const [passkeyHint, setPasskeyHint] = useState(false)
   const [checkingExistingSession, setCheckingExistingSession] = useState(true)
   const [freshLaunch, setFreshLaunch] = useState(false)
   const [freshLaunchResolved, setFreshLaunchResolved] = useState(false)
-  const autoBiometricPrompted = useRef(false)
+  const conditionalPasskeyStarted = useRef(false)
+  const conditionalPasskeyAbort = useRef<AbortController | null>(null)
+  const existingSessionFound = useRef(false)
 
   const router = useRouter()
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  )
+  const supabase = getBrowserSupabaseClient()
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -65,13 +55,18 @@ export default function LoginPage() {
   }, [])
 
   // --- LOGIC: Validate Branch, Password Status & Redirect ---
-  const postLoginChecks = async (userId: string, options: { skipMfa?: boolean } = {}) => {
+  const postLoginChecks = async (userId: string, accessToken?: string) => {
     // 1. Check database for Account Status, Branch Code match AND Temporary Password Flag
-    const { data: employee } = await supabase
+    const { data: employee, error: employeeError } = await supabase
       .from('employees')
       .select('is_active, is_temporary_password, locations(branch_code)')
       .eq('id', userId)
       .single()
+
+    if (employeeError || !employee) {
+      await supabase.auth.signOut()
+      throw new Error('Your staff account could not be verified. Contact your administrator.')
+    }
 
     // --- CHECK: Account Active Status ---
     if (employee?.is_active === false) {
@@ -98,7 +93,9 @@ export default function LoginPage() {
       throw new Error(`Access Denied: You are not authorized for branch ${branchCode}`)
     }
 
-    if (options.skipMfa) {
+    const token = accessToken || (await supabase.auth.getSession()).data.session?.access_token || ''
+    const assurance = token ? await getPortalSessionAssurance(supabase, token) : 'aal1'
+    if (assurance === 'passkey' || assurance === 'aal2') {
       router.replace('/dashboard')
       return
     }
@@ -113,24 +110,12 @@ export default function LoginPage() {
     }
   }
 
-  const getSessionIdFromToken = (token: string | null | undefined) => {
-    if (!token) return ''
-    try {
-      const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')))
-      return typeof payload.session_id === 'string' ? payload.session_id : ''
-    } catch {
-      return ''
-    }
-  }
-
   useEffect(() => {
     if (!freshLaunchResolved) return
 
     let cancelled = false
 
     setPasskeySupported(isWebAuthnSupported())
-    setPasskeyHint(hasPasskeyEnabledHint())
-    setEmail((current) => current || getPasskeyLastEmail())
 
     const resumeExistingSession = async () => {
       if (freshLaunch) {
@@ -145,9 +130,8 @@ export default function LoginPage() {
 
         if (cancelled) return
         if (session?.user) {
-          const sessionId = getSessionIdFromToken(session.access_token)
-          const passkeySession = hasPasskeySession(sessionId)
-          await postLoginChecks(session.user.id, { skipMfa: passkeySession })
+          existingSessionFound.current = true
+          await postLoginChecks(session.user.id, session.access_token)
           return
         }
       } catch (error: unknown) {
@@ -170,36 +154,54 @@ export default function LoginPage() {
   }, [freshLaunchResolved, freshLaunch])
 
   useEffect(() => {
-    if (!freshLaunchResolved || freshLaunch) return
-    if (autoBiometricPrompted.current) return
-    if (checkingExistingSession || biometricLoading || loading) return
-    if (!passkeySupported || !passkeyHint) return
-    if (!getPasskeyLastEmail()) return
-    if (!(isMobileDevice() || isStandalonePwa())) return
+    if (!freshLaunchResolved || checkingExistingSession || !passkeySupported) return
+    if (existingSessionFound.current) return
+    if (conditionalPasskeyStarted.current) return
+    conditionalPasskeyStarted.current = true
 
-    autoBiometricPrompted.current = true
-    const timeout = window.setTimeout(() => {
-      void handleBiometricLogin()
-    }, 250)
+    const controller = new AbortController()
+    conditionalPasskeyAbort.current = controller
 
-    return () => window.clearTimeout(timeout)
-    // The biometric launcher should only auto-fire once per page load so the
-    // installed app feels like a native sign-in surface on mobile.
+    const beginConditionalSignIn = async () => {
+      if (!(await isConditionalPasskeySupported())) return
+      let result: Awaited<ReturnType<typeof signInWithPasskey>>
+      try {
+        result = await signInWithPasskey({ conditional: true, signal: controller.signal })
+      } catch {
+        // Cancellation, no matching passkey, and choosing password login are
+        // all expected outcomes for conditional mediation.
+        return
+      }
+
+      await fetch('/api/auth/security-events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          eventType: 'passkey_login',
+          status: 'success',
+          metadata: { flow: 'conditional' },
+        }),
+      }).catch(() => undefined)
+
+      try {
+        await postLoginChecks(result.user.id, result.session.access_token)
+      } catch (error: unknown) {
+        if (!controller.signal.aborted) {
+          setErrorMsg(getErrorMessage(error, 'Unable to verify your staff account'))
+        }
+      }
+    }
+
+    void beginConditionalSignIn()
+    return () => controller.abort()
+    // Start conditional mediation once after the existing-session check.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    freshLaunchResolved,
-    freshLaunch,
-    checkingExistingSession,
-    passkeyHint,
-    passkeySupported,
-    biometricLoading,
-    loading,
-  ])
+  }, [freshLaunchResolved, checkingExistingSession, passkeySupported])
 
   // --- HANDLER: Standard Login ---
   const handleStandardLogin = async (e: React.FormEvent) => {
     e.preventDefault()
-    clearPasskeySession()
+    conditionalPasskeyAbort.current?.abort()
     setLoading(true)
     setErrorMsg('')
     const loginEmail = email.trim().toLowerCase()
@@ -231,84 +233,57 @@ export default function LoginPage() {
       })
       if (error || !data.user) throw error || new Error('Unable to establish your login session')
 
-      setPasskeyLastEmail(data.user.email || loginEmail)
-      await postLoginChecks(data.user.id)
+      await postLoginChecks(data.user.id, data.session?.access_token)
     } catch (err: unknown) {
       setErrorMsg(getErrorMessage(err, 'Login failed'))
       setLoading(false)
     }
   }
 
-  const handleBiometricLogin = async () => {
-    const loginEmail = (email.trim() || getPasskeyLastEmail()).toLowerCase()
+  const handlePasskeyLogin = async () => {
     if (!passkeySupported) {
-      setErrorMsg('This browser does not support biometric passkeys.')
-      return
-    }
-    if (!loginEmail) {
-      setErrorMsg('Enter your email once, then use biometric login on this device.')
+      setErrorMsg('This browser does not support passkeys.')
       return
     }
 
-    setBiometricLoading(true)
+    conditionalPasskeyAbort.current?.abort()
+    setPasskeyLoading(true)
     setErrorMsg('')
 
     try {
-      const optionsResponse = await fetch('/api/auth/passkeys/authenticate/options', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(loginEmail ? { email: loginEmail } : {}),
-      })
-      const optionsData = await optionsResponse.json()
-      if (!optionsResponse.ok) {
-        throw new Error(optionsData.error || 'Unable to start biometric login')
-      }
-
-      const credential = await navigator.credentials.get({
-        publicKey: preparePublicKeyRequestOptions(optionsData.publicKey),
-      })
-      if (!credential || credential.type !== 'public-key') {
-        throw new Error('Biometric login was cancelled')
-      }
-
-      const verifyResponse = await fetch('/api/auth/passkeys/authenticate/verify', {
+      const result = await signInWithPasskey()
+      await fetch('/api/auth/security-events', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          challenge: optionsData.publicKey.challenge,
-          credential: serializeAuthenticationCredential(credential as PublicKeyCredential),
+          eventType: 'passkey_login',
+          status: 'success',
+          metadata: { flow: 'explicit' },
         }),
-      })
-      const verifyData = await verifyResponse.json()
-      if (!verifyResponse.ok) {
-        throw new Error(verifyData.error || 'Unable to verify biometric login')
-      }
-
-      const { data, error } = await supabase.auth.verifyOtp({
-        type: 'magiclink',
-        token_hash: verifyData.token_hash,
-      })
-      if (error) throw error
-
-      const sessionId = data?.session?.access_token
-        ? getSessionIdFromToken(data.session.access_token)
-        : ''
-      markPasskeySession(sessionId)
-      setPasskeyLastEmail(verifyData.email || loginEmail)
-      await postLoginChecks(data.user?.id || verifyData.user_id, { skipMfa: true })
+      }).catch(() => undefined)
+      await postLoginChecks(result.user.id, result.session.access_token)
     } catch (err: unknown) {
-      setErrorMsg(getErrorMessage(err, 'Biometric login failed'))
-      setBiometricLoading(false)
+      await fetch('/api/auth/security-events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          eventType: 'passkey_login',
+          status: 'failed',
+          metadata: { flow: 'explicit' },
+        }),
+      }).catch(() => undefined)
+      setErrorMsg(getErrorMessage(err, 'Passkey sign-in failed'))
+      setPasskeyLoading(false)
     }
   }
 
   // --- HANDLER: Microsoft SSO ---
   const handleMicrosoftLogin = async () => {
-    clearPasskeySession()
+    conditionalPasskeyAbort.current?.abort()
     await supabase.auth.signInWithOAuth({
       provider: 'azure',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback?next=/dashboard`,
+        redirectTo: `${window.location.origin}/auth/callback?next=/login`,
         scopes: 'email',
       },
     })
@@ -367,18 +342,18 @@ export default function LoginPage() {
             {passkeySupported && (
               <button
                 type="button"
-                onClick={() => void handleBiometricLogin()}
-                disabled={biometricLoading || checkingExistingSession}
+                onClick={() => void handlePasskeyLogin()}
+                disabled={passkeyLoading || checkingExistingSession}
                 className="flex min-h-14 w-full items-center justify-center gap-3 rounded-2xl bg-[#4b0f16] px-5 py-3 text-base font-black text-white shadow-lg shadow-red-950/15 transition active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {biometricLoading ? (
+                {passkeyLoading ? (
                   <Loader2 className="h-6 w-6 animate-spin" />
                 ) : (
                   <FingerprintPattern className="h-6 w-6" />
                 )}
-                {biometricLoading
-                  ? 'Checking biometrics...'
-                  : `Unlock with ${getMobilePlatformLabel()}`}
+                {passkeyLoading
+                  ? 'Checking passkey...'
+                  : `Sign in with ${getMobilePlatformLabel()}`}
               </button>
             )}
 
@@ -390,12 +365,6 @@ export default function LoginPage() {
               Sign in with Microsoft
             </button>
           </div>
-
-          {passkeySupported && passkeyHint && !checkingExistingSession && (
-            <p className="mt-3 rounded-2xl bg-red-50 px-4 py-3 text-sm font-semibold leading-5 text-[#7f1d1d]">
-              Biometric login will use the remembered email on this device.
-            </p>
-          )}
 
           <div className="my-6 flex items-center gap-3" aria-hidden="true">
             <div className="h-px flex-1 bg-slate-200" />
@@ -413,7 +382,7 @@ export default function LoginPage() {
                 <input
                   type="email"
                   required
-                  autoComplete="email"
+                  autoComplete="username webauthn"
                   inputMode="email"
                   className="min-h-14 w-full rounded-2xl border-2 border-slate-200 bg-slate-50 py-3 pl-12 pr-4 text-base text-slate-950 outline-none transition focus:border-[#8b1e2d] focus:bg-white focus:ring-4 focus:ring-red-100"
                   value={email}
@@ -495,7 +464,7 @@ export default function LoginPage() {
                     'Branch code verification keeps access restricted to assigned locations.',
                 },
                 {
-                  label: 'Biometric ready',
+                  label: 'Passkey ready',
                   description:
                     'Passkeys are supported for faster, password-free login on modern devices.',
                 },
@@ -553,27 +522,21 @@ export default function LoginPage() {
 
             {passkeySupported && (
               <button
-                onClick={() => void handleBiometricLogin()}
-                disabled={biometricLoading || checkingExistingSession}
+                onClick={() => void handlePasskeyLogin()}
+                disabled={passkeyLoading || checkingExistingSession}
                 className="mb-4 flex w-full items-center justify-center gap-3 rounded-[1.75rem] bg-[#4b0f16] px-5 py-4 font-bold text-white shadow-xl shadow-emerald-900/15 transition hover:bg-[#6f1422] disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {biometricLoading ? (
+                {passkeyLoading ? (
                   <Loader2 className="h-5 w-5 animate-spin" />
                 ) : (
                   <FingerprintPattern className="h-5 w-5" />
                 )}
                 <span>
-                  {biometricLoading
-                    ? 'Checking biometrics...'
-                    : `Unlock with ${getMobilePlatformLabel()}`}
+                  {passkeyLoading
+                    ? 'Checking passkey...'
+                    : `Sign in with ${getMobilePlatformLabel()}`}
                 </span>
               </button>
-            )}
-
-            {passkeySupported && passkeyHint && !checkingExistingSession && (
-              <p className="mb-5 rounded-3xl bg-red-50 px-3 py-2 text-xs font-semibold text-[#7f1d1d]">
-                Biometric login will use the remembered email on this device.
-              </p>
             )}
 
             <button
@@ -600,7 +563,7 @@ export default function LoginPage() {
                   <input
                     type="email"
                     required
-                    autoComplete="email"
+                    autoComplete="username webauthn"
                     className="w-full rounded-[1.5rem] border border-slate-200 bg-slate-50 py-4 pl-12 pr-4 text-slate-950 outline-none transition focus:border-[#8b1e2d] focus:bg-white focus:ring-4 focus:ring-red-100"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}

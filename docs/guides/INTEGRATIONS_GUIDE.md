@@ -1,6 +1,6 @@
 # Integrations Guide
 
-Last verified against the repository: August 12, 2026.
+Last verified against the repository: August 16, 2026.
 
 `.env.example` is the committed variable checklist. Keep every credential/token server-only unless the name intentionally begins with `NEXT_PUBLIC_`; configure real values in local/platform secret storage.
 
@@ -31,7 +31,10 @@ Core values:
 
 The anon key participates in cookie-backed user sessions and RLS. The service-role key bypasses RLS and must appear only in server code after explicit authorization. Apply required migrations before dependent code and regenerate types with `npm run types:supabase` after the linked project changes.
 
-Microsoft SSO and TOTP/passkeys are mediated through the Supabase Auth project. Configure those providers/redirect URLs in Supabase and keep the portal callback URL aligned with `NEXT_PUBLIC_SITE_URL`.
+Microsoft SSO, TOTP, and native passkeys are mediated through the Supabase Auth project. Configure
+the providers, OAuth redirects, passkey RP ID, and allowed WebAuthn origins in Supabase; keep the
+portal callback/origin aligned with `NEXT_PUBLIC_SITE_URL`. Passkey challenge state, credentials,
+counters, and resulting sessions belong to Supabase Auth, not portal public-schema tables.
 
 ## Object storage
 

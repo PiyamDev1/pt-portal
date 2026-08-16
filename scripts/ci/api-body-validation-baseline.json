@@ -3,10 +3,6 @@
   "description": "Legacy API routes that still parse incoming JSON without parseBodyWithSchema. Lower this baseline as routes are migrated; do not add entries for new code.",
   "routes": {
     "app/api/applications/notes-read/route.ts": 2,
-    "app/api/auth/passkeys/authenticate/options/route.ts": 1,
-    "app/api/auth/passkeys/authenticate/verify/route.ts": 1,
-    "app/api/auth/passkeys/register/verify/route.ts": 1,
-    "app/api/auth/passkeys/route.ts": 1,
     "app/api/auth/security-preferences/route.ts": 1,
     "app/api/bookings/[id]/no-show/route.ts": 1,
     "app/api/bookings/[id]/resend/route.ts": 1,

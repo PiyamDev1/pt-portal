@@ -1,67 +1,19 @@
 const PASSKEY_PROMPT_DISMISSED_KEY = 'pt-ims-passkey-prompt-dismissed'
-const PASSKEY_ENABLED_HINT_KEY = 'pt-ims-passkey-enabled-hint'
-const PASSKEY_LAST_EMAIL_KEY = 'pt-ims-passkey-last-email'
-const PASSKEY_SESSION_KEY = 'pt-ims-passkey-session'
-const PASSKEY_SESSION_ID_KEY = 'pt-ims-passkey-session-id'
 const HRMS_COMPANION_INSTALLED_HINT_KEY = 'pt-ims-hrms-companion-installed'
+const PASSKEY_PROMPT_SNOOZE_MS = 30 * 24 * 60 * 60 * 1000
 
-const COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 180
-
-function readCookie(name: string) {
-  if (typeof document === 'undefined') return ''
-  const entry = document.cookie
-    .split('; ')
-    .find((part) => part.startsWith(`${encodeURIComponent(name)}=`))
-  return entry ? decodeURIComponent(entry.slice(entry.indexOf('=') + 1)) : ''
-}
-
-function writeCookie(name: string, value: string, maxAgeSeconds = COOKIE_MAX_AGE_SECONDS) {
-  if (typeof document === 'undefined') return
-  document.cookie = [
-    `${encodeURIComponent(name)}=${encodeURIComponent(value)}`,
-    'Path=/',
-    'SameSite=Lax',
-    `Max-Age=${maxAgeSeconds}`,
-  ].join('; ')
-}
-
-function clearCookie(name: string) {
-  if (typeof document === 'undefined') return
-  document.cookie = [`${encodeURIComponent(name)}=`, 'Path=/', 'SameSite=Lax', 'Max-Age=0'].join(
-    '; ',
-  )
-}
-
-function readStorageValue(key: string) {
-  if (typeof window === 'undefined') return ''
-  try {
-    return window.localStorage.getItem(key) || readCookie(key)
-  } catch {
-    return readCookie(key)
+type SerializedAuthenticationCredential = {
+  id: string
+  rawId: string
+  type: 'public-key'
+  response: {
+    clientDataJSON: string
+    authenticatorData: string
+    signature: string
+    userHandle?: string
   }
-}
-
-function writeStorageValue(key: string, value: string | null | undefined) {
-  if (typeof window === 'undefined') return
-  const normalized = value?.trim()
-  if (!normalized) return
-  try {
-    window.localStorage.setItem(key, normalized)
-  } catch {
-    // Some mobile web-app contexts can reject storage writes; the cookie fallback below
-    // keeps the device hint available without turning this helper into a hard failure.
-  }
-  writeCookie(key, normalized)
-}
-
-function removeStorageValue(key: string) {
-  if (typeof window === 'undefined') return
-  try {
-    window.localStorage.removeItem(key)
-  } catch {
-    // Ignore storage errors during sign-out cleanup.
-  }
-  clearCookie(key)
+  clientExtensionResults: AuthenticationExtensionsClientOutputs
+  authenticatorAttachment?: AuthenticatorAttachment
 }
 
 function base64urlToArrayBuffer(value: string) {
@@ -91,12 +43,27 @@ export function isWebAuthnSupported() {
   )
 }
 
+export async function isConditionalPasskeySupported() {
+  if (!isWebAuthnSupported()) return false
+  const credential = window.PublicKeyCredential as typeof PublicKeyCredential & {
+    isConditionalMediationAvailable?: () => Promise<boolean>
+  }
+  if (typeof credential.isConditionalMediationAvailable !== 'function') return false
+
+  try {
+    return await credential.isConditionalMediationAvailable()
+  } catch {
+    return false
+  }
+}
+
 export function getMobilePlatformLabel() {
-  if (typeof navigator === 'undefined') return 'biometrics'
+  if (typeof navigator === 'undefined') return 'a passkey'
   const ua = navigator.userAgent || ''
   if (/iPad|iPhone|iPod/.test(ua)) return 'Face ID or Touch ID'
   if (/Android/i.test(ua)) return 'fingerprint, face unlock, or screen lock'
-  return 'biometrics or passkey'
+  if (/Windows/i.test(ua)) return 'Windows Hello or a passkey'
+  return 'a passkey'
 }
 
 export function isMobileDevice() {
@@ -119,58 +86,16 @@ export function isStandalonePwa() {
 
 export function hasDismissedPasskeyPrompt() {
   if (typeof window === 'undefined') return true
-  return window.localStorage.getItem(PASSKEY_PROMPT_DISMISSED_KEY) === '1'
+  const dismissedAt = Number(window.localStorage.getItem(PASSKEY_PROMPT_DISMISSED_KEY))
+  return Number.isFinite(dismissedAt) && Date.now() - dismissedAt < PASSKEY_PROMPT_SNOOZE_MS
 }
 
 export function dismissPasskeyPrompt() {
-  window.localStorage.setItem(PASSKEY_PROMPT_DISMISSED_KEY, '1')
+  window.localStorage.setItem(PASSKEY_PROMPT_DISMISSED_KEY, String(Date.now()))
 }
 
 export function resetPasskeyPromptDismissal() {
   window.localStorage.removeItem(PASSKEY_PROMPT_DISMISSED_KEY)
-}
-
-export function setPasskeyEnabledHint() {
-  if (typeof window === 'undefined') return
-  writeStorageValue(PASSKEY_ENABLED_HINT_KEY, '1')
-}
-
-export function hasPasskeyEnabledHint() {
-  if (typeof window === 'undefined') return false
-  return readStorageValue(PASSKEY_ENABLED_HINT_KEY) === '1'
-}
-
-export function setPasskeyLastEmail(email: string | null | undefined) {
-  if (typeof window === 'undefined') return
-  const normalized = email?.trim().toLowerCase()
-  if (!normalized) return
-  writeStorageValue(PASSKEY_LAST_EMAIL_KEY, normalized)
-}
-
-export function getPasskeyLastEmail() {
-  if (typeof window === 'undefined') return ''
-  return readStorageValue(PASSKEY_LAST_EMAIL_KEY)
-}
-
-export function markPasskeySession(sessionId?: string) {
-  if (typeof window === 'undefined') return
-  writeStorageValue(PASSKEY_SESSION_KEY, '1')
-  if (sessionId) {
-    writeStorageValue(PASSKEY_SESSION_ID_KEY, sessionId)
-  }
-}
-
-export function clearPasskeySession() {
-  if (typeof window === 'undefined') return
-  removeStorageValue(PASSKEY_SESSION_KEY)
-  removeStorageValue(PASSKEY_SESSION_ID_KEY)
-}
-
-export function hasPasskeySession(sessionId?: string) {
-  if (typeof window === 'undefined') return false
-  if (readStorageValue(PASSKEY_SESSION_KEY) !== '1') return false
-  if (!sessionId) return true
-  return readStorageValue(PASSKEY_SESSION_ID_KEY) === sessionId
 }
 
 export function hasConfirmedHrmsCompanionInstall() {
@@ -188,22 +113,12 @@ export function resetHrmsCompanionInstallConfirmation() {
   window.localStorage.removeItem(HRMS_COMPANION_INSTALLED_HINT_KEY)
 }
 
-export function preparePublicKeyCreationOptions(options: PublicKeyCredentialCreationOptions) {
-  return {
-    ...options,
-    challenge: base64urlToArrayBuffer(String(options.challenge)),
-    user: {
-      ...options.user,
-      id: base64urlToArrayBuffer(String(options.user.id)),
-    },
-    excludeCredentials: options.excludeCredentials?.map((credential) => ({
-      ...credential,
-      id: base64urlToArrayBuffer(String(credential.id)),
-    })),
-  } as PublicKeyCredentialCreationOptions
-}
-
-export function preparePublicKeyRequestOptions(options: PublicKeyCredentialRequestOptions) {
+export function preparePublicKeyRequestOptions<
+  T extends {
+    challenge: string
+    allowCredentials?: Array<{ id: string }>
+  },
+>(options: T) {
   return {
     ...options,
     challenge: base64urlToArrayBuffer(String(options.challenge)),
@@ -214,31 +129,29 @@ export function preparePublicKeyRequestOptions(options: PublicKeyCredentialReque
   } as PublicKeyCredentialRequestOptions
 }
 
-export function serializeRegistrationCredential(credential: PublicKeyCredential) {
-  const response = credential.response as AuthenticatorAttestationResponse
-  return {
-    id: credential.id,
-    rawId: arrayBufferToBase64url(credential.rawId),
-    type: credential.type,
-    response: {
-      clientDataJSON: arrayBufferToBase64url(response.clientDataJSON),
-      attestationObject: arrayBufferToBase64url(response.attestationObject),
-      transports: typeof response.getTransports === 'function' ? response.getTransports() : [],
-    },
+export function serializeAuthenticationCredential(
+  credential: PublicKeyCredential,
+): SerializedAuthenticationCredential {
+  const nativeCredential = credential as PublicKeyCredential & { toJSON?: () => unknown }
+  if (typeof nativeCredential.toJSON === 'function') {
+    return nativeCredential.toJSON() as SerializedAuthenticationCredential
   }
-}
 
-export function serializeAuthenticationCredential(credential: PublicKeyCredential) {
   const response = credential.response as AuthenticatorAssertionResponse
+  const credentialWithAttachment = credential as PublicKeyCredential & {
+    authenticatorAttachment?: AuthenticatorAttachment | null
+  }
   return {
     id: credential.id,
-    rawId: arrayBufferToBase64url(credential.rawId),
-    type: credential.type,
+    rawId: credential.id || arrayBufferToBase64url(credential.rawId),
+    type: 'public-key' as const,
     response: {
       clientDataJSON: arrayBufferToBase64url(response.clientDataJSON),
       authenticatorData: arrayBufferToBase64url(response.authenticatorData),
       signature: arrayBufferToBase64url(response.signature),
-      userHandle: response.userHandle ? arrayBufferToBase64url(response.userHandle) : null,
+      userHandle: response.userHandle ? arrayBufferToBase64url(response.userHandle) : undefined,
     },
+    clientExtensionResults: credential.getClientExtensionResults(),
+    authenticatorAttachment: credentialWithAttachment.authenticatorAttachment || undefined,
   }
 }

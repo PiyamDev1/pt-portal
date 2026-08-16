@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { apiError, apiOk } from '@/lib/api/http'
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
 import { recordPackageAuditEvent } from '@/lib/packageAudit'
+import type { Database } from '@/types/supabase'
 
 const SCHEMA_HINT =
   'Package operations are not installed yet. Run scripts/migrations/20260711_create_travel_package_folders.sql, scripts/migrations/20260712_create_travel_package_documents.sql, scripts/migrations/20260712_create_travel_package_invoices.sql, then scripts/migrations/20260712_finalize_travel_package_workflow.sql.'
@@ -14,6 +15,12 @@ const RESOURCE_TABLES = {
 } as const
 
 type ResourceName = keyof typeof RESOURCE_TABLES
+type ResourceInsertPayloads = {
+  task: Database['public']['Tables']['travel_package_tasks']['Insert']
+  deadline: Database['public']['Tables']['travel_package_deadlines']['Insert']
+  risk: Database['public']['Tables']['travel_package_risk_flags']['Insert']
+  communication: Database['public']['Tables']['travel_package_communications']['Insert']
+}
 
 function isSchemaError(error: unknown) {
   const code = (error as { code?: string } | null)?.code
@@ -29,12 +36,12 @@ function resourceName(value: unknown): ResourceName | null {
   return name in RESOURCE_TABLES ? name : null
 }
 
-function createInsertPayload(
-  resource: ResourceName,
+function createInsertPayload<Resource extends ResourceName>(
+  resource: Resource,
   packageId: string,
   userId: string,
   body: Record<string, unknown>,
-) {
+): ResourceInsertPayloads[Resource] {
   if (resource === 'task') {
     return {
       package_id: packageId,
@@ -47,7 +54,7 @@ function createInsertPayload(
       due_at: cleanText(body.dueAt || body.due_at) || null,
       auto_generated: false,
       metadata: {},
-    }
+    } as ResourceInsertPayloads[Resource]
   }
   if (resource === 'deadline') {
     return {
@@ -60,7 +67,7 @@ function createInsertPayload(
       assigned_to: cleanText(body.assignedTo || body.assigned_to) || userId,
       notes: cleanText(body.notes) || null,
       metadata: {},
-    }
+    } as ResourceInsertPayloads[Resource]
   }
   if (resource === 'risk') {
     return {
@@ -74,7 +81,7 @@ function createInsertPayload(
       assigned_to: cleanText(body.assignedTo || body.assigned_to) || userId,
       due_at: cleanText(body.dueAt || body.due_at) || null,
       metadata: {},
-    }
+    } as ResourceInsertPayloads[Resource]
   }
   return {
     package_id: packageId,
@@ -85,7 +92,7 @@ function createInsertPayload(
     follow_up_due_at: cleanText(body.followUpDueAt || body.follow_up_due_at) || null,
     created_by: userId,
     metadata: {},
-  }
+  } as ResourceInsertPayloads[Resource]
 }
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -173,41 +180,70 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!body) return apiError('Invalid JSON body', 400)
   const resource = resourceName(body.resource)
   if (!resource) return apiError('Invalid operation resource', 400)
-  const payload = createInsertPayload(resource, id, user.id, body)
-  if (
-    !cleanText(
-      (payload as { title?: unknown; summary?: unknown }).title ||
-        (payload as { summary?: unknown }).summary,
-    )
-  ) {
+  const titleOrSummary = resource === 'communication' ? body.summary : body.title
+  if (!cleanText(titleOrSummary)) {
     return apiError(
       resource === 'communication' ? 'Communication summary is required' : 'Title is required',
       400,
     )
   }
-  if (resource === 'deadline' && !cleanText((payload as { due_at?: unknown }).due_at)) {
+  if (resource === 'deadline' && !cleanText(body.dueAt || body.due_at)) {
     return apiError('Deadline date and time is required', 400)
   }
 
-  const { data, error } = await supabase
-    .from(RESOURCE_TABLES[resource])
-    .insert(payload)
-    .select('*')
-    .single()
+  let data: unknown = null
+  let error: { code?: string; message?: string } | null = null
+  let communicationPayload: ResourceInsertPayloads['communication'] | null = null
+
+  if (resource === 'task') {
+    const result = await supabase
+      .from('travel_package_tasks')
+      .insert(createInsertPayload('task', id, user.id, body))
+      .select('*')
+      .single()
+    data = result.data
+    error = result.error
+  } else if (resource === 'deadline') {
+    const result = await supabase
+      .from('travel_package_deadlines')
+      .insert(createInsertPayload('deadline', id, user.id, body))
+      .select('*')
+      .single()
+    data = result.data
+    error = result.error
+  } else if (resource === 'risk') {
+    const result = await supabase
+      .from('travel_package_risk_flags')
+      .insert(createInsertPayload('risk', id, user.id, body))
+      .select('*')
+      .single()
+    data = result.data
+    error = result.error
+  } else {
+    communicationPayload = createInsertPayload('communication', id, user.id, body)
+    const result = await supabase
+      .from('travel_package_communications')
+      .insert(communicationPayload)
+      .select('*')
+      .single()
+    data = result.data
+    error = result.error
+  }
+
   if (error || !data) {
     if (isSchemaError(error)) return apiError(SCHEMA_HINT, 503)
     return apiError(error?.message || `Failed to create ${resource}`, 500)
   }
 
-  if (resource === 'communication' && payload.follow_up_required) {
+  if (communicationPayload?.follow_up_required) {
     await supabase.from('travel_package_tasks').insert({
       package_id: id,
-      title: `Follow up: ${payload.summary}`,
-      description: `Follow-up created from ${payload.channel} communication.`,
+      title: `Follow up: ${communicationPayload.summary}`,
+      description: `Follow-up created from ${communicationPayload.channel} communication.`,
       task_type: 'customer_follow_up',
       priority: 'medium',
       assigned_to: user.id,
-      due_at: payload.follow_up_due_at,
+      due_at: communicationPayload.follow_up_due_at,
       auto_generated: true,
       source_rule: 'communication_follow_up',
     })
