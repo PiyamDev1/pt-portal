@@ -12,6 +12,12 @@ password-manager chooser without first asking for an email. Password sign-in can
 matching branch code, a temporary-password change, and TOTP or a one-use backup code. If a valid
 session can be resumed, the login page still reruns employee, branch, and assurance checks.
 
+If your IMS email is also your company Microsoft 365 email, open **Settings → Security & Password
+→ Microsoft work account** and choose **Link Microsoft work account**. Select the Microsoft account
+with the exact same email shown in IMS. Once linked, the normal **Sign in with Microsoft** button
+opens the same IMS account; it does not create a second employee profile or bypass branch, account
+status, or two-factor checks.
+
 The interface uses in-app dialogs for decisions and Sonner toast notifications for success, warning, and failure feedback. Native browser `alert`, `confirm`, and `prompt` windows are not part of the supported interaction pattern.
 
 The browser SDK refreshes an eligible Supabase session. When it can no longer do so, return to

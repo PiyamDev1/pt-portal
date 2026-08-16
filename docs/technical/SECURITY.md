@@ -25,7 +25,13 @@ Password authentication is mediated by `POST /api/auth/password-login`:
 The route returns a generic credential error for rejected passwords. It does not reveal whether an email exists.
 
 Microsoft SSO remains available, but protected API routes use the same server-side session and
-employee authorization boundary after login.
+employee authorization boundary after login. Existing staff can link a Microsoft 365 work identity
+from My Account through Supabase's authenticated PKCE identity-linking flow. The callback requires
+the Azure identity email to match the primary IMS email and attempts immediate rollback if it does
+not. Production configuration should restrict Azure to the company Entra tenant, request `email`,
+include Microsoft's `xms_edov` verification claim, enable Supabase manual linking, and allow only
+the intended portal callback origins. A linked identity adds a login method; it does not grant an
+employee record, role, branch, elevated assurance, or authorization.
 
 ### Native passkeys
 

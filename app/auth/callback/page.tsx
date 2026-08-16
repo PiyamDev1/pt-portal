@@ -27,6 +27,8 @@ export default async function AuthCallbackPage({ searchParams }: AuthCallbackPag
   const resolvedSearchParams = await searchParams
   const code = firstSearchParam(resolvedSearchParams?.code)
   const nextPath = resolveNextPath(firstSearchParam(resolvedSearchParams?.next))
+  const flow =
+    firstSearchParam(resolvedSearchParams?.flow) === 'link-microsoft' ? 'link-microsoft' : 'sign-in'
 
-  return <AuthCallbackClient code={code} nextPath={nextPath} />
+  return <AuthCallbackClient code={code} nextPath={nextPath} flow={flow} />
 }

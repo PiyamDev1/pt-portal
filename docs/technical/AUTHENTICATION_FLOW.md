@@ -41,7 +41,18 @@ copied into Supabase Auth storage.
 
 ### Microsoft OAuth
 
-The login page starts Supabase OAuth and the `/auth/callback` flow exchanges the callback data before running the same employee/branch/second-factor checks. OAuth is not a bypass around employee status or portal authorization.
+The login page starts Supabase Azure OAuth and requests the `email` scope. The `/auth/callback`
+flow exchanges the PKCE code before running the same employee/branch/second-factor checks. OAuth
+is not a bypass around employee status or portal authorization.
+
+Staff who already use their company email for IMS can explicitly link the matching Microsoft 365
+identity from **Settings → Security & Password**. The user must already be authenticated, and
+Supabase manual identity linking must be enabled. The callback retrieves the linked identities and
+compares the Azure email to the primary IMS email after trimming and case normalization. If the
+addresses differ—or Microsoft returns no usable email—the identity is not accepted. A mismatched
+identity is immediately unlinked; failure to remove it is surfaced as an administrator-review
+condition rather than reported as success. Linked Microsoft sign-in still resolves the same
+Supabase user and remains subject to active-employee, branch, MFA, and route authorization checks.
 
 ## Session behavior
 

@@ -36,6 +36,28 @@ the providers, OAuth redirects, passkey RP ID, and allowed WebAuthn origins in S
 portal callback/origin aligned with `NEXT_PUBLIC_SITE_URL`. Passkey challenge state, credentials,
 counters, and resulting sessions belong to Supabase Auth, not portal public-schema tables.
 
+For company Microsoft 365 accounts:
+
+1. Register the OAuth application in the company Microsoft Entra tenant and configure the Supabase
+   callback URL shown on the Azure provider screen.
+2. Configure Supabase's Azure Tenant URL as
+   `https://login.microsoftonline.com/<company-tenant-id>` so personal and unrelated-tenant
+   Microsoft accounts cannot enter the company flow.
+3. Request the `email` scope. Add the optional `email` and `xms_edov` claims to the Entra app so
+   Supabase can evaluate the returned address and its verification state.
+4. Add `https://ims.piyamtravel.com/auth/callback` (plus explicitly required preview/local URLs) to
+   the Supabase redirect allowlist.
+5. Enable **Allow manual linking** in Supabase Auth general configuration. This powers the My
+   Account link action; it is disabled by default.
+
+An authenticated staff member can link Microsoft under **Settings → Security & Password**. The
+portal uses Supabase's identity-linking PKCE flow, requests account selection with the current IMS
+email as the login hint, then compares the returned Azure identity email to the authoritative IMS
+email. A different or missing email is not accepted; the callback removes a mismatched identity
+immediately and reports any cleanup failure for administrator review. Linking never changes the
+employee record, role, branch, password, or second-factor policy. Supabase's automatic identity
+linking also joins a verified OAuth identity when a staff member signs in with the exact same email.
+
 ## Object storage
 
 ### Primary MinIO

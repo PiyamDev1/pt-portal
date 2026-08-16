@@ -18,6 +18,7 @@ import { ActiveDevicesSection } from './ActiveDevicesSection'
 import { MobileNavigationPreferences } from './MobileNavigationPreferences'
 import { useSecuritySessions } from '@/hooks/useSecuritySessions'
 import { PasskeySettingsPanel } from '@/app/dashboard/account/PasskeySettingsPanel'
+import { MicrosoftIdentityPanel } from './MicrosoftIdentityPanel'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { AuthUser } from '@/app/types/auth'
 
@@ -324,6 +325,8 @@ export default function SecurityTab({
           onConfirmPassChange={setConfirmPass}
           onSubmit={handlePasswordChange}
         />
+
+        <MicrosoftIdentityPanel currentUser={currentUser} supabase={supabase} />
 
         <TwoFactorSection
           loading={loading}

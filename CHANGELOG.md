@@ -8,12 +8,16 @@ Notable PT-Portal changes are recorded here. This project follows [Keep a Change
 
 - Native Supabase Auth passkeys with discoverable conditional sign-in, multiple named
   credentials, and in-app rename/removal management.
+- In-account Microsoft 365 identity linking with linked-status visibility and exact IMS-email
+  reconciliation.
 
 ### Changed
 
 - Passkey login assurance now comes from signature-verified Supabase JWT authentication-method
   claims instead of browser-controlled hints; password and Microsoft sign-in also rerun active
   employee and MFA routing checks.
+- Microsoft account linking now returns through the shared PKCE callback and automatically removes
+  a newly linked Azure identity when its email does not match the authoritative IMS email.
 
 ### Removed
 
