@@ -15,7 +15,9 @@ import { AvatarCard } from './AvatarCard'
 import { PasswordChangeForm } from './PasswordChangeForm'
 import { TwoFactorSection } from './TwoFactorSection'
 import { ActiveDevicesSection } from './ActiveDevicesSection'
+import { MobileNavigationPreferences } from './MobileNavigationPreferences'
 import { useSecuritySessions } from '@/hooks/useSecuritySessions'
+import { PasskeySettingsPanel } from '@/app/dashboard/account/PasskeySettingsPanel'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { AuthUser } from '@/app/types/auth'
 
@@ -24,6 +26,7 @@ interface SecurityTabProps {
   supabase: SupabaseClient
   loading: boolean
   setLoading: (loading: boolean) => void
+  userRole: string
 }
 
 type SecurityConfirmAction =
@@ -37,6 +40,7 @@ export default function SecurityTab({
   supabase,
   loading,
   setLoading,
+  userRole,
 }: SecurityTabProps) {
   const router = useRouter()
 
@@ -303,6 +307,12 @@ export default function SecurityTab({
 
         <AvatarCard currentUser={currentUser} loading={loading} onUpload={handleAvatarUpload} />
 
+        <MobileNavigationPreferences
+          currentUser={currentUser}
+          supabase={supabase}
+          userRole={userRole}
+        />
+
         <PasswordChangeForm
           loading={loading}
           currentPass={currentPass}
@@ -324,6 +334,8 @@ export default function SecurityTab({
           onCopyCodes={handleCopyBackupCodes}
           onDownloadCodes={handleDownloadBackupCodes}
         />
+
+        <PasskeySettingsPanel />
 
         <ActiveDevicesSection
           sessions={sessions}

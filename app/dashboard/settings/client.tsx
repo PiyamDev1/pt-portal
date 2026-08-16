@@ -309,6 +309,7 @@ export default function SettingsClient({
             supabase={supabase}
             loading={loading}
             setLoading={setLoading}
+            userRole={userRole}
           />
         )}
 

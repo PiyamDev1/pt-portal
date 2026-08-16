@@ -87,7 +87,6 @@ export default function BookingsClient({
   const [selectedDate, setSelectedDate] = useState<Date>(today)
   const [mobileWeekDayIndex, setMobileWeekDayIndex] = useState(0)
   const [mobileListMode, setMobileListMode] = useState<'day' | 'week'>('day')
-  const [mobileCalendarMode, setMobileCalendarMode] = useState<'grid' | 'agenda'>('agenda')
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
 
   const [bookings, setBookings] = useState<BookingWithService[]>([])
@@ -184,11 +183,6 @@ export default function BookingsClient({
       }),
     [calendarGridStart],
   )
-  const mobileAgendaDays = useMemo(
-    () => calendarDays.filter((day) => day.getUTCMonth() === monthStart.getUTCMonth()),
-    [calendarDays, monthStart],
-  )
-
   const rangeStart = useMemo(
     () => (view === 'multi' ? new Date(calendarGridStart) : new Date(weekStart)),
     [view, calendarGridStart, weekStart],
@@ -2019,103 +2013,68 @@ export default function BookingsClient({
         ) : (
           view === 'multi' && (
             <div className="animate-enter-fade-up animate-enter-delay-1 space-y-4">
-              <div className="bookings-mobile-only md:hidden rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
-                <div className="flex items-center gap-2 rounded-xl bg-slate-50 p-1">
-                  <button
-                    type="button"
-                    onClick={() => setMobileCalendarMode('grid')}
-                    className={`ui-tap ui-focus flex-1 rounded-lg px-2 py-1.5 text-xs font-medium transition-colors ${
-                      mobileCalendarMode === 'grid'
-                        ? 'bg-white text-indigo-700 shadow-sm'
-                        : 'text-slate-500'
-                    }`}
-                  >
-                    Grid
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setMobileCalendarMode('agenda')}
-                    className={`ui-tap ui-focus flex-1 rounded-lg px-2 py-1.5 text-xs font-medium transition-colors ${
-                      mobileCalendarMode === 'agenda'
-                        ? 'bg-white text-indigo-700 shadow-sm'
-                        : 'text-slate-500'
-                    }`}
-                  >
-                    Agenda
-                  </button>
+              <div className="bookings-mobile-only overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm md:hidden">
+                <div className="border-b border-slate-200 bg-gradient-to-b from-white to-indigo-50 px-4 py-3">
+                  <p className="text-sm font-bold text-slate-800">{formatMonthLabel(monthStart)}</p>
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    Tap a date to open that day&apos;s appointments.
+                  </p>
+                </div>
+                <div className="grid grid-cols-7 border-b border-slate-100 bg-slate-50">
+                  {CALENDAR_DAY_LABELS.map((label) => (
+                    <div
+                      key={`mobile-${label}`}
+                      className="py-2 text-center text-[10px] font-bold uppercase text-slate-500"
+                    >
+                      {label.slice(0, 1)}
+                    </div>
+                  ))}
+                </div>
+                <div className="grid grid-cols-7">
+                  {calendarDays.map((day) => {
+                    const dayBookings = bookingsForDate(day)
+                    const isToday = isSameUTCDay(day, today)
+                    const isSelected = isSameUTCDay(day, selectedDate)
+                    const isOutsideMonth = day.getUTCMonth() !== monthStart.getUTCMonth()
+
+                    return (
+                      <button
+                        key={`mobile-${day.toISOString()}`}
+                        type="button"
+                        onClick={() => openDayAgenda(day)}
+                        aria-label={`${formatDateLabel(day)}, ${dayBookings.length} appointment${dayBookings.length === 1 ? '' : 's'}`}
+                        className={`ui-focus relative min-h-14 border-b border-r border-slate-100 p-1 text-center transition-colors ${
+                          isSelected
+                            ? 'bg-indigo-100 text-indigo-800 ring-2 ring-inset ring-indigo-400'
+                            : isToday
+                              ? 'bg-amber-50 text-amber-800'
+                              : isOutsideMonth
+                                ? 'bg-slate-50/70 text-slate-300'
+                                : 'bg-white text-slate-700 active:bg-indigo-50'
+                        }`}
+                      >
+                        <span className="block text-xs font-bold">{day.getUTCDate()}</span>
+                        {dayBookings.length > 0 && (
+                          <span
+                            className={`mx-auto mt-1 flex h-4 min-w-4 w-fit items-center justify-center rounded-full px-1 text-[9px] font-black ${
+                              isSelected
+                                ? 'bg-indigo-700 text-white'
+                                : 'bg-indigo-100 text-indigo-700'
+                            }`}
+                          >
+                            {dayBookings.length}
+                          </span>
+                        )}
+                        {isToday && (
+                          <span className="absolute inset-x-2 bottom-1 h-0.5 rounded-full bg-amber-500" />
+                        )}
+                      </button>
+                    )
+                  })}
                 </div>
               </div>
 
-              {mobileCalendarMode === 'agenda' && (
-                <div className="bookings-mobile-only md:hidden overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-[0_18px_50px_-30px_rgba(15,23,42,0.4)]">
-                  <div className="border-b border-slate-200 bg-[linear-gradient(180deg,_#ffffff_0%,_#eef2ff_100%)] px-4 py-3">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Month agenda
-                    </p>
-                    <p className="mt-1 text-sm text-slate-600">
-                      Tap a day to manage appointments quickly
-                    </p>
-                  </div>
-                  {mobileAgendaDays.length === 0 ? (
-                    <div className="px-4 py-8 text-center text-sm text-slate-400">
-                      No days available for this month.
-                    </div>
-                  ) : (
-                    <div className="divide-y divide-slate-100">
-                      {mobileAgendaDays.map((day) => {
-                        const dayBookings = bookingsForDate(day)
-                        const isToday = isSameUTCDay(day, today)
-                        const isSelected = isSameUTCDay(day, selectedDate)
-                        return (
-                          <button
-                            key={`agenda-${day.toISOString()}`}
-                            type="button"
-                            onClick={() => openDayAgenda(day)}
-                            className={`ui-tap ui-focus w-full px-4 py-3 text-left transition-colors ${
-                              isSelected ? 'bg-indigo-50' : 'hover:bg-slate-50'
-                            }`}
-                          >
-                            <div className="flex items-center justify-between gap-2">
-                              <div>
-                                <p
-                                  className={`text-sm font-semibold ${isSelected ? 'text-indigo-700' : 'text-slate-700'}`}
-                                >
-                                  {formatDateLabel(day)}
-                                  {isToday && (
-                                    <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
-                                      Today
-                                    </span>
-                                  )}
-                                </p>
-                                <p className="mt-1 text-xs text-slate-500">
-                                  {dayBookings.length === 0
-                                    ? 'No appointments'
-                                    : `${dayBookings.length} appointment${dayBookings.length === 1 ? '' : 's'}`}
-                                </p>
-                              </div>
-                              <span
-                                className={`rounded-full px-2 py-0.5 text-xs font-medium ${dayBookings.length > 0 ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-500'}`}
-                              >
-                                {dayBookings.length}
-                              </span>
-                            </div>
-                            {dayBookings.length > 0 && (
-                              <p className="mt-1 text-xs text-slate-400 truncate">
-                                Next: {formatTime(dayBookings[0].start_time)}{' '}
-                                {dayBookings[0].customer_name}
-                              </p>
-                            )}
-                          </button>
-                        )
-                      })}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <div
-                className={`${mobileCalendarMode === 'agenda' ? 'hidden md:block' : 'block'} bookings-calendar-grid overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-[0_18px_50px_-30px_rgba(15,23,42,0.4)]`}
-              >
+              <div className="bookings-desktop-only bookings-calendar-grid overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-[0_18px_50px_-30px_rgba(15,23,42,0.4)]">
                 <div className="grid grid-cols-7 border-b border-slate-200 bg-[linear-gradient(180deg,_#f8fafc_0%,_#eef2ff_100%)]">
                   {CALENDAR_DAY_LABELS.map((label) => (
                     <div

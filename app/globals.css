@@ -544,7 +544,7 @@ html[data-device-layout='mobile'] .timeclock-status-message {
   padding: 0.75rem !important;
 }
 
-/* Bookings uses its compact controls and an agenda instead of a compressed calendar. */
+/* Bookings uses a dedicated compact month grid instead of the desktop calendar. */
 html[data-device-layout='mobile'] .bookings-mobile-content {
   width: 100%;
   max-width: 100% !important;
@@ -559,11 +559,7 @@ html[data-device-layout='mobile'] .bookings-desktop-only {
   display: none !important;
 }
 
-html[data-device-layout='mobile'] .bookings-calendar-grid.hidden {
-  display: none !important;
-}
-
-/* Applications uses full-width service cards and a compact metrics header. */
+/* Applications uses compact service tiles and a phone-specific metrics header. */
 html[data-device-layout='mobile'] .applications-mobile-hero {
   padding: 1rem !important;
 }
@@ -580,4 +576,79 @@ html[data-device-layout='mobile'] .applications-mobile-stats {
 
 html[data-device-layout='mobile'] .applications-mobile-stats > div {
   justify-content: space-between;
+}
+
+html[data-device-layout='mobile'] .applications-service-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 0.75rem !important;
+}
+
+html[data-device-layout='mobile'] .applications-service-header {
+  min-height: 5.25rem;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
+  padding: 0.75rem !important;
+}
+
+html[data-device-layout='mobile'] .applications-service-header > span {
+  font-size: 1.75rem;
+  line-height: 1;
+}
+
+html[data-device-layout='mobile'] .applications-service-content {
+  gap: 0.65rem;
+  padding: 0.75rem !important;
+}
+
+html[data-device-layout='mobile'] .applications-service-metrics p:first-child {
+  font-size: 1.1rem;
+}
+
+html[data-device-layout='mobile'] .applications-service-metrics p:last-child {
+  font-size: 0.42rem;
+}
+
+html[data-device-layout='mobile'] .applications-service-aging > div {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.2rem;
+}
+
+html[data-device-layout='mobile'] .applications-service-aging span {
+  overflow: hidden;
+  padding-inline: 0.15rem;
+  text-align: center;
+  font-size: 0.48rem;
+  white-space: nowrap;
+}
+
+html[data-device-layout='mobile'] .applications-service-attention {
+  min-height: 2.8rem;
+  align-items: flex-start;
+  padding: 0.5rem !important;
+  font-size: 0.65rem;
+  line-height: 0.9rem;
+}
+
+html[data-device-layout='mobile'] .applications-service-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.35rem;
+}
+
+html[data-device-layout='mobile'] .applications-service-actions a {
+  min-width: 0;
+  padding: 0.55rem 0.25rem !important;
+  font-size: 0.65rem;
+}
+
+html[data-device-layout='mobile'] .applications-activity-grid {
+  grid-template-columns: minmax(0, 1fr) !important;
+  gap: 0.75rem !important;
+}
+
+html[data-device-layout='mobile'] .applications-activity-row {
+  align-items: flex-start;
+  padding: 0.75rem !important;
 }

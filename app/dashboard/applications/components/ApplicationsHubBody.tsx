@@ -139,16 +139,16 @@ function ServiceCard({
   const hasAttention = attentionCount > 0
 
   return (
-    <div className="rounded-2xl overflow-hidden border border-slate-200 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 h-full bg-white">
-      <div className={`${color} px-4 py-3.5 flex items-center gap-2.5`}>
+    <div className="applications-service-card h-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
+      <div className={`applications-service-header ${color} flex items-center gap-2.5 px-4 py-3.5`}>
         <span className="text-3xl drop-shadow-sm">{flag}</span>
         <div>
           <p className="text-white font-bold text-sm leading-tight">{title}</p>
           <p className="text-white/60 text-[10px]">{total} total applications</p>
         </div>
       </div>
-      <div className="p-4 flex flex-col gap-3">
-        <div className="grid grid-cols-3 divide-x divide-slate-100 text-center">
+      <div className="applications-service-content flex flex-col gap-3 p-4">
+        <div className="applications-service-metrics grid grid-cols-3 divide-x divide-slate-100 text-center">
           <div className="pr-2">
             <p className="text-[22px] font-black text-slate-800 leading-none">{total}</p>
             <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wide mt-0.5">
@@ -169,34 +169,38 @@ function ServiceCard({
           </div>
         </div>
 
-        <AgingBadge aging={aging} />
+        <div className="applications-service-aging">
+          <AgingBadge aging={aging} />
+        </div>
 
         {hasAttention ? (
-          <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-amber-50 border border-amber-200 rounded-lg text-xs font-semibold text-amber-700">
+          <div className="applications-service-attention flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs font-semibold text-amber-700">
             <span>⚠</span>
             <span>
               {attentionCount} {attentionLabel}
             </span>
           </div>
         ) : (
-          <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-50 border border-emerald-200 rounded-lg text-xs font-semibold text-emerald-600">
+          <div className="applications-service-attention flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-600">
             <span>✓</span>
             <span>No pending actions</span>
           </div>
         )}
 
-        <div className="flex gap-2 pt-0.5">
+        <div className="applications-service-actions flex gap-2 pt-0.5">
           <Link
             href={href}
             className="flex-1 text-center text-xs px-2.5 py-1.5 rounded-lg bg-slate-100 text-slate-700 font-semibold hover:bg-slate-200 transition-colors"
           >
-            Open Module
+            <span className="platform-mobile-only">Open</span>
+            <span className="platform-desktop-only">Open Module</span>
           </Link>
           <Link
             href={`${href}?focus=attention`}
             className="flex-1 text-center text-xs px-2.5 py-1.5 rounded-lg bg-slate-900 text-white font-semibold hover:bg-black transition-colors"
           >
-            View Attention
+            <span className="platform-mobile-only">Attention</span>
+            <span className="platform-desktop-only">View Attention</span>
           </Link>
         </div>
       </div>
@@ -208,7 +212,7 @@ function ActivityRow({ item }: { item: NormRecord }) {
   const tag = SERVICE_TAG[item.service]
   const badge = STATUS_BADGE[item.status] || 'bg-slate-50 text-slate-600 border-slate-200'
   return (
-    <div className="px-5 py-3 flex items-center gap-3">
+    <div className="applications-activity-row flex items-center gap-3 px-5 py-3">
       <div className="flex-1 min-w-0">
         <p className="font-semibold text-slate-800 text-sm truncate">{item.applicantName}</p>
         <div className="flex items-center gap-1.5 mt-0.5">
@@ -325,7 +329,7 @@ export function ApplicationsHubBody({
         </div>
       </section>
 
-      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <section className="applications-service-grid grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {visibleServices
           .filter((service) => service.visible)
           .map((service) => {
@@ -348,7 +352,7 @@ export function ApplicationsHubBody({
           })}
       </section>
 
-      <section className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+      <section className="applications-activity-grid grid grid-cols-1 gap-5 lg:grid-cols-2">
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-slate-100 bg-slate-50/60 flex justify-between items-center">
             <h2 className="font-bold text-slate-700 text-sm">Recent Activity</h2>

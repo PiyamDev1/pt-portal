@@ -39,7 +39,7 @@ type MenuItem = {
 const MOBILE_ACCOUNT_ITEMS: MenuItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: Home },
   { href: '/dashboard/accounting', label: 'Accounting', icon: BadgePoundSterling },
-  { href: '/dashboard/account', label: 'My Account', icon: UserRound },
+  { href: '/dashboard/settings?tab=security', label: 'My Account', icon: UserRound },
 ]
 
 const PAGE_MENU_ITEMS: Array<{ match: string; title: string; items: MenuItem[] }> = [

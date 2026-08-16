@@ -13,26 +13,10 @@ import { createServerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import type { ComponentType } from 'react'
-import {
-  BadgePoundSterling,
-  BriefcaseBusiness,
-  CalendarDays,
-  ChartNoAxesColumnIncreasing,
-  ChevronRight,
-  Clock3,
-  FileText,
-  FingerprintPattern,
-  GraduationCap,
-  HeartPulse,
-  LayoutDashboard,
-  Plane,
-  Settings,
-  Ticket,
-} from 'lucide-react'
+import { LayoutDashboard } from 'lucide-react'
 import PageHeader from '@/app/components/PageHeader.client'
-import { PackageTravelIcon } from '@/app/components/icons/PackageTravelIcon'
 import DashboardClientWrapper from './client-wrapper'
+import { DashboardModuleIcon } from './DashboardModuleIcon'
 import { BackupCodesReminder } from './lms/components/BackupCodesReminder'
 import { DashboardModulesClient } from './DashboardModulesClient'
 import { NoticeBoardClient } from './NoticeBoardClient'
@@ -42,36 +26,7 @@ import {
   type DashboardModule,
 } from '@/lib/dashboardModules'
 
-type IconProps = { className?: string }
-
-const ICONS: Record<DashboardModule['iconKey'], ComponentType<IconProps>> = {
-  'badge-pound': BadgePoundSterling,
-  briefcase: BriefcaseBusiness,
-  calendar: CalendarDays,
-  'chart-column': ChartNoAxesColumnIncreasing,
-  clock: Clock3,
-  'file-text': FileText,
-  fingerprint: FingerprintPattern,
-  graduation: GraduationCap,
-  heart: HeartPulse,
-  'package-travel': PackageTravelIcon,
-  plane: Plane,
-  settings: Settings,
-  ticket: Ticket,
-}
-
 const MOBILE_PRIMARY_IDS = new Set(['timeclock', 'hrms-transfer'])
-function ModuleIcon({
-  moduleItem,
-  className = 'h-5 w-5',
-}: {
-  moduleItem: DashboardModule
-  className?: string
-}) {
-  const Icon = ICONS[moduleItem.iconKey]
-  return <Icon className={className} />
-}
-
 function MobileDashboard({
   modules,
   userName,
@@ -96,8 +51,8 @@ function MobileDashboard({
             <LayoutDashboard className="h-6 w-6" />
           </div>
         </div>
-        <p className="mt-4 text-base leading-6 text-red-50/85">
-          Your daily actions are arranged as full-width touch controls for easier use on a phone.
+        <p className="mt-3 text-sm leading-5 text-red-50/85">
+          Open a workspace quickly, or pin your most-used pages to the navigation bar.
         </p>
       </div>
 
@@ -105,25 +60,24 @@ function MobileDashboard({
         <p className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-slate-500">
           Start here
         </p>
-        <div className="space-y-3">
+        <div className="grid grid-cols-2 gap-3">
           {primaryModules.map((moduleItem) => (
             <Link
               key={moduleItem.id}
               href={moduleItem.href}
-              className={`flex min-h-28 items-center gap-4 rounded-[1.5rem] bg-gradient-to-br ${moduleItem.tileTone} p-4 text-slate-950 shadow-md ring-1 ring-slate-900/5 active:scale-[0.99]`}
+              className={`flex min-h-36 flex-col items-center justify-center gap-3 rounded-[1.5rem] bg-gradient-to-br ${moduleItem.tileTone} p-3 text-center text-slate-950 shadow-md ring-1 ring-slate-900/5 active:scale-[0.99]`}
             >
               <div
                 className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br ${moduleItem.iconTone} shadow-lg`}
               >
-                <ModuleIcon moduleItem={moduleItem} className="h-8 w-8" />
+                <DashboardModuleIcon moduleItem={moduleItem} className="h-8 w-8" />
               </div>
-              <div className="min-w-0 flex-1">
-                <h2 className="text-lg font-black">{moduleItem.title}</h2>
-                <p className="mt-1 line-clamp-2 text-sm leading-5 text-slate-600">
+              <div className="min-w-0">
+                <h2 className="text-base font-black leading-tight">{moduleItem.title}</h2>
+                <p className="mt-1 line-clamp-2 text-xs leading-4 text-slate-600">
                   {moduleItem.desc}
                 </p>
               </div>
-              <ChevronRight className="h-5 w-5 shrink-0 text-slate-500" aria-hidden="true" />
             </Link>
           ))}
         </div>
@@ -134,28 +88,29 @@ function MobileDashboard({
           <p className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-slate-500">
             Your workspaces
           </p>
-          <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
             {workspaceModules.map((moduleItem) => (
               <Link
                 key={moduleItem.id}
                 href={moduleItem.href}
-                className={`flex min-h-24 items-center gap-4 rounded-2xl border border-white/70 bg-gradient-to-br ${moduleItem.tileTone} p-4 shadow-sm ring-1 ring-slate-900/5 active:scale-[0.99]`}
+                className={`flex min-h-40 flex-col items-center justify-center gap-3 rounded-2xl border border-white/70 bg-gradient-to-br ${moduleItem.tileTone} p-3 text-center shadow-sm ring-1 ring-slate-900/5 active:scale-[0.99]`}
               >
                 <div
                   className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br ${moduleItem.iconTone} shadow-sm`}
                 >
-                  <ModuleIcon moduleItem={moduleItem} className="h-7 w-7" />
+                  <DashboardModuleIcon moduleItem={moduleItem} className="h-7 w-7" />
                 </div>
-                <div className="min-w-0 flex-1">
-                  <h3 className="text-lg font-black text-slate-900">{moduleItem.title}</h3>
-                  <p className="mt-1 line-clamp-2 text-sm leading-5 text-slate-600">
+                <div className="min-w-0">
+                  <h3 className="text-base font-black leading-tight text-slate-900">
+                    {moduleItem.title}
+                  </h3>
+                  <p className="mt-1 line-clamp-2 text-xs leading-4 text-slate-600">
                     {moduleItem.desc}
                   </p>
-                  <p className="mt-1 text-xs font-bold uppercase tracking-wide text-slate-400">
+                  <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">
                     {DASHBOARD_GROUP_LABELS[moduleItem.group]}
                   </p>
                 </div>
-                <ChevronRight className="h-5 w-5 shrink-0 text-slate-400" aria-hidden="true" />
               </Link>
             ))}
           </div>

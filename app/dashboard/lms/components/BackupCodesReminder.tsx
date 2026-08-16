@@ -80,7 +80,7 @@ export function BackupCodesReminder({ userId, onDownloaded }: BackupCodesReminde
         </p>
         <div className="flex gap-2">
           <a
-            href="/dashboard/account"
+            href="/dashboard/settings?tab=security"
             className="text-sm px-3 py-1.5 bg-amber-600 text-white rounded hover:bg-amber-700 transition-colors font-medium"
           >
             Go to Account Settings

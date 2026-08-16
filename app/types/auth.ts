@@ -27,6 +27,8 @@ export interface AuthUser {
   user_metadata?: {
     full_name?: string
     avatar_url?: string
+    mobile_nav_shortcuts?: string[]
+    [key: string]: unknown
   }
 }
 

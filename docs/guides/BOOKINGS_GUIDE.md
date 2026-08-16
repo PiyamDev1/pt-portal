@@ -1,6 +1,6 @@
 # Appointment Bookings Guide
 
-Last verified against the repository: August 12, 2026.
+Last verified against the repository: August 16, 2026.
 
 PT-Portal's booking module is an implemented branch-aware appointment system at `/dashboard/bookings`. It combines schedule/service configuration, capacity-safe booking operations, draft/waitlist tools, email reminders, attendance/no-show handling, and audit/reporting.
 
@@ -41,7 +41,7 @@ Attendance links are built from `APP_BASE_URL`, then `NEXT_PUBLIC_SITE_URL`, the
 
 ## Current UI and API
 
-The dashboard includes day/week/list views, search and status/service/source filters, saved views, appointment editing, history, waitlist, draft state, CSV export, and summary reporting. Booking settings manage branch hours, one-off overrides, services, capacity rules, and reminder templates. Settings mutations require an active `Admin`, `Master Admin`, or `Super Admin` employee session before any service-role write.
+The dashboard includes day/week/list views, search and status/service/source filters, saved views, appointment editing, history, waitlist, draft state, CSV export, and summary reporting. On Android and iOS the month view is a dedicated compact seven-column calendar: dates remain in their correct weekday columns, appointment counts are shown in each cell, and tapping a date opens that day's agenda. The full desktop calendar remains unchanged. Booking settings manage branch hours, one-off overrides, services, capacity rules, and reminder templates. Settings mutations require an active `Admin`, `Master Admin`, or `Super Admin` employee session before any service-role write.
 
 The public booking-telemetry beacon accepts only the booking UI's allowlisted events and metadata in an 8 KiB body. It is limited to 120 events per IP per minute, with fail-open limiter behavior because telemetry must never interrupt appointment work.
 
