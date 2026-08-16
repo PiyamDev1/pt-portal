@@ -112,7 +112,7 @@ export default async function SettingsPage() {
           showBack={true}
         />
 
-        <main className="max-w-7xl mx-auto p-6">
+        <main className="mobile-settings-page max-w-7xl mx-auto p-6">
           <h1 className="text-3xl font-bold text-slate-800 mb-2">
             {hasAdminConsole ? 'Admin & Settings' : 'Settings'}
           </h1>

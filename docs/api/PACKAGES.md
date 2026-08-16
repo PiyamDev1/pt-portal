@@ -1184,6 +1184,36 @@ object `metadata`. Archiving stamps `archived_at`; leaving archived clears it.
 
 **Errors:** `400` invalid/empty update; `401`; `503` schema; `500`.
 
+### POST `/api/travel-package-groups/[id]/flights`
+
+Copies one linked quote's flight structure to every other quote member, or disables future shared
+flight presentation for the group. Each target retains its own passenger fares; copied targets have
+their saved selection and finalisation fields cleared because their available flight structure has
+changed.
+
+**Access:** Authenticated user.
+
+**Input:** JSON up to 4 KB: `{ sourceQuoteId: string, enabled: boolean }`. `sourceQuoteId` is trimmed,
+capped at 200 characters, and must identify a quote member of group `[id]`. Only literal `true`
+enables sharing; every other `enabled` value (including omission) disables it. Unknown fields are
+discarded. Enabling requires the source quote to contain at least one flight option.
+
+**Success:** `200 { enabled, syncedQuoteIds: string[], syncedCount: number }`. Enabling copies the
+source flight options to every other quote member, sets group metadata `sharedFlightSelection:
+true`, and changes non-private customer visibility to `shared_group_view`. Disabling updates only
+that metadata flag and returns an empty sync list; it does not remove previously copied flights or
+change customer visibility.
+
+**Errors:** `400` invalid JSON, missing/invalid/non-member source, or no source flight option; `401`;
+`404` source quote could not be loaded; `413` body over 4 KB; `503` linked-group schema missing;
+`500` query/update failure. Enabling is not a single database transaction: a failure after one or
+more target updates can leave a partial copy, and a retry rewrites targets and clears their
+selection/finalisation fields again.
+
+```json
+{ "sourceQuoteId": "quote-id", "enabled": true }
+```
+
 ### POST `/api/travel-package-groups/[id]/members`
 
 Adds a member or updates an existing member with the same package/quote key.

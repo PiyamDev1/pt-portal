@@ -124,15 +124,15 @@ export default async function TimeclockPage() {
           showBack={true}
         />
 
-        <main className="mx-auto w-full max-w-4xl flex-grow px-3 py-4 md:p-6">
-          <section className="mb-4 rounded-[1.75rem] bg-gradient-to-br from-[#5c111d] via-[#8b1d2c] to-[#2f3033] p-4 text-white shadow-xl shadow-red-950/15 md:mb-6 md:rounded-none md:bg-none md:p-0 md:text-slate-800 md:shadow-none">
+        <main className="timeclock-mobile-surface mx-auto w-full max-w-4xl flex-grow px-3 py-4 md:p-6">
+          <section className="timeclock-mobile-hero mb-4 rounded-[1.75rem] bg-gradient-to-br from-[#5c111d] via-[#8b1d2c] to-[#2f3033] p-4 text-white shadow-xl shadow-red-950/15 md:mb-6 md:rounded-none md:bg-none md:p-0 md:text-slate-800 md:shadow-none">
             <div className="flex items-start gap-3">
-              <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-white/20 md:hidden">
+              <span className="timeclock-mobile-hero-icon inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-white/20 md:hidden">
                 <Clock3 className="h-5 w-5" />
               </span>
               <div>
                 <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Timeclock</h1>
-                <p className="mt-1 text-sm leading-5 text-white/80 md:text-base md:text-slate-500">
+                <p className="timeclock-mobile-hero-copy mt-1 text-sm leading-5 text-white/80 md:text-base md:text-slate-500">
                   Scan the QR code on the device to clock in or out. Managers can also open manual
                   entry for team access and self-punch fallback.
                 </p>
@@ -140,18 +140,22 @@ export default async function TimeclockPage() {
             </div>
           </section>
 
-          <div className="mb-5 grid grid-cols-3 gap-2 md:mb-6 md:grid-cols-2 md:gap-4">
+          <div className="timeclock-mobile-links mb-5 grid grid-cols-1 gap-3 md:mb-6 md:grid-cols-2 md:gap-4">
             {quickLinks.map((link) => {
               const Icon = link.icon
               return (
                 <a
                   key={link.href}
                   href={link.href}
-                  className={`${link.tone} flex min-h-[92px] flex-col items-center justify-center rounded-2xl border p-3 text-center shadow-sm transition hover:-translate-y-0.5 hover:border-red-300 hover:shadow-md md:min-h-0 md:items-start md:justify-start md:p-4 md:text-left`}
+                  className={`${link.tone} timeclock-mobile-link flex min-h-[84px] flex-row items-center justify-start gap-3 rounded-2xl border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-red-300 hover:shadow-md md:min-h-0 md:flex-col md:items-start md:justify-start md:gap-0 md:p-4 md:text-left`}
                 >
-                  <Icon className="mb-2 h-5 w-5 md:h-6 md:w-6" />
-                  <h2 className="text-sm font-semibold md:text-lg">{link.title}</h2>
-                  <p className="mt-1 hidden text-sm text-slate-500 md:block">{link.description}</p>
+                  <Icon className="h-6 w-6 shrink-0 md:mb-2 md:h-6 md:w-6" />
+                  <div>
+                    <h2 className="text-base font-semibold md:text-lg">{link.title}</h2>
+                    <p className="timeclock-mobile-link-description mt-1 text-sm text-slate-600 md:text-slate-500">
+                      {link.description}
+                    </p>
+                  </div>
                 </a>
               )
             })}

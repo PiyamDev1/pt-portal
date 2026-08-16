@@ -140,7 +140,7 @@ export function AdminOverviewTab({
     : 'You have maintenance-scoped access for operational tooling without full organization control.'
 
   return (
-    <div className="space-y-6" data-testid="admin-overview-tab">
+    <div className="admin-overview-mobile space-y-6" data-testid="admin-overview-tab">
       <section className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-950 via-slate-900 to-blue-950 p-6 text-white shadow-sm">
         <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
           <div className="max-w-3xl">

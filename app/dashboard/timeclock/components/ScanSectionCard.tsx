@@ -41,7 +41,7 @@ export function ScanSectionCard({
   const disabled = showSuccessPopup || isCooldownActive || status === 'submitting'
 
   return (
-    <div className="space-y-4 rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm md:rounded-2xl md:p-6">
+    <div className="timeclock-scan-card space-y-4 rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm md:rounded-2xl md:p-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h2 className="text-xl font-semibold text-slate-800 md:text-lg">Scan QR</h2>
@@ -51,7 +51,7 @@ export function ScanSectionCard({
               : 'Allow camera access to scan the device QR.'}
           </p>
         </div>
-        <div className="grid grid-cols-2 gap-2 md:flex">
+        <div className="timeclock-camera-actions grid grid-cols-2 gap-2 md:flex">
           <button
             type="button"
             onClick={onStartCamera}
@@ -88,7 +88,7 @@ export function ScanSectionCard({
           ref={(node) => {
             videoRef.current = node
           }}
-          className="h-[min(58vh,460px)] min-h-[280px] w-full object-cover md:h-64 md:min-h-0"
+          className="timeclock-camera-preview h-[min(58vh,460px)] min-h-[280px] w-full object-cover md:h-64 md:min-h-0"
         />
         {!isScanning && (
           <div className="absolute inset-0 flex items-center justify-center px-8 text-center text-sm font-medium text-slate-200">

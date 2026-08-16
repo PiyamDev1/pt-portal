@@ -85,10 +85,10 @@ export default function SettingsClient({
   const roleCount = Array.isArray(initialRoles) ? initialRoles.length : 0
 
   return (
-    <div className="flex min-h-screen flex-col gap-4 md:flex-row md:gap-8">
+    <div className="settings-mobile-layout flex min-h-screen flex-col gap-4 md:flex-row md:gap-8">
       {/* Sidebar Navigation */}
-      <div className="w-full flex-shrink-0 md:w-64">
-        <div className="sticky top-20 z-20 flex gap-2 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow md:top-24 md:block md:overflow-hidden md:rounded-lg md:p-0">
+      <div className="settings-mobile-sidebar w-full flex-shrink-0 md:w-64">
+        <div className="settings-mobile-tabs sticky top-20 z-20 flex gap-2 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow md:top-24 md:block md:overflow-hidden md:rounded-lg md:p-0">
           <div className="hidden px-4 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 md:block md:border-b md:border-slate-200 md:bg-slate-100">
             My Account
           </div>
@@ -276,7 +276,7 @@ export default function SettingsClient({
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 space-y-6">
+      <div className="settings-mobile-content min-w-0 flex-1 space-y-6">
         {activeTab === 'admin-overview' && hasAdminConsole && (
           <AdminOverviewTab
             userRole={userRole}

@@ -1,5 +1,7 @@
 import { NextRequest } from 'next/server'
+import { z } from 'zod'
 import { apiError, apiOk } from '@/lib/api/http'
+import { parseBodyWithSchema } from '@/lib/api/request'
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
 import type { PackageQuotePayload, TravelPackageQuote } from '@/app/types/packages'
 import { copySharedPackageFlights, isTravelPackageGroupSchemaError } from '@/lib/packageGroups'
@@ -17,6 +19,19 @@ type GroupMemberRow = {
 
 type QuoteRow = Pick<TravelPackageQuote, 'id' | 'payload'>
 
+const SHARED_FLIGHTS_BODY_LIMIT_BYTES = 4 * 1024
+const sharedFlightsSchema = z
+  .object({
+    sourceQuoteId: z
+      .string({ error: 'Source quote is required' })
+      .trim()
+      .min(1, 'Source quote is required')
+      .max(200, 'Source quote is invalid'),
+    // Preserve the existing contract: only literal true enables sharing.
+    enabled: z.preprocess((value) => value === true, z.boolean()),
+  })
+  .strip()
+
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const supabase = await getRouteSupabaseClient()
@@ -26,14 +41,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   if (!user) return apiError('Unauthorized', 401)
 
-  const body = (await request.json().catch(() => null)) as {
-    sourceQuoteId?: unknown
-    enabled?: unknown
-  } | null
-  const sourceQuoteId = typeof body?.sourceQuoteId === 'string' ? body.sourceQuoteId.trim() : ''
-  const enabled = body?.enabled === true
-
-  if (!sourceQuoteId) return apiError('Source quote is required', 400)
+  const { data: body, error: bodyError } = await parseBodyWithSchema(request, sharedFlightsSchema, {
+    maxBytes: SHARED_FLIGHTS_BODY_LIMIT_BYTES,
+  })
+  if (bodyError || !body) {
+    return apiError(
+      bodyError || 'Invalid shared flights request',
+      bodyError === 'Request body is too large' ? 413 : 400,
+    )
+  }
+  const { sourceQuoteId, enabled } = body
 
   try {
     const [{ data: groupData, error: groupError }, { data: memberData, error: memberError }] =

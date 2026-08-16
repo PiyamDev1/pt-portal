@@ -87,7 +87,7 @@ export default function BookingsClient({
   const [selectedDate, setSelectedDate] = useState<Date>(today)
   const [mobileWeekDayIndex, setMobileWeekDayIndex] = useState(0)
   const [mobileListMode, setMobileListMode] = useState<'day' | 'week'>('day')
-  const [mobileCalendarMode, setMobileCalendarMode] = useState<'grid' | 'agenda'>('grid')
+  const [mobileCalendarMode, setMobileCalendarMode] = useState<'grid' | 'agenda'>('agenda')
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
 
   const [bookings, setBookings] = useState<BookingWithService[]>([])
@@ -1474,8 +1474,8 @@ export default function BookingsClient({
   ])
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.12),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(99,102,241,0.14),_transparent_28%),linear-gradient(180deg,_#f8fafc_0%,_#eef2ff_100%)]">
-      <div className="max-w-6xl mx-auto px-3 py-4 sm:px-6 md:py-8 space-y-6 relative">
+    <div className="bookings-mobile-surface min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.12),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(99,102,241,0.14),_transparent_28%),linear-gradient(180deg,_#f8fafc_0%,_#eef2ff_100%)]">
+      <div className="bookings-mobile-content max-w-6xl mx-auto px-3 py-4 sm:px-6 md:py-8 space-y-6 relative">
         <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-56 rounded-[2rem] bg-white/40 blur-3xl" />
 
         <div className="animate-enter-fade-up rounded-[28px] border border-white/70 bg-white/80 p-5 shadow-[0_24px_80px_-32px_rgba(15,23,42,0.35)] backdrop-blur xl:p-6">
@@ -1566,7 +1566,7 @@ export default function BookingsClient({
               </div>
             </div>
 
-            <div className="space-y-3 rounded-[1.5rem] border border-red-100 bg-white/90 p-3 shadow-sm md:hidden">
+            <div className="bookings-mobile-only space-y-3 rounded-[1.5rem] border border-red-100 bg-white/90 p-3 shadow-sm md:hidden">
               <div className="grid grid-cols-[auto_1fr_auto] gap-2">
                 <button
                   onClick={goToPrev}
@@ -1727,7 +1727,7 @@ export default function BookingsClient({
               )}
             </div>
 
-            <div className="hidden items-center gap-2 flex-wrap rounded-2xl border border-slate-200/80 bg-slate-50/85 p-2.5 shadow-inner shadow-white/60 sm:p-3 md:flex">
+            <div className="bookings-desktop-only hidden items-center gap-2 flex-wrap rounded-2xl border border-slate-200/80 bg-slate-50/85 p-2.5 shadow-inner shadow-white/60 sm:p-3 md:flex">
               <button
                 onClick={goToPrev}
                 className="ui-tap ui-focus inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white p-2 text-slate-600 transition-all hover:-translate-y-0.5 hover:bg-slate-50"
@@ -2019,7 +2019,7 @@ export default function BookingsClient({
         ) : (
           view === 'multi' && (
             <div className="animate-enter-fade-up animate-enter-delay-1 space-y-4">
-              <div className="md:hidden rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
+              <div className="bookings-mobile-only md:hidden rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
                 <div className="flex items-center gap-2 rounded-xl bg-slate-50 p-1">
                   <button
                     type="button"
@@ -2047,7 +2047,7 @@ export default function BookingsClient({
               </div>
 
               {mobileCalendarMode === 'agenda' && (
-                <div className="md:hidden overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-[0_18px_50px_-30px_rgba(15,23,42,0.4)]">
+                <div className="bookings-mobile-only md:hidden overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-[0_18px_50px_-30px_rgba(15,23,42,0.4)]">
                   <div className="border-b border-slate-200 bg-[linear-gradient(180deg,_#ffffff_0%,_#eef2ff_100%)] px-4 py-3">
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                       Month agenda
@@ -2114,7 +2114,7 @@ export default function BookingsClient({
               )}
 
               <div
-                className={`${mobileCalendarMode === 'agenda' ? 'hidden md:block' : 'block'} overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-[0_18px_50px_-30px_rgba(15,23,42,0.4)]`}
+                className={`${mobileCalendarMode === 'agenda' ? 'hidden md:block' : 'block'} bookings-calendar-grid overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-[0_18px_50px_-30px_rgba(15,23,42,0.4)]`}
               >
                 <div className="grid grid-cols-7 border-b border-slate-200 bg-[linear-gradient(180deg,_#f8fafc_0%,_#eef2ff_100%)]">
                   {CALENDAR_DAY_LABELS.map((label) => (

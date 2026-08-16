@@ -113,6 +113,16 @@ html[data-device-layout='mobile'] body {
   overflow-x: hidden;
 }
 
+/*
+ * Some Android desktop-site and installed-PWA combinations expose a ~980px
+ * layout viewport even though the operating system is a phone. The client first
+ * repairs the viewport meta tag; this scale is a fallback for engines that keep
+ * the wide canvas after that repair.
+ */
+html[data-device-layout='mobile'][data-mobile-viewport-compensation='true'] body {
+  zoom: var(--mobile-viewport-scale, 1);
+}
+
 html[data-device-layout='mobile'] .dashboard-mobile-shell {
   min-height: 100dvh;
   background: #f5f5f5;
@@ -122,11 +132,19 @@ html[data-device-layout='mobile'] .dashboard-mobile-shell {
 
 html[data-device-layout='mobile'] .portal-header {
   min-height: calc(4rem + env(safe-area-inset-top));
-  padding-top: calc(0.625rem + env(safe-area-inset-top));
+  padding: calc(0.625rem + env(safe-area-inset-top)) 0.75rem 0.625rem !important;
 }
 
 html[data-device-layout='mobile'] .portal-header-logo {
-  height: 2rem;
+  height: 2.25rem;
+}
+
+html[data-device-layout='mobile'] .portal-header-company {
+  font-size: 0.95rem !important;
+}
+
+html[data-device-layout='mobile'] .portal-header-branch {
+  font-size: 0.75rem !important;
 }
 
 html[data-device-layout='mobile'] .portal-back-button,
@@ -274,4 +292,292 @@ html[data-device-layout='mobile'] .dashboard-mobile-shell [class*='gap-8'] {
 html[data-device-layout='mobile'] .dashboard-mobile-shell [class*='rounded-\\[2rem\\]'],
 html[data-device-layout='mobile'] .dashboard-mobile-shell [class*='rounded-\\[28px\\]'] {
   border-radius: 1.35rem;
+}
+
+/*
+ * The mobile presentation owns composition independently of viewport media
+ * queries. This prevents sm/md/lg desktop utilities from leaking back in when
+ * Android reports a wide virtual viewport.
+ */
+html[data-device-layout='mobile'] .dashboard-mobile-shell [class~='grid'][class*='sm:grid-cols-'],
+html[data-device-layout='mobile'] .dashboard-mobile-shell [class~='grid'][class*='md:grid-cols-'],
+html[data-device-layout='mobile'] .dashboard-mobile-shell [class~='grid'][class*='lg:grid-cols-'],
+html[data-device-layout='mobile'] .dashboard-mobile-shell [class~='grid'][class*='xl:grid-cols-'],
+html[data-device-layout='mobile']
+  .dashboard-mobile-shell
+  [class~='inline-grid'][class*='sm:grid-cols-'],
+html[data-device-layout='mobile']
+  .dashboard-mobile-shell
+  [class~='inline-grid'][class*='md:grid-cols-'],
+html[data-device-layout='mobile']
+  .dashboard-mobile-shell
+  [class~='inline-grid'][class*='lg:grid-cols-'],
+html[data-device-layout='mobile']
+  .dashboard-mobile-shell
+  [class~='inline-grid'][class*='xl:grid-cols-'] {
+  grid-template-columns: minmax(0, 1fr) !important;
+}
+
+html[data-device-layout='mobile'] .dashboard-mobile-shell [class~='sm:flex-row'],
+html[data-device-layout='mobile'] .dashboard-mobile-shell [class~='md:flex-row'],
+html[data-device-layout='mobile'] .dashboard-mobile-shell [class~='lg:flex-row'],
+html[data-device-layout='mobile'] .dashboard-mobile-shell [class~='xl:flex-row'] {
+  flex-direction: column !important;
+}
+
+html[data-device-layout='mobile'] .dashboard-mobile-shell [class~='grid'][class~='sm:flex'],
+html[data-device-layout='mobile'] .dashboard-mobile-shell [class~='grid'][class~='md:flex'],
+html[data-device-layout='mobile'] .dashboard-mobile-shell [class~='grid'][class~='lg:flex'],
+html[data-device-layout='mobile'] .dashboard-mobile-shell [class~='grid'][class~='xl:flex'] {
+  display: grid !important;
+}
+
+html[data-device-layout='mobile'] .dashboard-mobile-shell [class~='flex'][class~='sm:block'],
+html[data-device-layout='mobile'] .dashboard-mobile-shell [class~='flex'][class~='md:block'],
+html[data-device-layout='mobile'] .dashboard-mobile-shell [class~='flex'][class~='lg:block'],
+html[data-device-layout='mobile'] .dashboard-mobile-shell [class~='flex'][class~='xl:block'] {
+  display: flex !important;
+}
+
+html[data-device-layout='mobile'] .dashboard-mobile-shell [class~='hidden'][class~='sm:block'],
+html[data-device-layout='mobile'] .dashboard-mobile-shell [class~='hidden'][class~='sm:flex'],
+html[data-device-layout='mobile'] .dashboard-mobile-shell [class~='hidden'][class~='sm:grid'],
+html[data-device-layout='mobile'] .dashboard-mobile-shell [class~='hidden'][class~='md:block'],
+html[data-device-layout='mobile'] .dashboard-mobile-shell [class~='hidden'][class~='md:flex'],
+html[data-device-layout='mobile'] .dashboard-mobile-shell [class~='hidden'][class~='md:grid'],
+html[data-device-layout='mobile'] .dashboard-mobile-shell [class~='hidden'][class~='lg:block'],
+html[data-device-layout='mobile'] .dashboard-mobile-shell [class~='hidden'][class~='lg:flex'],
+html[data-device-layout='mobile'] .dashboard-mobile-shell [class~='hidden'][class~='lg:grid'],
+html[data-device-layout='mobile'] .dashboard-mobile-shell [class~='hidden'][class~='xl:block'],
+html[data-device-layout='mobile'] .dashboard-mobile-shell [class~='hidden'][class~='xl:flex'],
+html[data-device-layout='mobile'] .dashboard-mobile-shell [class~='hidden'][class~='xl:grid'] {
+  display: none !important;
+}
+
+html[data-device-layout='mobile'] .dashboard-mobile-shell [class~='sm:hidden'],
+html[data-device-layout='mobile'] .dashboard-mobile-shell [class~='md:hidden'],
+html[data-device-layout='mobile'] .dashboard-mobile-shell [class~='lg:hidden'],
+html[data-device-layout='mobile'] .dashboard-mobile-shell [class~='xl:hidden'] {
+  display: block !important;
+}
+
+html[data-device-layout='mobile'] .dashboard-mobile-shell [class~='flex'][class~='sm:hidden'],
+html[data-device-layout='mobile'] .dashboard-mobile-shell [class~='flex'][class~='md:hidden'],
+html[data-device-layout='mobile'] .dashboard-mobile-shell [class~='flex'][class~='lg:hidden'],
+html[data-device-layout='mobile'] .dashboard-mobile-shell [class~='flex'][class~='xl:hidden'] {
+  display: flex !important;
+}
+
+html[data-device-layout='mobile']
+  .dashboard-mobile-shell
+  [class~='inline-flex'][class~='sm:hidden'],
+html[data-device-layout='mobile']
+  .dashboard-mobile-shell
+  [class~='inline-flex'][class~='md:hidden'],
+html[data-device-layout='mobile']
+  .dashboard-mobile-shell
+  [class~='inline-flex'][class~='lg:hidden'],
+html[data-device-layout='mobile']
+  .dashboard-mobile-shell
+  [class~='inline-flex'][class~='xl:hidden'] {
+  display: inline-flex !important;
+}
+
+html[data-device-layout='mobile'] .dashboard-mobile-shell [class~='grid'][class~='sm:hidden'],
+html[data-device-layout='mobile'] .dashboard-mobile-shell [class~='grid'][class~='md:hidden'],
+html[data-device-layout='mobile'] .dashboard-mobile-shell [class~='grid'][class~='lg:hidden'],
+html[data-device-layout='mobile'] .dashboard-mobile-shell [class~='grid'][class~='xl:hidden'] {
+  display: grid !important;
+}
+
+html[data-device-layout='mobile'] .dashboard-mobile-shell [class~='w-full'][class*='sm:w-'],
+html[data-device-layout='mobile'] .dashboard-mobile-shell [class~='w-full'][class*='md:w-'],
+html[data-device-layout='mobile'] .dashboard-mobile-shell [class~='w-full'][class*='lg:w-'],
+html[data-device-layout='mobile'] .dashboard-mobile-shell [class~='w-full'][class*='xl:w-'] {
+  width: 100% !important;
+}
+
+/* Settings becomes a horizontal-tabbed, single-column phone workspace. */
+html[data-device-layout='mobile'] .mobile-settings-page > p {
+  margin-bottom: 1rem;
+}
+
+html[data-device-layout='mobile'] .settings-mobile-layout {
+  display: flex !important;
+  min-height: 0;
+  flex-direction: column !important;
+  gap: 1rem !important;
+}
+
+html[data-device-layout='mobile'] .settings-mobile-sidebar,
+html[data-device-layout='mobile'] .settings-mobile-content {
+  width: 100% !important;
+  min-width: 0;
+}
+
+html[data-device-layout='mobile'] .settings-mobile-tabs {
+  display: flex !important;
+  width: 100%;
+  gap: 0.5rem;
+  overflow-x: auto !important;
+  border-radius: 1rem !important;
+  padding: 0.5rem !important;
+  scrollbar-width: none;
+}
+
+html[data-device-layout='mobile'] .settings-mobile-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+html[data-device-layout='mobile'] .settings-mobile-tabs > div {
+  display: none !important;
+}
+
+html[data-device-layout='mobile'] .settings-mobile-tabs > button,
+html[data-device-layout='mobile'] .settings-mobile-tabs > a {
+  width: auto !important;
+  min-height: 2.75rem;
+  flex: 0 0 auto;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 0.75rem !important;
+}
+
+html[data-device-layout='mobile'] .device-layout-preference {
+  padding: 0.9rem;
+}
+
+html[data-device-layout='mobile'] .device-layout-preference-row {
+  flex-direction: column !important;
+  align-items: stretch !important;
+}
+
+html[data-device-layout='mobile'] .admin-overview-mobile > section {
+  padding: 1rem;
+}
+
+/* Timeclock keeps its phone hero, one-tap rows, and tall camera view. */
+html[data-device-layout='mobile'] .timeclock-mobile-surface {
+  padding: 0.75rem !important;
+}
+
+html[data-device-layout='mobile'] .timeclock-mobile-hero {
+  margin-bottom: 1rem !important;
+  border-radius: 1.5rem !important;
+  background-image: linear-gradient(135deg, #5c111d, #8b1d2c 52%, #2f3033) !important;
+  padding: 1rem !important;
+  color: #fff !important;
+  box-shadow: 0 18px 34px -24px rgb(69 10 22 / 70%) !important;
+}
+
+html[data-device-layout='mobile'] .timeclock-mobile-hero-icon {
+  display: inline-flex !important;
+}
+
+html[data-device-layout='mobile'] .timeclock-mobile-hero-copy {
+  color: rgb(255 255 255 / 82%) !important;
+}
+
+html[data-device-layout='mobile'] .timeclock-mobile-links {
+  grid-template-columns: minmax(0, 1fr) !important;
+}
+
+html[data-device-layout='mobile'] .timeclock-mobile-link {
+  min-height: 5.25rem !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 0.75rem !important;
+  padding: 1rem !important;
+  text-align: left !important;
+}
+
+html[data-device-layout='mobile'] .timeclock-mobile-link.border-red-100 {
+  background: #fef2f2 !important;
+  color: #b91c1c !important;
+}
+
+html[data-device-layout='mobile'] .timeclock-mobile-link.border-sky-100 {
+  background: #f0f9ff !important;
+  color: #0369a1 !important;
+}
+
+html[data-device-layout='mobile'] .timeclock-mobile-link.border-emerald-100 {
+  background: #ecfdf5 !important;
+  color: #047857 !important;
+}
+
+html[data-device-layout='mobile'] .timeclock-mobile-link-description {
+  display: block !important;
+}
+
+html[data-device-layout='mobile'] .timeclock-scan-card {
+  border-radius: 1.5rem !important;
+  padding: 1rem !important;
+}
+
+html[data-device-layout='mobile'] .timeclock-camera-actions {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+}
+
+html[data-device-layout='mobile'] .timeclock-camera-preview {
+  height: min(52dvh, 26rem) !important;
+  min-height: 17.5rem !important;
+}
+
+html[data-device-layout='mobile'] .timeclock-manual-code {
+  border-radius: 0.75rem !important;
+  padding: 0.8rem 1rem !important;
+  text-align: center !important;
+  font-size: 1.125rem !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.2em !important;
+}
+
+html[data-device-layout='mobile'] .timeclock-manual-submit {
+  width: 100% !important;
+  border-radius: 0.75rem !important;
+}
+
+html[data-device-layout='mobile'] .timeclock-status-message {
+  border-radius: 1rem !important;
+  padding: 0.75rem !important;
+}
+
+/* Bookings uses its compact controls and an agenda instead of a compressed calendar. */
+html[data-device-layout='mobile'] .bookings-mobile-content {
+  width: 100%;
+  max-width: 100% !important;
+  padding: 0.75rem !important;
+}
+
+html[data-device-layout='mobile'] .bookings-mobile-only {
+  display: block !important;
+}
+
+html[data-device-layout='mobile'] .bookings-desktop-only {
+  display: none !important;
+}
+
+html[data-device-layout='mobile'] .bookings-calendar-grid.hidden {
+  display: none !important;
+}
+
+/* Applications uses full-width service cards and a compact metrics header. */
+html[data-device-layout='mobile'] .applications-mobile-hero {
+  padding: 1rem !important;
+}
+
+html[data-device-layout='mobile'] .applications-mobile-hero > div {
+  flex-direction: column;
+}
+
+html[data-device-layout='mobile'] .applications-mobile-stats {
+  display: grid;
+  width: 100%;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+html[data-device-layout='mobile'] .applications-mobile-stats > div {
+  justify-content: space-between;
 }

@@ -5,6 +5,11 @@ import {
   parseDeviceLayoutOverride,
   readDeviceLayoutOverride,
 } from '@/lib/deviceLayout'
+import {
+  getDeviceViewportContent,
+  getMobileAppViewportWidth,
+  getMobileViewportCompensation,
+} from '@/lib/deviceViewport'
 
 describe('operating-system device layout detection', () => {
   it.each([
@@ -70,5 +75,23 @@ describe('operating-system device layout detection', () => {
     expect(readDeviceLayoutOverride(`old_${DEVICE_LAYOUT_COOKIE}=desktop`)).toBeNull()
     expect(readDeviceLayoutOverride(`${DEVICE_LAYOUT_COOKIE}=invalid`)).toBeNull()
     expect(readDeviceLayoutOverride(`${DEVICE_LAYOUT_COOKIE}=%E0%A4%A`)).toBeNull()
+  })
+
+  it('constrains the mobile app to a phone-sized layout viewport', () => {
+    expect(getMobileAppViewportWidth({ width: 448, height: 998 })).toBe(448)
+    expect(getMobileAppViewportWidth({ width: 1344, height: 2992 })).toBe(480)
+    expect(getMobileAppViewportWidth({ width: 0, height: 0 })).toBe(430)
+    expect(getDeviceViewportContent('mobile', { width: 448, height: 998 })).toBe(
+      'width=448, initial-scale=1, viewport-fit=cover',
+    )
+    expect(getDeviceViewportContent('desktop')).toBe(
+      'width=device-width, initial-scale=1, viewport-fit=cover',
+    )
+  })
+
+  it('compensates only when a mobile browser keeps a wide virtual canvas', () => {
+    expect(getMobileViewportCompensation(448, 448)).toBe(1)
+    expect(getMobileViewportCompensation(980, 448)).toBeCloseTo(980 / 448)
+    expect(getMobileViewportCompensation(2000, 430)).toBe(2.5)
   })
 })

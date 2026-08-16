@@ -217,4 +217,38 @@ describe('POST /api/travel-package-groups/[id]/flights', () => {
     expect(response.status).toBe(401)
     expect(mocks.quoteUpdate).not.toHaveBeenCalled()
   })
+
+  it('rejects invalid JSON before loading group data', async () => {
+    const invalidRequest = new Request(
+      'http://localhost/api/travel-package-groups/group-1/flights',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{invalid',
+      },
+    )
+
+    const response = await POST(invalidRequest as never, {
+      params: Promise.resolve({ id: 'group-1' }),
+    })
+
+    expect(response.status).toBe(400)
+    expect(await response.json()).toEqual(
+      expect.objectContaining({ error: 'Invalid JSON request body' }),
+    )
+    expect(mocks.groupSingle).not.toHaveBeenCalled()
+  })
+
+  it('rejects oversized JSON before loading group data', async () => {
+    const response = await POST(
+      request({ sourceQuoteId: 'x'.repeat(5_000), enabled: true }) as never,
+      { params: Promise.resolve({ id: 'group-1' }) },
+    )
+
+    expect(response.status).toBe(413)
+    expect(await response.json()).toEqual(
+      expect.objectContaining({ error: 'Request body is too large' }),
+    )
+    expect(mocks.groupSingle).not.toHaveBeenCalled()
+  })
 })

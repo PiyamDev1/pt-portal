@@ -21,6 +21,7 @@ import {
   detectDeviceLayout,
   parseDeviceLayoutOverride,
 } from '@/lib/deviceLayout'
+import { MOBILE_APP_VIEWPORT_WIDTH } from '@/lib/deviceViewport'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -80,13 +81,17 @@ async function requestDeviceLayout() {
   })
 }
 
-export const viewport: Viewport = {
-  // Use the device's CSS viewport so narrow phones are never scaled down from a
-  // wider virtual canvas. Operating-system detection still selects the app shell.
-  width: 'device-width',
-  initialScale: 1,
-  viewportFit: 'cover',
-  themeColor: '#064e3b',
+export async function generateViewport(): Promise<Viewport> {
+  const deviceLayout = await requestDeviceLayout()
+
+  return {
+    // A numeric mobile canvas prevents Android's desktop-site/PWA viewport from
+    // laying out the portal at ~980 CSS pixels and shrinking it to fit a phone.
+    width: deviceLayout === 'mobile' ? MOBILE_APP_VIEWPORT_WIDTH : 'device-width',
+    initialScale: 1,
+    viewportFit: 'cover',
+    themeColor: '#064e3b',
+  }
 }
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {

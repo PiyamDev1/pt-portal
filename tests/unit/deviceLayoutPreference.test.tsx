@@ -24,6 +24,9 @@ describe('DeviceLayoutPreference', () => {
     document.cookie = `${DEVICE_LAYOUT_COOKIE}=; Path=/; Max-Age=0`
     document.documentElement.dataset.deviceLayout = 'desktop'
     delete document.documentElement.dataset.deviceLayoutPreference
+    delete document.documentElement.dataset.mobileViewportCompensation
+    document.documentElement.removeAttribute('style')
+    document.querySelector('meta[name="viewport"]')?.remove()
   })
 
   it('switches the current browser from desktop to mobile and persists the override', async () => {
@@ -34,6 +37,12 @@ describe('DeviceLayoutPreference', () => {
 
     expect(document.documentElement.dataset.deviceLayout).toBe('mobile')
     expect(document.cookie).toContain(`${DEVICE_LAYOUT_COOKIE}=mobile`)
+    expect(document.querySelector('meta[name="viewport"]')?.getAttribute('content')).toContain(
+      'width=430',
+    )
+    expect(document.documentElement.dataset.mobileViewportCompensation).toBe('true')
+    expect(document.documentElement.style.getPropertyValue('--mobile-viewport-scale')).not.toBe('')
+    expect(document.documentElement.style.getPropertyValue('--mobile-compensated-width')).toBe('')
     expect(mocks.refresh).toHaveBeenCalledOnce()
     expect(await screen.findByRole('button', { name: 'Switch to Desktop' })).toBeTruthy()
   })
@@ -47,6 +56,11 @@ describe('DeviceLayoutPreference', () => {
 
     await waitFor(() => expect(document.cookie).not.toContain(`${DEVICE_LAYOUT_COOKIE}=`))
     expect(document.documentElement.dataset.deviceLayoutPreference).toBe('automatic')
+    expect(document.querySelector('meta[name="viewport"]')?.getAttribute('content')).toContain(
+      'width=device-width',
+    )
+    expect(document.documentElement.dataset.mobileViewportCompensation).toBeUndefined()
+    expect(document.documentElement.style.getPropertyValue('--mobile-viewport-scale')).toBe('')
     expect(mocks.refresh).toHaveBeenCalledOnce()
   })
 })

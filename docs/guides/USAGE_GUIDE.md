@@ -1,6 +1,6 @@
 # Usage Guide
 
-Last verified against the repository: August 14, 2026.
+Last verified against the repository: August 16, 2026.
 
 PT-Portal is an internal operations application. Navigation and available actions depend on the signed-in employee's role, departments, location, and feature-specific permissions.
 
@@ -17,11 +17,11 @@ The browser SDK refreshes an eligible Supabase session. When it can no longer do
 The portal chooses its presentation from the device operating system rather than reported pixel resolution:
 
 - Windows, macOS, Linux, ChromeOS, and unknown desktop clients use the full webpage layout. A 1280 × 800 Windows office monitor therefore keeps the desktop header and dashboard.
-- Android and iOS/iPadOS use the mobile app layout, including the compact header, mobile dashboard, touch sizing, and fixed bottom navigation. The portal uses each device's real CSS viewport, so a narrow phone is not scaled down from a fixed virtual width. High physical pixel counts do not switch the operating-system-selected app shell back to desktop mode.
+- Android and iOS/iPadOS use the mobile app layout, including the compact header, mobile dashboard, touch sizing, and fixed bottom navigation. Mobile responses start with a phone-width layout canvas. After hydration the portal reconciles that canvas with the device's shorter reported screen dimension, capped at 480 CSS pixels. If an Android desktop-site or installed-PWA mode continues reporting a wide virtual canvas, a bounded scale fallback keeps the app at phone size. High physical pixel counts therefore cannot shrink a desktop composition to fit the phone.
 
 The mode is selected before the page renders and applies throughout authenticated dashboard routes. The browser confirms the operating system again after hydration so a proxy-provided generic header cannot leave a phone in the desktop shell. Resizing a desktop browser does not turn it into the mobile app, and widening or rotating a phone does not turn it into the desktop portal. For testing, Settings includes a device-presentation control that persists a manual Mobile or Desktop override in that browser; **Use device default** removes the override.
 
-The two modes are intentionally not identical. The computer layout keeps the full identity header, wide work areas, and desktop notice-board rail. The mobile app begins with a full-width sign-in surface instead of the computer login card. After sign-in its safe-area-aware top bar orders the logo, company/branch identity, stable parent-directory Back action, and menu. The dashboard uses large single-column launch rows for every module, a first-visit notice sheet, and the persistent five-item bottom navigation; it never places the notice board in a right-hand rail. Authentication controls are at least 56 CSS pixels high, and mobile authentication pages omit the desktop footer and floating issue-report trigger so neither competes with the active form. This is a presentation difference only—role permissions and server-side validation remain the same.
+The two modes are intentionally not identical. The computer layout keeps the full identity header, wide work areas, and desktop notice-board rail. The mobile app begins with a full-width sign-in surface instead of the computer login card. After sign-in its safe-area-aware top bar orders the logo, company/branch identity, stable parent-directory Back action, and menu. The dashboard uses large single-column launch rows for every module, a first-visit notice sheet, and the persistent five-item bottom navigation; it never places the notice board in a right-hand rail. Width-based `sm`, `md`, `lg`, and `xl` desktop composition is suppressed inside the Android/iOS dashboard shell, so Settings uses a horizontal tab rail, Timeclock uses full-width action rows and a tall camera surface, Bookings opens a month agenda instead of a compressed seven-column calendar, and Applications uses full-width service cards. Authentication controls are at least 56 CSS pixels high, and mobile authentication pages omit the desktop footer and floating issue-report trigger so neither competes with the active form. This is a presentation difference only—role permissions and server-side validation remain the same.
 
 ## Dashboard and personal modules
 

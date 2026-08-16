@@ -11,6 +11,7 @@ import {
   readDeviceLayoutOverride,
   type DeviceLayout,
 } from '@/lib/deviceLayout'
+import { applyDeviceViewport } from '@/lib/deviceViewport'
 
 function getAutomaticLayout(): DeviceLayout {
   const browserNavigator = navigator as Navigator & {
@@ -51,6 +52,7 @@ export function DeviceLayoutPreference() {
     writeLayoutCookie(layout)
     document.documentElement.dataset.deviceLayout = layout
     document.documentElement.dataset.deviceLayoutPreference = 'manual'
+    applyDeviceViewport(layout)
     setManualLayout(layout)
     setCurrentLayout(layout)
     toast.success(`${layout === 'mobile' ? 'Mobile' : 'Desktop'} layout enabled on this device`)
@@ -62,6 +64,7 @@ export function DeviceLayoutPreference() {
     const layout = getAutomaticLayout()
     document.documentElement.dataset.deviceLayout = layout
     document.documentElement.dataset.deviceLayoutPreference = 'automatic'
+    applyDeviceViewport(layout)
     setManualLayout(null)
     setCurrentLayout(layout)
     toast.success('Layout now follows this device automatically')
@@ -77,8 +80,8 @@ export function DeviceLayoutPreference() {
   const TargetIcon = targetLayout === 'mobile' ? Smartphone : Monitor
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+    <section className="device-layout-preference rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+      <div className="device-layout-preference-row flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex min-w-0 items-start gap-3">
           <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-red-50 text-[#8b1e2d]">
             <CurrentIcon className="h-6 w-6" aria-hidden="true" />

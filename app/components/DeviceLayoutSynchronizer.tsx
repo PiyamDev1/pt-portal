@@ -6,6 +6,7 @@
 
 import { useEffect } from 'react'
 import { detectDeviceLayout, readDeviceLayoutOverride } from '@/lib/deviceLayout'
+import { applyDeviceViewport } from '@/lib/deviceViewport'
 
 function getBrowserPlatformHint() {
   const browserNavigator = navigator as Navigator & {
@@ -26,6 +27,21 @@ export function DeviceLayoutSynchronizer() {
 
     document.documentElement.dataset.deviceLayout = layout
     document.documentElement.dataset.deviceLayoutPreference = manualLayout ? 'manual' : 'automatic'
+
+    let frame = window.requestAnimationFrame(() => applyDeviceViewport(layout))
+    const synchronizeViewport = () => {
+      window.cancelAnimationFrame(frame)
+      frame = window.requestAnimationFrame(() => applyDeviceViewport(layout))
+    }
+
+    window.addEventListener('resize', synchronizeViewport)
+    window.addEventListener('orientationchange', synchronizeViewport)
+
+    return () => {
+      window.cancelAnimationFrame(frame)
+      window.removeEventListener('resize', synchronizeViewport)
+      window.removeEventListener('orientationchange', synchronizeViewport)
+    }
   }, [])
 
   return null

@@ -272,7 +272,7 @@ export function ApplicationsHubBody({
   attentionRecords,
 }: ApplicationsHubBodyProps) {
   return (
-    <div className="space-y-5">
+    <div className="applications-mobile-surface space-y-5">
       {stalledTotal > 0 && (
         <section className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-rose-800">
           <p className="text-sm font-semibold">Stalled Work Alert</p>
@@ -301,7 +301,7 @@ export function ApplicationsHubBody({
         </section>
       )}
 
-      <section className="rounded-2xl bg-[#1f5c38] px-6 py-5 text-white shadow-lg">
+      <section className="applications-mobile-hero rounded-2xl bg-[#1f5c38] px-6 py-5 text-white shadow-lg">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h1 className="text-xl font-extrabold tracking-tight">Applications Hub</h1>
@@ -309,7 +309,7 @@ export function ApplicationsHubBody({
               All services live overview{locationName ? ` • ${locationName}` : ''}
             </p>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="applications-mobile-stats flex flex-wrap gap-2">
             <Chip label="Total" value={grandTotal} />
             <Chip label="Active" value={grandActive} accent="green" />
             <Chip label="Done" value={grandDone} />

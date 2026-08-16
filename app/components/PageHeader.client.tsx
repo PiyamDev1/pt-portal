@@ -179,10 +179,10 @@ export default function PageHeader({
           </Link>
 
           <div className="min-w-0">
-            <h1 className="truncate !text-[12px] font-black leading-tight text-slate-800 sm:!text-lg">
+            <h1 className="portal-header-company truncate !text-[12px] font-black leading-tight text-slate-800 sm:!text-lg">
               Piyam Travels
             </h1>
-            <p className="truncate text-[10px] leading-tight text-slate-500 sm:text-xs">
+            <p className="portal-header-branch truncate text-[10px] leading-tight text-slate-500 sm:text-xs">
               {location?.name || 'Portal'}{' '}
               {location?.branch_code ? `(${location.branch_code})` : ''}
             </p>
