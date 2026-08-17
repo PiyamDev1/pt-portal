@@ -8,6 +8,7 @@ import {
   formatPackageQuoteForCopy,
   formatPackageCombinationForCopy,
   getDefaultPackageSelection,
+  getFlightOptionPriceDeltas,
   getPackageDepositPaymentSummary,
   getPackagePassengerPriceBreakdown,
   getDefaultPackageExpiry,
@@ -518,6 +519,78 @@ describe('package quote calculator', () => {
     })
   })
 
+  it('includes linked legs when comparing complete flight options', () => {
+    const linkedPayload = normalizePackageQuotePayload({
+      ...payload,
+      adults: 2,
+      childrenPaying: 0,
+      childrenFree: 0,
+      infants: 0,
+      flightOptions: [
+        {
+          id: 'preferred-flight',
+          title: 'Preferred return flight',
+          summary: '',
+          adultPrice: 600,
+          childPrice: 0,
+          infantPrice: 0,
+          isDefault: true,
+        },
+        {
+          id: 'split-flight',
+          title: 'Split outbound flight',
+          summary: '',
+          adultPrice: 335,
+          childPrice: 0,
+          infantPrice: 0,
+        },
+      ],
+      linkedFlightGroups: [
+        {
+          id: 'split-return-leg',
+          baseFlightOptionId: 'split-flight',
+          routeLabel: 'Jeddah to London',
+          defaultOptionId: 'split-return-default',
+          options: [
+            {
+              id: 'split-return-default',
+              airlineName: 'Return airline',
+              summary: '',
+              adultPrice: 285,
+              childPrice: 0,
+              infantPrice: 0,
+              adultDelta: 0,
+              childDelta: 0,
+              infantDelta: 0,
+              isDefault: true,
+            },
+          ],
+        },
+      ],
+      visaOptions: [],
+      transportOptions: [],
+      limitedTimeOffers: [],
+    })
+
+    const deltas = getFlightOptionPriceDeltas(
+      linkedPayload,
+      linkedPayload.flightOptions[1],
+      linkedPayload.flightOptions[0],
+    )
+    const splitSelection = resolvePackageSelection(linkedPayload, {
+      ...getDefaultPackageSelection(linkedPayload),
+      flightOptionId: 'split-flight',
+    })
+    const hotelTotal = splitSelection.combination.staySelections.reduce(
+      (total, stay) => total + stay.option.price,
+      0,
+    )
+
+    expect(deltas.adult).toBe(20)
+    expect(splitSelection.combination.linkedFlightSelections).toHaveLength(1)
+    expect(splitSelection.combination.grossPrice).toBe(hotelTotal + 2 * (335 + 285))
+  })
+
   it('defaults quote expiry to 72 hours from now', () => {
     const now = Date.now()
     const expiresAt = getDefaultPackageExpiry()
@@ -835,9 +908,7 @@ describe('package quote calculator', () => {
       vehicleLabel: 'H1',
     })
     expect(refreshed.selection.combination.transportOption?.price).toBe(420)
-    expect(refreshed.publicSummary.totalPrice).toBe(
-      refreshed.selection.combination.totalPrice,
-    )
+    expect(refreshed.publicSummary.totalPrice).toBe(refreshed.selection.combination.totalPrice)
     expect(refreshed.snapshot.quote.selected_at).toBe('2026-08-01T10:00:00.000Z')
   })
 

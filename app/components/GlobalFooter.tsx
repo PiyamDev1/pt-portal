@@ -11,6 +11,7 @@ export function GlobalFooter() {
   const isStatementPage = pathname.includes('/dashboard/lms/statement/')
   const isDashboardPage = pathname.startsWith('/dashboard')
   const isAuthenticationPage = pathname.startsWith('/login')
+  const isPublicPackageQuote = /^\/packages\/[^/]+\/?$/.test(pathname || '')
 
   if (isStatementPage) {
     return null
@@ -28,7 +29,11 @@ export function GlobalFooter() {
         <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
           <span>v2.0.0</span>
           <span aria-hidden="true">•</span>
-          <span>Support is available through Issue Report</span>
+          <span>
+            {isPublicPackageQuote
+              ? 'Need help? Contact your Piyam Travel agent.'
+              : 'Support is available through Issue Report'}
+          </span>
         </div>
       </div>
     </footer>

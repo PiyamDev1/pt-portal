@@ -150,12 +150,12 @@ export function IssueReporterWidget() {
     setSubmittedTicketId(null)
   }
 
+  if (isPublicPackageQuote) return null
+
   return (
     <div
       ref={rootRef}
-      className={`issue-reporter-root fixed right-0 top-1/2 z-50 ${
-        isPublicPackageQuote ? 'hidden sm:block' : ''
-      }`}
+      className="issue-reporter-root fixed right-0 top-1/2 z-50"
       data-issue-report-ignore="true"
     >
       {isOpen && (

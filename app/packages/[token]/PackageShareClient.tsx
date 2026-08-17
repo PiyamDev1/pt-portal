@@ -221,9 +221,9 @@ function OptionButton({
           : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
       }`}
     >
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <p className="text-sm font-black text-slate-950">{title || 'Option'}</p>
+          <p className="break-words text-sm font-black text-slate-950">{title || 'Option'}</p>
           {summary && <SummaryText value={summary} />}
           {badges && badges.length > 0 && (
             <div className="mt-2 flex flex-wrap gap-2">
@@ -238,22 +238,26 @@ function OptionButton({
             </div>
           )}
         </div>
-        <div className="shrink-0 text-right">
-          <p className="text-sm font-black text-slate-950">
-            {priceLabel || formatMoney(price, currency)}
-          </p>
-          {priceSubLines && priceSubLines.length > 0 ? (
-            <div className="mt-2 space-y-0.5 text-[11px] font-bold leading-4 text-slate-500">
-              {priceSubLines.map((line) => (
-                <p key={line}>{line}</p>
-              ))}
-            </div>
-          ) : (
-            <p className="text-[11px] font-bold text-slate-500">
-              {priceSubLabel || (pricingMode === 'per_person' ? 'per person' : 'total')}
+        <div className="flex w-full items-start justify-between gap-3 border-t border-slate-200 pt-3 text-left sm:block sm:w-auto sm:shrink-0 sm:border-0 sm:pt-0 sm:text-right">
+          <div>
+            <p className="text-sm font-black text-slate-950">
+              {priceLabel || formatMoney(price, currency)}
             </p>
+            {priceSubLines && priceSubLines.length > 0 ? (
+              <div className="mt-2 space-y-0.5 text-[11px] font-bold leading-4 text-slate-500">
+                {priceSubLines.map((line) => (
+                  <p key={line}>{line}</p>
+                ))}
+              </div>
+            ) : (
+              <p className="text-[11px] font-bold text-slate-500">
+                {priceSubLabel || (pricingMode === 'per_person' ? 'per person' : 'total')}
+              </p>
+            )}
+          </div>
+          {selected && (
+            <CheckCircle2 className="h-5 w-5 shrink-0 text-[#8b1e2d] sm:ml-auto sm:mt-2" />
           )}
-          {selected && <CheckCircle2 className="ml-auto mt-2 h-5 w-5 text-[#8b1e2d]" />}
         </div>
       </div>
     </button>
@@ -333,8 +337,16 @@ function formatFlightPassengerDeltas(
   payload: PackageQuotePayload,
   option: PackageComponentOption | null,
   baseOption: PackageComponentOption | null,
+  linkedFlightOptionIds?: Record<string, string> | null,
+  baseLinkedFlightOptionIds?: Record<string, string> | null,
 ) {
-  const deltas = getFlightOptionPriceDeltas(payload, option, baseOption)
+  const deltas = getFlightOptionPriceDeltas(
+    payload,
+    option,
+    baseOption,
+    linkedFlightOptionIds,
+    baseLinkedFlightOptionIds,
+  )
   const parts = [`Adult ${formatUnitDelta(deltas.adult, payload.currency)}`]
   if (payload.childrenPaying + payload.childrenFree > 0) {
     parts.push(`Child 2-12 ${formatUnitDelta(deltas.child, payload.currency)}`)
@@ -411,32 +423,53 @@ function findMatchingComponentOption(
   const sourceTitle = normalizeMatchValue(sourceOption.title)
   const sourceSummary = normalizeMatchValue(sourceOption.summary)
   return (
-    targetOptions.find((option) => normalizeMatchValue(option.title) === sourceTitle) ||
+    targetOptions.find(
+      (option) =>
+        normalizeMatchValue(option.title) === sourceTitle &&
+        (!sourceSummary || normalizeMatchValue(option.summary) === sourceSummary),
+    ) ||
     targetOptions.find(
       (option) => sourceSummary && normalizeMatchValue(option.summary) === sourceSummary,
     ) ||
+    targetOptions.find((option) => normalizeMatchValue(option.title) === sourceTitle) ||
     null
   )
 }
 
 function findMatchingLinkedFlightOption(
-  sourceGroup: PackageQuotePayload['linkedFlightGroups'][number] | undefined,
-  sourceOptionId: string | undefined,
+  sourceOption: PackageQuotePayload['linkedFlightGroups'][number]['options'][number] | null,
   targetGroup: PackageQuotePayload['linkedFlightGroups'][number],
 ) {
-  if (!sourceGroup) return null
-  const sourceOption = sourceGroup.options.find((option) => option.id === sourceOptionId)
   if (!sourceOption) return null
   const sourceAirline = normalizeMatchValue(sourceOption.airlineName)
   const sourceSummary = normalizeMatchValue(sourceOption.summary)
   return (
     targetGroup.options.find(
-      (option) => normalizeMatchValue(option.airlineName) === sourceAirline,
+      (option) =>
+        normalizeMatchValue(option.airlineName) === sourceAirline &&
+        (!sourceSummary || normalizeMatchValue(option.summary) === sourceSummary),
     ) ||
     targetGroup.options.find(
       (option) => sourceSummary && normalizeMatchValue(option.summary) === sourceSummary,
     ) ||
+    targetGroup.options.find(
+      (option) => normalizeMatchValue(option.airlineName) === sourceAirline,
+    ) ||
     null
+  )
+}
+
+function findMatchingStayGroup(
+  sourceGroups: PackageQuotePayload['stayGroups'],
+  targetGroup: PackageQuotePayload['stayGroups'][number],
+  fallbackIndex: number,
+) {
+  const targetId = normalizeMatchValue(targetGroup.id)
+  const targetLabel = normalizeMatchValue(targetGroup.label)
+  return (
+    sourceGroups.find((group) => normalizeMatchValue(group.id) === targetId) ||
+    sourceGroups.find((group) => normalizeMatchValue(group.label) === targetLabel) ||
+    sourceGroups[fallbackIndex]
   )
 }
 
@@ -472,11 +505,13 @@ function resolveLinkedFamilySelection(
               sourceLinkedGroups.find(
                 (group) => normalizeMatchValue(group.routeLabel) === routeKey,
               ) || sourceLinkedGroups[groupIndex]
-            const matchedOption = findMatchingLinkedFlightOption(
-              sourceGroup,
-              sourceGroup ? currentSelection.linkedFlightOptionIds?.[sourceGroup.id] : undefined,
-              targetGroup,
-            )
+            const sourceOption = sourceGroup
+              ? getLinkedFlightOptionForSelection(
+                  sourceGroup,
+                  currentSelection.linkedFlightOptionIds,
+                )
+              : null
+            const matchedOption = findMatchingLinkedFlightOption(sourceOption, targetGroup)
             return [
               targetGroup.id,
               matchedOption?.id ||
@@ -491,7 +526,7 @@ function resolveLinkedFamilySelection(
     const targetStayOptionIds = matchHotels
       ? Object.fromEntries(
           targetPayload.stayGroups.map((targetGroup, groupIndex) => {
-            const sourceGroup = sourceGroups[groupIndex]
+            const sourceGroup = findMatchingStayGroup(sourceGroups, targetGroup, groupIndex)
             const sourceOptionId = sourceGroup ? currentSelection.stayOptionIds[sourceGroup.id] : ''
             const sourceOption = sourceGroup?.options.find((option) => option.id === sourceOptionId)
             const sourceTitle = normalizeMatchValue(sourceOption?.title || '')
@@ -515,7 +550,7 @@ function resolveLinkedFamilySelection(
       ? Object.fromEntries(
           targetPayload.stayGroups
             .map((targetGroup, groupIndex) => {
-              const sourceGroup = sourceGroups[groupIndex]
+              const sourceGroup = findMatchingStayGroup(sourceGroups, targetGroup, groupIndex)
               if (!sourceGroup) return null
               const sourceOptionId = currentSelection.stayOptionIds[sourceGroup.id]
               const sourceOption = sourceGroup.options.find(
@@ -574,7 +609,7 @@ function getLinkedFamilyPricing(
   matchHotels: boolean,
   matchFlights = false,
 ) {
-  if ((!matchHotels && !matchFlights) || !family.payload || !family.baseSelection) {
+  if ((!matchHotels && !matchFlights) || !family.payload) {
     return family.pricing
   }
 
@@ -1478,7 +1513,7 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
   if (!quote || !payload || !selection) return null
 
   return (
-    <main className="min-h-screen overflow-x-hidden bg-slate-50 pb-36 text-slate-950 lg:pb-0">
+    <main className="min-h-screen overflow-x-hidden bg-slate-50 pb-[calc(7rem+env(safe-area-inset-bottom))] text-slate-950 lg:pb-0">
       <section className="bg-[#4b0f16] px-3 py-5 text-white sm:px-4 sm:py-6">
         <div className="mx-auto flex w-full max-w-[42rem] items-start justify-between gap-3 lg:max-w-6xl">
           <div className="min-w-0">
@@ -2526,7 +2561,13 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                           (candidate) => candidate.id === selection.flightOptionId,
                         ) || getPreferredOption(payload.flightOptions)
                       const selected = selection.flightOptionId === option.id
-                      const deltas = getFlightOptionPriceDeltas(payload, option, selectedFlight)
+                      const deltas = getFlightOptionPriceDeltas(
+                        payload,
+                        option,
+                        selectedFlight,
+                        selection.linkedFlightOptionIds,
+                        selection.linkedFlightOptionIds,
+                      )
                       return (
                         <OptionButton
                           key={option.id}
@@ -2543,7 +2584,13 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                           priceSubLines={
                             selected
                               ? undefined
-                              : formatFlightPassengerDeltas(payload, option, selectedFlight)
+                              : formatFlightPassengerDeltas(
+                                  payload,
+                                  option,
+                                  selectedFlight,
+                                  selection.linkedFlightOptionIds,
+                                  selection.linkedFlightOptionIds,
+                                )
                           }
                           pricingMode={option.pricingMode}
                           currency={payload.currency}
@@ -2644,14 +2691,14 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                         key={option.id}
                         className="rounded-xl border border-emerald-200 bg-emerald-50 p-4"
                       >
-                        <div className="flex items-start justify-between gap-3">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                           <div>
                             <p className="text-sm font-black text-slate-950">
                               {option.title || 'Visa'}
                             </p>
                             {option.summary && <SummaryText value={option.summary} />}
                           </div>
-                          <p className="shrink-0 text-sm font-black text-slate-950">
+                          <p className="text-sm font-black text-slate-950 sm:shrink-0 sm:text-right">
                             {getVisaQuantity(option, payload)} x{' '}
                             {getVisaPassengerCategoryLabel(option.visaPassengerCategory)} included
                           </p>
@@ -3285,37 +3332,32 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
         </div>
       )}
       {!reviewingPayment && resolved && !mobileLinkedMenuOpen && (
-        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 px-3 py-3 shadow-[0_-8px_24px_rgba(15,23,42,0.12)] backdrop-blur lg:hidden">
-          <div className="mx-auto grid w-full max-w-[42rem] grid-cols-2 gap-2">
-            <div className="col-span-2 flex items-end justify-between gap-3">
-              <div>
-                <p className="text-[11px] font-black uppercase text-slate-500">
-                  {superGroupTotals && linkedFamilyTotals.length > 0 ? 'Group total' : 'Your total'}
-                </p>
-                <p className="text-lg font-black text-slate-950">
-                  {formatMoney(
-                    superGroupTotals && linkedFamilyTotals.length > 0
-                      ? superGroupTotals.totalPrice
-                      : resolved.combination.totalPrice,
-                    resolved.combination.currency,
-                  )}
-                </p>
-              </div>
-              <p className="pb-1 text-right text-[11px] font-bold text-slate-500">
-                Review your choices before sending
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 px-3 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-8px_24px_rgba(15,23,42,0.12)] backdrop-blur lg:hidden">
+          <div className="mx-auto grid w-full max-w-[42rem] grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2">
+            <div className="min-w-0">
+              <p className="text-[11px] font-black uppercase text-slate-500">
+                {superGroupTotals && linkedFamilyTotals.length > 0 ? 'Group total' : 'Your total'}
+              </p>
+              <p className="text-lg font-black text-slate-950">
+                {formatMoney(
+                  superGroupTotals && linkedFamilyTotals.length > 0
+                    ? superGroupTotals.totalPrice
+                    : resolved.combination.totalPrice,
+                  resolved.combination.currency,
+                )}
               </p>
             </div>
             <button
               type="button"
               onClick={() => setPriceSummaryDrawerOpen(true)}
-              className="min-h-11 rounded-lg border border-[#8b1e2d]/30 bg-white px-3 text-sm font-black text-[#8b1e2d]"
+              className="min-h-11 whitespace-nowrap rounded-lg border border-[#8b1e2d]/30 bg-white px-2 text-xs font-black text-[#8b1e2d] sm:px-3 sm:text-sm"
             >
-              Show Breakdown
+              Breakdown
             </button>
             <button
               type="button"
               onClick={continueToPaymentReview}
-              className="min-h-11 rounded-lg bg-[#8b1e2d] px-4 text-sm font-black text-white"
+              className="min-h-11 whitespace-nowrap rounded-lg bg-[#8b1e2d] px-2 text-xs font-black text-white sm:px-4 sm:text-sm"
             >
               Review Selection
             </button>

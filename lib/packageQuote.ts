@@ -1661,17 +1661,42 @@ function getFlightPassengerUnitPrices(
   return { adult: unit, child: unit, infant: unit }
 }
 
+function getFlightSelectionPassengerUnitPrices(
+  payload: PackageQuotePayload,
+  option: PackageComponentOption | null,
+  linkedFlightOptionIds?: Record<string, string> | null,
+) {
+  const units = getFlightPassengerUnitPrices(option, payload)
+
+  return getLinkedFlightSelections(payload, option, linkedFlightOptionIds).reduce(
+    (total, selection) => {
+      const linkedUnits = getLinkedFlightOptionPassengerUnitPricesForTotal(
+        selection.group,
+        selection.option,
+      )
+      total.adult += linkedUnits.adult
+      total.child += linkedUnits.child
+      total.infant += linkedUnits.infant
+      return total
+    },
+    { ...units },
+  )
+}
+
 export function getFlightOptionPriceDeltas(
   payloadInput: unknown,
   option: PackageComponentOption | null,
   baseOption?: PackageComponentOption | null,
+  linkedFlightOptionIds?: Record<string, string> | null,
+  baseLinkedFlightOptionIds?: Record<string, string> | null,
 ) {
   const payload = normalizePackageQuotePayload(payloadInput)
-  const base = getFlightPassengerUnitPrices(
-    baseOption || getDefaultOption(payload.flightOptions),
+  const base = getFlightSelectionPassengerUnitPrices(
     payload,
+    baseOption || getDefaultOption(payload.flightOptions),
+    baseLinkedFlightOptionIds,
   )
-  const next = getFlightPassengerUnitPrices(option, payload)
+  const next = getFlightSelectionPassengerUnitPrices(payload, option, linkedFlightOptionIds)
   return {
     adult: next.adult - base.adult,
     child: next.child - base.child,

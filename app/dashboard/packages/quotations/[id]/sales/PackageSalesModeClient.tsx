@@ -264,8 +264,16 @@ function formatFlightPassengerDeltas(
   payload: PackageQuotePayload,
   option: Parameters<typeof getFlightOptionPriceDeltas>[1],
   baseOption: Parameters<typeof getFlightOptionPriceDeltas>[2],
+  linkedFlightOptionIds?: Record<string, string> | null,
+  baseLinkedFlightOptionIds?: Record<string, string> | null,
 ) {
-  const deltas = getFlightOptionPriceDeltas(payload, option, baseOption)
+  const deltas = getFlightOptionPriceDeltas(
+    payload,
+    option,
+    baseOption,
+    linkedFlightOptionIds,
+    baseLinkedFlightOptionIds,
+  )
   const parts = [`Adult ${formatUnitDelta(deltas.adult, payload.currency)}`]
   if (payload.childrenPaying + payload.childrenFree > 0) {
     parts.push(`Child 2-12 ${formatUnitDelta(deltas.child, payload.currency)}`)
@@ -781,7 +789,13 @@ export default function PackageSalesModeClient({ quoteId }: PackageSalesModeClie
                       (candidate) => candidate.id === selection.flightOptionId,
                     ) || getPreferredOption(payload.flightOptions)
                   const selected = selection.flightOptionId === option.id
-                  const deltas = getFlightOptionPriceDeltas(payload, option, selectedFlight)
+                  const deltas = getFlightOptionPriceDeltas(
+                    payload,
+                    option,
+                    selectedFlight,
+                    selection.linkedFlightOptionIds,
+                    selection.linkedFlightOptionIds,
+                  )
                   return (
                     <OptionButton
                       key={option.id}
@@ -796,7 +810,13 @@ export default function PackageSalesModeClient({ quoteId }: PackageSalesModeClie
                       priceSubLines={
                         selected
                           ? undefined
-                          : formatFlightPassengerDeltas(payload, option, selectedFlight)
+                          : formatFlightPassengerDeltas(
+                              payload,
+                              option,
+                              selectedFlight,
+                              selection.linkedFlightOptionIds,
+                              selection.linkedFlightOptionIds,
+                            )
                       }
                       pricingMode={option.pricingMode}
                       currency={payload.currency}
