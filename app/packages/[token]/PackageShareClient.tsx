@@ -9,8 +9,11 @@ import {
   ChevronDown,
   ExternalLink,
   FileText,
+  Landmark,
   Loader2,
+  MapPin,
   Menu,
+  MoonStar,
   Plane,
   Send,
   Tag,
@@ -972,6 +975,55 @@ function SectionTitle({
   )
 }
 
+function getHotelLocationPresentation(label: string) {
+  const normalizedLabel = label.toLowerCase()
+  const isMakkah = normalizedLabel.includes('makkah')
+  const isMadinah = normalizedLabel.includes('madinah') || normalizedLabel.includes('medinah')
+  const Icon = isMakkah ? Landmark : isMadinah ? MoonStar : MapPin
+  return isMakkah
+    ? {
+        border: 'border-amber-300',
+        header: 'border-amber-200 bg-amber-50',
+        icon: 'bg-amber-600',
+        eyebrow: 'text-amber-800',
+        Icon,
+      }
+    : isMadinah
+      ? {
+          border: 'border-emerald-300',
+          header: 'border-emerald-200 bg-emerald-50',
+          icon: 'bg-emerald-700',
+          eyebrow: 'text-emerald-800',
+          Icon,
+        }
+      : {
+          border: 'border-violet-300',
+          header: 'border-violet-200 bg-violet-50',
+          icon: 'bg-violet-800',
+          eyebrow: 'text-violet-800',
+          Icon,
+        }
+}
+
+function HotelLocationHeading({ label }: { label: string }) {
+  const tone = getHotelLocationPresentation(label)
+  const Icon = tone.Icon
+
+  return (
+    <div className={`flex items-center gap-3 border-b px-4 py-3 ${tone.header}`}>
+      <span
+        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-white ${tone.icon}`}
+      >
+        <Icon className="h-5 w-5" />
+      </span>
+      <div className="min-w-0">
+        <p className={`text-[11px] font-black uppercase ${tone.eyebrow}`}>Hotel location</p>
+        <h3 className="break-words text-lg font-black text-slate-950">{label}</h3>
+      </div>
+    </div>
+  )
+}
+
 export default function PackageShareClient({ token }: PackageShareClientProps) {
   const [quote, setQuote] = useState<PublicPackageQuote | null>(null)
   const [payload, setPayload] = useState<PackageQuotePayload | null>(null)
@@ -1575,59 +1627,56 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
       {linkedGroup && linkedGroup.families.length > 0 && (
         <section className="border-b border-cyan-200 bg-gradient-to-b from-cyan-50 to-white px-3 py-4 sm:px-4 sm:py-5">
           <div className="mx-auto w-full max-w-[42rem] lg:max-w-6xl">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-cyan-900 text-white">
-                    <Users className="h-4 w-4" />
-                  </span>
+            <div className="min-w-0">
+              <div className="flex items-start gap-3">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-cyan-900 text-white">
+                  <Users className="h-5 w-5" />
+                </span>
+                <div className="min-w-0 pt-0.5">
                   <p className="text-xs font-black uppercase text-cyan-900">Linked package group</p>
+                  <h2 className="mt-1 break-words text-lg font-black leading-tight text-slate-950 sm:text-xl">
+                    {linkedGroup.title}
+                  </h2>
+                  <p className="mt-1 break-all text-sm font-semibold text-slate-600">
+                    {linkedGroup.groupReference}
+                  </p>
                 </div>
-                <h2 className="mt-1 text-xl font-black text-slate-950">{linkedGroup.title}</h2>
-                <p className="mt-1 text-sm font-semibold text-slate-600">
-                  {linkedGroup.groupReference}
-                </p>
-                <p className="mt-2 max-w-xl text-sm font-semibold leading-5 text-slate-600 sm:hidden">
-                  This quote is connected to other family packages. Use the menu below to move
-                  between them.
-                </p>
               </div>
-              {superGroupTotals && linkedFamilyCards.length > 1 && (
-                <div className="hidden grid-cols-3 gap-2 rounded-xl border border-cyan-200 bg-white p-2 text-xs shadow-sm sm:grid sm:min-w-[24rem]">
-                  <div className="rounded-lg bg-slate-50 p-2">
-                    <p className="font-black uppercase text-slate-500">Subtotal</p>
-                    <p className="mt-1 font-black text-slate-950">
-                      {formatMoney(superGroupTotals.grossPrice, superGroupTotals.currency)}
-                    </p>
-                  </div>
-                  <div className="rounded-lg bg-emerald-50 p-2">
-                    <p className="font-black uppercase text-emerald-700">Discount</p>
-                    <p className="mt-1 font-black text-emerald-800">
-                      {superGroupTotals.discountTotal > 0
-                        ? `-${formatMoney(
-                            superGroupTotals.discountTotal,
-                            superGroupTotals.currency,
-                          )}`
-                        : 'None'}
-                    </p>
-                  </div>
-                  <div className="rounded-lg bg-slate-950 p-2 text-white">
-                    <p className="font-black uppercase text-white/70">Group total</p>
-                    <p className="mt-1 font-black">
-                      {formatMoney(superGroupTotals.totalPrice, superGroupTotals.currency)}
-                    </p>
-                  </div>
-                </div>
-              )}
-              {superGroupTotals && linkedFamilyCards.length > 1 && (
-                <div className="flex items-center justify-between rounded-xl border border-cyan-200 bg-white px-4 py-3 shadow-sm sm:hidden">
-                  <span className="text-xs font-black uppercase text-slate-500">All families</span>
-                  <span className="text-lg font-black text-slate-950">
-                    {formatMoney(superGroupTotals.totalPrice, superGroupTotals.currency)}
-                  </span>
-                </div>
-              )}
+              <p className="mt-3 max-w-xl text-sm font-semibold leading-5 text-slate-600 sm:hidden">
+                This quote is connected to other family packages. Use the menu below to move between
+                them.
+              </p>
             </div>
+            {superGroupTotals && linkedFamilyCards.length > 1 && (
+              <div className="mt-4 grid grid-cols-3 gap-2 border-t border-cyan-200 pt-4">
+                <div className="min-w-0 rounded-lg border border-slate-200 bg-white p-2 shadow-sm sm:p-3">
+                  <p className="text-[10px] font-black uppercase text-slate-500 sm:text-xs">
+                    Subtotal
+                  </p>
+                  <p className="mt-1 text-sm font-black text-slate-950 sm:text-base">
+                    {formatMoney(superGroupTotals.grossPrice, superGroupTotals.currency)}
+                  </p>
+                </div>
+                <div className="min-w-0 rounded-lg border border-emerald-200 bg-emerald-50 p-2 sm:p-3">
+                  <p className="text-[10px] font-black uppercase text-emerald-700 sm:text-xs">
+                    Discount
+                  </p>
+                  <p className="mt-1 text-sm font-black text-emerald-800 sm:text-base">
+                    {superGroupTotals.discountTotal > 0
+                      ? `-${formatMoney(superGroupTotals.discountTotal, superGroupTotals.currency)}`
+                      : 'None'}
+                  </p>
+                </div>
+                <div className="min-w-0 rounded-lg bg-slate-950 p-2 text-white shadow-sm sm:p-3">
+                  <p className="text-[10px] font-black uppercase text-white/70 sm:text-xs">
+                    Group total
+                  </p>
+                  <p className="mt-1 text-sm font-black sm:text-base">
+                    {formatMoney(superGroupTotals.totalPrice, superGroupTotals.currency)}
+                  </p>
+                </div>
+              </div>
+            )}
             {linkedFamilyCards.length > 0 && (
               <>
                 <div className="mt-4 sm:hidden">
@@ -2799,127 +2848,136 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                   )}
                 </div>
                 <div className="space-y-4">
-                  {orderedStayGroups.map((group) => (
-                    <div key={group.id}>
-                      <h3 className="mb-2 text-sm font-black text-slate-700">{group.label}</h3>
-                      <div className="space-y-3">
-                        {group.options.map((option) => {
-                          const preferredHotel = getPreferredOption(group.options)
-                          const payingGuests = payload.adults + payload.childrenPaying
-                          const badges = [
-                            preferredHotel?.id === option.id ? 'Agent recommended' : '',
-                            (option.hotelAddonOptions || []).length > 0 ? 'Extras available' : '',
-                          ].filter((badge): badge is string => Boolean(badge))
-                          const selected = selection.stayOptionIds[group.id] === option.id
-                          const selectedHotel =
-                            group.options.find(
-                              (candidate) => candidate.id === selection.stayOptionIds[group.id],
-                            ) || preferredHotel
-                          const selectedDelta = option.price - (selectedHotel?.price || 0)
-                          const selectedPerPersonDelta =
-                            payingGuests > 0 ? selectedDelta / payingGuests : selectedDelta
-                          const addonOptions = option.hotelAddonOptions || []
-                          const selectedAddonIds = selection.hotelAddonOptionIds?.[group.id] || []
-                          return (
-                            <div key={option.id} className="space-y-2">
-                              <OptionButton
-                                selected={selected}
-                                title={option.title}
-                                summary={option.summary}
-                                price={option.price}
-                                priceLabel={
-                                  selected
-                                    ? 'Selected'
-                                    : formatSelectionDelta(selectedPerPersonDelta, payload.currency)
-                                }
-                                priceSubLabel={selected ? 'current option' : 'hotel option'}
-                                pricingMode={option.pricingMode}
-                                badges={badges}
-                                currency={payload.currency}
-                                onClick={() =>
-                                  setSelection((current) =>
-                                    current
-                                      ? {
-                                          ...current,
-                                          stayOptionIds: {
-                                            ...current.stayOptionIds,
-                                            [group.id]: option.id,
-                                          },
-                                          hotelAddonOptionIds: {
-                                            ...(current.hotelAddonOptionIds || {}),
-                                            [group.id]:
-                                              current.stayOptionIds[group.id] === option.id
-                                                ? current.hotelAddonOptionIds?.[group.id] || []
-                                                : [],
-                                          },
-                                        }
-                                      : current,
-                                  )
-                                }
-                              />
-                              {selected && addonOptions.length > 0 && (
-                                <div className="ml-4 rounded-xl border border-violet-100 bg-violet-50 p-3">
-                                  <p className="text-xs font-black uppercase text-violet-900">
-                                    Optional hotel extras
-                                  </p>
-                                  <div className="mt-2 grid gap-2">
-                                    {addonOptions.map((addon) => {
-                                      const addonSelected = selectedAddonIds.includes(addon.id)
-                                      return (
-                                        <button
-                                          key={addon.id}
-                                          type="button"
-                                          onClick={() =>
-                                            setSelection((current) => {
-                                              if (!current) return current
-                                              const currentIds =
-                                                current.hotelAddonOptionIds?.[group.id] || []
-                                              const nextIds = addonSelected
-                                                ? currentIds.filter((id) => id !== addon.id)
-                                                : [...currentIds, addon.id]
-                                              return {
-                                                ...current,
-                                                hotelAddonOptionIds: {
-                                                  ...(current.hotelAddonOptionIds || {}),
-                                                  [group.id]: nextIds,
-                                                },
-                                              }
-                                            })
+                  {orderedStayGroups.map((group) => {
+                    const locationPresentation = getHotelLocationPresentation(group.label)
+                    return (
+                      <section
+                        key={group.id}
+                        className={`overflow-hidden rounded-xl border-2 bg-white shadow-sm ${locationPresentation.border}`}
+                      >
+                        <HotelLocationHeading label={group.label} />
+                        <div className="space-y-3 p-3 sm:p-4">
+                          {group.options.map((option) => {
+                            const preferredHotel = getPreferredOption(group.options)
+                            const payingGuests = payload.adults + payload.childrenPaying
+                            const badges = [
+                              preferredHotel?.id === option.id ? 'Agent recommended' : '',
+                              (option.hotelAddonOptions || []).length > 0 ? 'Extras available' : '',
+                            ].filter((badge): badge is string => Boolean(badge))
+                            const selected = selection.stayOptionIds[group.id] === option.id
+                            const selectedHotel =
+                              group.options.find(
+                                (candidate) => candidate.id === selection.stayOptionIds[group.id],
+                              ) || preferredHotel
+                            const selectedDelta = option.price - (selectedHotel?.price || 0)
+                            const selectedPerPersonDelta =
+                              payingGuests > 0 ? selectedDelta / payingGuests : selectedDelta
+                            const addonOptions = option.hotelAddonOptions || []
+                            const selectedAddonIds = selection.hotelAddonOptionIds?.[group.id] || []
+                            return (
+                              <div key={option.id} className="space-y-2">
+                                <OptionButton
+                                  selected={selected}
+                                  title={option.title}
+                                  summary={option.summary}
+                                  price={option.price}
+                                  priceLabel={
+                                    selected
+                                      ? 'Selected'
+                                      : formatSelectionDelta(
+                                          selectedPerPersonDelta,
+                                          payload.currency,
+                                        )
+                                  }
+                                  priceSubLabel={selected ? 'current option' : 'hotel option'}
+                                  pricingMode={option.pricingMode}
+                                  badges={badges}
+                                  currency={payload.currency}
+                                  onClick={() =>
+                                    setSelection((current) =>
+                                      current
+                                        ? {
+                                            ...current,
+                                            stayOptionIds: {
+                                              ...current.stayOptionIds,
+                                              [group.id]: option.id,
+                                            },
+                                            hotelAddonOptionIds: {
+                                              ...(current.hotelAddonOptionIds || {}),
+                                              [group.id]:
+                                                current.stayOptionIds[group.id] === option.id
+                                                  ? current.hotelAddonOptionIds?.[group.id] || []
+                                                  : [],
+                                            },
                                           }
-                                          className={`flex min-h-11 items-center justify-between gap-3 rounded-lg border px-3 text-left text-sm transition ${
-                                            addonSelected
-                                              ? 'border-violet-300 bg-white text-violet-950 shadow-sm'
-                                              : 'border-violet-100 bg-white/70 text-slate-700 hover:bg-white'
-                                          }`}
-                                        >
-                                          <span className="font-black">
-                                            {addon.label || 'Hotel extra'}
-                                          </span>
-                                          <span className="flex shrink-0 items-center gap-2">
-                                            {addonSelected && (
-                                              <span className="rounded-full bg-violet-900 px-2 py-1 text-[11px] font-black uppercase text-white">
-                                                Selected
-                                              </span>
-                                            )}
+                                        : current,
+                                    )
+                                  }
+                                />
+                                {selected && addonOptions.length > 0 && (
+                                  <div className="ml-4 rounded-xl border border-violet-100 bg-violet-50 p-3">
+                                    <p className="text-xs font-black uppercase text-violet-900">
+                                      Optional hotel extras
+                                    </p>
+                                    <div className="mt-2 grid gap-2">
+                                      {addonOptions.map((addon) => {
+                                        const addonSelected = selectedAddonIds.includes(addon.id)
+                                        return (
+                                          <button
+                                            key={addon.id}
+                                            type="button"
+                                            onClick={() =>
+                                              setSelection((current) => {
+                                                if (!current) return current
+                                                const currentIds =
+                                                  current.hotelAddonOptionIds?.[group.id] || []
+                                                const nextIds = addonSelected
+                                                  ? currentIds.filter((id) => id !== addon.id)
+                                                  : [...currentIds, addon.id]
+                                                return {
+                                                  ...current,
+                                                  hotelAddonOptionIds: {
+                                                    ...(current.hotelAddonOptionIds || {}),
+                                                    [group.id]: nextIds,
+                                                  },
+                                                }
+                                              })
+                                            }
+                                            className={`flex min-h-11 items-center justify-between gap-3 rounded-lg border px-3 text-left text-sm transition ${
+                                              addonSelected
+                                                ? 'border-violet-300 bg-white text-violet-950 shadow-sm'
+                                                : 'border-violet-100 bg-white/70 text-slate-700 hover:bg-white'
+                                            }`}
+                                          >
                                             <span className="font-black">
-                                              {formatSignedHotelExtraPrice(
-                                                addon.price,
-                                                payload.currency,
-                                              )}
+                                              {addon.label || 'Hotel extra'}
                                             </span>
-                                          </span>
-                                        </button>
-                                      )
-                                    })}
+                                            <span className="flex shrink-0 items-center gap-2">
+                                              {addonSelected && (
+                                                <span className="rounded-full bg-violet-900 px-2 py-1 text-[11px] font-black uppercase text-white">
+                                                  Selected
+                                                </span>
+                                              )}
+                                              <span className="font-black">
+                                                {formatSignedHotelExtraPrice(
+                                                  addon.price,
+                                                  payload.currency,
+                                                )}
+                                              </span>
+                                            </span>
+                                          </button>
+                                        )
+                                      })}
+                                    </div>
                                   </div>
-                                </div>
-                              )}
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  ))}
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </section>
+                    )
+                  })}
                 </div>
               </section>
 
