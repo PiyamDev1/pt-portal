@@ -20,6 +20,7 @@ const severityOptions: Severity[] = ['low', 'medium', 'high', 'critical']
 
 export function IssueReporterWidget() {
   const pathname = usePathname()
+  const isPublicPackageQuote = /^\/packages\/[^/]+\/?$/.test(pathname || '')
   const rootRef = useRef<HTMLDivElement | null>(null)
   const notesRef = useRef<HTMLTextAreaElement | null>(null)
   const [isOpen, setIsOpen] = useState(false)
@@ -152,7 +153,9 @@ export function IssueReporterWidget() {
   return (
     <div
       ref={rootRef}
-      className="issue-reporter-root fixed right-0 top-1/2 z-50"
+      className={`issue-reporter-root fixed right-0 top-1/2 z-50 ${
+        isPublicPackageQuote ? 'hidden sm:block' : ''
+      }`}
       data-issue-report-ignore="true"
     >
       {isOpen && (

@@ -10,6 +10,7 @@ import {
   ExternalLink,
   FileText,
   Loader2,
+  Menu,
   Plane,
   Send,
   Tag,
@@ -965,6 +966,8 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
   const [matchLinkedHotelOptions, setMatchLinkedHotelOptions] = useState(false)
   const [matchLinkedFlightOptions, setMatchLinkedFlightOptions] = useState(false)
   const [expandedLinkedFamilyKey, setExpandedLinkedFamilyKey] = useState('')
+  const [linkedFamilyCardsVisible, setLinkedFamilyCardsVisible] = useState(false)
+  const [mobileLinkedMenuOpen, setMobileLinkedMenuOpen] = useState(false)
   const [selectionSaveMessage, setSelectionSaveMessage] = useState('')
 
   useEffect(() => {
@@ -1011,6 +1014,8 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
         setMatchLinkedHotelOptions(false)
         setMatchLinkedFlightOptions(false)
         setExpandedLinkedFamilyKey('')
+        setLinkedFamilyCardsVisible(false)
+        setMobileLinkedMenuOpen(false)
         setSelectionSaveMessage('')
       } catch (loadError) {
         setError(loadError instanceof Error ? loadError.message : 'Unable to load package quote')
@@ -1156,13 +1161,9 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
   }, [linkedFamilyTotals, linkedGroup, priceBreakdown, resolved])
 
   useEffect(() => {
-    if (!linkedGroup) {
-      setExpandedLinkedFamilyKey('')
-      return
-    }
-    const currentIndex = linkedGroup.families.findIndex((family) => family.isCurrent)
-    const currentFamily = currentIndex >= 0 ? linkedGroup.families[currentIndex] : null
-    setExpandedLinkedFamilyKey(currentFamily ? getLinkedFamilyKey(currentFamily, currentIndex) : '')
+    setExpandedLinkedFamilyKey('')
+    setLinkedFamilyCardsVisible(false)
+    setMobileLinkedMenuOpen(false)
   }, [linkedGroup])
 
   const depositPaymentSummary = useMemo(() => {
@@ -1477,26 +1478,29 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
   if (!quote || !payload || !selection) return null
 
   return (
-    <main className="min-h-screen bg-slate-50 pb-24 text-slate-950 lg:pb-0">
-      <section className="bg-[#4b0f16] px-4 py-6 text-white">
-        <div className="mx-auto flex max-w-6xl items-start justify-between gap-4">
-          <div>
+    <main className="min-h-screen overflow-x-hidden bg-slate-50 pb-36 text-slate-950 lg:pb-0">
+      <section className="bg-[#4b0f16] px-3 py-5 text-white sm:px-4 sm:py-6">
+        <div className="mx-auto flex w-full max-w-[42rem] items-start justify-between gap-3 lg:max-w-6xl">
+          <div className="min-w-0">
             <p className="text-sm font-bold text-red-100">Piyam Travel package quote</p>
-            <h1 className="mt-2 text-3xl font-black">{payload.title}</h1>
+            <h1 className="mt-2 break-words text-2xl font-black leading-tight sm:text-3xl">
+              {payload.title}
+            </h1>
           </div>
-          <div className="shrink-0 rounded-xl bg-white p-2 shadow-sm">
+          <div className="shrink-0 rounded-lg bg-white p-1.5 shadow-sm sm:rounded-xl sm:p-2">
             <Image
               src="/logo.png"
               alt="Piyam Travel"
               width={92}
               height={40}
-              className="h-10 w-auto object-contain"
+              className="h-auto w-[74px] object-contain sm:w-[92px]"
+              style={{ height: 'auto' }}
               priority
             />
           </div>
         </div>
-        <div className="mx-auto max-w-6xl">
-          <div className="mt-4 flex flex-wrap gap-2 text-sm">
+        <div className="mx-auto w-full max-w-[42rem] lg:max-w-6xl">
+          <div className="mt-4 flex flex-wrap gap-2 text-xs sm:text-sm">
             <span className="rounded-lg bg-white/10 px-3 py-1 font-bold">
               {payload.packageType}
             </span>
@@ -1518,8 +1522,8 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
       </section>
 
       {linkedGroup?.notice && (
-        <section className="border-b border-cyan-200 bg-cyan-50 px-4 py-4">
-          <div className="mx-auto flex max-w-6xl items-start gap-3">
+        <section className="border-b border-cyan-200 bg-cyan-50 px-3 py-4 sm:px-4">
+          <div className="mx-auto flex w-full max-w-[42rem] items-start gap-3 lg:max-w-6xl">
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-cyan-900 text-white">
               <Users className="h-4 w-4" />
             </span>
@@ -1534,10 +1538,10 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
       )}
 
       {linkedGroup && linkedGroup.families.length > 0 && (
-        <section className="border-b border-cyan-200 bg-gradient-to-b from-cyan-50 to-white px-4 py-5">
-          <div className="mx-auto max-w-6xl">
+        <section className="border-b border-cyan-200 bg-gradient-to-b from-cyan-50 to-white px-3 py-4 sm:px-4 sm:py-5">
+          <div className="mx-auto w-full max-w-[42rem] lg:max-w-6xl">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div>
+              <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-cyan-900 text-white">
                     <Users className="h-4 w-4" />
@@ -1548,9 +1552,13 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                 <p className="mt-1 text-sm font-semibold text-slate-600">
                   {linkedGroup.groupReference}
                 </p>
+                <p className="mt-2 max-w-xl text-sm font-semibold leading-5 text-slate-600 sm:hidden">
+                  This quote is connected to other family packages. Use the menu below to move
+                  between them.
+                </p>
               </div>
               {superGroupTotals && linkedFamilyCards.length > 1 && (
-                <div className="grid grid-cols-3 gap-2 rounded-xl border border-cyan-200 bg-white p-2 text-xs shadow-sm sm:min-w-[24rem]">
+                <div className="hidden grid-cols-3 gap-2 rounded-xl border border-cyan-200 bg-white p-2 text-xs shadow-sm sm:grid sm:min-w-[24rem]">
                   <div className="rounded-lg bg-slate-50 p-2">
                     <p className="font-black uppercase text-slate-500">Subtotal</p>
                     <p className="mt-1 font-black text-slate-950">
@@ -1576,10 +1584,101 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                   </div>
                 </div>
               )}
+              {superGroupTotals && linkedFamilyCards.length > 1 && (
+                <div className="flex items-center justify-between rounded-xl border border-cyan-200 bg-white px-4 py-3 shadow-sm sm:hidden">
+                  <span className="text-xs font-black uppercase text-slate-500">All families</span>
+                  <span className="text-lg font-black text-slate-950">
+                    {formatMoney(superGroupTotals.totalPrice, superGroupTotals.currency)}
+                  </span>
+                </div>
+              )}
             </div>
             {linkedFamilyCards.length > 0 && (
               <>
-                <div className="mt-4 rounded-xl border border-cyan-200 bg-white p-3 shadow-sm">
+                <div className="mt-4 sm:hidden">
+                  <button
+                    type="button"
+                    onClick={() => setMobileLinkedMenuOpen((current) => !current)}
+                    aria-expanded={mobileLinkedMenuOpen}
+                    aria-controls="linked-family-mobile-menu"
+                    className="flex min-h-12 w-full items-center justify-between gap-3 rounded-xl bg-cyan-900 px-4 text-left text-white shadow-sm"
+                  >
+                    <span className="flex items-center gap-3">
+                      <Menu className="h-5 w-5" />
+                      <span>
+                        <span className="block text-sm font-black">Switch family package</span>
+                        <span className="block text-xs font-semibold text-cyan-100">
+                          Viewing{' '}
+                          {currentLinkedFamily
+                            ? currentLinkedFamily.familyLabel ||
+                              getLinkedFamilyLabel(currentLinkedFamily, currentLinkedFamilyIndex)
+                            : 'this family'}
+                        </span>
+                      </span>
+                    </span>
+                    <ChevronDown
+                      className={`h-5 w-5 shrink-0 transition ${mobileLinkedMenuOpen ? 'rotate-180' : ''}`}
+                    />
+                  </button>
+                  {mobileLinkedMenuOpen && (
+                    <div
+                      id="linked-family-mobile-menu"
+                      className="mt-2 rounded-xl border border-cyan-200 bg-white p-3 shadow-lg"
+                    >
+                      <p className="rounded-lg bg-blue-50 px-3 py-2 text-sm font-semibold leading-5 text-blue-900">
+                        Tap a family name to open their package. Save this package before switching
+                        so your choices are not lost.
+                      </p>
+                      <div className="mt-3 space-y-2">
+                        {linkedFamilyCards.map(({ family, index, key, pricing }) => {
+                          const label = getLinkedFamilyLabel(family, index)
+                          const content = (
+                            <>
+                              <span className="min-w-0">
+                                <span className="block truncate text-sm font-black">
+                                  {family.familyLabel || label}
+                                </span>
+                                {family.quoteTitle && (
+                                  <span className="mt-0.5 block truncate text-xs font-semibold opacity-75">
+                                    {family.quoteTitle}
+                                  </span>
+                                )}
+                              </span>
+                              <span className="shrink-0 text-right">
+                                <span className="block text-sm font-black">
+                                  {formatMoney(pricing.totalPrice, pricing.currency)}
+                                </span>
+                                <span className="block text-[10px] font-black uppercase opacity-75">
+                                  {family.isCurrent ? 'Viewing now' : 'Open quote'}
+                                </span>
+                              </span>
+                            </>
+                          )
+
+                          return family.sharePath && !family.isCurrent ? (
+                            <a
+                              key={`${key}-mobile-switch`}
+                              href={family.sharePath}
+                              className="flex min-h-14 items-center justify-between gap-3 rounded-lg border border-cyan-200 bg-cyan-50 px-3 text-cyan-950"
+                            >
+                              {content}
+                            </a>
+                          ) : (
+                            <button
+                              key={`${key}-mobile-switch`}
+                              type="button"
+                              onClick={() => setMobileLinkedMenuOpen(false)}
+                              className="flex min-h-14 w-full items-center justify-between gap-3 rounded-lg bg-cyan-900 px-3 text-left text-white"
+                            >
+                              {content}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="mt-4 hidden rounded-xl border border-cyan-200 bg-white p-3 shadow-sm sm:block">
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                     <div>
                       <p className="text-sm font-black text-slate-950">Switch quote</p>
@@ -1610,7 +1709,10 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                           <button
                             key={`${key}-switch`}
                             type="button"
-                            onClick={() => setExpandedLinkedFamilyKey(key)}
+                            onClick={() => {
+                              setLinkedFamilyCardsVisible(true)
+                              setExpandedLinkedFamilyKey(key)
+                            }}
                             className="min-w-[9rem] shrink-0 rounded-lg bg-cyan-900 px-3 py-2 text-left text-xs font-black text-white"
                           >
                             {content}
@@ -1623,29 +1725,49 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                     </div>
                   </div>
                 </div>
-                <div className="mt-4 grid gap-3 lg:grid-cols-2">
-                  {linkedFamilyCards.map(({ family, index, key, pricing }) => (
-                    <LinkedFamilySummaryCard
-                      key={key}
-                      label={getLinkedFamilyLabel(family, index)}
-                      quoteTitle={family.quoteTitle}
-                      isCurrent={family.isCurrent}
-                      sharePath={family.sharePath}
-                      pricing={pricing}
-                      expanded={expandedLinkedFamilyKey === key}
-                      onToggle={() =>
-                        setExpandedLinkedFamilyKey((current) => (current === key ? '' : key))
-                      }
-                    />
-                  ))}
-                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLinkedFamilyCardsVisible((current) => !current)
+                    if (linkedFamilyCardsVisible) setExpandedLinkedFamilyKey('')
+                  }}
+                  aria-expanded={linkedFamilyCardsVisible}
+                  className="mt-3 flex min-h-11 w-full items-center justify-between rounded-xl border border-cyan-200 bg-white px-4 text-sm font-black text-cyan-950 shadow-sm transition hover:bg-cyan-50"
+                >
+                  <span>
+                    {linkedFamilyCardsVisible
+                      ? 'Hide group price details'
+                      : 'Show group price details'}
+                  </span>
+                  <ChevronDown
+                    className={`h-4 w-4 transition ${linkedFamilyCardsVisible ? 'rotate-180' : ''}`}
+                  />
+                </button>
+                {linkedFamilyCardsVisible && (
+                  <div className="mt-3 grid gap-3 lg:grid-cols-2">
+                    {linkedFamilyCards.map(({ family, index, key, pricing }) => (
+                      <LinkedFamilySummaryCard
+                        key={key}
+                        label={getLinkedFamilyLabel(family, index)}
+                        quoteTitle={family.quoteTitle}
+                        isCurrent={family.isCurrent}
+                        sharePath={family.sharePath}
+                        pricing={pricing}
+                        expanded={expandedLinkedFamilyKey === key}
+                        onToggle={() =>
+                          setExpandedLinkedFamilyKey((current) => (current === key ? '' : key))
+                        }
+                      />
+                    ))}
+                  </div>
+                )}
               </>
             )}
             {canSaveLinkedFamilySelection && (
               <div className="mt-4 rounded-xl border border-cyan-200 bg-white p-4 text-sm shadow-sm">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                   <div className="min-w-0">
-                    <p className="font-black text-slate-950">Save this family selection</p>
+                    <p className="font-black text-slate-950">Save before switching family</p>
                     <p className="mt-1 leading-6 text-slate-600">
                       Save this linked package before opening another family quote.{' '}
                       {linkedGroup.sharedFlightSelection
@@ -1662,7 +1784,7 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
                     type="button"
                     onClick={() => void saveLinkedPackageSelection()}
                     disabled={saving || !resolved}
-                    className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-lg bg-cyan-900 px-4 text-sm font-black text-white transition hover:bg-cyan-950 disabled:opacity-50"
+                    className="inline-flex min-h-11 w-full shrink-0 items-center justify-center gap-2 rounded-lg bg-cyan-900 px-4 text-sm font-black text-white transition hover:bg-cyan-950 disabled:opacity-50 lg:w-auto"
                   >
                     {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                     Save This Selection
@@ -1675,7 +1797,7 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
       )}
 
       {reviewingPayment && resolved ? (
-        <div className="mx-auto max-w-6xl px-4 py-5">
+        <div className="mx-auto w-full max-w-[42rem] px-3 py-5 sm:px-4 lg:max-w-6xl">
           <button
             type="button"
             onClick={() => setReviewingPayment(false)}
@@ -2299,7 +2421,7 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
           </div>
         </div>
       ) : (
-        <div className="mx-auto max-w-6xl px-4 py-5">
+        <div className="mx-auto w-full max-w-[42rem] px-3 py-5 sm:px-4 lg:max-w-6xl">
           <div className="mb-5 rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm font-semibold leading-6 text-blue-900 shadow-sm">
             Advice: to get the best price possible, please make flight reservations first.
           </div>
@@ -3162,38 +3284,41 @@ export default function PackageShareClient({ token }: PackageShareClientProps) {
           </section>
         </div>
       )}
-      {!reviewingPayment && resolved && (
-        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 px-4 py-3 shadow-[0_-8px_24px_rgba(15,23,42,0.12)] backdrop-blur lg:hidden">
-          <div className="mx-auto flex max-w-6xl items-center justify-between gap-3">
-            <div>
-              <p className="text-[11px] font-black uppercase text-slate-500">
-                {superGroupTotals && linkedFamilyTotals.length > 0 ? 'Group total' : 'Your total'}
-              </p>
-              <p className="text-lg font-black text-slate-950">
-                {formatMoney(
-                  superGroupTotals && linkedFamilyTotals.length > 0
-                    ? superGroupTotals.totalPrice
-                    : resolved.combination.totalPrice,
-                  resolved.combination.currency,
-                )}
+      {!reviewingPayment && resolved && !mobileLinkedMenuOpen && (
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 px-3 py-3 shadow-[0_-8px_24px_rgba(15,23,42,0.12)] backdrop-blur lg:hidden">
+          <div className="mx-auto grid w-full max-w-[42rem] grid-cols-2 gap-2">
+            <div className="col-span-2 flex items-end justify-between gap-3">
+              <div>
+                <p className="text-[11px] font-black uppercase text-slate-500">
+                  {superGroupTotals && linkedFamilyTotals.length > 0 ? 'Group total' : 'Your total'}
+                </p>
+                <p className="text-lg font-black text-slate-950">
+                  {formatMoney(
+                    superGroupTotals && linkedFamilyTotals.length > 0
+                      ? superGroupTotals.totalPrice
+                      : resolved.combination.totalPrice,
+                    resolved.combination.currency,
+                  )}
+                </p>
+              </div>
+              <p className="pb-1 text-right text-[11px] font-bold text-slate-500">
+                Review your choices before sending
               </p>
             </div>
-            <div className="flex shrink-0 gap-2">
-              <button
-                type="button"
-                onClick={() => setPriceSummaryDrawerOpen(true)}
-                className="min-h-11 rounded-lg border border-[#8b1e2d]/30 bg-white px-3 text-sm font-black text-[#8b1e2d]"
-              >
-                Show Breakdown
-              </button>
-              <button
-                type="button"
-                onClick={continueToPaymentReview}
-                className="min-h-11 rounded-lg bg-[#8b1e2d] px-4 text-sm font-black text-white"
-              >
-                Review
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => setPriceSummaryDrawerOpen(true)}
+              className="min-h-11 rounded-lg border border-[#8b1e2d]/30 bg-white px-3 text-sm font-black text-[#8b1e2d]"
+            >
+              Show Breakdown
+            </button>
+            <button
+              type="button"
+              onClick={continueToPaymentReview}
+              className="min-h-11 rounded-lg bg-[#8b1e2d] px-4 text-sm font-black text-white"
+            >
+              Review Selection
+            </button>
           </div>
         </div>
       )}
