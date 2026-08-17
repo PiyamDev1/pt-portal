@@ -9,11 +9,9 @@ import {
   ChevronDown,
   ExternalLink,
   FileText,
-  Landmark,
   Loader2,
   MapPin,
   Menu,
-  MoonStar,
   Plane,
   Send,
   Tag,
@@ -975,16 +973,63 @@ function SectionTitle({
   )
 }
 
+function HolyKaabahIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="m4 8 8-4 8 4-8 4Z" />
+      <path d="M4 8v10l8 3 8-3V8" />
+      <path d="m4 11 8 3 8-3" />
+      <path d="M12 12v9" />
+      <path d="m15.5 13-1.5.6v5.9l1.5-.5Z" />
+    </svg>
+  )
+}
+
+function MosqueIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="M4 20.5h16" />
+      <path d="M6.5 20.5v-8h11v8" />
+      <path d="M8.5 12.5c0-2.4 1.4-4.2 3.5-5.5 2.1 1.3 3.5 3.1 3.5 5.5" />
+      <path d="M12 7V4.5" />
+      <path d="M10.5 4.5h3" />
+      <path d="M3.5 20.5V9.5h2v11" />
+      <path d="M18.5 20.5v-11h2v11" />
+      <path d="M3.5 9.5 4.5 7l1 2.5" />
+      <path d="M18.5 9.5 19.5 7l1 2.5" />
+      <path d="M10.5 20.5v-4a1.5 1.5 0 0 1 3 0v4" />
+    </svg>
+  )
+}
+
 function getHotelLocationPresentation(label: string) {
   const normalizedLabel = label.toLowerCase()
   const isMakkah = normalizedLabel.includes('makkah')
   const isMadinah = normalizedLabel.includes('madinah') || normalizedLabel.includes('medinah')
-  const Icon = isMakkah ? Landmark : isMadinah ? MoonStar : MapPin
+  const Icon = isMakkah ? HolyKaabahIcon : isMadinah ? MosqueIcon : MapPin
   return isMakkah
     ? {
         border: 'border-amber-300',
         header: 'border-amber-200 bg-amber-50',
-        icon: 'bg-amber-600',
+        icon: 'bg-slate-950 text-amber-300',
         eyebrow: 'text-amber-800',
         Icon,
       }
@@ -992,14 +1037,14 @@ function getHotelLocationPresentation(label: string) {
       ? {
           border: 'border-emerald-300',
           header: 'border-emerald-200 bg-emerald-50',
-          icon: 'bg-emerald-700',
+          icon: 'bg-emerald-700 text-white',
           eyebrow: 'text-emerald-800',
           Icon,
         }
       : {
           border: 'border-violet-300',
           header: 'border-violet-200 bg-violet-50',
-          icon: 'bg-violet-800',
+          icon: 'bg-violet-800 text-white',
           eyebrow: 'text-violet-800',
           Icon,
         }
@@ -1012,7 +1057,7 @@ function HotelLocationHeading({ label }: { label: string }) {
   return (
     <div className={`flex items-center gap-3 border-b px-4 py-3 ${tone.header}`}>
       <span
-        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-white ${tone.icon}`}
+        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${tone.icon}`}
       >
         <Icon className="h-5 w-5" />
       </span>
