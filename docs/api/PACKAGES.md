@@ -978,6 +978,26 @@ Voucher is latest released/customer-visible voucher.
 **Errors:** `400` empty token; `404` unavailable; `410` expired; `429`; `503` limiter; `500` document
 query/signing.
 
+### POST `/api/package-portal/extension-request`
+
+Creates a staff task asking for review of customer document-portal access. It never changes the
+access expiry itself.
+
+**Access:** Public with either `Authorization: Bearer <document_access_token>` (expired tokens are
+accepted for this request only) or JSON `reference` plus `lastName`/`last_name`. Five attempts are
+allowed per credential/IP per hour. Token identities are hashed before use in rate-limit keys.
+
+**Input:** Send an empty JSON object with the bearer credential, or JSON `{ reference: string,
+lastName: string }` (with `last_name` also accepted). The body is strict and limited to 2 KiB.
+
+**Success:** `202 { requested: true, alreadyRequested: boolean }`. At most one open,
+in-progress, or blocked `portal_access_extension` task exists for the package. A new task also
+records a `customer_portal_extension_requested` package audit event. Responses are `no-store` and
+do not return package, token, surname, or customer data.
+
+**Errors:** `400` missing/invalid credential; `404` package or surname mismatch; `429`; `503`
+limiter, task lookup, or task creation failure.
+
 Customer safety: package responsibility IDs, phone, selected quote snapshot, internal metadata,
 storage configuration, risk, internal finance, document storage keys/ETags/backup state/internal
 notes, hidden/unreleased documents and invoice lines are excluded. Invoice booked costs/margin/
@@ -1160,6 +1180,31 @@ no_split_note_only`.
 
 **Errors:** `400` invalid JSON/title; `401`; `503` schema represented as
 `{ group: null, setupRequired: true, message }`; `500`.
+
+### PATCH `/api/travel-package-groups`
+
+**Access:** Authenticated staff user.
+
+**Input:** JSON up to 16 KiB with `ids` (at most 100 package-group IDs) and `action` set to
+`archive` or `restore`. Invalid IDs are ignored; at least one valid ID is required.
+
+**Success:** `200 { groups: TravelPackageGroup[], updatedCount: number }`. Archiving stamps
+`archived_at`; restoring clears it.
+
+**Errors:** `400` invalid body, IDs, or action; `401`; missing schema returns `503` with
+`setupRequired: true`; `500`.
+
+### DELETE `/api/travel-package-groups`
+
+**Access:** Staff user with Admin, Master Admin, or Super Admin role.
+
+**Input:** JSON up to 16 KiB with `ids` containing at most 100 package-group IDs. Invalid IDs are
+ignored; at least one valid ID is required.
+
+**Success:** `200 { deletedIds: string[], deletedCount: number }`.
+
+**Errors:** `400` invalid body or IDs; `401`; `403`; missing schema returns `503` with
+`setupRequired: true`; `500`.
 
 ### GET `/api/travel-package-groups/[id]`
 
