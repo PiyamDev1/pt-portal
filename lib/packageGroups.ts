@@ -10,6 +10,7 @@ import type {
   TravelPackageGroupSharedServiceType,
   TravelPackageGroupStatus,
   TravelPackageGroupVisibilityMode,
+  TravelPackageQuote,
 } from '@/app/types/packages'
 
 function comparableFlightText(value: string | null | undefined) {
@@ -138,6 +139,61 @@ export type TravelPackageGroupDetail = TravelPackageGroup & {
       allocations: Array<Record<string, unknown>>
     }
   >
+  customerSharePath?: string | null
+  customerShareQuoteId?: string | null
+  customerShareExpiresAt?: string | null
+}
+
+export type TravelPackageGroupShareQuote = Pick<
+  TravelPackageQuote,
+  'id' | 'share_token' | 'share_enabled' | 'expires_at' | 'status'
+>
+
+export function resolvePackageGroupCustomerShare(
+  group: Pick<TravelPackageGroup, 'lead_quote_id' | 'customer_visibility_mode' | 'status'>,
+  members: Array<Pick<TravelPackageGroupMember, 'quote_id' | 'is_lead_family' | 'sort_order'>>,
+  quotes: TravelPackageGroupShareQuote[],
+) {
+  if (
+    group.customer_visibility_mode === 'private' ||
+    ['archived', 'cancelled'].includes(group.status)
+  ) {
+    return null
+  }
+
+  const now = Date.now()
+  const eligibleQuotes = new Map(
+    quotes
+      .filter((quote) => {
+        const expiresAt = Date.parse(quote.expires_at)
+        return (
+          quote.share_enabled &&
+          Boolean(quote.share_token) &&
+          quote.status !== 'archived' &&
+          Number.isFinite(expiresAt) &&
+          expiresAt > now
+        )
+      })
+      .map((quote) => [quote.id, quote]),
+  )
+
+  const orderedQuoteIds = [
+    group.lead_quote_id,
+    members.find((member) => member.is_lead_family)?.quote_id,
+    ...[...members]
+      .sort((left, right) => left.sort_order - right.sort_order)
+      .map((member) => member.quote_id),
+  ].filter((quoteId): quoteId is string => Boolean(quoteId))
+  const quote = orderedQuoteIds
+    .map((quoteId) => eligibleQuotes.get(quoteId))
+    .find((candidate): candidate is TravelPackageGroupShareQuote => Boolean(candidate))
+
+  if (!quote?.share_token) return null
+  return {
+    quoteId: quote.id,
+    sharePath: `/packages/${quote.share_token}`,
+    expiresAt: quote.expires_at,
+  }
 }
 
 export function isTravelPackageGroupSchemaError(error: unknown) {

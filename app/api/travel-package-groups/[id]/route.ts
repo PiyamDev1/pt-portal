@@ -12,6 +12,7 @@ import type {
 import {
   cleanPackageGroupText,
   isTravelPackageGroupSchemaError,
+  resolvePackageGroupCustomerShare,
   selectTravelPackageGroupAllocationColumns,
   selectTravelPackageGroupColumns,
   selectTravelPackageGroupMemberColumns,
@@ -60,21 +61,38 @@ async function loadGroupDetail(
   const groupMembers = (members.data || []) as unknown as TravelPackageGroupMember[]
   const groupServices = (services.data || []) as unknown as TravelPackageGroupSharedService[]
   const serviceIds = groupServices.map((service) => service.id)
-  const allocations =
+  const quoteIds = groupMembers
+    .map((member) => member.quote_id)
+    .filter((quoteId): quoteId is string => Boolean(quoteId))
+  const [allocations, shareQuotes] = await Promise.all([
     serviceIds.length > 0
-      ? await supabase
+      ? supabase
           .from('travel_package_group_service_allocations')
           .select(selectTravelPackageGroupAllocationColumns())
           .in('shared_service_id', serviceIds)
           .order('created_at', { ascending: true })
-      : { data: [], error: null }
+      : Promise.resolve({ data: [], error: null }),
+    quoteIds.length > 0
+      ? supabase
+          .from('travel_package_quotes')
+          .select('id, share_token, share_enabled, expires_at, status')
+          .in('id', quoteIds)
+      : Promise.resolve({ data: [], error: null }),
+  ])
 
   if (allocations.error) throw allocations.error
+  if (shareQuotes.error) throw shareQuotes.error
   const serviceAllocations = (allocations.data ||
     []) as unknown as TravelPackageGroupServiceAllocation[]
+  const packageGroup = group as unknown as TravelPackageGroup
+  const customerShare = resolvePackageGroupCustomerShare(
+    packageGroup,
+    groupMembers,
+    (shareQuotes.data || []) as unknown as Parameters<typeof resolvePackageGroupCustomerShare>[2],
+  )
 
   return {
-    ...(group as unknown as TravelPackageGroup),
+    ...packageGroup,
     members: groupMembers,
     sharedServices: groupServices.map((service) => ({
       ...service,
@@ -82,6 +100,9 @@ async function loadGroupDetail(
         (allocation) => allocation.shared_service_id === service.id,
       ),
     })),
+    customerSharePath: customerShare?.sharePath || null,
+    customerShareQuoteId: customerShare?.quoteId || null,
+    customerShareExpiresAt: customerShare?.expiresAt || null,
   } as unknown as TravelPackageGroupDetail
 }
 

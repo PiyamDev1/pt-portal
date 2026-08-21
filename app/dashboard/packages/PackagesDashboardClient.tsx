@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   AlertTriangle,
   Archive,
+  ArrowRight,
   CalendarDays,
   CheckCircle2,
   Clock3,
@@ -12,6 +13,7 @@ import {
   Database,
   ExternalLink,
   FileText,
+  FolderKanban,
   Link2,
   Loader2,
   PackageCheck,
@@ -265,7 +267,7 @@ export default function PackagesDashboardClient({
         const [quoteResponse, packageResponse, groupResponse] = await Promise.all([
           fetch('/api/packages'),
           fetch('/api/travel-packages'),
-          fetch('/api/travel-package-groups'),
+          fetch('/api/travel-package-groups?status=all'),
         ])
         const quoteData = (await quoteResponse.json()) as PackagesResponse
         const packageData = (await packageResponse.json()) as TravelPackagesResponse
@@ -317,20 +319,50 @@ export default function PackagesDashboardClient({
     void loadData()
   }, [])
 
+  const groupedQuoteIds = useMemo(() => {
+    const ids = new Set<string>()
+    packageGroups.forEach((group) => {
+      group.members.forEach((member) => {
+        if (member.quote_id) ids.add(member.quote_id)
+      })
+    })
+    return ids
+  }, [packageGroups])
+
   const quoteStats = useMemo(() => {
-    const live = quotes.filter(
+    const standaloneQuotes = quotes.filter((quote) => !groupedQuoteIds.has(quote.id))
+    const liveStandalone = standaloneQuotes.filter(
       (quote) =>
         quote.share_enabled &&
         quote.status === 'shared' &&
         !isPackageQuoteExpired(quote.expires_at),
     ).length
+    const quoteMap = new Map(quotes.map((quote) => [quote.id, quote]))
+    const selectedGroups = packageGroups.filter((group) =>
+      group.members.some((member) =>
+        Boolean(member.quote_id && quoteMap.get(member.quote_id)?.selected_at),
+      ),
+    ).length
+    const expiredGroups = packageGroups.filter((group) => {
+      if (group.status === 'archived' || group.customerSharePath) return false
+      const groupQuotes = group.members
+        .map((member) => (member.quote_id ? quoteMap.get(member.quote_id) : null))
+        .filter((quote): quote is TravelPackageQuote => Boolean(quote))
+      return (
+        groupQuotes.length > 0 &&
+        groupQuotes.every((quote) => isPackageQuoteExpired(quote.expires_at))
+      )
+    }).length
     return {
-      total: quotes.length,
-      live,
-      selected: quotes.filter((quote) => Boolean(quote.selected_at)).length,
-      expired: quotes.filter((quote) => isPackageQuoteExpired(quote.expires_at)).length,
+      live:
+        liveStandalone + packageGroups.filter((group) => Boolean(group.customerSharePath)).length,
+      selected:
+        standaloneQuotes.filter((quote) => Boolean(quote.selected_at)).length + selectedGroups,
+      expired:
+        standaloneQuotes.filter((quote) => isPackageQuoteExpired(quote.expires_at)).length +
+        expiredGroups,
     }
-  }, [quotes])
+  }, [groupedQuoteIds, packageGroups, quotes])
 
   const quoteMatchesView = useCallback(
     (quote: TravelPackageQuote) => {
@@ -362,46 +394,13 @@ export default function PackagesDashboardClient({
 
   const quotationRows = useMemo<QuotationRow[]>(() => {
     const query = searchTerm.trim().toLowerCase()
-    const quoteMap = new Map(quotes.map((quote) => [quote.id, quote]))
-    const groupedQuoteIds = new Set<string>()
-    const groupRows = packageGroups.flatMap((group) => {
-      const groupQuotes = group.members
-        .map((member) => (member.quote_id ? quoteMap.get(member.quote_id) : null))
-        .filter((quote): quote is TravelPackageQuote => Boolean(quote))
-
-      groupQuotes.forEach((quote) => groupedQuoteIds.add(quote.id))
-      const visibleQuotes = groupQuotes.filter(
-        (quote) => quoteMatchesView(quote) && quoteMatchesSearch(quote, query),
-      )
-      const groupMatchesSearch =
-        !query ||
-        [
-          group.title,
-          group.group_reference,
-          ...group.members.flatMap((member) => [
-            member.family_label,
-            member.customer_display_name,
-            member.metadata?.quoteTitle,
-            member.metadata?.customerName,
-            member.metadata?.packageReference,
-          ]),
-        ]
-          .filter(Boolean)
-          .some((value) => String(value).toLowerCase().includes(query))
-
-      if (visibleQuotes.length === 0 && !groupMatchesSearch) return []
-      if (quoteView !== 'all' && visibleQuotes.length === 0) return []
-
-      return [{ type: 'group' as const, group, quotes: groupQuotes }]
-    })
-
     const quoteRows = quotes
       .filter((quote) => !groupedQuoteIds.has(quote.id))
       .filter((quote) => quoteMatchesView(quote) && quoteMatchesSearch(quote, query))
       .map((quote) => ({ type: 'quote' as const, quote }))
 
-    return [...groupRows, ...quoteRows]
-  }, [packageGroups, quoteMatchesView, quoteView, quotes, searchTerm])
+    return quoteRows
+  }, [groupedQuoteIds, quoteMatchesView, quotes, searchTerm])
 
   const filteredPackages = useMemo(() => {
     const query = searchTerm.trim().toLowerCase()
@@ -548,6 +547,25 @@ export default function PackagesDashboardClient({
           {packageSetupMessage}
         </div>
       )}
+
+      <Link
+        href="/dashboard/packages/groups"
+        className="sticky top-2 z-20 flex min-h-14 items-center justify-between gap-4 border-y-4 border-cyan-900 bg-white px-4 py-3 shadow-lg transition hover:bg-cyan-50 sm:rounded-xl sm:border-x"
+      >
+        <span className="flex min-w-0 items-center gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-cyan-900 text-white">
+            <FolderKanban className="h-5 w-5" />
+          </span>
+          <span className="min-w-0">
+            <span className="block text-sm font-black text-cyan-950">See Group Packages</span>
+            <span className="block truncate text-xs font-semibold text-slate-600">
+              {packageGroups.length} linked group{packageGroups.length === 1 ? '' : 's'} kept
+              outside the quotations table
+            </span>
+          </span>
+        </span>
+        <ArrowRight className="h-5 w-5 shrink-0 text-cyan-900" />
+      </Link>
 
       <section className="rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
         <div className="flex gap-1 overflow-x-auto">
@@ -745,14 +763,28 @@ export default function PackagesDashboardClient({
             </div>
           ) : quotationRows.length === 0 ? (
             <div className="mt-5 rounded-lg border border-dashed border-slate-300 p-8 text-center">
-              <p className="text-sm font-bold text-slate-700">No quotations match this view.</p>
-              <Link
-                href="/dashboard/packages/quotations/new"
-                className="mt-4 inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-black text-white transition hover:bg-black"
-              >
-                <Plus className="h-4 w-4" />
-                Create Quote
-              </Link>
+              <p className="text-sm font-bold text-slate-700">
+                No individual quotations match this view.
+              </p>
+              <p className="mt-2 text-sm text-slate-500">
+                Linked quotations are kept together in Group Packages.
+              </p>
+              <div className="mt-4 flex flex-wrap justify-center gap-2">
+                <Link
+                  href="/dashboard/packages/groups"
+                  className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-cyan-200 bg-cyan-50 px-4 text-sm font-black text-cyan-900 transition hover:bg-cyan-100"
+                >
+                  <FolderKanban className="h-4 w-4" />
+                  See Group Packages
+                </Link>
+                <Link
+                  href="/dashboard/packages/quotations/new"
+                  className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-black text-white transition hover:bg-black"
+                >
+                  <Plus className="h-4 w-4" />
+                  Create Quote
+                </Link>
+              </div>
             </div>
           ) : (
             <div className="mt-5 overflow-x-auto">

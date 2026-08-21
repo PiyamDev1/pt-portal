@@ -15,6 +15,7 @@ import {
   CreditCard,
   ExternalLink,
   FileText,
+  FolderKanban,
   Link2,
   PackageCheck,
   Pencil,
@@ -1566,12 +1567,10 @@ export default function PackagesClient({
     if (quoteFilter === 'bin') {
       return binnedQuotes
     }
-    const visibleGroupIds = new Set(
-      packageGroups.filter((group) => group.status !== 'archived').map((group) => group.id),
-    )
+    const linkedGroupIds = new Set(packageGroups.map((group) => group.id))
     return activeQuotes.filter((quote) => {
       const groupId = getQuoteLinkedGroupId(quote)
-      return !groupId || !visibleGroupIds.has(groupId)
+      return !groupId || !linkedGroupIds.has(groupId)
     })
   }, [activeQuotes, binnedQuotes, packageGroups, quoteFilter])
   const quoteTableRows = useMemo<QuoteTableRow[]>(() => {
@@ -1581,26 +1580,13 @@ export default function PackagesClient({
       createdAt: quote.created_at,
       quote,
     }))
-    const groupRows: QuoteTableRow[] =
-      quoteFilter === 'all'
-        ? packageGroups
-            .filter((group) => group.status !== 'archived')
-            .map((group) => ({
-              type: 'group',
-              id: group.id,
-              createdAt: group.created_at,
-              group,
-            }))
-        : []
-
-    return [...quoteRows, ...groupRows].sort(
-      (a, b) => getTimestamp(b.createdAt) - getTimestamp(a.createdAt),
-    )
-  }, [filteredQuotes, packageGroups, quoteFilter])
+    return quoteRows.sort((a, b) => getTimestamp(b.createdAt) - getTimestamp(a.createdAt))
+  }, [filteredQuotes])
   const filteredPackageGroups = useMemo(() => {
     const search = packageGroupSearch.trim().toLowerCase()
-    if (!search) return packageGroups
-    return packageGroups.filter((group) =>
+    const currentGroups = packageGroups.filter((group) => group.status !== 'archived')
+    if (!search) return currentGroups
+    return currentGroups.filter((group) =>
       `${group.group_reference} ${group.title}`.toLowerCase().includes(search),
     )
   }, [packageGroupSearch, packageGroups])
@@ -1845,7 +1831,7 @@ export default function PackagesClient({
     setPackageGroupLoading(true)
     try {
       const [allResponse, linkedResponse] = await Promise.all([
-        fetch('/api/travel-package-groups'),
+        fetch('/api/travel-package-groups?status=all'),
         activeQuote?.id
           ? fetch(`/api/travel-package-groups?quoteId=${activeQuote.id}`)
           : Promise.resolve(null),
@@ -3959,6 +3945,24 @@ export default function PackagesClient({
           </section>
         </aside>
       </div>
+
+      <Link
+        href="/dashboard/packages/groups"
+        className="sticky top-2 z-20 flex min-h-14 items-center justify-between gap-4 border-y-4 border-cyan-900 bg-white px-4 py-3 shadow-lg transition hover:bg-cyan-50 sm:rounded-xl sm:border-x"
+      >
+        <span className="flex min-w-0 items-center gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-cyan-900 text-white">
+            <FolderKanban className="h-5 w-5" />
+          </span>
+          <span className="min-w-0">
+            <span className="block text-sm font-black text-cyan-950">See Group Packages</span>
+            <span className="block truncate text-xs font-semibold text-slate-600">
+              Linked quotations are managed together in the group folder
+            </span>
+          </span>
+        </span>
+        <ExternalLink className="h-4 w-4 shrink-0 text-cyan-900" />
+      </Link>
 
       <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">

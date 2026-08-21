@@ -1,9 +1,88 @@
 import { describe, expect, it } from 'vitest'
 import type { PackageQuotePayload } from '@/app/types/packages'
 import type { TravelPackageGroupDetail } from '@/lib/packageGroups'
-import { buildLinkedPackageGroupSnapshot, copySharedPackageFlights } from '@/lib/packageGroups'
+import {
+  buildLinkedPackageGroupSnapshot,
+  copySharedPackageFlights,
+  resolvePackageGroupCustomerShare,
+} from '@/lib/packageGroups'
 
 describe('package group helpers', () => {
+  it('resolves one canonical live group link and prefers the lead quote', () => {
+    const result = resolvePackageGroupCustomerShare(
+      {
+        lead_quote_id: 'quote-lead',
+        customer_visibility_mode: 'shared_group_view',
+        status: 'active',
+      },
+      [
+        { quote_id: 'quote-other', is_lead_family: false, sort_order: 10 },
+        { quote_id: 'quote-lead', is_lead_family: true, sort_order: 20 },
+      ],
+      [
+        {
+          id: 'quote-other',
+          share_token: 'other-token',
+          share_enabled: true,
+          expires_at: '2099-01-01T00:00:00.000Z',
+          status: 'shared',
+        },
+        {
+          id: 'quote-lead',
+          share_token: 'lead-token',
+          share_enabled: true,
+          expires_at: '2099-01-01T00:00:00.000Z',
+          status: 'shared',
+        },
+      ],
+    )
+
+    expect(result).toEqual({
+      quoteId: 'quote-lead',
+      sharePath: '/packages/lead-token',
+      expiresAt: '2099-01-01T00:00:00.000Z',
+    })
+  })
+
+  it('falls back to another live family quote and disables private group links', () => {
+    const group = {
+      lead_quote_id: 'quote-expired',
+      customer_visibility_mode: 'shared_group_view' as const,
+      status: 'active' as const,
+    }
+    const members = [
+      { quote_id: 'quote-expired', is_lead_family: true, sort_order: 10 },
+      { quote_id: 'quote-live', is_lead_family: false, sort_order: 20 },
+    ]
+    const quotes = [
+      {
+        id: 'quote-expired',
+        share_token: 'expired-token',
+        share_enabled: true,
+        expires_at: '2020-01-01T00:00:00.000Z',
+        status: 'shared' as const,
+      },
+      {
+        id: 'quote-live',
+        share_token: 'live-token',
+        share_enabled: true,
+        expires_at: '2099-01-01T00:00:00.000Z',
+        status: 'shared' as const,
+      },
+    ]
+
+    expect(resolvePackageGroupCustomerShare(group, members, quotes)?.sharePath).toBe(
+      '/packages/live-token',
+    )
+    expect(
+      resolvePackageGroupCustomerShare(
+        { ...group, customer_visibility_mode: 'private' },
+        members,
+        quotes,
+      ),
+    ).toBeNull()
+  })
+
   it('copies shared flight structure while preserving matching family seat prices', () => {
     const source = {
       flightOptions: [
