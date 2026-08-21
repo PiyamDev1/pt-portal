@@ -1181,6 +1181,31 @@ no_split_note_only`.
 **Errors:** `400` invalid JSON/title; `401`; `503` schema represented as
 `{ group: null, setupRequired: true, message }`; `500`.
 
+### PATCH `/api/travel-package-groups`
+
+**Access:** Authenticated staff user.
+
+**Input:** JSON up to 16 KiB with `ids` (at most 100 package-group IDs) and `action` set to
+`archive` or `restore`. Invalid IDs are ignored; at least one valid ID is required.
+
+**Success:** `200 { groups: TravelPackageGroup[], updatedCount: number }`. Archiving stamps
+`archived_at`; restoring clears it.
+
+**Errors:** `400` invalid body, IDs, or action; `401`; missing schema returns `503` with
+`setupRequired: true`; `500`.
+
+### DELETE `/api/travel-package-groups`
+
+**Access:** Staff user with Admin, Master Admin, or Super Admin role.
+
+**Input:** JSON up to 16 KiB with `ids` containing at most 100 package-group IDs. Invalid IDs are
+ignored; at least one valid ID is required.
+
+**Success:** `200 { deletedIds: string[], deletedCount: number }`.
+
+**Errors:** `400` invalid body or IDs; `401`; `403`; missing schema returns `503` with
+`setupRequired: true`; `500`.
+
 ### GET `/api/travel-package-groups/[id]`
 
 **Access:** Authenticated user.

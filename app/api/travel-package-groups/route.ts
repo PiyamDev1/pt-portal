@@ -1,5 +1,7 @@
 import { NextRequest } from 'next/server'
+import { z } from 'zod'
 import { apiError, apiOk } from '@/lib/api/http'
+import { parseBodyWithSchema } from '@/lib/api/request'
 import { getRouteSupabaseClient } from '@/lib/api/serverSupabase'
 import { requireStaffSession } from '@/lib/auth/staffSession'
 import type { TravelPackageGroup, TravelPackageGroupStatus } from '@/app/types/packages'
@@ -20,6 +22,20 @@ type GroupsResponse = {
 const PACKAGE_GROUP_DELETE_ROLES = ['Admin', 'Master Admin', 'Super Admin']
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const MAX_BULK_GROUPS = 100
+const MAX_BULK_BODY_BYTES = 16 * 1024
+
+const bulkGroupUpdateSchema = z
+  .object({
+    ids: z.array(z.unknown()).max(MAX_BULK_GROUPS),
+    action: z.unknown().optional(),
+  })
+  .passthrough()
+
+const bulkGroupDeleteSchema = z
+  .object({
+    ids: z.array(z.unknown()).max(MAX_BULK_GROUPS),
+  })
+  .passthrough()
 
 function cleanBoolean(value: unknown) {
   return value === true || value === 'true'
@@ -118,7 +134,9 @@ export async function PATCH(request: NextRequest) {
   const access = await requireStaffSession()
   if (!access.authorized) return access.response
 
-  const body = (await request.json().catch(() => null)) as Record<string, unknown> | null
+  const { data: body } = await parseBodyWithSchema(request, bulkGroupUpdateSchema, {
+    maxBytes: MAX_BULK_BODY_BYTES,
+  })
   if (!body) return apiError('Invalid JSON body', 400)
   const ids = cleanGroupIds(body.ids)
   if (ids.length === 0) return apiError('Select at least one valid package group', 400)
@@ -166,7 +184,9 @@ export async function DELETE(request: NextRequest) {
   const access = await requireStaffSession({ roles: PACKAGE_GROUP_DELETE_ROLES })
   if (!access.authorized) return access.response
 
-  const body = (await request.json().catch(() => null)) as Record<string, unknown> | null
+  const { data: body } = await parseBodyWithSchema(request, bulkGroupDeleteSchema, {
+    maxBytes: MAX_BULK_BODY_BYTES,
+  })
   if (!body) return apiError('Invalid JSON body', 400)
   const ids = cleanGroupIds(body.ids)
   if (ids.length === 0) return apiError('Select at least one valid package group', 400)
